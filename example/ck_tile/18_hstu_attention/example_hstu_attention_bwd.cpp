@@ -796,17 +796,24 @@ bool run_no_group_hstu_forward_backward(const ck_tile::ArgParser& arg_parser, bo
     {
         ck_tile::gpu_timer timer{};
 
+        if constexpr(std::is_same<InOutDataType, ck_tile::fp16_t>::value)
+        {
+            hstu_attention_no_group_forward_fp16(params_fwd, stream);
+        }
+        else if constexpr(std::is_same<InOutDataType, ck_tile::bf16_t>::value)
+        {
+            hstu_attention_no_group_forward_bf16(params_fwd, stream);
+        }
+
         timer.start(stream);
         for(int i = 0; i < 10; i++)
         {
             if constexpr(std::is_same<InOutDataType, ck_tile::fp16_t>::value)
             {
-                hstu_attention_no_group_forward_fp16(params_fwd, stream);
                 hstu_attention_no_group_backward_fp16(params_bwd, stream);
             }
             else if constexpr(std::is_same<InOutDataType, ck_tile::bf16_t>::value)
             {
-                hstu_attention_no_group_forward_bf16(params_fwd, stream);
                 hstu_attention_no_group_backward_bf16(params_bwd, stream);
             }
         }
@@ -1422,17 +1429,24 @@ bool run_group_hstu_forward_backward(const ck_tile::ArgParser& arg_parser, int n
     {
         ck_tile::gpu_timer timer{};
 
+        if constexpr(std::is_same<InOutDataType, ck_tile::fp16_t>::value)
+        {
+            hstu_attention_group_forward_fp16(params_fwd, stream);
+        }
+        else if constexpr(std::is_same<InOutDataType, ck_tile::bf16_t>::value)
+        {
+            hstu_attention_group_forward_bf16(params_fwd, stream);
+        }
+
         timer.start(stream);
         for(int i = 0; i < 10; i++)
         {
             if constexpr(std::is_same<InOutDataType, ck_tile::fp16_t>::value)
             {
-                hstu_attention_group_forward_fp16(params_fwd, stream);
                 hstu_attention_group_backward_fp16(params_bwd, stream);
             }
             else if constexpr(std::is_same<InOutDataType, ck_tile::bf16_t>::value)
             {
-                hstu_attention_group_forward_bf16(params_fwd, stream);
                 hstu_attention_group_backward_bf16(params_bwd, stream);
             }
         }
