@@ -374,6 +374,66 @@ struct FmhaBwdWorkspaceManager
         }
     }
 
+    // On-device counterpart of PrepareWorkspaceHost: writes the same nsplits[]/offsets[]
+    // metadata directly into the device workspace, avoiding the host-callback + D2H/H2D
+    // round trip (which is illegal under HIP graph capture). Intended to be launched as a
+    // single thread; the metadata is a few ints plus a serial per-batch scan. Unlike the
+    // host version it takes num_cus as an argument (the device has no get_num_cus()) and
+    // does not return the device size (the caller sizes the workspace from an upper bound).
+    template <index_t kN0>
+    CK_TILE_DEVICE static void
+    PrepareWorkspaceDevice(void* gpu_ws,
+                           index_t batch_size,
+                           index_t hdim_q,
+                           index_t nhead_q,
+                           index_t seqlen_q, // only for batch mode
+                           index_t seqlen_k, // only for deterministic batch mode
+                           index_t num_cus,  // host-supplied get_num_cus(), persistent mode only
+                           const index_t* seqstart_qs = nullptr,
+                           const index_t* seqstart_ks = nullptr)
+    {
+        // Only ever launched for the workspace-bearing pipelines; kUseQrQtrDorPipeline is
+        // always false here, so the metadata region starts at offset 0.
+        const auto nsplits = reinterpret_cast<index_t*>(gpu_ws);
+
+        if constexpr(!kIsDeterministic)
+        {
+            nsplits[0] = 1;
+        }
+        else if constexpr(kIsGroupMode)
+        { // deterministic group mode
+            // Metadata layout mirrors GetDqAccOffsetsOffset (host): the offsets array
+            // follows the 16B-aligned nsplits[batch] array. Recomputed inline here because
+            // the host offset helpers are not device-callable.
+            const size_t splits_bytes = sizeof(index_t) * static_cast<size_t>(batch_size);
+            const size_t splits_size  = (splits_bytes + ALIGNMENT - 1) / ALIGNMENT * ALIGNMENT;
+            auto* offsets =
+                reinterpret_cast<long_index_t*>(reinterpret_cast<char*>(gpu_ws) + splits_size);
+            offsets[0] = 0;
+            index_t i  = 0;
+            for(; i < batch_size - 1; ++i)
+            {
+                nsplits[i]     = integer_divide_ceil(seqstart_ks[i + 1] - seqstart_ks[i], kN0);
+                offsets[i + 1] = offsets[i] + static_cast<long_index_t>(nhead_q) * nsplits[i] *
+                                                  (seqstart_qs[i + 1] - seqstart_qs[i]) * hdim_q;
+            }
+            nsplits[i] = integer_divide_ceil(seqstart_ks[i + 1] - seqstart_ks[i], kN0);
+        }
+        else // deterministic non-group mode (kUsePersistent)
+        {
+            const index_t dqdqkdv_workers = num_cus;
+            const index_t jobs_per_head   = integer_divide_ceil(seqlen_k, kN0);
+            const index_t total_jobs      = batch_size * nhead_q * jobs_per_head;
+            const index_t jobs_per_worker = integer_divide_ceil(total_jobs, dqdqkdv_workers);
+            if(jobs_per_head % jobs_per_worker == 0)
+                nsplits[0] = jobs_per_head / jobs_per_worker;
+            else if(jobs_per_worker % jobs_per_head == 0)
+                nsplits[0] = 1;
+            else
+                nsplits[0] = 1 + integer_divide_ceil(jobs_per_head - 1, jobs_per_worker);
+        }
+    }
+
     template <bool kUseQrQtrDorPipeline, bool kHasMask>
     CK_TILE_HOST static constexpr bool NeedsZeroDqAcc()
     {
@@ -435,6 +495,72 @@ struct FmhaBwdWorkspaceManager
 
         return sizeof(AccDataType) * static_cast<long_index_t>(nhead_q) * nsplits_factor *
                total_seqlen_q_padded * hdim_q;
+    }
+};
+
+// Tiny single-thread kernel that populates the workspace metadata region on-device via
+// FmhaBwdWorkspaceManager::PrepareWorkspaceDevice. Launched (grid=1, block=1) on the same
+// stream as the backward kernels; fully stream-capturable.
+template <typename AccDataType, bool kIsGroupMode, bool kIsDeterministic, index_t kN0>
+struct FmhaBwdPrepareWorkspaceKernel
+{
+    using WorkspaceManager = FmhaBwdWorkspaceManager<AccDataType, kIsGroupMode, kIsDeterministic>;
+
+    // Single-thread launch; required by the kernel_launch.hpp __launch_bounds__ machinery.
+    static constexpr index_t kBlockSize  = 1;
+    static constexpr index_t kBlockPerCu = 1;
+
+    struct Kargs
+    {
+        void* gpu_ws;
+        index_t batch_size;
+        index_t hdim_q;
+        index_t nhead_q;
+        index_t seqlen_q;
+        index_t seqlen_k;
+        index_t num_cus;
+        const index_t* seqstart_qs;
+        const index_t* seqstart_ks;
+    };
+
+    CK_TILE_HOST static constexpr Kargs MakeKargs(void* gpu_ws,
+                                                  index_t batch_size,
+                                                  index_t hdim_q,
+                                                  index_t nhead_q,
+                                                  index_t seqlen_q,
+                                                  index_t seqlen_k,
+                                                  index_t num_cus,
+                                                  const index_t* seqstart_qs,
+                                                  const index_t* seqstart_ks)
+    {
+        return Kargs{gpu_ws,
+                     batch_size,
+                     hdim_q,
+                     nhead_q,
+                     seqlen_q,
+                     seqlen_k,
+                     num_cus,
+                     seqstart_qs,
+                     seqstart_ks};
+    }
+
+    CK_TILE_HOST static constexpr auto GridSize() { return dim3(1); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(1); }
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 0; }
+
+    CK_TILE_DEVICE void operator()(Kargs kargs) const
+    {
+        if(threadIdx.x != 0 || blockIdx.x != 0)
+            return;
+        WorkspaceManager::template PrepareWorkspaceDevice<kN0>(kargs.gpu_ws,
+                                                              kargs.batch_size,
+                                                              kargs.hdim_q,
+                                                              kargs.nhead_q,
+                                                              kargs.seqlen_q,
+                                                              kargs.seqlen_k,
+                                                              kargs.num_cus,
+                                                              kargs.seqstart_qs,
+                                                              kargs.seqstart_ks);
     }
 };
 
