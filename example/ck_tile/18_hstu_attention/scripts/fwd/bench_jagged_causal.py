@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Benchmark HSTU attention forward for jagged causal+local cases.
+"""Benchmark HSTU attention forward for jagged causal cases.
 
-Python port of bench_jagged_causal_local.sh, keeping the same functionality and
+Python port of bench_jagged_causal.sh, keeping the same functionality and
 argument list:
 
-    bench_jagged_causal_local.py [use_softmax]
+    bench_jagged_causal.py [use_softmax]
 
 The single optional positional argument defaults to 0, matching the original
 shell script. When it is 1 the base binary is invoked with an extra
@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 BUILD = "build"
-BIN = f"{BUILD}/bin/tile_example_hstu_attention"
+BIN = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 
 # Per-batch sequence-length lists, stored comma-joined (the shell script builds
 # these from space-separated lists via its add_comma helper).
@@ -25,16 +25,15 @@ SL2048 = "34,822,1581,415,1458,408,1897,968,176,640,1148,623,521,1734,135,874,66
 SL4096 = "1497,2516,3179,2891,190,3572,640,3025,464,1824,712,1519,2727,2621,1135,704,1752,1665,384,1796,2567,2329,1926,2911,3787,2185,17,898,2186,3725,719,1515"
 SL8192 = "4571,3202,270,1540,8169,3365,6055,7181,2942,4213,2717,3593,7748,4646,5502,4489,6525,2481,7397,2983,5667,1003,7926,3659,6129,6647,3758,6244,4175,2327,849,5261"
 SL16384 = "6956,7177,338,13755,10382,13392,10150,15592,15929,5256,6825,3804,5197,13415,14099,12418,13772,13659,5998,3715,9862,9183,11826,12964,6041,6712,12846,475,4672,7690,12280,10175"
-SL32768 = "28810,1574,80,24581,32298,19576,8028,25764,16544,14321,22771,7622,21090,27370,15921,5841,5458,23228,23619,17897,11996,31636,23183,20444,26332,7742,3418,9181,4750,18744,5201,2019"
 
 
-def run(exe, dtype, num_batch, num_head, hdim, seqlens, window_size, target):
+def run(exe, dtype, num_batch, num_head, hdim, seqlens, causal, target):
     """Build and execute a single benchmark case, echoing it (like set -x)."""
     cmd = (
         exe
         + ["-v=0", f"-prec={dtype}", f"-b={num_batch}", "-jagged=1",
            f"-nhead={num_head}", f"-hdim_qk={hdim}", f"-hdim_v={hdim}",
-           f"-seqlens={seqlens}", "-causal=1", f"-local_len={window_size}",
+           f"-seqlens={seqlens}", f"-causal={causal}", "-local_len=0",
            "-context_len=0", "-minfull_len=0", f"-targets={target}", "-perf=1"]
     )
 
@@ -45,7 +44,7 @@ def run(exe, dtype, num_batch, num_head, hdim, seqlens, window_size, target):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Benchmark HSTU attention forward jagged causal+local.")
+        description="Benchmark HSTU attention forward jagged causal cases.")
     parser.add_argument("use_softmax", nargs="?", type=int, default=0,
                         help="use softmax variant (default: 0)")
     args = parser.parse_args()
@@ -59,21 +58,18 @@ def main():
     hdim = 128
     num_batch = 32
     num_head = 4
-    window_size = 5
     target = 20
 
-    seqlens_lists = (SL1024, SL2048, SL4096, SL8192, SL16384, SL32768)
-
     rc = 0
-    for idx, seqlens in enumerate(seqlens_lists):
-        ret = run(exe, dtype, num_batch, num_head, hdim, seqlens,
-                  window_size, target)
+    for seqlens in (SL1024, SL2048, SL4096, SL8192, SL16384):
+        ret = run(exe, dtype, num_batch, num_head, hdim, seqlens, 0, target)
         if ret != 0:
             rc = ret
-        # The shell script prints a blank line after each command except the
-        # last one.
-        if idx != len(seqlens_lists) - 1:
-            print("")
+        print("")
+        ret = run(exe, dtype, num_batch, num_head, hdim, seqlens, 1, target)
+        if ret != 0:
+            rc = ret
+        print("")
 
     return rc
 

@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 BUILD = "build"
-EXE = f"{BUILD}/bin/tile_example_hstu_attention"
+EXE = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 
 
 def run(exe_prefix, dtype, ndist, **kwargs):

@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 BUILD = "build"
-BIN = f"{BUILD}/bin/tile_example_hstu_attention"
+BIN = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 
 LOCAL_LEN = 256
 MINFULL_LEN = 0

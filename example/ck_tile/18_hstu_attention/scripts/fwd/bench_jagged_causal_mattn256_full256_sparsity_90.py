@@ -145,7 +145,7 @@ def main():
                         help="use softmax (default: 0)")
     args = parser.parse_args()
 
-    binary = f"{BUILD}/bin/tile_example_hstu_attention"
+    binary = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
     if args.use_softmax == 1:
         exe_prefix = [binary, "-softmax=1"]
     else:

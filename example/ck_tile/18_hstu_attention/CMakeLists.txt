@@ -1,4 +1,4 @@
-set(EXAMPLE_HSTU_ATTENTION "tile_example_hstu_attention")
+set(EXAMPLE_HSTU_ATTENTION "tile_example_hstu_attention_fwd")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
 message("adding example ${EXAMPLE_HSTU_ATTENTION}")

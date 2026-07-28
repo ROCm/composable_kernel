@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 BUILD = "build"
-BIN = f"{BUILD}/bin/tile_example_hstu_attention"
+BIN = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 
 
 def run(exe, dtype, seqlen, jagged):

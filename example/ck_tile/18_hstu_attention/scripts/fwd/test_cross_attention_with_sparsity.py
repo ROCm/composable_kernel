@@ -1,30 +1,35 @@
 #!/usr/bin/env python3
-"""Benchmark HSTU forward cross-attention with sparsity.
+"""Run the HSTU cross-attention forward sparsity tests.
 
-Python port of bench_cross_attention_with_sparsity.sh, keeping the same
+Python port of test_cross_attention_with_sparsity.sh, keeping the same
 functionality and argument list:
 
-    bench_cross_attention_with_sparsity.py [use_softmax]
+    test_cross_attention_with_sparsity.py [USE_SOFTMAX]
 
-The single optional positional argument defaults to 0, matching the original
-shell script. When it is 1, the executable is run with an extra "-softmax=1"
-flag.
+USE_SOFTMAX is an optional positional argument and defaults to 0, matching the
+original shell script. When USE_SOFTMAX==1, -softmax=1 is added to the EXE
+prefix (which already contains -v=1). The Training value is read from the
+TEST_HSTU_FWD_TRAINING environment variable (default 0).
 
-The benchmark cases were generated using sparsity = 0.95.
+The test cases are generated using sparsity = 0.95. For each batch size the
+five max_target configurations use a batch-specific targets list, and each
+configuration is run over the shared list of kv sequence lengths.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 
 BUILD = "build"
+BINARY = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 
-# Shared kv seqlens used by every case.
-SEQLENS_KV = [1022, 2044, 4088, 6132, 8176, 16352]
+# Shared kv sequence lengths, run for every (batch, targets) configuration.
+KV_SEQLENS = [1022, 2044, 4088, 6132, 8176, 16352]
 
-# Per-batch, the five comma-separated target lists (one per max_target config:
-# 32, 128, 160, 256, 300). Each list length equals the batch size.
-TGTS = {
+# Batch size -> list of five max_target targets lists (order: 32, 128, 160,
+# 256, 300), taken verbatim from the shell script.
+BATCH_TGTS = {
     4: [
         "13,20,3,15",
         "87,4,117,115",
@@ -58,15 +63,14 @@ TGTS = {
 BATCHES = [4, 8, 16, 32]
 
 
-def run(exe, dtype, batch, seqlens_kv, tgts):
-    """Build and execute a single benchmark case, echoing the command (set -x)."""
+def run(exe, batch, kv, tgts):
+    """Build and execute a single test case, echoing the command (like set -x)."""
     cmd = (
         exe
-        + [f"-prec={dtype}", f"-b={batch}", "-jagged=1", "-nhead=4",
-           "-hdim_qk=128", "-hdim_v=128", "-seqlens=128",
-           f"-seqlens_kv={seqlens_kv}", "-causal=0", "-local_len=0",
-           "-context_len=0", "-minfull_len=0", f"-targets={tgts}",
-           "-attn_scale=0", "-norm_dist=0"]
+        + ["-prec=bf16", f"-b={batch}", "-jagged=1", "-nhead=4",
+           "-hdim_qk=128", "-hdim_v=128", "-seqlens=128", f"-seqlens_kv={kv}",
+           "-causal=0", "-local_len=0", "-context_len=0", "-minfull_len=0",
+           f"-targets={tgts}", "-attn_scale=0", "-norm_dist=0"]
     )
 
     print("+ " + " ".join(cmd), flush=True)
@@ -76,22 +80,23 @@ def run(exe, dtype, batch, seqlens_kv, tgts):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Benchmark HSTU forward cross-attention with sparsity.")
+        description="Run HSTU cross-attention forward sparsity tests.")
     parser.add_argument("use_softmax", nargs="?", type=int, default=0,
                         help="use softmax (default: 0)")
     args = parser.parse_args()
 
-    exe = [f"{BUILD}/bin/tile_example_hstu_attention", "-v=0", "-perf=1"]
-    if args.use_softmax == 1:
-        exe.append("-softmax=1")
+    training = os.environ.get("TEST_HSTU_FWD_TRAINING", "0")
 
-    dtype = "bf16"
+    if args.use_softmax == 1:
+        exe = [BINARY, "-v=1", "-softmax=1", f"-training={training}"]
+    else:
+        exe = [BINARY, "-v=1", f"-training={training}"]
 
     rc = 0
     for batch in BATCHES:
-        for tgts in TGTS[batch]:
-            for kv in SEQLENS_KV:
-                ret = run(exe, dtype, batch, kv, tgts)
+        for tgts in BATCH_TGTS[batch]:
+            for kv in KV_SEQLENS:
+                ret = run(exe, batch, kv, tgts)
                 if ret != 0:
                     rc = ret
 

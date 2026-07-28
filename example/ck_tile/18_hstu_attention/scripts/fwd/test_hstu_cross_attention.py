@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 BUILD = "build"
-BINARY = f"{BUILD}/bin/tile_example_hstu_attention"
+BINARY = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 
 
 def run(exe, dtype, **kwargs):

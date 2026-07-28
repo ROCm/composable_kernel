@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 BUILD = "build"
-EXE = f"{BUILD}/bin/tile_example_hstu_attention"
+EXE = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 
 MASK_FILE = "ck_hstu_mask.dat"
 

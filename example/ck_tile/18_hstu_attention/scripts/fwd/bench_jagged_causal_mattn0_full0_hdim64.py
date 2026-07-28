@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Benchmark HSTU attention forward, jagged causal, mattn256 full256, hdim64.
+"""Benchmark HSTU attention forward, jagged causal, mattn0 full0, hdim64.
 
-Python port of bench_jagged_causal_mattn256_full256_hdim64.sh, keeping the same
+Python port of bench_jagged_causal_mattn0_full0_hdim64.sh, keeping the same
 functionality and argument list:
 
-    bench_jagged_causal_mattn256_full256_hdim64.py [use_softmax]
+    bench_jagged_causal_mattn0_full0_hdim64.py [use_softmax]
 
 The optional positional argument use_softmax defaults to 0, matching the
 original shell script. The environment variable TEST_HSTU_FWD_TRAINING
@@ -25,7 +25,7 @@ def run(exe_prefix, dtype, b, seqlens, targets):
         exe_prefix
         + ["-v=0", f"-prec={dtype}", f"-b={b}", "-jagged=1", "-nhead=4",
            "-hdim_qk=64", "-hdim_v=64", f"-seqlens={seqlens}", "-causal=1",
-           "-local_len=256", "-context_len=0", "-minfull_len=256",
+           "-local_len=0", "-context_len=0", "-minfull_len=0",
            f"-targets={targets}", "-max_target=20", "-perf=1", "-alpha=2.0"]
     )
     print("+ " + " ".join(cmd), flush=True)
@@ -36,14 +36,14 @@ def run(exe_prefix, dtype, b, seqlens, targets):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Benchmark HSTU attention forward (jagged causal mattn256 full256 hdim64).")
+        description="Benchmark HSTU attention forward (jagged causal mattn0 full0 hdim64).")
     parser.add_argument("use_softmax", nargs="?", type=int, default=0,
                         help="use softmax (default: 0)")
     args = parser.parse_args()
 
     training = os.environ.get("TEST_HSTU_FWD_TRAINING", "0")
 
-    binary = f"{BUILD}/bin/tile_example_hstu_attention"
+    binary = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
     if args.use_softmax == 1:
         exe_prefix = [binary, "-softmax=1", f"-training={training}"]
     else:
