@@ -186,9 +186,9 @@ struct batched_forward_dispatch
         dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
-        (void)ck_tile::launch_kernel(ck_tile::stream_config{stream, false},
-                                     ck_tile::make_kernel<kBlockSize.x, kBlockPerCu>(
-                                         HstuKernel{}, kGridSize, kBlockSize, 0, kargs));
+        (void)ck_tile::launch_kernel(
+            ck_tile::stream_config{stream, false},
+            ck_tile::make_kernel<kBlockPerCu>(HstuKernel{}, kGridSize, kBlockSize, 0, kargs));
     };
 };
 
