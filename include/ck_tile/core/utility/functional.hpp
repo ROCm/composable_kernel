@@ -199,38 +199,79 @@ struct index_decomposer<sequence<Ls...>, sequence<Is...>>
                                           lengths[inverse_perm<New2Old>::value[Is]])...>;
 };
 
-// Calls f(decompose<I>{}) for each linear index I in the pack, using a single
-// fold expression. Bypasses the static_for lambda entirely, eliminating M*N
-// intermediate lambda closure instantiations that the lambda-based approach creates.
-template <class Decomposer, class LinearIdxSeq>
-struct ford_applier;
+// Emits the InnerSize calls f(decompose<OuterBase + j>{}) for j in [0, InnerSize)
+// as one fold expression. This is the inner block belonging to a single outer
+// (slowest-varying) index. Keeping it in its own struct operator() gives the
+// backend a per-outer-dimension scope boundary.
+template <class Decomposer, index_t OuterBase, class InnerIdxSeq>
+struct ford_applier_group;
 
-template <class Decomposer, index_t... LinearIds>
-struct ford_applier<Decomposer, sequence<LinearIds...>>
+template <class Decomposer, index_t OuterBase, index_t... Js>
+struct ford_applier_group<Decomposer, OuterBase, sequence<Js...>>
 {
     template <class F>
     CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
     {
-        if constexpr(sizeof...(LinearIds) > 0)
+        (f(typename Decomposer::template decompose<OuterBase + Js>{}), ...);
+    }
+};
+
+// Calls f(decompose<I>{}) for each linear index I in [0, OuterSize*InnerSize),
+// but grouped by the outer (slowest-varying) dimension: the InnerSize indices of
+// each outer index are emitted inside their own ford_applier_group scope, instead
+// of one flat fold over the whole linearized range. This reintroduces the
+// per-outer-dimension scoping barrier of the original recursive static_ford, so
+// the backend does not schedule the entire tile as one straight-line region
+// (which raises peak VGPR pressure and can force scratch spilling). It still
+// avoids the per-iteration lambda-closure instantiations of the lambda approach.
+template <class Decomposer, index_t InnerSize, class OuterIdxSeq>
+struct ford_applier;
+
+template <class Decomposer, index_t InnerSize, index_t... Os>
+struct ford_applier<Decomposer, InnerSize, sequence<Os...>>
+{
+    template <class F>
+    CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
+    {
+        if constexpr(sizeof...(Os) > 0)
         {
-            (f(typename Decomposer::template decompose<LinearIds>{}), ...);
+            (ford_applier_group<Decomposer, Os * InnerSize, make_index_sequence<InnerSize>>{}(f),
+             ...);
         }
     }
 };
 
-// Same as ford_applier but applies reordering during decomposition.
-template <class Decomposer, class New2Old, class LinearIdxSeq>
-struct ford_applier_reordered;
+// Same as ford_applier_group but applies reordering during decomposition.
+template <class Decomposer, class New2Old, index_t OuterBase, class InnerIdxSeq>
+struct ford_applier_reordered_group;
 
-template <class Decomposer, class New2Old, index_t... LinearIds>
-struct ford_applier_reordered<Decomposer, New2Old, sequence<LinearIds...>>
+template <class Decomposer, class New2Old, index_t OuterBase, index_t... Js>
+struct ford_applier_reordered_group<Decomposer, New2Old, OuterBase, sequence<Js...>>
 {
     template <class F>
     CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
     {
-        if constexpr(sizeof...(LinearIds) > 0)
+        (f(typename Decomposer::template decompose_reordered<OuterBase + Js, New2Old>{}), ...);
+    }
+};
+
+// Same as ford_applier but applies reordering during decomposition.
+template <class Decomposer, class New2Old, index_t InnerSize, class OuterIdxSeq>
+struct ford_applier_reordered;
+
+template <class Decomposer, class New2Old, index_t InnerSize, index_t... Os>
+struct ford_applier_reordered<Decomposer, New2Old, InnerSize, sequence<Os...>>
+{
+    template <class F>
+    CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
+    {
+        if constexpr(sizeof...(Os) > 0)
         {
-            (f(typename Decomposer::template decompose_reordered<LinearIds, New2Old>{}), ...);
+            (ford_applier_reordered_group<Decomposer,
+                                          New2Old,
+                                          Os * InnerSize,
+                                          make_index_sequence<InnerSize>>{}(f),
+             ...);
         }
     }
 };
@@ -260,6 +301,14 @@ struct static_ford
                            remove_cvref_t<decltype(Lengths::reorder_new_to_old(Orders{}))>>;
     using Decomposer = detail::index_decomposer<OrderedLengths, make_index_sequence<n_dim>>;
 
+    // Split the iteration space into outer (slowest-varying dimension) groups of
+    // inner_size each. Iterations are emitted grouped per outer index rather than
+    // fully linearized, so the backend keeps a per-outer-dimension scope boundary
+    // (limiting peak register pressure) while retaining the compile-time win of
+    // no per-iteration lambda closures.
+    static constexpr index_t outer_size = OrderedLengths::front();
+    static constexpr index_t inner_size = outer_size > 0 ? total_size / outer_size : 0;
+
     CK_TILE_HOST_DEVICE constexpr static_ford()
     {
         static_assert(Lengths::size() > 0, "wrong! Lengths is empty");
@@ -271,12 +320,14 @@ struct static_ford
     {
         if constexpr(is_identity_order)
         {
-            detail::ford_applier<Decomposer, make_index_sequence<total_size>>{}(f);
+            detail::ford_applier<Decomposer, inner_size, make_index_sequence<outer_size>>{}(f);
         }
         else
         {
-            detail::ford_applier_reordered<Decomposer, Orders, make_index_sequence<total_size>>{}(
-                f);
+            detail::ford_applier_reordered<Decomposer,
+                                           Orders,
+                                           inner_size,
+                                           make_index_sequence<outer_size>>{}(f);
         }
     }
 };
