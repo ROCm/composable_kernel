@@ -571,6 +571,8 @@ using GemmMultiDArgs = {ns_name}::GemmMultiDArgs;
 #define GEMM_KEY_NUM_D_TENSORS {config.num_d_tensors}
 #define GEMM_KEY_ELEMENTWISE_OP "{config.elementwise_op}"
 #define GEMM_KEY_D_LAYOUT "{config.d_layout}"
+"""
+
     def _multi_abd_types(self, config: KernelConfig) -> str:
         """Generate multi-ABD type definitions (inside namespace to avoid conflicts).
 

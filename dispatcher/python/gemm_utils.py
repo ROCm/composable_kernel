@@ -1241,6 +1241,63 @@ class GpuMultiDGemmRunner:
         names = self.lib.kernel_names
         self._kernel_name = names[0] if names else "unknown"
         self._num_d = self.lib.num_d_tensors()
+
+    @property
+    def kernel_name(self) -> str:
+        return self._kernel_name
+
+    @property
+    def num_d_tensors(self) -> int:
+        return self._num_d
+
+    def run(
+        self,
+        A: np.ndarray,
+        B: np.ndarray,
+        Ds: List[np.ndarray],
+        problem: MultiDGemmProblem,
+    ) -> MultiDGemmResult:
+        M, N, K = problem.M, problem.N, problem.K
+        dtype = _dtype_from_kernel_name(self._kernel_name)
+        layout4 = _multi_d_layout_from_kernel_name(self._kernel_name)
+        la, lb, lc, ld = layout4[0], layout4[1], layout4[2], layout4[3]
+
+        if dtype != "fp16":
+            raise ValueError(f"multi_d bridge currently supports fp16 only, got {dtype}")
+        if len(Ds) != self._num_d:
+            raise ValueError(
+                f"kernel expects {self._num_d} D tensors, got {len(Ds)}"
+            )
+
+        # A/B host buffers, transposed for column-major operands (see GpuGemmRunner).
+        A_lay = A if la == "r" else A.T
+        B_lay = B if lb == "r" else B.T
+        A_h = np.ascontiguousarray(A_lay, dtype=np.float16)
+        B_h = np.ascontiguousarray(B_lay, dtype=np.float16)
+
+        # C and D are row-major (last two layout chars are 'r' for the TE
+        # multi_d builder); keep them MxN contiguous.
+        C_shape = (M, N) if lc == "r" else (N, M)
+        C_h = np.zeros(C_shape, dtype=np.float16)
+        D_h = []
+        for d in Ds:
+            d_lay = d if ld == "r" else d.T
+            D_h.append(np.ascontiguousarray(d_lay, dtype=np.float16))
+
+        status, time_ms = self.lib.run_multi_d(A_h, B_h, D_h, C_h, M, N, K)
+
+        C_out = C_h if lc == "r" else C_h.T
+        tflops = (problem.flops / (time_ms * 1e-3)) / 1e12 if time_ms > 0 else 0.0
+        return MultiDGemmResult(
+            output=C_out,
+            time_ms=time_ms,
+            status=status,
+            tflops=tflops,
+            kernel_name=self._kernel_name,
+        )
+
+
+# ============================================================================
 # Multi-ABD ctypes ABI wrapper + runner (divergent, array-pointer ABI)
 # ============================================================================
 
@@ -1504,50 +1561,6 @@ class GpuMultiABDRunner:
     def kernel_name(self) -> str:
         return self._kernel_name
 
-    @property
-    def num_d_tensors(self) -> int:
-        return self._num_d
-
-    def run(
-        self,
-        A: np.ndarray,
-        B: np.ndarray,
-        Ds: List[np.ndarray],
-        problem: MultiDGemmProblem,
-    ) -> MultiDGemmResult:
-        M, N, K = problem.M, problem.N, problem.K
-        dtype = _dtype_from_kernel_name(self._kernel_name)
-        layout4 = _multi_d_layout_from_kernel_name(self._kernel_name)
-        la, lb, lc, ld = layout4[0], layout4[1], layout4[2], layout4[3]
-
-        if dtype != "fp16":
-            raise ValueError(f"multi_d bridge currently supports fp16 only, got {dtype}")
-        if len(Ds) != self._num_d:
-            raise ValueError(
-                f"kernel expects {self._num_d} D tensors, got {len(Ds)}"
-            )
-
-        # A/B host buffers, transposed for column-major operands (see GpuGemmRunner).
-        A_lay = A if la == "r" else A.T
-        B_lay = B if lb == "r" else B.T
-        A_h = np.ascontiguousarray(A_lay, dtype=np.float16)
-        B_h = np.ascontiguousarray(B_lay, dtype=np.float16)
-
-        # C and D are row-major (last two layout chars are 'r' for the TE
-        # multi_d builder); keep them MxN contiguous.
-        C_shape = (M, N) if lc == "r" else (N, M)
-        C_h = np.zeros(C_shape, dtype=np.float16)
-        D_h = []
-        for d in Ds:
-            d_lay = d if ld == "r" else d.T
-            D_h.append(np.ascontiguousarray(d_lay, dtype=np.float16))
-
-        status, time_ms = self.lib.run_multi_d(A_h, B_h, D_h, C_h, M, N, K)
-
-        C_out = C_h if lc == "r" else C_h.T
-        tflops = (problem.flops / (time_ms * 1e-3)) / 1e12 if time_ms > 0 else 0.0
-        return MultiDGemmResult(
-            output=C_out,
     def _parse_layout4(self) -> str:
         """Fallback: 4-char (A,B,E,D) layout from ``gemm_<dtype>_<layout>_...``."""
         parts = self._kernel_name.split("_")
