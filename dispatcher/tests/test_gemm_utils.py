@@ -202,5 +202,54 @@ class TestConfigNameContract(unittest.TestCase):
                 self.assertEqual(_layout_from_kernel_name(name), cfg.layout)
 
 
+class TestModuleImportsAndRunnerShape(unittest.TestCase):
+    """Guards against a merge truncating gemm_utils (regression: #9308 dropped
+    the tail of GpuMultiDGemmRunner.run, leaving an unterminated
+    ``MultiDGemmResult(`` that made the whole module fail to import).
+
+    Importing this test file already exercises ``import gemm_utils``; these
+    assertions additionally pin the multi_d / multi_abd runner shapes so the
+    method can't silently land in the wrong class again.
+    """
+
+    def test_module_imports(self):
+        import gemm_utils  # noqa: F401  (import must not raise)
+
+    def test_codegen_module_parses(self):
+        # unified_gemm_codegen.py was truncated by the same #9308 merge (an
+        # unterminated f-string in _multi_d_single_include). Parse it directly so
+        # a syntax-level truncation is caught even without importing its deps.
+        import ast
+
+        codegen = DISPATCHER_DIR / "codegen" / "unified_gemm_codegen.py"
+        ast.parse(codegen.read_text(), filename=str(codegen))
+
+    def test_multi_d_runner_has_run_returning_multi_d_result(self):
+        import inspect
+        import gemm_utils as g
+
+        self.assertTrue(
+            callable(getattr(g.GpuMultiDGemmRunner, "run", None)),
+            "GpuMultiDGemmRunner must expose run()",
+        )
+        src = inspect.getsource(g.GpuMultiDGemmRunner.run)
+        self.assertIn("return MultiDGemmResult(", src)
+        # The return must be complete (all dataclass fields present).
+        for field in ("output=", "time_ms=", "status=", "tflops=", "kernel_name="):
+            self.assertIn(field, src, f"multi_d run() missing {field} in result")
+
+    def test_multi_abd_runner_has_no_stray_multi_d_code(self):
+        import inspect
+        import gemm_utils as g
+
+        src = inspect.getsource(g.GpuMultiABDRunner)
+        self.assertIn("_parse_layout4", src)
+        self.assertNotIn(
+            "MultiDGemmResult",
+            src,
+            "GpuMultiABDRunner must not contain multi_d result code (merge slip)",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
