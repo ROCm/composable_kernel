@@ -400,6 +400,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kK1;
 
+        constexpr index_t SingleSmemElementSpaceSize = GetSingleSmemElementSpaceSize<Problem>();
+
         if constexpr(!kUseTrLoad)
         {
             constexpr index_t N1 = GetAlignmentV<Problem>();
@@ -418,8 +420,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             constexpr index_t VSingleSmemElementSpaceSize = N0 * (N1 * kKPerBlock + kKPack);
 
             static_assert(VSingleSmemElementSpaceSize == GetVSingleSmemElementSpaceSize<Problem>());
-
-            constexpr index_t SingleSmemElementSpaceSize = GetSingleSmemElementSpaceSize<Problem>();
 
             constexpr auto v_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(
@@ -458,7 +458,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                                                         number<kKPerBlock>{},
                                                         number<kNPerBlock / XorGroupSize>{},
                                                         number<XorGroupSize>{}),
-                                             make_tuple(number<VSingleSmemElementSpaceSize>{},
+                                             make_tuple(number<SingleSmemElementSpaceSize>{},
                                                         number<kNPerBlock>{},
                                                         number<XorGroupSize>{},
                                                         number<1>{}),
