@@ -211,19 +211,19 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         auto k_lds             = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr,
             Policy::template MakeKLdsBlockDescriptor<Problem, true /*kPipelineUseTrLoad*/>());
-        auto k_lds_window = make_tile_window(
+        auto k_lds_monolithic_window = make_tile_window(
             k_lds,
             Policy::template MakeKLdsBlockDescriptor<Problem, true /*kPipelineUseTrLoad*/>()
                 .get_lengths(),
             {0, 0});
 
         using k_lds_window_type = decltype(get_slice_tile(
-            k_lds_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
+            k_lds_monolithic_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
 
         statically_indexed_array<k_lds_window_type, NumKVLdsBuffers> k_lds_windows;
 
         static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
-            k_lds_windows[i_buf] = get_slice_tile(k_lds_window,
+            k_lds_windows[i_buf] = get_slice_tile(k_lds_monolithic_window,
                                                   sequence<i_buf * kN0Sub, 0>{},
                                                   sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
         });
@@ -232,19 +232,20 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<QKVDataType*>(smem_ptr),
             Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>());
-        auto v_lds_window = make_tile_window(
+        auto v_lds_monolithic_window = make_tile_window(
             v_lds,
             Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>().get_lengths(),
             {0, 0});
 
-        using v_lds_window_type =
-            decltype(get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
+        using v_lds_window_type = decltype(get_slice_tile(
+            v_lds_monolithic_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
 
         statically_indexed_array<v_lds_window_type, NumKVLdsBuffers> v_lds_windows;
 
         static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
-            v_lds_windows[i_buf] = get_slice_tile(
-                v_lds_window, sequence<i_buf * kK1, 0>{}, sequence<(i_buf + 1) * kK1, kN1>{});
+            v_lds_windows[i_buf] = get_slice_tile(v_lds_monolithic_window,
+                                                  sequence<i_buf * kK1, 0>{},
+                                                  sequence<(i_buf + 1) * kK1, kN1>{});
         });
 
         auto v_dram_window = make_tile_window(
