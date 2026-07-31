@@ -408,7 +408,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kK1;
 
-        constexpr index_t SingleSmemElementSpaceSize = GetSingleSmemElementSpaceSize<Problem>();
+        constexpr index_t SingleSmemElementSpaceSize =
+            GetSingleSmemElementSpaceSize<Problem, kUseTrLoad>();
 
         if constexpr(!kUseTrLoad)
         {
