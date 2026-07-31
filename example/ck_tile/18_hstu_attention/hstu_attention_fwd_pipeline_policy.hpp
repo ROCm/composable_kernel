@@ -236,7 +236,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             return k_lds_block_desc;
         }
         else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
-        {
+        { // This path can only be reached if WarpGemm is 16x16x32 or 32x32x16
             static_assert(kKVector == kKPack);
 
             constexpr index_t KSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
@@ -289,18 +289,26 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                 make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
 
+            // Re-merge to the logical 3D physical view [NumKLdsBuffers, kNPerBlock, kKPerBlock]:
             constexpr auto k_lds_block_desc = transform_tensor_descriptor(
                 k_lds_block_desc_k0_nldslayer_n_k1,
-                make_tuple(
-                    make_merge_transform_v3_division_mod(
-                        make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
-                    make_merge_transform_v3_division_mod(make_tuple(number<NumKLdsBuffers>{},
-                                                                    number<kKPerBlock / kKPack>{},
-                                                                    number<kKPack>{}))),
-                make_tuple(sequence<1, 3>{}, sequence<0, 2, 4>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+                make_tuple(make_pass_through_transform(number<NumKLdsBuffers>{}),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+                make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2, 4>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
-            return k_lds_block_desc;
+            // Final 2D logical view: [NumKLdsBuffers * kNPerBlock, kKPerBlock] -- buffers stacked
+            // along dim0, matching the other branches and the per-buffer caller slicing.
+            return transform_tensor_descriptor(
+                k_lds_block_desc,
+                make_tuple(make_merge_transform(
+                               make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
+                           make_pass_through_transform(number<kKPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else
         {
