@@ -246,6 +246,15 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
         auto k_lds_monolithic_window = make_tile_window(
             k_lds, Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
+        static_assert(
+            Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
+                NumKVLdsBuffers * kN0Sub,
+            "Check failed!");
+        static_assert(
+            Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths()[number<1>{}] ==
+                kQKHeaddim,
+            "Check failed!");
+
         using k_lds_window_type = decltype(get_slice_tile(
             k_lds_monolithic_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
 
@@ -263,6 +272,14 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
             Policy::template MakeVLdsBlockDescriptor<Problem>());
         auto v_lds_monolithic_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
+        static_assert(
+            Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
+                NumKVLdsBuffers * kN1,
+            "Check failed!");
+        static_assert(
+            Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths()[number<1>{}] == kK1,
+            "Check failed!");
 
         using v_lds_window_type = decltype(get_slice_tile(
             v_lds_monolithic_window, sequence<0, 0>{}, sequence<kN1, kK1>{}));
