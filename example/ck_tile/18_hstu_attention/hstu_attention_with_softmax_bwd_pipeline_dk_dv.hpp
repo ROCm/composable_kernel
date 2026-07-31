@@ -208,6 +208,14 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
         auto q_lds_monolithic_window = make_tile_window(
             q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
+        static_assert(
+            Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths()[number<0>{}] == kM0,
+            "Check failed!");
+        static_assert(
+            Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths()[number<1>{}] ==
+                NumQOGradLdsBuffers * kK0,
+            "Check failed!");
+
         using q_lds_window_type = decltype(get_slice_tile(
             q_lds_monolithic_window, sequence<0, 0>{}, sequence<kM0, kK0>{}));
         statically_indexed_array<q_lds_window_type, NumQOGradLdsBuffers> q_lds_windows;
@@ -224,6 +232,15 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
             do_lds_ptr, Policy::template MakeOGradLdsBlockDescriptor<Problem>());
         auto do_lds_monolithic_window = make_tile_window(
             do_lds, Policy::template MakeOGradLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
+        static_assert(
+            Policy::template MakeOGradLdsBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
+                kM0,
+            "Check failed!");
+        static_assert(
+            Policy::template MakeOGradLdsBlockDescriptor<Problem>().get_lengths()[number<1>{}] ==
+                NumQOGradLdsBuffers * kK0,
+            "Check failed!");
 
         using do_lds_window_type = decltype(get_slice_tile(
             do_lds_monolithic_window, sequence<0, 0>{}, sequence<kM0, kK0>{}));
@@ -243,6 +260,14 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
             dot_write_lds,
             Policy::template MakeOGradTLdsWriteBlockDescriptor<Problem>().get_lengths(),
             {0, 0});
+
+        static_assert(Policy::template MakeOGradTLdsWriteBlockDescriptor<Problem>()
+                              .get_lengths()[number<0>{}] == kM0,
+                      "Check failed!");
+        static_assert(Policy::template MakeOGradTLdsWriteBlockDescriptor<Problem>()
+                              .get_lengths()[number<1>{}] == kVHeaddim,
+                      "Check failed!");
+
         using dot_lds_write_window_type = decltype(get_slice_tile(
             dot_lds_write_monolithic_window, sequence<0, 0>{}, sequence<kM0, kK0>{}));
         statically_indexed_array<dot_lds_write_window_type, gemm2_k0_loops> dot_lds_write_windows;
@@ -252,12 +277,20 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                                                           sequence<kM0, (i_buf + 1) * kK0>{});
         });
 
+        static_assert(Policy::template MakeOGradTLdsReadBlockDescriptor<Problem>()
+                              .get_lengths()[number<0>{}] == kVHeaddim,
+                      "Check failed!");
+        static_assert(Policy::template MakeOGradTLdsReadBlockDescriptor<Problem>()
+                              .get_lengths()[number<1>{}] == kM0,
+                      "Check failed!");
+
         auto dot_read_lds = make_tensor_view<address_space_enum::lds>(
             dot_lds_ptr, Policy::template MakeOGradTLdsReadBlockDescriptor<Problem>());
         auto dot_lds_read_monolithic_window = make_tile_window(
             dot_read_lds,
             Policy::template MakeOGradTLdsReadBlockDescriptor<Problem>().get_lengths(),
             {0, 0});
+
         using dot_lds_read_window_type = decltype(get_slice_tile(
             dot_lds_read_monolithic_window, sequence<0, 0>{}, sequence<kVHeaddim, kK1>{}));
         statically_indexed_array<dot_lds_read_window_type, k1_loops> dot_lds_read_windows;
@@ -277,6 +310,16 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
             qt_write_lds,
             Policy::template MakeQTLdsWriteBlockDescriptor<Problem>().get_lengths(),
             {0, 0});
+
+        static_assert(
+            Policy::template MakeQTLdsWriteBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
+                kM0,
+            "Check failed!");
+        static_assert(
+            Policy::template MakeQTLdsWriteBlockDescriptor<Problem>().get_lengths()[number<1>{}] ==
+                kQKHeaddim,
+            "Check failed!");
+
         using qt_lds_write_window_type = decltype(get_slice_tile(
             qt_lds_write_monolithic_window, sequence<0, 0>{}, sequence<kM0, kK0>{}));
         statically_indexed_array<qt_lds_write_window_type, gemm0_k0_loops> qt_lds_write_windows;
@@ -292,6 +335,16 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
             make_tile_window(qt_read_lds,
                              Policy::template MakeQTLdsReadBlockDescriptor<Problem>().get_lengths(),
                              {0, 0});
+
+        static_assert(
+            Policy::template MakeQTLdsReadBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
+                kQKHeaddim,
+            "Check failed!");
+        static_assert(
+            Policy::template MakeQTLdsReadBlockDescriptor<Problem>().get_lengths()[number<1>{}] ==
+                kM0,
+            "Check failed!");
+
         using qt_lds_read_window_type = decltype(get_slice_tile(
             qt_lds_read_monolithic_window, sequence<0, 0>{}, sequence<kQKHeaddim, kK1>{}));
         statically_indexed_array<qt_lds_read_window_type, k1_loops> qt_lds_read_windows;

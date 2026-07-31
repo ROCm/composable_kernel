@@ -425,57 +425,20 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         else if constexpr(GetOGradVWarpGemmKPerThreadSize<Problem>() >= 8)
         {
             static_assert(kKVector == kKPack);
-            using VDataType            = remove_cvref_t<typename Problem::QKVDataType>;
-            constexpr index_t DataSize = sizeof(VDataType);
-#ifdef __gfx950__
-            constexpr auto NLdsLayer =
-                (64 * 4 / kKPerBlock / DataSize) < 1 ? 1 : (64 * 4 / kKPerBlock / DataSize);
-#else
-            constexpr auto NLdsLayer =
-                (32 * 4 / kKPerBlock / DataSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataSize);
-#endif
-            constexpr index_t SingleBufferSize = kNPerBlock * kKPerBlock;
 
-            constexpr auto desc_0 =
-                make_naive_tensor_descriptor(make_tuple(number<NumBuffers>{},
-                                                        number<kNPerBlock / NLdsLayer>{},
-                                                        number<kKPerBlock / kKPack * NLdsLayer>{},
-                                                        number<kKPack>{}),
-                                             make_tuple(number<SingleBufferSize>{},
-                                                        number<kKPerBlock * NLdsLayer>{},
-                                                        number<kKPack>{},
-                                                        number<1>{}),
-                                             number<kKPack>{},
-                                             number<1>{});
+            // XOR-swizzled physical layout [NumBuffers, kNPerBlock, kKPerBlock] -- shared
+            // with the transposed staging buffers (see MakeSwizzledNativeDesc).
+            constexpr auto desc_native =
+                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
 
-            constexpr auto desc_permuted = transform_tensor_descriptor(
-                desc_0,
-                make_tuple(
-                    make_pass_through_transform(number<NumBuffers>{}),
-                    make_xor_transform(make_tuple(number<kNPerBlock / NLdsLayer>{},
-                                                  number<kKPerBlock / kKPack * NLdsLayer>{})),
-                    make_pass_through_transform(number<kKPack>{})),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
-
-            constexpr auto desc_k0_nldslayer_n_k1 = transform_tensor_descriptor(
-                desc_permuted,
-                make_tuple(make_pass_through_transform(number<NumBuffers>{}),
-                           make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
-                           make_unmerge_transform(
-                               make_tuple(number<kKPerBlock / kKPack>{}, number<NLdsLayer>{})),
-                           make_pass_through_transform(number<kKPack>{})),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
-
+            // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
+            // dim0, matching the other branches and the per-buffer caller slicing.
             return transform_tensor_descriptor(
-                desc_k0_nldslayer_n_k1,
+                desc_native,
                 make_tuple(
-                    make_merge_transform_v3_division_mod(
-                        make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
-                    make_merge_transform_v3_division_mod(make_tuple(
-                        number<NumBuffers>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-                make_tuple(sequence<1, 3>{}, sequence<0, 2, 4>{}),
+                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
+                    make_pass_through_transform(number<kKPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else
@@ -628,9 +591,10 @@ struct HstuAttentionBwdKernel1PipelinePolicy
 
         constexpr auto desc = transform_tensor_descriptor(
             desc_native,
-            make_tuple(make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
-                       make_pass_through_transform(number<kKPerBlock>{})),
-            make_tuple(sequence<0, 1>{}, sequence<2>{}),
+            make_tuple(
+                make_pass_through_transform(number<kNPerBlock>{}),
+                make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return desc;

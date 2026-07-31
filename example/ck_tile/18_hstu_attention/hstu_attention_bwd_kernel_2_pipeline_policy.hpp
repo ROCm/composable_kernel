@@ -427,9 +427,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             return transform_tensor_descriptor(
                 desc_0,
                 make_tuple(
-                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
-                    make_pass_through_transform(number<kKPerBlock>{})),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_pass_through_transform(number<kNPerBlock>{}),
+                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{}))),
+                make_tuple(sequence<1>{}, sequence<0, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
@@ -441,14 +441,14 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             constexpr auto desc_native =
                 MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
 
-            // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
-            // dim0, matching the other branches and the per-buffer caller slicing.
+            // Logical view: [kNPerBlock, NumBuffers*kKPerBlock] -- buffers stacked along
+            // dim1, matching the other branches and the per-buffer caller slicing.
             return transform_tensor_descriptor(
                 desc_native,
                 make_tuple(
-                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
-                    make_pass_through_transform(number<kKPerBlock>{})),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_pass_through_transform(number<kNPerBlock>{}),
+                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{}))),
+                make_tuple(sequence<1>{}, sequence<0, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else
@@ -473,12 +473,12 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
             return transform_tensor_descriptor(
                 desc_0,
-                make_tuple(
-                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
-                    make_merge_transform(make_tuple(number<kKPerBlock / kKVector>{},
-                                                    number<kKVector / kKPack>{},
-                                                    number<kKPack>{}))),
-                make_tuple(sequence<0, 3>{}, sequence<1, 2, 4>{}),
+                make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
+                           make_merge_transform(make_tuple(number<NumBuffers>{},
+                                                           number<kKPerBlock / kKVector>{},
+                                                           number<kKVector / kKPack>{},
+                                                           number<kKPack>{}))),
+                make_tuple(sequence<3>{}, sequence<0, 1, 2, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
     }
@@ -820,11 +820,8 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                         merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-#if defined(__gfx11__)
-                    PermuteWarpGemmCToA(pt_warp_tensor, p_warp_tensor);
-#else
                     pt_warp_tensor.get_thread_buffer() = p_warp_tensor.get_thread_buffer();
-#endif
+
                     pt_out.set_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
@@ -921,11 +918,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                         merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-#if defined(__gfx11__)
-                    PermuteWarpGemmCToA(dst_warp_tensor, ds_warp_tensor);
-#else
                     dst_warp_tensor.get_thread_buffer() = ds_warp_tensor.get_thread_buffer();
-#endif
                     dst_out.set_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
