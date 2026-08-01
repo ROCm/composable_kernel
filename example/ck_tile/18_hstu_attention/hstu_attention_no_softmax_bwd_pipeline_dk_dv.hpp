@@ -432,6 +432,14 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
 
                 // Store Q to q_lds and also to qt_lds (transposed, for Gemm3 dK)
                 store_tile(q_lds_windows[i_lds_buf_0], q_tiles[i_prefetch_buf], partition_index);
+
+                if constexpr(i_k0 == 0)
+                {
+                    // ensure LDS access of dO^T and Q^T in last iteration gemm_1 and gemm_3
+                    // finished before being stored
+                    block_sync_lds();
+                }
+
                 store_tile(
                     qt_lds_write_windows[i_lds_buf_1], q_tiles[i_prefetch_buf], partition_index);
 
@@ -668,10 +676,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
             });
 
             seqlen_q_curr += kM0;
-
-            // ensure LDS access finished in gemm_1 and gemm_3 before it being stored at next
-            // iteration
-            block_sync_lds();
         } while(seqlen_q_curr < seqlen_q_end);
 
         // Apply alpha scaling to accumulated dK
