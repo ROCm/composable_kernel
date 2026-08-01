@@ -588,7 +588,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
             {
                 const bool need_mask =
                     !mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{});
-                const bool need_tail = (seqlen_q_curr + kM0) > seqlen_q_end;
                 constexpr auto spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
@@ -613,7 +612,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                                 ds = type_convert<CompDataType>(0.0f);
                             }
                         }
-                        if(need_mask || need_tail)
+                        if(need_mask)
                         {
                             const auto tile_idx = get_x_indices_from_distributed_indices(
                                 dscomp_tile.get_tile_distribution(),
@@ -623,11 +622,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                             const auto col = i_n0 + tile_idx.at(number<1>{});
                             if(need_mask && !mask.IsTokenPairInsideMask(row, col))
                                 ds = type_convert<CompDataType>(0.0f);
-                            if(need_tail && row >= seqlen_q_end)
-                            {
-                                p  = type_convert<CompDataType>(0.0f);
-                                ds = type_convert<CompDataType>(0.0f);
-                            }
                         }
                         // P stored back into pcomp_tile for dV (Gemm1)
                         pcomp_tile(ij) = p;
