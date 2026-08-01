@@ -41,22 +41,6 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         return k1_loops;
     }
 
-    // -------------------------------------------------------------------------
-    // Prefetch and double-buffer counts
-    // -------------------------------------------------------------------------
-
-    // Number of Q/dO tiles prefetched ahead of LDS writes in Loop 1.
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumQOGradPrefetches()
-    {
-        constexpr index_t k0_loops = GetNumK0Loops<Problem>();
-
-        if constexpr(k0_loops >= 4)
-            return 3;
-        else
-            return 2;
-    }
-
     // Number of Lds slots for q_lds, do_lds
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumQOGradLdsBuffers()
