@@ -38,7 +38,7 @@ struct HstuAttentionBwdBlockTileForKernel1<96>
 template <>
 struct HstuAttentionBwdBlockTileForKernel1<128>
 {
-    using type             = ck_tile::sequence<64, 32, 16, 128>;
+    using type             = ck_tile::sequence<128, 32, 16, 128>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
