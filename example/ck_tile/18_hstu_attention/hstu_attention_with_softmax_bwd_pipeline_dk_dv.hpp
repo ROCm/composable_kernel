@@ -609,18 +609,19 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                 });
             }
 
-            // Build a per-element keep/drop mask WITHOUT disturbing P. Feeding a +1 sentinel tile
-            // to BlockDropoutBwd::Run yields +1 (kept) / -1 (dropped). The mask is applied below as
-            // drop_scale = rp_undrop (kept) / 0 (dropped) to P (-> dV) and to dP inside the softmax
-            // dS jacobian (-> dK), matching reference_hstu_attention_bwd.hpp:
-            //   dS = P * (drop_scale*dP - D),  P_drop = drop_scale * P   (P is the PURE softmax).
-            // int8_t sentinel (1 byte/elem) keeps drop_mask cheap in VGPRs; Run only flips its
-            // sign (+1 kept / -1 dropped), so 8 bits are enough.
-            auto drop_mask =
-                make_static_distributed_tensor<int8_t>(pcomp_tile.get_tile_distribution());
             if constexpr(kHasDropout)
             {
-                __builtin_amdgcn_sched_barrier(0);
+                // Build a per-element keep/drop mask WITHOUT disturbing P. Feeding a +1 sentinel
+                // tile to BlockDropoutBwd::Run yields +1 (kept) / -1 (dropped). The mask is applied
+                // below as drop_scale = rp_undrop (kept) / 0 (dropped) to P (-> dV) and to dP
+                // inside the softmax dS jacobian (-> dK), matching
+                // reference_hstu_attention_bwd.hpp:
+                //   dS = P * (drop_scale*dP - D),  P_drop = drop_scale * P   (P is the PURE
+                //   softmax).
+                // int8_t sentinel (1 byte/elem) keeps drop_mask cheap in VGPRs; Run only flips its
+                // sign (+1 kept / -1 dropped), so 8 bits are enough.
+                auto drop_mask =
+                    make_static_distributed_tensor<int8_t>(pcomp_tile.get_tile_distribution());
 
                 tile_elementwise_inout([](auto& x) { x = type_convert<int8_t>(1); }, drop_mask);
 
@@ -633,15 +634,11 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
 
                 move_tile_window(null_randval_window, {kM0, 0});
 
-                __builtin_amdgcn_sched_barrier(0);
-            }
-
-            // ---- dS = P * (drop_scale*dP - D[sq]);  P_drop = drop_scale * P (for dV) ----
-            // The dropout mask propagates onto dP (and onto P for dV); the softmax jacobian's outer
-            // factor stays the PURE P. drop_scale = rp_undrop (kept) / 0 (dropped). Note the D term
-            // is NOT scaled by drop_scale -- dropped positions still get dS = -P*D through the
-            // softmax coupling (see reference derivation).
-            {
+                // ---- dS = P * (drop_scale*dP - D[sq]);  P_drop = drop_scale * P (for dV) ----
+                // The dropout mask propagates onto dP (and onto P for dV); the softmax jacobian's
+                // outer factor stays the PURE P. drop_scale = rp_undrop (kept) / 0 (dropped). Note
+                // the D term is NOT scaled by drop_scale -- dropped positions still get dS = -P*D
+                // through the softmax coupling (see reference derivation).
                 constexpr auto ds_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
                     constexpr auto i_idx         = make_tuple(idx0);
@@ -668,6 +665,21 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                         dscomp_tile(ij) = p_pure * (dp - delta_val);
                         // dV path: P_drop = drop_scale * P
                         pcomp_tile(ij) = p_drop;
+                    });
+                });
+            }
+            else
+            {
+                constexpr auto ds_spans = PcompBlockTileType::get_distributed_spans();
+                sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx         = make_tuple(idx0);
+                    const CompDataType delta_val = delta_tile[i_idx];
+                    sweep_tile_span(ds_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto ij = make_tuple(idx0, idx1);
+                        CompDataType dp   = dscomp_tile[ij];
+
+                        // dK path: dS = P * (drop_scale*dP - D)
+                        dscomp_tile(ij) = pcomp_tile[ij] * (dp - delta_val);
                     });
                 });
             }
