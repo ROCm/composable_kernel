@@ -161,11 +161,13 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
         // ---- Initialize dK and dV accumulators ----
         auto dk_acc = gemm_3.MakeCBlockTile();
         auto dv_acc = gemm_1.MakeCBlockTile();
-        clear_tile(dk_acc);
-        clear_tile(dv_acc);
 
         if(seqlen_q_start >= seqlen_q_end)
+        {
+            clear_tile(dk_acc);
+            clear_tile(dv_acc);
             return make_tuple(dk_acc, dv_acc);
+        };
 
         constexpr index_t gemm0_k0_loops = kQKHeaddim / kK0;
         constexpr index_t gemm2_k0_loops = kVHeaddim / kK0;
@@ -411,6 +413,11 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
         // Prefetch Q and dO for the *next* outer do-while iteration
         q_tiles[number<0>{}] = load_tile(q_dram_window);
         move_tile_window(q_dram_window, {0, kK0});
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        clear_tile(dk_acc);
+        clear_tile(dv_acc);
 
         do_tiles[number<0>{}] = load_tile(do_dram_window);
         move_tile_window(do_dram_window, {0, kK0});
