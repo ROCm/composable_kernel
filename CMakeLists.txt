@@ -415,6 +415,19 @@ message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}"
 # Cache SUPPORTED_GPU_TARGETS for debug
 set(SUPPORTED_GPU_TARGETS "${SUPPORTED_GPU_TARGETS}" CACHE STRING "List of supported GPU targets")
 
+# SPIR-V target detection (amdgcnspirv)
+set(CK_TARGET_SPIRV OFF)
+if("amdgcnspirv" IN_LIST SUPPORTED_GPU_TARGETS)
+    set(CK_TARGET_SPIRV ON)
+    message(STATUS "SPIR-V target (amdgcnspirv) detected — enabling CK_EXPERIMENTAL_SPIRV")
+    add_definitions(-DCK_EXPERIMENTAL_SPIRV)
+    # SPIR-V is incompatible with offload compression
+    if(NOT DISABLE_OFFLOAD_COMPRESS)
+        message(STATUS "Disabling offload compression (incompatible with SPIR-V)")
+        set(DISABLE_OFFLOAD_COMPRESS ON)
+    endif()
+endif()
+
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx11|gfx12" AND NOT FORCE_DISABLE_XDL)
     message(STATUS "Enabling XDL instances")
     add_definitions(-DCK_USE_XDL)

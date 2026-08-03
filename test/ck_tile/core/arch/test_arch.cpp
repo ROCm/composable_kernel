@@ -201,6 +201,29 @@ TEST(ArchTest, TestSFINAEEnablersMix)
     EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<Target>::value);
 }
 
+// Tests make_amdgcn_spirv_target function (amdgcnspirv: target-agnostic, JIT to native at runtime)
+TEST(ArchTest, MakeSpirvTargetFields)
+{
+    constexpr auto target = make_amdgcn_spirv_target();
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::AMDGCN_SPIRV);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::HOST);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::HOST);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::WAVE32);
+}
+
+// Tests to_string for the AMDGCN_SPIRV target id
+TEST(ArchTest, SpirvTargetIdToString)
+{
+    EXPECT_STREQ(to_string(amdgcn_target_id::AMDGCN_SPIRV), "AMDGCN_SPIRV");
+}
+
+// Tests that the "amdgcnspirv" gcnArchName string maps to AMDGCN_SPIRV
+TEST(ArchTest, GcnArchNameStringMapsToSpirv)
+{
+    EXPECT_EQ(hip_device_prop_gcn_arch_name_to_amdgcn_target_id("amdgcnspirv"),
+              amdgcn_target_id::AMDGCN_SPIRV);
+}
+
 #elif 0 // TODO: c++20 tests
 
 // Tests make_amdgcn_gf9_target function

@@ -1,8 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
-
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12|amdgcnspirv")
     add_custom_target(test_ck_tile_batched_gemm)
 
     add_gtest_executable(test_ck_tile_batched_gemm_f16 test_batched_gemm_f16.cpp)

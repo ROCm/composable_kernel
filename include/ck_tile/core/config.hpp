@@ -261,6 +261,15 @@
 #endif
 #endif
 
+// SPIR-V constexpr handling: variables that depend on compile-time architecture
+// detection cannot be constexpr under SPIR-V since the target is resolved at runtime.
+// Following rocPRIM's ROCPRIM_AMDGCN_CONSTEXPR pattern.
+#if defined(__SPIRV__)
+#define CK_TILE_AMDGCN_CONSTEXPR
+#else
+#define CK_TILE_AMDGCN_CONSTEXPR constexpr
+#endif
+
 // workaround for AMDGPU compiler VGPR aliasing bug in dropout codegen (ROCm >= 7.12)
 // Philox RNG VGPR parameters get aliased under high register pressure (d256 tile).
 // fp16 is affected; bf16 is not (different type conversion codegen path).
@@ -287,6 +296,23 @@
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #elif defined(__gfx125__)
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x0
+#elif defined(__SPIRV__) // SPIR-V: dynamically select via ZCFS at runtime
+#define CK_TILE_BUFFER_RESOURCE_3RD_DWORD                                                          \
+    ((__builtin_amdgcn_processor_is("gfx1100") || __builtin_amdgcn_processor_is("gfx1101") ||      \
+      __builtin_amdgcn_processor_is("gfx1102") || __builtin_amdgcn_processor_is("gfx1103") ||      \
+      __builtin_amdgcn_processor_is("gfx1150") || __builtin_amdgcn_processor_is("gfx1151") ||      \
+      __builtin_amdgcn_processor_is("gfx1152") || __builtin_amdgcn_processor_is("gfx1153") ||      \
+      __builtin_amdgcn_processor_is("gfx1200") || __builtin_amdgcn_processor_is("gfx1201"))        \
+         ? 0x31004000u                                                                             \
+         : ((__builtin_amdgcn_processor_is("gfx1030") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1031") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1032") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1034") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1035") || __builtin_amdgcn_processor_is("gfx1036")) \
+                ? 0x31014000u                                                                      \
+                : 0x00020000u))
+#else
+#define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0xffffffff // Unknown device
 #endif
 
 #ifndef CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
@@ -596,6 +622,15 @@ struct amdgcn_compiler_target_state
 #else
     static constexpr bool CK_TILE_ARCH_GFX1250 = false;
 #endif // __gfx1250__
+
+    // SPIR-V (target-agnostic, JIT-compiled at runtime)
+    // Guard with __HIP_DEVICE_COMPILE__ because __SPIRV__ is defined during
+    // both host and device passes when compiling for amdgcnspirv.
+#if defined(__SPIRV__) && defined(__HIP_DEVICE_COMPILE__)
+    static constexpr bool CK_TILE_ARCH_SPIRV = true;
+#else
+    static constexpr bool CK_TILE_ARCH_SPIRV = false;
+#endif // __SPIRV__
 };
 
 /**
@@ -651,7 +686,9 @@ CK_TILE_HOST_DEVICE static constexpr std::uint32_t count_values_of(T search, Ts.
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1250
 
 // Sanity check: make sure only one target architecture is defined during device compile
+// SPIR-V is target-agnostic, so none of the specific arch flags will be set
 static_assert(!amdgcn_compiler_target_state::CK_TILE_DEVICE_COMPILE ||
+                  amdgcn_compiler_target_state::CK_TILE_ARCH_SPIRV ||
                   count_values_of(true, CK_TILE_COMPILER_TARGETS_LIST) == 1u,
               "Only one target architecture can be defined during device compile");
 

@@ -1,7 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 set(TEST_DATA_TYPE_COMPILE_OPTIONS)
-if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12|amdgcnspirv")
     add_gtest_executable(test_ck_tile_pk_int4 test_pk_int4.cpp)
     add_gtest_executable(test_ck_tile_tf32 test_tf32.cpp)
 endif()

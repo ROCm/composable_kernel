@@ -121,6 +121,7 @@ enum struct amdgcn_target_id
     GFX1201        = 0x1201,
     GFX12_GENERIC  = 0x12FF,
     GFX1250        = 0x1250,
+    AMDGCN_SPIRV   = 0xFFFF, // Target-agnostic SPIR-V (JIT to native at runtime)
     HOST           = 0x0000,
 };
 
@@ -154,6 +155,7 @@ CK_TILE_HOST_DEVICE constexpr const char* to_string(amdgcn_target_id target_id)
     case amdgcn_target_id::GFX1201: return "GFX1201";
     case amdgcn_target_id::GFX12_GENERIC: return "GFX12_GENERIC";
     case amdgcn_target_id::GFX1250: return "GFX1250";
+    case amdgcn_target_id::AMDGCN_SPIRV: return "AMDGCN_SPIRV";
     case amdgcn_target_id::HOST: return "HOST";
     }
     __builtin_unreachable();
@@ -274,6 +276,16 @@ static constexpr auto make_amdgcn_gfx12_target()
     return amdgcn_target<targetId,
                          amdgcn_target_family_id::GFX12,
                          amdgcn_target_arch_id::RDNA,
+                         amdgcn_target_wave_size_id::WAVE32>{};
+}
+
+// SPIR-V target: target-agnostic, JIT-compiled to native at runtime.
+// Defaults to WAVE32 (conservative minimum across all supported targets).
+static constexpr auto make_amdgcn_spirv_target()
+{
+    return amdgcn_target<amdgcn_target_id::AMDGCN_SPIRV,
+                         amdgcn_target_family_id::HOST,
+                         amdgcn_target_arch_id::HOST,
                          amdgcn_target_wave_size_id::WAVE32>{};
 }
 
@@ -422,11 +434,17 @@ constexpr auto get_compiler_target()
     MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX12_GENERIC, GFX12_GENERIC);
     MAP_COMPILER_STATE_TO_GFX1250_TARGET(CK_TILE_ARCH_GFX1250, GFX1250);
 
-    // Return HOST by default
-    if constexpr(amdgcn_compiler_target_state::CK_TILE_HOST_COMPILE)
+    // SPIR-V: target-agnostic, resolved at runtime
+    if constexpr(amdgcn_compiler_target_state::CK_TILE_ARCH_SPIRV)
     {
-        return amdgcn_target<>{};
+        return make_amdgcn_spirv_target();
     }
+    else
+        // Return HOST by default
+        if constexpr(amdgcn_compiler_target_state::CK_TILE_HOST_COMPILE)
+        {
+            return amdgcn_target<>{};
+        }
 }
 
 /**
@@ -556,6 +574,7 @@ CK_TILE_HOST auto hip_device_prop_gcn_arch_name_to_amdgcn_target_id(char const* 
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx1201", GFX1201);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx12_generic", GFX12_GENERIC);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx1250", GFX1250);
+    MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("amdgcnspirv", AMDGCN_SPIRV);
 
     // Default case: return HOST target if no match is found
     return amdgcn_target_id::HOST;
