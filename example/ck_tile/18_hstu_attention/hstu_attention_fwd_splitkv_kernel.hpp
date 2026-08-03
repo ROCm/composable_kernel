@@ -13,6 +13,7 @@
 
 #include "hstu_block_masking.hpp"
 #include "hstu_attention_kernel_util.hpp"
+#include "hstu_attention_bool_switch.hpp"
 
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
@@ -995,129 +996,136 @@ struct HstuAttentionFwdSplitKVKernel
         }();
 
         auto o_acc_tile = [&]() {
-            if(kargs.window_size > 0)
-            {
-                using HstuMaskType = typename ck_tile::
-                    HstuBlockMasking<kIsCrossAttention, kHasCausalMask, true>::Type;
+            bool has_context = kargs.contextual_seqlen > 0;
+            bool use_local   = kargs.window_size > 0;
 
-                auto mask = [&]() {
-                    if constexpr(kIsCrossAttention)
+            return BOOL_SWITCH_RETURN_2(has_context, kHasContext, use_local, kUseLocal, [&]() {
+                using HstuMaskType = typename ck_tile::HstuBlockMasking<kIsCrossAttention,
+                                                                        kHasCausalMask,
+                                                                        kUseLocal,
+                                                                        kHasContext>::Type;
+
+                if constexpr(kUseLocal)
+                {
+                    auto mask = [&]() {
+                        if constexpr(kIsCrossAttention)
+                        {
+                            return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
+                                is_tile_in_first_split,
+                                kargs.seqlen_q,
+                                kargs.seqlen_kv,
+                                kargs.contextual_seqlen,
+                                num_target,
+                                kargs.window_size,
+                                kargs.min_full_attn_seqlen);
+                        }
+                        else
+                        {
+                            return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
+                                is_tile_in_first_split,
+                                kargs.seqlen_q,
+                                kargs.contextual_seqlen,
+                                num_target,
+                                kargs.window_size,
+                                kargs.min_full_attn_seqlen);
+                        };
+                    }();
+
+                    const auto [global_seqlen_k_start, global_seqlen_k_end] =
+                        mask.GetTileRangeAlongX(i_m0,
+                                                number<HstuAttentionPipeline::kM0>{},
+                                                number<HstuAttentionPipeline::kN0>{});
+
+                    const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
+                        global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
+
+                    if constexpr(!kUseSoftmax)
                     {
-                        return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
-                            is_tile_in_first_split,
-                            kargs.seqlen_q,
-                            kargs.seqlen_kv,
-                            kargs.contextual_seqlen,
-                            num_target,
-                            kargs.window_size,
-                            kargs.min_full_attn_seqlen);
+                        return HstuAttentionPipeline{}(q_dram_window,
+                                                       k_dram_window,
+                                                       v_dram_window,
+                                                       bias_dram_window,
+                                                       seqlen_k_start,
+                                                       seqlen_k_end,
+                                                       mask,
+                                                       kargs.scale_s,
+                                                       kargs.scale_p,
+                                                       smem_ptr,
+                                                       dropout);
                     }
                     else
                     {
-                        return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
-                            is_tile_in_first_split,
-                            kargs.seqlen_q,
-                            kargs.contextual_seqlen,
-                            num_target,
-                            kargs.window_size,
-                            kargs.min_full_attn_seqlen);
-                    };
-                }();
-
-                const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                    mask.GetTileRangeAlongX(i_m0,
-                                            number<HstuAttentionPipeline::kM0>{},
-                                            number<HstuAttentionPipeline::kN0>{});
-
-                const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
-                    global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
-
-                if constexpr(!kUseSoftmax)
-                {
-                    return HstuAttentionPipeline{}(q_dram_window,
-                                                   k_dram_window,
-                                                   v_dram_window,
-                                                   bias_dram_window,
-                                                   seqlen_k_start,
-                                                   seqlen_k_end,
-                                                   mask,
-                                                   kargs.scale_s,
-                                                   kargs.scale_p,
-                                                   smem_ptr,
-                                                   dropout);
+                        return HstuAttentionPipeline{}(q_dram_window,
+                                                       k_dram_window,
+                                                       v_dram_window,
+                                                       bias_dram_window,
+                                                       lse_acc_dram_window,
+                                                       seqlen_k_start,
+                                                       seqlen_k_end,
+                                                       mask,
+                                                       kargs.scale_s,
+                                                       kargs.scale_p,
+                                                       smem_ptr,
+                                                       dropout);
+                    }
                 }
                 else
                 {
-                    return HstuAttentionPipeline{}(q_dram_window,
-                                                   k_dram_window,
-                                                   v_dram_window,
-                                                   bias_dram_window,
-                                                   lse_acc_dram_window,
-                                                   seqlen_k_start,
-                                                   seqlen_k_end,
-                                                   mask,
-                                                   kargs.scale_s,
-                                                   kargs.scale_p,
-                                                   smem_ptr,
-                                                   dropout);
-                }
-            }
-            else
-            {
-                using HstuMaskType = typename ck_tile::
-                    HstuBlockMasking<kIsCrossAttention, kHasCausalMask, false>::Type;
+                    auto mask = [&]() {
+                        if constexpr(kIsCrossAttention)
+                        {
+                            return make_hstu_cross_attention_block_mask_without_local<HstuMaskType>(
+                                kargs.seqlen_q,
+                                kargs.seqlen_kv,
+                                kargs.contextual_seqlen,
+                                num_target);
+                        }
+                        else
+                        {
+                            return make_hstu_self_attention_block_mask_without_local<HstuMaskType>(
+                                kargs.seqlen_q, kargs.contextual_seqlen, num_target);
+                        };
+                    }();
 
-                auto mask = [&]() {
-                    if constexpr(kIsCrossAttention)
+                    const auto [global_seqlen_k_start, global_seqlen_k_end] =
+                        mask.GetTileRangeAlongX(i_m0,
+                                                number<HstuAttentionPipeline::kM0>{},
+                                                number<HstuAttentionPipeline::kN0>{});
+
+                    const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
+                        global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
+
+                    if constexpr(!kUseSoftmax)
                     {
-                        return make_hstu_cross_attention_block_mask_without_local<HstuMaskType>(
-                            kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
+                        return HstuAttentionPipeline{}(q_dram_window,
+                                                       k_dram_window,
+                                                       v_dram_window,
+                                                       bias_dram_window,
+                                                       seqlen_k_start,
+                                                       seqlen_k_end,
+                                                       mask,
+                                                       kargs.scale_s,
+                                                       kargs.scale_p,
+                                                       smem_ptr,
+                                                       dropout);
                     }
                     else
                     {
-                        return make_hstu_self_attention_block_mask_without_local<HstuMaskType>(
-                            kargs.seqlen_q, kargs.contextual_seqlen, num_target);
-                    };
-                }();
-
-                const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                    mask.GetTileRangeAlongX(i_m0,
-                                            number<HstuAttentionPipeline::kM0>{},
-                                            number<HstuAttentionPipeline::kN0>{});
-
-                const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
-                    global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
-
-                if constexpr(!kUseSoftmax)
-                {
-                    return HstuAttentionPipeline{}(q_dram_window,
-                                                   k_dram_window,
-                                                   v_dram_window,
-                                                   bias_dram_window,
-                                                   seqlen_k_start,
-                                                   seqlen_k_end,
-                                                   mask,
-                                                   kargs.scale_s,
-                                                   kargs.scale_p,
-                                                   smem_ptr,
-                                                   dropout);
+                        return HstuAttentionPipeline{}(q_dram_window,
+                                                       k_dram_window,
+                                                       v_dram_window,
+                                                       bias_dram_window,
+                                                       lse_acc_dram_window,
+                                                       seqlen_k_start,
+                                                       seqlen_k_end,
+                                                       mask,
+                                                       kargs.scale_s,
+                                                       kargs.scale_p,
+                                                       smem_ptr,
+                                                       dropout);
+                    }
                 }
-                else
-                {
-                    return HstuAttentionPipeline{}(q_dram_window,
-                                                   k_dram_window,
-                                                   v_dram_window,
-                                                   bias_dram_window,
-                                                   lse_acc_dram_window,
-                                                   seqlen_k_start,
-                                                   seqlen_k_end,
-                                                   mask,
-                                                   kargs.scale_s,
-                                                   kargs.scale_p,
-                                                   smem_ptr,
-                                                   dropout);
-                }
-            }
+            });
         }();
 
         // Oacc DRAM and Oacc DRAM window
