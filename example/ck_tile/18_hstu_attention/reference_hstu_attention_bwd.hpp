@@ -179,363 +179,382 @@ struct reference_no_group_hstu_attention_bwd
             int num_target = num_targets.empty() ? 0 : num_targets[i_batch];
             float scale_p  = attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen_q);
 
-            BOOL_SWITCH_2(window_size > 0, kHasLocal, is_cross_attention, kIsCrossAttention, [&] {
-                using HstuMaskType =
-                    typename HstuBlockMasking<kIsCrossAttention, kUseCausal, kHasLocal>::Type;
+            bool has_local   = window_size > 0;
+            bool has_context = contextual_seqlen > 0;
 
-                // Build the same mask as in the forward pass
-                HstuMaskType mask = [&]() {
-                    if constexpr(kHasLocal)
-                    {
-                        if constexpr(kIsCrossAttention)
+            BOOL_SWITCH_3(
+                has_local,
+                kHasLocal,
+                has_context,
+                kHasContext,
+                is_cross_attention,
+                kIsCrossAttention,
+                [&] {
+                    using HstuMaskType = typename HstuBlockMasking<kIsCrossAttention,
+                                                                   kUseCausal,
+                                                                   kHasLocal,
+                                                                   kHasContext>::Type;
+
+                    // Build the same mask as in the forward pass
+                    HstuMaskType mask = [&]() {
+                        if constexpr(kHasLocal)
                         {
-                            if(seqlen_q - num_target > min_full_attn_seqlen)
-                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
-                                                  seqlen_kv,
-                                                  contextual_seqlen,
-                                                  num_target,
-                                                  window_size,
-                                                  min_full_attn_seqlen);
-                            else
-                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
-                                                  seqlen_kv,
-                                                  contextual_seqlen,
-                                                  num_target,
-                                                  window_size,
-                                                  seqlen_q - num_target);
-                        }
-                        else
-                        {
-                            if(seqlen_q - num_target > min_full_attn_seqlen)
-                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
-                                                  contextual_seqlen,
-                                                  num_target,
-                                                  window_size,
-                                                  min_full_attn_seqlen);
-                            else
-                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
-                                                  contextual_seqlen,
-                                                  num_target,
-                                                  window_size,
-                                                  seqlen_q - num_target);
-                        }
-                    }
-                    else
-                    {
-                        if constexpr(kIsCrossAttention)
-                            return ck_tile::make_hstu_cross_attention_block_mask_without_local<
-                                HstuMaskType>(seqlen_q, seqlen_kv, contextual_seqlen, num_target);
-                        else
-                            return ck_tile::make_hstu_self_attention_block_mask_without_local<
-                                HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
-                    }
-                }();
-
-                // Local accumulators for dK and dV: these accumulate over all sq rows,
-                // so we keep them in higher-precision GemmAccDataType and write back once.
-                std::vector<std::vector<GemmAccDataType>> dk_acc(
-                    seqlen_kv, std::vector<GemmAccDataType>(hdim_qk, 0.f));
-                std::vector<std::vector<GemmAccDataType>> dv_acc(
-                    seqlen_kv, std::vector<GemmAccDataType>(hdim_v, 0.f));
-
-                for(int sq = 0; sq < seqlen_q; sq++)
-                {
-                    // ------------------------------------------------------------------
-                    // Step 1: Recompute S[sq,:] and P[sq,:] (forward pass recomputation)
-                    //   S = alpha * Q @ K      (A=Q[sq,hdim_qk], B=K[sk,hdim_qk])
-                    //   P[sq,sk] = silu(S)*scale_p or softmax_row(S)
-                    // ------------------------------------------------------------------
-                    std::vector<CompDataType> locals_S(seqlen_kv);
-                    std::vector<CompDataType> locals_P(seqlen_kv);
-
-                    for(int sk = 0; sk < seqlen_kv; sk++)
-                    {
-                        if(mask.IsTokenPairInsideMask(sq, sk))
-                        {
-                            GemmAccDataType dot_prod = 0.f;
-                            for(int k = 0; k < hdim_qk; k++)
+                            if constexpr(kIsCrossAttention)
                             {
-                                if constexpr(kIsJagged)
-                                {
-                                    InOutDataType qreg = q_batch_seq_nhead_hdim(
-                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
-                                    InOutDataType kreg = k_batch_seq_nhead_hdim(
-                                        0, seq_kv_offsets[i_batch] + sk, i_head, k);
-                                    dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
-                                                ck_tile::type_convert<GemmAccDataType>(kreg);
-                                }
+                                if(seqlen_q - num_target > min_full_attn_seqlen)
+                                    return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                        HstuMaskType>(true,
+                                                      seqlen_q,
+                                                      seqlen_kv,
+                                                      contextual_seqlen,
+                                                      num_target,
+                                                      window_size,
+                                                      min_full_attn_seqlen);
                                 else
-                                {
-                                    InOutDataType qreg =
-                                        q_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
-                                    InOutDataType kreg =
-                                        k_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
-                                    dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
-                                                ck_tile::type_convert<GemmAccDataType>(kreg);
-                                }
-                            }
-                            locals_S[sk] = ck_tile::type_convert<CompDataType>(dot_prod) *
-                                           ck_tile::type_convert<CompDataType>(alpha);
-                        }
-                        else
-                        {
-                            // Masked-out: SiLU path uses S=0 (silu(0)=0); Softmax path uses
-                            // S=-inf (exp(-inf - LSE)=0). silu(-inf) would be NaN, so the SiLU
-                            // path must NOT use -inf here.
-                            if(!use_softmax)
-                                locals_S[sk] = ck_tile::type_convert<CompDataType>(0.0f);
-                            else
-                                locals_S[sk] = -ck_tile::numeric<CompDataType>::infinity();
-                        }
-                    }
-
-                    if(!use_softmax)
-                    {
-                        for(int sk = 0; sk < seqlen_kv; sk++)
-                            locals_P[sk] =
-                                silu(locals_S[sk]) * ck_tile::type_convert<CompDataType>(scale_p);
-                    }
-                    else
-                    {
-                        // Use precomputed LSE from the forward pass to recover P without
-                        // a two-pass softmax reduction:
-                        //   LSE[sq] = log(sum_sk exp(S[sq,sk]))
-                        //   P[sq,sk] = exp(S[sq,sk] - LSE[sq])
-                        // Masked-out positions have S=-inf, so exp(-inf - LSE) = 0.
-                        CompDataType lse_sq;
-                        if constexpr(kIsJagged)
-                            lse_sq = lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head);
-                        else
-                            lse_sq = lse_batch_seq_nhead(i_batch, sq, i_head);
-
-                        if(lse_sq == -ck_tile::numeric<CompDataType>::infinity())
-                        {
-                            for(CompDataType& elem : locals_P)
-                                elem = ck_tile::type_convert<CompDataType>(0.0f);
-                        }
-                        else
-                        {
-                            for(int sk = 0; sk < seqlen_kv; sk++)
-                                locals_P[sk] = std::exp(locals_S[sk] - lse_sq);
-                        }
-                    }
-
-                    // Dropout scale per key position: rp_undrop for kept, 0 for dropped
-                    // (1 when dropout is off). Kept as a SEPARATE factor rather than folded into
-                    // locals_P, because the two consumers need different quantities:
-                    //   - dV / dP use the *dropped* probabilities   P_drop = drop_scale * P
-                    //   - the softmax dS jacobian needs the *pure* softmax P together with the
-                    //     dropped dP:  dS = P * (drop_scale*dP - D)
-                    std::vector<CompDataType> locals_drop_scale(
-                        seqlen_kv, ck_tile::type_convert<CompDataType>(1.0f));
-                    if(has_dropout)
-                    {
-                        for(int sk = 0; sk < seqlen_kv; sk++)
-                        {
-                            uint8_t rand_val;
-
-                            if constexpr(kIsJagged)
-                                rand_val = rand_val_batch_seq_nhead_seq(
-                                    0, seq_q_offsets[i_batch] + sq, i_head, sk);
-                            else
-                                rand_val = rand_val_batch_seq_nhead_seq(i_batch, sq, i_head, sk);
-
-                            locals_drop_scale[sk] =
-                                (rand_val <= p_undrop_in_uint8_t)
-                                    ? ck_tile::type_convert<CompDataType>(rp_undrop)
-                                    : ck_tile::type_convert<CompDataType>(0.0f);
-                        }
-                    };
-
-                    // ------------------------------------------------------------------
-                    // Step 2: dV = P^T @ dO^T   (A=P^T[sk,sq], B=dO^T[hdim_v,sq])
-                    // ------------------------------------------------------------------
-                    for(int sk = 0; sk < seqlen_kv; sk++)
-                    {
-                        // dV uses the dropped probabilities P_drop = drop_scale * P
-                        InOutDataType p_reg = ck_tile::type_convert<InOutDataType>(
-                            locals_drop_scale[sk] * locals_P[sk]);
-                        for(int k = 0; k < hdim_v; k++)
-                        {
-                            InOutDataType do_reg;
-                            if constexpr(kIsJagged)
-                                do_reg = do_batch_seq_nhead_hdim(
-                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
-                            else
-                                do_reg = do_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
-
-                            dv_acc[sk][k] += ck_tile::type_convert<GemmAccDataType>(p_reg) *
-                                             ck_tile::type_convert<GemmAccDataType>(do_reg);
-                        }
-                    }
-
-                    // ------------------------------------------------------------------
-                    // Step 3: dP = dO @ V      (A=dO[sq,hdim_v], B=V[sk,hdim_v])
-                    // ------------------------------------------------------------------
-                    std::vector<CompDataType> locals_dP(seqlen_kv);
-                    for(int sk = 0; sk < seqlen_kv; sk++)
-                    {
-                        GemmAccDataType acc = 0.f;
-                        for(int k = 0; k < hdim_v; k++)
-                        {
-                            InOutDataType do_reg;
-                            InOutDataType vreg;
-                            if constexpr(kIsJagged)
-                            {
-                                do_reg = do_batch_seq_nhead_hdim(
-                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
-                                vreg = v_batch_seq_nhead_hdim(
-                                    0, seq_kv_offsets[i_batch] + sk, i_head, k);
+                                    return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                        HstuMaskType>(true,
+                                                      seqlen_q,
+                                                      seqlen_kv,
+                                                      contextual_seqlen,
+                                                      num_target,
+                                                      window_size,
+                                                      seqlen_q - num_target);
                             }
                             else
                             {
-                                do_reg = do_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
-                                vreg   = v_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+                                if(seqlen_q - num_target > min_full_attn_seqlen)
+                                    return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                        HstuMaskType>(true,
+                                                      seqlen_q,
+                                                      contextual_seqlen,
+                                                      num_target,
+                                                      window_size,
+                                                      min_full_attn_seqlen);
+                                else
+                                    return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                        HstuMaskType>(true,
+                                                      seqlen_q,
+                                                      contextual_seqlen,
+                                                      num_target,
+                                                      window_size,
+                                                      seqlen_q - num_target);
                             }
-                            acc += ck_tile::type_convert<GemmAccDataType>(do_reg) *
-                                   ck_tile::type_convert<GemmAccDataType>(vreg);
                         }
-                        locals_dP[sk] = ck_tile::type_convert<CompDataType>(acc);
-                    }
+                        else
+                        {
+                            if constexpr(kIsCrossAttention)
+                                return ck_tile::make_hstu_cross_attention_block_mask_without_local<
+                                    HstuMaskType>(
+                                    seqlen_q, seqlen_kv, contextual_seqlen, num_target);
+                            else
+                                return ck_tile::make_hstu_self_attention_block_mask_without_local<
+                                    HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
+                        }
+                    }();
 
-                    // ------------------------------------------------------------------
-                    // Step 4: Compute dS[sq,:] from dP[sq,:] via activation chain rule
-                    //
-                    //   kUseSoftmax=false (SiLU):
-                    //     dS[sq,sk] = dP[sq,sk] * scale_p * dsilu(S[sq,sk])  (masked-in)
-                    //               = 0                                        (masked-out)
-                    //
-                    //   kUseSoftmax=true (Softmax):
-                    //     D[sq] = dO[sq] row(.) O[sq]   (uses forward output O directly)
-                    //     dS[sq,sk] = P[sq,sk] * (dP[sq,sk] - D[sq])
-                    // ------------------------------------------------------------------
-                    std::vector<CompDataType> locals_dS(seqlen_kv);
-                    if(!use_softmax)
+                    // Local accumulators for dK and dV: these accumulate over all sq rows,
+                    // so we keep them in higher-precision GemmAccDataType and write back once.
+                    std::vector<std::vector<GemmAccDataType>> dk_acc(
+                        seqlen_kv, std::vector<GemmAccDataType>(hdim_qk, 0.f));
+                    std::vector<std::vector<GemmAccDataType>> dv_acc(
+                        seqlen_kv, std::vector<GemmAccDataType>(hdim_v, 0.f));
+
+                    for(int sq = 0; sq < seqlen_q; sq++)
                     {
+                        // ------------------------------------------------------------------
+                        // Step 1: Recompute S[sq,:] and P[sq,:] (forward pass recomputation)
+                        //   S = alpha * Q @ K      (A=Q[sq,hdim_qk], B=K[sk,hdim_qk])
+                        //   P[sq,sk] = silu(S)*scale_p or softmax_row(S)
+                        // ------------------------------------------------------------------
+                        std::vector<CompDataType> locals_S(seqlen_kv);
+                        std::vector<CompDataType> locals_P(seqlen_kv);
+
                         for(int sk = 0; sk < seqlen_kv; sk++)
                         {
                             if(mask.IsTokenPairInsideMask(sq, sk))
-                                // dS = (drop_scale * dP) * scale_p * dsilu(S); the dropout mask
-                                // propagates through the chain rule into dP (not into S/dsilu).
-                                locals_dS[sk] = locals_drop_scale[sk] * locals_dP[sk] *
-                                                ck_tile::type_convert<CompDataType>(scale_p) *
-                                                dsilu(locals_S[sk]);
-                            else
-                                locals_dS[sk] = ck_tile::type_convert<CompDataType>(0.0f);
-                        }
-                    }
-                    else
-                    {
-                        // D[sq] = dO[sq] row(.) O[sq]
-                        GemmAccDataType D_acc = 0.f;
-                        for(int k = 0; k < hdim_v; k++)
-                        {
-                            InOutDataType do_reg;
-                            InOutDataType o_reg;
-                            if constexpr(kIsJagged)
                             {
-                                do_reg = do_batch_seq_nhead_hdim(
-                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
-                                o_reg = o_batch_seq_nhead_hdim(
-                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                GemmAccDataType dot_prod = 0.f;
+                                for(int k = 0; k < hdim_qk; k++)
+                                {
+                                    if constexpr(kIsJagged)
+                                    {
+                                        InOutDataType qreg = q_batch_seq_nhead_hdim(
+                                            0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                        InOutDataType kreg = k_batch_seq_nhead_hdim(
+                                            0, seq_kv_offsets[i_batch] + sk, i_head, k);
+                                        dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
+                                                    ck_tile::type_convert<GemmAccDataType>(kreg);
+                                    }
+                                    else
+                                    {
+                                        InOutDataType qreg =
+                                            q_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
+                                        InOutDataType kreg =
+                                            k_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+                                        dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
+                                                    ck_tile::type_convert<GemmAccDataType>(kreg);
+                                    }
+                                }
+                                locals_S[sk] = ck_tile::type_convert<CompDataType>(dot_prod) *
+                                               ck_tile::type_convert<CompDataType>(alpha);
                             }
                             else
                             {
-                                do_reg = do_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
-                                o_reg  = o_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
+                                // Masked-out: SiLU path uses S=0 (silu(0)=0); Softmax path uses
+                                // S=-inf (exp(-inf - LSE)=0). silu(-inf) would be NaN, so the SiLU
+                                // path must NOT use -inf here.
+                                if(!use_softmax)
+                                    locals_S[sk] = ck_tile::type_convert<CompDataType>(0.0f);
+                                else
+                                    locals_S[sk] = -ck_tile::numeric<CompDataType>::infinity();
                             }
-                            D_acc += ck_tile::type_convert<GemmAccDataType>(do_reg) *
-                                     ck_tile::type_convert<GemmAccDataType>(o_reg);
                         }
-                        CompDataType D = ck_tile::type_convert<CompDataType>(D_acc);
-                        // dS = P * (drop_scale*dP - D). P is the PURE softmax output; the dropout
-                        // mask multiplies dP only. D = dO.O already carries dropout (O is dropped).
-                        for(int sk = 0; sk < seqlen_kv; sk++)
-                            locals_dS[sk] =
-                                locals_P[sk] * (locals_drop_scale[sk] * locals_dP[sk] - D);
-                    }
 
-                    // ------------------------------------------------------------------
-                    // Step 5: dQ = alpha * dS @ K^T   (A=dS[sq,sk], B=K^T[hdim_qk,sk])
-                    //   (computed fresh per sq row, no accumulation needed)
-                    // ------------------------------------------------------------------
-                    for(int k = 0; k < hdim_qk; k++)
-                    {
-                        GemmAccDataType acc = 0.f;
+                        if(!use_softmax)
+                        {
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                                locals_P[sk] = silu(locals_S[sk]) *
+                                               ck_tile::type_convert<CompDataType>(scale_p);
+                        }
+                        else
+                        {
+                            // Use precomputed LSE from the forward pass to recover P without
+                            // a two-pass softmax reduction:
+                            //   LSE[sq] = log(sum_sk exp(S[sq,sk]))
+                            //   P[sq,sk] = exp(S[sq,sk] - LSE[sq])
+                            // Masked-out positions have S=-inf, so exp(-inf - LSE) = 0.
+                            CompDataType lse_sq;
+                            if constexpr(kIsJagged)
+                                lse_sq =
+                                    lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head);
+                            else
+                                lse_sq = lse_batch_seq_nhead(i_batch, sq, i_head);
+
+                            if(lse_sq == -ck_tile::numeric<CompDataType>::infinity())
+                            {
+                                for(CompDataType& elem : locals_P)
+                                    elem = ck_tile::type_convert<CompDataType>(0.0f);
+                            }
+                            else
+                            {
+                                for(int sk = 0; sk < seqlen_kv; sk++)
+                                    locals_P[sk] = std::exp(locals_S[sk] - lse_sq);
+                            }
+                        }
+
+                        // Dropout scale per key position: rp_undrop for kept, 0 for dropped
+                        // (1 when dropout is off). Kept as a SEPARATE factor rather than folded
+                        // into locals_P, because the two consumers need different quantities:
+                        //   - dV / dP use the *dropped* probabilities   P_drop = drop_scale * P
+                        //   - the softmax dS jacobian needs the *pure* softmax P together with the
+                        //     dropped dP:  dS = P * (drop_scale*dP - D)
+                        std::vector<CompDataType> locals_drop_scale(
+                            seqlen_kv, ck_tile::type_convert<CompDataType>(1.0f));
+                        if(has_dropout)
+                        {
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                            {
+                                uint8_t rand_val;
+
+                                if constexpr(kIsJagged)
+                                    rand_val = rand_val_batch_seq_nhead_seq(
+                                        0, seq_q_offsets[i_batch] + sq, i_head, sk);
+                                else
+                                    rand_val =
+                                        rand_val_batch_seq_nhead_seq(i_batch, sq, i_head, sk);
+
+                                locals_drop_scale[sk] =
+                                    (rand_val <= p_undrop_in_uint8_t)
+                                        ? ck_tile::type_convert<CompDataType>(rp_undrop)
+                                        : ck_tile::type_convert<CompDataType>(0.0f);
+                            }
+                        };
+
+                        // ------------------------------------------------------------------
+                        // Step 2: dV = P^T @ dO^T   (A=P^T[sk,sq], B=dO^T[hdim_v,sq])
+                        // ------------------------------------------------------------------
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                        {
+                            // dV uses the dropped probabilities P_drop = drop_scale * P
+                            InOutDataType p_reg = ck_tile::type_convert<InOutDataType>(
+                                locals_drop_scale[sk] * locals_P[sk]);
+                            for(int k = 0; k < hdim_v; k++)
+                            {
+                                InOutDataType do_reg;
+                                if constexpr(kIsJagged)
+                                    do_reg = do_batch_seq_nhead_hdim(
+                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                else
+                                    do_reg = do_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
+
+                                dv_acc[sk][k] += ck_tile::type_convert<GemmAccDataType>(p_reg) *
+                                                 ck_tile::type_convert<GemmAccDataType>(do_reg);
+                            }
+                        }
+
+                        // ------------------------------------------------------------------
+                        // Step 3: dP = dO @ V      (A=dO[sq,hdim_v], B=V[sk,hdim_v])
+                        // ------------------------------------------------------------------
+                        std::vector<CompDataType> locals_dP(seqlen_kv);
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                        {
+                            GemmAccDataType acc = 0.f;
+                            for(int k = 0; k < hdim_v; k++)
+                            {
+                                InOutDataType do_reg;
+                                InOutDataType vreg;
+                                if constexpr(kIsJagged)
+                                {
+                                    do_reg = do_batch_seq_nhead_hdim(
+                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                    vreg = v_batch_seq_nhead_hdim(
+                                        0, seq_kv_offsets[i_batch] + sk, i_head, k);
+                                }
+                                else
+                                {
+                                    do_reg = do_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
+                                    vreg   = v_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+                                }
+                                acc += ck_tile::type_convert<GemmAccDataType>(do_reg) *
+                                       ck_tile::type_convert<GemmAccDataType>(vreg);
+                            }
+                            locals_dP[sk] = ck_tile::type_convert<CompDataType>(acc);
+                        }
+
+                        // ------------------------------------------------------------------
+                        // Step 4: Compute dS[sq,:] from dP[sq,:] via activation chain rule
+                        //
+                        //   kUseSoftmax=false (SiLU):
+                        //     dS[sq,sk] = dP[sq,sk] * scale_p * dsilu(S[sq,sk])  (masked-in)
+                        //               = 0                                        (masked-out)
+                        //
+                        //   kUseSoftmax=true (Softmax):
+                        //     D[sq] = dO[sq] row(.) O[sq]   (uses forward output O directly)
+                        //     dS[sq,sk] = P[sq,sk] * (dP[sq,sk] - D[sq])
+                        // ------------------------------------------------------------------
+                        std::vector<CompDataType> locals_dS(seqlen_kv);
+                        if(!use_softmax)
+                        {
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                            {
+                                if(mask.IsTokenPairInsideMask(sq, sk))
+                                    // dS = (drop_scale * dP) * scale_p * dsilu(S); the dropout mask
+                                    // propagates through the chain rule into dP (not into S/dsilu).
+                                    locals_dS[sk] = locals_drop_scale[sk] * locals_dP[sk] *
+                                                    ck_tile::type_convert<CompDataType>(scale_p) *
+                                                    dsilu(locals_S[sk]);
+                                else
+                                    locals_dS[sk] = ck_tile::type_convert<CompDataType>(0.0f);
+                            }
+                        }
+                        else
+                        {
+                            // D[sq] = dO[sq] row(.) O[sq]
+                            GemmAccDataType D_acc = 0.f;
+                            for(int k = 0; k < hdim_v; k++)
+                            {
+                                InOutDataType do_reg;
+                                InOutDataType o_reg;
+                                if constexpr(kIsJagged)
+                                {
+                                    do_reg = do_batch_seq_nhead_hdim(
+                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                    o_reg = o_batch_seq_nhead_hdim(
+                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                }
+                                else
+                                {
+                                    do_reg = do_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
+                                    o_reg  = o_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
+                                }
+                                D_acc += ck_tile::type_convert<GemmAccDataType>(do_reg) *
+                                         ck_tile::type_convert<GemmAccDataType>(o_reg);
+                            }
+                            CompDataType D = ck_tile::type_convert<CompDataType>(D_acc);
+                            // dS = P * (drop_scale*dP - D). P is the PURE softmax output; the
+                            // dropout mask multiplies dP only. D = dO.O already carries dropout (O
+                            // is dropped).
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                                locals_dS[sk] =
+                                    locals_P[sk] * (locals_drop_scale[sk] * locals_dP[sk] - D);
+                        }
+
+                        // ------------------------------------------------------------------
+                        // Step 5: dQ = alpha * dS @ K^T   (A=dS[sq,sk], B=K^T[hdim_qk,sk])
+                        //   (computed fresh per sq row, no accumulation needed)
+                        // ------------------------------------------------------------------
+                        for(int k = 0; k < hdim_qk; k++)
+                        {
+                            GemmAccDataType acc = 0.f;
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                            {
+                                InOutDataType ds_reg =
+                                    ck_tile::type_convert<InOutDataType>(locals_dS[sk]);
+                                InOutDataType kreg;
+                                if constexpr(kIsJagged)
+                                    kreg = k_batch_seq_nhead_hdim(
+                                        0, seq_kv_offsets[i_batch] + sk, i_head, k);
+                                else
+                                    kreg = k_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+
+                                acc += ck_tile::type_convert<GemmAccDataType>(ds_reg) *
+                                       ck_tile::type_convert<GemmAccDataType>(kreg);
+                            }
+                            if constexpr(kIsJagged)
+                                dq_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k) =
+                                    ck_tile::type_convert<InOutDataType>(acc * alpha);
+                            else
+                                dq_batch_seq_nhead_hdim(i_batch, sq, i_head, k) =
+                                    ck_tile::type_convert<InOutDataType>(acc * alpha);
+                        }
+
+                        // ------------------------------------------------------------------
+                        // Step 6: dK = alpha * dS^T @ Q^T   (A=dS^T[sk,sq], B=Q^T[hdim_qk,sq])
+                        // ------------------------------------------------------------------
                         for(int sk = 0; sk < seqlen_kv; sk++)
                         {
                             InOutDataType ds_reg =
                                 ck_tile::type_convert<InOutDataType>(locals_dS[sk]);
-                            InOutDataType kreg;
-                            if constexpr(kIsJagged)
-                                kreg = k_batch_seq_nhead_hdim(
-                                    0, seq_kv_offsets[i_batch] + sk, i_head, k);
-                            else
-                                kreg = k_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+                            for(int k = 0; k < hdim_qk; k++)
+                            {
+                                InOutDataType qreg;
+                                if constexpr(kIsJagged)
+                                    qreg = q_batch_seq_nhead_hdim(
+                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                else
+                                    qreg = q_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
 
-                            acc += ck_tile::type_convert<GemmAccDataType>(ds_reg) *
-                                   ck_tile::type_convert<GemmAccDataType>(kreg);
+                                dk_acc[sk][k] += ck_tile::type_convert<GemmAccDataType>(ds_reg) *
+                                                 ck_tile::type_convert<GemmAccDataType>(qreg);
+                            }
                         }
-                        if constexpr(kIsJagged)
-                            dq_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k) =
-                                ck_tile::type_convert<InOutDataType>(acc * alpha);
-                        else
-                            dq_batch_seq_nhead_hdim(i_batch, sq, i_head, k) =
-                                ck_tile::type_convert<InOutDataType>(acc * alpha);
                     }
 
-                    // ------------------------------------------------------------------
-                    // Step 6: dK = alpha * dS^T @ Q^T   (A=dS^T[sk,sq], B=Q^T[hdim_qk,sq])
-                    // ------------------------------------------------------------------
+                    // Write back dK (multiplied by alpha) and dV
                     for(int sk = 0; sk < seqlen_kv; sk++)
                     {
-                        InOutDataType ds_reg = ck_tile::type_convert<InOutDataType>(locals_dS[sk]);
                         for(int k = 0; k < hdim_qk; k++)
                         {
-                            InOutDataType qreg;
                             if constexpr(kIsJagged)
-                                qreg = q_batch_seq_nhead_hdim(
-                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                dk_batch_seq_nhead_hdim(
+                                    0, seq_kv_offsets[i_batch] + sk, i_head, k) =
+                                    ck_tile::type_convert<InOutDataType>(dk_acc[sk][k] * alpha);
                             else
-                                qreg = q_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
-
-                            dk_acc[sk][k] += ck_tile::type_convert<GemmAccDataType>(ds_reg) *
-                                             ck_tile::type_convert<GemmAccDataType>(qreg);
+                                dk_batch_seq_nhead_hdim(i_batch, sk, i_head, k) =
+                                    ck_tile::type_convert<InOutDataType>(dk_acc[sk][k] * alpha);
+                        }
+                        for(int k = 0; k < hdim_v; k++)
+                        {
+                            if constexpr(kIsJagged)
+                                dv_batch_seq_nhead_hdim(
+                                    0, seq_kv_offsets[i_batch] + sk, i_head, k) =
+                                    ck_tile::type_convert<InOutDataType>(dv_acc[sk][k]);
+                            else
+                                dv_batch_seq_nhead_hdim(i_batch, sk, i_head, k) =
+                                    ck_tile::type_convert<InOutDataType>(dv_acc[sk][k]);
                         }
                     }
-                }
-
-                // Write back dK (multiplied by alpha) and dV
-                for(int sk = 0; sk < seqlen_kv; sk++)
-                {
-                    for(int k = 0; k < hdim_qk; k++)
-                    {
-                        if constexpr(kIsJagged)
-                            dk_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k) =
-                                ck_tile::type_convert<InOutDataType>(dk_acc[sk][k] * alpha);
-                        else
-                            dk_batch_seq_nhead_hdim(i_batch, sk, i_head, k) =
-                                ck_tile::type_convert<InOutDataType>(dk_acc[sk][k] * alpha);
-                    }
-                    for(int k = 0; k < hdim_v; k++)
-                    {
-                        if constexpr(kIsJagged)
-                            dv_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k) =
-                                ck_tile::type_convert<InOutDataType>(dv_acc[sk][k]);
-                        else
-                            dv_batch_seq_nhead_hdim(i_batch, sk, i_head, k) =
-                                ck_tile::type_convert<InOutDataType>(dv_acc[sk][k]);
-                    }
-                }
-            });
+                });
         };
 
         make_ParallelTensorFunctor(f, num_batch, num_head)(std::thread::hardware_concurrency());
@@ -650,290 +669,305 @@ struct reference_group_hstu_attention_bwd
             int window_size          = group_window_sizes[i_group];
             int min_full_attn_seqlen = group_min_full_attn_seqlens[i_group];
 
-            BOOL_SWITCH_2(window_size > 0, kHasLocal, is_cross_attention, kIsCrossAttention, [&] {
-                using HstuMaskType =
-                    typename HstuBlockMasking<kIsCrossAttention, kUseCausal, kHasLocal>::Type;
+            bool has_local   = window_size > 0;
+            bool has_context = contextual_seqlen > 0;
 
-                // Build the same mask as in the group forward pass
-                HstuMaskType mask = [&]() {
-                    if constexpr(kHasLocal)
-                    {
-                        if constexpr(kIsCrossAttention)
+            BOOL_SWITCH_3(
+                has_local,
+                kHasLocal,
+                has_context,
+                kHasContext,
+                is_cross_attention,
+                kIsCrossAttention,
+                [&] {
+                    using HstuMaskType = typename HstuBlockMasking<kIsCrossAttention,
+                                                                   kUseCausal,
+                                                                   kHasLocal,
+                                                                   kHasContext>::Type;
+
+                    // Build the same mask as in the group forward pass
+                    HstuMaskType mask = [&]() {
+                        if constexpr(kHasLocal)
                         {
-                            if(seqlen_q - num_target > min_full_attn_seqlen)
-                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
-                                                  seqlen_kv,
-                                                  contextual_seqlen,
-                                                  num_target,
-                                                  window_size,
-                                                  min_full_attn_seqlen);
-                            else
-                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
-                                                  seqlen_kv,
-                                                  contextual_seqlen,
-                                                  num_target,
-                                                  window_size,
-                                                  seqlen_q - num_target);
-                        }
-                        else
-                        {
-                            if(seqlen_q - num_target > min_full_attn_seqlen)
-                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
-                                                  contextual_seqlen,
-                                                  num_target,
-                                                  window_size,
-                                                  min_full_attn_seqlen);
-                            else
-                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
-                                                  contextual_seqlen,
-                                                  num_target,
-                                                  window_size,
-                                                  seqlen_q - num_target);
-                        }
-                    }
-                    else
-                    {
-                        if constexpr(kIsCrossAttention)
-                            return ck_tile::make_hstu_cross_attention_block_mask_without_local<
-                                HstuMaskType>(seqlen_q, seqlen_kv, contextual_seqlen, num_target);
-                        else
-                            return ck_tile::make_hstu_self_attention_block_mask_without_local<
-                                HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
-                    }
-                }();
-
-                // Local accumulators for dK and dV: accumulate over all sq rows
-                std::vector<std::vector<GemmAccDataType>> dk_acc(
-                    seqlen_kv, std::vector<GemmAccDataType>(hdim_qk, 0.f));
-                std::vector<std::vector<GemmAccDataType>> dv_acc(
-                    seqlen_kv, std::vector<GemmAccDataType>(hdim_v, 0.f));
-
-                for(int sq = 0; sq < seqlen_q; sq++)
-                {
-                    // ------------------------------------------------------------------
-                    // Step 1: Recompute S[sq,:] and P[sq,:] (forward pass recomputation)
-                    //   S = alpha * Q @ K      (A=Q[sq,hdim_qk], B=K[sk,hdim_qk])
-                    //   P[sq,sk] = silu(S)*scale_p or softmax_row(S)
-                    // ------------------------------------------------------------------
-                    std::vector<CompDataType> locals_S(seqlen_kv);
-                    std::vector<CompDataType> locals_P(seqlen_kv);
-
-                    for(int sk = 0; sk < seqlen_kv; sk++)
-                    {
-                        if(mask.IsTokenPairInsideMask(sq, sk))
-                        {
-                            GemmAccDataType dot_prod = 0.f;
-                            for(int k = 0; k < hdim_qk; k++)
+                            if constexpr(kIsCrossAttention)
                             {
-                                InOutDataType qreg = q_batch_seq_nhead_hdim(
-                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
-                                InOutDataType kreg = k_batch_seq_nhead_hdim(
-                                    0, seq_kv_offsets[i_batch] + sk, i_head, k);
-                                dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
-                                            ck_tile::type_convert<GemmAccDataType>(kreg);
+                                if(seqlen_q - num_target > min_full_attn_seqlen)
+                                    return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                        HstuMaskType>(true,
+                                                      seqlen_q,
+                                                      seqlen_kv,
+                                                      contextual_seqlen,
+                                                      num_target,
+                                                      window_size,
+                                                      min_full_attn_seqlen);
+                                else
+                                    return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                        HstuMaskType>(true,
+                                                      seqlen_q,
+                                                      seqlen_kv,
+                                                      contextual_seqlen,
+                                                      num_target,
+                                                      window_size,
+                                                      seqlen_q - num_target);
                             }
-                            locals_S[sk] = ck_tile::type_convert<CompDataType>(dot_prod) *
-                                           ck_tile::type_convert<CompDataType>(alpha);
-                        }
-                        else
-                        {
-                            if(!use_softmax)
-                                locals_S[sk] = ck_tile::type_convert<CompDataType>(0.0f);
                             else
-                                locals_S[sk] = -ck_tile::numeric<CompDataType>::infinity();
-                        }
-                    }
-
-                    if(!use_softmax)
-                    {
-                        for(int sk = 0; sk < seqlen_kv; sk++)
-                            locals_P[sk] =
-                                silu(locals_S[sk]) * ck_tile::type_convert<CompDataType>(scale_p);
-                    }
-                    else
-                    {
-                        // Use precomputed LSE from the forward pass to recover P without
-                        // a two-pass softmax reduction:
-                        //   LSE[sq] = log(sum_sk exp(S[sq,sk]))
-                        //   P[sq,sk] = exp(S[sq,sk] - LSE[sq])
-                        // Masked-out positions have S=-inf, so exp(-inf - LSE) = 0.
-                        CompDataType lse_sq =
-                            lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head);
-
-                        if(lse_sq == -ck_tile::numeric<CompDataType>::infinity())
-                        {
-                            for(CompDataType& elem : locals_P)
-                                elem = ck_tile::type_convert<CompDataType>(0.0f);
+                            {
+                                if(seqlen_q - num_target > min_full_attn_seqlen)
+                                    return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                        HstuMaskType>(true,
+                                                      seqlen_q,
+                                                      contextual_seqlen,
+                                                      num_target,
+                                                      window_size,
+                                                      min_full_attn_seqlen);
+                                else
+                                    return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                        HstuMaskType>(true,
+                                                      seqlen_q,
+                                                      contextual_seqlen,
+                                                      num_target,
+                                                      window_size,
+                                                      seqlen_q - num_target);
+                            }
                         }
                         else
                         {
-                            for(int sk = 0; sk < seqlen_kv; sk++)
-                                locals_P[sk] = std::exp(locals_S[sk] - lse_sq);
+                            if constexpr(kIsCrossAttention)
+                                return ck_tile::make_hstu_cross_attention_block_mask_without_local<
+                                    HstuMaskType>(
+                                    seqlen_q, seqlen_kv, contextual_seqlen, num_target);
+                            else
+                                return ck_tile::make_hstu_self_attention_block_mask_without_local<
+                                    HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
                         }
-                    }
+                    }();
 
-                    // Dropout scale per key position: rp_undrop for kept, 0 for dropped
-                    // (1 when dropout is off). Kept as a SEPARATE factor rather than folded into
-                    // locals_P, because the two consumers need different quantities:
-                    //   - dV / dP use the *dropped* probabilities   P_drop = drop_scale * P
-                    //   - the softmax dS jacobian needs the *pure* softmax P together with the
-                    //     dropped dP:  dS = P * (drop_scale*dP - D)
-                    std::vector<CompDataType> locals_drop_scale(
-                        seqlen_kv, ck_tile::type_convert<CompDataType>(1.0f));
-                    if(has_dropout)
+                    // Local accumulators for dK and dV: accumulate over all sq rows
+                    std::vector<std::vector<GemmAccDataType>> dk_acc(
+                        seqlen_kv, std::vector<GemmAccDataType>(hdim_qk, 0.f));
+                    std::vector<std::vector<GemmAccDataType>> dv_acc(
+                        seqlen_kv, std::vector<GemmAccDataType>(hdim_v, 0.f));
+
+                    for(int sq = 0; sq < seqlen_q; sq++)
                     {
-                        for(int sk = 0; sk < seqlen_kv; sk++)
-                        {
-                            uint8_t rand_val;
+                        // ------------------------------------------------------------------
+                        // Step 1: Recompute S[sq,:] and P[sq,:] (forward pass recomputation)
+                        //   S = alpha * Q @ K      (A=Q[sq,hdim_qk], B=K[sk,hdim_qk])
+                        //   P[sq,sk] = silu(S)*scale_p or softmax_row(S)
+                        // ------------------------------------------------------------------
+                        std::vector<CompDataType> locals_S(seqlen_kv);
+                        std::vector<CompDataType> locals_P(seqlen_kv);
 
-                            rand_val = rand_val_batch_seq_nhead_seq(
-                                0, seq_q_offsets[i_batch] + sq, i_head, sk);
-
-                            locals_drop_scale[sk] =
-                                (rand_val <= p_undrop_in_uint8_t)
-                                    ? ck_tile::type_convert<CompDataType>(rp_undrop)
-                                    : ck_tile::type_convert<CompDataType>(0.0f);
-                        }
-                    };
-
-                    // ------------------------------------------------------------------
-                    // Step 2: dV = P^T @ dO^T   (A=P^T[sk,sq], B=dO^T[hdim_v,sq])
-                    // ------------------------------------------------------------------
-                    for(int sk = 0; sk < seqlen_kv; sk++)
-                    {
-                        // dV uses the dropped probabilities P_drop = drop_scale * P
-                        InOutDataType p_reg = ck_tile::type_convert<InOutDataType>(
-                            locals_drop_scale[sk] * locals_P[sk]);
-                        for(int k = 0; k < hdim_v; k++)
-                        {
-                            InOutDataType do_reg =
-                                do_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k);
-                            dv_acc[sk][k] += ck_tile::type_convert<GemmAccDataType>(p_reg) *
-                                             ck_tile::type_convert<GemmAccDataType>(do_reg);
-                        }
-                    }
-
-                    // ------------------------------------------------------------------
-                    // Step 3: dP = dO @ V      (A=dO[sq,hdim_v], B=V[sk,hdim_v])
-                    // ------------------------------------------------------------------
-                    std::vector<CompDataType> locals_dP(seqlen_kv);
-                    for(int sk = 0; sk < seqlen_kv; sk++)
-                    {
-                        GemmAccDataType acc = 0.f;
-                        for(int k = 0; k < hdim_v; k++)
-                        {
-                            InOutDataType do_reg =
-                                do_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k);
-                            InOutDataType vreg =
-                                v_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k);
-                            acc += ck_tile::type_convert<GemmAccDataType>(do_reg) *
-                                   ck_tile::type_convert<GemmAccDataType>(vreg);
-                        }
-                        locals_dP[sk] = ck_tile::type_convert<CompDataType>(acc);
-                    }
-
-                    // ------------------------------------------------------------------
-                    // Step 4: Compute dS[sq,:] from dP[sq,:] via activation chain rule
-                    //
-                    //   kUseSoftmax=false (SiLU):
-                    //     dS[sq,sk] = dP[sq,sk] * scale_p * dsilu(S[sq,sk])  (masked-in)
-                    //               = 0                                        (masked-out)
-                    //
-                    //   kUseSoftmax=true (Softmax):
-                    //     D[sq] = dO[sq] row(.) O[sq]   (uses forward output O directly)
-                    //     dS[sq,sk] = P[sq,sk] * (dP[sq,sk] - D[sq])
-                    // ------------------------------------------------------------------
-                    std::vector<CompDataType> locals_dS(seqlen_kv);
-                    if(!use_softmax)
-                    {
                         for(int sk = 0; sk < seqlen_kv; sk++)
                         {
                             if(mask.IsTokenPairInsideMask(sq, sk))
-                                // dS = (drop_scale * dP) * scale_p * dsilu(S); the dropout mask
-                                // propagates through the chain rule into dP (not into S/dsilu).
-                                locals_dS[sk] = locals_drop_scale[sk] * locals_dP[sk] *
-                                                ck_tile::type_convert<CompDataType>(scale_p) *
-                                                dsilu(locals_S[sk]);
+                            {
+                                GemmAccDataType dot_prod = 0.f;
+                                for(int k = 0; k < hdim_qk; k++)
+                                {
+                                    InOutDataType qreg = q_batch_seq_nhead_hdim(
+                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                    InOutDataType kreg = k_batch_seq_nhead_hdim(
+                                        0, seq_kv_offsets[i_batch] + sk, i_head, k);
+                                    dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
+                                                ck_tile::type_convert<GemmAccDataType>(kreg);
+                                }
+                                locals_S[sk] = ck_tile::type_convert<CompDataType>(dot_prod) *
+                                               ck_tile::type_convert<CompDataType>(alpha);
+                            }
                             else
-                                locals_dS[sk] = ck_tile::type_convert<CompDataType>(0.0f);
+                            {
+                                if(!use_softmax)
+                                    locals_S[sk] = ck_tile::type_convert<CompDataType>(0.0f);
+                                else
+                                    locals_S[sk] = -ck_tile::numeric<CompDataType>::infinity();
+                            }
                         }
-                    }
-                    else
-                    {
-                        // D[sq] = dO[sq] row(.) O[sq]
-                        GemmAccDataType D_acc = 0.f;
-                        for(int k = 0; k < hdim_v; k++)
-                        {
-                            InOutDataType do_reg =
-                                do_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k);
-                            InOutDataType o_reg =
-                                o_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k);
-                            D_acc += ck_tile::type_convert<GemmAccDataType>(do_reg) *
-                                     ck_tile::type_convert<GemmAccDataType>(o_reg);
-                        }
-                        CompDataType D = ck_tile::type_convert<CompDataType>(D_acc);
-                        // dS = P * (drop_scale*dP - D). P is the PURE softmax output; the dropout
-                        // mask multiplies dP only. D = dO.O already carries dropout (O is dropped).
-                        for(int sk = 0; sk < seqlen_kv; sk++)
-                            locals_dS[sk] =
-                                locals_P[sk] * (locals_drop_scale[sk] * locals_dP[sk] - D);
-                    }
 
-                    // ------------------------------------------------------------------
-                    // Step 5: dQ = alpha * dS @ K^T   (A=dS[sq,sk], B=K^T[hdim_qk,sk])
-                    //   (computed fresh per sq row, no accumulation needed)
-                    // ------------------------------------------------------------------
-                    for(int k = 0; k < hdim_qk; k++)
-                    {
-                        GemmAccDataType acc = 0.f;
+                        if(!use_softmax)
+                        {
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                                locals_P[sk] = silu(locals_S[sk]) *
+                                               ck_tile::type_convert<CompDataType>(scale_p);
+                        }
+                        else
+                        {
+                            // Use precomputed LSE from the forward pass to recover P without
+                            // a two-pass softmax reduction:
+                            //   LSE[sq] = log(sum_sk exp(S[sq,sk]))
+                            //   P[sq,sk] = exp(S[sq,sk] - LSE[sq])
+                            // Masked-out positions have S=-inf, so exp(-inf - LSE) = 0.
+                            CompDataType lse_sq =
+                                lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head);
+
+                            if(lse_sq == -ck_tile::numeric<CompDataType>::infinity())
+                            {
+                                for(CompDataType& elem : locals_P)
+                                    elem = ck_tile::type_convert<CompDataType>(0.0f);
+                            }
+                            else
+                            {
+                                for(int sk = 0; sk < seqlen_kv; sk++)
+                                    locals_P[sk] = std::exp(locals_S[sk] - lse_sq);
+                            }
+                        }
+
+                        // Dropout scale per key position: rp_undrop for kept, 0 for dropped
+                        // (1 when dropout is off). Kept as a SEPARATE factor rather than folded
+                        // into locals_P, because the two consumers need different quantities:
+                        //   - dV / dP use the *dropped* probabilities   P_drop = drop_scale * P
+                        //   - the softmax dS jacobian needs the *pure* softmax P together with the
+                        //     dropped dP:  dS = P * (drop_scale*dP - D)
+                        std::vector<CompDataType> locals_drop_scale(
+                            seqlen_kv, ck_tile::type_convert<CompDataType>(1.0f));
+                        if(has_dropout)
+                        {
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                            {
+                                uint8_t rand_val;
+
+                                rand_val = rand_val_batch_seq_nhead_seq(
+                                    0, seq_q_offsets[i_batch] + sq, i_head, sk);
+
+                                locals_drop_scale[sk] =
+                                    (rand_val <= p_undrop_in_uint8_t)
+                                        ? ck_tile::type_convert<CompDataType>(rp_undrop)
+                                        : ck_tile::type_convert<CompDataType>(0.0f);
+                            }
+                        };
+
+                        // ------------------------------------------------------------------
+                        // Step 2: dV = P^T @ dO^T   (A=P^T[sk,sq], B=dO^T[hdim_v,sq])
+                        // ------------------------------------------------------------------
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                        {
+                            // dV uses the dropped probabilities P_drop = drop_scale * P
+                            InOutDataType p_reg = ck_tile::type_convert<InOutDataType>(
+                                locals_drop_scale[sk] * locals_P[sk]);
+                            for(int k = 0; k < hdim_v; k++)
+                            {
+                                InOutDataType do_reg = do_batch_seq_nhead_hdim(
+                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                dv_acc[sk][k] += ck_tile::type_convert<GemmAccDataType>(p_reg) *
+                                                 ck_tile::type_convert<GemmAccDataType>(do_reg);
+                            }
+                        }
+
+                        // ------------------------------------------------------------------
+                        // Step 3: dP = dO @ V      (A=dO[sq,hdim_v], B=V[sk,hdim_v])
+                        // ------------------------------------------------------------------
+                        std::vector<CompDataType> locals_dP(seqlen_kv);
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                        {
+                            GemmAccDataType acc = 0.f;
+                            for(int k = 0; k < hdim_v; k++)
+                            {
+                                InOutDataType do_reg = do_batch_seq_nhead_hdim(
+                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                InOutDataType vreg = v_batch_seq_nhead_hdim(
+                                    0, seq_kv_offsets[i_batch] + sk, i_head, k);
+                                acc += ck_tile::type_convert<GemmAccDataType>(do_reg) *
+                                       ck_tile::type_convert<GemmAccDataType>(vreg);
+                            }
+                            locals_dP[sk] = ck_tile::type_convert<CompDataType>(acc);
+                        }
+
+                        // ------------------------------------------------------------------
+                        // Step 4: Compute dS[sq,:] from dP[sq,:] via activation chain rule
+                        //
+                        //   kUseSoftmax=false (SiLU):
+                        //     dS[sq,sk] = dP[sq,sk] * scale_p * dsilu(S[sq,sk])  (masked-in)
+                        //               = 0                                        (masked-out)
+                        //
+                        //   kUseSoftmax=true (Softmax):
+                        //     D[sq] = dO[sq] row(.) O[sq]   (uses forward output O directly)
+                        //     dS[sq,sk] = P[sq,sk] * (dP[sq,sk] - D[sq])
+                        // ------------------------------------------------------------------
+                        std::vector<CompDataType> locals_dS(seqlen_kv);
+                        if(!use_softmax)
+                        {
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                            {
+                                if(mask.IsTokenPairInsideMask(sq, sk))
+                                    // dS = (drop_scale * dP) * scale_p * dsilu(S); the dropout mask
+                                    // propagates through the chain rule into dP (not into S/dsilu).
+                                    locals_dS[sk] = locals_drop_scale[sk] * locals_dP[sk] *
+                                                    ck_tile::type_convert<CompDataType>(scale_p) *
+                                                    dsilu(locals_S[sk]);
+                                else
+                                    locals_dS[sk] = ck_tile::type_convert<CompDataType>(0.0f);
+                            }
+                        }
+                        else
+                        {
+                            // D[sq] = dO[sq] row(.) O[sq]
+                            GemmAccDataType D_acc = 0.f;
+                            for(int k = 0; k < hdim_v; k++)
+                            {
+                                InOutDataType do_reg = do_batch_seq_nhead_hdim(
+                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                InOutDataType o_reg = o_batch_seq_nhead_hdim(
+                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                D_acc += ck_tile::type_convert<GemmAccDataType>(do_reg) *
+                                         ck_tile::type_convert<GemmAccDataType>(o_reg);
+                            }
+                            CompDataType D = ck_tile::type_convert<CompDataType>(D_acc);
+                            // dS = P * (drop_scale*dP - D). P is the PURE softmax output; the
+                            // dropout mask multiplies dP only. D = dO.O already carries dropout (O
+                            // is dropped).
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                                locals_dS[sk] =
+                                    locals_P[sk] * (locals_drop_scale[sk] * locals_dP[sk] - D);
+                        }
+
+                        // ------------------------------------------------------------------
+                        // Step 5: dQ = alpha * dS @ K^T   (A=dS[sq,sk], B=K^T[hdim_qk,sk])
+                        //   (computed fresh per sq row, no accumulation needed)
+                        // ------------------------------------------------------------------
+                        for(int k = 0; k < hdim_qk; k++)
+                        {
+                            GemmAccDataType acc = 0.f;
+                            for(int sk = 0; sk < seqlen_kv; sk++)
+                            {
+                                InOutDataType ds_reg =
+                                    ck_tile::type_convert<InOutDataType>(locals_dS[sk]);
+                                InOutDataType kreg = k_batch_seq_nhead_hdim(
+                                    0, seq_kv_offsets[i_batch] + sk, i_head, k);
+                                acc += ck_tile::type_convert<GemmAccDataType>(ds_reg) *
+                                       ck_tile::type_convert<GemmAccDataType>(kreg);
+                            }
+                            dq_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k) =
+                                ck_tile::type_convert<InOutDataType>(acc * alpha);
+                        }
+
+                        // ------------------------------------------------------------------
+                        // Step 6: dK = alpha * dS^T @ Q^T   (A=dS^T[sk,sq], B=Q^T[hdim_qk,sq])
+                        // ------------------------------------------------------------------
                         for(int sk = 0; sk < seqlen_kv; sk++)
                         {
                             InOutDataType ds_reg =
                                 ck_tile::type_convert<InOutDataType>(locals_dS[sk]);
-                            InOutDataType kreg =
-                                k_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k);
-                            acc += ck_tile::type_convert<GemmAccDataType>(ds_reg) *
-                                   ck_tile::type_convert<GemmAccDataType>(kreg);
+                            for(int k = 0; k < hdim_qk; k++)
+                            {
+                                InOutDataType qreg = q_batch_seq_nhead_hdim(
+                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                dk_acc[sk][k] += ck_tile::type_convert<GemmAccDataType>(ds_reg) *
+                                                 ck_tile::type_convert<GemmAccDataType>(qreg);
+                            }
                         }
-                        dq_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k) =
-                            ck_tile::type_convert<InOutDataType>(acc * alpha);
                     }
 
-                    // ------------------------------------------------------------------
-                    // Step 6: dK = alpha * dS^T @ Q^T   (A=dS^T[sk,sq], B=Q^T[hdim_qk,sq])
-                    // ------------------------------------------------------------------
+                    // Write back dK (multiplied by alpha) and dV
                     for(int sk = 0; sk < seqlen_kv; sk++)
                     {
-                        InOutDataType ds_reg = ck_tile::type_convert<InOutDataType>(locals_dS[sk]);
                         for(int k = 0; k < hdim_qk; k++)
-                        {
-                            InOutDataType qreg =
-                                q_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k);
-                            dk_acc[sk][k] += ck_tile::type_convert<GemmAccDataType>(ds_reg) *
-                                             ck_tile::type_convert<GemmAccDataType>(qreg);
-                        }
+                            dk_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k) =
+                                ck_tile::type_convert<InOutDataType>(dk_acc[sk][k] * alpha);
+                        for(int k = 0; k < hdim_v; k++)
+                            dv_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k) =
+                                ck_tile::type_convert<InOutDataType>(dv_acc[sk][k]);
                     }
-                }
-
-                // Write back dK (multiplied by alpha) and dV
-                for(int sk = 0; sk < seqlen_kv; sk++)
-                {
-                    for(int k = 0; k < hdim_qk; k++)
-                        dk_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k) =
-                            ck_tile::type_convert<InOutDataType>(dk_acc[sk][k] * alpha);
-                    for(int k = 0; k < hdim_v; k++)
-                        dv_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k) =
-                            ck_tile::type_convert<InOutDataType>(dv_acc[sk][k]);
-                }
-            });
+                });
         };
 
         make_ParallelTensorFunctor(f, num_batch, num_head)(std::thread::hardware_concurrency());

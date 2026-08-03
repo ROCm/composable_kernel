@@ -11,6 +11,7 @@
 
 #include "hstu_block_masking.hpp"
 #include "hstu_attention_kernel_util.hpp"
+#include "hstu_attention_bool_switch_return.hpp"
 
 #ifndef HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
 #define HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM 1
@@ -1160,49 +1161,54 @@ struct HstuAttentionBwdKernel1
         };
 
         auto dq_acc_tile = [&]() {
-            if(kargs.window_size > 0)
-            {
-                using HstuMaskType =
-                    typename ck_tile::HstuBlockMasking<kIsCrossAttention, kHasCausal, true>::Type;
+            bool has_context = kargs.contextual_seqlen > 0;
+            bool use_local   = kargs.window_size > 0;
 
-                auto mask = [&]() {
-                    if constexpr(kIsCrossAttention)
-                        return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
-                            is_tile_in_first_split,
-                            kargs.seqlen_q,
-                            kargs.seqlen_kv,
-                            kargs.contextual_seqlen,
-                            num_target,
-                            kargs.window_size,
-                            kargs.min_full_attn_seqlen);
-                    else
-                        return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
-                            is_tile_in_first_split,
-                            kargs.seqlen_q,
-                            kargs.contextual_seqlen,
-                            num_target,
-                            kargs.window_size,
-                            kargs.min_full_attn_seqlen);
-                }();
+            return BOOL_SWITCH_RETURN_2(has_context, kHasContext, use_local, kUseLocal, [&]() {
+                using HstuMaskType = typename ck_tile::
+                    HstuBlockMasking<kIsCrossAttention, kHasCausal, kUseLocal, kHasContext>::Type;
 
-                return run_pipeline(mask);
-            }
-            else
-            {
-                using HstuMaskType =
-                    typename ck_tile::HstuBlockMasking<kIsCrossAttention, kHasCausal, false>::Type;
+                if constexpr(kUseLocal)
+                {
+                    auto mask = [&]() {
+                        if constexpr(kIsCrossAttention)
+                            return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
+                                is_tile_in_first_split,
+                                kargs.seqlen_q,
+                                kargs.seqlen_kv,
+                                kargs.contextual_seqlen,
+                                num_target,
+                                kargs.window_size,
+                                kargs.min_full_attn_seqlen);
+                        else
+                            return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
+                                is_tile_in_first_split,
+                                kargs.seqlen_q,
+                                kargs.contextual_seqlen,
+                                num_target,
+                                kargs.window_size,
+                                kargs.min_full_attn_seqlen);
+                    }();
 
-                auto mask = [&]() {
-                    if constexpr(kIsCrossAttention)
-                        return make_hstu_cross_attention_block_mask_without_local<HstuMaskType>(
-                            kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
-                    else
-                        return make_hstu_self_attention_block_mask_without_local<HstuMaskType>(
-                            kargs.seqlen_q, kargs.contextual_seqlen, num_target);
-                }();
+                    return run_pipeline(mask);
+                }
+                else
+                {
+                    auto mask = [&]() {
+                        if constexpr(kIsCrossAttention)
+                            return make_hstu_cross_attention_block_mask_without_local<HstuMaskType>(
+                                kargs.seqlen_q,
+                                kargs.seqlen_kv,
+                                kargs.contextual_seqlen,
+                                num_target);
+                        else
+                            return make_hstu_self_attention_block_mask_without_local<HstuMaskType>(
+                                kargs.seqlen_q, kargs.contextual_seqlen, num_target);
+                    }();
 
-                return run_pipeline(mask);
-            }
+                    return run_pipeline(mask);
+                }
+            });
         }();
 
         // ---- dQ output DRAM window -- tile storing window for the epilogue ----
