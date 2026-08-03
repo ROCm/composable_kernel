@@ -741,7 +741,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               typename Block2CTileMap>
     __device__ static void Run(const Argument& karg,
-                               void* __restrict__ p_shared_block,
+                               void* p_shared_block, /*FIXME: reinstate __restrict__ qualifier*/
                                const Block2CTileMap& block_2_ctile_map,
                                const AElementwiseOperation a_element_op = AElementwiseOperation{},
                                const BElementwiseOperation b_element_op = BElementwiseOperation{},
