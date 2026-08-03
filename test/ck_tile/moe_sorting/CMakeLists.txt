@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 # Currently ck_tile is only built on gfx90a, gfx942, gfx950, gfx11 and gfx12
-if(GPU_TARGETS MATCHES "gfx942|gfx950|gfx90a|gfx11|gfx12")
+if(GPU_TARGETS MATCHES "gfx942|gfx950|gfx90a|gfx11|gfx12|amdgcnspirv")
 
     function(add_moe_sorting_test EXECUTABLE USE_2D_BUF)
         add_gtest_executable(${EXECUTABLE} test_moe_sorting.cpp moe_sorting_api.cpp)

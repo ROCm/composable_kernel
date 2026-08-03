@@ -1,7 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12|amdgcnspirv")
 
     function(add_permute_test TARGET_NAME MAIN_SRC)
         add_gtest_executable(${TARGET_NAME} ${MAIN_SRC})
