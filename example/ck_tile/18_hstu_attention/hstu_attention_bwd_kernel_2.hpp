@@ -11,6 +11,7 @@
 
 #include "hstu_block_masking.hpp"
 #include "hstu_attention_kernel_util.hpp"
+#include "hstu_attention_bool_switch.hpp"
 
 #ifndef HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
 #define HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM 1
@@ -1019,211 +1020,217 @@ struct HstuAttentionBwdKernel2
         // ---- Build HSTU mask and run pipeline ----
         // Runtime branch on window_size selects the compile-time local/non-local mask type,
         // matching the pattern used in the forward kernel.
-        if(kargs.window_size > 0)
-        {
-            using HstuMaskType =
-                typename ck_tile::HstuBlockMasking<kIsCrossAttention, kHasCausal, true>::Type;
+        //
+        //
+        bool has_context = kargs.contextual_seqlen > 0;
+        bool use_local   = kargs.window_size > 0;
 
-            auto mask = [&]() {
-                if constexpr(kIsCrossAttention)
-                    return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
-                        true,
-                        kargs.seqlen_q,
-                        kargs.seqlen_kv,
-                        kargs.contextual_seqlen,
-                        num_target,
-                        kargs.window_size,
-                        kargs.min_full_attn_seqlen);
-                else
-                    return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
-                        true,
-                        kargs.seqlen_q,
-                        kargs.contextual_seqlen,
-                        num_target,
-                        kargs.window_size,
-                        kargs.min_full_attn_seqlen);
-            }();
+        return BOOL_SWITCH_2(has_context, kHasContext, use_local, kUseLocal, [&]() {
+            using HstuMaskType = typename ck_tile::
+                HstuBlockMasking<kIsCrossAttention, kHasCausal, kUseLocal, kHasContext>::Type;
 
-            const auto [seqlen_q_start, seqlen_q_end] =
-                mask.GetTileRangeAlongY(i_n0,
-                                        number<HstuAttentionBwdPipeline::kN0>{},
-                                        number<HstuAttentionBwdPipeline::kM0>{});
-
-            if constexpr(!kUseSoftmax)
+            if constexpr(kUseLocal)
             {
-                const auto [dk_acc, dv_acc] = HstuAttentionBwdPipeline{}(q_dram_window,
-                                                                         do_dram_window,
-                                                                         bias_dram_window,
-                                                                         k_dram_window,
-                                                                         v_dram_window,
-                                                                         null_randval_window,
-                                                                         seqlen_q_start,
-                                                                         seqlen_q_end,
-                                                                         i_n0,
-                                                                         mask,
-                                                                         kargs.scale_s,
-                                                                         kargs.scale_p,
-                                                                         smem_ptr,
-                                                                         dropout);
-                run_epilogue(dk_acc, dv_acc);
+                auto mask = [&]() {
+                    if constexpr(kIsCrossAttention)
+                        return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
+                            true,
+                            kargs.seqlen_q,
+                            kargs.seqlen_kv,
+                            kargs.contextual_seqlen,
+                            num_target,
+                            kargs.window_size,
+                            kargs.min_full_attn_seqlen);
+                    else
+                        return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
+                            true,
+                            kargs.seqlen_q,
+                            kargs.contextual_seqlen,
+                            num_target,
+                            kargs.window_size,
+                            kargs.min_full_attn_seqlen);
+                }();
+
+                const auto [seqlen_q_start, seqlen_q_end] =
+                    mask.GetTileRangeAlongY(i_n0,
+                                            number<HstuAttentionBwdPipeline::kN0>{},
+                                            number<HstuAttentionBwdPipeline::kM0>{});
+
+                if constexpr(!kUseSoftmax)
+                {
+                    const auto [dk_acc, dv_acc] = HstuAttentionBwdPipeline{}(q_dram_window,
+                                                                             do_dram_window,
+                                                                             bias_dram_window,
+                                                                             k_dram_window,
+                                                                             v_dram_window,
+                                                                             null_randval_window,
+                                                                             seqlen_q_start,
+                                                                             seqlen_q_end,
+                                                                             i_n0,
+                                                                             mask,
+                                                                             kargs.scale_s,
+                                                                             kargs.scale_p,
+                                                                             smem_ptr,
+                                                                             dropout);
+                    run_epilogue(dk_acc, dv_acc);
+                }
+                else
+                {
+                    // Build LSE and delta DRAM windows
+                    const CompDataType* lse_ptr =
+                        reinterpret_cast<const CompDataType*>(kargs.lse_ptr) +
+                        static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_lse +
+                        batch_offset_lse;
+
+                    const auto lse_dram = [&]() {
+                        const auto naive = make_naive_tensor_view<address_space_enum::global>(
+                            lse_ptr,
+                            make_tuple(kargs.seqlen_q),
+                            make_tuple(kargs.seq_stride_lse),
+                            number<1>{},
+                            number<1>{});
+                        return pad_tensor_view(naive,
+                                               make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
+                                               sequence<false>{});
+                    }();
+
+                    auto lse_dram_window = make_tile_window(
+                        lse_dram, make_tuple(number<HstuAttentionBwdPipeline::kM0>{}), {0});
+
+                    const CompDataType* delta_ptr =
+                        reinterpret_cast<const CompDataType*>(kargs.delta_ptr) +
+                        static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_delta +
+                        batch_offset_delta;
+
+                    const auto delta_dram = [&]() {
+                        const auto naive = make_naive_tensor_view<address_space_enum::global>(
+                            delta_ptr,
+                            make_tuple(kargs.seqlen_q),
+                            make_tuple(kargs.seq_stride_delta),
+                            number<1>{},
+                            number<1>{});
+                        return pad_tensor_view(naive,
+                                               make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
+                                               sequence<false>{});
+                    }();
+
+                    auto delta_dram_window = make_tile_window(
+                        delta_dram, make_tuple(number<HstuAttentionBwdPipeline::kM0>{}), {0});
+
+                    const auto [dk_acc, dv_acc] = HstuAttentionBwdPipeline{}(q_dram_window,
+                                                                             do_dram_window,
+                                                                             lse_dram_window,
+                                                                             delta_dram_window,
+                                                                             bias_dram_window,
+                                                                             k_dram_window,
+                                                                             v_dram_window,
+                                                                             null_randval_window,
+                                                                             seqlen_q_start,
+                                                                             seqlen_q_end,
+                                                                             i_n0,
+                                                                             mask,
+                                                                             kargs.scale_s,
+                                                                             smem_ptr,
+                                                                             dropout);
+                    run_epilogue(dk_acc, dv_acc);
+                }
             }
             else
             {
-                // Build LSE and delta DRAM windows
-                const CompDataType* lse_ptr =
-                    reinterpret_cast<const CompDataType*>(kargs.lse_ptr) +
-                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_lse + batch_offset_lse;
-
-                const auto lse_dram = [&]() {
-                    const auto naive = make_naive_tensor_view<address_space_enum::global>(
-                        lse_ptr,
-                        make_tuple(kargs.seqlen_q),
-                        make_tuple(kargs.seq_stride_lse),
-                        number<1>{},
-                        number<1>{});
-                    return pad_tensor_view(naive,
-                                           make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
-                                           sequence<false>{});
+                auto mask = [&]() {
+                    if constexpr(kIsCrossAttention)
+                        return make_hstu_cross_attention_block_mask_without_local<HstuMaskType>(
+                            kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
+                    else
+                        return make_hstu_self_attention_block_mask_without_local<HstuMaskType>(
+                            kargs.seqlen_q, kargs.contextual_seqlen, num_target);
                 }();
 
-                auto lse_dram_window = make_tile_window(
-                    lse_dram, make_tuple(number<HstuAttentionBwdPipeline::kM0>{}), {0});
+                const auto [seqlen_q_start, seqlen_q_end] =
+                    mask.GetTileRangeAlongY(i_n0,
+                                            number<HstuAttentionBwdPipeline::kN0>{},
+                                            number<HstuAttentionBwdPipeline::kM0>{});
 
-                const CompDataType* delta_ptr =
-                    reinterpret_cast<const CompDataType*>(kargs.delta_ptr) +
-                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_delta +
-                    batch_offset_delta;
-
-                const auto delta_dram = [&]() {
-                    const auto naive = make_naive_tensor_view<address_space_enum::global>(
-                        delta_ptr,
-                        make_tuple(kargs.seqlen_q),
-                        make_tuple(kargs.seq_stride_delta),
-                        number<1>{},
-                        number<1>{});
-                    return pad_tensor_view(naive,
-                                           make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
-                                           sequence<false>{});
-                }();
-
-                auto delta_dram_window = make_tile_window(
-                    delta_dram, make_tuple(number<HstuAttentionBwdPipeline::kM0>{}), {0});
-
-                const auto [dk_acc, dv_acc] = HstuAttentionBwdPipeline{}(q_dram_window,
-                                                                         do_dram_window,
-                                                                         lse_dram_window,
-                                                                         delta_dram_window,
-                                                                         bias_dram_window,
-                                                                         k_dram_window,
-                                                                         v_dram_window,
-                                                                         null_randval_window,
-                                                                         seqlen_q_start,
-                                                                         seqlen_q_end,
-                                                                         i_n0,
-                                                                         mask,
-                                                                         kargs.scale_s,
-                                                                         smem_ptr,
-                                                                         dropout);
-                run_epilogue(dk_acc, dv_acc);
-            }
-        }
-        else
-        {
-            using HstuMaskType =
-                typename ck_tile::HstuBlockMasking<kIsCrossAttention, kHasCausal, false>::Type;
-
-            auto mask = [&]() {
-                if constexpr(kIsCrossAttention)
-                    return make_hstu_cross_attention_block_mask_without_local<HstuMaskType>(
-                        kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
+                if constexpr(!kUseSoftmax)
+                {
+                    const auto [dk_acc, dv_acc] = HstuAttentionBwdPipeline{}(q_dram_window,
+                                                                             do_dram_window,
+                                                                             bias_dram_window,
+                                                                             k_dram_window,
+                                                                             v_dram_window,
+                                                                             null_randval_window,
+                                                                             seqlen_q_start,
+                                                                             seqlen_q_end,
+                                                                             i_n0,
+                                                                             mask,
+                                                                             kargs.scale_s,
+                                                                             kargs.scale_p,
+                                                                             smem_ptr,
+                                                                             dropout);
+                    run_epilogue(dk_acc, dv_acc);
+                }
                 else
-                    return make_hstu_self_attention_block_mask_without_local<HstuMaskType>(
-                        kargs.seqlen_q, kargs.contextual_seqlen, num_target);
-            }();
+                {
+                    // Build LSE and delta DRAM windows
+                    const CompDataType* lse_ptr =
+                        reinterpret_cast<const CompDataType*>(kargs.lse_ptr) +
+                        static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_lse +
+                        batch_offset_lse;
 
-            const auto [seqlen_q_start, seqlen_q_end] =
-                mask.GetTileRangeAlongY(i_n0,
-                                        number<HstuAttentionBwdPipeline::kN0>{},
-                                        number<HstuAttentionBwdPipeline::kM0>{});
+                    const auto lse_dram = [&]() {
+                        const auto naive = make_naive_tensor_view<address_space_enum::global>(
+                            lse_ptr,
+                            make_tuple(kargs.seqlen_q),
+                            make_tuple(kargs.seq_stride_lse),
+                            number<1>{},
+                            number<1>{});
+                        return pad_tensor_view(naive,
+                                               make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
+                                               sequence<false>{});
+                    }();
 
-            if constexpr(!kUseSoftmax)
-            {
-                const auto [dk_acc, dv_acc] = HstuAttentionBwdPipeline{}(q_dram_window,
-                                                                         do_dram_window,
-                                                                         bias_dram_window,
-                                                                         k_dram_window,
-                                                                         v_dram_window,
-                                                                         null_randval_window,
-                                                                         seqlen_q_start,
-                                                                         seqlen_q_end,
-                                                                         i_n0,
-                                                                         mask,
-                                                                         kargs.scale_s,
-                                                                         kargs.scale_p,
-                                                                         smem_ptr,
-                                                                         dropout);
-                run_epilogue(dk_acc, dv_acc);
+                    auto lse_dram_window = make_tile_window(
+                        lse_dram, make_tuple(number<HstuAttentionBwdPipeline::kM0>{}), {0});
+
+                    const CompDataType* delta_ptr =
+                        reinterpret_cast<const CompDataType*>(kargs.delta_ptr) +
+                        static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_delta +
+                        batch_offset_delta;
+
+                    const auto delta_dram = [&]() {
+                        const auto naive = make_naive_tensor_view<address_space_enum::global>(
+                            delta_ptr,
+                            make_tuple(kargs.seqlen_q),
+                            make_tuple(kargs.seq_stride_delta),
+                            number<1>{},
+                            number<1>{});
+                        return pad_tensor_view(naive,
+                                               make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
+                                               sequence<false>{});
+                    }();
+
+                    auto delta_dram_window = make_tile_window(
+                        delta_dram, make_tuple(number<HstuAttentionBwdPipeline::kM0>{}), {0});
+
+                    const auto [dk_acc, dv_acc] = HstuAttentionBwdPipeline{}(q_dram_window,
+                                                                             do_dram_window,
+                                                                             lse_dram_window,
+                                                                             delta_dram_window,
+                                                                             bias_dram_window,
+                                                                             k_dram_window,
+                                                                             v_dram_window,
+                                                                             null_randval_window,
+                                                                             seqlen_q_start,
+                                                                             seqlen_q_end,
+                                                                             i_n0,
+                                                                             mask,
+                                                                             kargs.scale_s,
+                                                                             smem_ptr,
+                                                                             dropout);
+                    run_epilogue(dk_acc, dv_acc);
+                }
             }
-            else
-            {
-                // Build LSE and delta DRAM windows
-                const CompDataType* lse_ptr =
-                    reinterpret_cast<const CompDataType*>(kargs.lse_ptr) +
-                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_lse + batch_offset_lse;
-
-                const auto lse_dram = [&]() {
-                    const auto naive = make_naive_tensor_view<address_space_enum::global>(
-                        lse_ptr,
-                        make_tuple(kargs.seqlen_q),
-                        make_tuple(kargs.seq_stride_lse),
-                        number<1>{},
-                        number<1>{});
-                    return pad_tensor_view(naive,
-                                           make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
-                                           sequence<false>{});
-                }();
-
-                auto lse_dram_window = make_tile_window(
-                    lse_dram, make_tuple(number<HstuAttentionBwdPipeline::kM0>{}), {0});
-
-                const CompDataType* delta_ptr =
-                    reinterpret_cast<const CompDataType*>(kargs.delta_ptr) +
-                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_delta +
-                    batch_offset_delta;
-
-                const auto delta_dram = [&]() {
-                    const auto naive = make_naive_tensor_view<address_space_enum::global>(
-                        delta_ptr,
-                        make_tuple(kargs.seqlen_q),
-                        make_tuple(kargs.seq_stride_delta),
-                        number<1>{},
-                        number<1>{});
-                    return pad_tensor_view(naive,
-                                           make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
-                                           sequence<false>{});
-                }();
-
-                auto delta_dram_window = make_tile_window(
-                    delta_dram, make_tuple(number<HstuAttentionBwdPipeline::kM0>{}), {0});
-
-                const auto [dk_acc, dv_acc] = HstuAttentionBwdPipeline{}(q_dram_window,
-                                                                         do_dram_window,
-                                                                         lse_dram_window,
-                                                                         delta_dram_window,
-                                                                         bias_dram_window,
-                                                                         k_dram_window,
-                                                                         v_dram_window,
-                                                                         null_randval_window,
-                                                                         seqlen_q_start,
-                                                                         seqlen_q_end,
-                                                                         i_n0,
-                                                                         mask,
-                                                                         kargs.scale_s,
-                                                                         smem_ptr,
-                                                                         dropout);
-                run_epilogue(dk_acc, dv_acc);
-            }
-        }
+        });
     }
 };
 
