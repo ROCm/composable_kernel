@@ -34,7 +34,6 @@ import csv
 import json
 import os
 import queue
-import re
 import subprocess
 import sys
 import threading
@@ -45,14 +44,17 @@ _THIS_DIR = Path(__file__).resolve().parent
 # Dispatcher python utilities are three levels up from here:
 # gemm_bquant/ -> block_scale_gemm/ -> gemm/ -> tile_engine/ops/ -> ...
 # -> projects/composablekernel/dispatcher/python
+_COMMON_DIR = _THIS_DIR.parents[2] / "common"
 _DISPATCHER_ROOT = _THIS_DIR.parents[5] / "dispatcher"
 sys.path.insert(0, str(_DISPATCHER_ROOT / "python"))
+sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
 from grouped_gemm_bquant_utils import (  # noqa: E402
     setup_multiple_bquant_dispatchers,
     expand_bquant_sweep,
 )
+from smi_utils import detect_gpu_ids  # noqa: E402
 
 # Dispatcher-schema configs live alongside the legacy tile-engine configs.
 # The "dispatcher_*" files use the flat tile_configs/quant_groups format
@@ -73,30 +75,7 @@ DEFAULT_PROBLEMS = [
 
 def detect_devices():
     """Return a list of visible GPU id strings (best-effort)."""
-    env = os.environ.get("HIP_VISIBLE_DEVICES") or os.environ.get("CUDA_VISIBLE_DEVICES")
-    if env:
-        ids = [d.strip() for d in env.split(",") if d.strip() != ""]
-        if ids:
-            return ids
-    try:
-        out = subprocess.check_output(
-            ["rocm-smi", "--showid"], stderr=subprocess.DEVNULL, text=True
-        )
-        ids = sorted(set(re.findall(r"GPU\[(\d+)\]", out)), key=int)
-        if ids:
-            return ids
-    except Exception:
-        pass
-    try:
-        out = subprocess.check_output(
-            ["amd-smi", "list"], stderr=subprocess.DEVNULL, text=True
-        )
-        ids = re.findall(r"^GPU:\s*(\d+)", out, re.MULTILINE)
-        if ids:
-            return ids
-    except Exception:
-        pass
-    return ["0"]
+    return detect_gpu_ids()
 
 
 def resolve_devices(spec):
