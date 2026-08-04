@@ -401,8 +401,8 @@ class BQuantGpuGemmRunner:
                 f"for kernel {self.kernel_name}"
             )
 
-        # permute_n epilogue writes C with N-columns riffled into r groups
-        # (r = tile_n / warp_tile_n / warp_n). Undo it so the caller gets logical C.
+        # permute_n epilogue riffles N-columns within each tile of width tile_n.
+        # Undo it per-tile so the caller gets logical (row-major) C.
         _name = self.kernel_name
         if 'permute_n' in _name:
             import re as _re
@@ -410,9 +410,12 @@ class BQuantGpuGemmRunner:
             if _m:
                 _tile_n = int(_m.group(2)); _warp_n = int(_m.group(5)); _wt_n = int(_m.group(8))
                 _r = _tile_n // _wt_n // _warp_n
-                if _r > 1 and (N % _r) == 0:
-                    _half = N // _r
-                    _logical = [(c % _r) * _half + (c // _r) for c in range(N)]
+                if _r > 1 and (N % _tile_n) == 0:
+                    _half = _tile_n // _r
+                    _logical = [
+                        (c // _tile_n) * _tile_n + (c % _tile_n % _r) * _half + (c % _tile_n // _r)
+                        for c in range(N)
+                    ]
                     _Cp = np.empty_like(C)
                     _Cp[:, _logical] = C
                     C = _Cp
@@ -591,7 +594,6 @@ def _compile_bquant_kernel(
 
     obj_path.unlink(missing_ok=True)
     return True
-
 
 # =============================================================================
 # setup_multiple_bquant_dispatchers — build pipeline

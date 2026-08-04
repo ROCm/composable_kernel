@@ -277,6 +277,88 @@ else()
 endif()
 
 # =============================================================================
+# GroupedGemm AQuant ctypes Library
+# =============================================================================
+
+file(GLOB AQUANT_GEMM_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/grouped_gemm_aquant_*.hpp")
+if(AQUANT_GEMM_KERNEL_HEADERS)
+    list(GET AQUANT_GEMM_KERNEL_HEADERS 0 AQUANT_GEMM_KERNEL_HEADER)
+    message(STATUS "Found AQuant GEMM kernel for ctypes lib: ${AQUANT_GEMM_KERNEL_HEADER}")
+
+    add_ctypes_library(dispatcher_grouped_gemm_aquant_lib
+        grouped_gemm_aquant_ctypes_lib.cpp
+        KERNEL_HEADER ${AQUANT_GEMM_KERNEL_HEADER}
+    )
+    if(NOT DEFINED CK_TILE_AQUANT_GFX_ARCH OR CK_TILE_AQUANT_GFX_ARCH STREQUAL "")
+        if(CMAKE_HIP_ARCHITECTURES)
+            list(GET CMAKE_HIP_ARCHITECTURES 0 _aquant_gfx_arch)
+        else()
+            set(_aquant_gfx_arch "gfx942")
+        endif()
+        set(CK_TILE_AQUANT_GFX_ARCH "${_aquant_gfx_arch}" CACHE STRING
+            "GFX arch for the CMake-built AQuant ctypes .so (default: first CMAKE_HIP_ARCHITECTURES or gfx942)")
+    endif()
+    message(STATUS "AQuant ctypes lib GFX_ARCH: ${CK_TILE_AQUANT_GFX_ARCH}")
+    target_compile_definitions(dispatcher_grouped_gemm_aquant_lib PRIVATE
+        CK_TILE_SINGLE_KERNEL_INCLUDE
+        GFX_ARCH="${CK_TILE_AQUANT_GFX_ARCH}"
+    )
+else()
+    message(STATUS "No AQuant GEMM kernel found for ctypes lib - building without kernel")
+    add_library(dispatcher_grouped_gemm_aquant_lib SHARED grouped_gemm_aquant_ctypes_lib.cpp)
+    target_include_directories(dispatcher_grouped_gemm_aquant_lib PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/dispatcher/include
+    )
+    target_link_libraries(dispatcher_grouped_gemm_aquant_lib PRIVATE hip::device)
+    set_target_properties(dispatcher_grouped_gemm_aquant_lib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_STANDARD 17
+    )
+endif()
+
+# =============================================================================
+# GroupedGemm ABQuant ctypes Library
+# =============================================================================
+
+file(GLOB ABQUANT_GEMM_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/grouped_gemm_abquant_*.hpp")
+if(ABQUANT_GEMM_KERNEL_HEADERS)
+    list(GET ABQUANT_GEMM_KERNEL_HEADERS 0 ABQUANT_GEMM_KERNEL_HEADER)
+    message(STATUS "Found ABQuant GEMM kernel for ctypes lib: ${ABQUANT_GEMM_KERNEL_HEADER}")
+
+    add_ctypes_library(dispatcher_grouped_gemm_abquant_lib
+        grouped_gemm_abquant_ctypes_lib.cpp
+        KERNEL_HEADER ${ABQUANT_GEMM_KERNEL_HEADER}
+    )
+    if(NOT DEFINED CK_TILE_ABQUANT_GFX_ARCH OR CK_TILE_ABQUANT_GFX_ARCH STREQUAL "")
+        if(CMAKE_HIP_ARCHITECTURES)
+            list(GET CMAKE_HIP_ARCHITECTURES 0 _abquant_gfx_arch)
+        else()
+            set(_abquant_gfx_arch "gfx942")
+        endif()
+        set(CK_TILE_ABQUANT_GFX_ARCH "${_abquant_gfx_arch}" CACHE STRING
+            "GFX arch for the CMake-built ABQuant ctypes .so (default: first CMAKE_HIP_ARCHITECTURES or gfx942)")
+    endif()
+    message(STATUS "ABQuant ctypes lib GFX_ARCH: ${CK_TILE_ABQUANT_GFX_ARCH}")
+    target_compile_definitions(dispatcher_grouped_gemm_abquant_lib PRIVATE
+        CK_TILE_SINGLE_KERNEL_INCLUDE
+        GFX_ARCH="${CK_TILE_ABQUANT_GFX_ARCH}"
+    )
+else()
+    message(STATUS "No ABQuant GEMM kernel found for ctypes lib - building without kernel")
+    add_library(dispatcher_grouped_gemm_abquant_lib SHARED grouped_gemm_abquant_ctypes_lib.cpp)
+    target_include_directories(dispatcher_grouped_gemm_abquant_lib PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/dispatcher/include
+    )
+    target_link_libraries(dispatcher_grouped_gemm_abquant_lib PRIVATE hip::device)
+    set_target_properties(dispatcher_grouped_gemm_abquant_lib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_STANDARD 17
+    )
+endif()
+
+# =============================================================================
 # TileEngine -> Dispatcher Bridge ctypes Libraries (append-only shared block)
 # =============================================================================
 #
