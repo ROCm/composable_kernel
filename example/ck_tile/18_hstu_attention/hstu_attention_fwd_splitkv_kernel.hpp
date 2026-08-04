@@ -995,6 +995,44 @@ struct HstuAttentionFwdSplitKVKernel
             };
         }();
 
+        const auto run_pipeline = [&](const auto& mask) {
+            const auto [global_seqlen_k_start, global_seqlen_k_end] = mask.GetTileRangeAlongX(
+                i_m0, number<HstuAttentionPipeline::kM0>{}, number<HstuAttentionPipeline::kN0>{});
+
+            const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
+                global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
+
+            if constexpr(!kUseSoftmax)
+            {
+                return HstuAttentionPipeline{}(q_dram_window,
+                                               k_dram_window,
+                                               v_dram_window,
+                                               bias_dram_window,
+                                               seqlen_k_start,
+                                               seqlen_k_end,
+                                               mask,
+                                               kargs.scale_s,
+                                               kargs.scale_p,
+                                               smem_ptr,
+                                               dropout);
+            }
+            else
+            {
+                return HstuAttentionPipeline{}(q_dram_window,
+                                               k_dram_window,
+                                               v_dram_window,
+                                               bias_dram_window,
+                                               lse_acc_dram_window,
+                                               seqlen_k_start,
+                                               seqlen_k_end,
+                                               mask,
+                                               kargs.scale_s,
+                                               kargs.scale_p,
+                                               smem_ptr,
+                                               dropout);
+            }
+        };
+
         auto o_acc_tile = [&]() {
             bool has_context = kargs.contextual_seqlen > 0;
             bool use_local   = kargs.window_size > 0;
@@ -1031,43 +1069,7 @@ struct HstuAttentionFwdSplitKVKernel
                         };
                     }();
 
-                    const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                        mask.GetTileRangeAlongX(i_m0,
-                                                number<HstuAttentionPipeline::kM0>{},
-                                                number<HstuAttentionPipeline::kN0>{});
-
-                    const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
-                        global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
-
-                    if constexpr(!kUseSoftmax)
-                    {
-                        return HstuAttentionPipeline{}(q_dram_window,
-                                                       k_dram_window,
-                                                       v_dram_window,
-                                                       bias_dram_window,
-                                                       seqlen_k_start,
-                                                       seqlen_k_end,
-                                                       mask,
-                                                       kargs.scale_s,
-                                                       kargs.scale_p,
-                                                       smem_ptr,
-                                                       dropout);
-                    }
-                    else
-                    {
-                        return HstuAttentionPipeline{}(q_dram_window,
-                                                       k_dram_window,
-                                                       v_dram_window,
-                                                       bias_dram_window,
-                                                       lse_acc_dram_window,
-                                                       seqlen_k_start,
-                                                       seqlen_k_end,
-                                                       mask,
-                                                       kargs.scale_s,
-                                                       kargs.scale_p,
-                                                       smem_ptr,
-                                                       dropout);
-                    }
+                    return run_pipeline(mask);
                 }
                 else
                 {
@@ -1087,43 +1089,7 @@ struct HstuAttentionFwdSplitKVKernel
                         };
                     }();
 
-                    const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                        mask.GetTileRangeAlongX(i_m0,
-                                                number<HstuAttentionPipeline::kM0>{},
-                                                number<HstuAttentionPipeline::kN0>{});
-
-                    const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
-                        global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
-
-                    if constexpr(!kUseSoftmax)
-                    {
-                        return HstuAttentionPipeline{}(q_dram_window,
-                                                       k_dram_window,
-                                                       v_dram_window,
-                                                       bias_dram_window,
-                                                       seqlen_k_start,
-                                                       seqlen_k_end,
-                                                       mask,
-                                                       kargs.scale_s,
-                                                       kargs.scale_p,
-                                                       smem_ptr,
-                                                       dropout);
-                    }
-                    else
-                    {
-                        return HstuAttentionPipeline{}(q_dram_window,
-                                                       k_dram_window,
-                                                       v_dram_window,
-                                                       bias_dram_window,
-                                                       lse_acc_dram_window,
-                                                       seqlen_k_start,
-                                                       seqlen_k_end,
-                                                       mask,
-                                                       kargs.scale_s,
-                                                       kargs.scale_p,
-                                                       smem_ptr,
-                                                       dropout);
-                    }
+                    return run_pipeline(mask);
                 }
             });
         }();
