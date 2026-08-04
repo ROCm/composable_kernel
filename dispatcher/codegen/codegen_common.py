@@ -458,3 +458,140 @@ BQUANT_DTYPE_MAP = {
     "float":   "float",
     "e8m0":    "ck_tile::e8m0_t",
 }
+
+
+# ============================================================================
+# AQuant kernel name construction
+# ============================================================================
+
+
+def aquant_effective_epilogue(
+    tile_n: int,
+    warp_n: int,
+    warp_tile_n: int,
+    quant_group_n: int,
+) -> str:
+    """Return the epilogue tag the codegen will emit for AQuant kernels.
+
+    Mirrors the same TiledMMAPermuteN / use_permute_n_epilogue logic as BQuant
+    (the PermuteN condition is driven by B-side tile geometry, regardless of
+    which side is quantised).  Returns "permute_n" when PermuteNEpilogue is
+    selected, "cshuffle" otherwise.
+    """
+    n_repeat = tile_n // (warp_n * warp_tile_n)
+    use_permute_n = (n_repeat % 2 == 0) and (quant_group_n == 1)
+    return "permute_n" if use_permute_n else "cshuffle"
+
+
+def make_aquant_kernel_name(
+    variant_key: str,
+    layout: str,
+    pipeline: str,
+    epilogue: str,  # ignored — actual epilogue is computed from tile params
+    scheduler: str,
+    tile_m: int, tile_n: int, tile_k: int,
+    warp_m: int, warp_n: int, warp_k: int,
+    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    quant_group_m: int,
+    quant_group_n: int,
+    quant_group_k: int,
+    preshuffle_aq: bool = False,
+) -> str:
+    """Return the canonical AQuant kernel name used as KERNEL_NAME in generated headers.
+
+    Both AQuantKernelConfig (utils) and AQuantKernelSpec (codegen) delegate to
+    this function so the two sides are guaranteed to stay byte-exact.
+    """
+    effective_epilogue = aquant_effective_epilogue(tile_n, warp_n, warp_tile_n, quant_group_n)
+    parts = [
+        "grouped_gemm_aquant",
+        variant_key,
+        layout,
+        pipeline,
+        effective_epilogue,
+        scheduler,
+        f"{tile_m}x{tile_n}x{tile_k}",
+        f"{warp_m}x{warp_n}x{warp_k}",
+        f"{warp_tile_m}x{warp_tile_n}x{warp_tile_k}",
+        f"aqg{quant_group_m}x{quant_group_n}x{quant_group_k}",
+    ]
+    if preshuffle_aq:
+        parts.append("preshuffleaq")
+    return "_".join(parts)
+
+
+# ============================================================================
+# ABQuant kernel name construction
+# ============================================================================
+
+
+def abquant_effective_epilogue(
+    tile_n: int,
+    warp_n: int,
+    warp_tile_n: int,
+    bquant_group_n: int,
+    pipeline: str = "compv3",
+) -> str:
+    """Return the epilogue tag the codegen will emit for ABQuant kernels.
+
+    The PermuteN selection is governed by the B-side quant group N, matching
+    the same logic used by BQuant / AQuant. EightWaves and PreshuffleB use
+    TransposeC=true (transposed accumulator layout) which is incompatible with
+    PermuteNEpilogue — both must always use CShuffleEpilogue (TiledMMAPermuteN=false
+    in the C++ test fixtures for both GemmConfigEightWaves and GemmConfigPreshuffleB_ABQuant_Prefill).
+    """
+    if pipeline in ("eightwaves", "preshuffleb"):
+        return "cshuffle"
+    n_repeat = tile_n // (warp_n * warp_tile_n)
+    use_permute_n = (n_repeat % 2 == 0) and (bquant_group_n == 1)
+    return "permute_n" if use_permute_n else "cshuffle"
+
+
+def make_abquant_kernel_name(
+    variant_key: str,
+    layout: str,
+    pipeline: str,
+    epilogue: str,  # ignored — actual epilogue is computed from tile params
+    scheduler: str,
+    tile_m: int, tile_n: int, tile_k: int,
+    warp_m: int, warp_n: int, warp_k: int,
+    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    aquant_group_m: int,
+    aquant_group_n: int,
+    aquant_group_k: int,
+    bquant_group_m: int,
+    bquant_group_n: int,
+    bquant_group_k: int,
+    preshuffle_b: bool = False,
+    preshuffle_aq: bool = False,
+    preshuffle_bq: bool = False,
+    transpose_c: bool = False,
+) -> str:
+    """Return the canonical ABQuant kernel name used as KERNEL_NAME in generated headers.
+
+    Both ABQuantKernelConfig (utils) and ABQuantKernelSpec (codegen) delegate
+    to this function so the two sides are guaranteed to stay byte-exact.
+    """
+    effective_epilogue = abquant_effective_epilogue(tile_n, warp_n, warp_tile_n, bquant_group_n, pipeline)
+    parts = [
+        "grouped_gemm_abquant",
+        variant_key,
+        layout,
+        pipeline,
+        effective_epilogue,
+        scheduler,
+        f"{tile_m}x{tile_n}x{tile_k}",
+        f"{warp_m}x{warp_n}x{warp_k}",
+        f"{warp_tile_m}x{warp_tile_n}x{warp_tile_k}",
+        f"aqg{aquant_group_m}x{aquant_group_n}x{aquant_group_k}",
+        f"bqg{bquant_group_m}x{bquant_group_n}x{bquant_group_k}",
+    ]
+    if preshuffle_b:
+        parts.append("preshuffleb")
+    if preshuffle_aq:
+        parts.append("preshuffleaq")
+    if preshuffle_bq:
+        parts.append("preshufflebq")
+    if transpose_c:
+        parts.append("transposec")
+    return "_".join(parts)
