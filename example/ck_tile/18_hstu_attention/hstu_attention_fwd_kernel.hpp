@@ -1052,6 +1052,40 @@ struct HstuAttentionFwdKernel
             };
         }();
 
+        const auto run_pipeline = [&](const auto& mask, auto seqlen_k_start, auto seqlen_k_end) {
+            if constexpr(!kUseSoftmax)
+            {
+                return HstuAttentionPipeline{}(q_dram_window,
+                                               k_dram_window,
+                                               v_dram_window,
+                                               bias_dram_window,
+                                               null_randval_window,
+                                               seqlen_k_start,
+                                               seqlen_k_end,
+                                               mask,
+                                               kargs.scale_s,
+                                               kargs.scale_p,
+                                               smem_ptr,
+                                               dropout);
+            }
+            else
+            {
+                return HstuAttentionPipeline{}(q_dram_window,
+                                               k_dram_window,
+                                               v_dram_window,
+                                               bias_dram_window,
+                                               lse_dram_window,
+                                               null_randval_window,
+                                               seqlen_k_start,
+                                               seqlen_k_end,
+                                               mask,
+                                               kargs.scale_s,
+                                               kargs.scale_p,
+                                               smem_ptr,
+                                               dropout);
+            }
+        };
+
         auto o_acc_tile = [&]() {
             bool has_context = kargs.contextual_seqlen > 0;
             bool use_local   = kargs.window_size > 0;
@@ -1094,37 +1128,7 @@ struct HstuAttentionFwdKernel
                                                 number<HstuAttentionPipeline::kM0>{},
                                                 number<HstuAttentionPipeline::kN0>{});
 
-                    if constexpr(!kUseSoftmax)
-                    {
-                        return HstuAttentionPipeline{}(q_dram_window,
-                                                       k_dram_window,
-                                                       v_dram_window,
-                                                       bias_dram_window,
-                                                       null_randval_window,
-                                                       seqlen_k_start,
-                                                       seqlen_k_end,
-                                                       mask,
-                                                       kargs.scale_s,
-                                                       kargs.scale_p,
-                                                       smem_ptr,
-                                                       dropout);
-                    }
-                    else
-                    {
-                        return HstuAttentionPipeline{}(q_dram_window,
-                                                       k_dram_window,
-                                                       v_dram_window,
-                                                       bias_dram_window,
-                                                       lse_dram_window,
-                                                       null_randval_window,
-                                                       seqlen_k_start,
-                                                       seqlen_k_end,
-                                                       mask,
-                                                       kargs.scale_s,
-                                                       kargs.scale_p,
-                                                       smem_ptr,
-                                                       dropout);
-                    }
+                    return run_pipeline(mask, seqlen_k_start, seqlen_k_end);
                 }
                 else
                 {
@@ -1149,37 +1153,7 @@ struct HstuAttentionFwdKernel
                                                 number<HstuAttentionPipeline::kM0>{},
                                                 number<HstuAttentionPipeline::kN0>{});
 
-                    if constexpr(!kUseSoftmax)
-                    {
-                        return HstuAttentionPipeline{}(q_dram_window,
-                                                       k_dram_window,
-                                                       v_dram_window,
-                                                       bias_dram_window,
-                                                       null_randval_window,
-                                                       seqlen_k_start,
-                                                       seqlen_k_end,
-                                                       mask,
-                                                       kargs.scale_s,
-                                                       kargs.scale_p,
-                                                       smem_ptr,
-                                                       dropout);
-                    }
-                    else
-                    {
-                        return HstuAttentionPipeline{}(q_dram_window,
-                                                       k_dram_window,
-                                                       v_dram_window,
-                                                       bias_dram_window,
-                                                       lse_dram_window,
-                                                       null_randval_window,
-                                                       seqlen_k_start,
-                                                       seqlen_k_end,
-                                                       mask,
-                                                       kargs.scale_s,
-                                                       kargs.scale_p,
-                                                       smem_ptr,
-                                                       dropout);
-                    }
+                    return run_pipeline(mask, seqlen_k_start, seqlen_k_end);
                 }
             });
         }();
