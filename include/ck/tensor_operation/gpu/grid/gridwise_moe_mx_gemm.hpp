@@ -1255,6 +1255,11 @@ struct GridwiseMoeGemmMX
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op)
     {
+        static_assert(ActivationOperation == Activation::gelu_and_mul ||
+                          ActivationOperation == Activation::silu_and_mul ||
+                          ActivationOperation == Activation::gelu_tanh_and_mul,
+                      "gridwise_moe_mx_gemm only supports gelu_and_mul, silu_and_mul and "
+                      "gelu_tanh_and_mul.");
         ignore                           = a_element_op;
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
@@ -1701,6 +1706,19 @@ struct GridwiseMoeGemmMX
                                             tensor_operation::element_wise::Gelu{}(gate, gate);
                                             c_thread_buf_fp32(cidx) = up;*/
                                         }
+                                        else if(ActivationOperation ==
+                                                Activation::gelu_tanh_and_mul)
+                                        {
+                                            float gate = c_thread_buf[cidx];
+                                            float up   = c_thread_buf_up[cidx];
+                                            if constexpr(MulRoutedWeight)
+                                            {
+                                                gate = gate * topk_weights.AsType<float>()[m5];
+                                                up   = up * topk_weights.AsType<float>()[m5];
+                                            }
+                                            tensor_operation::element_wise::FastGelu{}(gate, gate);
+                                            c_thread_buf_fp32(cidx) = gate * up;
+                                        }
                                     }
                                     else
                                     {
@@ -2020,6 +2038,11 @@ struct GridwiseMoeGemmMX
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op)
     {
+        static_assert(ActivationOperation == Activation::gelu_and_mul ||
+                          ActivationOperation == Activation::silu_and_mul ||
+                          ActivationOperation == Activation::gelu_tanh_and_mul,
+                      "gridwise_moe_mx_gemm only supports gelu_and_mul, silu_and_mul and "
+                      "gelu_tanh_and_mul.");
         ignore                           = a_element_op;
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
@@ -2467,6 +2490,20 @@ struct GridwiseMoeGemmMX
                                                 up = up * topk_weights.template AsType<float>()[m5];
                                             }
                                             tensor_operation::element_wise::Gelu{}(gate, gate);
+                                            c_thread_buf_fp32(cidx) = gate * up;
+                                        }
+                                        else if(ActivationOperation ==
+                                                Activation::gelu_tanh_and_mul)
+                                        {
+                                            float gate = c_thread_buf[cidx];
+                                            float up   = c_thread_buf_up[cidx];
+                                            if constexpr(MulRoutedWeight)
+                                            {
+                                                gate = gate *
+                                                       topk_weights.template AsType<float>()[m5];
+                                                up = up * topk_weights.template AsType<float>()[m5];
+                                            }
+                                            tensor_operation::element_wise::FastGelu{}(gate, gate);
                                             c_thread_buf_fp32(cidx) = gate * up;
                                         }
                                     }

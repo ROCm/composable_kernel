@@ -91,7 +91,8 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            static_assert(ActivationType < 2, "Not supported activation type");
+            static_assert(ActivationType == 0 || ActivationType == 1 || ActivationType == 4,
+                          "Not supported activation type");
             const int full_n = arg.c_t_k_n_.mDesc.GetLengths()[2];
             arg.c_t_k_n_.SetZero();
             auto f_mk_kn_mn = [&](auto m, auto n) {
@@ -187,6 +188,11 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                     else if constexpr(ActivationType == 0)
                     {
                         tensor_operation::element_wise::Gelu{}(v_c, v_c);
+                        arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
+                    }
+                    else if constexpr(ActivationType == 4)
+                    {
+                        tensor_operation::element_wise::FastGelu{}(v_c, v_c);
                         arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
                     }
                 }

@@ -77,10 +77,11 @@ using CDEElementOp = MulABScaleExpertWeight;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
-constexpr ck::index_t ScaleBlockSize   = 32; // scaling block size
-constexpr ck::index_t KPerBlock        = 128;
-static constexpr ck::index_t Nswizzle  = false;
-static constexpr ck::index_t ActOP     = 0; // 0: gelu_and_mul, 1: silu_and_mul
+constexpr ck::index_t ScaleBlockSize  = 32; // scaling block size
+constexpr ck::index_t KPerBlock       = 128;
+static constexpr ck::index_t Nswizzle = false;
+// Activation (ck::Activation): 0: gelu_and_mul, 1: silu_and_mul, 4: gelu_tanh_and_mul
+static constexpr ck::index_t ActOP     = 0;
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t NPerBlock = 64;
 static constexpr ck::index_t BlockSize = 256;
