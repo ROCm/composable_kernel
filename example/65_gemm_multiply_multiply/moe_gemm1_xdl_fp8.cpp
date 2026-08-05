@@ -176,9 +176,16 @@ static constexpr ck::index_t BK1       = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec      = 8 / sizeof(EDataType);
 static constexpr ck::index_t D0Vec     = 1;
 static constexpr ck::index_t D1Vec     = 1;
-static constexpr ck::index_t ActOP     = 1; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr bool MulRoutedWeight  = false;
-using DeviceOpInstance                 = ck::tensor_operation::device::DeviceMoeGemm
+// Activation (ck::Activation): 0: gelu_and_mul, 1: silu_and_mul, 2: swiglustep_and_mul,
+//                              3: swiglu_oai_and_mul, 4: gelu_tanh_and_mul
+// MOE_ACTOP may be overridden at compile time (e.g. -DMOE_ACTOP=4) so the same example
+// can be built as separate ctest variants exercising different activations.
+#ifndef MOE_ACTOP
+#define MOE_ACTOP 1
+#endif
+static constexpr ck::index_t ActOP    = MOE_ACTOP;
+static constexpr bool MulRoutedWeight = false;
+using DeviceOpInstance                = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   

@@ -1140,9 +1140,12 @@ struct GridwiseMoeGemmBlockScale
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op)
     {
-        static_assert(ActivationOperation != Activation::swiglu_oai_and_mul,
-                      "gridwise_moe_gemm_blockscale does not support swiglu_oai_and_mul; use the "
-                      "non-blockscale gridwise_moe_gemm.");
+        static_assert(ActivationOperation == Activation::gelu_and_mul ||
+                          ActivationOperation == Activation::silu_and_mul ||
+                          ActivationOperation == Activation::swiglustep_and_mul ||
+                          ActivationOperation == Activation::gelu_tanh_and_mul,
+                      "gridwise_moe_gemm_blockscale only supports gelu_and_mul, silu_and_mul, "
+                      "swiglustep_and_mul and gelu_tanh_and_mul.");
 #if defined(__gfx942__) || defined(__gfx950__)
         constexpr auto b_coherence_flag = NonTemporalLoadB
                                               ? AmdBufferCoherenceEnum::WAVE_NT1
@@ -1642,6 +1645,23 @@ struct GridwiseMoeGemmBlockScale
                                 tensor_operation::element_wise::Gelu{}(gate, gate);
                                 c_thread_buf(cidx) = gate * up;
                             }
+                            else if(ActivationOperation == Activation::gelu_tanh_and_mul)
+                            {
+                                float gate = c_thread_buf[cidx];
+                                float up   = c_thread_buf_up[cidx];
+                                if constexpr(MulRoutedWeight)
+                                {
+                                    gate = gate * topk_weight;
+                                    up   = up * topk_weight;
+                                }
+                                if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                {
+                                    gate *= 16;
+                                    up *= 16;
+                                }
+                                tensor_operation::element_wise::FastGelu{}(gate, gate);
+                                c_thread_buf(cidx) = gate * up;
+                            }
                         }
                         else
                         {
@@ -1697,9 +1717,12 @@ struct GridwiseMoeGemmBlockScale
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op)
     {
-        static_assert(ActivationOperation != Activation::swiglu_oai_and_mul,
-                      "gridwise_moe_gemm_blockscale does not support swiglu_oai_and_mul; use the "
-                      "non-blockscale gridwise_moe_gemm.");
+        static_assert(ActivationOperation == Activation::gelu_and_mul ||
+                          ActivationOperation == Activation::silu_and_mul ||
+                          ActivationOperation == Activation::swiglustep_and_mul ||
+                          ActivationOperation == Activation::gelu_tanh_and_mul,
+                      "gridwise_moe_gemm_blockscale only supports gelu_and_mul, silu_and_mul, "
+                      "swiglustep_and_mul and gelu_tanh_and_mul.");
 #if defined(__gfx942__) || defined(__gfx950__)
         constexpr auto b_coherence_flag = NonTemporalLoadB
                                               ? AmdBufferCoherenceEnum::WAVE_NT1
@@ -2188,6 +2211,23 @@ struct GridwiseMoeGemmBlockScale
                                     up *= 16;
                                 }
                                 tensor_operation::element_wise::Gelu{}(gate, gate);
+                                c_thread_buf(cidx) = gate * up;
+                            }
+                            else if(ActivationOperation == Activation::gelu_tanh_and_mul)
+                            {
+                                float gate = c_thread_buf[cidx];
+                                float up   = c_thread_buf_up[cidx];
+                                if constexpr(MulRoutedWeight)
+                                {
+                                    gate = gate * topk_weight;
+                                    up   = up * topk_weight;
+                                }
+                                if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                {
+                                    gate *= 16;
+                                    up *= 16;
+                                }
+                                tensor_operation::element_wise::FastGelu{}(gate, gate);
                                 c_thread_buf(cidx) = gate * up;
                             }
                         }

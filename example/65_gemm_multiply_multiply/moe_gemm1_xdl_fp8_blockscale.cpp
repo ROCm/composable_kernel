@@ -130,7 +130,9 @@ static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 
 static constexpr ck::index_t Nswizzle = false;
-static constexpr ck::index_t ActOP    = 0; // 0: gelu_and_mul, 1: silu_and_mul
+// Activation (ck::Activation): 0: gelu_and_mul, 1: silu_and_mul, 2: swiglustep_and_mul,
+//                              4: gelu_tanh_and_mul
+static constexpr ck::index_t ActOP    = 0;
 static constexpr bool MulRoutedWeight = true;
 
 #if 0
