@@ -285,6 +285,42 @@ struct HstuCrossAttentionBlockMaskWithLocal
 
         return false;
     }
+
+    // if the whole tile inside the masking area, no need for pixel-by-pixel checking
+    // used by bwd kernel 2 pipelines
+    template <index_t TileWidth, index_t TileHeight>
+    CK_TILE_DEVICE constexpr bool IsFullTileInsideMask_2(index_t i_tile_top,
+                                                         index_t i_tile_left,
+                                                         number<TileWidth>,
+                                                         number<TileHeight>) const
+    {
+        if constexpr(kUseCausal)
+        {
+            index_t i_tile_right = i_tile_left + TileWidth;
+
+            bool is_tile_in_bottom_scope = (i_tile_top >= (max_q_uih_len - min_full_attn_seqlen));
+
+            if(is_tile_in_bottom_scope &&
+               i_tile_right <= min(i_tile_top + diff_q_kv_len + 1, max_k_uih_len))
+                return true;
+        }
+        else
+        {
+            index_t i_tile_right  = i_tile_left + TileWidth;
+            index_t i_tile_bottom = i_tile_top + TileHeight;
+
+            bool is_tile_in_bottom_scope = (i_tile_top >= (max_q_uih_len - min_full_attn_seqlen));
+
+            // 1) tile is completely in [max_q_uih_len-min_full_attn_seqlen, max_q_uih_len]
+            // 2) some row of tile is in [max_q_uih_len, seqlen_q], requires i_tile_right <=
+            // max_k_uih_len to return true
+            if(is_tile_in_bottom_scope &&
+               (i_tile_bottom <= max_q_uih_len || i_tile_right <= max_k_uih_len))
+                return true;
+        };
+
+        return false;
+    }
 };
 
 template <bool kUseCausal, bool kHasContext>
@@ -540,6 +576,41 @@ struct HstuSelfAttentionBlockMaskWithLocal
 
         return false;
     }
+
+    // if the whole tile inside the masking area, no need for pixel-by-pixel checking
+    // used by bwd kernel 2 pipelines
+    template <index_t TileWidth, index_t TileHeight>
+    CK_TILE_DEVICE constexpr bool IsFullTileInsideMask_2(index_t i_tile_top,
+                                                         index_t i_tile_left,
+                                                         number<TileWidth>,
+                                                         number<TileHeight>) const
+    {
+        if constexpr(kUseCausal)
+        {
+            index_t i_tile_right = i_tile_left + TileWidth;
+
+            bool is_tile_in_bottom_scope = (i_tile_top >= (max_uih_len - min_full_attn_seqlen));
+
+            if(is_tile_in_bottom_scope && i_tile_right <= min(i_tile_top + 1, max_uih_len))
+                return true;
+        }
+        else
+        {
+            index_t i_tile_right  = i_tile_left + TileWidth;
+            index_t i_tile_bottom = i_tile_top + TileHeight;
+
+            bool is_tile_in_bottom_scope = (i_tile_top >= (max_uih_len - min_full_attn_seqlen));
+
+            // 1) tile is completely in [max_uih_len-min_full_attn_seqlen, max_uih_len]
+            // 2) some row of tile is in [max_uih_len, seqlen], requires i_tile_right <=
+            // max_uih_len to return true
+            if(is_tile_in_bottom_scope &&
+               (i_tile_bottom <= max_uih_len || i_tile_right <= max_uih_len))
+                return true;
+        };
+
+        return false;
+    }
 };
 
 template <bool kUseCausal, bool kHasContext>
@@ -705,6 +776,18 @@ struct HstuCrossAttentionBlockMaskNoLocal
             return true;
         }
     };
+
+    // if the whole tile inside the masking area, no need for pixel-by-pixel checking
+    // used by bwd kernel 2 pipelines
+    template <index_t TileWidth, index_t TileHeight>
+    CK_TILE_DEVICE constexpr bool IsFullTileInsideMask_2(index_t i_tile_top,
+                                                         index_t i_tile_left,
+                                                         number<TileWidth>,
+                                                         number<TileHeight>) const
+    {
+        return IsFullTileInsideMask(
+            i_tile_top, i_tile_left, number<TileWidth>{}, number<TileHeight>{});
+    };
 };
 
 template <bool kUseCausal, bool kHasContext>
@@ -848,6 +931,18 @@ struct HstuSelfAttentionBlockMaskNoLocal
 
             return true;
         }
+    };
+
+    // if the whole tile inside the masking area, no need for pixel-by-pixel checking
+    // used by bwd kernel 2 pipelines
+    template <index_t TileWidth, index_t TileHeight>
+    CK_TILE_DEVICE constexpr bool IsFullTileInsideMask_2(index_t i_tile_top,
+                                                         index_t i_tile_left,
+                                                         number<TileWidth>,
+                                                         number<TileHeight>) const
+    {
+        return IsFullTileInsideMask(
+            i_tile_top, i_tile_left, number<TileWidth>{}, number<TileHeight>{});
     };
 };
 

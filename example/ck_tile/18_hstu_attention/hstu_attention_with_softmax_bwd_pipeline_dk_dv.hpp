@@ -560,7 +560,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
             // (seqlen_q not a multiple of kM0). Kernel 2 reduces over Q (rows), so a padded row
             // that slips through the mask (IsTokenPairInsideMask clamps and may return true for
             // it) would pollute every dK/dV column; forcing S=-inf makes P=0 (hence dS=0) there.
-            if(!mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{}))
+            if(!mask.IsFullTileInsideMask_2(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{}))
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {

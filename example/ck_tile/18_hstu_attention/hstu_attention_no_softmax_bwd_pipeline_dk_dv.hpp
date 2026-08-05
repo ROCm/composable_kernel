@@ -540,7 +540,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
             }
 
             // Apply HSTU mask: set masked-out S to 0 (SiLU path)
-            if(!mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{}))
+            if(!mask.IsFullTileInsideMask_2(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{}))
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
