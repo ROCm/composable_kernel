@@ -8,7 +8,7 @@
 #include <ck_tile/core/config.hpp>
 #include <ck_tile/core/numeric/integer.hpp>
 
-#include "hstu_attention_tile_setting_define.hpp"
+#include "hstu_attention_fwd_tile_setting_define.hpp"
 
 namespace ck_tile {
 
