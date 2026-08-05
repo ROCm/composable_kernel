@@ -1234,7 +1234,7 @@ def run_downstream_tests(Map conf=[:]){
         try
         {
             echo "Pulling image: ${conf.image}"
-            retimage = docker.image("${conf.image}")
+            def retimage = docker.image("${conf.image}")
             withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
                 retimage.pull()
             }
