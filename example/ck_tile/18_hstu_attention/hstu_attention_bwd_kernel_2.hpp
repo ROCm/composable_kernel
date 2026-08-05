@@ -1019,7 +1019,7 @@ struct HstuAttentionBwdKernel2
 
         // ---- Build HSTU mask and run pipeline ----
         // Runtime branch on window_size selects the compile-time local/non-local mask type,
-        // Kernel 2 iterates over K/V col tiles, so is_tile_in_first_split is always true.
+        // Kernel 2 iterates over K/V col tiles, so is_tile_in_upper_scope is always true.
         const auto run_pipeline = [&](const auto& mask) {
             const auto [seqlen_q_start, seqlen_q_end] =
                 mask.GetTileRangeAlongY(i_n0,

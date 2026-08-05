@@ -814,8 +814,8 @@ struct HstuAttentionBwdKernel1
         const int num_target =
             (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
 
-        index_t seqlen_in_first_split = kargs.seqlen_q;
-        bool is_tile_in_first_split   = true;
+        index_t seqlen_in_upper_scope = kargs.seqlen_q;
+        bool is_tile_in_upper_scope   = true;
         index_t i_m0;
 
         // 1) when kHasDropout is false, the second split starts just from position seqlen_q -
@@ -827,32 +827,32 @@ struct HstuAttentionBwdKernel1
         {
             if(kargs.seqlen_q - num_target > kargs.min_full_attn_seqlen)
             {
-                seqlen_in_first_split = kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
+                seqlen_in_upper_scope = kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
 
-                const index_t num_tile_in_first_split =
+                const index_t num_tile_in_upper_scope =
                     __builtin_amdgcn_readfirstlane(ck_tile::integer_divide_ceil(
-                        seqlen_in_first_split, HstuAttentionBwdPipeline::kM0));
+                        seqlen_in_upper_scope, HstuAttentionBwdPipeline::kM0));
 
-                is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
+                is_tile_in_upper_scope = (i_tile_m < num_tile_in_upper_scope);
 
                 if constexpr(!kHasDropout)
                 {
                     // be careful that i_m0 for second_split could be not aligned on kM0
                     i_m0 =
-                        is_tile_in_first_split
+                        is_tile_in_upper_scope
                             ? __builtin_amdgcn_readfirstlane(i_tile_m *
                                                              HstuAttentionBwdPipeline::kM0)
-                            : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
+                            : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_upper_scope) *
                                                              HstuAttentionBwdPipeline::kM0) +
-                                  seqlen_in_first_split;
+                                  seqlen_in_upper_scope;
                 }
                 else
                     i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionBwdPipeline::kM0);
             }
             else
             {
-                seqlen_in_first_split  = 0;
-                is_tile_in_first_split = false;
+                seqlen_in_upper_scope  = 0;
+                is_tile_in_upper_scope = false;
 
                 // adjust min_full_attn_seqlen passed to HstuBlockMask constructor
                 kargs.min_full_attn_seqlen = kargs.seqlen_q - num_target;
@@ -865,7 +865,7 @@ struct HstuAttentionBwdKernel1
 
         index_t seqlen_q_in_ctrl =
             kHasDropout ? kargs.seqlen_q
-                        : (is_tile_in_first_split ? seqlen_in_first_split : kargs.seqlen_q);
+                        : (is_tile_in_upper_scope ? seqlen_in_upper_scope : kargs.seqlen_q);
 
         if(seqlen_q_in_ctrl <= i_m0)
             return;
@@ -1050,7 +1050,7 @@ struct HstuAttentionBwdKernel1
         // ---- Build HSTU mask and run pipeline ----
         // Runtime branch on window_size selects the compile-time local/non-local mask type,
         // matching the pattern used in the forward kernel.
-        // Kernel 1 iterates over Q row tiles, so is_tile_in_first_split is meaningful.
+        // Kernel 1 iterates over Q row tiles, so is_tile_in_upper_scope is meaningful.
         const auto run_pipeline = [&](const auto& mask) {
             const auto [seqlen_k_start, seqlen_k_end] = [&]() {
                 if constexpr(std::remove_cvref_t<decltype(mask)>::kUseLocal)
@@ -1173,7 +1173,7 @@ struct HstuAttentionBwdKernel1
                     auto mask = [&]() {
                         if constexpr(kIsCrossAttention)
                             return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
-                                is_tile_in_first_split,
+                                is_tile_in_upper_scope,
                                 kargs.seqlen_q,
                                 kargs.seqlen_kv,
                                 kargs.contextual_seqlen,
@@ -1182,7 +1182,7 @@ struct HstuAttentionBwdKernel1
                                 kargs.min_full_attn_seqlen);
                         else
                             return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
-                                is_tile_in_first_split,
+                                is_tile_in_upper_scope,
                                 kargs.seqlen_q,
                                 kargs.contextual_seqlen,
                                 num_target,
