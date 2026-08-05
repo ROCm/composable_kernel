@@ -785,8 +785,8 @@ struct HstuAttentionFwdKernel
 
         int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
 
-        index_t seqlen_in_first_split = kargs.seqlen_q;
-        bool is_tile_in_first_split   = true;
+        index_t seqlen_in_upper_scope = kargs.seqlen_q;
+        bool is_tile_in_upper_scope   = true;
         index_t i_m0;
 
         if(kargs.min_full_attn_seqlen > 0)
@@ -794,24 +794,24 @@ struct HstuAttentionFwdKernel
             // need consider for cases where min_full_attn_seqlen be bigger than max_uih_len
             if(kargs.seqlen_q - num_target > kargs.min_full_attn_seqlen)
             {
-                seqlen_in_first_split = kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
+                seqlen_in_upper_scope = kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
 
-                index_t num_tile_in_first_split =
+                index_t num_tile_in_upper_scope =
                     __builtin_amdgcn_readfirstlane(ck_tile::integer_divide_ceil(
-                        seqlen_in_first_split, HstuAttentionPipeline::kM0));
+                        seqlen_in_upper_scope, HstuAttentionPipeline::kM0));
 
-                is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
+                is_tile_in_upper_scope = (i_tile_m < num_tile_in_upper_scope);
 
-                i_m0 = is_tile_in_first_split
+                i_m0 = is_tile_in_upper_scope
                            ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
-                           : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
+                           : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_upper_scope) *
                                                             HstuAttentionPipeline::kM0) +
-                                 seqlen_in_first_split;
+                                 seqlen_in_upper_scope;
             }
             else
             {
-                seqlen_in_first_split  = 0;
-                is_tile_in_first_split = false;
+                seqlen_in_upper_scope  = 0;
+                is_tile_in_upper_scope = false;
 
                 // adjust the min_full_attn_seqlen to be passed to HstuBlockMask constructor
                 kargs.min_full_attn_seqlen = kargs.seqlen_q - num_target;
@@ -824,7 +824,7 @@ struct HstuAttentionFwdKernel
 
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * HstuAttentionPipeline::kN1);
 
-        index_t seqlen_q_in_ctrl = is_tile_in_first_split ? seqlen_in_first_split : kargs.seqlen_q;
+        index_t seqlen_q_in_ctrl = is_tile_in_upper_scope ? seqlen_in_upper_scope : kargs.seqlen_q;
 
         if(seqlen_q_in_ctrl <= i_m0)
             return;
@@ -1048,7 +1048,7 @@ struct HstuAttentionFwdKernel
                         if constexpr(kIsCrossAttention)
                         {
                             return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
-                                is_tile_in_first_split,
+                                is_tile_in_upper_scope,
                                 kargs.seqlen_q,
                                 kargs.seqlen_kv,
                                 kargs.contextual_seqlen,
@@ -1059,7 +1059,7 @@ struct HstuAttentionFwdKernel
                         else
                         {
                             return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
-                                is_tile_in_first_split,
+                                is_tile_in_upper_scope,
                                 kargs.seqlen_q,
                                 kargs.contextual_seqlen,
                                 num_target,

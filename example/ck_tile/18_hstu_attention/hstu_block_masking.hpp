@@ -18,10 +18,10 @@ struct HstuCrossAttentionBlockMaskWithLocal
     static constexpr bool IsMasking         = true;
     static constexpr bool kIsCrossAttention = true;
 
-    // is_tile_in_first_split is false only when min_full_attn_seqlen > 0 and the current
+    // is_tile_in_upper_scope is false only when min_full_attn_seqlen > 0 and the current
     // tile is inside scope [max_uih_len - min_full_attn_seqlen, seqlen_q); for other cases
-    // and tiles, is_tile_in_first_split is true
-    bool is_tile_in_first_split;
+    // and tiles, is_tile_in_upper_scope is true
+    bool is_tile_in_upper_scope;
     int seqlen_q;
     int seqlen_k;
     int contextual_seqlen;
@@ -35,14 +35,14 @@ struct HstuCrossAttentionBlockMaskWithLocal
     int max_col_id;
     int diff_q_kv_len;
 
-    CK_TILE_HOST_DEVICE HstuCrossAttentionBlockMaskWithLocal(bool is_tile_in_first_split_,
+    CK_TILE_HOST_DEVICE HstuCrossAttentionBlockMaskWithLocal(bool is_tile_in_upper_scope_,
                                                              int seqlen_q_,
                                                              int seqlen_k_,
                                                              int contextual_seqlen_,
                                                              int max_attn_len_,
                                                              int min_full_attn_seqlen_,
                                                              int num_target_)
-        : is_tile_in_first_split(is_tile_in_first_split_),
+        : is_tile_in_upper_scope(is_tile_in_upper_scope_),
           seqlen_q(seqlen_q_),
           seqlen_k(seqlen_k_),
           contextual_seqlen(contextual_seqlen_),
@@ -82,7 +82,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
         // handle two special cases first
-        if(!is_tile_in_first_split)
+        if(!is_tile_in_upper_scope)
         {
             if constexpr(kUseCausal)
             {
@@ -105,7 +105,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
             };
         };
 
-        // is_tile_in_first_split is true, either min_full_attn_seqlen is 0 or tile is
+        // is_tile_in_upper_scope is true, either min_full_attn_seqlen is 0 or tile is
         // in [0, max_uih_len-min_full_attn_seqlen)
         if constexpr(!kUseCausal)
         {
@@ -246,7 +246,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
         {
             index_t i_tile_right = i_tile_left + TileWidth;
 
-            if(!is_tile_in_first_split &&
+            if(!is_tile_in_upper_scope &&
                i_tile_right <= min(i_tile_top + diff_q_kv_len + 1, max_k_uih_len))
                 return true;
         }
@@ -258,7 +258,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
             // 1) tile is completely in [max_q_uih_len-min_full_attn_seqlen, max_q_uih_len]
             // 2) some row of tile is in [max_q_uih_len, seqlen_q], requires i_tile_right <=
             // max_k_uih_len to return true
-            if(!is_tile_in_first_split &&
+            if(!is_tile_in_upper_scope &&
                (i_tile_bottom <= max_q_uih_len || i_tile_right <= max_k_uih_len))
                 return true;
         };
@@ -274,10 +274,10 @@ struct HstuSelfAttentionBlockMaskWithLocal
     static constexpr bool IsMasking         = true;
     static constexpr bool kIsCrossAttention = false;
 
-    // is_tile_in_first_split is false only when min_full_attn_seqlen > 0 and the current
+    // is_tile_in_upper_scope is false only when min_full_attn_seqlen > 0 and the current
     // tile is inside scope [max_uih_len - min_full_attn_seqlen, seqlen_q); for other cases
-    // and tiles, is_tile_in_first_split is true
-    bool is_tile_in_first_split;
+    // and tiles, is_tile_in_upper_scope is true
+    bool is_tile_in_upper_scope;
     int seqlen;
     int contextual_seqlen;
 
@@ -287,13 +287,13 @@ struct HstuSelfAttentionBlockMaskWithLocal
     int max_uih_len;
     int max_id;
 
-    CK_TILE_HOST_DEVICE HstuSelfAttentionBlockMaskWithLocal(bool is_tile_in_first_split_,
+    CK_TILE_HOST_DEVICE HstuSelfAttentionBlockMaskWithLocal(bool is_tile_in_upper_scope_,
                                                             int seqlen_,
                                                             int contextual_seqlen_,
                                                             int max_attn_len_,
                                                             int min_full_attn_seqlen_,
                                                             int num_target_)
-        : is_tile_in_first_split(is_tile_in_first_split_),
+        : is_tile_in_upper_scope(is_tile_in_upper_scope_),
           seqlen(seqlen_),
           contextual_seqlen(contextual_seqlen_),
           max_attn_len(max_attn_len_),
@@ -322,7 +322,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
         // handle two special cases first
-        if(!is_tile_in_first_split)
+        if(!is_tile_in_upper_scope)
         {
             if constexpr(kUseCausal)
             {
@@ -345,7 +345,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
             };
         };
 
-        // is_tile_in_first_split is true, either min_full_attn_seqlen is 0 or tile is
+        // is_tile_in_upper_scope is true, either min_full_attn_seqlen is 0 or tile is
         // in [0, max_uih_len-min_full_attn_seqlen)
         if constexpr(!kUseCausal)
         {
@@ -482,7 +482,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
         {
             index_t i_tile_right = i_tile_left + TileWidth;
 
-            if(!is_tile_in_first_split && i_tile_right <= min(i_tile_top + 1, max_uih_len))
+            if(!is_tile_in_upper_scope && i_tile_right <= min(i_tile_top + 1, max_uih_len))
                 return true;
         }
         else
@@ -493,7 +493,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
             // 1) tile is completely in [max_uih_len-min_full_attn_seqlen, max_uih_len]
             // 2) some row of tile is in [max_uih_len, seqlen], requires i_tile_right <=
             // max_uih_len to return true
-            if(!is_tile_in_first_split &&
+            if(!is_tile_in_upper_scope &&
                (i_tile_bottom <= max_uih_len || i_tile_right <= max_uih_len))
                 return true;
         };
@@ -802,7 +802,7 @@ struct HstuBlockMasking
 
 template <typename HstuBlockMaskType>
 CK_TILE_HOST_DEVICE constexpr auto
-make_hstu_cross_attention_block_mask_with_local(bool is_tile_in_first_split_,
+make_hstu_cross_attention_block_mask_with_local(bool is_tile_in_upper_scope_,
                                                 int seqlen_q_,
                                                 int seqlen_k_,
                                                 int contextual_seqlen_,
@@ -812,7 +812,7 @@ make_hstu_cross_attention_block_mask_with_local(bool is_tile_in_first_split_,
 {
     static_assert(HstuBlockMaskType::kIsCrossAttention == true);
 
-    return HstuBlockMaskType{is_tile_in_first_split_,
+    return HstuBlockMaskType{is_tile_in_upper_scope_,
                              seqlen_q_,
                              seqlen_k_,
                              contextual_seqlen_,
@@ -823,7 +823,7 @@ make_hstu_cross_attention_block_mask_with_local(bool is_tile_in_first_split_,
 
 template <typename HstuBlockMaskType>
 CK_TILE_HOST_DEVICE constexpr auto
-make_hstu_self_attention_block_mask_with_local(bool is_tile_in_first_split_,
+make_hstu_self_attention_block_mask_with_local(bool is_tile_in_upper_scope_,
                                                int seqlen_,
                                                int contextual_seqlen_,
                                                int num_target,
@@ -832,7 +832,7 @@ make_hstu_self_attention_block_mask_with_local(bool is_tile_in_first_split_,
 {
     static_assert(HstuBlockMaskType::kIsCrossAttention == false);
 
-    return HstuBlockMaskType{is_tile_in_first_split_,
+    return HstuBlockMaskType{is_tile_in_upper_scope_,
                              seqlen_,
                              contextual_seqlen_,
                              max_attn_len_,
