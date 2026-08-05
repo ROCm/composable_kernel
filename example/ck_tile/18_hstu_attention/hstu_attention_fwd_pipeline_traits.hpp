@@ -35,21 +35,4 @@ struct HstuAttentionFwdSplitKVCombineTraits
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 
-template <bool kPadSeqLenQ_,
-          bool kPadSeqLenK_,
-          bool kPadHeadDimQK_,
-          bool kPadHeadDimV_,
-          index_t kBlockPerCuForKernel1_,
-          index_t kBlockPerCuForKernel2_>
-struct HstuAttentionBwdTraits
-{
-    static constexpr bool kPadSeqLenQ   = kPadSeqLenQ_;
-    static constexpr bool kPadSeqLenK   = kPadSeqLenK_;
-    static constexpr bool kPadHeadDimQK = kPadHeadDimQK_;
-    static constexpr bool kPadHeadDimV  = kPadHeadDimV_;
-
-    static constexpr index_t kBlockPerCuForKernel1 = kBlockPerCuForKernel1_;
-    static constexpr index_t kBlockPerCuForKernel2 = kBlockPerCuForKernel2_;
-};
-
 } // namespace ck_tile

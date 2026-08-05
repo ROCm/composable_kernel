@@ -6,7 +6,7 @@
 #include <ck_tile/core.hpp>
 
 #include "hstu_attention_bwd_type_config.hpp"
-#include "hstu_attention_tile_setting_define.hpp"
+#include "hstu_attention_bwd_tile_setting_define.hpp"
 #include "hstu_attention_host_util.hpp"
 
 using WarpTile_16x16x16 = ck_tile::sequence<16, 16, 16>;

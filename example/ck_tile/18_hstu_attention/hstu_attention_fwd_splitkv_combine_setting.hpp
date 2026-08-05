@@ -4,7 +4,7 @@
 #pragma once
 
 #include "hstu_attention_fwd_type_config.hpp"
-#include "hstu_attention_tile_setting_define.hpp"
+#include "hstu_attention_fwd_tile_setting_define.hpp"
 
 template <ck_tile::index_t kOHeaddim>
 struct HstuAttentionFwdSplitKVCombineTileSetting;
