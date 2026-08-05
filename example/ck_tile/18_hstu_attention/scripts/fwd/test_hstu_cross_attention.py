@@ -64,43 +64,43 @@ def main():
         dict(jagged=0, seqlens=256, seqlens_kv=300, causal=0, local_len=0,
              context_len=0, minfull_len=0, targets=0),
         # no masking jagged
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=0,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=0,
              local_len=0, context_len=0, minfull_len=0, targets=0),
         # batched causal
         dict(jagged=0, seqlens=256, seqlens_kv=300, causal=1, local_len=0,
              context_len=0, minfull_len=0, targets=0),
         # jagged causal
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=1,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=1,
              local_len=0, context_len=0, minfull_len=0, targets=0),
         # batched causal+local
         dict(jagged=0, seqlens=256, seqlens_kv=300, causal=1, local_len=5,
              context_len=0, minfull_len=0, targets=0),
         # jagged causal+local
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=1,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=1,
              local_len=5, context_len=0, minfull_len=0, targets=0),
         # batched causal+local+context
         dict(jagged=0, seqlens=256, seqlens_kv=300, causal=1, local_len=5,
              context_len=8, minfull_len=7, targets=0),
         # jagged causal+local+context
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=1,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=1,
              local_len=5, context_len=8, minfull_len=7, targets=0),
         # batched causal+local+context+target
         dict(jagged=0, seqlens=256, seqlens_kv=300, causal=1, local_len=5,
              context_len=8, minfull_len=7, targets=8),
         # jagged causal+local+context+target
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=1,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=1,
              local_len=5, context_len=8, minfull_len=7, targets=8),
         # jagged no-causal+local+context+target
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=0,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=0,
              local_len=5, context_len=8, minfull_len=7, targets=8),
         # jagged causal+local+target (minfull_len > max_uih_len)
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=1,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=1,
              local_len=5, context_len=0, minfull_len=290, targets=8),
         # jagged causal+local+context+target (minfull_len > max_uih_len)
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=1,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=1,
              local_len=5, context_len=8, minfull_len=290, targets=8),
         # jagged no-causal+local+context+target (minfull_len > max_uih_len)
-        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=300, causal=0,
+        dict(jagged=1, seqlens=seqlens_jagged, seqlens_kv=380, causal=0,
              local_len=5, context_len=3, minfull_len=290, targets=8),
     ]
 
