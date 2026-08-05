@@ -29,7 +29,7 @@ def run(exe, dtype, **kwargs):
         + [f"-jagged={kwargs['jagged']}"]
         + ["-nhead=4", "-hdim_qk=128", "-hdim_v=128"]
         + [f"-seqlens={kwargs['seqlens']}"]
-        + ["-seqlens_kv=300"]
+        + ["-seqlens_kv=380"]
         + [f"-causal={kwargs['causal']}"]
         + [f"-local_len={kwargs['local_len']}"]
         + [f"-context_len={kwargs['context_len']}"]
@@ -50,7 +50,6 @@ def run_special(exe):
         "-hdim_qk=128", "-hdim_v=128", "-seqlens=52,55,58",
         "-seqlens_kv=70,76,80", "-causal=1", "-local_len=0", "-context_len=0",
         "-minfull_len=0", "-targets=4,5,6", "-attn_scale=0", "-norm_dist=0",
-        "-save_mask=1",
     ]
     print("+ " + " ".join(cmd), flush=True)
     result = subprocess.run(cmd)
