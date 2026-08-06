@@ -432,9 +432,11 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
             }
 
+            const bool need_mask = !mask.IsFullTileInsideMask(
+                q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{});
+
             // Apply HSTU mask (set masked-out S to 0 in SiLU path)
-            if(!mask.IsFullTileInsideMask(
-                   q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{}))
+            if(need_mask)
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
@@ -483,8 +485,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
             // (the seqlen dim is intentionally not pad_tensor_view'd), so dp == 0 exactly there
             // and dS = 0 * scale_p * dsilu(s) = 0 (s is also 0 via the same K OOB zeroing, so
             // dsilu(s) is finite -- no 0*inf hazard). They cannot leak into the dQ reduction.
-            const bool need_mask = !mask.IsFullTileInsideMask(
-                q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{});
             constexpr auto ds_spans = PGradcompBlockTileType::get_distributed_spans();
 
             if(need_mask)

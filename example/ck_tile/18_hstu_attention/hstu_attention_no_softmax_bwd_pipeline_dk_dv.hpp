@@ -539,8 +539,11 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
             }
 
+            const bool need_mask =
+                !mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{});
+
             // Apply HSTU mask: set masked-out S to 0 (SiLU path)
-            if(!mask.IsFullTileInsideMask_2(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{}))
+            if(need_mask)
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
@@ -589,8 +592,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 //    must contribute nothing; force BOTH P (-> dV) and dS (-> dK) to 0. Their S was
                 //    not zeroed above (IsTokenPairInsideMask can clamp and accept padded rows), so
                 //    P would otherwise be silu(garbage) != 0.
-                const bool need_mask =
-                    !mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{});
                 constexpr auto spans = PcompBlockTileType::get_distributed_spans();
 
                 if(need_mask)
@@ -673,8 +674,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 //    must contribute nothing; force BOTH P (-> dV) and dS (-> dK) to 0. Their S was
                 //    not zeroed above (IsTokenPairInsideMask can clamp and accept padded rows), so
                 //    P would otherwise be silu(garbage) != 0.
-                const bool need_mask =
-                    !mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{});
                 constexpr auto spans = PcompBlockTileType::get_distributed_spans();
 
                 if(need_mask)
