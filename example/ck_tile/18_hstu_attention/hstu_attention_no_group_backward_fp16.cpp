@@ -7,12 +7,6 @@
 #include "instances/hstu_attention_batched_backward_fp16_instances_ref.hpp"
 #include "instances/hstu_attention_jagged_backward_fp16_instances_ref.hpp"
 
-#if defined(HSTU_BWD_SINGLE_KERNEL)
-// flag=ON 时引入 single dispatch 的 extern template 声明，使本 TU 复用
-// instances_single/ 下预编译的显式实例化（对应下方 run_batched_backward_single_dispatch）。
-#include "instances_single/hstu_attention_batched_backward_single_fp16_instances_ref.hpp"
-#endif
-
 void hstu_attention_no_group_backward_fp16(HstuAttentionNoGroupBwdParams& param, hipStream_t stream)
 {
     bool has_dropout = (param.p_drop > 0.0f);

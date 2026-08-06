@@ -6,10 +6,6 @@
 
 #include "instances/hstu_attention_group_backward_fp16_instances_ref.hpp"
 
-#if defined(HSTU_BWD_SINGLE_KERNEL)
-#include "instances_single/hstu_attention_group_backward_single_fp16_instances_ref.hpp"
-#endif
-
 void hstu_attention_group_backward_fp16(HstuAttentionGroupBwdParams& param, hipStream_t stream)
 {
     bool has_dropout = (param.p_drop > 0.0f);
