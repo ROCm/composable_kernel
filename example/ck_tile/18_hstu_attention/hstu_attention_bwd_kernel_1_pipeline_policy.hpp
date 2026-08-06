@@ -44,17 +44,6 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         return n0_loops;
     }
 
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumKVPrefetches()
-    {
-        constexpr index_t n0_loops = GetNumN0Loops<Problem>();
-
-        if constexpr(n0_loops >= 4)
-            return 3;
-        else
-            return 2;
-    }
-
     // -------------------------------------------------------------------------
     // K, V each need two buffers to support pre-write of the prefecthed data to LDS
     // -------------------------------------------------------------------------

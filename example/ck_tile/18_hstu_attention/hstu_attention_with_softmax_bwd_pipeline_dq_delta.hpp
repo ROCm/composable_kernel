@@ -134,7 +134,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
 
         constexpr index_t n0_loops = Policy::template GetNumN0Loops<Problem>();
 
-        constexpr auto NumKVPrefetches = Policy::template GetNumKVPrefetches<Problem>();
+        constexpr auto NumKVPrefetches = 2;
         constexpr auto NumKVLdsBuffers = Policy::template GetNumKVLdsBuffers<Problem>();
 
         static_assert(NumKVPrefetches <= n0_loops, "Check failed!");
@@ -386,12 +386,14 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
         using v_tile_type = decltype(load_tile(v_dram_window));
         statically_indexed_array<k_tile_type, NumKVPrefetches> k_tiles;
         statically_indexed_array<v_tile_type, NumKVPrefetches> v_tiles;
-        static_for<0, NumKVPrefetches, 1>{}([&](auto i_n0) {
-            k_tiles[i_n0] = load_tile(k_dram_window);
-            move_tile_window(k_dram_window, {kN0Sub, 0});
-            v_tiles[i_n0] = load_tile(v_dram_window);
-            move_tile_window(v_dram_window, {kN0Sub, 0});
-        });
+
+        k_tiles[number<0>{}] = load_tile(k_dram_window);
+        move_tile_window(k_dram_window, {kN0Sub, 0});
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        v_tiles[number<0>{}] = load_tile(v_dram_window);
+        move_tile_window(v_dram_window, {kN0Sub, 0});
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -405,25 +407,17 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
         {
             // === STAGE 1: Gemm0 (S = Q@K) ===
             static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                constexpr auto i_prefetch_buf = number<i_n0 % NumKVPrefetches>{};
+                constexpr auto i_current_buf  = number<i_n0 % NumKVPrefetches>{};
+                constexpr auto i_prefetch_buf = number<(i_n0 + 1) % NumKVPrefetches>{};
                 constexpr auto i_lds_buf_0    = number<i_n0 % NumKVLdsBuffers>{};
                 constexpr auto i_lds_buf_1    = i_n0;
 
-                store_tile(k_lds_windows[i_lds_buf_0], k_tiles[i_prefetch_buf], partition_index);
-
-                if constexpr(i_n0 == 0)
-                {
-                    // ensure LDS access of K^T in last iteration Gemm4 finished before being stored
-                    block_sync_lds();
-                }
-
-                store_tile(
-                    kt_lds_write_windows[i_lds_buf_1], k_tiles[i_prefetch_buf], partition_index);
+                store_tile(k_lds_windows[i_lds_buf_0], k_tiles[i_current_buf], partition_index);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
-                // fetch K data for other unrolls of this iteration
-                if constexpr(NumKVPrefetches + i_n0 < n0_loops)
+                // Prefetch next K tile while current stores are in flight
+                if constexpr(i_n0 + 1 < n0_loops)
                 {
                     k_tiles[i_prefetch_buf] = load_tile(k_dram_window);
                     move_tile_window(k_dram_window, {kN0Sub, 0});
@@ -431,8 +425,23 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
-                // ensure storing access of K data have been done by all warps
-                block_sync_lds();
+                if constexpr(i_n0 == 0)
+                {
+                    // ensure LDS access of K^T in last iteration gemm_4 finished before being
+                    // stored
+                    block_sync_lds();
+                }
+
+                store_tile(
+                    kt_lds_write_windows[i_lds_buf_1], k_tiles[i_current_buf], partition_index);
+
+                __builtin_amdgcn_sched_barrier(0x00000001);
+
+                if constexpr(i_n0 > 0)
+                {
+                    // Ensure all LDS stores are visible before Gemm0 reads
+                    block_sync_lds();
+                }
 
                 // Gemm0: sacc_tile = Q @ K_sub
                 gemm_0(sacc_tile, q_tile, k_lds_windows[i_lds_buf_0]);
@@ -445,15 +454,16 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
 
             // === STAGE 2: Gemm2 (dP = dO@V) ===
             static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                constexpr auto i_prefetch_buf = number<i_n0 % NumKVPrefetches>{};
+                constexpr auto i_current_buf  = number<i_n0 % NumKVPrefetches>{};
+                constexpr auto i_prefetch_buf = number<(i_n0 + 1) % NumKVPrefetches>{};
                 constexpr auto i_lds_buf_0    = number<i_n0 % NumKVLdsBuffers>{};
 
-                store_tile(v_lds_windows[i_lds_buf_0], v_tiles[i_prefetch_buf], partition_index);
+                store_tile(v_lds_windows[i_lds_buf_0], v_tiles[i_current_buf], partition_index);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
-                // fetch V data for other unrolls of this iteration
-                if constexpr(NumKVPrefetches + i_n0 < n0_loops)
+                // Prefetch next V tile while current stores are in flight
+                if constexpr(i_n0 + 1 < n0_loops)
                 {
                     v_tiles[i_prefetch_buf] = load_tile(v_dram_window);
                     move_tile_window(v_dram_window, {kN0Sub, 0});
@@ -461,7 +471,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
-                // ensure storing access of V data have been done by all warps
+                // Ensure all LDS stores are visible before Gemm2 reads
                 block_sync_lds();
 
                 // Gemm2: dpacc_tile = dO @ V_sub
@@ -586,29 +596,23 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
             // ensure kt is completely available on Lds
             block_sync_lds();
 
+            k_tiles[number<0>{}] = load_tile(k_dram_window);
+            move_tile_window(k_dram_window, {kN0Sub, 0});
+
+            v_tiles[number<0>{}] = load_tile(v_dram_window);
+            move_tile_window(v_dram_window, {kN0Sub, 0});
+
             // Gemm4: dQ += alpha * dS @ K^T
             // K^T is already staged in kt_lds_write_windows from Stage 1.
             // The last block_sync_lds() in Stage 1 guarantees all KT stores are visible.
             static_for<0, n0_loops, 1>{}([&](auto i_k1) {
-                constexpr auto i_prefetch_buf = number<i_k1 % NumKVPrefetches>{};
-                constexpr auto i_lds_buf      = i_k1;
-
-                // fetch K/V data for next iteration
-                if constexpr(i_k1 < NumKVPrefetches)
-                {
-                    k_tiles[i_prefetch_buf] = load_tile(k_dram_window);
-                    move_tile_window(k_dram_window, {kN0Sub, 0});
-                    v_tiles[i_prefetch_buf] = load_tile(v_dram_window);
-                    move_tile_window(v_dram_window, {kN0Sub, 0});
-                }
-
                 auto ds_slice =
                     cast_tile<QKVDataType>(get_slice_tile(dpcomp_tile,
                                                           sequence<0, i_k1 * kN0Sub>{},
                                                           sequence<kM0, (i_k1 + 1) * kN0Sub>{}));
 
                 // dQ += dS_sub @ KT_sub
-                gemm_4(dq_acc, ds_slice, kt_lds_read_windows[i_lds_buf]);
+                gemm_4(dq_acc, ds_slice, kt_lds_read_windows[i_k1]);
             });
 
             seqlen_k_curr += kN0;
