@@ -1398,3 +1398,20 @@ TEST(FmhaBatchPrefillKvLoadMode, PerTensorIndependence)
                   32, 128, pages, 1, 1, ebytes, as_ptr(low), as_ptr(low)),
               kBuffer);
 }
+
+// Scattered 1D paged KV (page_size=1 LINEAR + SGLANG_PAGE_TABLE_1D): the page
+// table holds arbitrary physical-page indices into the whole KV pool, so
+// num_total_pages does not bound the per-page voffset and the signed int32 SRD
+// offset can wrap independently of base[31:0] + pool_bytes. Single-token pages
+// (page_block_size == 1) must always take GLOBAL_LOAD_LDS, even when the
+// address-overflow check alone would keep BUFFER_LOAD.
+TEST(FmhaBatchPrefillKvLoadMode, SinglePageAlwaysGlobalLoad)
+{
+    // Low base, tiny in-bounds pool: the #9214 overflow check alone would pick
+    // BUFFER_LOAD, but a single-token page must be routed to GLOBAL_LOAD_LDS.
+    EXPECT_EQ(select(1, 128, 1'000, 64, 2, 0x0010'0000ULL), kGlobal);
+    // A >1 sub-tile page with the same in-bounds address keeps the BUFFER_LOAD
+    // fast path: the guard is scoped to page_block_size == 1 and does not regress
+    // the cases #9214 already handles.
+    EXPECT_EQ(select(32, 128, 1'000, 64, 2, 0x0010'0000ULL), kBuffer);
+}

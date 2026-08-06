@@ -701,6 +701,15 @@ fmha_batch_prefill_select_kv_load_mode(ck_tile::index_t page_block_size,
     if(page_block_size >= kN0)
         return ck_tile::BlockAttentionKVCacheLoadModeEnum::BUFFER_LOAD;
 
+    // Scattered 1D paged KV (page_size=1 LINEAR + SGLANG_PAGE_TABLE_1D): the page
+    // table holds arbitrary physical-page indices into the whole KV pool, so the
+    // per-page SRD voffset (physical_page * stride_page_block + within_page) is not
+    // bounded by this dispatch's num_total_pages and can wrap the signed int32 on
+    // its own, independent of base[31:0] + pool_bytes. The address-size check below
+    // cannot see this, so force the 64-bit-safe path for single-token pages.
+    if(page_block_size == 1)
+        return ck_tile::BlockAttentionKVCacheLoadModeEnum::GLOBAL_LOAD_LDS;
+
     // Maximum byte offsets that buffer_load will add to K/V base pointers.
     // Each page is addressed as page_id * batch_stride * element_bytes.
     const auto k_pool_bytes = static_cast<uint64_t>(num_total_pages) *
