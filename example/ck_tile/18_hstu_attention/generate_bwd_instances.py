@@ -97,8 +97,8 @@ MODE_GROUP_OR_NOT_MAP = {
 #   * the explicit instantiation target is run_{mode}_backward_single_dispatch
 #     (struct {mode}_backward_single_dispatch), matching the interface TUs
 #     hstu_attention_no_group_backward_{bf16,fp16}.cpp under HSTU_BWD_SINGLE_KERNEL;
-#   * generated *file names* carry the infix `_single_backward_` so they match
-#     the CMake GLOB `instances_single/*_single_backward_*.cpp`;
+#   * generated *file names* carry the infix `_backward_single_` so they match
+#     the CMake GLOB `instances_single/*_backward_single_*.cpp`;
 #   * mode axis is only ["batched", "group"] (jagged not included in v1).
 # The template parameter layout is identical to the base one (the interface TU
 # calls run_batched_backward_single_dispatch<DType, kUseCausal, kUseSoftmax,
@@ -124,23 +124,24 @@ HSTU_BACKWARD_SINGLE_INSTANCE_TEMPLATE = """
     {max_k}>(HstuAttention{group_or_not}BwdParams& param, hipStream_t stream);
 """
 
-# NOTE: the *file name* infix is `_single_backward_` (matches the CMake GLOB
-# `instances_single/*_single_backward_*.cpp`), while the *function name* infix
-# is `_backward_single_dispatch` (matches the interface TU call site). These two
-# infixes are intentionally different.
+# NOTE: the *file name* infix is `_backward_single_` (matches the CMake GLOB
+# `instances_single/*_backward_single_*.cpp`), and it now matches the *function
+# name* infix `_backward_single_dispatch` (the interface TU call site). Keeping
+# the two infixes identical avoids a GLOB/name mismatch that would silently drop
+# files from the build.
 HSTU_BACKWARD_SINGLE_INSTANCE_FNAME = (
-    "hstu_attention_{mode}_single_backward_{dtype_str}_{has_or_no_causal_str}_"
+    "hstu_attention_{mode}_backward_single_{dtype_str}_{has_or_no_causal_str}_"
     "{use_softmax_or_not_str}_{has_or_no_bias_str}_{has_or_no_dropout_str}_{max_k_str}.cpp"
 )
 
 HSTU_BACKWARD_SINGLE_INSTANCE_REF_FNAME = (
-    "hstu_attention_{mode}_single_backward_{dtype}_instances_ref.hpp"
+    "hstu_attention_{mode}_backward_single_{dtype}_instances_ref.hpp"
 )
 
 SINGLE_MODES = ["batched", "group"]
 
 
-def create_single_backward_instances(instance_dir: Path, headdims: List) -> None:
+def create_backward_single_instances(instance_dir: Path, headdims: List) -> None:
     for mode in SINGLE_MODES:
         for dtype in ["fp16", "bf16"]:
             for has_causal in [True, False]:
@@ -185,7 +186,7 @@ def create_single_backward_instances(instance_dir: Path, headdims: List) -> None
                                 )
 
 
-def create_single_backward_instances_ref(instance_dir: Path, headdims: List) -> None:
+def create_backward_single_instances_ref(instance_dir: Path, headdims: List) -> None:
     for mode in SINGLE_MODES:
         for dtype in ["fp16", "bf16"]:
             ref_fname = HSTU_BACKWARD_SINGLE_INSTANCE_REF_FNAME.format(
@@ -319,15 +320,15 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------
     # Optional single-kernel backward path. Fully isolated from the base
     # path above: separate output directory (instances_single/) and a
-    # narrowed delete glob (*_single_backward_*) so the base instances/
+    # narrowed delete glob (*_backward_single_*) so the base instances/
     # directory is never touched by this cleanup.
     # ------------------------------------------------------------------
     single_output_dir = Path(this_dir) / "instances_single"
     single_output_dir.mkdir(parents=True, exist_ok=True)
 
     # remove existing single backward files ONLY (narrowed glob, isolated dir)
-    for ff in single_output_dir.glob("*_single_backward_*"):
+    for ff in single_output_dir.glob("*_backward_single_*"):
         ff.unlink()
 
-    create_single_backward_instances(single_output_dir, headdims_bwd)
-    create_single_backward_instances_ref(single_output_dir, headdims_bwd)
+    create_backward_single_instances(single_output_dir, headdims_bwd)
+    create_backward_single_instances_ref(single_output_dir, headdims_bwd)
