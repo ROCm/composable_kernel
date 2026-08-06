@@ -316,7 +316,13 @@ void run_batched_backward_dispatch(HstuAttentionNoGroupBwdParams& param, hipStre
 // ---- single-kernel bwd extra includes (base double-kernel path does not need these) ----
 #include <stdexcept>
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/fmha.hpp"
+// Narrow fmha sub-headers instead of the `ck_tile/ops/fmha.hpp` aggregate: the
+// aggregate pulls in kernel/fmha_fwd_kernel.hpp, whose `has_use_trload_flag`
+// collides with the local copy in hstu_attention_kernel_util.hpp.
+#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_pipeline_problem.hpp"
+#include "ck_tile/ops/fmha/pipeline/tile_fmha_traits.hpp"
 #include "hstu_attention_fwd_type_config.hpp"
 #include "hstu_attention_bwd_shape.hpp"
 #include "hstu_attention_bwd_perf.hpp"
@@ -699,7 +705,7 @@ struct batched_backward_single_dispatch
         BOOL_SWITCH_2(pad_qk, kPadHeadDimQ, pad_v, kPadHeadDimV, [&] {
             BOOL_SWITCH(use_local, kUseLocal, [&] {
                 BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
-                    using Mask = typename ck_tile::
+                    using Mask = typename ck_tile::hstu_bwd_single::
                         HstuBlockMasking<kIsCrossAttention, kUseCausal, kUseLocal>::Type;
                     if constexpr(kUseSoftmax)
                         RunSoftmax<Mask, kPadHeadDimQ, kPadHeadDimV>(param, stream);

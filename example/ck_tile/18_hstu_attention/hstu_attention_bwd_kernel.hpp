@@ -5,7 +5,13 @@
 
 #include <hip/hip_runtime.h>
 #include "ck_tile/core.hpp"
+#if defined(HSTU_BWD_SINGLE_KERNEL)
+// Guarded: this header is only ever reached from the single-kernel `#if` blocks
+// of the two bwd dispatch headers. Keeping the guard here prevents the single
+// masking header from leaking into a flag=OFF TU if someone includes this file
+// from outside such a block later on.
 #include "hstu_block_masking_bwd_single.hpp"
+#endif
 
 // HSTU attention backward — kernel layer (DESIGN §1.1).
 //
@@ -28,6 +34,13 @@
 //   TODO(M6): deterministic POST (reduce+convert over dq_acc splits).
 
 namespace ck_tile {
+
+// NOTE: no `using namespace hstu_bwd_single;` here on purpose. A using-directive
+// only makes those names *also* visible in `ck_tile`, it does not hide the base
+// `ck_tile::make_hstu_*` overloads that arrive in the same TU via
+// hstu_attention_bwd_kernel_1/_2.hpp -> hstu_block_masking.hpp. With both sets
+// visible every unqualified call becomes ambiguous, so the 16 factory call
+// sites below spell out `hstu_bwd_single::` explicitly.
 
 // HSTU bwd MAIN kernel: batched, SiLU, no bias/dropout/group (M1 scope).
 // Mirrors FMHA FmhaBwdDQDKDVKernel::operator() window setup, but passes
@@ -406,7 +419,7 @@ struct HstuAttentionBwdDQDKDVKernel
                 // if constexpr so the self (false) leg dead-code-elims byte-identical to M7c.
                 if constexpr(FmhaMask::kIsCrossAttention)
                 {
-                    return make_hstu_cross_attention_block_mask_with_local<FmhaMask>(
+                    return hstu_bwd_single::make_hstu_cross_attention_block_mask_with_local<FmhaMask>(
                         /*is_tile_in_first_split=*/true,
                         kargs.seqlen_q,
                         kargs.seqlen_kv,
@@ -417,7 +430,7 @@ struct HstuAttentionBwdDQDKDVKernel
                 }
                 else
                 {
-                    return make_hstu_self_attention_block_mask_with_local<FmhaMask>(
+                    return hstu_bwd_single::make_hstu_self_attention_block_mask_with_local<FmhaMask>(
                         /*is_tile_in_first_split=*/true,
                         kargs.seqlen_q,
                         kargs.contextual_seqlen,
@@ -430,12 +443,12 @@ struct HstuAttentionBwdDQDKDVKernel
             {
                 if constexpr(FmhaMask::kIsCrossAttention)
                 {
-                    return make_hstu_cross_attention_block_mask_without_local<FmhaMask>(
+                    return hstu_bwd_single::make_hstu_cross_attention_block_mask_without_local<FmhaMask>(
                         kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
                 }
                 else
                 {
-                    return make_hstu_self_attention_block_mask_without_local<FmhaMask>(
+                    return hstu_bwd_single::make_hstu_self_attention_block_mask_without_local<FmhaMask>(
                         kargs.seqlen_q, kargs.contextual_seqlen, num_target);
                 }
             }
@@ -873,13 +886,13 @@ struct HstuAttentionBwdDQDKDVSoftmaxKernel
                 // cross-attention: seqlen_kv into seqlen_k slot (see SiLU site / draft R2/R3).
                 if constexpr(FmhaMask::kIsCrossAttention)
                 {
-                    return make_hstu_cross_attention_block_mask_with_local<FmhaMask>(
+                    return hstu_bwd_single::make_hstu_cross_attention_block_mask_with_local<FmhaMask>(
                         /*is_tile_in_first_split=*/true, kargs.seqlen_q, kargs.seqlen_kv,
                         kargs.contextual_seqlen, num_target, kargs.max_attn_len, eff_min_full);
                 }
                 else
                 {
-                    return make_hstu_self_attention_block_mask_with_local<FmhaMask>(
+                    return hstu_bwd_single::make_hstu_self_attention_block_mask_with_local<FmhaMask>(
                         /*is_tile_in_first_split=*/true, kargs.seqlen_q, kargs.contextual_seqlen,
                         num_target, kargs.max_attn_len, eff_min_full);
                 }
@@ -888,12 +901,12 @@ struct HstuAttentionBwdDQDKDVSoftmaxKernel
             {
                 if constexpr(FmhaMask::kIsCrossAttention)
                 {
-                    return make_hstu_cross_attention_block_mask_without_local<FmhaMask>(
+                    return hstu_bwd_single::make_hstu_cross_attention_block_mask_without_local<FmhaMask>(
                         kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
                 }
                 else
                 {
-                    return make_hstu_self_attention_block_mask_without_local<FmhaMask>(
+                    return hstu_bwd_single::make_hstu_self_attention_block_mask_without_local<FmhaMask>(
                         kargs.seqlen_q, kargs.contextual_seqlen, num_target);
                 }
             }
@@ -1285,11 +1298,11 @@ struct HstuAttentionBwdDQDKDVGroupKernel
             // (draft R2/R3); if constexpr keeps the self leg byte-identical to M7c.
             auto mask = [&]() {
                 if constexpr(LocalMask::kIsCrossAttention)
-                    return make_hstu_cross_attention_block_mask_with_local<LocalMask>(
+                    return hstu_bwd_single::make_hstu_cross_attention_block_mask_with_local<LocalMask>(
                         /*is_tile_in_first_split=*/true, seqlen_q, seqlen_kv, contextual_seqlen,
                         num_target, window_size, eff_min_full);
                 else
-                    return make_hstu_self_attention_block_mask_with_local<LocalMask>(
+                    return hstu_bwd_single::make_hstu_self_attention_block_mask_with_local<LocalMask>(
                         /*is_tile_in_first_split=*/true, seqlen_q, contextual_seqlen, num_target,
                         window_size, eff_min_full);
             }();
@@ -1302,10 +1315,10 @@ struct HstuAttentionBwdDQDKDVGroupKernel
         {
             auto mask = [&]() {
                 if constexpr(NoLocalMask::kIsCrossAttention)
-                    return make_hstu_cross_attention_block_mask_without_local<NoLocalMask>(
+                    return hstu_bwd_single::make_hstu_cross_attention_block_mask_without_local<NoLocalMask>(
                         seqlen_q, seqlen_kv, contextual_seqlen, num_target);
                 else
-                    return make_hstu_self_attention_block_mask_without_local<NoLocalMask>(
+                    return hstu_bwd_single::make_hstu_self_attention_block_mask_without_local<NoLocalMask>(
                         seqlen_q, contextual_seqlen, num_target);
             }();
             auto [dk_acc_tile, dv_acc_tile] =
@@ -1685,11 +1698,11 @@ struct HstuAttentionBwdDQDKDVGroupSoftmaxKernel
             // (draft R2/R3); if constexpr keeps the self leg byte-identical to M7c.
             auto mask = [&]() {
                 if constexpr(LocalMask::kIsCrossAttention)
-                    return make_hstu_cross_attention_block_mask_with_local<LocalMask>(
+                    return hstu_bwd_single::make_hstu_cross_attention_block_mask_with_local<LocalMask>(
                         /*is_tile_in_first_split=*/true, seqlen_q, seqlen_kv, contextual_seqlen,
                         num_target, window_size, eff_min_full);
                 else
-                    return make_hstu_self_attention_block_mask_with_local<LocalMask>(
+                    return hstu_bwd_single::make_hstu_self_attention_block_mask_with_local<LocalMask>(
                         /*is_tile_in_first_split=*/true, seqlen_q, contextual_seqlen, num_target,
                         window_size, eff_min_full);
             }();
@@ -1703,10 +1716,10 @@ struct HstuAttentionBwdDQDKDVGroupSoftmaxKernel
         {
             auto mask = [&]() {
                 if constexpr(NoLocalMask::kIsCrossAttention)
-                    return make_hstu_cross_attention_block_mask_without_local<NoLocalMask>(
+                    return hstu_bwd_single::make_hstu_cross_attention_block_mask_without_local<NoLocalMask>(
                         seqlen_q, seqlen_kv, contextual_seqlen, num_target);
                 else
-                    return make_hstu_self_attention_block_mask_without_local<NoLocalMask>(
+                    return hstu_bwd_single::make_hstu_self_attention_block_mask_without_local<NoLocalMask>(
                         seqlen_q, contextual_seqlen, num_target);
             }();
             auto [dk_acc_tile, dv_acc_tile] =

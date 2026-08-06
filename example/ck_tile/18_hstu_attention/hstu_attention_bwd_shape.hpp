@@ -4,7 +4,12 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/fmha.hpp"
+// Narrow fmha sub-header instead of the `ck_tile/ops/fmha.hpp` aggregate (which
+// pulls in kernel/fmha_fwd_kernel.hpp and collides with the local
+// hstu_attention_kernel_util.hpp). tensor_layout is what tile_fmha_shape.hpp
+// needs for `tensor_layout::gemm::RowMajor`.
+#include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/fmha/pipeline/tile_fmha_shape.hpp"
 
 // HSTU attention backward — per-MaxK tile-shape selector (M7b).
 //

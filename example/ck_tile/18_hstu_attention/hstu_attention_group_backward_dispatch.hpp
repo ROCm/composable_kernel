@@ -321,7 +321,13 @@ void run_group_backward_dispatch(HstuAttentionGroupBwdParams& param, hipStream_t
 #include <stdexcept>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/fmha.hpp"
+// Narrow fmha sub-headers instead of the `ck_tile/ops/fmha.hpp` aggregate: the
+// aggregate pulls in kernel/fmha_fwd_kernel.hpp, whose `has_use_trload_flag`
+// collides with the local copy in hstu_attention_kernel_util.hpp.
+#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_pipeline_problem.hpp"
+#include "ck_tile/ops/fmha/pipeline/tile_fmha_traits.hpp"
 
 #include "hstu_attention_fwd_type_config.hpp"
 #include "hstu_attention_no_softmax_bwd_pipeline.hpp"
@@ -440,9 +446,9 @@ struct group_backward_single_dispatch
     {
         BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
         using LocalMask =
-            typename ck_tile::HstuBlockMasking<kIsCrossAttention, kUseCausal, true>::Type;
+            typename ck_tile::hstu_bwd_single::HstuBlockMasking<kIsCrossAttention, kUseCausal, true>::Type;
         using NoLocalMask =
-            typename ck_tile::HstuBlockMasking<kIsCrossAttention, kUseCausal, false>::Type;
+            typename ck_tile::hstu_bwd_single::HstuBlockMasking<kIsCrossAttention, kUseCausal, false>::Type;
 
         using PipelineLocal = ck_tile::HstuAttentionBwdDQDKDVPipelineKRKTRVR<
             ProblemFor<LocalMask, kPadHeadDimQ, kPadHeadDimV>>;
@@ -520,9 +526,9 @@ struct group_backward_single_dispatch
 
         BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
         using LocalMask =
-            typename ck_tile::HstuBlockMasking<kIsCrossAttention, kUseCausal, true>::Type;
+            typename ck_tile::hstu_bwd_single::HstuBlockMasking<kIsCrossAttention, kUseCausal, true>::Type;
         using NoLocalMask =
-            typename ck_tile::HstuBlockMasking<kIsCrossAttention, kUseCausal, false>::Type;
+            typename ck_tile::hstu_bwd_single::HstuBlockMasking<kIsCrossAttention, kUseCausal, false>::Type;
 
         using PipelineLocal = ck_tile::HstuAttentionWithSoftmaxBwdDQDKDVPipelineKRKTRVR<
             ProblemFor<LocalMask, kPadHeadDimQ, kPadHeadDimV>>;

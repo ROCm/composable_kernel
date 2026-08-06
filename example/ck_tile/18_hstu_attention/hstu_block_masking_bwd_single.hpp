@@ -10,6 +10,12 @@
 #include <ck_tile/core/numeric/math.hpp>
 
 namespace ck_tile {
+// Nested one level deeper than the base `hstu_block_masking.hpp`: both headers
+// live in `namespace ck_tile` and declare the same 9 entities (5 structs + 4
+// factories) with different template arities. Under HSTU_BWD_SINGLE_KERNEL both
+// reach the same TU (the base one arrives unconditionally through
+// hstu_attention_bwd_kernel_1/_2.hpp), so this sub-namespace keeps them apart.
+namespace hstu_bwd_single {
 
 template <bool kUseCausal>
 struct HstuCrossAttentionBlockMaskWithLocal
@@ -1074,4 +1080,5 @@ CK_TILE_HOST_DEVICE constexpr auto make_hstu_self_attention_block_mask_without_l
     return HstuBlockMaskType{seqlen_, contextual_seqlen_, num_target};
 };
 
+} // namespace hstu_bwd_single
 } // namespace ck_tile
