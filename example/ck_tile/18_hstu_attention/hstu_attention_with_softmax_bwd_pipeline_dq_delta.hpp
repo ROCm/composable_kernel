@@ -425,23 +425,13 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
-                if constexpr(i_n0 == 0)
-                {
-                    // ensure LDS access of K^T in last iteration gemm_4 finished before being
-                    // stored
-                    block_sync_lds();
-                }
-
-                store_tile(
-                    kt_lds_write_windows[i_lds_buf_1], k_tiles[i_current_buf], partition_index);
+                // Ensure all LDS stores are visible before Gemm0 reads
+                block_sync_lds();
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
-                if constexpr(i_n0 > 0)
-                {
-                    // Ensure all LDS stores are visible before Gemm0 reads
-                    block_sync_lds();
-                }
+                store_tile(
+                    kt_lds_write_windows[i_lds_buf_1], k_tiles[i_current_buf], partition_index);
 
                 // Gemm0: sacc_tile = Q @ K_sub
                 gemm_0(sacc_tile, q_tile, k_lds_windows[i_lds_buf_0]);
