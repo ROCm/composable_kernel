@@ -393,15 +393,11 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
         q_tiles[number<0>{}] = load_tile(q_dram_window);
         move_tile_window(q_dram_window, {0, kK0});
 
-        __builtin_amdgcn_sched_barrier(0);
-
         clear_tile(dk_acc);
         clear_tile(dv_acc);
 
         do_tiles[number<0>{}] = load_tile(do_dram_window);
         move_tile_window(do_dram_window, {0, kK0});
-
-        __builtin_amdgcn_sched_barrier(0);
 
         // SiLU activation
         const auto f_dsilu = [](CompDataType x) -> CompDataType {

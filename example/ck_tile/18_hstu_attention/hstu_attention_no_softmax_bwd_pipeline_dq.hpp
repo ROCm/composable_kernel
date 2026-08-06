@@ -322,12 +322,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
         k_tiles[number<0>{}] = load_tile(k_dram_window);
         move_tile_window(k_dram_window, {kN0Sub, 0});
 
-        __builtin_amdgcn_sched_barrier(0);
-
         v_tiles[number<0>{}] = load_tile(v_dram_window);
         move_tile_window(v_dram_window, {kN0Sub, 0});
-
-        __builtin_amdgcn_sched_barrier(0);
 
         // SiLU activation: dsilu(x) = sigmoid(x) * (1 + x * (1 - sigmoid(x)))
         const auto f_dsilu = [](CompDataType x) -> CompDataType {
