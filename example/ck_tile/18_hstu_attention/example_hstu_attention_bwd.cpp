@@ -605,6 +605,8 @@ bool run_no_group_hstu_forward_backward(const ck_tile::ArgParser& arg_parser, bo
         params_bwd.num_batch          = num_batch;
         params_bwd.seqlen_q           = phy_seqlen_q;
         params_bwd.seqlen_kv          = phy_seqlen_kv;
+        // dense path also needs it: the single-kernel dispatch derives scale_p from max_seqlen_q
+        params_bwd.max_seqlen_q       = max_seqlen_q;
         params_bwd.q_ptr              = q_dev.GetDeviceBuffer();
         params_bwd.k_ptr              = k_dev.GetDeviceBuffer();
         params_bwd.v_ptr              = v_dev.GetDeviceBuffer();
