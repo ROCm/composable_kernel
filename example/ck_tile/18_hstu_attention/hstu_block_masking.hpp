@@ -201,9 +201,29 @@ struct HstuCrossAttentionBlockMaskWithLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        std::ignore = i_x;
+        if constexpr(kHasContext)
+        {
+            return ck_tile::make_tuple(0, seqlen_q);
+        }
+        else
+        {
+            if constexpr(kUseCausal)
+            {
+                index_t y_start =
+                    min(max(i_x - diff_q_kv_len, 0), max_q_uih_len - min_full_attn_seqlen);
+                index_t y_start_aligned = y_start - y_start % YTile;
 
-        return ck_tile::make_tuple(0, seqlen_q);
+                return ck_tile::make_tuple(y_start_aligned, seqlen_q);
+            }
+            else
+            {
+                index_t y_start         = min(max(i_x - diff_q_kv_len - max_attn_len, 0),
+                                      max_q_uih_len - min_full_attn_seqlen);
+                index_t y_start_aligned = y_start - y_start % YTile;
+
+                return ck_tile::make_tuple(y_start_aligned, seqlen_q);
+            }
+        }
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -496,9 +516,28 @@ struct HstuSelfAttentionBlockMaskWithLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        std::ignore = i_x;
+        if constexpr(kHasContext)
+        {
+            return ck_tile::make_tuple(0, seqlen);
+        }
+        else
+        {
+            if constexpr(kUseCausal)
+            {
+                index_t y_start         = min(i_x, max_uih_len - min_full_attn_seqlen);
+                index_t y_start_aligned = y_start - y_start % YTile;
 
-        return ck_tile::make_tuple(0, seqlen);
+                return ck_tile::make_tuple(y_start_aligned, seqlen);
+            }
+            else
+            {
+                index_t y_start =
+                    min(max(i_x - max_attn_len, 0), max_uih_len - min_full_attn_seqlen);
+                index_t y_start_aligned = y_start - y_start % YTile;
+
+                return ck_tile::make_tuple(y_start_aligned, seqlen);
+            }
+        }
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -695,9 +734,24 @@ struct HstuCrossAttentionBlockMaskNoLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        std::ignore = i_x;
+        if constexpr(kHasContext)
+        {
+            return ck_tile::make_tuple(0, seqlen_q);
+        }
+        else
+        {
+            if constexpr(kUseCausal)
+            {
+                index_t y_start         = min(max(i_x - diff_q_kv_len, 0), max_q_uih_len);
+                index_t y_start_aligned = y_start - y_start % YTile;
 
-        return ck_tile::make_tuple(0, seqlen_q);
+                return ck_tile::make_tuple(y_start_aligned, seqlen_q);
+            }
+            else
+            {
+                return ck_tile::make_tuple(0, seqlen_q);
+            }
+        }
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -855,9 +909,24 @@ struct HstuSelfAttentionBlockMaskNoLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        std::ignore = i_x;
+        if constexpr(kHasContext)
+        {
+            return ck_tile::make_tuple(0, seqlen);
+        }
+        else
+        {
+            if constexpr(kUseCausal)
+            {
+                index_t y_start         = min(i_x, max_uih_len);
+                index_t y_start_aligned = y_start - y_start % YTile;
 
-        return ck_tile::make_tuple(0, seqlen);
+                return ck_tile::make_tuple(y_start_aligned, seqlen);
+            }
+            else
+            {
+                return ck_tile::make_tuple(0, seqlen);
+            }
+        }
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
