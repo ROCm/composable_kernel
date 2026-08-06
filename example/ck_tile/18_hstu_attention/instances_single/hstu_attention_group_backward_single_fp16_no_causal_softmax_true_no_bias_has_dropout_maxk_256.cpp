@@ -7,7 +7,7 @@
 // `ck_qf/example/ck_tile/18_hstu_attention/generate_bwd_instances.py`
 
 #include <ck_tile/core/numeric/half.hpp>
-#include "hstu_attention_group_backward_single_dispatch.hpp"
+#include "hstu_attention_group_backward_dispatch.hpp"
 #include "hstu_attention_params.hpp"
 
 template void run_group_backward_single_dispatch<

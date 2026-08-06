@@ -110,7 +110,7 @@ MODE_GROUP_OR_NOT_MAP = {
 
 HSTU_BACKWARD_SINGLE_INSTANCE_TEMPLATE_INC = """
 #include <ck_tile/core/numeric/{dtype_file}.hpp>
-#include \"hstu_attention_{mode}_backward_single_dispatch.hpp\"
+#include \"hstu_attention_{mode}_backward_dispatch.hpp\"
 #include \"hstu_attention_params.hpp\"
 """
 
