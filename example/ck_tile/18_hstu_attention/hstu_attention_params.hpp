@@ -240,6 +240,15 @@ struct HstuAttentionNoGroupBwdParams
     ck_tile::index_t contextual_seqlen;
     ck_tile::index_t min_full_attn_seqlen;
 
+    // ---- single-kernel bwd: dQ float 累加 workspace（HSTU_BWD_SINGLE_KERNEL 路）----
+    void* dq_acc_ptr                     = nullptr;
+    ck_tile::index_t stride_dq_acc       = 0;
+    ck_tile::index_t nhead_stride_dq_acc = 0;
+    ck_tile::index_t batch_stride_dq_acc = 0;
+    ck_tile::index_t split_stride_dq_acc = 0; // determ: 每 split 一 slot；atomic: 0
+    int num_splits                       = 1; // atomic:1；determ:ceil(max_seqlen_kv/kN0)
+    bool kIsDeterministic                = false;
+
     // dropout parameters: used to replay the fwd dropout mask so that dS = P * dP can be computed
     float p_drop;
     uint64_t philox_seed;
@@ -312,6 +321,15 @@ struct HstuAttentionGroupBwdParams
     const void* group_window_size_ptr;
     const void* group_contextual_seqlen_ptr;
     const void* group_min_full_attn_seqlen_ptr;
+
+    // ---- single-kernel bwd: dQ float 累加 workspace（HSTU_BWD_SINGLE_KERNEL 路）----
+    void* dq_acc_ptr                     = nullptr;
+    ck_tile::index_t stride_dq_acc       = 0;
+    ck_tile::index_t nhead_stride_dq_acc = 0;
+    ck_tile::index_t total_dq_acc_elems  = 0; // 单 slot = ΣL*H*hdim_qk（Group 无 batch_stride_dq_acc）
+    ck_tile::index_t split_stride_dq_acc = 0; // == total_dq_acc_elems(determ) / 0(atomic)
+    int num_splits                       = 1; // atomic:1；determ:ceil(max_seqlen_q/kN0)
+    bool kIsDeterministic                = false;
 
     // dropout parameters: used to replay the fwd dropout mask so that dS = P * dP can be computed
     float p_drop;
