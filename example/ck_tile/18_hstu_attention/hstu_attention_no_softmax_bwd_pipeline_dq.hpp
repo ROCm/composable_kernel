@@ -484,38 +484,54 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
 
             // === STAGE 4: dS = dP * scale_p * dsilu(S), then dQ += alpha * dS @ K^T ===
             // dS[sq,sk] = dP[sq,sk] * scale_p * dsilu(S[sq,sk])
-            // Two corrections vs. a naive dS = dp*scale_p*dsilu(s):
+            // Correction vs. a naive dS = dp*scale_p*dsilu(s):
             //  - dsilu(0) != 0 (dsilu(0) = 0.5), so masking S to 0 above is NOT enough to zero
             //    dS at masked-out pairs; force dS = 0 outside the mask (reference: locals_dS =
             //    0).
-            //  - The last K tile may contain padded columns (col >= seqlen_k_end) that
-            //    IsTokenPairInsideMask can clamp and accept; force dS = 0 there too so the
-            //    padded columns do not leak into the dQ reduction.
+            // Padded columns (col >= seqlen_k_end) in the last K tile need no explicit handling:
+            // that column of dP = dO @ V comes from OOB row `col` of V, which buffer_load zeroes
+            // (the seqlen dim is intentionally not pad_tensor_view'd), so dp == 0 exactly there
+            // and dS = 0 * scale_p * dsilu(s) = 0 (s is also 0 via the same K OOB zeroing, so
+            // dsilu(s) is finite -- no 0*inf hazard). They cannot leak into the dQ reduction.
             const bool need_mask = !mask.IsFullTileInsideMask(
                 q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{});
-            const bool need_tail    = (seqlen_k_curr + kN0) > seqlen_k_end;
             constexpr auto ds_spans = PGradcompBlockTileType::get_distributed_spans();
-            sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(ds_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto ij     = make_tuple(idx0, idx1);
-                    const CompDataType s  = pcomp_tile[ij];
-                    const CompDataType dp = dpcomp_tile[ij];
-                    CompDataType ds       = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
-                    if(need_mask || need_tail)
-                    {
+
+            if(need_mask)
+            {
+                sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(ds_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto ij     = make_tuple(idx0, idx1);
+                        const CompDataType s  = pcomp_tile[ij];
+                        const CompDataType dp = dpcomp_tile[ij];
+                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+
                         const auto tile_idx = get_x_indices_from_distributed_indices(
                             dpcomp_tile.get_tile_distribution(),
                             make_tuple(idx0, idx1),
                             partition_index);
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                         const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
-                        if((need_mask && !mask.IsTokenPairInsideMask(row, col)) ||
-                           (need_tail && col >= seqlen_k_end))
+                        if(!mask.IsTokenPairInsideMask(row, col))
                             ds = type_convert<CompDataType>(0.0f);
-                    }
-                    dpcomp_tile(ij) = ds;
+
+                        dpcomp_tile(ij) = ds;
+                    });
                 });
-            });
+            }
+            else
+            {
+                sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(ds_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto ij     = make_tuple(idx0, idx1);
+                        const CompDataType s  = pcomp_tile[ij];
+                        const CompDataType dp = dpcomp_tile[ij];
+                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+
+                        dpcomp_tile(ij) = ds;
+                    });
+                });
+            };
 
             // ensure kt is completely available on Lds
             block_sync_lds();
