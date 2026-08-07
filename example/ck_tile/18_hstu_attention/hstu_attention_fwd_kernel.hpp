@@ -1033,14 +1033,11 @@ struct HstuAttentionFwdKernel
         };
 
         auto o_acc_tile = [&]() {
-            bool has_context = kargs.contextual_seqlen > 0;
-            bool use_local   = kargs.window_size > 0;
+            bool use_local = kargs.window_size > 0;
 
-            return BOOL_SWITCH_RETURN_2(has_context, kHasContext, use_local, kUseLocal, [&]() {
-                using HstuMaskType = typename ck_tile::HstuBlockMasking<kIsCrossAttention,
-                                                                        kHasCausalMask,
-                                                                        kUseLocal,
-                                                                        kHasContext>::Type;
+            return BOOL_SWITCH_RETURN(use_local, kUseLocal, [&]() {
+                using HstuMaskType = typename ck_tile::
+                    HstuBlockMasking<kIsCrossAttention, kHasCausalMask, kUseLocal>::Type;
 
                 if constexpr(kUseLocal)
                 {

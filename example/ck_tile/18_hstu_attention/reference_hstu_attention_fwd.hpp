@@ -138,223 +138,211 @@ struct reference_no_group_hstu_attention_fwd
 
             float scale_p = attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen_q);
 
-            bool has_local   = window_size > 0;
-            bool has_context = contextual_seqlen > 0;
+            bool has_local = window_size > 0;
 
-            BOOL_SWITCH_3(
-                has_local,
-                kHasLocal,
-                has_context,
-                kHasContext,
-                is_cross_attention,
-                kIsCrossAttention,
-                [&] {
-                    using HstuMaskType = typename HstuBlockMasking<kIsCrossAttention,
-                                                                   kUseCausal,
-                                                                   kHasLocal,
-                                                                   kHasContext>::Type;
+            BOOL_SWITCH_2(has_local, kHasLocal, is_cross_attention, kIsCrossAttention, [&] {
+                using HstuMaskType =
+                    typename HstuBlockMasking<kIsCrossAttention, kUseCausal, kHasLocal>::Type;
 
-                    HstuMaskType mask = [&]() {
-                        if constexpr(kHasLocal)
+                HstuMaskType mask = [&]() {
+                    if constexpr(kHasLocal)
+                    {
+                        if constexpr(kIsCrossAttention)
                         {
-                            if constexpr(kIsCrossAttention)
-                            {
-                                // need adjust the min_full_attn_seqlen passed to the
-                                // HstuBlockMask() if the user passed min_full_attn_seqlen is bigger
-                                // than max_uih_len
-                                if(seqlen_q - num_target > min_full_attn_seqlen)
-                                    return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                        HstuMaskType>(true,
-                                                      seqlen_q,
-                                                      seqlen_kv,
-                                                      contextual_seqlen,
-                                                      num_target,
-                                                      window_size,
-                                                      min_full_attn_seqlen);
-                                else
-                                    return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                        HstuMaskType>(true,
-                                                      seqlen_q,
-                                                      seqlen_kv,
-                                                      contextual_seqlen,
-                                                      num_target,
-                                                      window_size,
-                                                      seqlen_q - num_target);
-                            }
+                            // need adjust the min_full_attn_seqlen passed to the
+                            // HstuBlockMask() if the user passed min_full_attn_seqlen is bigger
+                            // than max_uih_len
+                            if(seqlen_q - num_target > min_full_attn_seqlen)
+                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  seqlen_kv,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  min_full_attn_seqlen);
                             else
-                            {
-                                // need adjust the min_full_attn_seqlen passed to the
-                                // HstuBlockMask() if the user passed min_full_attn_seqlen is bigger
-                                // than max_uih_len
-                                if(seqlen_q - num_target > min_full_attn_seqlen)
-                                    return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                        HstuMaskType>(true,
-                                                      seqlen_q,
-                                                      contextual_seqlen,
-                                                      num_target,
-                                                      window_size,
-                                                      min_full_attn_seqlen);
-                                else
-                                    return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                        HstuMaskType>(true,
-                                                      seqlen_q,
-                                                      contextual_seqlen,
-                                                      num_target,
-                                                      window_size,
-                                                      seqlen_q - num_target);
-                            }
+                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  seqlen_kv,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  seqlen_q - num_target);
                         }
                         else
                         {
-                            if constexpr(kIsCrossAttention)
-                                return ck_tile::make_hstu_cross_attention_block_mask_without_local<
-                                    HstuMaskType>(
-                                    seqlen_q, seqlen_kv, contextual_seqlen, num_target);
+                            // need adjust the min_full_attn_seqlen passed to the
+                            // HstuBlockMask() if the user passed min_full_attn_seqlen is bigger
+                            // than max_uih_len
+                            if(seqlen_q - num_target > min_full_attn_seqlen)
+                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  min_full_attn_seqlen);
                             else
-                                return ck_tile::make_hstu_self_attention_block_mask_without_local<
-                                    HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
+                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  seqlen_q - num_target);
                         }
-                    }();
-
-                    if(save_mask)
-                    {
-                        for(int sq = 0; sq < max_seqlen_q; sq++)
-                            for(int sk = 0; sk < max_seqlen_kv; sk++)
-                                mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) = 0;
-
-                        for(int sq = 0; sq < seqlen_q; sq++)
-                            for(int sk = 0; sk < seqlen_kv; sk++)
-                                mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) =
-                                    static_cast<int8_t>(mask.IsTokenPairInsideMask(sq, sk));
                     }
-
-                    // for all rows in the batch
-                    for(int sq = 0; sq < seqlen_q; sq++)
+                    else
                     {
-                        CompDataType m =
-                            -ck_tile::numeric<CompDataType>::infinity(); // max value of the row
-                        CompDataType l =
-                            ck_tile::type_convert<CompDataType>(0.0f); // sum of exp(x-m) of the row
-                                                                       //
-                        std::vector<CompDataType> locals;
-
-                        // for all cols in the batch
-                        for(int sk = 0; sk < seqlen_kv; sk++)
-                        {
-                            if(mask.IsTokenPairInsideMask(sq, sk))
-                            {
-                                GemmAccDataType dot_prod = 0.f;
-                                for(int k = 0; k < hdim_qk; k++)
-                                {
-                                    if constexpr(kIsJagged)
-                                    {
-                                        InOutDataType qreg = q_batch_seq_nhead_hdim(
-                                            0, seq_q_offsets[i_batch] + sq, i_head, k);
-                                        InOutDataType kreg = k_batch_seq_nhead_hdim(
-                                            0, seq_kv_offsets[i_batch] + sk, i_head, k);
-
-                                        dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
-                                                    ck_tile::type_convert<GemmAccDataType>(kreg);
-                                    }
-                                    else
-                                    {
-                                        InOutDataType qreg =
-                                            q_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
-                                        InOutDataType kreg =
-                                            k_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
-
-                                        dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
-                                                    ck_tile::type_convert<GemmAccDataType>(kreg);
-                                    };
-                                }
-
-                                locals.push_back(ck_tile::type_convert<CompDataType>(dot_prod) *
-                                                 ck_tile::type_convert<CompDataType>(alpha));
-                            }
-                            else
-                            {
-                                if(!use_softmax)
-                                    locals.push_back(ck_tile::type_convert<CompDataType>(0.0f));
-                                else
-                                    locals.push_back(-ck_tile::numeric<CompDataType>::infinity());
-                            };
-                        };
-
-                        if(!use_softmax)
-                        {
-                            // SiLu element-wise
-                            for(CompDataType& elem : locals)
-                                elem = silu(elem) * ck_tile::type_convert<CompDataType>(scale_p);
-                        }
+                        if constexpr(kIsCrossAttention)
+                            return ck_tile::make_hstu_cross_attention_block_mask_without_local<
+                                HstuMaskType>(seqlen_q, seqlen_kv, contextual_seqlen, num_target);
                         else
-                        {
-                            for(CompDataType elem : locals)
-                                m = ck_tile::max(m, elem);
+                            return ck_tile::make_hstu_self_attention_block_mask_without_local<
+                                HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
+                    }
+                }();
 
-                            if(m == -ck_tile::numeric<CompDataType>::infinity())
-                            {
-                                for(CompDataType& elem : locals)
-                                    elem = ck_tile::type_convert<CompDataType>(0.0f);
-                            }
-                            else
-                            {
-                                // stabalized sum of exp()
-                                for(CompDataType elem : locals)
-                                    l += std::exp(elem - m);
+                if(save_mask)
+                {
+                    for(int sq = 0; sq < max_seqlen_q; sq++)
+                        for(int sk = 0; sk < max_seqlen_kv; sk++)
+                            mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) = 0;
 
-                                // normalization
-                                for(CompDataType& elem : locals)
-                                    elem = std::exp(elem - m) / l;
-                            }
+                    for(int sq = 0; sq < seqlen_q; sq++)
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                            mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) =
+                                static_cast<int8_t>(mask.IsTokenPairInsideMask(sq, sk));
+                }
 
-                            if(store_lse)
-                            {
-                                if constexpr(kIsJagged)
-                                    lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head) =
-                                        std::log(l) + m;
-                                else
-                                    lse_batch_seq_nhead(i_batch, sq, i_head) = std::log(l) + m;
-                            }
-                        };
+                // for all rows in the batch
+                for(int sq = 0; sq < seqlen_q; sq++)
+                {
+                    CompDataType m =
+                        -ck_tile::numeric<CompDataType>::infinity(); // max value of the row
+                    CompDataType l =
+                        ck_tile::type_convert<CompDataType>(0.0f); // sum of exp(x-m) of the row
+                                                                   //
+                    std::vector<CompDataType> locals;
 
-                        // second Gemm
-                        for(int k = 0; k < hdim_v; k++)
+                    // for all cols in the batch
+                    for(int sk = 0; sk < seqlen_kv; sk++)
+                    {
+                        if(mask.IsTokenPairInsideMask(sq, sk))
                         {
                             GemmAccDataType dot_prod = 0.f;
-
-                            for(int sk = 0; sk < seqlen_kv; sk++)
+                            for(int k = 0; k < hdim_qk; k++)
                             {
                                 if constexpr(kIsJagged)
                                 {
-                                    InOutDataType preg =
-                                        ck_tile::type_convert<InOutDataType>(locals[sk]);
-                                    InOutDataType vreg = v_batch_seq_nhead_hdim(
+                                    InOutDataType qreg = q_batch_seq_nhead_hdim(
+                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                    InOutDataType kreg = k_batch_seq_nhead_hdim(
                                         0, seq_kv_offsets[i_batch] + sk, i_head, k);
 
-                                    dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
-                                                ck_tile::type_convert<GemmAccDataType>(vreg);
+                                    dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
+                                                ck_tile::type_convert<GemmAccDataType>(kreg);
                                 }
                                 else
                                 {
-                                    InOutDataType preg =
-                                        ck_tile::type_convert<InOutDataType>(locals[sk]);
-                                    InOutDataType vreg =
-                                        v_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+                                    InOutDataType qreg =
+                                        q_batch_seq_nhead_hdim(i_batch, sq, i_head, k);
+                                    InOutDataType kreg =
+                                        k_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
 
-                                    dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
-                                                ck_tile::type_convert<GemmAccDataType>(vreg);
+                                    dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
+                                                ck_tile::type_convert<GemmAccDataType>(kreg);
                                 };
-                            };
+                            }
 
-                            if constexpr(kIsJagged)
-                                o_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k) =
-                                    ck_tile::type_convert<InOutDataType>(dot_prod);
+                            locals.push_back(ck_tile::type_convert<CompDataType>(dot_prod) *
+                                             ck_tile::type_convert<CompDataType>(alpha));
+                        }
+                        else
+                        {
+                            if(!use_softmax)
+                                locals.push_back(ck_tile::type_convert<CompDataType>(0.0f));
                             else
-                                o_batch_seq_nhead_hdim(i_batch, sq, i_head, k) =
-                                    ck_tile::type_convert<InOutDataType>(dot_prod);
+                                locals.push_back(-ck_tile::numeric<CompDataType>::infinity());
                         };
                     };
-                });
+
+                    if(!use_softmax)
+                    {
+                        // SiLu element-wise
+                        for(CompDataType& elem : locals)
+                            elem = silu(elem) * ck_tile::type_convert<CompDataType>(scale_p);
+                    }
+                    else
+                    {
+                        for(CompDataType elem : locals)
+                            m = ck_tile::max(m, elem);
+
+                        if(m == -ck_tile::numeric<CompDataType>::infinity())
+                        {
+                            for(CompDataType& elem : locals)
+                                elem = ck_tile::type_convert<CompDataType>(0.0f);
+                        }
+                        else
+                        {
+                            // stabalized sum of exp()
+                            for(CompDataType elem : locals)
+                                l += std::exp(elem - m);
+
+                            // normalization
+                            for(CompDataType& elem : locals)
+                                elem = std::exp(elem - m) / l;
+                        }
+
+                        if(store_lse)
+                        {
+                            if constexpr(kIsJagged)
+                                lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head) =
+                                    std::log(l) + m;
+                            else
+                                lse_batch_seq_nhead(i_batch, sq, i_head) = std::log(l) + m;
+                        }
+                    };
+
+                    // second Gemm
+                    for(int k = 0; k < hdim_v; k++)
+                    {
+                        GemmAccDataType dot_prod = 0.f;
+
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                        {
+                            if constexpr(kIsJagged)
+                            {
+                                InOutDataType preg =
+                                    ck_tile::type_convert<InOutDataType>(locals[sk]);
+                                InOutDataType vreg = v_batch_seq_nhead_hdim(
+                                    0, seq_kv_offsets[i_batch] + sk, i_head, k);
+
+                                dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
+                                            ck_tile::type_convert<GemmAccDataType>(vreg);
+                            }
+                            else
+                            {
+                                InOutDataType preg =
+                                    ck_tile::type_convert<InOutDataType>(locals[sk]);
+                                InOutDataType vreg = v_batch_seq_nhead_hdim(i_batch, sk, i_head, k);
+
+                                dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
+                                            ck_tile::type_convert<GemmAccDataType>(vreg);
+                            };
+                        };
+
+                        if constexpr(kIsJagged)
+                            o_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k) =
+                                ck_tile::type_convert<InOutDataType>(dot_prod);
+                        else
+                            o_batch_seq_nhead_hdim(i_batch, sq, i_head, k) =
+                                ck_tile::type_convert<InOutDataType>(dot_prod);
+                    };
+                };
+            });
         };
 
         make_ParallelTensorFunctor(f, num_batch, num_head)(std::thread::hardware_concurrency());
@@ -460,190 +448,178 @@ struct reference_group_hstu_attention_fwd
             int window_size          = group_window_sizes[i_group];
             int min_full_attn_seqlen = group_min_full_attn_seqlens[i_group];
 
-            bool has_local   = window_size > 0;
-            bool has_context = contextual_seqlen > 0;
+            bool has_local = window_size > 0;
 
-            BOOL_SWITCH_3(
-                has_local,
-                kHasLocal,
-                has_context,
-                kHasContext,
-                is_cross_attention,
-                kIsCrossAttention,
-                [&] {
-                    using HstuMaskType = typename HstuBlockMasking<kIsCrossAttention,
-                                                                   kUseCausal,
-                                                                   kHasLocal,
-                                                                   kHasContext>::Type;
+            BOOL_SWITCH_2(has_local, kHasLocal, is_cross_attention, kIsCrossAttention, [&] {
+                using HstuMaskType =
+                    typename HstuBlockMasking<kIsCrossAttention, kUseCausal, kHasLocal>::Type;
 
-                    HstuMaskType mask = [&]() {
-                        if constexpr(kHasLocal)
+                HstuMaskType mask = [&]() {
+                    if constexpr(kHasLocal)
+                    {
+                        if constexpr(kIsCrossAttention)
                         {
-                            if constexpr(kIsCrossAttention)
-                            {
-                                // need adjust the min_full_attn_seqlen passed to the
-                                // HstuBlockMask() if the user passed min_full_attn_seqlen is bigger
-                                // than max_uih_len
-                                if(seqlen_q - num_target > min_full_attn_seqlen)
-                                    return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                        HstuMaskType>(true,
-                                                      seqlen_q,
-                                                      seqlen_kv,
-                                                      contextual_seqlen,
-                                                      num_target,
-                                                      window_size,
-                                                      min_full_attn_seqlen);
-                                else
-                                    return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                        HstuMaskType>(true,
-                                                      seqlen_q,
-                                                      seqlen_kv,
-                                                      contextual_seqlen,
-                                                      num_target,
-                                                      window_size,
-                                                      seqlen_q - num_target);
-                            }
+                            // need adjust the min_full_attn_seqlen passed to the
+                            // HstuBlockMask() if the user passed min_full_attn_seqlen is bigger
+                            // than max_uih_len
+                            if(seqlen_q - num_target > min_full_attn_seqlen)
+                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  seqlen_kv,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  min_full_attn_seqlen);
                             else
-                            {
-                                // need adjust the min_full_attn_seqlen passed to the
-                                // HstuBlockMask() if the user passed min_full_attn_seqlen is bigger
-                                // than max_uih_len
-                                if(seqlen_q - num_target > min_full_attn_seqlen)
-                                    return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                        HstuMaskType>(true,
-                                                      seqlen_q,
-                                                      contextual_seqlen,
-                                                      num_target,
-                                                      window_size,
-                                                      min_full_attn_seqlen);
-                                else
-                                    return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                        HstuMaskType>(true,
-                                                      seqlen_q,
-                                                      contextual_seqlen,
-                                                      num_target,
-                                                      window_size,
-                                                      seqlen_q - num_target);
-                            }
+                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  seqlen_kv,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  seqlen_q - num_target);
                         }
                         else
                         {
-                            if constexpr(kIsCrossAttention)
-                                return ck_tile::make_hstu_cross_attention_block_mask_without_local<
-                                    HstuMaskType>(
-                                    seqlen_q, seqlen_kv, contextual_seqlen, num_target);
+                            // need adjust the min_full_attn_seqlen passed to the
+                            // HstuBlockMask() if the user passed min_full_attn_seqlen is bigger
+                            // than max_uih_len
+                            if(seqlen_q - num_target > min_full_attn_seqlen)
+                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  min_full_attn_seqlen);
                             else
-                                return ck_tile::make_hstu_self_attention_block_mask_without_local<
-                                    HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
+                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  seqlen_q - num_target);
                         }
-                    }();
-
-                    if(save_mask)
-                    {
-                        for(int sq = 0; sq < max_max_seqlen_q; sq++)
-                            for(int sk = 0; sk < max_max_seqlen_kv; sk++)
-                                mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) = 0;
-
-                        for(int sq = 0; sq < seqlen_q; sq++)
-                            for(int sk = 0; sk < seqlen_kv; sk++)
-                                mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) =
-                                    static_cast<int8_t>(mask.IsTokenPairInsideMask(sq, sk));
                     }
-
-                    // for all rows in the batch
-                    for(int sq = 0; sq < seqlen_q; sq++)
+                    else
                     {
-                        CompDataType m =
-                            -ck_tile::numeric<CompDataType>::infinity(); // max value of the row
-                        CompDataType l =
-                            ck_tile::type_convert<CompDataType>(0.0f); // sum of exp(x-m) of the row
-                                                                       //
-                        std::vector<CompDataType> locals;
-
-                        // for all cols in the batch
-                        for(int sk = 0; sk < seqlen_kv; sk++)
-                        {
-                            if(mask.IsTokenPairInsideMask(sq, sk))
-                            {
-                                GemmAccDataType dot_prod = 0.f;
-                                for(int k = 0; k < hdim_qk; k++)
-                                {
-                                    InOutDataType qreg = q_batch_seq_nhead_hdim(
-                                        0, seq_q_offsets[i_batch] + sq, i_head, k);
-                                    InOutDataType kreg = k_batch_seq_nhead_hdim(
-                                        0, seq_kv_offsets[i_batch] + sk, i_head, k);
-
-                                    dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
-                                                ck_tile::type_convert<GemmAccDataType>(kreg);
-                                }
-
-                                locals.push_back(ck_tile::type_convert<CompDataType>(dot_prod) *
-                                                 ck_tile::type_convert<CompDataType>(alpha));
-                            }
-                            else
-                            {
-                                if(!use_softmax)
-                                    locals.push_back(ck_tile::type_convert<CompDataType>(0.0f));
-                                else
-                                    locals.push_back(-ck_tile::numeric<CompDataType>::infinity());
-                            };
-                        };
-
-                        if(!use_softmax)
-                        {
-                            // SiLu element-wise
-                            for(CompDataType& elem : locals)
-                                elem = silu(elem) * ck_tile::type_convert<CompDataType>(scale_p);
-                        }
+                        if constexpr(kIsCrossAttention)
+                            return ck_tile::make_hstu_cross_attention_block_mask_without_local<
+                                HstuMaskType>(seqlen_q, seqlen_kv, contextual_seqlen, num_target);
                         else
-                        {
-                            for(CompDataType elem : locals)
-                                m = ck_tile::max(m, elem);
+                            return ck_tile::make_hstu_self_attention_block_mask_without_local<
+                                HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
+                    }
+                }();
 
-                            if(m == -ck_tile::numeric<CompDataType>::infinity())
-                            {
-                                for(CompDataType& elem : locals)
-                                    elem = ck_tile::type_convert<CompDataType>(0.0f);
-                            }
-                            else
-                            {
-                                // stabalized sum of exp()
-                                for(CompDataType elem : locals)
-                                    l += std::exp(elem - m);
+                if(save_mask)
+                {
+                    for(int sq = 0; sq < max_max_seqlen_q; sq++)
+                        for(int sk = 0; sk < max_max_seqlen_kv; sk++)
+                            mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) = 0;
 
-                                // normalization
-                                for(CompDataType& elem : locals)
-                                    elem = std::exp(elem - m) / l;
-                            }
+                    for(int sq = 0; sq < seqlen_q; sq++)
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                            mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) =
+                                static_cast<int8_t>(mask.IsTokenPairInsideMask(sq, sk));
+                }
 
-                            if(store_lse)
-                            {
-                                lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head) =
-                                    std::log(l) + m;
-                            }
-                        };
+                // for all rows in the batch
+                for(int sq = 0; sq < seqlen_q; sq++)
+                {
+                    CompDataType m =
+                        -ck_tile::numeric<CompDataType>::infinity(); // max value of the row
+                    CompDataType l =
+                        ck_tile::type_convert<CompDataType>(0.0f); // sum of exp(x-m) of the row
+                                                                   //
+                    std::vector<CompDataType> locals;
 
-                        // second Gemm
-                        for(int k = 0; k < hdim_v; k++)
+                    // for all cols in the batch
+                    for(int sk = 0; sk < seqlen_kv; sk++)
+                    {
+                        if(mask.IsTokenPairInsideMask(sq, sk))
                         {
                             GemmAccDataType dot_prod = 0.f;
-
-                            for(int sk = 0; sk < seqlen_kv; sk++)
+                            for(int k = 0; k < hdim_qk; k++)
                             {
-                                InOutDataType preg =
-                                    ck_tile::type_convert<InOutDataType>(locals[sk]);
-                                InOutDataType vreg = v_batch_seq_nhead_hdim(
+                                InOutDataType qreg = q_batch_seq_nhead_hdim(
+                                    0, seq_q_offsets[i_batch] + sq, i_head, k);
+                                InOutDataType kreg = k_batch_seq_nhead_hdim(
                                     0, seq_kv_offsets[i_batch] + sk, i_head, k);
 
-                                dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
-                                            ck_tile::type_convert<GemmAccDataType>(vreg);
-                            };
+                                dot_prod += ck_tile::type_convert<GemmAccDataType>(qreg) *
+                                            ck_tile::type_convert<GemmAccDataType>(kreg);
+                            }
 
-                            o_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k) =
-                                ck_tile::type_convert<InOutDataType>(dot_prod);
+                            locals.push_back(ck_tile::type_convert<CompDataType>(dot_prod) *
+                                             ck_tile::type_convert<CompDataType>(alpha));
+                        }
+                        else
+                        {
+                            if(!use_softmax)
+                                locals.push_back(ck_tile::type_convert<CompDataType>(0.0f));
+                            else
+                                locals.push_back(-ck_tile::numeric<CompDataType>::infinity());
                         };
                     };
-                });
+
+                    if(!use_softmax)
+                    {
+                        // SiLu element-wise
+                        for(CompDataType& elem : locals)
+                            elem = silu(elem) * ck_tile::type_convert<CompDataType>(scale_p);
+                    }
+                    else
+                    {
+                        for(CompDataType elem : locals)
+                            m = ck_tile::max(m, elem);
+
+                        if(m == -ck_tile::numeric<CompDataType>::infinity())
+                        {
+                            for(CompDataType& elem : locals)
+                                elem = ck_tile::type_convert<CompDataType>(0.0f);
+                        }
+                        else
+                        {
+                            // stabalized sum of exp()
+                            for(CompDataType elem : locals)
+                                l += std::exp(elem - m);
+
+                            // normalization
+                            for(CompDataType& elem : locals)
+                                elem = std::exp(elem - m) / l;
+                        }
+
+                        if(store_lse)
+                        {
+                            lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head) =
+                                std::log(l) + m;
+                        }
+                    };
+
+                    // second Gemm
+                    for(int k = 0; k < hdim_v; k++)
+                    {
+                        GemmAccDataType dot_prod = 0.f;
+
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                        {
+                            InOutDataType preg = ck_tile::type_convert<InOutDataType>(locals[sk]);
+                            InOutDataType vreg =
+                                v_batch_seq_nhead_hdim(0, seq_kv_offsets[i_batch] + sk, i_head, k);
+
+                            dot_prod += ck_tile::type_convert<GemmAccDataType>(preg) *
+                                        ck_tile::type_convert<GemmAccDataType>(vreg);
+                        };
+
+                        o_batch_seq_nhead_hdim(0, seq_q_offsets[i_batch] + sq, i_head, k) =
+                            ck_tile::type_convert<InOutDataType>(dot_prod);
+                    };
+                };
+            });
         };
 
         make_ParallelTensorFunctor(f, num_batch, num_head)(std::thread::hardware_concurrency());
