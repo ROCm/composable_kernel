@@ -11,7 +11,7 @@
 
 namespace ck_tile {
 
-template <bool kUseCausal, bool kHasContext>
+template <bool kUseCausal>
 struct HstuCrossAttentionBlockMaskWithLocal
 {
     static constexpr bool kUseLocal         = true;
@@ -59,7 +59,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
         // collide with min_full_attn_seqlen scope
         contextual_seqlen = min(contextual_seqlen, max_q_uih_len - min_full_attn_seqlen);
 
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             max_row_id = max_q_uih_len - (contextual_seqlen - 1);
             max_col_id = max_k_uih_len - (contextual_seqlen - 1);
@@ -201,7 +201,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             return ck_tile::make_tuple(0, seqlen_q);
         }
@@ -233,7 +233,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
 
         row += diff_q_kv_len;
 
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
             // max_uih_len
@@ -343,7 +343,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
     }
 };
 
-template <bool kUseCausal, bool kHasContext>
+template <bool kUseCausal>
 struct HstuSelfAttentionBlockMaskWithLocal
 {
     static constexpr bool kUseLocal         = true;
@@ -384,7 +384,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
         // collide with min_full_attn_seqlen scope
         contextual_seqlen = min(contextual_seqlen, max_uih_len - min_full_attn_seqlen);
 
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
             max_id = max_uih_len - (contextual_seqlen - 1);
         else
             max_id = max_uih_len;
@@ -516,7 +516,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             return ck_tile::make_tuple(0, seqlen);
         }
@@ -545,7 +545,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
         int row_id;
         int col_id;
 
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
             // max_uih_len
@@ -652,7 +652,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
     }
 };
 
-template <bool kUseCausal, bool kHasContext>
+template <bool kUseCausal>
 struct HstuCrossAttentionBlockMaskNoLocal
 {
     static constexpr bool kUseLocal         = false;
@@ -679,7 +679,7 @@ struct HstuCrossAttentionBlockMaskNoLocal
         max_q_uih_len = seqlen_q - num_target_;
         max_k_uih_len = seqlen_k; // assuming target_in_kv == false
 
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             max_row_id = max_q_uih_len - (contextual_seqlen - 1);
             max_col_id = max_k_uih_len - (contextual_seqlen - 1);
@@ -734,7 +734,7 @@ struct HstuCrossAttentionBlockMaskNoLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             return ck_tile::make_tuple(0, seqlen_q);
         }
@@ -761,7 +761,7 @@ struct HstuCrossAttentionBlockMaskNoLocal
 
         row += diff_q_kv_len;
 
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen
             // and max_uih_len
@@ -844,7 +844,7 @@ struct HstuCrossAttentionBlockMaskNoLocal
     };
 };
 
-template <bool kUseCausal, bool kHasContext>
+template <bool kUseCausal>
 struct HstuSelfAttentionBlockMaskNoLocal
 {
     static constexpr bool kUseLocal         = false;
@@ -863,7 +863,7 @@ struct HstuSelfAttentionBlockMaskNoLocal
     {
         max_uih_len = seqlen - num_target_;
 
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
             max_id = max_uih_len - (contextual_seqlen - 1);
         else
             max_id = max_uih_len;
@@ -909,7 +909,7 @@ struct HstuSelfAttentionBlockMaskNoLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             return ck_tile::make_tuple(0, seqlen);
         }
@@ -934,7 +934,7 @@ struct HstuSelfAttentionBlockMaskNoLocal
         int row_id;
         int col_id;
 
-        if constexpr(kHasContext)
+        if(contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen
             // and max_uih_len
@@ -1015,17 +1015,17 @@ struct HstuSelfAttentionBlockMaskNoLocal
     };
 };
 
-template <bool kIsCrossAttention, bool kUseCausal, bool kUseLocal, bool kHasContext>
+template <bool kIsCrossAttention, bool kUseCausal, bool kUseLocal>
 struct HstuBlockMasking
 {
-    using Type = std::conditional_t<
-        kUseLocal,
-        std::conditional_t<kIsCrossAttention,
-                           HstuCrossAttentionBlockMaskWithLocal<kUseCausal, kHasContext>,
-                           HstuSelfAttentionBlockMaskWithLocal<kUseCausal, kHasContext>>,
-        std::conditional_t<kIsCrossAttention,
-                           HstuCrossAttentionBlockMaskNoLocal<kUseCausal, kHasContext>,
-                           HstuSelfAttentionBlockMaskNoLocal<kUseCausal, kHasContext>>>;
+    using Type =
+        std::conditional_t<kUseLocal,
+                           std::conditional_t<kIsCrossAttention,
+                                              HstuCrossAttentionBlockMaskWithLocal<kUseCausal>,
+                                              HstuSelfAttentionBlockMaskWithLocal<kUseCausal>>,
+                           std::conditional_t<kIsCrossAttention,
+                                              HstuCrossAttentionBlockMaskNoLocal<kUseCausal>,
+                                              HstuSelfAttentionBlockMaskNoLocal<kUseCausal>>>;
 };
 
 template <typename HstuBlockMaskType>

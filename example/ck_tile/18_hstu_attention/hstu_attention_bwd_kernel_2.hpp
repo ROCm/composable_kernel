@@ -1105,12 +1105,11 @@ struct HstuAttentionBwdKernel2
             }
         };
 
-        bool has_context = kargs.contextual_seqlen > 0;
-        bool use_local   = kargs.window_size > 0;
+        bool use_local = kargs.window_size > 0;
 
-        return BOOL_SWITCH_2(has_context, kHasContext, use_local, kUseLocal, [&]() {
-            using HstuMaskType = typename ck_tile::
-                HstuBlockMasking<kIsCrossAttention, kHasCausal, kUseLocal, kHasContext>::Type;
+        return BOOL_SWITCH(use_local, kUseLocal, [&]() {
+            using HstuMaskType =
+                typename ck_tile::HstuBlockMasking<kIsCrossAttention, kHasCausal, kUseLocal>::Type;
 
             if constexpr(kUseLocal)
             {
