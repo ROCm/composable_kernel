@@ -27,12 +27,11 @@ void hstu_attention_no_group_backward_bf16(HstuAttentionNoGroupBwdParams& param,
                   [&] {
                       HDIM_SWITCH(param.hdim_qk, param.hdim_v, MaxK, [&] {
 #if defined(HSTU_BWD_SINGLE_KERNEL)
-                          // single kernel 没有 dropout，也没有 jagged 分支（其 Run
-                          // 无条件走 batched batch_stride_* 路，见
-                          // hstu_attention_batched_backward_dispatch.hpp:687-712）。
-                          // 故仅当 !has_dropout && !is_jagged 时才走 single；否则
-                          // 落到下面 base 原路（base 有 dropout / jagged 两条支路）。
-                          if(!has_dropout && !param.is_jagged)
+                          // single kernel 没有 dropout（jagged 已支持：其 Run 按
+                          // param.is_jagged 走 offsets 寻址，见
+                          // hstu_attention_batched_backward_dispatch.hpp 的 RunSoftmax）。
+                          // 故仅当 !has_dropout 时才走 single；否则落到下面 base 原路。
+                          if(!has_dropout)
                           {
                               // single 第 5 模板轴 = kIsDeterministic（与 base 第 5 轴
                               // kHasDropout 语义不同），值取自 param.kIsDeterministic，

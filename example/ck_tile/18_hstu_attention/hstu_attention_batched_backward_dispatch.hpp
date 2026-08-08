@@ -588,21 +588,28 @@ struct batched_backward_single_dispatch
         // seq_stride=1, nhead_stride=seqlen_q, batch_stride=num_head*seqlen_q
         // (mirrors the base double-kernel path). BASE LSE layout is [b,s,h]:
         // seq_stride_lse=num_head, nhead_stride_lse=1 (taken from param).
+        // jagged: D is packed [b,head,seq], seq_stride=1,
+        // nhead_stride=num_batch*max_seqlen_q, no batch stride
+        // (mirrors hstu_attention_group_backward_dispatch.hpp:514-519).
         const ck_tile::index_t seq_stride_delta   = 1;
-        const ck_tile::index_t nhead_stride_delta = param.seqlen_q;
-        const ck_tile::index_t batch_stride_delta = param.num_head * param.seqlen_q;
+        const ck_tile::index_t nhead_stride_delta =
+            param.is_jagged ? param.num_batch * param.max_seqlen_q : param.seqlen_q;
+        const ck_tile::index_t batch_stride_delta =
+            param.is_jagged ? 0 : param.num_head * param.seqlen_q;
+
+        // seqlen the PRE grid covers; D must be allocated for exactly this much.
+        const ck_tile::index_t grid_seqlen =
+            param.is_jagged ? param.max_seqlen_q : param.seqlen_q;
 
         // d_ptr comes from the base workspace (stream-ordered), not a param field.
         BwdWorkspace ws;
         const size_t delta_bytes = static_cast<size_t>(param.num_batch) *
                                    static_cast<size_t>(param.num_head) *
-                                   static_cast<size_t>(param.seqlen_q) *
+                                   static_cast<size_t>(grid_seqlen) *
                                    sizeof(typename TC::CompDataType);
         HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, delta_bytes, stream));
 
         // ---- PRE: D = rowsum(O .* dO) -> ws.delta_ptr ([batch,head,seq] layout) ----
-        const ck_tile::index_t grid_seqlen =
-            param.is_jagged ? param.max_seqlen_q : param.seqlen_q;
         {
             const ck_tile::long_index_t total =
                 static_cast<ck_tile::long_index_t>(param.num_batch) * param.num_head * grid_seqlen;
