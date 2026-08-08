@@ -329,7 +329,6 @@ void run_batched_backward_dispatch(HstuAttentionNoGroupBwdParams& param, hipStre
 #include "hstu_attention_no_softmax_bwd_pipeline.hpp"
 #include "hstu_attention_with_softmax_bwd_pipeline.hpp"
 #include "hstu_attention_bwd_kernel.hpp"
-#include "hstu_block_masking_bwd_single.hpp"
 // ===========================================================================
 // Single-kernel bwd (OURS) — inlined behind HSTU_BWD_SINGLE_KERNEL.
 //
@@ -705,8 +704,8 @@ struct batched_backward_single_dispatch
         BOOL_SWITCH_2(pad_qk, kPadHeadDimQ, pad_v, kPadHeadDimV, [&] {
             BOOL_SWITCH(use_local, kUseLocal, [&] {
                 BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
-                    using Mask = typename ck_tile::hstu_bwd_single::
-                        HstuBlockMasking<kIsCrossAttention, kUseCausal, kUseLocal>::Type;
+                    using Mask = typename ck_tile::
+                        HstuBlockMasking<kIsCrossAttention, kUseCausal, kUseLocal, true>::Type;
                     if constexpr(kUseSoftmax)
                         RunSoftmax<Mask, kPadHeadDimQ, kPadHeadDimV>(param, stream);
                     else

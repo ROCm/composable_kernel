@@ -134,7 +134,7 @@ struct HstuAttentionBwdDQDKDVPipelineKRKTRVR
 
         const auto k_origin = k_dram_window.get_window_origin();
         const auto [seqlen_q_start, seqlen_q_end] =
-            mask.GetTileRangeAlongY(k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+            mask.GetTileRangeAlongY(k_origin.at(number<0>{}), number<kN0>{}, number<kM0>{});
 
         const auto num_total_loop = integer_divide_ceil(seqlen_q_end - seqlen_q_start, kM0);
 

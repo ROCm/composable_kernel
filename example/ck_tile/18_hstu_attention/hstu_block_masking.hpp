@@ -61,8 +61,16 @@ struct HstuCrossAttentionBlockMaskWithLocal
 
         if constexpr(kHasContext)
         {
-            max_row_id = max_q_uih_len - (contextual_seqlen - 1);
-            max_col_id = max_k_uih_len - (contextual_seqlen - 1);
+            if(contextual_seqlen > 0)
+            {
+                max_row_id = max_q_uih_len - (contextual_seqlen - 1);
+                max_col_id = max_k_uih_len - (contextual_seqlen - 1);
+            }
+            else
+            {
+                max_row_id = max_q_uih_len;
+                max_col_id = max_k_uih_len;
+            }
         }
         else
         {
@@ -201,9 +209,53 @@ struct HstuCrossAttentionBlockMaskWithLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        std::ignore = i_x;
-
-        return ck_tile::make_tuple(0, seqlen_q);
+        const index_t W = max_attn_len;
+        // contextual rows [0,contextual_seqlen) attend all uih cols (every K col is uih).
+        const bool ctx_rows = (contextual_seqlen > 0 && i_x < max_k_uih_len);
+        index_t y_start;
+        if(ctx_rows)
+        {
+            y_start = 0;
+        }
+        else
+        {
+            // causal lower edge = diagonal (r = col - diff); non-causal lower = col - W - diff.
+            index_t lo = kUseCausal ? (i_x - diff_q_kv_len)
+                                    : (min(i_x, max_k_uih_len) - W - diff_q_kv_len);
+            // non-causal min_full rows attend ALL cols (physical start max_q_uih_len-mf).
+            if(!kUseCausal && min_full_attn_seqlen > 0)
+            {
+                const index_t mf_lo = max_q_uih_len - min_full_attn_seqlen;
+                if(mf_lo < lo)
+                    lo = mf_lo;
+            }
+            if(lo < 0)
+                lo = 0;
+            y_start = lo - lo % YTile; // align_down to the Q tile
+        }
+        index_t y_end;
+        if(min_full_attn_seqlen > 0)
+        {
+            y_end = seqlen_q; // min_full rows attend broadly -> safe upper bound
+        }
+        else
+        {
+            // band upper edge: r <= col + W - diff (id-shift cancels); +contextual_seqlen margin.
+            y_end = i_x + XTile + W - diff_q_kv_len + contextual_seqlen;
+            // Q-side target rows attend K cols within W of the uih end (and target K cols don't
+            // exist here); if the tile reaches that zone they pull y_end to the very end.
+            if(max_q_uih_len < seqlen_q /* num_target>0 */ && i_x + XTile + W >= max_k_uih_len)
+                y_end = seqlen_q;
+            // contextual rows themselves span [0,contextual_seqlen): when the band maps out of
+            // range (large diff) they are the only attenders -> floor y_end to cover them.
+            if(ctx_rows && y_end < contextual_seqlen)
+                y_end = contextual_seqlen;
+            if(y_end < 0)
+                y_end = 0;
+            if(y_end > seqlen_q)
+                y_end = seqlen_q;
+        }
+        return ck_tile::make_tuple(y_start, y_end);
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -215,16 +267,26 @@ struct HstuCrossAttentionBlockMaskWithLocal
 
         if constexpr(kHasContext)
         {
-            // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
-            // max_uih_len
-            row_id = max(row - contextual_seqlen + 1, diff_q_kv_len);
-            col_id = max(col - contextual_seqlen + 1, 0);
+            if(contextual_seqlen > 0)
+            {
+                // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
+                // max_uih_len
+                row_id = max(row - contextual_seqlen + 1, diff_q_kv_len);
+                col_id = max(col - contextual_seqlen + 1, 0);
 
-            row_id = min(row_id, max_row_id);
-            col_id = min(col_id, max_col_id);
+                row_id = min(row_id, max_row_id);
+                col_id = min(col_id, max_col_id);
 
-            if(row_id == diff_q_kv_len && col_id < max_col_id)
-                return true;
+                if(row_id == diff_q_kv_len && col_id < max_col_id)
+                    return true;
+            }
+            else
+            {
+                // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
+                // max_uih_len
+                row_id = min(row, max_row_id);
+                col_id = min(col, max_col_id);
+            }
         }
         else
         {
@@ -285,6 +347,15 @@ struct HstuCrossAttentionBlockMaskWithLocal
 
         return false;
     }
+
+    // IsEdgeTile: tile needs per-pixel masking iff it is not fully inside the mask.
+    template <index_t TileHeight, index_t TileWidth>
+    CK_TILE_DEVICE constexpr bool
+    IsEdgeTile(index_t i_tile_top, index_t i_tile_left, number<TileHeight>, number<TileWidth>) const
+    {
+        return !IsFullTileInsideMask(
+            i_tile_top, i_tile_left, number<TileWidth>{}, number<TileHeight>{});
+    }
 };
 
 template <bool kUseCausal, bool kHasContext>
@@ -329,7 +400,12 @@ struct HstuSelfAttentionBlockMaskWithLocal
         contextual_seqlen = min(contextual_seqlen, max_uih_len - min_full_attn_seqlen);
 
         if constexpr(kHasContext)
-            max_id = max_uih_len - (contextual_seqlen - 1);
+        {
+            if(contextual_seqlen > 0)
+                max_id = max_uih_len - (contextual_seqlen - 1);
+            else
+                max_id = max_uih_len;
+        }
         else
             max_id = max_uih_len;
     };
@@ -460,9 +536,51 @@ struct HstuSelfAttentionBlockMaskWithLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        std::ignore = i_x;
-
-        return ck_tile::make_tuple(0, seqlen);
+        const index_t W = max_attn_len;
+        const bool ctx_rows = (contextual_seqlen > 0 && i_x < max_uih_len);
+        index_t y_start;
+        if(ctx_rows)
+        {
+            y_start = 0;
+        }
+        else
+        {
+            // causal lower edge = diagonal (row>=col) -> i_x; non-causal lower = col-W. Target
+            // cols clamp col_id to max_id, so use min(i_x,max_uih_len) for the non-causal lower.
+            index_t lo = kUseCausal ? i_x : (min(i_x, max_uih_len) - W);
+            // non-causal min_full rows (row_id >= max_id-mf) attend ALL cols -> they sit at/
+            // below the band lower edge (physical start max_uih_len-mf). Causal min_full still
+            // needs row>=col, so it never drops below i_x.
+            if(!kUseCausal && min_full_attn_seqlen > 0)
+            {
+                const index_t mf_lo = max_uih_len - min_full_attn_seqlen;
+                if(mf_lo < lo)
+                    lo = mf_lo;
+            }
+            if(lo < 0)
+                lo = 0;
+            y_start = lo - lo % YTile; // align_down to the Q tile
+        }
+        index_t y_end;
+        if(min_full_attn_seqlen > 0)
+        {
+            y_end = seqlen;
+        }
+        else
+        {
+            // band upper edge: row <= col + W (contextual id-shift cancels); +ctx margin.
+            y_end = i_x + XTile + W + contextual_seqlen;
+            // target rows attend uih cols within W of the uih end; if the tile reaches that zone
+            // they pull y_end to the very end.
+            if(max_uih_len < seqlen /* num_target>0 */ && i_x + XTile + W >= max_uih_len)
+                y_end = seqlen;
+            // contextual rows themselves span [0,contextual_seqlen): floor y_end to cover them.
+            if(ctx_rows && y_end < contextual_seqlen)
+                y_end = contextual_seqlen;
+            if(y_end > seqlen)
+                y_end = seqlen;
+        }
+        return ck_tile::make_tuple(y_start, y_end);
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -472,16 +590,26 @@ struct HstuSelfAttentionBlockMaskWithLocal
 
         if constexpr(kHasContext)
         {
-            // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
-            // max_uih_len
-            row_id = max(row - contextual_seqlen + 1, 0);
-            col_id = max(col - contextual_seqlen + 1, 0);
+            if(contextual_seqlen > 0)
+            {
+                // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
+                // max_uih_len
+                row_id = max(row - contextual_seqlen + 1, 0);
+                col_id = max(col - contextual_seqlen + 1, 0);
 
-            row_id = min(row_id, max_id);
-            col_id = min(col_id, max_id);
+                row_id = min(row_id, max_id);
+                col_id = min(col_id, max_id);
 
-            if(row_id == 0 && col_id < max_id)
-                return true;
+                if(row_id == 0 && col_id < max_id)
+                    return true;
+            }
+            else
+            {
+                // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
+                // max_uih_len
+                row_id = min(row, max_id);
+                col_id = min(col, max_id);
+            }
         }
         else
         {
@@ -540,6 +668,14 @@ struct HstuSelfAttentionBlockMaskWithLocal
 
         return false;
     }
+
+    template <index_t TileHeight, index_t TileWidth>
+    CK_TILE_DEVICE constexpr bool
+    IsEdgeTile(index_t i_tile_top, index_t i_tile_left, number<TileHeight>, number<TileWidth>) const
+    {
+        return !IsFullTileInsideMask(
+            i_tile_top, i_tile_left, number<TileWidth>{}, number<TileHeight>{});
+    }
 };
 
 template <bool kUseCausal, bool kHasContext>
@@ -571,8 +707,16 @@ struct HstuCrossAttentionBlockMaskNoLocal
 
         if constexpr(kHasContext)
         {
-            max_row_id = max_q_uih_len - (contextual_seqlen - 1);
-            max_col_id = max_k_uih_len - (contextual_seqlen - 1);
+            if(contextual_seqlen > 0)
+            {
+                max_row_id = max_q_uih_len - (contextual_seqlen - 1);
+                max_col_id = max_k_uih_len - (contextual_seqlen - 1);
+            }
+            else
+            {
+                max_row_id = max_q_uih_len;
+                max_col_id = max_k_uih_len;
+            }
         }
         else
         {
@@ -624,9 +768,26 @@ struct HstuCrossAttentionBlockMaskNoLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        std::ignore = i_x;
-
-        return ck_tile::make_tuple(0, seqlen_q);
+        if constexpr(!IsMasking)
+        {
+            return ck_tile::make_tuple(0, seqlen_q);
+        }
+        else
+        {
+            index_t y_start;
+            if(contextual_seqlen > 0 && i_x < max_k_uih_len)
+            {
+                y_start = 0;
+            }
+            else
+            {
+                index_t ys = i_x - diff_q_kv_len; // true min attending row (pre-align)
+                if(ys < 0)
+                    ys = 0;
+                y_start = ys - ys % YTile; // align_down to the Q tile
+            }
+            return ck_tile::make_tuple(y_start, seqlen_q);
+        }
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -638,16 +799,26 @@ struct HstuCrossAttentionBlockMaskNoLocal
 
         if constexpr(kHasContext)
         {
-            // row_id/col_id is clamped from physical row/col according to contextual_seqlen
-            // and max_uih_len
-            row_id = max(row - contextual_seqlen + 1, diff_q_kv_len);
-            col_id = max(col - contextual_seqlen + 1, 0);
+            if(contextual_seqlen > 0)
+            {
+                // row_id/col_id is clamped from physical row/col according to contextual_seqlen
+                // and max_uih_len
+                row_id = max(row - contextual_seqlen + 1, diff_q_kv_len);
+                col_id = max(col - contextual_seqlen + 1, 0);
 
-            row_id = min(row_id, max_row_id);
-            col_id = min(col_id, max_col_id);
+                row_id = min(row_id, max_row_id);
+                col_id = min(col_id, max_col_id);
 
-            if(row_id == diff_q_kv_len && col_id < max_col_id)
-                return true;
+                if(row_id == diff_q_kv_len && col_id < max_col_id)
+                    return true;
+            }
+            else
+            {
+                // row_id/col_id is clamped from physical row/col according to contextual_seqlen
+                // and max_uih_len
+                row_id = min(row, max_row_id);
+                col_id = min(col, max_col_id);
+            }
         }
         else
         {
@@ -705,6 +876,14 @@ struct HstuCrossAttentionBlockMaskNoLocal
             return true;
         }
     };
+
+    template <index_t TileHeight, index_t TileWidth>
+    CK_TILE_DEVICE constexpr bool
+    IsEdgeTile(index_t i_tile_top, index_t i_tile_left, number<TileHeight>, number<TileWidth>) const
+    {
+        return !IsFullTileInsideMask(
+            i_tile_top, i_tile_left, number<TileWidth>{}, number<TileHeight>{});
+    }
 };
 
 template <bool kUseCausal, bool kHasContext>
@@ -727,7 +906,12 @@ struct HstuSelfAttentionBlockMaskNoLocal
         max_uih_len = seqlen - num_target_;
 
         if constexpr(kHasContext)
-            max_id = max_uih_len - (contextual_seqlen - 1);
+        {
+            if(contextual_seqlen > 0)
+                max_id = max_uih_len - (contextual_seqlen - 1);
+            else
+                max_id = max_uih_len;
+        }
         else
             max_id = max_uih_len;
     };
@@ -772,9 +956,29 @@ struct HstuSelfAttentionBlockMaskNoLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        std::ignore = i_x;
-
-        return ck_tile::make_tuple(0, seqlen);
+        if constexpr(!IsMasking)
+        {
+            // non-causal: every Q row attends every K col -> range is already exact.
+            return ck_tile::make_tuple(0, seqlen);
+        }
+        else
+        {
+            // causal: col c is attended by rows r >= c (clamped), so the KV-tile's min col
+            // i_x is first reached by row i_x. Contextual rows [0,contextual_seqlen) attend
+            // ALL uih cols, so any tile touching the uih region (i_x < max_uih_len) is reached
+            // by row 0. Target rows (>= max_uih_len) attend uih cols too, but they already sit
+            // inside [i_x, seqlen). y_end = seqlen is a safe upper bound.
+            index_t y_start;
+            if(contextual_seqlen > 0 && i_x < max_uih_len)
+            {
+                y_start = 0;
+            }
+            else
+            {
+                y_start = i_x - i_x % YTile; // align_down to the Q tile (self: no q/k offset)
+            }
+            return ck_tile::make_tuple(y_start, seqlen);
+        }
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -784,16 +988,26 @@ struct HstuSelfAttentionBlockMaskNoLocal
 
         if constexpr(kHasContext)
         {
-            // row_id/col_id is clamped from physical row/col according to contextual_seqlen
-            // and max_uih_len
-            row_id = max(row - contextual_seqlen + 1, 0);
-            col_id = max(col - contextual_seqlen + 1, 0);
+            if(contextual_seqlen > 0)
+            {
+                // row_id/col_id is clamped from physical row/col according to contextual_seqlen
+                // and max_uih_len
+                row_id = max(row - contextual_seqlen + 1, 0);
+                col_id = max(col - contextual_seqlen + 1, 0);
 
-            row_id = min(row_id, max_id);
-            col_id = min(col_id, max_id);
+                row_id = min(row_id, max_id);
+                col_id = min(col_id, max_id);
 
-            if(row_id == 0 && col_id < max_id)
-                return true;
+                if(row_id == 0 && col_id < max_id)
+                    return true;
+            }
+            else
+            {
+                // row_id/col_id is clamped from physical row/col according to contextual_seqlen
+                // and max_uih_len
+                row_id = min(row, max_id);
+                col_id = min(col, max_id);
+            }
         }
         else
         {
@@ -849,6 +1063,14 @@ struct HstuSelfAttentionBlockMaskNoLocal
             return true;
         }
     };
+
+    template <index_t TileHeight, index_t TileWidth>
+    CK_TILE_DEVICE constexpr bool
+    IsEdgeTile(index_t i_tile_top, index_t i_tile_left, number<TileHeight>, number<TileWidth>) const
+    {
+        return !IsFullTileInsideMask(
+            i_tile_top, i_tile_left, number<TileWidth>{}, number<TileHeight>{});
+    }
 };
 
 template <bool kIsCrossAttention, bool kUseCausal, bool kUseLocal, bool kHasContext>

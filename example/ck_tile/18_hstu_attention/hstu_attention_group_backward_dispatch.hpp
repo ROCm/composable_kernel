@@ -335,7 +335,6 @@ void run_group_backward_dispatch(HstuAttentionGroupBwdParams& param, hipStream_t
 #include "hstu_attention_bwd_kernel.hpp"
 #include "hstu_attention_bwd_shape.hpp"
 #include "hstu_attention_bwd_perf.hpp"
-#include "hstu_block_masking_bwd_single.hpp"
 
 template <typename InOutDataType,
           bool kUseCausal,
@@ -446,9 +445,9 @@ struct group_backward_single_dispatch
     {
         BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
         using LocalMask =
-            typename ck_tile::hstu_bwd_single::HstuBlockMasking<kIsCrossAttention, kUseCausal, true>::Type;
+            typename ck_tile::HstuBlockMasking<kIsCrossAttention, kUseCausal, true, true>::Type;
         using NoLocalMask =
-            typename ck_tile::hstu_bwd_single::HstuBlockMasking<kIsCrossAttention, kUseCausal, false>::Type;
+            typename ck_tile::HstuBlockMasking<kIsCrossAttention, kUseCausal, false, true>::Type;
 
         using PipelineLocal = ck_tile::HstuAttentionBwdDQDKDVPipelineKRKTRVR<
             ProblemFor<LocalMask, kPadHeadDimQ, kPadHeadDimV>>;
@@ -526,9 +525,9 @@ struct group_backward_single_dispatch
 
         BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
         using LocalMask =
-            typename ck_tile::hstu_bwd_single::HstuBlockMasking<kIsCrossAttention, kUseCausal, true>::Type;
+            typename ck_tile::HstuBlockMasking<kIsCrossAttention, kUseCausal, true, true>::Type;
         using NoLocalMask =
-            typename ck_tile::hstu_bwd_single::HstuBlockMasking<kIsCrossAttention, kUseCausal, false>::Type;
+            typename ck_tile::HstuBlockMasking<kIsCrossAttention, kUseCausal, false, true>::Type;
 
         using PipelineLocal = ck_tile::HstuAttentionWithSoftmaxBwdDQDKDVPipelineKRKTRVR<
             ProblemFor<LocalMask, kPadHeadDimQ, kPadHeadDimV>>;
