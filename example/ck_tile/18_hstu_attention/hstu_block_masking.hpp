@@ -259,7 +259,8 @@ struct HstuCrossAttentionBlockMaskWithLocal
             // 2) some row of tile is in [max_q_uih_len, seqlen_q], requires i_tile_right <=
             // max_k_uih_len to return true
             if(!is_tile_in_upper_scope &&
-               (i_tile_bottom <= max_q_uih_len || i_tile_right <= max_k_uih_len))
+               ((i_tile_bottom <= max_q_uih_len && i_tile_right <= seqlen_k) ||
+                i_tile_right <= max_k_uih_len))
                 return true;
         };
 
@@ -494,7 +495,8 @@ struct HstuSelfAttentionBlockMaskWithLocal
             // 2) some row of tile is in [max_uih_len, seqlen], requires i_tile_right <=
             // max_uih_len to return true
             if(!is_tile_in_upper_scope &&
-               (i_tile_bottom <= max_uih_len || i_tile_right <= max_uih_len))
+               ((i_tile_bottom <= max_uih_len && i_tile_right <= seqlen) ||
+                i_tile_right <= max_uih_len))
                 return true;
         };
 
@@ -634,7 +636,8 @@ struct HstuCrossAttentionBlockMaskNoLocal
             // assume num_target > 0 with high probability, don't check whether num_target
             // is 0; so if num_target is 0, IsTokenPairInsideMask() will be called for the
             // bottom tile
-            if(i_tile_bottom >= max_q_uih_len || i_tile_right > i_tile_top + diff_q_kv_len)
+            if(i_tile_bottom >= max_q_uih_len || i_tile_right > i_tile_top + diff_q_kv_len ||
+               i_tile_right >= seqlen_k)
                 return false;
 
             return true;
@@ -766,7 +769,7 @@ struct HstuSelfAttentionBlockMaskNoLocal
             // assume num_target > 0 with high probability, don't check whether num_target
             // is 0; so if num_target is 0, IsTokenPairInsideMask() will be called for the
             // bottom tile
-            if(i_tile_bottom >= max_uih_len || i_tile_right > i_tile_top)
+            if(i_tile_bottom >= max_uih_len || i_tile_right > i_tile_top || i_tile_right >= seqlen)
                 return false;
 
             return true;
