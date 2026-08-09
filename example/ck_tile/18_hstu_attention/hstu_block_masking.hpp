@@ -336,7 +336,8 @@ struct HstuCrossAttentionBlockMaskWithLocal
             // 2) some row of tile is in [max_q_uih_len, seqlen_q], requires i_tile_right <=
             // max_k_uih_len to return true
             if(is_tile_in_bottom_scope &&
-               (i_tile_bottom <= max_q_uih_len || i_tile_right <= max_k_uih_len))
+               ((i_tile_bottom <= max_q_uih_len && i_tile_right <= seqlen_k) ||
+                i_tile_right <= max_k_uih_len))
                 return true;
         };
 
@@ -646,7 +647,8 @@ struct HstuSelfAttentionBlockMaskWithLocal
             // 2) some row of tile is in [max_uih_len, seqlen], requires i_tile_right <=
             // max_uih_len to return true
             if(is_tile_in_bottom_scope &&
-               (i_tile_bottom <= max_uih_len || i_tile_right <= max_uih_len))
+               ((i_tile_bottom <= max_uih_len && i_tile_right <= seqlen) ||
+                i_tile_right <= max_uih_len))
                 return true;
         };
 
