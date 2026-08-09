@@ -564,6 +564,8 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx       = make_tuple(idx0);
+                    const CompDataType lse_val = lse_tile[i_idx];
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
                             pcomp_tile.get_tile_distribution(),
@@ -573,7 +575,9 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                         const auto col    = i_n0 + tile_idx.at(number<1>{});
                         constexpr auto ij = make_tuple(idx0, idx1);
                         if(!mask.IsTokenPairInsideMask(row, col) || row >= seqlen_q_end)
-                            pcomp_tile(ij) = -numeric<CompDataType>::infinity();
+                            pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
+                        else
+                            pcomp_tile(ij) = f_exp(pcomp_tile[ij] - lse_val);
                     });
                 });
             }
@@ -583,6 +587,8 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                 // rows (row >= seqlen_q_end) that must be excluded from the dK/dV reduction.
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx       = make_tuple(idx0);
+                    const CompDataType lse_val = lse_tile[i_idx];
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
                             pcomp_tile.get_tile_distribution(),
@@ -591,20 +597,9 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                         const auto row    = seqlen_q_curr + tile_idx.at(number<0>{});
                         constexpr auto ij = make_tuple(idx0, idx1);
                         if(row >= seqlen_q_end)
-                            pcomp_tile(ij) = -numeric<CompDataType>::infinity();
-                    });
-                });
-            }
-
-            // ---- P = exp(S - LSE[sq]) ----
-            {
-                constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
-                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                    constexpr auto i_idx       = make_tuple(idx0);
-                    const CompDataType lse_val = lse_tile[i_idx];
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto ij = make_tuple(idx0, idx1);
-                        pcomp_tile(ij)    = f_exp(pcomp_tile[ij] - lse_val);
+                            pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
+                        else
+                            pcomp_tile(ij) = f_exp(pcomp_tile[ij] - lse_val);
                     });
                 });
             }

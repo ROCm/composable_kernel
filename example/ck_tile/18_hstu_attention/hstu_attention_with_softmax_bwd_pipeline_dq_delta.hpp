@@ -503,6 +503,8 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx       = make_tuple(idx0);
+                    const CompDataType lse_val = type_convert<CompDataType>(lse_tile[i_idx]);
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
                             pcomp_tile.get_tile_distribution(),
@@ -512,7 +514,9 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
                         const auto col    = seqlen_k_curr + tile_idx.at(number<1>{});
                         constexpr auto ij = make_tuple(idx0, idx1);
                         if(!mask.IsTokenPairInsideMask(row, col) || col >= seqlen_k_end)
-                            pcomp_tile(ij) = -numeric<CompDataType>::infinity();
+                            pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
+                        else
+                            pcomp_tile(ij) = f_exp(pcomp_tile[ij] - lse_val);
                     });
                 });
             }
@@ -522,6 +526,8 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
                 // columns (col >= seqlen_k_end) that must be excluded.
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx       = make_tuple(idx0);
+                    const CompDataType lse_val = type_convert<CompDataType>(lse_tile[i_idx]);
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
                             pcomp_tile.get_tile_distribution(),
@@ -530,20 +536,9 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
                         const auto col    = seqlen_k_curr + tile_idx.at(number<1>{});
                         constexpr auto ij = make_tuple(idx0, idx1);
                         if(col >= seqlen_k_end)
-                            pcomp_tile(ij) = -numeric<CompDataType>::infinity();
-                    });
-                });
-            }
-
-            // P = exp(S - LSE[sq])
-            {
-                constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
-                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                    constexpr auto i_idx       = make_tuple(idx0);
-                    const CompDataType lse_val = type_convert<CompDataType>(lse_tile[i_idx]);
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto ij = make_tuple(idx0, idx1);
-                        pcomp_tile(ij)    = f_exp(pcomp_tile[ij] - lse_val);
+                            pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
+                        else
+                            pcomp_tile(ij) = f_exp(pcomp_tile[ij] - lse_val);
                     });
                 });
             }
