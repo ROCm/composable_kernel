@@ -12,7 +12,7 @@
 #include <ck_tile/host/host_tensor.hpp>
 
 #include "hstu_attention_bool_switch.hpp"
-#include "hstu_block_masking.hpp"
+#include "hstu_bwd_block_masking.hpp"
 
 namespace ck_tile {
 
@@ -183,7 +183,7 @@ struct reference_no_group_hstu_attention_bwd
 
             BOOL_SWITCH_2(has_local, kHasLocal, is_cross_attention, kIsCrossAttention, [&] {
                 using HstuMaskType =
-                    typename HstuBlockMasking<kIsCrossAttention, kUseCausal, kHasLocal>::Type;
+                    typename HstuBwdBlockMasking<kIsCrossAttention, kUseCausal, kHasLocal>::Type;
 
                 // Build the same mask as in the forward pass
                 HstuMaskType mask = [&]() {
@@ -192,18 +192,16 @@ struct reference_no_group_hstu_attention_bwd
                         if constexpr(kIsCrossAttention)
                         {
                             if(seqlen_q - num_target > min_full_attn_seqlen)
-                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
+                                return ck_tile::make_hstu_bwd_cross_attention_block_mask_with_local<
+                                    HstuMaskType>(seqlen_q,
                                                   seqlen_kv,
                                                   contextual_seqlen,
                                                   num_target,
                                                   window_size,
                                                   min_full_attn_seqlen);
                             else
-                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
+                                return ck_tile::make_hstu_bwd_cross_attention_block_mask_with_local<
+                                    HstuMaskType>(seqlen_q,
                                                   seqlen_kv,
                                                   contextual_seqlen,
                                                   num_target,
@@ -213,17 +211,15 @@ struct reference_no_group_hstu_attention_bwd
                         else
                         {
                             if(seqlen_q - num_target > min_full_attn_seqlen)
-                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
+                                return ck_tile::make_hstu_bwd_self_attention_block_mask_with_local<
+                                    HstuMaskType>(seqlen_q,
                                                   contextual_seqlen,
                                                   num_target,
                                                   window_size,
                                                   min_full_attn_seqlen);
                             else
-                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
-                                    HstuMaskType>(true,
-                                                  seqlen_q,
+                                return ck_tile::make_hstu_bwd_self_attention_block_mask_with_local<
+                                    HstuMaskType>(seqlen_q,
                                                   contextual_seqlen,
                                                   num_target,
                                                   window_size,
@@ -233,10 +229,10 @@ struct reference_no_group_hstu_attention_bwd
                     else
                     {
                         if constexpr(kIsCrossAttention)
-                            return ck_tile::make_hstu_cross_attention_block_mask_without_local<
+                            return ck_tile::make_hstu_bwd_cross_attention_block_mask_without_local<
                                 HstuMaskType>(seqlen_q, seqlen_kv, contextual_seqlen, num_target);
                         else
-                            return ck_tile::make_hstu_self_attention_block_mask_without_local<
+                            return ck_tile::make_hstu_bwd_self_attention_block_mask_without_local<
                                 HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
                     }
                 }();
