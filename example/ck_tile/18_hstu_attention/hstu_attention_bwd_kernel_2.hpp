@@ -9,7 +9,7 @@
 #include <string>
 #include <type_traits>
 
-#include "hstu_block_masking.hpp"
+#include "hstu_bwd_block_masking.hpp"
 #include "hstu_attention_kernel_util.hpp"
 #include "hstu_attention_bool_switch.hpp"
 
@@ -1108,15 +1108,14 @@ struct HstuAttentionBwdKernel2
         bool use_local = kargs.window_size > 0;
 
         return BOOL_SWITCH(use_local, kUseLocal, [&]() {
-            using HstuMaskType =
-                typename ck_tile::HstuBlockMasking<kIsCrossAttention, kHasCausal, kUseLocal>::Type;
+            using HstuMaskType = typename ck_tile::
+                HstuBwdBlockMasking<kIsCrossAttention, kHasCausal, kUseLocal>::Type;
 
             if constexpr(kUseLocal)
             {
                 auto mask = [&]() {
                     if constexpr(kIsCrossAttention)
-                        return make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
-                            true,
+                        return make_hstu_bwd_cross_attention_block_mask_with_local<HstuMaskType>(
                             kargs.seqlen_q,
                             kargs.seqlen_kv,
                             kargs.contextual_seqlen,
@@ -1124,8 +1123,7 @@ struct HstuAttentionBwdKernel2
                             kargs.window_size,
                             kargs.min_full_attn_seqlen);
                     else
-                        return make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
-                            true,
+                        return make_hstu_bwd_self_attention_block_mask_with_local<HstuMaskType>(
                             kargs.seqlen_q,
                             kargs.contextual_seqlen,
                             num_target,
@@ -1139,10 +1137,10 @@ struct HstuAttentionBwdKernel2
             {
                 auto mask = [&]() {
                     if constexpr(kIsCrossAttention)
-                        return make_hstu_cross_attention_block_mask_without_local<HstuMaskType>(
+                        return make_hstu_bwd_cross_attention_block_mask_without_local<HstuMaskType>(
                             kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
                     else
-                        return make_hstu_self_attention_block_mask_without_local<HstuMaskType>(
+                        return make_hstu_bwd_self_attention_block_mask_without_local<HstuMaskType>(
                             kargs.seqlen_q, kargs.contextual_seqlen, num_target);
                 }();
 

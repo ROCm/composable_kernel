@@ -12,16 +12,12 @@
 namespace ck_tile {
 
 template <bool kUseCausal>
-struct HstuCrossAttentionBlockMaskWithLocal
+struct HstuBwdCrossAttentionBlockMaskWithLocal
 {
     static constexpr bool kUseLocal         = true;
     static constexpr bool IsMasking         = true;
     static constexpr bool kIsCrossAttention = true;
 
-    // is_tile_in_upper_scope is false only when min_full_attn_seqlen > 0 and the current
-    // tile is inside scope [max_uih_len - min_full_attn_seqlen, seqlen_q); for other cases
-    // and tiles, is_tile_in_upper_scope is true
-    bool is_tile_in_upper_scope;
     int seqlen_q;
     int seqlen_k;
     int contextual_seqlen;
@@ -35,15 +31,13 @@ struct HstuCrossAttentionBlockMaskWithLocal
     int max_col_id;
     int diff_q_kv_len;
 
-    CK_TILE_HOST_DEVICE HstuCrossAttentionBlockMaskWithLocal(bool is_tile_in_upper_scope_,
-                                                             int seqlen_q_,
-                                                             int seqlen_k_,
-                                                             int contextual_seqlen_,
-                                                             int max_attn_len_,
-                                                             int min_full_attn_seqlen_,
-                                                             int num_target_)
-        : is_tile_in_upper_scope(is_tile_in_upper_scope_),
-          seqlen_q(seqlen_q_),
+    CK_TILE_HOST_DEVICE HstuBwdCrossAttentionBlockMaskWithLocal(int seqlen_q_,
+                                                                int seqlen_k_,
+                                                                int contextual_seqlen_,
+                                                                int max_attn_len_,
+                                                                int min_full_attn_seqlen_,
+                                                                int num_target_)
+        : seqlen_q(seqlen_q_),
           seqlen_k(seqlen_k_),
           contextual_seqlen(contextual_seqlen_),
           max_attn_len(max_attn_len_),
@@ -74,124 +68,36 @@ struct HstuCrossAttentionBlockMaskWithLocal
         max_row_id += diff_q_kv_len;
     };
 
-    // to get the loop length along X axis, return index:[start, end), end-start=length
-    // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
-    // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <bool kHasDropout, index_t YTile, index_t XTile>
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (eg. seqlen_q loop-over)
+    // i_x is the start offset of the current tile along the seqlen_k dimension
+    template <index_t XTile, index_t YTile>
     CK_TILE_DEVICE constexpr auto
-    GetTileRangeAlongX(bool_constant<kHasDropout>, index_t i_y, number<YTile>, number<XTile>) const
+    GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        // handle two special cases first
-        if(!is_tile_in_upper_scope)
+        if(contextual_seqlen > 0)
+        {
+            return ck_tile::make_tuple(0, seqlen_q);
+        }
+        else
         {
             if constexpr(kUseCausal)
             {
-                index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
-                return ck_tile::make_tuple(0, x_end);
+                index_t y_start =
+                    min(max(i_x - diff_q_kv_len, 0), max_q_uih_len - min_full_attn_seqlen);
+                index_t y_start_aligned = y_start - y_start % YTile;
+
+                return ck_tile::make_tuple(y_start_aligned, seqlen_q);
             }
             else
             {
-                // tile is partitially or completely in [max_uih_len-min_full_attn_seqlen,
-                // max_q_uih_len)
-                if(i_y < max_q_uih_len)
-                {
-                    return ck_tile::make_tuple(0, seqlen_k);
-                }
-                else // tile is completely inside [max_q_uih_len, seqlen_q)
-                {
-                    index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
-                    return ck_tile::make_tuple(0, x_end);
-                };
-            };
-        };
+                index_t y_start         = min(max(i_x - diff_q_kv_len - max_attn_len, 0),
+                                      max_q_uih_len - min_full_attn_seqlen);
+                index_t y_start_aligned = y_start - y_start % YTile;
 
-        if constexpr(kHasDropout)
-        {
-            index_t boundary = max_q_uih_len - min_full_attn_seqlen;
-            // the last tile of first split could be a cross-boundary tile
-            if(i_y < boundary && i_y + YTile > boundary)
-                return ck_tile::make_tuple(0, seqlen_k);
-        };
-
-        // is_tile_in_upper_scope is true, either min_full_attn_seqlen is 0 or tile is
-        // in [0, max_uih_len-min_full_attn_seqlen)
-        if constexpr(!kUseCausal)
-        {
-            if(i_y >= min(contextual_seqlen, 1) + max_attn_len)
-            {
-                // some row of the tile in [contextual_seqlen+max_attn_len, max_q_uih_len)
-                if(i_y < max_q_uih_len)
-                {
-                    index_t x_start         = i_y + diff_q_kv_len - max_attn_len;
-                    index_t x_start_aligned = x_start - x_start % XTile;
-
-                    // some rows of the tile in [max_q_uih_len - max_attn_len, max_q_uih_len)
-                    if(i_y + YTile > max_q_uih_len - max_attn_len)
-                    {
-                        return ck_tile::make_tuple(x_start_aligned, seqlen_k);
-                    }
-                    else // whole tile in [contextual_seqlen+max_attn_len, max_q_uih_len
-                         // -max_attn_len)
-                    {
-                        index_t x_end = i_y + YTile + diff_q_kv_len + max_attn_len;
-                        return ck_tile::make_tuple(x_start_aligned, x_end);
-                    };
-                }
-                else // whole tile in [max_uih_len, seqlen)
-                {
-                    index_t x_start = max_k_uih_len - max_attn_len;
-                    index_t x_end   = min(i_y + YTile + diff_q_kv_len, seqlen_k);
-
-                    return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
-                }
-            }
-            else // for i_y < contextual_seqlen + max_attn_len
-            {
-                if(i_y < contextual_seqlen) // some row of the tile in [0, contextual_seqlen)
-                {
-                    index_t x_end = min(
-                        max(i_y + YTile + diff_q_kv_len + max_attn_len, max_k_uih_len), seqlen_k);
-                    return ck_tile::make_tuple(0, x_end);
-                }
-                else // whole tile in [contextual_seqlen, seqlen)
-                {
-                    index_t x_end = min(i_y + YTile + diff_q_kv_len + max_attn_len, seqlen_k);
-                    return ck_tile::make_tuple(0, x_end);
-                }
+                return ck_tile::make_tuple(y_start_aligned, seqlen_q);
             }
         }
-        else // kUseCausal && kUseLocal
-        {
-            if(i_y >= min(contextual_seqlen, 1) + max_attn_len)
-            {
-                index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
-
-                // some row of the tile in [contextual_seqlen+max_attn_len, max_q_uih_len)
-                if(i_y < max_q_uih_len)
-                {
-                    index_t x_start = i_y + diff_q_kv_len - max_attn_len;
-                    return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
-                }
-                else // whole tile in [max_q_uih_len, seqlen_q)
-                {
-                    index_t x_start = max_k_uih_len - max_attn_len;
-                    return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
-                }
-            }
-            else // for i_y < contextual_seqlen + max_attn_len
-            {
-                if(i_y < contextual_seqlen) // some row of the tile in [0, contextual_seqlen)
-                {
-                    index_t x_end = min(max(i_y + YTile + diff_q_kv_len, max_k_uih_len), seqlen_k);
-                    return ck_tile::make_tuple(0, x_end);
-                }
-                else // whole tile in [contextual_seqlen, seqlen)
-                {
-                    index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
-                    return ck_tile::make_tuple(0, x_end);
-                }
-            }
-        };
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -254,7 +160,9 @@ struct HstuCrossAttentionBlockMaskWithLocal
         {
             index_t i_tile_right = i_tile_left + TileWidth;
 
-            if(!is_tile_in_upper_scope &&
+            bool is_tile_in_bottom_scope = (i_tile_top >= (max_q_uih_len - min_full_attn_seqlen));
+
+            if(is_tile_in_bottom_scope &&
                i_tile_right <= min(i_tile_top + diff_q_kv_len + 1, max_k_uih_len))
                 return true;
         }
@@ -263,10 +171,12 @@ struct HstuCrossAttentionBlockMaskWithLocal
             index_t i_tile_right  = i_tile_left + TileWidth;
             index_t i_tile_bottom = i_tile_top + TileHeight;
 
+            bool is_tile_in_bottom_scope = (i_tile_top >= (max_q_uih_len - min_full_attn_seqlen));
+
             // 1) tile is completely in [max_q_uih_len-min_full_attn_seqlen, max_q_uih_len]
             // 2) some row of tile is in [max_q_uih_len, seqlen_q], requires i_tile_right <=
             // max_k_uih_len to return true
-            if(!is_tile_in_upper_scope &&
+            if(is_tile_in_bottom_scope &&
                ((i_tile_bottom <= max_q_uih_len && i_tile_right <= seqlen_k) ||
                 i_tile_right <= max_k_uih_len))
                 return true;
@@ -277,16 +187,12 @@ struct HstuCrossAttentionBlockMaskWithLocal
 };
 
 template <bool kUseCausal>
-struct HstuSelfAttentionBlockMaskWithLocal
+struct HstuBwdSelfAttentionBlockMaskWithLocal
 {
     static constexpr bool kUseLocal         = true;
     static constexpr bool IsMasking         = true;
     static constexpr bool kIsCrossAttention = false;
 
-    // is_tile_in_upper_scope is false only when min_full_attn_seqlen > 0 and the current
-    // tile is inside scope [max_uih_len - min_full_attn_seqlen, seqlen_q); for other cases
-    // and tiles, is_tile_in_upper_scope is true
-    bool is_tile_in_upper_scope;
     int seqlen;
     int contextual_seqlen;
 
@@ -296,14 +202,12 @@ struct HstuSelfAttentionBlockMaskWithLocal
     int max_uih_len;
     int max_id;
 
-    CK_TILE_HOST_DEVICE HstuSelfAttentionBlockMaskWithLocal(bool is_tile_in_upper_scope_,
-                                                            int seqlen_,
-                                                            int contextual_seqlen_,
-                                                            int max_attn_len_,
-                                                            int min_full_attn_seqlen_,
-                                                            int num_target_)
-        : is_tile_in_upper_scope(is_tile_in_upper_scope_),
-          seqlen(seqlen_),
+    CK_TILE_HOST_DEVICE HstuBwdSelfAttentionBlockMaskWithLocal(int seqlen_,
+                                                               int contextual_seqlen_,
+                                                               int max_attn_len_,
+                                                               int min_full_attn_seqlen_,
+                                                               int num_target_)
+        : seqlen(seqlen_),
           contextual_seqlen(contextual_seqlen_),
           max_attn_len(max_attn_len_),
           min_full_attn_seqlen(min_full_attn_seqlen_)
@@ -323,123 +227,35 @@ struct HstuSelfAttentionBlockMaskWithLocal
             max_id = max_uih_len;
     };
 
-    // to get the loop length along X axis, return index:[start, end), end-start=length
-    // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
-    // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <bool kHasDropout, index_t YTile, index_t XTile>
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (eg. seqlen_q loop-over)
+    // i_x is the start offset of the current tile along the seqlen_k dimension
+    template <index_t XTile, index_t YTile>
     CK_TILE_DEVICE constexpr auto
-    GetTileRangeAlongX(bool_constant<kHasDropout>, index_t i_y, number<YTile>, number<XTile>) const
+    GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        // handle two special cases first
-        if(!is_tile_in_upper_scope)
+        if(contextual_seqlen > 0)
+        {
+            return ck_tile::make_tuple(0, seqlen);
+        }
+        else
         {
             if constexpr(kUseCausal)
             {
-                index_t x_end = min(i_y + YTile, seqlen);
-                return ck_tile::make_tuple(0, x_end);
+                index_t y_start         = min(i_x, max_uih_len - min_full_attn_seqlen);
+                index_t y_start_aligned = y_start - y_start % YTile;
+
+                return ck_tile::make_tuple(y_start_aligned, seqlen);
             }
             else
             {
-                // tile is partitially or completely in [max_uih_len-min_full_attn_seqlen,
-                // max_uih_len)
-                if(i_y < max_uih_len)
-                {
-                    return ck_tile::make_tuple(0, seqlen);
-                }
-                else // tile is completely inside [max_uih_len, seqlen)
-                {
-                    index_t x_end = min(i_y + YTile, seqlen);
-                    return ck_tile::make_tuple(0, x_end);
-                };
-            };
-        };
+                index_t y_start =
+                    min(max(i_x - max_attn_len, 0), max_uih_len - min_full_attn_seqlen);
+                index_t y_start_aligned = y_start - y_start % YTile;
 
-        if constexpr(kHasDropout)
-        {
-            index_t boundary = max_uih_len - min_full_attn_seqlen;
-            // the last tile of first split could be a cross-boundary tile
-            if(i_y < boundary && i_y + YTile > boundary)
-                return ck_tile::make_tuple(0, seqlen);
-        };
-
-        // is_tile_in_upper_scope is true, either min_full_attn_seqlen is 0 or tile is
-        // in [0, max_uih_len-min_full_attn_seqlen)
-        if constexpr(!kUseCausal)
-        {
-            if(i_y >= min(contextual_seqlen, 1) + max_attn_len)
-            {
-                // some row of the tile in [contextual_seqlen+max_attn_len, max_uih_len)
-                if(i_y < max_uih_len)
-                {
-                    index_t x_start         = i_y - max_attn_len;
-                    index_t x_start_aligned = x_start - x_start % XTile;
-
-                    // some rows of the tile in [max_uih_len -max_attn_len, max_uih_len)
-                    if(i_y + YTile > max_uih_len - max_attn_len)
-                    {
-                        return ck_tile::make_tuple(x_start_aligned, seqlen);
-                    }
-                    else // whole tile in [contextual_seqlen+max_attn_len, max_uih_len
-                         // -max_attn_len)
-                    {
-                        index_t x_end = i_y + YTile + max_attn_len;
-                        return ck_tile::make_tuple(x_start_aligned, x_end);
-                    };
-                }
-                else // whole tile in [max_uih_len, seqlen)
-                {
-                    index_t x_start = max_uih_len - max_attn_len;
-                    index_t x_end   = min(i_y + YTile, seqlen);
-
-                    return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
-                }
-            }
-            else // for i_y < contextual_seqlen + max_attn_len
-            {
-                if(i_y < contextual_seqlen) // some row of the tile in [0, contextual_seqlen)
-                {
-                    index_t x_end = min(max(i_y + YTile + max_attn_len, max_uih_len), seqlen);
-                    return ck_tile::make_tuple(0, x_end);
-                }
-                else // whole tile in [contextual_seqlen, seqlen)
-                {
-                    index_t x_end = min(i_y + YTile + max_attn_len, seqlen);
-                    return ck_tile::make_tuple(0, x_end);
-                }
+                return ck_tile::make_tuple(y_start_aligned, seqlen);
             }
         }
-        else // kUseCausal && kUseLocal
-        {
-            if(i_y >= min(contextual_seqlen, 1) + max_attn_len)
-            {
-                index_t x_end = min(i_y + YTile, seqlen);
-
-                // some row of the tile in [contextual_seqlen+max_attn_len, max_uih_len)
-                if(i_y < max_uih_len)
-                {
-                    index_t x_start = i_y - max_attn_len;
-                    return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
-                }
-                else // whole tile in [max_uih_len, seqlen)
-                {
-                    index_t x_start = max_uih_len - max_attn_len;
-                    return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
-                }
-            }
-            else // for i_y < contextual_seqlen + max_attn_len
-            {
-                if(i_y < contextual_seqlen) // some row of the tile in [0, contextual_seqlen)
-                {
-                    index_t x_end = min(max(i_y + YTile, max_uih_len), seqlen);
-                    return ck_tile::make_tuple(0, x_end);
-                }
-                else // whole tile in [contextual_seqlen, seqlen)
-                {
-                    index_t x_end = min(i_y + YTile, seqlen);
-                    return ck_tile::make_tuple(0, x_end);
-                }
-            }
-        };
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -499,7 +315,9 @@ struct HstuSelfAttentionBlockMaskWithLocal
         {
             index_t i_tile_right = i_tile_left + TileWidth;
 
-            if(!is_tile_in_upper_scope && i_tile_right <= min(i_tile_top + 1, max_uih_len))
+            bool is_tile_in_bottom_scope = (i_tile_top >= (max_uih_len - min_full_attn_seqlen));
+
+            if(is_tile_in_bottom_scope && i_tile_right <= min(i_tile_top + 1, max_uih_len))
                 return true;
         }
         else
@@ -507,10 +325,12 @@ struct HstuSelfAttentionBlockMaskWithLocal
             index_t i_tile_right  = i_tile_left + TileWidth;
             index_t i_tile_bottom = i_tile_top + TileHeight;
 
+            bool is_tile_in_bottom_scope = (i_tile_top >= (max_uih_len - min_full_attn_seqlen));
+
             // 1) tile is completely in [max_uih_len-min_full_attn_seqlen, max_uih_len]
             // 2) some row of tile is in [max_uih_len, seqlen], requires i_tile_right <=
             // max_uih_len to return true
-            if(!is_tile_in_upper_scope &&
+            if(is_tile_in_bottom_scope &&
                ((i_tile_bottom <= max_uih_len && i_tile_right <= seqlen) ||
                 i_tile_right <= max_uih_len))
                 return true;
@@ -521,7 +341,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
 };
 
 template <bool kUseCausal>
-struct HstuCrossAttentionBlockMaskNoLocal
+struct HstuBwdCrossAttentionBlockMaskNoLocal
 {
     static constexpr bool kUseLocal         = false;
     static constexpr bool IsMasking         = kUseCausal;
@@ -538,10 +358,10 @@ struct HstuCrossAttentionBlockMaskNoLocal
     int diff_q_kv_len;
 
     CK_TILE_HOST_DEVICE
-    HstuCrossAttentionBlockMaskNoLocal(int seqlen_q_,
-                                       int seqlen_k_,
-                                       int contextual_seqlen_,
-                                       int num_target_)
+    HstuBwdCrossAttentionBlockMaskNoLocal(int seqlen_q_,
+                                          int seqlen_k_,
+                                          int contextual_seqlen_,
+                                          int num_target_)
         : seqlen_q(seqlen_q_), seqlen_k(seqlen_k_), contextual_seqlen(contextual_seqlen_)
     {
         max_q_uih_len = seqlen_q - num_target_;
@@ -562,37 +382,31 @@ struct HstuCrossAttentionBlockMaskNoLocal
         max_row_id += diff_q_kv_len;
     };
 
-    // to get the loop length along X axis, return index:[start, end), end-start=length
-    // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
-    // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <index_t YTile, index_t XTile>
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (eg. seqlen_q loop-over)
+    // i_x is the start offset of the current tile along the seqlen_k dimension
+    template <index_t XTile, index_t YTile>
     CK_TILE_DEVICE constexpr auto
-    GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
+    GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        if constexpr(!IsMasking)
+        if(contextual_seqlen > 0)
         {
-            return ck_tile::make_tuple(0, seqlen_k);
+            return ck_tile::make_tuple(0, seqlen_q);
         }
         else
         {
-            index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
-
-            if(i_y < contextual_seqlen)
+            if constexpr(kUseCausal)
             {
-                if(i_y + YTile + diff_q_kv_len > max_k_uih_len)
-                {
-                    return ck_tile::make_tuple(0, x_end);
-                }
-                else
-                {
-                    return ck_tile::make_tuple(0, max_k_uih_len);
-                };
+                index_t y_start         = min(max(i_x - diff_q_kv_len, 0), max_q_uih_len);
+                index_t y_start_aligned = y_start - y_start % YTile;
+
+                return ck_tile::make_tuple(y_start_aligned, seqlen_q);
             }
             else
             {
-                return ck_tile::make_tuple(0, x_end);
-            };
-        };
+                return ck_tile::make_tuple(0, seqlen_q);
+            }
+        }
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -675,7 +489,7 @@ struct HstuCrossAttentionBlockMaskNoLocal
 };
 
 template <bool kUseCausal>
-struct HstuSelfAttentionBlockMaskNoLocal
+struct HstuBwdSelfAttentionBlockMaskNoLocal
 {
     static constexpr bool kUseLocal         = false;
     static constexpr bool IsMasking         = kUseCausal;
@@ -688,7 +502,7 @@ struct HstuSelfAttentionBlockMaskNoLocal
     int max_id;
 
     CK_TILE_HOST_DEVICE
-    HstuSelfAttentionBlockMaskNoLocal(int seqlen_, int contextual_seqlen_, int num_target_)
+    HstuBwdSelfAttentionBlockMaskNoLocal(int seqlen_, int contextual_seqlen_, int num_target_)
         : seqlen(seqlen_), contextual_seqlen(contextual_seqlen_)
     {
         max_uih_len = seqlen - num_target_;
@@ -699,37 +513,31 @@ struct HstuSelfAttentionBlockMaskNoLocal
             max_id = max_uih_len;
     };
 
-    // to get the loop length along X axis, return index:[start, end), end-start=length
-    // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
-    // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <index_t YTile, index_t XTile>
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (eg. seqlen_q loop-over)
+    // i_x is the start offset of the current tile along the seqlen_k dimension
+    template <index_t XTile, index_t YTile>
     CK_TILE_DEVICE constexpr auto
-    GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
+    GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
     {
-        if constexpr(!IsMasking)
+        if(contextual_seqlen > 0)
         {
             return ck_tile::make_tuple(0, seqlen);
         }
         else
         {
-            index_t x_end = min(i_y + YTile, seqlen);
-
-            if(i_y < contextual_seqlen)
+            if constexpr(kUseCausal)
             {
-                if(i_y + YTile > max_uih_len)
-                {
-                    return ck_tile::make_tuple(0, x_end);
-                }
-                else
-                {
-                    return ck_tile::make_tuple(0, max_uih_len);
-                };
+                index_t y_start         = min(i_x, max_uih_len);
+                index_t y_start_aligned = y_start - y_start % YTile;
+
+                return ck_tile::make_tuple(y_start_aligned, seqlen);
             }
             else
             {
-                return ck_tile::make_tuple(0, x_end);
-            };
-        };
+                return ck_tile::make_tuple(0, seqlen);
+            }
+        }
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
@@ -807,60 +615,49 @@ struct HstuSelfAttentionBlockMaskNoLocal
 };
 
 template <bool kIsCrossAttention, bool kUseCausal, bool kUseLocal>
-struct HstuBlockMasking
+struct HstuBwdBlockMasking
 {
     using Type =
         std::conditional_t<kUseLocal,
                            std::conditional_t<kIsCrossAttention,
-                                              HstuCrossAttentionBlockMaskWithLocal<kUseCausal>,
-                                              HstuSelfAttentionBlockMaskWithLocal<kUseCausal>>,
+                                              HstuBwdCrossAttentionBlockMaskWithLocal<kUseCausal>,
+                                              HstuBwdSelfAttentionBlockMaskWithLocal<kUseCausal>>,
                            std::conditional_t<kIsCrossAttention,
-                                              HstuCrossAttentionBlockMaskNoLocal<kUseCausal>,
-                                              HstuSelfAttentionBlockMaskNoLocal<kUseCausal>>>;
+                                              HstuBwdCrossAttentionBlockMaskNoLocal<kUseCausal>,
+                                              HstuBwdSelfAttentionBlockMaskNoLocal<kUseCausal>>>;
 };
 
 template <typename HstuBlockMaskType>
 CK_TILE_HOST_DEVICE constexpr auto
-make_hstu_cross_attention_block_mask_with_local(bool is_tile_in_upper_scope_,
-                                                int seqlen_q_,
-                                                int seqlen_k_,
-                                                int contextual_seqlen_,
-                                                int num_target,
-                                                int max_attn_len_,
-                                                int min_full_attn_seqlen_)
+make_hstu_bwd_cross_attention_block_mask_with_local(int seqlen_q_,
+                                                    int seqlen_k_,
+                                                    int contextual_seqlen_,
+                                                    int num_target,
+                                                    int max_attn_len_,
+                                                    int min_full_attn_seqlen_)
 {
     static_assert(HstuBlockMaskType::kIsCrossAttention == true);
 
-    return HstuBlockMaskType{is_tile_in_upper_scope_,
-                             seqlen_q_,
-                             seqlen_k_,
-                             contextual_seqlen_,
-                             max_attn_len_,
-                             min_full_attn_seqlen_,
-                             num_target};
+    return HstuBlockMaskType{
+        seqlen_q_, seqlen_k_, contextual_seqlen_, max_attn_len_, min_full_attn_seqlen_, num_target};
 };
 
 template <typename HstuBlockMaskType>
 CK_TILE_HOST_DEVICE constexpr auto
-make_hstu_self_attention_block_mask_with_local(bool is_tile_in_upper_scope_,
-                                               int seqlen_,
-                                               int contextual_seqlen_,
-                                               int num_target,
-                                               int max_attn_len_,
-                                               int min_full_attn_seqlen_)
+make_hstu_bwd_self_attention_block_mask_with_local(int seqlen_,
+                                                   int contextual_seqlen_,
+                                                   int num_target,
+                                                   int max_attn_len_,
+                                                   int min_full_attn_seqlen_)
 {
     static_assert(HstuBlockMaskType::kIsCrossAttention == false);
 
-    return HstuBlockMaskType{is_tile_in_upper_scope_,
-                             seqlen_,
-                             contextual_seqlen_,
-                             max_attn_len_,
-                             min_full_attn_seqlen_,
-                             num_target};
+    return HstuBlockMaskType{
+        seqlen_, contextual_seqlen_, max_attn_len_, min_full_attn_seqlen_, num_target};
 };
 
 template <typename HstuBlockMaskType>
-CK_TILE_HOST_DEVICE constexpr auto make_hstu_cross_attention_block_mask_without_local(
+CK_TILE_HOST_DEVICE constexpr auto make_hstu_bwd_cross_attention_block_mask_without_local(
     int seqlen_q_, int seqlen_k_, int contextual_seqlen_, int num_target)
 {
     static_assert(HstuBlockMaskType::kIsCrossAttention == true);
@@ -869,7 +666,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_hstu_cross_attention_block_mask_without_
 };
 
 template <typename HstuBlockMaskType>
-CK_TILE_HOST_DEVICE constexpr auto make_hstu_self_attention_block_mask_without_local(
+CK_TILE_HOST_DEVICE constexpr auto make_hstu_bwd_self_attention_block_mask_without_local(
     int seqlen_, int contextual_seqlen_, int num_target)
 {
     static_assert(HstuBlockMaskType::kIsCrossAttention == false);
