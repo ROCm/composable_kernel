@@ -431,25 +431,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
             const bool need_mask = !mask.IsFullTileInsideMask(
                 q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{});
 
-            // Apply HSTU mask (set masked-out S to 0 in SiLU path)
-            if(need_mask)
-            {
-                constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
-                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            pcomp_tile.get_tile_distribution(),
-                            make_tuple(idx0, idx1),
-                            partition_index);
-                        const auto row    = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                        const auto col    = seqlen_k_curr + tile_idx.at(number<1>{});
-                        constexpr auto ij = make_tuple(idx0, idx1);
-                        if(!mask.IsTokenPairInsideMask(row, col))
-                            pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
-                    });
-                });
-            }
-
             if constexpr(kHasDropout)
             {
                 __builtin_amdgcn_sched_barrier(0);
