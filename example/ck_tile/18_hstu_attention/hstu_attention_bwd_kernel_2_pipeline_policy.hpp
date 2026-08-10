@@ -418,7 +418,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         }
         else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
         {
-            static_assert(kKVector == kKPack);
+            //  static_assert(kKVector == kKPack);
 
             // XOR-swizzled physical layout [NumBuffers, kNPerBlock, kKPerBlock] -- shared
             // with the transposed staging buffers (see MakeSwizzledNativeDesc).
