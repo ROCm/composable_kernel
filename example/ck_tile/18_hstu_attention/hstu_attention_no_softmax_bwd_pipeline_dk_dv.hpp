@@ -590,29 +590,38 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 //    P would otherwise be silu(garbage) != 0.
                 constexpr auto spans = PcompBlockTileType::get_distributed_spans();
 
+                sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto ij     = make_tuple(idx0, idx1);
+                        const CompDataType s  = pcomp_tile[ij];
+                        const CompDataType dp = dscomp_tile[ij];
+                        CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
+                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+                        // Dropout propagates through the chain rule: kept -> *rp_undrop on
+                        // BOTH P (-> dV) and dS (-> dK); dropped -> 0. drop_mask > 0 means
+                        // kept.
+                        if(drop_mask[ij] > 0)
+                        {
+                            p  = p * dropout.rp_undrop;
+                            ds = ds * dropout.rp_undrop;
+                        }
+                        else
+                        {
+                            p  = type_convert<CompDataType>(0.0f);
+                            ds = type_convert<CompDataType>(0.0f);
+                        }
+                        // P stored back into pcomp_tile for dV (Gemm1)
+                        pcomp_tile(ij) = p;
+                        // dS stored into dscomp_tile for dK (Gemm3)
+                        dscomp_tile(ij) = ds;
+                    });
+                });
+
                 if(need_mask)
                 {
                     sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                         sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                            constexpr auto ij     = make_tuple(idx0, idx1);
-                            const CompDataType s  = pcomp_tile[ij];
-                            const CompDataType dp = dscomp_tile[ij];
-                            CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
-                            CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
-                            // Dropout propagates through the chain rule: kept -> *rp_undrop on
-                            // BOTH P (-> dV) and dS (-> dK); dropped -> 0. drop_mask > 0 means
-                            // kept.
-                            if(drop_mask[ij] > 0)
-                            {
-                                p  = p * dropout.rp_undrop;
-                                ds = ds * dropout.rp_undrop;
-                            }
-                            else
-                            {
-                                p  = type_convert<CompDataType>(0.0f);
-                                ds = type_convert<CompDataType>(0.0f);
-                            }
-
+                            constexpr auto ij   = make_tuple(idx0, idx1);
                             const auto tile_idx = get_x_indices_from_distributed_indices(
                                 dscomp_tile.get_tile_distribution(),
                                 make_tuple(idx0, idx1),
@@ -620,41 +629,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                             const auto row = seqlen_q_curr + tile_idx.at(number<0>{});
                             const auto col = i_n0 + tile_idx.at(number<1>{});
                             if(!mask.IsTokenPairInsideMask(row, col))
-                                ds = type_convert<CompDataType>(0.0f);
-
-                            // P stored back into pcomp_tile for dV (Gemm1)
-                            pcomp_tile(ij) = p;
-                            // dS stored into dscomp_tile for dK (Gemm3)
-                            dscomp_tile(ij) = ds;
-                        });
-                    });
-                }
-                else
-                {
-                    sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                            constexpr auto ij     = make_tuple(idx0, idx1);
-                            const CompDataType s  = pcomp_tile[ij];
-                            const CompDataType dp = dscomp_tile[ij];
-                            CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
-                            CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
-                            // Dropout propagates through the chain rule: kept -> *rp_undrop on
-                            // BOTH P (-> dV) and dS (-> dK); dropped -> 0. drop_mask > 0 means
-                            // kept.
-                            if(drop_mask[ij] > 0)
-                            {
-                                p  = p * dropout.rp_undrop;
-                                ds = ds * dropout.rp_undrop;
-                            }
-                            else
-                            {
-                                p  = type_convert<CompDataType>(0.0f);
-                                ds = type_convert<CompDataType>(0.0f);
-                            }
-                            // P stored back into pcomp_tile for dV (Gemm1)
-                            pcomp_tile(ij) = p;
-                            // dS stored into dscomp_tile for dK (Gemm3)
-                            dscomp_tile(ij) = ds;
+                                dscomp_tile(ij) = type_convert<CompDataType>(0.0f);
                         });
                     });
                 }
@@ -672,16 +647,26 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 //    P would otherwise be silu(garbage) != 0.
                 constexpr auto spans = PcompBlockTileType::get_distributed_spans();
 
+                sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto ij     = make_tuple(idx0, idx1);
+                        const CompDataType s  = pcomp_tile[ij];
+                        const CompDataType dp = dscomp_tile[ij];
+                        CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
+                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+
+                        // P stored back into pcomp_tile for dV (Gemm1)
+                        pcomp_tile(ij) = p;
+                        // dS stored into dscomp_tile for dK (Gemm3)
+                        dscomp_tile(ij) = ds;
+                    });
+                });
+
                 if(need_mask)
                 {
                     sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                         sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                            constexpr auto ij     = make_tuple(idx0, idx1);
-                            const CompDataType s  = pcomp_tile[ij];
-                            const CompDataType dp = dscomp_tile[ij];
-                            CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
-                            CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
-
+                            constexpr auto ij   = make_tuple(idx0, idx1);
                             const auto tile_idx = get_x_indices_from_distributed_indices(
                                 dscomp_tile.get_tile_distribution(),
                                 make_tuple(idx0, idx1),
@@ -689,29 +674,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                             const auto row = seqlen_q_curr + tile_idx.at(number<0>{});
                             const auto col = i_n0 + tile_idx.at(number<1>{});
                             if(!mask.IsTokenPairInsideMask(row, col))
-                                ds = type_convert<CompDataType>(0.0f);
-
-                            // P stored back into pcomp_tile for dV (Gemm1)
-                            pcomp_tile(ij) = p;
-                            // dS stored into dscomp_tile for dK (Gemm3)
-                            dscomp_tile(ij) = ds;
-                        });
-                    });
-                }
-                else
-                {
-                    sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                            constexpr auto ij     = make_tuple(idx0, idx1);
-                            const CompDataType s  = pcomp_tile[ij];
-                            const CompDataType dp = dscomp_tile[ij];
-                            CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
-                            CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
-
-                            // P stored back into pcomp_tile for dV (Gemm1)
-                            pcomp_tile(ij) = p;
-                            // dS stored into dscomp_tile for dK (Gemm3)
-                            dscomp_tile(ij) = ds;
+                                dscomp_tile(ij) = type_convert<CompDataType>(0.0f);
                         });
                     });
                 }
