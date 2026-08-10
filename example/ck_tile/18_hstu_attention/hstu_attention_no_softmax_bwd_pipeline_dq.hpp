@@ -483,15 +483,22 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
             // dsilu(s) is finite -- no 0*inf hazard). They cannot leak into the dQ reduction.
             constexpr auto ds_spans = PGradcompBlockTileType::get_distributed_spans();
 
+            sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(ds_spans[number<1>{}], [&](auto idx1) {
+                    constexpr auto ij     = make_tuple(idx0, idx1);
+                    const CompDataType s  = pcomp_tile[ij];
+                    const CompDataType dp = dpcomp_tile[ij];
+                    CompDataType ds       = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+
+                    dpcomp_tile(ij) = ds;
+                });
+            });
+
             if(need_mask)
             {
                 sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(ds_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto ij     = make_tuple(idx0, idx1);
-                        const CompDataType s  = pcomp_tile[ij];
-                        const CompDataType dp = dpcomp_tile[ij];
-                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
-
+                        constexpr auto ij   = make_tuple(idx0, idx1);
                         const auto tile_idx = get_x_indices_from_distributed_indices(
                             dpcomp_tile.get_tile_distribution(),
                             make_tuple(idx0, idx1),
@@ -499,25 +506,10 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                         const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
                         if(!mask.IsTokenPairInsideMask(row, col))
-                            ds = type_convert<CompDataType>(0.0f);
-
-                        dpcomp_tile(ij) = ds;
+                            dpcomp_tile(ij) = type_convert<CompDataType>(0.0f);
                     });
                 });
             }
-            else
-            {
-                sweep_tile_span(ds_spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(ds_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto ij     = make_tuple(idx0, idx1);
-                        const CompDataType s  = pcomp_tile[ij];
-                        const CompDataType dp = dpcomp_tile[ij];
-                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
-
-                        dpcomp_tile(ij) = ds;
-                    });
-                });
-            };
 
             // ensure kt is completely available on Lds
             block_sync_lds();
