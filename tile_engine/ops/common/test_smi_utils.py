@@ -22,6 +22,7 @@ sys.path.insert(0, str(_HERE))
 from smi_utils import (  # noqa: E402
     check_gpu_available,
     count_gpus,
+    detect_gpu_arch,
     detect_gpu_ids,
     fetch_live_normalized_fields,
     show_gpu_info,
@@ -89,6 +90,68 @@ class TestLiveWrappers(unittest.TestCase):
     def test_rocm_smi_override_matches_live_rocm_ids(self):
         with unittest.mock.patch.dict(os.environ, {"CK_SMI_TOOL": "rocm-smi"}):
             self.assertEqual(detect_gpu_ids(), self.fields["gpu_ids_rocm"])
+
+
+class TestDetectGpuArch(unittest.TestCase):
+    """detect_gpu_arch() prefers amd-smi and falls back to rocm-smi.
+
+    The preference/fallback logic is exercised with a mocked _run_cmd (and a
+    mocked shutil.which so both tools appear installed) so it runs on any host
+    (no GPU required); a live check runs only on a GPU host. CK_SMI_TOOL is
+    forced off so the ambient env can't flip _smi_order() and make the
+    amd-smi-preference assertion non-deterministic.
+    """
+
+    def setUp(self):
+        self._env = unittest.mock.patch.dict(
+            os.environ, {"CK_SMI_TOOL": ""}, clear=False
+        )
+        self._env.start()
+
+    def tearDown(self):
+        self._env.stop()
+
+    @staticmethod
+    def _patch(run_side_effect):
+        import smi_utils
+        return (
+            unittest.mock.patch.object(smi_utils, "_run_cmd", side_effect=run_side_effect),
+            unittest.mock.patch.object(smi_utils.shutil, "which", side_effect=lambda t: f"/usr/bin/{t}"),
+        )
+
+    def test_prefers_amd_smi(self):
+        def fake_run(cmd):
+            if cmd[0] == "amd-smi":
+                return "    TARGET_GRAPHICS_VERSION: gfx942\n"
+            return "GFX Version: gfx950\n"
+        run_p, which_p = self._patch(fake_run)
+        with run_p, which_p:
+            self.assertEqual(detect_gpu_arch(), "gfx942")
+
+    def test_falls_back_to_rocm_smi(self):
+        def fake_run(cmd):
+            if cmd[0] == "amd-smi":
+                return ""  # amd-smi resolves nothing
+            return "Card Series: Instinct\nGFX Version: gfx908\n"
+        run_p, which_p = self._patch(fake_run)
+        with run_p, which_p:
+            self.assertEqual(detect_gpu_arch(), "gfx908")
+
+    def test_returns_fallback_when_neither_resolves(self):
+        run_p, which_p = self._patch(lambda cmd: "")
+        with run_p, which_p:
+            self.assertEqual(detect_gpu_arch(fallback="gfx000"), "gfx000")
+            self.assertIsNone(detect_gpu_arch())
+
+    def test_returns_fallback_when_tools_absent(self):
+        import smi_utils
+        with unittest.mock.patch.object(smi_utils.shutil, "which", return_value=None):
+            self.assertEqual(detect_gpu_arch(fallback="gfx000"), "gfx000")
+
+    @unittest.skipUnless(_GPU_HOST, "requires rocm-smi and amd-smi on PATH")
+    def test_live_detect_gpu_arch(self):
+        self.assertRegex(str(detect_gpu_arch()), r"^gfx[0-9a-fA-F]+$")
+
 
 
 if __name__ == "__main__":

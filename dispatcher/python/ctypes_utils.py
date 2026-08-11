@@ -46,14 +46,24 @@ _detected_arch: Optional[str] = None
 
 def detect_gpu_arch(fallback: str = "gfx942") -> str:
     """
-    Auto-detect the GPU architecture by querying rocminfo.
+    Auto-detect the GPU architecture, preferring amd-smi.
 
-    Caches the result after the first call. Falls back to `fallback` if
-    detection fails (e.g. no GPU, rocminfo not installed).
+    Tries the shared amd-smi-first ``smi_utils`` wrapper (via dispatcher_common),
+    then rocminfo, then ``fallback``. Caches the result after the first call.
     """
     global _detected_arch
     if _detected_arch is not None:
         return _detected_arch
+
+    # Prefer amd-smi via the single canonical bridge.
+    try:
+        from dispatcher_common import _detect_gpu_arch_via_amd_smi
+        arch = _detect_gpu_arch_via_amd_smi()
+        if arch:
+            _detected_arch = arch
+            return _detected_arch
+    except Exception:  # noqa: BLE001 - optional dependency; fall back to rocminfo
+        pass
 
     try:
         result = subprocess.run(
