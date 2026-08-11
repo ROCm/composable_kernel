@@ -57,8 +57,36 @@ def get_codegen_dir() -> Path:
     return get_dispatcher_root() / "codegen"
 
 
+def _detect_gpu_arch_via_amd_smi() -> Optional[str]:
+    """Best-effort arch via the shared amd-smi-first smi_utils wrapper.
+
+    Single source of truth for the amd-smi bridge: the other dispatcher arch
+    helpers (``gemm_utils``, ``ctypes_utils``, ``grouped_conv_utils``) import
+    this rather than re-implementing the wrapper reach.
+
+    Returns a ``gfxNNN`` string, or ``None`` if the wrapper is unavailable or
+    neither amd-smi nor rocm-smi resolves an arch (callers fall back to
+    rocminfo).
+    """
+    try:
+        import sys as _sys
+        _common = Path(__file__).resolve().parents[2] / "tile_engine" / "ops" / "common"
+        if str(_common) not in _sys.path:
+            _sys.path.insert(0, str(_common))
+        import smi_utils  # noqa: E402
+        return smi_utils.detect_gpu_arch()
+    except Exception:  # noqa: BLE001 - optional wrapper + external CLI; degrade to rocminfo
+        return None
+
+
 def detect_gpu_arch(fallback: str = "gfx942") -> str:
-    """Detect the GPU architecture from rocminfo. Falls back to the given default."""
+    """Detect the GPU architecture, preferring amd-smi (smi_utils wrapper).
+
+    Falls back to rocminfo, then to the given default.
+    """
+    arch = _detect_gpu_arch_via_amd_smi()
+    if arch:
+        return arch
     import subprocess
 
     try:
@@ -79,21 +107,6 @@ def detect_gpu_arch(fallback: str = "gfx942") -> str:
 
 _arch_data_cache: Optional[Dict[str, Any]] = None
 
-
-def detect_gpu_arch(fallback: str = "gfx942") -> str:
-    """Detect the GPU architecture from rocminfo. Falls back to the given default."""
-    import subprocess
-
-    try:
-        out = subprocess.check_output(
-            ["rocminfo"], text=True, stderr=subprocess.DEVNULL
-        )
-        for line in out.splitlines():
-            if "Name:" in line and "gfx" in line:
-                return line.split()[-1].strip()
-    except Exception:
-        pass
-    return fallback
 
 
 def get_arch_filter_data() -> Dict[str, Any]:
