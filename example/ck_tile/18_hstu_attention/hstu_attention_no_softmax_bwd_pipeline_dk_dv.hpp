@@ -467,7 +467,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 auto k_slice = get_slice_tile(
                     k_tile, sequence<0, i_k0 * kK0>{}, sequence<kN0, (i_k0 + 1) * kK0>{});
 
-                // Gemm0: sacc_tile = Q_sub @ K^T
+                // Gemm0: sacc_tile = Q_sub @ K_sub
                 gemm_0(sacc_tile, q_lds_windows[i_lds_buf_0], k_slice);
             });
 
@@ -509,7 +509,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 auto v_slice = get_slice_tile(
                     v_tile, sequence<0, i_k0 * kK0>{}, sequence<kN0, (i_k0 + 1) * kK0>{});
 
-                // Gemm2: dpacc_tile = dO_sub @ V^T
+                // Gemm2: dpacc_tile = dO_sub @ V_sub
                 gemm_2(dpacc_tile, do_lds_windows[i_lds_buf_0], v_slice);
             });
 
