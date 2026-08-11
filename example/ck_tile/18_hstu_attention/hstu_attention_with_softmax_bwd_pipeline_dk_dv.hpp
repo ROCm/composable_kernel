@@ -643,18 +643,16 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                         const CompDataType p_pure = pcomp_tile[ij];
                         CompDataType dp           = dscomp_tile[ij];
                         CompDataType p_drop       = p_pure;
-                        if constexpr(kHasDropout)
+
+                        if(drop_mask[ij] > 0)
                         {
-                            if(drop_mask[ij] > 0)
-                            {
-                                dp     = dp * dropout.rp_undrop;
-                                p_drop = p_pure * dropout.rp_undrop;
-                            }
-                            else
-                            {
-                                dp     = type_convert<CompDataType>(0.0f);
-                                p_drop = type_convert<CompDataType>(0.0f);
-                            }
+                            dp     = dp * dropout.rp_undrop;
+                            p_drop = p_pure * dropout.rp_undrop;
+                        }
+                        else
+                        {
+                            dp     = type_convert<CompDataType>(0.0f);
+                            p_drop = type_convert<CompDataType>(0.0f);
                         }
                         // dK path: dS = P_pure * (drop_scale*dP - D)
                         dscomp_tile(ij) = p_pure * (dp - delta_val);
