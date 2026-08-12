@@ -37,7 +37,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
     static constexpr index_t kN0        = HstuAttentionTileSetting::kN0;
     static constexpr index_t kN0Sub     = HstuAttentionTileSetting::kN0Sub;
     static constexpr index_t kQKHeaddim = HstuAttentionTileSetting::kQKHeaddim;
-    static constexpr index_t kVHeaddim  = kQKHeaddim; // V shares head dim with K in HSTU
+    static constexpr index_t kVHeaddim  = HstuAttentionTileSetting::kVHeaddim;
 
     static_assert(Problem::kUseSoftmax == true, "This pipeline only works with the softmax path");
 

@@ -22,12 +22,22 @@ namespace ck_tile {
 
 struct HstuAttentionBwdKernel2PipelinePolicy
 {
-    // Gemm0 and Gemm2 use k0_loop, which unrolls the Gemm along kQKHeaddim
+    // Gemm0 use k0_loop, which unrolls the Gemm along kQKHeaddim
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumK0Loops()
+    CK_TILE_DEVICE static constexpr auto GetNumGemm0K0Loops()
     {
         constexpr index_t k0_loops =
             Problem::HstuAttentionTileSetting::kQKHeaddim / Problem::HstuAttentionTileSetting::kK0;
+
+        return k0_loops;
+    }
+
+    // Gemm2 use k0_loop, which unrolls the Gemm along kVHeaddim
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto GetNumGemm2K0Loops()
+    {
+        constexpr index_t k0_loops =
+            Problem::HstuAttentionTileSetting::kVHeaddim / Problem::HstuAttentionTileSetting::kK0;
 
         return k0_loops;
     }
@@ -221,7 +231,8 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeOGrad()
     {
-        return GetSmemSizeQ<Problem, kUseTrLoad>();
+        return MakeOGradLdsBlockDescriptor<Problem, kUseTrLoad>().get_element_space_size() *
+               sizeof(typename Problem::QKVDataType);
     }
 
     template <typename Problem>
@@ -234,7 +245,8 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeOGradT()
     {
-        return GetSmemSizeQT<Problem>();
+        return MakeOGradTLdsReadBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::QKVDataType);
     }
 
     // Total smem: q_lds + do_lds, pt_lds, dst_lds) + qt_lds + dot_lds
@@ -269,6 +281,24 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQ()
     {
         if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
+            return 8;
+        else
+            return 4;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetOGradVWarpGemmKPerThreadSize()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+        return WG::WarpGemmAttribute::kKPerThread;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackOGrad()
+    {
+        if constexpr(GetOGradVWarpGemmKPerThreadSize<Problem>() >= 8)
             return 8;
         else
             return 4;
@@ -398,15 +428,15 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // -------------------------------------------------------------------------
 
     // q_lds write/read descriptor: NumBuffers * [kM0, kK0]
-    template <typename Problem, bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
+    template <typename Problem,
+              index_t NumBuffers,
+              index_t kKPack,
+              index_t kKVector,
+              index_t WarpGemmKPerThread>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQOGradLdsBlockDescriptor()
     {
-        constexpr index_t NumBuffers =
-            kUseTrLoad ? GetNumK0Loops<Problem>() : GetNumQOGradLdsBuffers<Problem>();
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kM0;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK0;
-        constexpr index_t kKPack     = GetSmemKPackQ<Problem>();
-        constexpr index_t kKVector   = GetAlignmentQ<Problem>();
 
         if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
@@ -425,7 +455,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                 make_tuple(sequence<1>{}, sequence<0, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
-        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
+        else if constexpr(WarpGemmKPerThread >= 8)
         {
             //  static_assert(kKVector == kKPack);
 
@@ -476,31 +506,77 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         }
     }
 
-    // do_lds write descriptor -- identical layout to q_lds
+    // q_lds write/read descriptor
+    template <typename Problem, bool kUseTrLoad = false>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
+    {
+        constexpr index_t kKPack             = GetSmemKPackQ<Problem>();
+        constexpr index_t kKVector           = GetAlignmentQ<Problem>();
+        constexpr index_t WarpGemmKPerThread = GetQKWarpGemmKPerThreadSize<Problem>();
+
+        if constexpr(kUseTrLoad)
+        {
+            constexpr index_t NumBuffers = GetNumGemm0K0Loops<Problem>();
+            return MakeQOGradLdsBlockDescriptor<Problem,
+                                                NumBuffers,
+                                                kKPack,
+                                                kKVector,
+                                                WarpGemmKPerThread>();
+        }
+        else
+        {
+            constexpr index_t NumBuffers = GetNumQOGradLdsBuffers<Problem>();
+            return MakeQOGradLdsBlockDescriptor<Problem,
+                                                NumBuffers,
+                                                kKPack,
+                                                kKVector,
+                                                WarpGemmKPerThread>();
+        }
+    }
+
+    // do_lds write/read descriptor
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradLdsBlockDescriptor()
     {
-        return MakeQLdsBlockDescriptor<Problem, kUseTrLoad>();
+        constexpr index_t kKPack             = GetSmemKPackOGrad<Problem>();
+        constexpr index_t kKVector           = GetAlignmentOGrad<Problem>();
+        constexpr index_t WarpGemmKPerThread = GetOGradVWarpGemmKPerThreadSize<Problem>();
+
+        if constexpr(kUseTrLoad)
+        {
+            constexpr index_t NumBuffers = GetNumGemm2K0Loops<Problem>();
+            return MakeQOGradLdsBlockDescriptor<Problem,
+                                                NumBuffers,
+                                                kKPack,
+                                                kKVector,
+                                                WarpGemmKPerThread>();
+        }
+        else
+        {
+            constexpr index_t NumBuffers = GetNumQOGradLdsBuffers<Problem>();
+            return MakeQOGradLdsBlockDescriptor<Problem,
+                                                NumBuffers,
+                                                kKPack,
+                                                kKVector,
+                                                WarpGemmKPerThread>();
+        }
     }
 
-    // qt_lds write descriptor: NumReadBuffers * [kQKHeaddim, kK1],
+    // qt_lds/dot_lds write descriptor: NumReadBuffers * [kQKHeaddim/kVHeaddim, kK1],
     // the naive physical layout is determined by at-best benefitting the Lds reading, but
-    // the write descriptor provides a correct view suitable for Lds writing from the q_tile
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsWriteBlockDescriptor()
+    // the write descriptor provides a correct view suitable for Lds writing from the q_tile/do_tile
+    template <typename Problem, index_t kHeaddim, index_t NumWriteBuffers, index_t kKPack>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQTOGradTLdsWriteBlockDescriptor()
     {
         constexpr index_t NumReadBuffers = GetNumK1Loops<Problem>();
-        constexpr index_t kReadNPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kReadNPerBlock = kHeaddim;
         constexpr index_t kReadKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
-        constexpr index_t NumWriteBuffers = GetNumK0Loops<Problem>();
         constexpr index_t kWriteKPerBlock = Problem::HstuAttentionTileSetting::kK0;
         constexpr index_t kWriteMPerBlock = Problem::HstuAttentionTileSetting::kM0;
 
         static_assert(kReadNPerBlock == NumWriteBuffers * kWriteKPerBlock, "Check failed!");
         static_assert(kWriteMPerBlock == NumReadBuffers * kReadKPerBlock, "Check failed!");
-
-        constexpr index_t kKPack = GetSmemKPackQT<Problem>();
 
         // Shared XOR-swizzled physical [NumReadBuffers, kReadNPerBlock, kReadKPerBlock]
         // (same physical layout as the read descriptor -> write/read stay consistent).
@@ -544,14 +620,13 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         return desc_remerged_2;
     }
 
-    // qt_lds read descriptor: NumK1Loops * [kQKHeaddim, kK1]
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsReadBlockDescriptor()
+    // qt_lds/dot_lds read descriptor: NumK1Loops * [kQKHeaddim/kVHeaddim, kK1]
+    template <typename Problem, index_t kHeaddim, index_t kKPack>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQTOGradTLdsReadBlockDescriptor()
     {
         constexpr index_t NumBuffers = GetNumK1Loops<Problem>();
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kNPerBlock = kHeaddim;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
-        constexpr index_t kKPack     = GetSmemKPackQT<Problem>();
 
         // Same XOR-swizzled physical layout as the matching write descriptor -- both
         // agree on element mapping and element_space_size (== NumBuffers*kN*kK1).
@@ -568,87 +643,42 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
     }
 
-    // dot_lds write descriptor: same transform structure as qt_lds but uses kVHeaddim
-    // dO^T physical layout: NumK1Loops * [kVHeaddim, kK1]; write view: [kM0, kK0]
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsWriteBlockDescriptor()
+    {
+        constexpr index_t kHeaddim        = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t NumWriteBuffers = GetNumGemm0K0Loops<Problem>();
+        constexpr index_t kKPack          = GetSmemKPackQT<Problem>();
+
+        return MakeQTOGradTLdsWriteBlockDescriptor<Problem, kHeaddim, NumWriteBuffers, kKPack>();
+    }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsWriteBlockDescriptor()
     {
-        constexpr index_t NumReadBuffers = GetNumK1Loops<Problem>();
-        constexpr index_t kReadNPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
-        constexpr index_t kReadKPerBlock = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kHeaddim        = Problem::HstuAttentionTileSetting::kVHeaddim;
+        constexpr index_t NumWriteBuffers = GetNumGemm2K0Loops<Problem>();
+        constexpr index_t kKPack          = GetSmemKPackOGradT<Problem>();
 
-        constexpr index_t NumWriteBuffers = GetNumK0Loops<Problem>();
-        constexpr index_t kWriteKPerBlock = Problem::HstuAttentionTileSetting::kK0;
-        constexpr index_t kWriteMPerBlock = Problem::HstuAttentionTileSetting::kM0;
-
-        static_assert(kReadNPerBlock == NumWriteBuffers * kWriteKPerBlock, "Check failed!");
-        static_assert(kWriteMPerBlock == NumReadBuffers * kReadKPerBlock, "Check failed!");
-
-        constexpr index_t kKPack = GetSmemKPackOGradT<Problem>();
-
-        // Shared XOR-swizzled physical layout -- see qt_lds write.
-        constexpr auto desc_native = MakeSwizzledNativeDesc<Problem,
-                                                            NumReadBuffers,
-                                                            kReadNPerBlock,
-                                                            kReadKPerBlock,
-                                                            kKPack>();
-
-        // Unmerge kReadNPerBlock into [NumWriteBuffers, kWriteKPerBlock] to expose
-        // the write-friendly [kM0, kK0] view over the read-optimal physical layout.
-        constexpr auto desc_unmerged = transform_tensor_descriptor(
-            desc_native,
-            make_tuple(make_pass_through_transform(number<NumReadBuffers>{}),
-                       make_unmerge_transform(
-                           make_tuple(number<NumWriteBuffers>{}, number<kWriteKPerBlock>{})),
-                       make_pass_through_transform(number<kReadKPerBlock>{})),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
-
-        // Reorder: bring NumWriteBuffers to front as the "which kK0 chunk" index,
-        // merge the read-buffer and kReadKPerBlock dims into the M dimension.
-        constexpr auto desc_remerged_1 = transform_tensor_descriptor(
-            desc_unmerged,
-            make_tuple(make_pass_through_transform(number<NumWriteBuffers>{}),
-                       make_merge_transform(
-                           make_tuple(number<NumReadBuffers>{}, number<kReadKPerBlock>{})),
-                       make_pass_through_transform(number<kWriteKPerBlock>{})),
-            make_tuple(sequence<1>{}, sequence<0, 3>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-
-        // Final merge: [NumWriteBuffers, kM0, kK0] -> [kM0, kQKHeaddim]
-        constexpr auto desc_remerged_2 = transform_tensor_descriptor(
-            desc_remerged_1,
-            make_tuple(make_pass_through_transform(number<kWriteMPerBlock>{}),
-                       make_merge_transform(
-                           make_tuple(number<NumWriteBuffers>{}, number<kWriteKPerBlock>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return desc_remerged_2;
+        return MakeQTOGradTLdsWriteBlockDescriptor<Problem, kHeaddim, NumWriteBuffers, kKPack>();
     }
 
-    // dot_lds read descriptor: NumK1Loops * [kVHeaddim, kK1]
-    // Used by Gemm1 (dV += P^T @ dO^T): B operand is dO^T in LDS, shape [kVHeaddim, kK1].
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsReadBlockDescriptor()
+    {
+        constexpr index_t kHeaddim = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kKPack   = GetSmemKPackQT<Problem>();
+
+        return MakeQTOGradTLdsReadBlockDescriptor<Problem, kHeaddim, kKPack>();
+    }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsReadBlockDescriptor()
     {
-        constexpr index_t NumBuffers = GetNumK1Loops<Problem>();
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
-        constexpr index_t kKPack     = GetSmemKPackOGradT<Problem>();
+        constexpr index_t kHeaddim = Problem::HstuAttentionTileSetting::kVHeaddim;
+        constexpr index_t kKPack   = GetSmemKPackOGradT<Problem>();
 
-        // Same XOR-swizzled physical layout as the matching write descriptor.
-        constexpr auto desc_native =
-            MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
-
-        // merge: NumK1Loops * [kQKHeaddim, kK1] -> [kQKHeaddim, kM0]
-        return transform_tensor_descriptor(
-            desc_native,
-            make_tuple(
-                make_pass_through_transform(number<kNPerBlock>{}),
-                make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+        return MakeQTOGradTLdsReadBlockDescriptor<Problem, kHeaddim, kKPack>();
     }
 
     // -------------------------------------------------------------------------

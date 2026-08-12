@@ -30,16 +30,16 @@ template <typename Problem_,
           typename Policy_ = HstuAttentionBwdKernel2PipelinePolicy>
 struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
 {
-    using Problem          = remove_cvref_t<Problem_>;
-    using Traits           = remove_cvref_t<Traits_>;
-    using Policy           = remove_cvref_t<Policy_>;
-    using QKVDataType      = remove_cvref_t<typename Problem::QKVDataType>;
-    using GemmAccDataType  = remove_cvref_t<typename Problem::GemmAccDataType>;
-    using CompDataType     = remove_cvref_t<typename Problem::CompDataType>;
-    using OGradDataType    = remove_cvref_t<typename Problem::OGradDataType>;
-    using KGradAccDataType = remove_cvref_t<typename Problem::KGradAccDataType>;
-    using VGradAccDataType = remove_cvref_t<typename Problem::VGradAccDataType>;
-    using PDataType        = remove_cvref_t<typename Problem::PDataType>;
+    using Problem         = remove_cvref_t<Problem_>;
+    using Traits          = remove_cvref_t<Traits_>;
+    using Policy          = remove_cvref_t<Policy_>;
+    using QKVDataType     = remove_cvref_t<typename Problem::QKVDataType>;
+    using GemmAccDataType = remove_cvref_t<typename Problem::GemmAccDataType>;
+    using CompDataType    = remove_cvref_t<typename Problem::CompDataType>;
+    using OGradDataType   = remove_cvref_t<typename Problem::OGradDataType>;
+    using KGradDataType   = remove_cvref_t<typename Problem::KGradDataType>;
+    using VGradDataType   = remove_cvref_t<typename Problem::VGradDataType>;
+    using PDataType       = remove_cvref_t<typename Problem::PDataType>;
 
     using HstuAttentionTileSetting = remove_cvref_t<typename Problem::HstuAttentionTileSetting>;
 
@@ -50,7 +50,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
     static constexpr index_t kN0        = HstuAttentionTileSetting::kN0;
     static constexpr index_t kK1        = HstuAttentionTileSetting::kK1;
     static constexpr index_t kQKHeaddim = HstuAttentionTileSetting::kQKHeaddim;
-    static constexpr index_t kVHeaddim  = kQKHeaddim; // V shares head dim with K in HSTU
+    static constexpr index_t kVHeaddim  = HstuAttentionTileSetting::kVHeaddim;
 
     static constexpr bool IsWarpGemm32 = HstuAttentionTileSetting::IsWarpGemm32;
 

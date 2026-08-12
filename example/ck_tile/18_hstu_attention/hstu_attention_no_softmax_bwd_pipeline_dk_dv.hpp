@@ -50,7 +50,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
     static constexpr index_t kN0        = HstuAttentionTileSetting::kN0;
     static constexpr index_t kK1        = HstuAttentionTileSetting::kK1;
     static constexpr index_t kQKHeaddim = HstuAttentionTileSetting::kQKHeaddim;
-    static constexpr index_t kVHeaddim  = kQKHeaddim; // V shares head dim with K in HSTU
+    static constexpr index_t kVHeaddim  = HstuAttentionTileSetting::kVHeaddim;
 
     static constexpr bool IsWarpGemm32 = HstuAttentionTileSetting::IsWarpGemm32;
 
