@@ -21,6 +21,10 @@
 #include "hstu_attention_with_softmax_bwd_pipeline_dq_delta.hpp"
 #include "hstu_attention_no_softmax_bwd_pipeline_dk_dv.hpp"
 #include "hstu_attention_with_softmax_bwd_pipeline_dk_dv.hpp"
+#include "hstu_attention_no_softmax_bwd_trload_pipeline_dq.hpp"
+#include "hstu_attention_with_softmax_bwd_trload_pipeline_dq_delta.hpp"
+#include "hstu_attention_no_softmax_bwd_trload_pipeline_dk_dv.hpp"
+#include "hstu_attention_with_softmax_bwd_trload_pipeline_dk_dv.hpp"
 #include "hstu_attention_bwd_kernel_1.hpp"
 #include "hstu_attention_bwd_kernel_2.hpp"
 #include "hstu_attention_epilogue.hpp"
@@ -41,6 +45,12 @@ struct jagged_backward_dispatch
         typename HstuAttentionBwdTileSettingForKernel1<MaxK>::Type;
     using HstuAttentionTileSettingForKernel2 =
         typename HstuAttentionBwdTileSettingForKernel2<MaxK>::Type;
+
+#ifdef BUILD_HSTU_FOR_GFX95
+    static constexpr bool use_trload_pipeline = true;
+#else
+    static constexpr bool use_trload_pipeline = false;
+#endif
 
     template <bool kIsCrossAttention>
     using HstuBwdBaseProblemTemp = ck_tile::HstuAttentionBwdPipelineBaseProblem<
@@ -102,30 +112,60 @@ struct jagged_backward_dispatch
                 using HstuPipelineProblemForKernel2 =
                     HstuBwdPipelineProblemForKernel2Temp<kIsCrossAttention>;
 
-                using HstuPipelineKernel1 =
-                    std::conditional_t<kUseSoftmax,
-                                       ck_tile::HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D<
-                                           HstuPipelineProblemForKernel1,
-                                           HstuTraits>,
-                                       ck_tile::HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ<
-                                           HstuPipelineProblemForKernel1,
-                                           HstuTraits>>;
+                if constexpr(!use_trload_pipeline)
+                {
+                    using HstuPipelineKernel1 =
+                        std::conditional_t<kUseSoftmax,
+                                           ck_tile::HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D<
+                                               HstuPipelineProblemForKernel1,
+                                               HstuTraits>,
+                                           ck_tile::HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ<
+                                               HstuPipelineProblemForKernel1,
+                                               HstuTraits>>;
 
-                using HstuPipelineKernel2 =
-                    std::conditional_t<kUseSoftmax,
-                                       ck_tile::HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV<
-                                           HstuPipelineProblemForKernel2,
-                                           HstuTraits>,
-                                       ck_tile::HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV<
-                                           HstuPipelineProblemForKernel2,
-                                           HstuTraits>>;
+                    using HstuPipelineKernel2 =
+                        std::conditional_t<kUseSoftmax,
+                                           ck_tile::HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV<
+                                               HstuPipelineProblemForKernel2,
+                                               HstuTraits>,
+                                           ck_tile::HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV<
+                                               HstuPipelineProblemForKernel2,
+                                               HstuTraits>>;
 
-                using HstuKernel1 =
-                    ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
-                using HstuKernel2 =
-                    ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+                    using HstuKernel1 =
+                        ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
+                    using HstuKernel2 =
+                        ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
 
-                RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
+                    RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
+                }
+                else
+                {
+                    using HstuPipelineKernel1 = std::conditional_t<
+                        kUseSoftmax,
+                        ck_tile::HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D<
+                            HstuPipelineProblemForKernel1,
+                            HstuTraits>,
+                        ck_tile::HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ<
+                            HstuPipelineProblemForKernel1,
+                            HstuTraits>>;
+
+                    using HstuPipelineKernel2 = std::conditional_t<
+                        kUseSoftmax,
+                        ck_tile::HstuAttentionWithSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV<
+                            HstuPipelineProblemForKernel2,
+                            HstuTraits>,
+                        ck_tile::HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV<
+                            HstuPipelineProblemForKernel2,
+                            HstuTraits>>;
+
+                    using HstuKernel1 =
+                        ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
+                    using HstuKernel2 =
+                        ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+
+                    RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
+                }
             });
         });
     }

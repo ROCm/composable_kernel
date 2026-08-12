@@ -13,6 +13,7 @@
 #include <ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp>
 
 #include "block_gemm_areg_bsmem_creg_v2_hack_1.hpp"
+#include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
 #include "block_gemm_asmem_breg_creg_v1_hack.hpp"
 
 #include "hstu_attention_kernel_util.hpp"
@@ -210,17 +211,17 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // LDS smem sizing helpers
     // -------------------------------------------------------------------------
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeQ()
     {
-        return MakeQLdsBlockDescriptor<Problem>().get_element_space_size() *
+        return MakeQLdsBlockDescriptor<Problem, kUseTrLoad>().get_element_space_size() *
                sizeof(typename Problem::QKVDataType);
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeOGrad()
     {
-        return GetSmemSizeQ<Problem>();
+        return GetSmemSizeQ<Problem, kUseTrLoad>();
     }
 
     template <typename Problem>
@@ -237,11 +238,18 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     }
 
     // Total smem: q_lds + do_lds, pt_lds, dst_lds) + qt_lds + dot_lds
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return GetSmemSizeQ<Problem>() + GetSmemSizeOGrad<Problem>() + GetSmemSizeQT<Problem>() +
-               GetSmemSizeOGradT<Problem>();
+        if constexpr(!kUseTrLoad)
+        {
+            return GetSmemSizeQ<Problem>() + GetSmemSizeOGrad<Problem>() +
+                   GetSmemSizeQT<Problem>() + GetSmemSizeOGradT<Problem>();
+        }
+        else
+        {
+            return GetSmemSizeQ<Problem, kUseTrLoad>() + GetSmemSizeOGrad<Problem, kUseTrLoad>();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -390,10 +398,11 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // -------------------------------------------------------------------------
 
     // q_lds write/read descriptor: NumBuffers * [kM0, kK0]
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
-        constexpr index_t NumBuffers = GetNumQOGradLdsBuffers<Problem>();
+        constexpr index_t NumBuffers =
+            kUseTrLoad ? GetNumK0Loops<Problem>() : GetNumQOGradLdsBuffers<Problem>();
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kM0;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK0;
         constexpr index_t kKPack     = GetSmemKPackQ<Problem>();
@@ -468,10 +477,10 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     }
 
     // do_lds write descriptor -- identical layout to q_lds
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradLdsBlockDescriptor()
     {
-        return MakeQLdsBlockDescriptor<Problem>();
+        return MakeQLdsBlockDescriptor<Problem, kUseTrLoad>();
     }
 
     // qt_lds write descriptor: NumReadBuffers * [kQKHeaddim, kK1],
@@ -928,7 +937,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     }
 
     // Gemm1: dV += P^T @ dO^T   [kN0, kVHeaddim] = [kN0, kK1] x [kVHeaddim, kK1]
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetPTOGradTBlockGemm()
     {
         using GemmProblem = BlockGemmProblem<
@@ -1004,7 +1013,14 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::HstuAttentionTileSetting::Gemm1BlockWarps,
             decltype(warp_gemm)>;
 
-        return BlockGemmARegBSmemCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        if constexpr(!kUseTrLoad)
+        {
+            return BlockGemmARegBSmemCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        }
+        else
+        {
+            return BlockGemmARegBSmemTrLoadCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -1019,7 +1035,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // Gemm3: dK += dS^T @ Q^T   [kN0, kQKHeaddim] = [kN0, kK1] x [kQKHeaddim, kK1]
     // Uses Gemm3BlockWarps/Gemm3WarpTile which may differ from Gemm1's configuration.
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetSGradTQTBlockGemm()
     {
         using GemmProblem = BlockGemmProblem<
@@ -1095,7 +1111,14 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::HstuAttentionTileSetting::Gemm3BlockWarps,
             decltype(warp_gemm)>;
 
-        return BlockGemmARegBSmemCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        if constexpr(!kUseTrLoad)
+        {
+            return BlockGemmARegBSmemCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        }
+        else
+        {
+            return BlockGemmARegBSmemTrLoadCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        }
     }
 };
 

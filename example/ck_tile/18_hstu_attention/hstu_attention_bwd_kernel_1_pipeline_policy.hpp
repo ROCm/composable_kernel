@@ -12,6 +12,7 @@
 
 #include "block_gemm_areg_bsmem_creg_v2_hack_0.hpp"
 #include "block_gemm_areg_bsmem_creg_v2_hack_1.hpp"
+#include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
 
 #include "hstu_attention_kernel_util.hpp"
 
@@ -306,10 +307,11 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     }
 
     // K LDS descriptor: NumKVLdsBuffers * [kN0Sub, kQKHeaddim]
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
-        constexpr index_t NumBuffers = GetNumKVLdsBuffers<Problem>();
+        constexpr index_t NumBuffers =
+            kUseTrLoad ? GetNumN0Loops<Problem>() : GetNumKVLdsBuffers<Problem>();
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKPack     = GetSmemKPackK<Problem>();
@@ -616,10 +618,10 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     // Shared memory sizing
     // K and V use separate LDS regions (Gemm0 and Gemm2 run in separate loops).
     // -------------------------------------------------------------------------
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeK()
     {
-        return MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
+        return MakeKLdsBlockDescriptor<Problem, kUseTrLoad>().get_element_space_size() *
                sizeof(typename Problem::QKVDataType);
     }
 
@@ -663,13 +665,21 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     };
 
     // Total smem: k_lds + v_lds + kt_lds
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        // K region + V region, laid out consecutively.
-        // The delta LDS shuffle reuses the K region (delta is consumed before the main loop).
-        return GetSmemSizeK<Problem>() + GetSmemSizeV<Problem>() + GetSmemSizeKT<Problem>() +
-               GetSmemSizeDropout<Problem>();
+        if constexpr(!kUseTrLoad)
+        {
+            // K region + V region, laid out consecutively.
+            // The delta LDS shuffle reuses the K region (delta is consumed before the main loop).
+            return GetSmemSizeK<Problem>() + GetSmemSizeV<Problem>() + GetSmemSizeKT<Problem>() +
+                   GetSmemSizeDropout<Problem>();
+        }
+        else
+        {
+            return GetSmemSizeK<Problem, kUseTrLoad>() + GetSmemSizeV<Problem>() +
+                   GetSmemSizeDropout<Problem>();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -876,7 +886,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
 
     // Gemm4: dQ += alpha * dS @ K^T   [kM0, kQKHeaddim] = [kM0, kN0Sub] x [kQKHeaddim, kN0Sub]
     // A = dS cast to QKVDataType, B = K^T (QKVDataType LDS), C = dQ accumulator
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetSGradKTBlockGemm()
     {
         using GemmProblem = BlockGemmProblem<
@@ -949,7 +959,14 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             typename Problem::HstuAttentionTileSetting::Gemm4BlockWarps,
             decltype(warp_gemm)>;
 
-        return BlockGemmARegBSmemCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        if constexpr(!kUseTrLoad)
+        {
+            return BlockGemmARegBSmemCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        }
+        else
+        {
+            return BlockGemmARegBSmemTrLoadCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+        }
     }
 };
 
