@@ -70,10 +70,16 @@ class CKGroupedConvFwdOp:
     num_groups_to_merge: Optional[int] = None
     large_tensor: Optional[bool] = None
 
+    # Trailing and defaulted so every existing positional construction stays valid.
+    # This is metadata about which device op rendered the instance, NOT a template
+    # argument -- see dict_items.
+    is_wmma: bool = False
+
     def name(self):
         # cpp alias for template instance
+        variant = "wmma" if self.is_wmma else "xdl"
         return (
-            f"ck_device_grouped_convolution_fwd_multiple_abd_xdl_c_shuffle_v3_"
+            f"ck_device_grouped_convolution_fwd_multiple_abd_{variant}_c_shuffle_v3_"
             f"{self.key_name()}"
         )
 
@@ -94,4 +100,7 @@ class CKGroupedConvFwdOp:
         )
 
     def dict_items(self):
-        return asdict(self).items()
+        # The PyTorch emitter renders every entry here as a C++ template argument,
+        # so `is_wmma` must not appear: it is a Python-side tag, not a parameter of
+        # either device op.
+        return [(k, v) for k, v in asdict(self).items() if k != "is_wmma"]

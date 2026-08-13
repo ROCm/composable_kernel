@@ -41,8 +41,10 @@ ck4inductor = "python/ck4inductor"
 "ck4inductor.library" = "library"
 
 [tool.setuptools.package-data]
-"ck4inductor.include" = ["ck/**/*.hpp"]
-"ck4inductor.library" = ["src/tensor_operation_instance/gpu/gemm_universal/**/*.hpp", "src/tensor_operation_instance/gpu/gemm_universal_batched/**/*.hpp", "include/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/**/*.hpp"]
+"ck4inductor.include" = ["ck/**/*.hpp", "ck_tile/**/*.hpp", "ck_tile/**/*.inc"]
+# The batched WMMA instances are .cpp: unlike gemm_universal, the batched_gemm folder
+# keeps its template-argument tuples only in the instance sources, with no .hpp aggregator.
+"ck4inductor.library" = ["src/tensor_operation_instance/gpu/gemm_universal/**/*.hpp", "src/tensor_operation_instance/gpu/gemm_universal_batched/**/*.hpp", "src/tensor_operation_instance/gpu/batched_gemm/**/*wmma_universal*.cpp", "include/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/**/*.hpp"]
 
 [tool.setuptools.dynamic]
 version = { attr = "ck4inductor.__version__" }

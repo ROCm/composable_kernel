@@ -75,9 +75,15 @@ class CKBatchedGemmOperation:
     a_compute_dtype: Optional[str] = None
     b_compute_dtype: Optional[str] = None
 
+    # gfx1250 WMMA marker. Not a template parameter: excluded from dict_items() so
+    # it never leaks into the rendered C++ arg list; used only to disambiguate the
+    # emitted alias name from the XDL variant.
+    is_wmma: bool = False
+
     def name(self):
         # cpp alias for template instance
-        return f"ck_device_batched_gemm_multi_d_xdl_c_shuffle_v3_{self.key_name()}"
+        variant = "wmma" if self.is_wmma else "xdl"
+        return f"ck_device_batched_gemm_multi_d_{variant}_c_shuffle_v3_{self.key_name()}"
 
     def key_name(self):
         # TBD; must be unique per instance. Intended to use as dict key
@@ -96,4 +102,7 @@ class CKBatchedGemmOperation:
         )
 
     def dict_items(self):
-        return asdict(self).items()
+        # Exclude is_wmma: it is an internal marker, not a CK template parameter.
+        # The PyTorch emitter iterates dict_items() to serialize template args, so
+        # leaking is_wmma here would inject a stray `/* is_wmma */ True` argument.
+        return [(k, v) for k, v in asdict(self).items() if k != "is_wmma"]
