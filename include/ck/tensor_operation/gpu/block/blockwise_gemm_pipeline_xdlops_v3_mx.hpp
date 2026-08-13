@@ -526,6 +526,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             {
                 auto LoopFunc = [&](auto scale_comp_buf, auto scale_mem_buf) {
 #if defined(__gfx125__)
+                    // Drain this wave's own ds_reads before the barrier. The copies below
+                    // overwrite the buffer being read, and block_sync_lds_async_load() only
+                    // waits on ASYNCcnt, so without this the read drain can be sunk past
+                    // the barrier and the buffer is overwritten while still being read.
+                    llvm_amdgcn_s_wait_dscnt(0);
                     block_sync_lds_async_load();
 #else
                     // wait for EXP_CNT, LDS, GDS, Constant and Message
