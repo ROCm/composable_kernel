@@ -672,12 +672,16 @@ class TestCkTileMxGroupedGemm : public ::testing::Test
 
             // Pre-shuffle for gfx1250 (WaveSize=32, WMMA)
             preShuffleScaleBuffer_gfx1250<AScaleDataType, ScaleBlockSize, true>(
-                scale_a.mData.data(), scale_a_shuffled.mData.data(), scale_padded_M, num_scale_k);
+                scale_a.mData.data(),
+                scale_a_shuffled.mData.data(),
+                scale_padded_M,
+                num_scale_k,
+                M_Warp_Tile);
 
             // For B scale: B is ColMajor, so scale_b is organized as (N, K/ScaleBlockSize)
             // where N is the fast-changing dimension for col-major B
             preShuffleScaleBuffer_gfx1250<BScaleDataType, ScaleBlockSize, true>(
-                scale_b.mData.data(), scale_b_shuffled.mData.data(), N, num_scale_k);
+                scale_b.mData.data(), scale_b_shuffled.mData.data(), N, num_scale_k, N_Warp_Tile);
 #elif defined(CK_USE_GFX950)
             constexpr ck_tile::index_t MPerXdl      = M_Warp_Tile;
             constexpr ck_tile::index_t NPerXdl      = N_Warp_Tile;

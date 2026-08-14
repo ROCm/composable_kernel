@@ -239,34 +239,17 @@ struct MxGemmKernel
         // For split-K (k_batch > 1) advance the scale origin into this k_id's packed-K slice.
         const index_t k_scale_offset = k_elem_offset / BlockScaleSize / KXdlPackEff;
 
-        // Scale16: descriptor order [packs_m, MThreadPerXdl, packs_k] -- K contiguous per M-row,
-        //          no pre-shuffle needed (natural row-major layout matches).
-        // Scale32: descriptor order [packs_m, packs_k, MThreadPerXdl] -- original layout,
-        //          requires pre-shuffle to match.
-        const auto scale_a_naive_desc = [&]() {
-            if constexpr(BlockScaleSize == 16)
-                return make_naive_tensor_descriptor_packed(
-                    make_tuple(scale_packs_m, MThreadPerXdl, scale_packs_k));
-            else
-                return make_naive_tensor_descriptor_packed(
-                    make_tuple(scale_packs_m, scale_packs_k, MThreadPerXdl));
-        }();
-        const auto scale_a_desc = [&]() {
-            if constexpr(BlockScaleSize == 16)
-                return transform_tensor_descriptor(
-                    scale_a_naive_desc,
-                    make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
-                               make_pass_through_transform(scale_packs_k)),
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
-            else
-                return transform_tensor_descriptor(
-                    scale_a_naive_desc,
-                    make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
-                               make_pass_through_transform(scale_packs_k)),
-                    make_tuple(sequence<0, 2>{}, sequence<1>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
-        }();
+        // Unified coalesced scale layout for all block sizes: descriptor order
+        // [packs_m, packs_k, MThreadPerXdl] (M-thread fastest) so consecutive lanes read
+        // consecutive addresses. The host pre-shuffle writes scales in this order.
+        const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(scale_packs_m, scale_packs_k, MThreadPerXdl));
+        const auto scale_a_desc = transform_tensor_descriptor(
+            scale_a_naive_desc,
+            make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
+                       make_pass_through_transform(scale_packs_k)),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
         const auto& scale_a_tensor_view = generate_tuple(
             [&](auto i) {
                 return make_tensor_view<address_space_enum::global>(as_scale_ptr[i], scale_a_desc);
@@ -313,30 +296,14 @@ struct MxGemmKernel
         // For split-K (k_batch > 1) advance the scale origin into this k_id's packed-K slice.
         const index_t k_scale_offset = k_elem_offset / BlockScaleSize / KXdlPackEff;
 
-        const auto scale_b_naive_desc = [&]() {
-            if constexpr(BlockScaleSize == 16)
-                return make_naive_tensor_descriptor_packed(
-                    make_tuple(scale_packs_n, NThreadPerXdl, scale_packs_k));
-            else
-                return make_naive_tensor_descriptor_packed(
-                    make_tuple(scale_packs_n, scale_packs_k, NThreadPerXdl));
-        }();
-        const auto scale_b_desc = [&]() {
-            if constexpr(BlockScaleSize == 16)
-                return transform_tensor_descriptor(
-                    scale_b_naive_desc,
-                    make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
-                               make_pass_through_transform(scale_packs_k)),
-                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
-            else
-                return transform_tensor_descriptor(
-                    scale_b_naive_desc,
-                    make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
-                               make_pass_through_transform(scale_packs_k)),
-                    make_tuple(sequence<0, 2>{}, sequence<1>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
-        }();
+        const auto scale_b_naive_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(scale_packs_n, scale_packs_k, NThreadPerXdl));
+        const auto scale_b_desc = transform_tensor_descriptor(
+            scale_b_naive_desc,
+            make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
+                       make_pass_through_transform(scale_packs_k)),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
         const auto& scale_b_tensor_view = generate_tuple(
             [&](auto i) {
                 return make_tensor_view<address_space_enum::global>(bs_scale_ptr[i], scale_b_desc);
