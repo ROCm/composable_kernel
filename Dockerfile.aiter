@@ -1,4 +1,7 @@
-ARG BASE_DOCKER="rocm/pytorch:latest"
+# Pinned per AITER CI guidance: rocm/pytorch:latest is a floating tag whose
+# rebuilds have broken this image (e.g. a rocprofiler-sdk that aborts on
+# HIP_VISIBLE_DEVICES=-1). Bump deliberately, not implicitly.
+ARG BASE_DOCKER="rocm/pytorch:rocm7.2.4_ubuntu24.04_py3.12_pytorch_release_2.10.0"
 FROM $BASE_DOCKER
 ARG AITER_BRANCH="main"
 ARG CK_AITER_BRANCH="develop"
