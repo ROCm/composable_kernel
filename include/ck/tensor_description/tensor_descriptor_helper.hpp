@@ -17,6 +17,25 @@ namespace ck {
  * functions on GPU without worrying about scratch memory usage.
  */
 
+// Widen a *runtime* index operand to long_index_t before the
+// element-space multiply so the product cannot overflow index_t (int32) for
+// large tensors (e.g. K*C > INT32_MAX in grouped conv bwd-weight). Compile-time
+// operands (Number/LongNumber) are returned unchanged, so fully-static tensor
+// descriptors keep a compile-time-constant element space size and
+// TensorDescriptor::IsKnownAtCompileTime() stays true.
+template <typename T>
+__host__ __device__ constexpr auto widen_runtime_index_to_long(T v)
+{
+    if constexpr(is_number_v<T> || is_long_number_v<T>)
+    {
+        return v;
+    }
+    else
+    {
+        return static_cast<long_index_t>(v);
+    }
+}
+
 #if CK_WORKAROUND_SWDEV_275126
 template <typename Lengths, typename Strides, index_t I, typename AccOld>
 __host__ __device__ constexpr auto calculate_element_space_size_impl(const Lengths& lengths,
@@ -24,7 +43,10 @@ __host__ __device__ constexpr auto calculate_element_space_size_impl(const Lengt
                                                                      Number<I> i,
                                                                      AccOld acc_old)
 {
-    auto acc_new = acc_old + (lengths[i] - Number<1>{}) * strides[i];
+    // Widen the runtime operands before the multiply to avoid int32
+    // overflow, while leaving compile-time (Number<>) operands untouched.
+    auto acc_new = acc_old + widen_runtime_index_to_long(lengths[i] - Number<1>{}) *
+                                 widen_runtime_index_to_long(strides[i]);
 
     if constexpr(i.value < Lengths::Size() - 1)
     {
@@ -64,7 +86,10 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
     // rocm-4.1 compiler would crash for recursive labmda
     // recursive function for reduction
     auto f = [&](auto fs, auto i, auto acc_old) {
-        auto acc_new = acc_old + (lengths[i] - Number<1>{}) * strides[i];
+        // Widen the runtime operands before the multiply to avoid
+        // int32 overflow, while leaving compile-time (Number<>) operands untouched.
+        auto acc_new = acc_old + widen_runtime_index_to_long(lengths[i] - Number<1>{}) *
+                                     widen_runtime_index_to_long(strides[i]);
 
         if constexpr(i.value < N - 1)
         {
