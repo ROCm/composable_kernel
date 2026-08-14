@@ -538,46 +538,38 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
             const bool need_mask =
                 !mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{});
 
-            // Apply HSTU mask: set masked-out S to 0 (SiLU path)
-            if(need_mask)
-            {
-                constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
-                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            pcomp_tile.get_tile_distribution(),
-                            make_tuple(idx0, idx1),
-                            partition_index);
-                        const auto row    = seqlen_q_curr + tile_idx.at(number<0>{});
-                        const auto col    = i_n0 + tile_idx.at(number<1>{});
-                        constexpr auto ij = make_tuple(idx0, idx1);
-                        if(!mask.IsTokenPairInsideMask(row, col))
-                            pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
-                    });
-                });
-            }
-
             if constexpr(kHasDropout)
             {
-                // Build a per-element keep/drop mask WITHOUT disturbing S. Feeding a +1 sentinel
-                // tile to BlockDropoutBwd::Run yields +1 (kept) / -1 (dropped). This sign is
-                // unambiguous even though HSTU's S (and silu(S)) can be negative, so the drop
-                // decision cannot be encoded by negating S directly. The mask is applied below as
-                // drop_scale = rp_undrop (kept) / 0 (dropped) to BOTH P (-> dV) and dP (-> dK),
-                // matching reference_hstu_attention_bwd.hpp. int8_t sentinel (1 byte/elem) keeps
-                // drop_mask cheap in VGPRs; Run only flips its sign (+1 kept / -1 dropped), so 8
-                // bits are enough.
-                auto drop_mask =
+                auto combined_mask =
                     make_static_distributed_tensor<int8_t>(pcomp_tile.get_tile_distribution());
 
-                tile_elementwise_inout([](auto& x) { x = type_convert<int8_t>(1); }, drop_mask);
+                tile_elementwise_inout([](auto& x) { x = type_convert<int8_t>(1); }, combined_mask);
 
                 // BlockDropoutBwd::Run is M-major and needs no LDS scratch (no transpose).
                 // Signature: Run<BlockGemm, RandValOutputDataType>(start_m0_idx, start_n0_idx,
                 //                                                   p_compute,
                 //                                                   randval_dram_window).
                 dropout.template Run<Gemm0, uint8_t>(
-                    seqlen_q_curr, i_n0, drop_mask, null_randval_window);
+                    seqlen_q_curr, i_n0, combined_mask, null_randval_window);
+
+                constexpr auto spans = PcompBlockTileType::get_distributed_spans();
+
+                if(need_mask)
+                {
+                    sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                            const auto tile_idx = get_x_indices_from_distributed_indices(
+                                pcomp_tile.get_tile_distribution(),
+                                make_tuple(idx0, idx1),
+                                partition_index);
+                            const auto row    = seqlen_q_curr + tile_idx.at(number<0>{});
+                            const auto col    = i_n0 + tile_idx.at(number<1>{});
+                            constexpr auto ij = make_tuple(idx0, idx1);
+                            if(!mask.IsTokenPairInsideMask(row, col))
+                                combined_mask(ij) = type_convert<int8_t>(-1);
+                        });
+                    });
+                }
 
                 // ---- Compute P = silu(S) * scale_p and dS = dP * scale_p * dsilu(S) ----
                 // Corrections applied here:
@@ -588,8 +580,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 //    must contribute nothing; force BOTH P (-> dV) and dS (-> dK) to 0. Their S was
                 //    not zeroed above (IsTokenPairInsideMask can clamp and accept padded rows), so
                 //    P would otherwise be silu(garbage) != 0.
-                constexpr auto spans = PcompBlockTileType::get_distributed_spans();
-
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                         constexpr auto ij     = make_tuple(idx0, idx1);
@@ -600,7 +590,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                         // Dropout propagates through the chain rule: kept -> *rp_undrop on
                         // BOTH P (-> dV) and dS (-> dK); dropped -> 0. drop_mask > 0 means
                         // kept.
-                        if(drop_mask[ij] > 0)
+                        if(combined_mask[ij] > 0)
                         {
                             p  = p * dropout.rp_undrop;
                             ds = ds * dropout.rp_undrop;
@@ -616,26 +606,33 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                         dscomp_tile(ij) = ds;
                     });
                 });
+            }
+            else
+            {
+                auto hstu_mask =
+                    make_static_distributed_tensor<int8_t>(pcomp_tile.get_tile_distribution());
+
+                tile_elementwise_inout([](auto& x) { x = type_convert<int8_t>(1); }, hstu_mask);
+
+                constexpr auto spans = PcompBlockTileType::get_distributed_spans();
 
                 if(need_mask)
                 {
                     sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                         sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                            constexpr auto ij   = make_tuple(idx0, idx1);
                             const auto tile_idx = get_x_indices_from_distributed_indices(
-                                dscomp_tile.get_tile_distribution(),
+                                pcomp_tile.get_tile_distribution(),
                                 make_tuple(idx0, idx1),
                                 partition_index);
-                            const auto row = seqlen_q_curr + tile_idx.at(number<0>{});
-                            const auto col = i_n0 + tile_idx.at(number<1>{});
+                            const auto row    = seqlen_q_curr + tile_idx.at(number<0>{});
+                            const auto col    = i_n0 + tile_idx.at(number<1>{});
+                            constexpr auto ij = make_tuple(idx0, idx1);
                             if(!mask.IsTokenPairInsideMask(row, col))
-                                dscomp_tile(ij) = type_convert<CompDataType>(0.0f);
+                                hstu_mask(ij) = type_convert<int8_t>(0);
                         });
                     });
                 }
-            }
-            else
-            {
+
                 // ---- Compute P = silu(S) * scale_p and dS = dP * scale_p * dsilu(S) ----
                 // Corrections applied here:
                 //  - masked-out pairs: P is already 0 (silu(0) = 0), but dsilu(0) = 0.5 != 0, so dS
@@ -645,8 +642,6 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 //    must contribute nothing; force BOTH P (-> dV) and dS (-> dK) to 0. Their S was
                 //    not zeroed above (IsTokenPairInsideMask can clamp and accept padded rows), so
                 //    P would otherwise be silu(garbage) != 0.
-                constexpr auto spans = PcompBlockTileType::get_distributed_spans();
-
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                         constexpr auto ij     = make_tuple(idx0, idx1);
@@ -655,29 +650,10 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                         CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
                         CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
 
-                        // P stored back into pcomp_tile for dV (Gemm1)
-                        pcomp_tile(ij) = p;
-                        // dS stored into dscomp_tile for dK (Gemm3)
-                        dscomp_tile(ij) = ds;
+                        pcomp_tile(ij)  = p * type_convert<CompDataType>(hstu_mask(ij));
+                        dscomp_tile(ij) = ds * type_convert<CompDataType>(hstu_mask(ij));
                     });
                 });
-
-                if(need_mask)
-                {
-                    sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                            constexpr auto ij   = make_tuple(idx0, idx1);
-                            const auto tile_idx = get_x_indices_from_distributed_indices(
-                                dscomp_tile.get_tile_distribution(),
-                                make_tuple(idx0, idx1),
-                                partition_index);
-                            const auto row = seqlen_q_curr + tile_idx.at(number<0>{});
-                            const auto col = i_n0 + tile_idx.at(number<1>{});
-                            if(!mask.IsTokenPairInsideMask(row, col))
-                                dscomp_tile(ij) = type_convert<CompDataType>(0.0f);
-                        });
-                    });
-                }
             }
 
             auto p_gemm_tile = cast_tile<QKVDataType>(pcomp_tile);
