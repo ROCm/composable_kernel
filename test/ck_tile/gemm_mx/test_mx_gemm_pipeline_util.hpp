@@ -613,14 +613,22 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
             {static_cast<std::size_t>(scale_padded_N), static_cast<std::size_t>(num_scale_k)},
             {static_cast<std::size_t>(num_scale_k), static_cast<std::size_t>(1)});
 
-        // Pre-shuffle for gfx1250 (WaveSize=32, WMMA)
-        // Scales start in natural tensor layout and are pre-shuffled into the device layout
-        // for both scale block sizes (the shuffle is the identity for ScaleBlockSize==16,
-        // whose natural layout already matches the warp scale distribution).
+        // Pre-shuffle for gfx1250 (WaveSize=32, WMMA). Scales start in natural tensor layout and
+        // are pre-shuffled into the device (M/N-fastest) layout so the per-K-iteration device
+        // scale load is coalesced. scale16 and scale32 use the same layout (parameterized by the
+        // WMMA WarpTile M/N passed to preShuffleScaleBuffer_gfx1250).
         ck_tile::preShuffleScaleBuffer_gfx1250<AScaleDataType, ScaleBlockSize, true>(
-            scale_a.mData.data(), scale_a_shuffled.mData.data(), scale_padded_M, num_scale_k);
+            scale_a.mData.data(),
+            scale_a_shuffled.mData.data(),
+            scale_padded_M,
+            num_scale_k,
+            M_Warp_Tile);
         ck_tile::preShuffleScaleBuffer_gfx1250<BScaleDataType, ScaleBlockSize, true>(
-            scale_b.mData.data(), scale_b_shuffled.mData.data(), scale_padded_N, num_scale_k);
+            scale_b.mData.data(),
+            scale_b_shuffled.mData.data(),
+            scale_padded_N,
+            num_scale_k,
+            N_Warp_Tile);
 #elif defined(CK_USE_GFX950)
         constexpr ck_tile::index_t MPerXdl      = M_Warp_Tile;
         constexpr ck_tile::index_t NPerXdl      = N_Warp_Tile;
