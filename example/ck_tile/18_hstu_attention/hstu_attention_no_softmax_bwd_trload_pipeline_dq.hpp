@@ -290,18 +290,18 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
 
         do
         {
+            // Ensure the trloading of k in previous itertation completely done
+            block_sync_lds();
+
             // === STAGE 1: Gemm0 (S = Q@K) ===
+            // === STAGE 2: Gemm2 (dP = dO@V) ===
             static_for<0, n0_loops, 1>{}([&](auto i_n0) {
                 constexpr auto i_current_buf  = number<i_n0 % NumKVPrefetches>{};
                 constexpr auto i_prefetch_buf = number<(i_n0 + 1) % NumKVPrefetches>{};
-
-                // Ensure the trloading of k in previous itertation completely done
-                if constexpr(i_n0 == 0)
-                {
-                    block_sync_lds();
-                }
+                constexpr auto i_lds_buf_0    = number<i_n0 % NumVLdsBuffers>{};
 
                 store_tile(k_lds_windows[i_n0], k_tiles[i_current_buf], partition_index);
+                store_tile(v_lds_windows[i_lds_buf_0], v_tiles[i_current_buf], partition_index);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -310,6 +310,13 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
                 {
                     k_tiles[i_prefetch_buf] = load_tile(k_dram_window);
                     move_tile_window(k_dram_window, {kN0Sub, 0});
+                }
+
+                // Prefetch next V tile while current stores are in flight
+                if constexpr(i_n0 + 1 < n0_loops)
+                {
+                    v_tiles[i_prefetch_buf] = load_tile(v_dram_window);
+                    move_tile_window(v_dram_window, {kN0Sub, 0});
                 }
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
@@ -326,29 +333,6 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
                                s_tmp,
                                sequence<0, i_n0 * kN0Sub>{},
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
-            });
-
-            // === STAGE 2: Gemm2 (dP = dO@V) ===
-            static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                constexpr auto i_current_buf  = number<i_n0 % NumKVPrefetches>{};
-                constexpr auto i_prefetch_buf = number<(i_n0 + 1) % NumKVPrefetches>{};
-                constexpr auto i_lds_buf_0    = number<i_n0 % NumVLdsBuffers>{};
-
-                store_tile(v_lds_windows[i_lds_buf_0], v_tiles[i_current_buf], partition_index);
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
-
-                // Prefetch next V tile while current stores are in flight
-                if constexpr(i_n0 + 1 < n0_loops)
-                {
-                    v_tiles[i_prefetch_buf] = load_tile(v_dram_window);
-                    move_tile_window(v_dram_window, {kN0Sub, 0});
-                }
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
-
-                // Ensure all LDS stores are visible before Gemm2 reads
-                block_sync_lds();
 
                 // Gemm2: dpacc_tile = dO @ V_sub
                 gemm_2(dpacc_tile, do_tile, v_lds_windows[i_lds_buf_0]);
