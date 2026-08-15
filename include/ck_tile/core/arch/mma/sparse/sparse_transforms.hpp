@@ -56,7 +56,7 @@ struct SparseIdxPack
  *         If fewer than CompressedSize non-zeros are found, remaining fields
  *         default to 2 (see below).
  */
-// Stage-17c fix (local, not upstreamed): packed-sub-byte awareness.
+// Packed-sub-byte awareness (bugs 2 & 3).
 //
 // CompressedSize here is measured in PHYSICAL storage elements of ADataType
 // (e.g. whole pk_int4_t BYTES, each holding 2 packed 4-bit values). The
@@ -73,7 +73,7 @@ struct SparseIdxPack
 // nonzero per group of 4" assumption and writing out of bounds into
 // nonzero_elems[2]/[3] (undefined behavior -- observed as register aliasing
 // that silently corrupted the first two survivors on real hardware).
-// Stage-17c fix (local, not upstreamed): LogicalADataType defaults to
+// LogicalADataType defaults to
 // ADataType (preserves old behavior for every existing/non-packed caller),
 // but callers that know the TRUE logical element type of a packed vector
 // (e.g. pk_int4_t, whose physical ext_vector storage is represented as plain
@@ -121,7 +121,7 @@ static CK_TILE_DEVICE auto compress_a_impl(AVec& a_vec)
     {
         // Original scalar path, byte-granular groups of 4 -- unchanged.
         static_for<0, CompressedSize / 2, 1>{}([&](auto i) {
-            // Stage-17b fix (local, not upstreamed): a group with fewer than
+            // Fix (bug 1): a group with fewer than
             // 2 real non-zeros leaves one (or both) output slots unassigned
             // by the scan below; its idx stays at the default 2 (see
             // comment above). For that default idx to be safe REGARDLESS of
@@ -165,6 +165,15 @@ static CK_TILE_DEVICE auto compress_a_impl(AVec& a_vec)
     {
         static_assert(PackedSize == 2 && std::is_same_v<LogicalADataType, pk_int4_t>,
                       "compress_a_impl packed path only implements pk_int4_t (2x4-bit) currently");
+        // ARCH SCOPE: the packed path below (and in particular the SWAP +
+        // XOR-1 idx mapping) is EMPIRICALLY MEASURED ON gfx1201 (RDNA4
+        // v_swmmac_*_iu4). No gfx9/CDNA pk_int4 SPARSE op exists in the tree
+        // today, so this path is gfx12-only in practice -- but the transforms
+        // selector is not architecture-gated, so if a CDNA pk_int4 sparse op
+        // is ever added, the mapping MUST be re-measured on that hardware
+        // before this path is trusted there. (The scalar PackedSize==1 branch
+        // above is architecture-generic: its fix corrects a plain
+        // out-of-spec default and changes behavior identically everywhere.)
         // Packed-nibble path (pk_int4_t): each iteration consumes 2
         // PHYSICAL input bytes (= 4 LOGICAL nibbles, one real 2:4 group) and
         // produces 1 PHYSICAL output byte (the <=2 survivor nibbles,
@@ -184,7 +193,7 @@ static CK_TILE_DEVICE auto compress_a_impl(AVec& a_vec)
         // path's `a_vec[i*2]=...` pattern compiles) -- sidestep entirely by
         // reinterpreting a_vec as a flat uint8_t* for both the packed reads
         // and the packed write below (same technique already validated in
-        // this Stage-17c audit's own probe fill code).
+        // a standalone probe's fill code).
         uint8_t * a_bytes = reinterpret_cast<uint8_t *>(&a_vec);
         static_for<0, CompressedSize, 1>{}([&](auto i) {
             const uint8_t byte0 = a_bytes[2 * static_cast<uint32_t>(i) + 0];
@@ -199,10 +208,10 @@ static CK_TILE_DEVICE auto compress_a_impl(AVec& a_vec)
                 get_nibble(byte0, true), get_nibble(byte0, false),
                 get_nibble(byte1, true), get_nibble(byte1, false)};
 
-            // Same true-zero-default fix as the scalar path (Stage-17b),
+            // Same true-zero-default fix as the scalar path (bug 1),
             // applied at nibble granularity.
             //
-            // Stage-17c CLOSURE fix: the swmmac IU4 hardware reads the two
+            // Empirical metadata mapping (bug 3): the swmmac IU4 hardware reads the two
             // idx fields of a group SWAPPED relative to which compressed
             // value they govern, AND applies a "XOR 1" transform to the
             // field's raw 2-bit value to get the real reconstructed

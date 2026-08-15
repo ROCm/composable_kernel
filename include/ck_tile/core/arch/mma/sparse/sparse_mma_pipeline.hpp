@@ -224,7 +224,7 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
     static constexpr index_t InternalAVecSize       = vector_traits<FragAVecT>::vector_size;
     static constexpr index_t ExternalAVecSize       = InternalAVecSize * MmaOp::kCompressionRatio;
     static constexpr index_t TotalUncompressedElems = FragsM * FragsK * ExternalAVecSize;
-    // Stage-17c fix (local, not upstreamed): the sparsity idx metadata is one
+    // Fix (bug 2): the sparsity idx metadata is one
     // 2-bit field per LOGICAL compressed element, not per physical storage
     // element -- these differ for packed sub-byte A types (pk_int4_t,
     // APackedSize=2). Confirmed against the RDNA4 ISA (Sec 7.12.3 Structured

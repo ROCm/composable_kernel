@@ -1,22 +1,31 @@
-// Stage-1 (2:4-sparse CK library-grade GEMM feasibility, 2026-07-20):
-// warp-tile correctness proof for CK's ck_tile::SparseMmaPipeline
-// (int8_t x int8_t -> int32_t, 16x16x32 WMMA SWMMAC, gfx1201), extending
-// Stage-8's "raw atom executes" finding to "a validated PIPELINE produces
-// correct 2:4-sparse GEMM results, checked against a CPU reference".
+// Warp-tile correctness repro for ck_tile::SparseMmaPipeline
+// (int8_t x int8_t -> int32_t, 16x16x{32,64,128} WMMA SWMMAC, gfx1201):
+// checks that a full pipeline (on-the-fly SparseCompressTransform inside
+// Pipeline::exec()) produces exact 2:4-sparse GEMM results against a CPU
+// reference.
 //
 // This is a non-gtest standalone port of CK's OWN test methodology
 // (test/ck_tile/core/arch/mma/pipeline/test_amdgcn_sparse_mma.cpp +
 // pipeline_tests_helper.hpp), NOT independently re-derived -- reusing
 // AMD's validated register-mapping logic (TileDistrEncRegMap) is much
-// lower-risk than hand-deriving the per-lane sparse layout from scratch,
-// and is exactly the "library value" this Stage-1 gate is asking about:
-// does CK's own machinery work correctly for the SPARSE MmaOpFamily on
-// gfx1201, not just compile.
+// lower-risk than hand-deriving the per-lane sparse layout from scratch.
 //
 // Data flow tested: dense A (int8, with 2:4 structured zeros already
 // applied per-4-group -- CK's own convention: A is provided UNCOMPRESSED,
 // SparseCompressTransform runs ON THE FLY inside Pipeline::exec()) x dense
 // B -> int32 C, ONE warp, ONE 16x16x{32,64,128} tile.
+//
+// INPUT PATTERNS. The DEFAULT build uses an adversarial generated tile:
+// deterministic 2:4 input covering every survivor-position case per
+// 4-group -- all six two-survivor pairs {0,1},{0,2},{0,3},{1,2},{1,3},
+// {2,3}, all four single-survivor positions, and the all-zero group. This
+// is the configuration that FAILS before the compress_a_impl default fix
+// and PASSES after it. Survivors at positions 1 and 3 are essential: the
+// legacy canonical pattern (zeros at slots 1,3, survivors only at 0,2)
+// cannot detect the bug, because the old {a[2], a[3]} default always read
+// a guaranteed zero under it. That canonical pattern is retained as an
+// opt-in control via -DUSE_CANONICAL_PATTERN (expected to pass on both
+// fixed and unfixed trees).
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/mma.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse_mma_pipeline.hpp"
@@ -31,8 +40,6 @@
 
 #include <hip/hip_runtime.h>
 
-#include "real_a_tile.h"  // REAL_A_16x128: Quark int8 2:4 weight tile (arbitrary-position zeros)
-
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -45,10 +52,9 @@ using namespace ck_tile;
 using namespace ck_tile::core::arch;
 using namespace ck_tile::core::arch::mma;
 
-// CRITICAL fix (found the hard way, matches this fork's own already-known
-// __GFX12__/RDNA4 macro-visibility lesson): SparseMmaPipeline's DEFAULT
-// CompilerTarget template param (getCMakeCompilerTarget()) resolves via
-// the __gfx1201__ preprocessor macro, which clang's HIP frontend only
+// CRITICAL usage requirement (found the hard way): SparseMmaPipeline's
+// DEFAULT CompilerTarget template param (getCMakeCompilerTarget()) resolves
+// via the __gfx1201__ preprocessor macro, which clang's HIP frontend only
 // predefines during the DEVICE compilation pass of a TU -- NEVER during
 // the HOST pass. Any HOST-side code (like this file's run_test(), which
 // computes sizeof(AWarpTensor) etc. to size/fill host buffers before
@@ -62,9 +68,8 @@ using namespace ck_tile::core::arch::mma;
 // this exact bug crashed the first version of this probe with a glibc
 // malloc assertion failure). FIX: specify CompilerTarget EXPLICITLY
 // (a pure compile-time type, not macro-dependent) everywhere -- exactly
-// what CK's OWN test file does (CompilerTargetGfx950 = decltype(...)),
-// which I initially skipped by relying on the convenience default. Not a
-// CK bug -- a usage requirement whenever a Pipeline type crosses the
+// what CK's OWN test file does (CompilerTargetGfx950 = decltype(...)).
+// Not a CK bug -- a usage requirement whenever a Pipeline type crosses the
 // host/device boundary in one TU.
 using Gfx1201Target = decltype(make_amdgcn_gfx12_target<amdgcn_target_id::GFX1201>());
 
@@ -82,8 +87,12 @@ static void reference_matmul_i8(std::vector<int32_t> & C, const std::vector<int8
     }
 }
 
-// Apply 2:4 sparsity: every group of 4 consecutive K elements keeps slots
-// 0,2, zeros slots 1,3 (matches CK's own test convention exactly).
+#ifdef USE_CANONICAL_PATTERN
+// Control pattern: every group of 4 consecutive K elements keeps slots
+// 0,2, zeros slots 1,3 (matches CK's own historical test convention).
+// This pattern CANNOT detect the compress_a_impl default bug (survivors
+// never sit at positions 1/3), so it is expected to pass on both fixed
+// and unfixed trees -- kept only as a control.
 static void apply_sparse_pattern(std::vector<int8_t> & A, uint32_t M, uint32_t K) {
     for (uint32_t m = 0; m < M; ++m) {
         for (uint32_t k = 0; k < K; k += 4) {
@@ -92,6 +101,39 @@ static void apply_sparse_pattern(std::vector<int8_t> & A, uint32_t M, uint32_t K
         }
     }
 }
+#else
+// Adversarial 2:4 tile, generated deterministically: cycles every group
+// through 11 cases -- the six two-survivor position pairs, four
+// single-survivor positions, and one all-zero group -- so survivors land
+// at EVERY position (including 3, which the pre-fix default silently
+// duplicated). Values are derived from (row, group, position) so a
+// misplaced or duplicated survivor shows up numerically instead of
+// cancelling. This subsumes the failure mode originally found with a real
+// Quark-quantized int8 2:4 weight tile (arbitrary-position zeros);
+// generating the input here keeps the test self-contained and buildable
+// from the repo alone.
+static void generate_adversarial_a(std::vector<int8_t> & A, uint32_t M, uint32_t K) {
+    static const int pair_cases[6][2] = {{0,1},{0,2},{0,3},{1,2},{1,3},{2,3}};
+    std::fill(A.begin(), A.end(), (int8_t)0);
+    const uint32_t groups = K / 4;
+    for (uint32_t m = 0; m < M; ++m) {
+        for (uint32_t g = 0; g < groups; ++g) {
+            const uint32_t c = (m * groups + g) % 11u;
+            int positions[2] = {-1, -1};
+            if (c < 6)       { positions[0] = pair_cases[c][0]; positions[1] = pair_cases[c][1]; }
+            else if (c < 10) { positions[0] = (int)(c - 6); }
+            // c == 10: all-zero group
+            for (int s = 0; s < 2; ++s) {
+                if (positions[s] < 0) continue;
+                const uint32_t pos = (uint32_t)positions[s];
+                int v = 1 + (int)((m * 13u + g * 5u + pos * 3u) % 14u); // 1..14, never 0
+                if (((m + g + pos) & 1u) != 0) v = -v;
+                A[m * K + g * 4 + pos] = (int8_t)v;
+            }
+        }
+    }
+}
+#endif
 
 template <typename Pipeline>
 struct SparseGemmKernel {
@@ -142,7 +184,7 @@ struct SparseGemmKernel {
 // fill_a_fragments/fill_b_fragments/extract_c_matrix (AMD's own validated
 // register-map logic -- TileDistrEncRegMap -- reused verbatim, not
 // re-derived).
-// FIX (Stage-17b): the old version rebuilt the register map from a *bare*
+// FIX: the old version rebuilt the register map from a *bare*
 // TileDistrEncCalc<MmaOp> (all defaults: UncompressedA=false, kIter=1), which
 // yields the COMPRESSED-A encoding (K dimension already halved by
 // kCompressionRatio) -- the layout the *intrinsic* consumes post-compression,
@@ -261,19 +303,17 @@ static bool run_test(const char * label) {
     std::mt19937 rng(42);
     std::uniform_int_distribution<int> dist(-8, 8); // small range, avoids int8 overflow noise
     std::vector<int8_t> A(M * K), B(K * N);
-#ifdef USE_REAL_TILE
-    // A = REAL Quark int8 2:4 weight tile (q_proj L0, arbitrary-position zeros).
-    // Tests whether CK's on-the-fly SparseCompressTransform handles genuine 2:4
-    // (zeros anywhere in each 4-group). REAL_A_16x128 is row-major [16][128].
-    for (uint32_t m = 0; m < M; ++m)
-        for (uint32_t k = 0; k < K; ++k)
-            A[m * K + k] = REAL_A_16x128[m * 128 + k];
-    for (auto & v : B) v = (int8_t) dist(rng);
-#else
-    // Synthetic control: zeros in slots 1,3 (CK's assumed kept-pattern 0,2).
+#ifdef USE_CANONICAL_PATTERN
+    // Control: zeros in slots 1,3 (survivors only at 0,2). Cannot detect
+    // the default bug -- expected to pass on both fixed and unfixed trees.
     for (auto & v : A) v = (int8_t) dist(rng);
     for (auto & v : B) v = (int8_t) dist(rng);
     apply_sparse_pattern(A, M, K);
+#else
+    // Default: adversarial generated tile, survivors at every position
+    // (fails before the compress_a_impl default fix, passes after).
+    generate_adversarial_a(A, M, K);
+    for (auto & v : B) v = (int8_t) dist(rng);
 #endif
 
     std::vector<int32_t> C_expected(M * N, 0), C_actual(M * N, 0);
@@ -325,12 +365,59 @@ static bool run_test(const char * label) {
     return pass;
 }
 
+#ifdef ENABLE_PK4_CASE
+// ---------------------------------------------------------------------------
+// pk_int4_t (iu4) case -- SCAFFOLD, NOT YET VALIDATED ON HARDWARE.
+//
+// Purpose: give bugs 2 (packed-nibble compression) and 3 (SWAP + XOR-1
+// metadata mapping) numerical coverage, which the int8 tests above cannot
+// (int8 takes the PackedSize==1 branch; no iu4 instruction is emitted).
+//
+// Oracle design (not circular): A is supplied UNCOMPRESSED as logical 4-bit
+// values; the CPU reference below computes dense int4 x int4 -> int32 from
+// those same logical values, independent of the compression transform under
+// test. What HAS NOT been validated yet is the host-side fill: the register
+// map coordinate convention for packed A/B tensors (whether
+// calc_matrix_indices_from_lane_vector coordinates address logical nibbles
+// or physical bytes for pk_int4_t, and the interaction with
+// CK_TILE_USE_PK4_LAYOUT_SHUFFLE's high-nibble-first convention). Until a
+// device run confirms the fill against a known-answer tile, treat failures
+// here as "fill layout unproven", not as a verdict on bugs 2/3.
+// An independent one-hot v_swmmac_*_iu4 metadata-mapping measurement (raw
+// wave-level kernel, enumerated encodings) is the right cross-check for
+// bug 3 specifically, and is planned separately.
+//
+// Packing convention (matches pk_int4.hpp CK_TILE_USE_PK4_LAYOUT_SHUFFLE,
+// on by default): logical element 0 of a packed byte is the HIGH nibble,
+// element 1 the LOW nibble.
+static bool run_test_pk4_placeholder() {
+    printf("[pk4] iu4 case scaffold present but not yet hardware-validated "
+           "(fill layout unproven) -- not counted in pass/fail.\n");
+    // TODO(hardware validation): instantiate
+    //   SparseMmaPipeline<pk_int4_t, pk_int4_t, int32_t, 16, 16, 64, ...,
+    //                     Gfx1201Target>
+    // fill A from generate_adversarial_a() values clamped to [-8,7] and
+    // packed high-nibble-first; fill B likewise; reference_matmul over the
+    // logical int4 values; compare exactly, as the int8 tests do.
+    return true;
+}
+#endif
+
 int main() {
-    printf("=== Stage-1: ck_tile::SparseMmaPipeline<int8_t,int8_t,int32_t> warp-tile correctness (gfx1201 WMMA SWMMAC) ===\n");
+#ifdef USE_CANONICAL_PATTERN
+    printf("=== ck_tile::SparseMmaPipeline warp-tile correctness (gfx1201 WMMA SWMMAC) "
+           "-- CONTROL pattern (slots 0,2 only; cannot detect the default bug) ===\n");
+#else
+    printf("=== ck_tile::SparseMmaPipeline warp-tile correctness (gfx1201 WMMA SWMMAC) "
+           "-- adversarial 2:4 pattern (fails before fix, passes after) ===\n");
+#endif
     bool all_pass = true;
     all_pass &= run_test<16, 16, 32>("K32_single_frag");
     all_pass &= run_test<16, 16, 64>("K64_2frag");
     all_pass &= run_test<16, 16, 128>("K128_4frag");
+#ifdef ENABLE_PK4_CASE
+    run_test_pk4_placeholder();
+#endif
     printf("=== %s ===\n", all_pass ? "ALL PASS" : "SOME FAILED");
     return all_pass ? 0 : 1;
 }
