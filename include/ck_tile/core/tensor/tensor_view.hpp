@@ -240,11 +240,13 @@ struct tensor_view
                                   number<IMM>,
                                   bool_constant<oob_conditional_check> = {}) const
     {
-        return buf_.template async_get<X>(smem,
-                                          coord.get_offset() / PackedSize,
-                                          linear_offset / PackedSize,
-                                          number<IMM / PackedSize>{},
-                                          bool_constant<oob_conditional_check>{});
+        return buf_.template async_get<X>(
+            smem,
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
+            number<IMM / PackedSize>{},
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            bool_constant<oob_conditional_check>{});
     }
 
     template <typename X,
