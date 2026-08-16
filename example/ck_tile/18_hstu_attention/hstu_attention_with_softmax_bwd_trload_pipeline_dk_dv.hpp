@@ -377,8 +377,8 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
             // so dpacc_tile must be cleared at the start of every sq iteration.
             clear_tile(dpacc_tile);
 
-            // Ensure the trloading of q in previous itertation completely done
-            block_sync_lds();
+            // Ensure the trloading of q in previous itertation completely done by all warps
+            __builtin_amdgcn_s_barrier();
 
             if constexpr(gemm0_k0_loops <= gemm2_k0_loops)
             {
@@ -688,8 +688,6 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
                 Problem,
                 Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{}) == 32>(
                 pt_tile, p_gemm_tile);
-
-            block_sync_lds();
 
             // =======================================================================
             // Loop 3: Gemm1  dV += P^T @ dO^T

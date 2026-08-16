@@ -290,8 +290,8 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
 
         do
         {
-            // Ensure the trloading of k in previous itertation completely done
-            block_sync_lds();
+            // Ensure the trloading of k in previous itertation completely done by all warps
+            __builtin_amdgcn_s_barrier();
 
             // === STAGE 1: Gemm0 (S = Q@K) ===
             // === STAGE 2: Gemm2 (dP = dO@V) ===
@@ -426,9 +426,6 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
                     });
                 });
             }
-
-            // ensure kt is completely available on Lds
-            block_sync_lds();
 
             k_tiles[number<0>{}] = load_tile(k_dram_window);
             move_tile_window(k_dram_window, {kN0Sub, 0});
