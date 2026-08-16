@@ -330,7 +330,8 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
         using ExternalAvecRef = std::add_lvalue_reference_t<AVecType>;
         static_assert(
             std::is_same_v<ATransformResult,
-                           decltype(ATransform::execExtVec(std::declval<ExternalAvecRef>()))>,
+                           decltype(ATransform::template execExtVec<AVecType, ADataType>(
+                               std::declval<ExternalAvecRef>()))>,
             "ATransformResult must match the return type of ATransform::exec");
 
         using CompressedVecType =

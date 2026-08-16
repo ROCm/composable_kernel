@@ -174,6 +174,20 @@ static CK_TILE_DEVICE auto compress_a_impl(AVec& a_vec)
         // before this path is trusted there. (The scalar PackedSize==1 branch
         // above is architecture-generic: its fix corrects a plain
         // out-of-spec default and changes behavior identically everywhere.)
+        //
+        // CONVENTION SCOPE: independently measured one-hot sweeps (bare
+        // v_swmmac_*_iu4_w32 builtins, no CK code in the binary) show the
+        // gfx1201 hardware idx law is a plain IDENTITY in raw nibble
+        // coordinates: idx field i pairs compressed nibble i with the B
+        // nibble at raw offset equal to the field value. The SWAP and XOR-1
+        // below are therefore not a hardware quirk -- they are the
+        // coordinate change from CK's packed convention
+        // (CK_TILE_USE_PK4_LAYOUT_SHUFFLE: logical element 0 = HIGH nibble)
+        // into raw nibble order. config.hpp currently defines that macro
+        // unconditionally and pk_int4.hpp tests it with #ifdef, so its
+        // #else branches are unreachable dead code; if the convention ever
+        // becomes switchable, these constants must change WITH it -- a
+        // source-convention dependency, independent of architecture.
         // Packed-nibble path (pk_int4_t): each iteration consumes 2
         // PHYSICAL input bytes (= 4 LOGICAL nibbles, one real 2:4 group) and
         // produces 1 PHYSICAL output byte (the <=2 survivor nibbles,
