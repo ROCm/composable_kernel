@@ -310,11 +310,21 @@ class FmhaFwdApiTrait:
     def scheck(self) -> str:
         if self.mode == "group":
             return "true/*group mode spad always true*/"  # group mode only generate spad/skpad == true
-        if self.pipeline_tag in ["qr_async", "qr_async_trload", "qr_async_trload_v3", "qr_tdm"]:
+        if self.pipeline_tag == "qr_async":
             if self.spad == "t":
                 return "true"  # always support
             else:
                 return "true"
+        elif self.pipeline_tag in ["qr_async_trload", "qr_async_trload_v3", "qr_tdm"]:
+            if self.spad == "t":
+                return "true"  # padded trload always supports any seqlen_q
+            else:
+                # An unpadded trload instance issues unpredicated full-tile
+                # stores of round_up(seqlen_q, bm0) rows; selecting it for a
+                # tile-unaligned seqlen_q writes past O/LSE (gfx9 OOB fault).
+                # Gate it to aligned seqlen_q so unaligned shapes fall through
+                # to the padded qr_async instance.
+                return f"a.seqlen_q % {self.bm0} == 0"
         elif self.pipeline_tag in ["qr", "qr_hpad", "qs"]:
             if self.spad == "t":
                 return f"true /*a.seqlen_q % {self.bm0} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -349,7 +359,10 @@ class FmhaFwdApiTrait:
             if self.skpad == "t":
                 return "true"
             else:
-                return "true"
+                # See scheck: an unpadded trload instance over-reads K/V on a
+                # tile-unaligned seqlen_k. Gate it to aligned seqlen_k so
+                # unaligned shapes fall through to the padded qr_async instance.
+                return f"(a.cu_seqlen_k_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)"
         else:
             assert False
 
