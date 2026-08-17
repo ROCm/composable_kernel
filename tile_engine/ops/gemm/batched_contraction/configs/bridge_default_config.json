@@ -1,0 +1,29 @@
+{
+    "_comment": "Bridge sweep config for batched_contraction. Warp tiles are the GPU-valid fp16 MFMA set (32x32x16); the Old-TE default_config's 32x32x64 point does not build for fp16 XDL and is excluded here.",
+    "tile_config": {
+        "tile_m": {"values": [128, 256]},
+        "tile_n": {"values": [128, 256]},
+        "tile_k": {"values": [64]},
+        "warp_m": {"values": [2]},
+        "warp_n": {"values": [2]},
+        "warp_k": {"values": [1]},
+        "warp_tile_m": {"values": [32]},
+        "warp_tile_n": {"values": [32]},
+        "warp_tile_k": {"values": [16]}
+    },
+    "trait_config": {
+        "pipeline": {"values": ["compv3", "compv4", "mem"]},
+        "scheduler": {"values": ["intrawave", "interwave"]},
+        "epilogue": {"values": ["cshuffle"]},
+        "pad_m": {"values": [false]},
+        "pad_n": {"values": [false]},
+        "pad_k": {"values": [false]},
+        "persistent": {"values": [false]}
+    },
+    "k_block_per_cu": 1,
+    "num_dim_g": 1,
+    "num_dim_m": 1,
+    "num_dim_n": 1,
+    "num_dim_k": 1,
+    "num_d_tensors": 0
+}

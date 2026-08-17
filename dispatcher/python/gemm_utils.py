@@ -2104,6 +2104,23 @@ def _is_power_of_two(x: int) -> bool:
     return x > 0 and (x & (x - 1)) == 0
 
 
+def _cshuffle_store_ok(
+    m_repeat: int, n_repeat: int, warp_tile_m: int, warp_tile_n: int
+) -> bool:
+    """Return False for the one CShuffle-store combination that is numerically
+    wrong (issue #9684): an ODD per-wave repeat (>1) paired with a 32-wide warp
+    tile in that dimension. GPU-verified on gfx942 -- e.g. tile_m=192 / wave_m=2
+    / warp_tile_m=32 (MRepeat=3) returns garbage, while every other non-power-of-
+    two repeat (incl. MRepeat=3 with warp_tile_m=16, and even repeats like 6/12)
+    is correct. Only relevant for the CShuffle epilogue; the default epilogue is
+    exempt."""
+
+    def _dim_bad(repeat: int, warp_tile: int) -> bool:
+        return repeat > 1 and repeat % 2 == 1 and warp_tile == 32
+
+    return not (_dim_bad(m_repeat, warp_tile_m) or _dim_bad(n_repeat, warp_tile_n))
+
+
 # --- Warp-configuration gate (parity with Old-TE) --------------------------
 # Old-TE's gemm_validation_utils.validate_warp_configuration restricts the
 # warps-per-block triple (wave_m/n/k) to WARP_SUPPORTED_COMBINATIONS[arch].
