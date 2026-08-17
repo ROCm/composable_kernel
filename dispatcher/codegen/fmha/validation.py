@@ -29,8 +29,10 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 # Ensure this directory and parent codegen/ are on sys.path for sibling imports
 _THIS_DIR = Path(__file__).resolve().parent
 _CODEGEN_DIR = _THIS_DIR.parent
+_DISPATCHER_PYTHON_DIR = _CODEGEN_DIR.parent / "python"
 sys.path.insert(0, str(_THIS_DIR))
 sys.path.insert(0, str(_CODEGEN_DIR))
+sys.path.insert(0, str(_DISPATCHER_PYTHON_DIR))
 
 from symbol_map import (  # noqa: E402
     BWD_DTYPE_MAP,
@@ -38,6 +40,10 @@ from symbol_map import (  # noqa: E402
     canonical_bias,
     canonical_mask,
     canonical_qscale,
+)
+from fmha_dtype_contract import (  # noqa: E402
+    FmhaDTypeContractKind,
+    dtype_contract_from_signature,
 )
 
 # Import shared hardware data from parent arch_specs_generated (generated from
@@ -872,6 +878,15 @@ def validate_config(
 
     # --- Family-specific rules ---
     if family == "batch_prefill":
+        dtype_contract = dtype_contract_from_signature(sig)
+        if dtype_contract.kind == FmhaDTypeContractKind.MIXED_Q_FP8_KV:
+            result.add_error(
+                "batch_prefill mixed activation/FP8-KV dtype contract is not implemented "
+                f"(Q={dtype_contract.q_dtype}, K={dtype_contract.k_dtype}, "
+                f"V={dtype_contract.v_dtype}, O={dtype_contract.o_dtype}); "
+                "current generated kernels use one data_type token for Q/K/V, and fp8bf16 "
+                "means FP8 Q/K/V with BF16 output"
+            )
         if sig.get("vlayout", "r") != "r":
             result.add_error("batch_prefill only supports row-major V layout")
         if not sig.get("paged_kv", False):
