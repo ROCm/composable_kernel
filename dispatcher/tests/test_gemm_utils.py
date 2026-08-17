@@ -40,6 +40,7 @@ from gemm_utils import (  # noqa: E402
     _output_dtype,
     _dtype_from_kernel_name,
     _layout_from_kernel_name,
+    _cshuffle_store_ok,
 )
 
 
@@ -200,6 +201,37 @@ class TestConfigNameContract(unittest.TestCase):
                 name = cfg.name
                 self.assertEqual(_dtype_from_kernel_name(name), dtype)
                 self.assertEqual(_layout_from_kernel_name(name), cfg.layout)
+
+
+class TestCShuffleStoreGate(unittest.TestCase):
+    """Narrowed CShuffle-store correctness gate (issue #9684).
+
+    Only an ODD per-wave repeat (>1) with a 32-wide warp tile in that dimension
+    is numerically wrong; every other non-power-of-two repeat is correct. These
+    expectations were GPU-verified on gfx942 (26 broken / 90 correct across the
+    tile_m=192 cshuffle config space).
+    """
+
+    def test_broken_signature_rejected(self):
+        # tile_m=192 / wave_m=2 / warp_tile_m=32 -> MRepeat = 192/(2*32) = 3.
+        # The 26 verified-wrong configs all match this (odd repeat + 32 warp).
+        self.assertFalse(_cshuffle_store_ok(3, 2, 32, 32))
+        self.assertFalse(_cshuffle_store_ok(3, 4, 32, 16))  # M side triggers
+        self.assertFalse(_cshuffle_store_ok(4, 3, 16, 32))  # N side triggers
+
+    def test_odd_repeat_with_16_warp_tile_allowed(self):
+        # MRepeat=3 via wave_m=4 / warp_tile_m=16 is numerically correct.
+        self.assertTrue(_cshuffle_store_ok(3, 2, 16, 16))
+
+    def test_even_nonpow2_repeat_allowed(self):
+        # Repeats 6 and 12 are non-power-of-two but verified correct, incl. w/32.
+        self.assertTrue(_cshuffle_store_ok(6, 4, 32, 16))
+        self.assertTrue(_cshuffle_store_ok(12, 2, 16, 32))
+
+    def test_power_of_two_repeats_allowed(self):
+        for rep in (1, 2, 4, 8):
+            self.assertTrue(_cshuffle_store_ok(rep, rep, 32, 32))
+            self.assertTrue(_cshuffle_store_ok(rep, rep, 16, 16))
 
 
 class TestModuleImportsAndRunnerShape(unittest.TestCase):
