@@ -2296,6 +2296,14 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
     {
         if constexpr(!LargeTensors)
         {
+            // This index_t overload never computed stride_ovf, so Argument::stride_overflow
+            // stayed false unconditionally on the path MIOpen calls, leaving the overflow
+            // guard in IsSupportedArgument() unreachable. Compute it here, matching the
+            // long_index_t overload below (which uses tensor_exceeds_2gb<float> for the
+            // weight tensor in this file).
+            const bool stride_ovf = tensor_exceeds_2gb<BDataType>(b_g_n_c_wis_lengths) ||
+                                    tensor_exceeds_2gb<float>(e_g_k_c_xs_lengths) ||
+                                    tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths);
             return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                               static_cast<WeiDataType*>(p_wei_grid),
                                               static_cast<const OutDataType*>(p_out_grid),
@@ -2314,7 +2322,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                               in_element_op,
                                               wei_element_op,
                                               out_element_op,
-                                              split_k);
+                                              split_k,
+                                              stride_ovf);
         }
         else
         {
