@@ -1098,7 +1098,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         {
                             // K must be >= AK1 to ensure K0 = K/AK1 >= 1; otherwise
                             // the flat descriptor would have K0=0 which is invalid.
-                            if(num_group_ == 1 && a_g_n_k_wos_lengths[2] >= AK1)
+                            if(num_group_ == 1 && a_g_n_k_wos_lengths[2] >= AK1 &&
+                               a_g_n_k_wos_lengths[1] / conv_N_per_block_ == 1)
                             {
                                 flat_a_container_.push_back(
                                     conv_to_gemm_transform_.MakeADescriptor_AK0_M_AK1_Packed());
