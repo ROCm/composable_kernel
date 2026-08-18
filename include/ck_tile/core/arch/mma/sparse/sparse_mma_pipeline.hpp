@@ -36,6 +36,11 @@ namespace ck_tile::core::arch::mma {
  * Like WaveWiseMmaPipeline, this decomposes WaveTile dimensions into fragments and iterates
  * internally over FragsM x FragsN x FragsK. The A operand is provided in uncompressed form;
  * 2:4 structured sparsity compression (SparseCompressTransform) is applied.
+ *
+ * Requires a full active wavefront: the A/B/C matrix fragments are distributed
+ * per-lane across all 32 lanes of the wave (see kABKPerLane), so the underlying
+ * swmmac builtins are wave-cooperative. Partial-EXEC (inactive lanes) leaves
+ * those fragment lanes undefined and is unsupported for this primitive.
  * @tparam ADataType_      Data type of input WaveTile A
  * @tparam BDataType_      Data type of input WaveTile B
  * @tparam CDataType_      Data type of input/output WaveTile C (accumulator)
