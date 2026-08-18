@@ -13,7 +13,10 @@ macro(_add_mma_gtest TEST_NAME)
 endmacro()
 # ---------------------------------------------------------------------------
 
-if(GPU_TARGETS MATCHES "gfx9|gfx120")
+if(GPU_TARGETS MATCHES "gfx9|gfx120" OR "gfx12-generic" IN_LIST GPU_TARGETS)
+    # gfx12-generic matches neither regex alternative but is used by some CI
+    # pipelines to build for a gfx1201 device; include it so the sparse-MMA
+    # tests are not silently dropped. Not broadened to "gfx12" (matches gfx1250).
     _add_mma_gtest(test_amdgcn_sparse_mma pipeline/test_amdgcn_sparse_mma.cpp)
     target_compile_options(test_amdgcn_sparse_mma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 endif()
