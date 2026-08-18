@@ -1309,6 +1309,111 @@ TEST_P(PaddingCases, DataTypeConfig)
 }
 
 // ============================================================================
+// Sink combined with a sliding-window mask: tile-window offsets
+// ----------------------------------------------------------------------------
+// With a sink enabled, the qr_ks_vs pipelines first loop over a prefix of
+// always-attended KV columns and then jump the K/V, bias and randval tile
+// windows forward to seqlen_k_start. That jump must happen only when a sink
+// phase actually ran, and only on its last iteration: the windows already start
+// at kv_load_start, which equals seqlen_k_start when there is no sink prefix,
+// so jumping unconditionally offsets them a second time.
+//
+// Reaching the case where the guard matters needs a window mask, so that
+// seqlen_k_start > 0 for later query blocks, plus one of:
+//   - sink_size == 0 while a sink pointer is set (init_sink != 0), giving
+//     num_sink_loop == 0 with the windows already at seqlen_k_start;
+//   - sink_size spanning more than one KV tile, giving num_sink_loop >= 2 so
+//     that the first sink iteration is not the last one.
+//
+// Neither shape was covered before: a causal mask keeps seqlen_k_start == 0, so
+// the extra offset is 0, and sink_size <= kN0 makes num_sink_loop == 1, where a
+// guard on the first iteration coincides with a guard on the last.
+//
+// bias and hdim select the pipeline: elementwise bias or hdim 256 pick the
+// non-async qr_ks_vs, where the K/V windows are affected too, while hdim 128
+// with plain bias picks the async one; dropout exercises the randval window.
+// ============================================================================
+
+// hdim, bias_str, p_drop, seqlen_q/k, mask_str, init_sink
+using SinkWindowParam = std::tuple<int, std::string, float, int, std::string, int>;
+
+static const std::vector<SinkWindowParam> kSinkWindowParams = {
+    // num_sink_loop == 0: sink pointer set, no sink columns, window mask
+    {256, "n", 0.0f, 1024, "t:128,30", 1},
+    {128, "e", 0.0f, 1024, "t:128,30", 1},
+    // dropout exercises the randval window, which each pipeline guards separately. hdim 128
+    // with plain bias routes to async, hdim 256 keeps it on the non-async one.
+    {128, "n", 0.2f, 1024, "t:128,30", 1},
+    {256, "n", 0.2f, 1024, "t:128,30", 1},
+    {256, "n", 0.0f, 1024, "b:128,30", 1},
+    {256, "n", 0.0f, 1024, "t:2,0", 1},
+    // num_sink_loop >= 2: sink_size wider than one KV tile
+    {256, "n", 0.0f, 2048, "t:128,30,256", 0},
+    {128, "e", 0.0f, 2048, "t:128,30,256", 0},
+    {256, "n", 0.0f, 2048, "b:128,30,256", 0},
+    // hdim 128 with plain bias, so bf16/fp16 reach the async pipeline. It carries
+    // its own copy of the K/V jump, which is wrong for any sink_size, hence the
+    // num_sink_loop == 1 shape here as well.
+    // async
+    {128, "n", 0.0f, 2048, "t:128,33,4", 0},
+    // sync
+    {256, "n", 0.0f, 2048, "b:128,33,4", 0}};
+
+class SinkWindowMask : public TestWithParam<std::tuple<mode_enum, SinkWindowParam>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         SinkWindowMask,
+                         Combine(ModeValues, ValuesIn(kSinkWindowParams)));
+
+TEST_P(SinkWindowMask, DataTypeConfig)
+{
+    auto [mode, sink_param]                                    = GetParam();
+    auto [hdim, bias_str, p_drop, seqlen, mask_str, init_sink] = sink_param;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(
+        mode,
+        2,  // batch
+        2,  // nhead
+        -1, // nhead_k
+        {adjust_seqlen(seqlen)},
+        {adjust_seqlen(seqlen)},
+        adjust_hdim(hdim),
+        adjust_hdim(hdim),
+        0,    // seqlen_knew
+        {-1}, // seqlen_qpads
+        {-1}, // seqlen_kpads
+        {},   // q_eff_lens_per_batch
+        {},   // kv_eff_lens_per_batch
+        0,    // rotary_dim
+        true, // i_perm
+        true, // o_perm
+        0,    // scale_s
+        0,    // logits_soft_cap
+        def_is_v_rowmajor,
+        def_lse,  // lse
+        0,        // page_block_size
+        false,    // use_cache_batch_idx
+        bias_str, // bias_str
+        p_drop,   // p_drop
+        0,        // drop_seed
+        0,        // drop_offset
+        false,    // drop_prefs
+        mask_str, // mask_str
+        qscale_str,
+        true, // is_rotary_interleaved
+        1,    // num_splits
+        init_method,
+        static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+        1,         // do_validation
+        init_sink, // init_sink_value
+        1,         // pack_gqa
+        stream_config);
+    CHECK_RESULT(result);
+}
+
+// ============================================================================
 // Host-only unit tests for fmha_batch_prefill_select_kv_load_mode() (in
 // fmha_fwd.hpp). Guards ROCm/aiter#3824: when page_block_size < kN0 the paged-KV
 // gather uses one SRD whose signed int32 voffset spans the whole K (or V) pool,

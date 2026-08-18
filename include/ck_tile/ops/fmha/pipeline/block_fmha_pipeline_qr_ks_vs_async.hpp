@@ -450,7 +450,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 return make_tile_window(k_scale_dram_block_window_tmp.get_bottom_tensor_view(),
                                         k_scale_dram_block_window_tmp.get_window_lengths(),
-                                        {seqlen_k_start, 0});
+                                        {kv_load_start, 0});
             }
             else
             {
@@ -462,7 +462,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 return make_tile_window(v_scale_dram_block_window_tmp.get_bottom_tensor_view(),
                                         v_scale_dram_block_window_tmp.get_window_lengths(),
-                                        {0, seqlen_k_start / kVScaleGranularity},
+                                        {0, kv_load_start / kVScaleGranularity},
                                         Policy::template MakeVScaleRegTileDistribution<Problem>());
             }
             else
@@ -655,7 +655,16 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
             if constexpr(kHasSink)
             {
-                if(i_total_loops == 0)
+                // Jump out of the sink prefix on its last iteration, not on the first.
+                // num_sink_loop comes from sink_seq_end and therefore from mask.sink alone;
+                // a learnable-softmax sink only turns kHasSink on, it never adds sink tiles.
+                // Two cases this guard covers:
+                //   num_sink_loop == 0: bias_dram_window already starts at kv_load_start,
+                //     which equals seqlen_k_start here, so moving would offset it twice.
+                //   num_sink_loop >= 2: the first sink tile is not the last one, so moving
+                //     on iteration 0 would leave the prefix a tile early.
+                // Matches the batch_prefill pipeline.
+                if(i_total_loops == num_sink_loop - 1)
                     move_tile_window(bias_dram_window, {0, seqlen_k_start - sink_seq_end});
             }
             move_tile_window(bias_dram_window, {0, kN0});
@@ -927,7 +936,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                         return seqlen_k_start + i_total_loops * kN0;
 
                     const bool in_sink_phase = (num_sink_loop > i_total_loops);
-                    if(i_total_loops == num_sink_loop)
+                    // Same reasoning as the bias window above, expressed for a window that
+                    // is moved lazily on the first post-prefix iteration: with
+                    // num_sink_loop == 0 it already starts at seqlen_k_start, so skip.
+                    if(num_sink_loop > 0 && i_total_loops == num_sink_loop)
                         move_tile_window(randval_dram_window, {0, seqlen_k_start - sink_seq_end});
 
                     return in_sink_phase ? (kv_load_start + i_total_loops * kN0)
@@ -1083,11 +1095,26 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 if constexpr(kHasSink)
                 {
-                    // TODO: this never happens because of i_total_loops++
-                    if(i_total_loops == 0)
+                    // Jump from the sink prefix once the last sink tile has been consumed.
+                    // i_total_loops is already incremented here, so the transition is at
+                    // num_sink_loop, not at num_sink_loop - 1 as in the non-async pipeline.
+                    // K is still one tile behind (the {kN0, 0} below advances it) while V
+                    // has already been walked a full tile by the gemm_1 sub-loop, so the
+                    // same offset lands both windows on seqlen_k_start.
+                    if(num_sink_loop > 0 && i_total_loops == num_sink_loop)
                     {
                         move_tile_window(k_dram_block_window, {seqlen_k_start - sink_seq_end, 0});
                         move_tile_window(v_dram_window, {0, seqlen_k_start - sink_seq_end});
+                        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::MX)
+                        {
+                            // The scale windows advance in lockstep with K/V, so they take
+                            // the same jump, expressed in scale elements for V.
+                            move_tile_window(k_scale_dram_block_window,
+                                             {seqlen_k_start - sink_seq_end, 0});
+                            move_tile_window(
+                                v_scale_dram_window,
+                                {0, (seqlen_k_start - sink_seq_end) / kVScaleGranularity});
+                        }
                     }
                 }
                 move_tile_window(k_dram_block_window, {kN0, 0});

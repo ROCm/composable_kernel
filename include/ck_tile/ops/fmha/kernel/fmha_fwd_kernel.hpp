@@ -1501,6 +1501,21 @@ struct FmhaFwdKernel
         return ck_tile::max(FmhaPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
+    CK_TILE_DEVICE static constexpr float GetSoftmaxScale(const Kargs& kargs)
+    {
+        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
+        {
+            const float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
+            const float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
+
+            return kargs.scale_s * q_descale * k_descale;
+        }
+        else
+        {
+            return kargs.scale_s;
+        }
+    }
+
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         if constexpr(kIsAvailable)
@@ -1540,10 +1555,10 @@ struct FmhaFwdKernel
             }
             else
             {
-                sink_value =
-                    kargs.sink_ptr != nullptr
-                        ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
-                        : -numeric<float>::infinity();
+                sink_value = kargs.sink_ptr != nullptr
+                                 ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) /
+                                       GetSoftmaxScale(kargs)
+                                 : -numeric<float>::infinity();
             }
 
             if constexpr(kIsGroupMode)
@@ -2007,19 +2022,7 @@ struct FmhaFwdKernel
 
             AttentionVariant variant;
             const auto variant_params = [&] {
-                const float scale_s = [&] {
-                    if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
-                    {
-                        float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
-                        float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
-
-                        return kargs.scale_s * q_descale * k_descale;
-                    }
-                    else
-                    {
-                        return kargs.scale_s;
-                    }
-                }();
+                const float scale_s = GetSoftmaxScale(kargs);
 
                 if constexpr(kHasLogitsSoftCap)
                 {
@@ -2354,7 +2357,8 @@ struct FmhaFwdKernel
             const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
             const float sink_value =
                 kargs.sink_ptr != nullptr
-                    ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                    ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) /
+                          GetSoftmaxScale(kargs)
                     : -numeric<float>::infinity();
 
             const index_t i_m0 = i_tile_m * FmhaPipeline::kM0;

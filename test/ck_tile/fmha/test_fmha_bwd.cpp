@@ -997,28 +997,27 @@ TEST_P(MultiBatchPadding, DataTypeConfig)
 }
 
 // ============================================================================
-// Regression test for sink_host group-mode OOB fix (PR #7272)
+// Regression tests for the backward sink path
 // ----------------------------------------------------------------------------
-// Bug: in group mode, fmha_bwd_runner.hpp allocated sink_host with first
-// dimension shape_batch (=1) but the fwd reference loop iterates wb in
-// [0, batch-1], causing out-of-bounds reads of heap garbage when batch > 1.
+// Originally added for the sink_host group-mode OOB fix (PR #7272): in group
+// mode fmha_bwd_runner.hpp allocated sink_host with first dimension
+// shape_batch (=1) while the fwd reference loop iterates wb in [0, batch-1],
+// reading heap garbage when batch > 1. That one needs sink_grad=true AND
+// mode=group AND batch>=2; without the fix the poisoned LSE made validation
+// fail non-deterministically (~25-67% of 30 runs at b=2,h=2,s=516,s_k=253,
+// d=72,bf16,mask=no), and all 30 passed with it.
 //
-// Repro condition: sink_grad=true AND mode=group AND batch>=2.
-// Without the fix, the fwd reference computes a poisoned LSE and the bwd
-// validation fails non-deterministically (~25-67% failure rate observed
-// across 30 trial runs at b=2,h=2,s=516,s_k=253,d=72,bf16,mask=no).
-// With the fix (1-line change shape_batch -> batch on line 267 of
-// fmha_bwd_runner.hpp), all 30 runs PASS.
-//
-// This test exercises the fixed code path; a regression that re-introduces
-// the OOB will be detected as flaky/failing validation in CI.
+// The suite now also guards the sink_ptr / d_sink_ptr [nhead] contract, which
+// a [batch, nhead] index broke. That defect is not group-mode specific, so
+// batch mode is instantiated as well.
 // ============================================================================
-class SinkGradGroupMode : public TestWithParam<FmhaBwdTestParam>
+class SinkGrad : public TestWithParam<FmhaBwdTestParam>
 {
 };
 INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
-                         SinkGradGroupMode,
-                         Combine(Values(mode_enum::group),  // group mode required to hit OOB
+                         SinkGrad,
+                         Combine(Values(mode_enum::group,   // group mode required to hit the OOB
+                                        mode_enum::batch),  // batch mode still hits a wrong index
                                  Values(std::tuple{72, -1}, // hdim covered by repro command
                                         std::tuple{64, -1},
                                         std::tuple{128, -1}),
@@ -1035,7 +1034,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
                                         std::tuple{4, 2, -1, 200, 180, "0"}), // batch=4 stress
                                  Values(false)                                // deterministic
                                  ));
-TEST_P(SinkGradGroupMode, DataTypeConfig)
+TEST_P(SinkGrad, DataTypeConfig)
 {
     auto [mode, hdims, perm, bias_str, use_dbias, p_drop, drop_misc, dims_mask, det] = GetParam();
     auto [hdim_q, hdim_v]                                                            = hdims;
@@ -1072,6 +1071,160 @@ TEST_P(SinkGradGroupMode, DataTypeConfig)
         stream_config);
 
     if(result == bwd_result::no_instance)
-        GTEST_SKIP() << "No instance for sink_grad group-mode regression";
+        GTEST_SKIP() << "No instance for sink_grad regression";
+    ASSERT_EQ(result, bwd_result::success);
+}
+
+// ============================================================================
+// Does the kernel read *its own* head's sink?
+// ----------------------------------------------------------------------------
+// The suite above detects a wrong sink index only as a numeric mismatch, which
+// requires the sink init range to stay narrow: with the earlier [30, 60] the
+// softmax saturated, d_sink collapsed to -sum_q D[q] regardless of which sink
+// element was read, and a [batch, nhead] index went unnoticed in 12 of 15
+// cases. Widening the range again would silently disarm that guard.
+//
+// This suite asks the question directly instead. The kernel documents -inf as
+// "no sink" (P_sink = exp(-inf - lse) = 0), so the runner hands -inf to every
+// even head and an ordinary value to every odd one. The result must then show a
+// strict pattern: even heads contribute nothing and their d_sink is exactly 0,
+// odd heads are non-zero. Since no value other than -inf yields exactly 0, a
+// shifted index - or garbage read past the end of the [nhead] buffer - breaks
+// the pattern rather than merely perturbing a number, so no tolerance and no
+// init range is involved. batch >= 2 and an even nhead >= 2 are required for
+// both failure directions to be observable.
+// ============================================================================
+class SinkGradNeutralHeads : public TestWithParam<FmhaBwdTestParam>
+{
+};
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
+                         SinkGradNeutralHeads,
+                         Combine(Values(mode_enum::group, mode_enum::batch),
+                                 Values(std::tuple{72, -1}, std::tuple{128, -1}),
+                                 Values(std::tuple{true, true}),
+                                 Values("n"),
+                                 Values(false),                   // use_dbias
+                                 Values(0.0f),                    // no dropout
+                                 Values(std::tuple{0, 0, false}), // seed/offset/prefs
+                                 // batch >= 2 and an even nhead >= 2 throughout. mask "0" keeps
+                                 // every row attended, so a neutral head never combines a -inf
+                                 // sink with a fully masked row.
+                                 Values(std::tuple{2, 2, -1, 516, 253, "0"},
+                                        std::tuple{3, 4, 2, 259, -1, "0"},
+                                        std::tuple{4, 2, -1, 200, 180, "0"}),
+                                 Values(false) // deterministic
+                                 ));
+TEST_P(SinkGradNeutralHeads, DataTypeConfig)
+{
+    auto [mode, hdims, perm, bias_str, use_dbias, p_drop, drop_misc, dims_mask, det] = GetParam();
+    auto [hdim_q, hdim_v]                                                            = hdims;
+    auto [i_perm, o_perm]                                                            = perm;
+    auto [drop_seed, drop_offset, drop_prefs]                                        = drop_misc;
+    auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str]                       = dims_mask;
+
+    auto result = fmha_bwd_run<DataTypeConfig>(
+        mode,
+        batch,
+        nhead,
+        nhead_k,
+        {seqlen_q},
+        {seqlen_k},
+        {-1},
+        {-1},
+        hdim_q,
+        hdim_v,
+        i_perm,
+        o_perm,
+        0, // scale
+        bias_str,
+        use_dbias,
+        p_drop,
+        drop_seed,
+        drop_offset,
+        drop_prefs,
+        mask_str,
+        true, // sink_grad
+        det,
+        init_method,
+        static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+        1,
+        stream_config,
+        std::nullopt, // json
+        sink_regime::neutral_heads);
+
+    if(result == bwd_result::no_instance)
+        GTEST_SKIP() << "No instance for sink_grad neutral-head check";
+    ASSERT_EQ(result, bwd_result::success);
+}
+
+// ============================================================================
+// Keep the saturated sink regime alive
+// ----------------------------------------------------------------------------
+// The sink init range was narrowed to [-1, 1] so that d_sink still depends on
+// which sink element was read. That was the right call, but it left the
+// opposite regime uncovered: with a sink far above rowmax, P_sink -> 1, every
+// token weight is scaled to ~0 and d_sink collapses to -sum_q D[q]. This case
+// puts the range back to [30, 60] for that path alone.
+//
+// It is not a correctness check - the collapse is exactly why the regime is
+// numerically blind - but it keeps the lse-saturation arithmetic exercised, so
+// an inf/NaN or an overflow escaping from it would still be caught.
+// ============================================================================
+class SinkGradSaturated : public TestWithParam<FmhaBwdTestParam>
+{
+};
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
+                         SinkGradSaturated,
+                         Combine(Values(mode_enum::group, mode_enum::batch),
+                                 Values(std::tuple{72, -1}, std::tuple{128, -1}),
+                                 Values(std::tuple{true, true}),
+                                 Values("n"),
+                                 Values(false),                   // use_dbias
+                                 Values(0.0f),                    // no dropout
+                                 Values(std::tuple{0, 0, false}), // seed/offset/prefs
+                                 Values(std::tuple{2, 2, -1, 516, 253, "0"},
+                                        std::tuple{2, 2, -1, 516, 253, "1"}),
+                                 Values(false) // deterministic
+                                 ));
+TEST_P(SinkGradSaturated, DataTypeConfig)
+{
+    auto [mode, hdims, perm, bias_str, use_dbias, p_drop, drop_misc, dims_mask, det] = GetParam();
+    auto [hdim_q, hdim_v]                                                            = hdims;
+    auto [i_perm, o_perm]                                                            = perm;
+    auto [drop_seed, drop_offset, drop_prefs]                                        = drop_misc;
+    auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str]                       = dims_mask;
+
+    auto result = fmha_bwd_run<DataTypeConfig>(
+        mode,
+        batch,
+        nhead,
+        nhead_k,
+        {seqlen_q},
+        {seqlen_k},
+        {-1},
+        {-1},
+        hdim_q,
+        hdim_v,
+        i_perm,
+        o_perm,
+        0, // scale
+        bias_str,
+        use_dbias,
+        p_drop,
+        drop_seed,
+        drop_offset,
+        drop_prefs,
+        mask_str,
+        true, // sink_grad
+        det,
+        init_method,
+        static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+        1,
+        stream_config,
+        std::nullopt, // json
+        sink_regime::saturated);
+
+    if(result == bwd_result::no_instance)
+        GTEST_SKIP() << "No instance for sink_grad saturated regime";
     ASSERT_EQ(result, bwd_result::success);
 }

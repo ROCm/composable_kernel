@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <ostream>
@@ -60,6 +61,22 @@ auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
     return ck_tile::make_tuple(rtol, atol);
 }
 
+// Which sink values the runner hands to the kernel; only meaningful when sink_grad is on.
+enum class sink_regime
+{
+    // Small values centered near zero. The default, and the only one that keeps d_sink
+    // dependent on which sink element was read: a sink far above rowmax saturates
+    // lse_new = log(exp(lse_old) + exp(sink)) and collapses d_sink to -sum_q D[q].
+    sensitive,
+    // -inf on every other head, which both kernel and reference treat as "no sink". Pins the
+    // sink_ptr [nhead] contract, since only -inf yields a d_sink of exactly 0.
+    neutral_heads,
+    // Deliberately saturated. Numerically blind for the reason above, so it is not a
+    // correctness check; it keeps the P_sink -> 1 and lse-saturation arithmetic exercised,
+    // which the sensitive regime no longer reaches.
+    saturated,
+};
+
 template <typename DataTypeConfig>
 bwd_result fmha_bwd_run(mode_enum mode,
                         ck_tile::index_t batch,
@@ -87,7 +104,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         uint32_t seed,
                         int do_validation,
                         const ck_tile::stream_config& stream_config,
-                        std::optional<std::string> json = std::nullopt)
+                        std::optional<std::string> json = std::nullopt,
+                        sink_regime sink_values         = sink_regime::sensitive)
 {
     const std::string data_type = []() {
         if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp32>)
@@ -267,13 +285,21 @@ bwd_result fmha_bwd_run(mode_enum mode,
     ck_tile::HostTensor<LSEDataType> lse_host(
         std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
     ck_tile::HostTensor<LSEDataType> sink_host(
-        sink_grad ? std::array<ck_tile::index_t, 2>{batch, nhead}
-                  : std::array<ck_tile::index_t, 2>{1, 1} /* dummy when sink is disabled */);
+        sink_grad ? std::array<ck_tile::index_t, 1>{nhead}
+                  : std::array<ck_tile::index_t, 1>{1} /* dummy when sink is disabled */);
     if(sink_grad)
     {
-        std::uniform_real_distribution<float> sink_dist(30.0f, 60.0f);
+        // See the sink_regime comments: the sensitive range is deliberately small, because a
+        // sink far above rowmax collapses d_sink to -sum_q D[q] regardless of which sink element
+        // was read, which hid a [batch, nhead] vs [nhead] indexing mismatch in 12 of 15 SinkGrad
+        // cases, and also drives the token weights to 0, weakening the dK/dV checks.
+        const float lo = (sink_values == sink_regime::saturated) ? 30.0f : -1.0f;
+        const float hi = (sink_values == sink_regime::saturated) ? 60.0f : 1.0f;
+        std::uniform_real_distribution<float> sink_dist(lo, hi);
         sink_host.ForEach([&](auto& self, auto i) {
-            self(i) = static_cast<LSEDataType>(sink_dist(random_engine));
+            self(i) = (sink_values == sink_regime::neutral_heads && i[0] % 2 == 0)
+                          ? -std::numeric_limits<LSEDataType>::infinity()
+                          : static_cast<LSEDataType>(sink_dist(random_engine));
         });
     }
     ck_tile::HostTensor<DDataType> d_host(
@@ -469,8 +495,13 @@ bwd_result fmha_bwd_run(mode_enum mode,
               << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0]
               << "/" << seqlen_ks[0] << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
               << ", bias:" << bias << ", dbias:" << use_dbias << ", p_drop:" << p_drop
-              << (sink_grad ? ", sink:(rand[30,60], grad)" : "") << ", s_randval:" << s_randval
-              << ", deterministic:" << deterministic
+              << (sink_grad ? (sink_values == sink_regime::neutral_heads
+                                   ? ", sink:(-inf every other head, grad)"
+                                   : (sink_values == sink_regime::saturated
+                                          ? ", sink:(rand[30,60] saturated, grad)"
+                                          : ", sink:(rand[-1,1], grad)"))
+                            : "")
+              << ", s_randval:" << s_randval << ", deterministic:" << deterministic
               << ", workspace:" << std::to_string(workspace_size_in_megabytes) << "MiB"
               << ", mask:" << mask << ", init:" << launcher_ctor_ms << "ms"
               << ", prws:" << prepare_ws_timer.duration() << "ms" << std::flush;
@@ -815,8 +846,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
                 s_host_ref, p_hp_host_ref, ck_tile::identity{}, lse_host_ref);
 
             // Incorporate sink token into the softmax distribution (reference computation).
-            // The sink acts as an extra key whose score is sink_host(wb, i_h) (in log-space),
-            // which is a per-head random value in [30, 60].
+            // The sink acts as an extra key whose score is sink_host(i_h) (in log-space),
+            // which is a per-head random value in [-1., 1.].
             //   lse_new = log(exp(lse_old) + exp(sink))
             //   P_new   = P_old * exp(lse_old - lse_new)   (rescaled token attention)
             //   P_sink  = exp(sink - lse_new)               (sink attention weight)
@@ -827,7 +858,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
             {
                 for(int i_h = 0; i_h < nhead; ++i_h)
                 {
-                    AccDataType sink_val = sink_host(wb, i_h);
+                    AccDataType sink_val = sink_host(i_h);
                     for(int i_q = 0; i_q < real_seqlen_q; ++i_q)
                     {
                         // Use numerically stable log-sum-exp: lse_new = log(exp(lse_old)+exp(sink))
@@ -840,8 +871,13 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         AccDataType lse_old = lse_host_ref(i_h, i_q);
                         AccDataType hi      = lse_old > sink_val ? lse_old : sink_val;
                         AccDataType lo      = lse_old > sink_val ? sink_val : lse_old;
+                        // Both -inf (a fully masked row on a head whose sink is disabled) would
+                        // make lo - hi a NaN, so short-circuit it: no sink and no token means
+                        // lse stays -inf.
                         AccDataType lse_new =
-                            hi + ck_tile::log(AccDataType(1) + ck_tile::exp(lo - hi));
+                            (std::isinf(hi) && hi < AccDataType(0))
+                                ? hi
+                                : hi + ck_tile::log(AccDataType(1) + ck_tile::exp(lo - hi));
                         AccDataType p_scale = ck_tile::exp(lse_old - lse_new);
 
                         lse_host_ref(i_h, i_q) = lse_new;
@@ -1182,6 +1218,36 @@ bwd_result fmha_bwd_run(mode_enum mode,
                                                  rtol,
                                                  atol);
             pass &= dsink_pass;
+        }
+
+        if(sink_grad && sink_values == sink_regime::neutral_heads)
+        {
+            // sink_ptr is [nhead], shared by every batch. Even heads were given -inf, so they
+            // must contribute nothing and land on exactly 0, while odd heads must be non-zero.
+            // Only -inf yields exactly 0, so a shifted index - or a read past the end of the
+            // buffer - breaks the pattern instead of merely perturbing a number, which is what
+            // makes this independent of both tolerances and the init range.
+            bool identity_pass = true;
+            for(ck_tile::index_t h = 0; h < nhead; ++h)
+            {
+                const bool neutral = (h % 2 == 0);
+                const double gpu   = ck_tile::type_convert<double>(d_sink_host(h));
+
+                if(neutral && std::abs(gpu) > 0)
+                {
+                    identity_pass = false;
+                    std::cerr << "Error: head " << h << " has sink -inf so d_sink must be exactly "
+                              << "0, got " << gpu << ". The kernel read some other sink element\n";
+                }
+                if(!neutral && !(std::abs(gpu) > 0))
+                {
+                    identity_pass = false;
+                    std::cerr << "Error: head " << h << " has a finite sink so d_sink must be "
+                              << "non-zero, got 0. The kernel read a disabled head's sink\n";
+                }
+            }
+
+            pass &= identity_pass;
         }
 
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;

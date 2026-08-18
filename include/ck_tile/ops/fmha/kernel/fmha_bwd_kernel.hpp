@@ -1987,14 +1987,14 @@ struct FmhaBwdOGradDotOKernel
         const void* do_ptr;
         void* d_ptr;
         const void* lse_ptr; // log-sum-exp from forward pass, shape [batch, nhead, seqlen_q]
-        const LSEDataType* sink_ptr; // sink scores, shape [batch, nhead]; nullptr disables sink
+        const LSEDataType* sink_ptr; // sink scores, shape [nhead]; nullptr disables sink
         LSEDataType* d_sink_ptr; // sink gradient output, shape [nhead]; nullptr disables sink grad
 
         float p_undrop;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t hdim_v;
-        ck_tile::index_t nhead; // used to index sink_ptr / d_sink_ptr
+        ck_tile::index_t nhead; // unused; kept for kernel-arg layout compatibility
 
         ck_tile::index_t stride_do;
         ck_tile::index_t stride_o;
@@ -2183,8 +2183,7 @@ struct FmhaBwdOGradDotOKernel
         // -inf is left unchanged (log2e * -inf == -inf) to keep P_sink -> 0 when sink is disabled.
         const LSEDataType sink_value =
             kargs.sink_ptr != nullptr
-                ? log2e_v<LSEDataType> *
-                      kargs.sink_ptr[static_cast<long_index_t>(i_batch) * kargs.nhead + i_nhead]
+                ? log2e_v<LSEDataType> * kargs.sink_ptr[static_cast<long_index_t>(i_nhead)]
                 : -numeric<LSEDataType>::infinity();
 
         // for simplicity, batch stride we just modify the pointer
