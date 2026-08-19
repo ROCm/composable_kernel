@@ -86,6 +86,30 @@ set_tests_properties(dispatcher_test_gemm_utils PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# =============================================================================
+# Bridge on-device GPU correctness tests (merged ops). Each builds the op's
+# dispatcher .so, runs on-device via its Gpu*Runner, and checks output vs a
+# numpy fp32 reference (scale-relative tolerance). They SKIP cleanly (no fail)
+# when no GPU / hipcc / static lib is present, so they cost nothing on a
+# CPU-only runner and only run on a GPU runner. mx arch-gates to gfx950.
+# =============================================================================
+foreach(_gpu_test
+        test_grouped_gemm_gpu_correctness
+        test_multi_abd_gpu_correctness
+        test_multi_d_gpu_correctness
+        test_mx_gemm_gpu_correctness)
+    add_test(
+        NAME dispatcher_${_gpu_test}
+        COMMAND ${Python3_EXECUTABLE} -m unittest discover -s ${CMAKE_CURRENT_SOURCE_DIR} -p ${_gpu_test}.py -v
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    set_tests_properties(dispatcher_${_gpu_test} PROPERTIES
+        LABELS "dispatcher;python;bridge;gpu"
+        TIMEOUT 600
+        ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+    )
+endforeach()
+
 # Verbose version of the test
 add_test(
     NAME dispatcher_test_autocorrect_verbose
