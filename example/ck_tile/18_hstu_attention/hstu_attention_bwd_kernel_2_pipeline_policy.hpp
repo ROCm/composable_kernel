@@ -280,10 +280,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQ()
     {
-        if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
-            return 8;
-        else
-            return 4;
+        return max(GetQKWarpGemmKPerThreadSize<Problem>(), GetAlignmentQ<Problem>());
     }
 
     template <typename Problem>
@@ -298,10 +295,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackOGrad()
     {
-        if constexpr(GetOGradVWarpGemmKPerThreadSize<Problem>() >= 8)
-            return 8;
-        else
-            return 4;
+        return max(GetOGradVWarpGemmKPerThreadSize<Problem>(), GetAlignmentOGrad<Problem>());
     }
 
     template <typename Problem>
@@ -316,10 +310,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackOGradT()
     {
-        if constexpr(GetPTOGradTWarpGemmKPerThreadSize<Problem>() >= 8)
-            return 8;
-        else
-            return 4;
+        return max(GetPTOGradTWarpGemmKPerThreadSize<Problem>(), GetAlignmentOGrad<Problem>());
     }
 
     template <typename Problem>
@@ -334,10 +325,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQT()
     {
-        if constexpr(GetSGradTQTWarpGemmKPerThreadSize<Problem>() >= 8)
-            return 8;
-        else
-            return 4;
+        return max(GetSGradTQTWarpGemmKPerThreadSize<Problem>(), GetAlignmentQ<Problem>());
     }
 
     // -------------------------------------------------------------------------
@@ -432,7 +420,8 @@ struct HstuAttentionBwdKernel2PipelinePolicy
               index_t NumBuffers,
               index_t kKPack,
               index_t kKVector,
-              index_t WarpGemmKPerThread>
+              index_t WarpGemmKPerThread,
+              bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQOGradLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kM0;
@@ -459,10 +448,28 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         {
             //  static_assert(kKVector == kKPack);
 
-            // XOR-swizzled physical layout [NumBuffers, kNPerBlock, kKPerBlock] -- shared
-            // with the transposed staging buffers (see MakeSwizzledNativeDesc).
-            constexpr auto desc_native =
-                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
+            // In the trload pipeline this q_lds/do_lds buffer is read BOTH normally (Gemm0/Gemm2
+            // A operand) and transposed (Gemm3/Gemm1 via ds_read_b64_tr). Profiling shows the
+            // transpose read is the dominant LDS-conflict source (it is 2x the normal-read count in
+            // kernel 2) and it prefers a plain (contiguous) layout. Use a plain physical layout for
+            // the shared trload buffer (same element space -> GetSmemSize/byte offsets unchanged),
+            // and keep the XOR swizzle for the non-trload buffer whose read is normal-only.
+            constexpr auto desc_native = [] {
+                if constexpr(kUseTrLoad)
+                    return make_naive_tensor_descriptor(
+                        make_tuple(
+                            number<NumBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
+                        make_tuple(
+                            number<kNPerBlock * kKPerBlock>{}, number<kKPerBlock>{}, number<1>{}),
+                        number<kKPack>{},
+                        number<1>{});
+                else
+                    return MakeSwizzledNativeDesc<Problem,
+                                                  NumBuffers,
+                                                  kNPerBlock,
+                                                  kKPerBlock,
+                                                  kKPack>();
+            }();
 
             // Logical view: [kNPerBlock, NumBuffers*kKPerBlock] -- buffers stacked along
             // dim1, matching the other branches and the per-buffer caller slicing.
@@ -521,7 +528,8 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                                 NumBuffers,
                                                 kKPack,
                                                 kKVector,
-                                                WarpGemmKPerThread>();
+                                                WarpGemmKPerThread,
+                                                true /*kUseTrLoad*/>();
         }
         else
         {
@@ -549,7 +557,8 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                                 NumBuffers,
                                                 kKPack,
                                                 kKVector,
-                                                WarpGemmKPerThread>();
+                                                WarpGemmKPerThread,
+                                                true /*kUseTrLoad*/>();
         }
         else
         {

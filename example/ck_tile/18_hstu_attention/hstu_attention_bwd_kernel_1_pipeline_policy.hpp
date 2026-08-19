@@ -340,6 +340,12 @@ struct HstuAttentionBwdKernel1PipelinePolicy
 
             // XOR-swizzled physical layout [NumBuffers, kNPerBlock, kKPerBlock] -- shared
             // with the transposed staging buffers (see MakeSwizzledNativeDesc).
+            //
+            // NOTE: unlike kernel 2's q_lds/do_lds, a *plain* layout is NOT used here. This buffer
+            // has kKPerBlock == kQKHeaddim (128), so a plain row-major layout would start every
+            // kN0Sub row on the same LDS bank, collapsing the normal Gemm0 B=K read (which in
+            // kernel 1 is as frequent as the transpose read). The XOR swizzle keeps the normal read
+            // conflict-free; measured plain here regressed k_lds 0.20 -> 0.78 conflicts/access.
             constexpr auto desc_native =
                 MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
 
