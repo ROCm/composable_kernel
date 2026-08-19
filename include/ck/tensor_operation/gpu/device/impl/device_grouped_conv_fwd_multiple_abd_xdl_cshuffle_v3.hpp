@@ -80,7 +80,7 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     kernel_grouped_conv_fwd_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg,
                                             const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
@@ -199,7 +199,7 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds(
         typename GridwiseGemm::Argument karg,
@@ -250,7 +250,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         if constexpr(GridwiseGemm::DirectLoadEnabled)
         {
-#if defined(__gfx950__)
+#if defined(__gfx950__) || defined(__gfx125__)
             GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
                 karg.p_a_grid + a_group_offset + a_n_offset,
                 karg.p_b_grid + b_group_offset,
@@ -1454,6 +1454,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // Memory access runtime error on gfx1250 (inconsistent across runs)
+        // TODO: need fix
+        if constexpr(LargeTensors)
+        {
+            if(is_gfx125_supported())
+            {
+                return false;
+            }
+        }
+
         if constexpr(!LargeTensors)
         {
             if(arg.stride_overflow)

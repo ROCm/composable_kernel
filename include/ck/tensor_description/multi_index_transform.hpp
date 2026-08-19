@@ -138,9 +138,6 @@ struct Pad
         static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
                       "wrong! inconsistent # of dimension");
         idx_low(Number<0>{}) = idx_up[Number<0>{}] - left_pad_length_;
-#if defined(__gfx125__) && CK_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE
-        idx_low(Number<0>{}) = max(idx_low(Number<0>{}), 0);
-#endif
     }
 
     template <typename LowIdxDiff,
@@ -157,20 +154,11 @@ struct Pad
         static_assert(LowIdxDiff::Size() == 1 && UpIdxDiff::Size() == 1 && LowIdx::Size() == 1 &&
                           UpIdx::Size() == 1,
                       "wrong! inconsistent # of dimension");
-#if defined(__gfx125__) && CK_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE
-        const auto idx_low_old = idx_low;
-
-        CalculateLowerIndex(idx_low, idx_up);
-
-        idx_diff_low = idx_low - idx_low_old;
-#else
-
         constexpr auto I0 = Number<0>{};
 
         idx_diff_low(I0) = idx_diff_up[I0];
 
         idx_low += idx_diff_low;
-#endif
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
@@ -240,9 +228,6 @@ struct LeftPad
         static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
                       "wrong! inconsistent # of dimension");
         idx_low(Number<0>{}) = idx_up[Number<0>{}] - left_pad_length_;
-#if defined(__gfx125__) && CK_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE
-        idx_low(Number<0>{}) = max(idx_low(Number<0>{}), 0);
-#endif
     }
 
     template <typename LowIdxDiff,
@@ -259,20 +244,11 @@ struct LeftPad
         static_assert(LowIdxDiff::Size() == 1 && UpIdxDiff::Size() == 1 && LowIdx::Size() == 1 &&
                           UpIdx::Size() == 1,
                       "wrong! inconsistent # of dimension");
-
-#if defined(__gfx125__) && CK_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE
-        const auto idx_low_old = idx_low;
-
-        CalculateLowerIndex(idx_low, idx_up);
-
-        idx_diff_low = idx_low - idx_low_old;
-#else
         constexpr auto I0 = Number<0>{};
 
         idx_diff_low(I0) = idx_diff_up[I0];
 
         idx_low += idx_diff_low;
-#endif
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }

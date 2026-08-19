@@ -526,7 +526,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // Non-grouped GridwiseGemm for single-group specialization.
     // Uses simpler epilogue and address computation, matching the non-grouped kernel.
     // Requires AK1 == BK1 (true for all backward data convolution instances).
-    template <index_t NXdlPerWave_>
+    template <typename WarpTileConfig>
     using NonGroupedGridwiseGemmBase =
         GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<BlockSize,
                                                 ABDataType,
@@ -539,11 +539,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                 MPerBlock,
                                                 NPerBlock,
                                                 KPerBlock / AK1,
-                                                MPerXDL,
-                                                NPerXDL,
+                                                WarpTileConfig::At(0),
+                                                WarpTileConfig::At(1),
                                                 AK1,
-                                                MXdlPerWave,
-                                                NXdlPerWave_,
+                                                WarpTileConfig::At(2),
+                                                WarpTileConfig::At(3),
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 ABlockTransferSrcAccessOrder,
@@ -563,7 +563,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                 Sequence<2, 3, 0, 1, 7, 5, 4, 6>,
                                                 7,
                                                 1>;
-    using NonGroupedGridwiseGemm64 = NonGroupedGridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using NonGroupedGridwiseGemm64 = NonGroupedGridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using NonGroupedGridwiseGemm32 = NonGroupedGridwiseGemmBase<decltype(WarpTileConfig32)>;
 
     // Flat descriptor type aliases for group_count=1 fast path.
     // Derived from the _Packed() methods in ConvToGemmBwdDataTransform.
@@ -1300,6 +1301,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         template <typename GridwiseGemm,
                   typename GridwiseGemmCTranspose,
+                  typename NonGroupedGridwiseGemm,
                   InMemoryDataOperationEnum ElementOp>
         float RunMultiDGemm(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -1515,13 +1517,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         const auto& flat_c      = arg.flat_c_container_[flat_idx];
                         const index_t padded_K0 = flat_a.GetLength(I0);
                         const bool flat_desc_has_main_loop =
-                            NonGroupedGridwiseGemm64::CalculateHasMainKBlockLoop(padded_K0 * AK1);
+                            NonGroupedGridwiseGemm::CalculateHasMainKBlockLoop(padded_K0 * AK1);
                         const index_t flat_grid_size =
-                            NonGroupedGridwiseGemm64::Block2CTileMap::CalculateGridSize(
+                            NonGroupedGridwiseGemm::Block2CTileMap::CalculateGridSize(
                                 flat_c.GetLength(I0), flat_c.GetLength(I1));
                         if(flat_desc_has_main_loop)
                         {
-                            const auto kernel = kernel_gemm_xdlops_v2r3<NonGroupedGridwiseGemm64,
+                            const auto kernel = kernel_gemm_xdlops_v2r3<NonGroupedGridwiseGemm,
                                                                         ABDataType,
                                                                         EDataType,
                                                                         FlatAGridDesc_K0_M_K1,
@@ -1543,7 +1545,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         }
                         else
                         {
-                            const auto kernel = kernel_gemm_xdlops_v2r3<NonGroupedGridwiseGemm64,
+                            const auto kernel = kernel_gemm_xdlops_v2r3<NonGroupedGridwiseGemm,
                                                                         ABDataType,
                                                                         EDataType,
                                                                         FlatAGridDesc_K0_M_K1,
@@ -1589,7 +1591,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             return ave_time;
         }
 
-        template <typename GridwiseGemm, typename GridwiseGemmCTranspose>
+        template <typename GridwiseGemm,
+                  typename GridwiseGemmCTranspose,
+                  typename NonGroupedGridwiseGemm>
         float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float ave_time = 0;
@@ -1683,6 +1687,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     ave_time +=
                         RunMultiDGemm<GridwiseGemm,
                                       GridwiseGemmCTranspose,
+                                      NonGroupedGridwiseGemm,
                                       InMemoryDataOperationEnum::AtomicAdd>(arg, stream_config);
                 }
             }
@@ -1690,6 +1695,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             {
                 ave_time += RunMultiDGemm<GridwiseGemm,
                                           GridwiseGemmCTranspose,
+                                          NonGroupedGridwiseGemm,
                                           InMemoryDataOperationEnum::Set>(arg, stream_config);
             }
 
@@ -1746,7 +1752,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             {
                 if constexpr(NXdlPerWave64 > 0)
                 {
-                    return RunImp<GridwiseGemm64, GridwiseGemmCTranspose64>(arg, stream_config);
+                    return RunImp<GridwiseGemm64,
+                                  GridwiseGemmCTranspose64,
+                                  NonGroupedGridwiseGemm64>(arg, stream_config);
                 }
                 else
                 {
@@ -1757,7 +1765,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             {
                 if constexpr(NXdlPerWave32 > 0)
                 {
-                    return RunImp<GridwiseGemm32, GridwiseGemmCTranspose32>(arg, stream_config);
+                    return RunImp<GridwiseGemm32,
+                                  GridwiseGemmCTranspose32,
+                                  NonGroupedGridwiseGemm32>(arg, stream_config);
                 }
                 else
                 {
@@ -1793,22 +1803,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         {
             return false;
         }
-        if(!is_xdl_wmma_k_supported<AComputeType, KPerBlock>())
+        if(!is_xdl_wmma_k_supported<AComputeType, KPerBlock, AK1>())
         {
             return false;
         }
-        if(!is_xdl_wmma_k_supported<BComputeType, KPerBlock>())
-        {
-            return false;
-        }
-        // This entire device template instantiates XDL (MFMA) kernels, which are
-        // CDNA-only. The shared is_xdl_wmma_supported() helper above can return
-        // true for FP16/BF16 with 16x16 on RDNA (gfx11/gfx12) because it is
-        // also used by WMMA device templates. Reject all instances of this XDL
-        // template on RDNA to avoid launching MFMA kernels on hardware that
-        // does not implement those intrinsics. The corresponding WMMA path
-        // lives in device_grouped_conv_bwd_data_multiple_d_wmma_cshuffle.hpp.
-        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+        if(!is_xdl_wmma_k_supported<BComputeType, KPerBlock, BK1>())
         {
             return false;
         }

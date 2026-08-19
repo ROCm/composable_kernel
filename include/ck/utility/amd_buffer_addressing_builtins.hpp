@@ -467,7 +467,8 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
                                            T* addr)
 {
     static_assert((is_same<T, bhalf_t>::value && (N == 2 || N == 4 || N == 8)) ||
-                      (is_same<T, half_t>::value && (N == 2 || N == 4 || N == 8)),
+                      (is_same<T, half_t>::value && (N == 2 || N == 4 || N == 8)) ||
+                      is_same<T, float>::value,
                   "wrong! not implemented");
 
     if constexpr(is_same<T, half_t>::value)
@@ -488,6 +489,14 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
         });
     }
 #endif
+    else if constexpr(is_same<T, float>::value)
+    {
+        vector_type<float, N> tmp{src_thread_data};
+        static_for<0, N, 1>{}([&](auto i) {
+            __builtin_amdgcn_global_atomic_fadd_f32(bit_cast<float*>(addr) + i,
+                                                    tmp.template AsType<float>()[i]);
+        });
+    }
 }
 
 template <typename T, index_t N>
@@ -769,7 +778,12 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
+#ifdef __gfx125__
+    if constexpr(is_same<T, bhalf_t>::value || is_same<T, half_t>::value ||
+                 is_same<T, float>::value)
+#else
     if constexpr(is_same<T, bhalf_t>::value)
+#endif
     {
         if(dst_thread_element_valid)
         {

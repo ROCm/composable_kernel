@@ -156,6 +156,8 @@ struct DeviceOperationInstanceFactory<
                 {
                     add_device_grouped_conv2d_bwd_data_xdl_v3_nhwgk_gkyxc_nhwgc_bf16_instances(
                         op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_v3_nhwgk_gkyxc_nhwgc_bf16_gfx1250_instances(
+                        op_ptrs);
                     add_device_grouped_conv2d_bwd_data_xdl_v3_nhwgk_gkyxc_nhwgc_bf16_large_tensors_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
@@ -474,6 +476,8 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<ComputeTypeB, BF16>)
                 {
                     add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_large_tiles_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_16_16_instances(
                         op_ptrs);

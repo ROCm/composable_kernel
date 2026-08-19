@@ -62,6 +62,19 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instan
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
+void add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_large_tiles(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Empty_Tuple,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Empty_Tuple,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 
 void add_device_grouped_conv2d_fwd_wmma_cshufflev3_wave_transfer_nhwgc_gkyxc_nhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,

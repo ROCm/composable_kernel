@@ -13,6 +13,7 @@ set(GROUPED_CONV2D_FWD_NHWGC
    wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance_part2.cpp
    wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance_part3.cpp
    wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance_part4.cpp
+   wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance_large_tiles.cpp
    wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instance_part1.cpp
    wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instance_part2.cpp
    wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instance_part3.cpp
@@ -74,6 +75,10 @@ set(GROUPED_CONV2D_FWD_NHWGC
    xdl/merged_groups/device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f32_tf32_instance.cpp
    xdl/merged_groups/device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_int8_instance.cpp
 )
+
+if((GPU_TARGETS MATCHES "gfx1250"))
+set_source_files_properties(wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance_large_tiles.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-enable-post-misched=1;-mllvm;--amdgpu-mfma-vgpr-form")
+endif()
 
 # Generate sharded instances from templates
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)

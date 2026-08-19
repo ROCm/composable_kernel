@@ -280,6 +280,20 @@ void add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_instances
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
+void add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_large_tiles_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
 void add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_bf16_16_16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,

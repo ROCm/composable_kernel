@@ -43,7 +43,7 @@ template <typename GridwiseGemm,
           TailNumber TailNum = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_grouped_conv_fwd_grouped_gemm_wmma_cshuffle_v3(
         Array<GemmArgs, MaxGemmsNum> gemm_desc_kernel_args,

@@ -341,6 +341,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
+#ifdef __gfx120__
                 constexpr index_t num_ds_write_inst =
                     HotLoopInstList::A_LDS_Write_Inst_Num + HotLoopInstList::B_LDS_Write_Inst_Num;
 
@@ -365,7 +366,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                 static_for<0, num_ds_write_inst, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
                 });
-
+#endif
                 i += 1;
             } while(i < (num_loop - 1));
         }

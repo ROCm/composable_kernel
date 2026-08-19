@@ -94,6 +94,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
+    static constexpr index_t MaxBlockSize = BlockSize;
+
     static constexpr index_t NumATensor = AsDataType::Size();
     static constexpr index_t NumBTensor = BsDataType::Size();
     static constexpr index_t NumDTensor = DsDataType::Size();
