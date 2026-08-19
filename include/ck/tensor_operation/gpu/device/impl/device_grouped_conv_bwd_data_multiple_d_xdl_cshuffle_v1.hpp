@@ -1098,7 +1098,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         {
                             // K must be >= AK1 to ensure K0 = K/AK1 >= 1; otherwise
                             // the flat descriptor would have K0=0 which is invalid.
+                            // K must also be an exact multiple of AK1: the packed
+                            // descriptors compute K0 = K / AK1 with truncating integer
+                            // division and no remainder handling, so the trailing
+                            // K % AK1 output channels are silently dropped from the
+                            // backward-data reduction.
                             if(num_group_ == 1 && a_g_n_k_wos_lengths[2] >= AK1 &&
+                               a_g_n_k_wos_lengths[2] % AK1 == 0 &&
                                a_g_n_k_wos_lengths[1] / conv_N_per_block_ == 1)
                             {
                                 flat_a_container_.push_back(
