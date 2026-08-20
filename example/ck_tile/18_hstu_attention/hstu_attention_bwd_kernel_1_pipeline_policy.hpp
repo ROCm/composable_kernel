@@ -291,19 +291,13 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
     {
-        if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
-            return 8;
-        else
-            return 4;
+        return max(GetQKWarpGemmKPerThreadSize<Problem>(), GetAlignmentK<Problem>());
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
-        if constexpr(GetOGradVWarpGemmKPerThreadSize<Problem>() >= 8)
-            return 8;
-        else
-            return 4;
+        return max(GetOGradVWarpGemmKPerThreadSize<Problem>(), GetAlignmentV<Problem>());
     }
 
     // K LDS descriptor: NumKVLdsBuffers * [kN0Sub, kQKHeaddim]
@@ -336,18 +330,65 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         }
         else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
         {
-            static_assert(kKVector == kKPack);
+            // In the trload pipeline this k_lds is read BOTH normally (Gemm0 A operand) and
+            // transposed (Gemm4 via ds_read_b64_tr). Profiling shows the transpose read is the
+            // dominant LDS-conflict source (it is 2x the normal-read count in kernel 1) and it
+            // prefers a plain (contiguous) layout. Use a plain physical layout for the shared
+            // trload buffer (same element space -> GetSmemSize/byte offsets unchanged), and keep
+            // the XOR swizzle for the non-trload buffer whose read is normal-only.
+            constexpr auto desc_native = [] {
+                if constexpr(kUseTrLoad)
+                {
+                    if constexpr(kKPerBlock <= 32)
+                    {
+                        return make_naive_tensor_descriptor(
+                            make_tuple(
+                                number<NumBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
+                            make_tuple(number<kNPerBlock * kKPerBlock>{},
+                                       number<kKPerBlock>{},
+                                       number<1>{}),
+                            number<kKPack>{},
+                            number<1>{});
+                    }
+                    else
+                    {
+                        // With trload read,  16 threads per cycle access the [4Tl, 4Tm*4E] block
+                        // and cross-bar transpose it to [4E, 4Tm*4Tl] layout suitable for mfma, we
+                        // want to ensure 16T * 2 dwords to exactly hit 32 of 64 banks (for
+                        // kKPerBlock = 32, 4 * 32 * sizeof(bf16) = 64 banks mapped by 4 rows;
+                        // actuall hit 16 Threads * 2 banks/per-inst = 32 banks )
+                        static_assert(kKPerBlock % 32 == 0,
+                                      "kKPerBlock should be a multiplier of 32!");
 
-            // XOR-swizzled physical layout [NumBuffers, kNPerBlock, kKPerBlock] -- shared
-            // with the transposed staging buffers (see MakeSwizzledNativeDesc).
-            //
-            // NOTE: unlike kernel 2's q_lds/do_lds, a *plain* layout is NOT used here. This buffer
-            // has kKPerBlock == kQKHeaddim (128), so a plain row-major layout would start every
-            // kN0Sub row on the same LDS bank, collapsing the normal Gemm0 B=K read (which in
-            // kernel 1 is as frequent as the transpose read). The XOR swizzle keeps the normal read
-            // conflict-free; measured plain here regressed k_lds 0.20 -> 0.78 conflicts/access.
-            constexpr auto desc_native =
-                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
+                        constexpr auto desc_native_0 = make_naive_tensor_descriptor(
+                            make_tuple(number<NumBuffers>{},
+                                       number<kKPerBlock / 32>{},
+                                       number<kNPerBlock>{},
+                                       number<32>{}),
+                            make_tuple(number<kNPerBlock * kKPerBlock>{},
+                                       number<kNPerBlock * 32>{},
+                                       number<32>{},
+                                       number<1>{}),
+                            number<kKPack>{},
+                            number<1>{});
+
+                        return transform_tensor_descriptor(
+                            desc_native_0,
+                            make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                                       make_pass_through_transform(number<kNPerBlock>{}),
+                                       make_merge_transform(
+                                           make_tuple(number<kKPerBlock / 32>{}, number<32>{}))),
+                            make_tuple(sequence<0>{}, sequence<2>{}, sequence<1, 3>{}),
+                            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+                    }
+                }
+                else
+                    return MakeSwizzledNativeDesc<Problem,
+                                                  NumBuffers,
+                                                  kNPerBlock,
+                                                  kKPerBlock,
+                                                  kKPack>();
+            }();
 
             // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
             // dim0, matching the other branches and the per-buffer caller slicing.
