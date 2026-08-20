@@ -441,6 +441,16 @@ class TestCkTileGemmPipeline : public ::testing::Test
         {
             GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
         }
+        // TDM pipelines use cluster launch (multicast), not supported on gfx1250 A0 (revision 0)
+        if constexpr(PipelineType == GemmPipelineType::CompTDMV1 ||
+                     PipelineType == GemmPipelineType::CompTDMV2)
+        {
+            if(ck_tile::get_device_revision() == 0)
+            {
+                GTEST_SKIP() << "TDM pipeline cluster launch is not supported on gfx1250 "
+                                "asicRevision=0";
+            }
+        }
         // for TDM it used tdm_epilogue which don't support split-k
         if constexpr(PipelineType == GemmPipelineType::CompV4 ||
                      PipelineType == GemmPipelineType::CompAsyncEightWaves || IsAsync_v ||

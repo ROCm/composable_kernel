@@ -159,6 +159,12 @@ TEST(PackedFp6, PkscaleTypeConvertOpsel4_7)
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
+
+    if(ck_tile::get_device_revision() == 0)
+    {
+        // Block16 Mode here means scale option [4-7].
+        GTEST_SKIP() << "Block16 Mode not supported on asicRevision=0";
+    }
     test_pkscale_type_convert_device<pk_fp6_t, fp32_t, true>();
     test_pkscale_type_convert_device<pk_fp6_t, fp16_t, true>();
     test_pkscale_type_convert_device<pk_fp6_t, bf16_t, true>();
@@ -292,6 +298,12 @@ TEST(PackedBf6, PkscaleTypeConvertOpsel4_7)
     if(!ck_tile::is_gfx125_supported())
     {
         GTEST_SKIP() << "Test for GFX1250.";
+    }
+
+    if(ck_tile::get_device_revision() == 0)
+    {
+        // Block16 Mode here means scale option [4-7].
+        GTEST_SKIP() << "Block16 Mode not supported on asicRevision=0";
     }
     test_pkscale_type_convert_device<pk_bf6_t, fp32_t, true>();
     test_pkscale_type_convert_device<pk_bf6_t, fp16_t, true>();
@@ -737,10 +749,10 @@ void test_pkscale_type_convert_device()
         if constexpr(Block16Mod)
         {
             /* Each iteration take care of 16 x 128 matrix
-             * opsel-4, use scale[th0:15]   [7:0]->col[0:15],   [23:16]->col[16:31]
-             * opsel-5, use scale[th16:31]  [7:0]->col[0:15],   [23:16]->col[16:31]
-             * opsel-6, use scale[th0:15]   [15:8]->col[32:47], [31:24]->col[48:63]
-             * opsel-7, use scale[th16:31]  [15:8]->col[32:47], [31:24]->col[48:63] */
+             * opsel-4, use scale[th0:15]   [7:0]->th0:15, [23:16]->th16:31
+             * opsel-5, use scale[th16:31]  [7:0]->th0:15, [23:16]->th16:31
+             * opsel-6, use scale[th0:15]   [15:8]->th0:15, [31:24]->th16:31
+             * opsel-7, use scale[th16:31]  [15:8]->th0:15, [31:24]->th16:31 */
             ck_tile::Packed4Scale_E8M0 scale4(fscale[m * N_scale + 5],
                                               fscale[m * N_scale + 1],
                                               fscale[m * N_scale + 4],
@@ -756,10 +768,10 @@ void test_pkscale_type_convert_device()
         {
             // Block32Mod
             /* Each iteration take care of 16 x 128 matrix
-             * opsel-0, use scale[th0:15]   [7:0]->col[0:15],   [15:8]->col[16:31]
-             * opsel-1, use scale[th16:31]  [7:0]->col[0:15],   [15:8]->col[16:31]
-             * opsel-2, use scale[th0:15]   [23:16]->col[32:47], [31:24]->col[48:63]
-             * opsel-3, use scale[th16:31]  [23:16]->col[32:47], [31:24]->col[48:63] */
+             * opsel-0, use scale[th0:15]   [7:0]->th0:15, [15:8]->th16:31
+             * opsel-1, use scale[th16:31]  [7:0]->th0:15, [15:8]->th16:31
+             * opsel-2, use scale[th0:15]   [23:16]->th0:15, [31:24]->th16:31
+             * opsel-3, use scale[th16:31]  [23:16]->th0:15, [31:24]->th16:31 */
             ck_tile::Packed4Scale_E8M0 scale4(fscale[m * N_scale + 5],
                                               fscale[m * N_scale + 4],
                                               fscale[m * N_scale + 1],

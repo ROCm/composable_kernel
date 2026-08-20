@@ -2391,6 +2391,14 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                       ,
                   "wrong! not implemented");
 
+    // gfx1250 requires DEVICE scope (16) for cross-CU buffer atomics; CU scope (0) is sufficient
+    // elsewhere.
+#if defined(__gfx125__)
+    constexpr int coherence_flag = 16;
+#else
+    constexpr int coherence_flag = 0;
+#endif
+
     if constexpr(std::is_same<T, float>::value)
     {
         if constexpr(N == 1)
@@ -2399,7 +2407,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                    dst_wave_buffer_resource,
                                                    dst_thread_addr_offset,
                                                    dst_wave_addr_offset,
-                                                   0);
+                                                   coherence_flag);
         }
         else
         {
@@ -2408,7 +2416,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                        dst_wave_buffer_resource,
                                                        dst_thread_addr_offset,
                                                        dst_wave_addr_offset + i * sizeof(float),
-                                                       0);
+                                                       coherence_flag);
             });
         }
     }
@@ -2420,7 +2428,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                      dst_wave_buffer_resource,
                                                      dst_thread_addr_offset,
                                                      dst_wave_addr_offset,
-                                                     0);
+                                                     coherence_flag);
         }
         else
         {
@@ -2430,7 +2438,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                     dst_wave_buffer_resource,
                     dst_thread_addr_offset,
                     dst_wave_addr_offset + i * sizeof(fp16x2_t),
-                    0);
+                    coherence_flag);
             });
         }
     }
@@ -2442,7 +2450,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                      dst_wave_buffer_resource,
                                                      dst_thread_addr_offset,
                                                      dst_wave_addr_offset,
-                                                     0);
+                                                     coherence_flag);
         }
         else
         {
@@ -2452,7 +2460,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                     dst_wave_buffer_resource,
                     dst_thread_addr_offset,
                     dst_wave_addr_offset + i * sizeof(bf16x2_t),
-                    0);
+                    coherence_flag);
             });
         }
     }
@@ -2464,7 +2472,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                   dst_wave_buffer_resource,
                                                   dst_thread_addr_offset,
                                                   dst_wave_addr_offset,
-                                                  0);
+                                                  coherence_flag);
         }
         else
         {
@@ -2473,7 +2481,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                       dst_wave_buffer_resource,
                                                       dst_thread_addr_offset,
                                                       dst_wave_addr_offset + i * sizeof(int32_t),
-                                                      0);
+                                                      coherence_flag);
             });
         }
     }

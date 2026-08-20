@@ -415,10 +415,10 @@ void test_pkscale_type_convert_device()
         if constexpr(Block16Mod)
         {
             /* Each iteration take care of 16 x [8 + 8] matrix
-             * opsel-4, use scale[th0:15]   [7:0]->th0:15, [23:16]->th16:32
-             * opsel-5, use scale[th16:31]  [7:0]->th0:15, [23:16]->th16:32
-             * opsel-6, use scale[th0:15]   [15:8]->th0:15, [31:24]->th16:32
-             * opsel-7, use scale[th16:31]  [15:8]->th0:15, [31:24]->th16:32 */
+             * opsel-4, use scale[th0:15]   [7:0]->th0:15, [23:16]->th16:31
+             * opsel-5, use scale[th16:31]  [7:0]->th0:15, [23:16]->th16:31
+             * opsel-6, use scale[th0:15]   [15:8]->th0:15, [31:24]->th16:31
+             * opsel-7, use scale[th16:31]  [15:8]->th0:15, [31:24]->th16:31 */
             Packed4Scale_E8M0 scale4(fscale[m * N_scale + 5],
                                      fscale[m * N_scale + 1],
                                      fscale[m * N_scale + 4],
@@ -433,10 +433,10 @@ void test_pkscale_type_convert_device()
         else
         { // Block32Mod
             /* Each iteration take care of 16 x [8 + 8] matrix
-             * opsel-0, use scale[th0:15]   [7:0]->th0:15, [15:8]->th16:32
-             * opsel-1, use scale[th16:31]  [7:0]->th0:15, [15:8]->th16:32
-             * opsel-2, use scale[th0:15]   [23:16]->th0:15, [31:24]->th16:32
-             * opsel-3, use scale[th16:31]  [23:16]->th0:15, [31:24]->th16:32 */
+             * opsel-0, use scale[th0:15]   [7:0]->th0:15, [15:8]->th16:31
+             * opsel-1, use scale[th16:31]  [7:0]->th0:15, [15:8]->th16:31
+             * opsel-2, use scale[th0:15]   [23:16]->th0:15, [31:24]->th16:31
+             * opsel-3, use scale[th16:31]  [23:16]->th0:15, [31:24]->th16:31 */
             Packed4Scale_E8M0 scale4(fscale[m * N_scale + 5],
                                      fscale[m * N_scale + 4],
                                      fscale[m * N_scale + 1],

@@ -776,7 +776,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             else
             {
                 printf("PreshuffleB without TiledMMAPermuteN\n");
-                b_k_n_dev = ck_tile::shuffle_b<GemmConfig>(b_k_n);
+                b_k_n_dev = ck_tile::shuffle_b_v0<GemmConfig>(b_k_n);
             }
         }
         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)

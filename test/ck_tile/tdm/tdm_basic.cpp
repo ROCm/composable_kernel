@@ -329,6 +329,10 @@ TYPED_TEST(TDMBasicTypedTest, SanityTest)
 
 TYPED_TEST(TDMBasicTypedTest, SanityClusterTest)
 {
+    if(ck_tile::get_device_revision() == 0)
+    {
+        GTEST_SKIP() << "TDM cluster launch is not supported on gfx1250 asicRevision=0";
+    }
     TDMTestParams params;
     params.m = 32;
     params.n = 16;
@@ -343,6 +347,10 @@ TYPED_TEST(TDMBasicTypedTest, SanityClusterTest)
 
 TYPED_TEST(TDMBasicTypedTest, SanityClusterGatherTest)
 {
+    if(ck_tile::get_device_revision() == 0)
+    {
+        GTEST_SKIP() << "TDM cluster launch is not supported on gfx1250 asicRevision=0";
+    }
     TDMTestParams params;
     params.m = 32;
     params.n = 16;

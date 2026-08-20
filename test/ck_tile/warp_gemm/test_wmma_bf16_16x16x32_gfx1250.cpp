@@ -146,5 +146,11 @@ TYPED_TEST(WGRuntimeTest, Compare_Dispatcher_ReferenceGemm)
     C_ref.SetZero();
     reference_gemm<AType, BType, float, CType>(A, B.transpose(), C_ref);
 
-    EXPECT_TRUE(check_err(C, C_ref, "Warp gemm bf16 result error."));
+    // The wmma_bf16_16x16x32_bf16 instruction accumulates K=32 products in bf16 precision,
+    // producing ~K * epsilon_bf16 rounding error vs the float-precision reference.
+    // Use relaxed tolerances: rtol=0.05, atol=0.05 (~K/2 * epsilon_bf16 for |values| <= 1).
+    constexpr bool is_bf16_acc = std::is_same_v<CType, ck_tile::bf16_t>;
+    const double rtol          = is_bf16_acc ? 0.05 : 1e-3;
+    const double atol          = is_bf16_acc ? 0.05 : 1e-3;
+    EXPECT_TRUE(check_err(C, C_ref, "Warp gemm bf16 result error.", rtol, atol));
 }

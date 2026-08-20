@@ -2325,6 +2325,14 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                       ,
                   "wrong! not implemented");
 
+    // gfx1250 requires DEVICE scope (16) for cross-CU buffer atomics; CU scope (0) is sufficient
+    // elsewhere.
+#if defined(__gfx125__)
+    constexpr int coherence_flag = 16;
+#else
+    constexpr int coherence_flag = 0;
+#endif
+
     if constexpr(std::is_same<T, float>::value)
     {
         if constexpr(N == 1)
@@ -2333,7 +2341,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                    dst_wave_buffer_resource,
                                                    dst_thread_addr_offset,
                                                    dst_wave_addr_offset,
-                                                   0);
+                                                   coherence_flag);
         }
         else if constexpr(N == 2)
         {
@@ -2342,14 +2350,14 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset,
-                0);
+                coherence_flag);
 
             llvm_amdgcn_raw_buffer_atomic_add_fp32(
                 src_thread_data.template get_as<float>()[number<1>{}],
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset + sizeof(float),
-                0);
+                coherence_flag);
         }
         else if constexpr(N == 4)
         {
@@ -2358,28 +2366,28 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset,
-                0);
+                coherence_flag);
 
             llvm_amdgcn_raw_buffer_atomic_add_fp32(
                 src_thread_data.template get_as<float>()[number<1>{}],
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset + sizeof(float),
-                0);
+                coherence_flag);
 
             llvm_amdgcn_raw_buffer_atomic_add_fp32(
                 src_thread_data.template get_as<float>()[number<2>{}],
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset + 2 * sizeof(float),
-                0);
+                coherence_flag);
 
             llvm_amdgcn_raw_buffer_atomic_add_fp32(
                 src_thread_data.template get_as<float>()[number<3>{}],
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset + 3 * sizeof(float),
-                0);
+                coherence_flag);
         }
     }
     else if constexpr(std::is_same<T, fp16_t>::value)
@@ -2390,7 +2398,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                      dst_wave_buffer_resource,
                                                      dst_thread_addr_offset,
                                                      dst_wave_addr_offset,
-                                                     0);
+                                                     coherence_flag);
         }
         else if constexpr(N == 4)
         {
@@ -2400,7 +2408,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                     dst_wave_buffer_resource,
                     dst_thread_addr_offset,
                     dst_wave_addr_offset + i * sizeof(fp16x2_t),
-                    0);
+                    coherence_flag);
             });
         }
         else if constexpr(N == 8)
@@ -2411,7 +2419,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                     dst_wave_buffer_resource,
                     dst_thread_addr_offset,
                     dst_wave_addr_offset + i * sizeof(fp16x2_t),
-                    0);
+                    coherence_flag);
             });
         }
     }
@@ -2423,7 +2431,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                      dst_wave_buffer_resource,
                                                      dst_thread_addr_offset,
                                                      dst_wave_addr_offset,
-                                                     0);
+                                                     coherence_flag);
         }
         else if constexpr(N == 4)
         {
@@ -2433,7 +2441,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                     dst_wave_buffer_resource,
                     dst_thread_addr_offset,
                     dst_wave_addr_offset + i * sizeof(bf16x2_t),
-                    0);
+                    coherence_flag);
             });
         }
         else if constexpr(N == 8)
@@ -2444,7 +2452,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                     dst_wave_buffer_resource,
                     dst_thread_addr_offset,
                     dst_wave_addr_offset + i * sizeof(bf16x2_t),
-                    0);
+                    coherence_flag);
             });
         }
     }
@@ -2456,7 +2464,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                                                   dst_wave_buffer_resource,
                                                   dst_thread_addr_offset,
                                                   dst_wave_addr_offset,
-                                                  0);
+                                                  coherence_flag);
         }
         else if constexpr(N == 2)
         {
@@ -2465,14 +2473,14 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset,
-                0);
+                coherence_flag);
 
             llvm_amdgcn_raw_buffer_atomic_add_i32(
                 src_thread_data.template get_as<int32_t>()[number<1>{}],
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset + sizeof(int32_t),
-                0);
+                coherence_flag);
         }
         else if constexpr(N == 4)
         {
@@ -2481,28 +2489,28 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset,
-                0);
+                coherence_flag);
 
             llvm_amdgcn_raw_buffer_atomic_add_i32(
                 src_thread_data.template get_as<int32_t>()[number<1>{}],
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset + sizeof(int32_t),
-                0);
+                coherence_flag);
 
             llvm_amdgcn_raw_buffer_atomic_add_i32(
                 src_thread_data.template get_as<int32_t>()[number<2>{}],
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset + 2 * sizeof(int32_t),
-                0);
+                coherence_flag);
 
             llvm_amdgcn_raw_buffer_atomic_add_i32(
                 src_thread_data.template get_as<int32_t>()[number<3>{}],
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset + 3 * sizeof(int32_t),
-                0);
+                coherence_flag);
         }
     }
 }
