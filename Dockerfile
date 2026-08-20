@@ -46,7 +46,7 @@ RUN if [ "$compiler_version" = "therock" ]; then \
         rm -rf /opt/rocm && mkdir /opt/rocm && \
         tar -xzf therock-dist-linux-multiarch-7.14.0.tar.gz -C /opt/rocm --strip-components=1 && \
         rm therock-dist-linux-multiarch-7.14.0.tar.gz && \
-        wget https://repo.radeon.com/amdgpu-install/31.30/ubuntu/noble/amdgpu-install_31.40.314000-1_all.deb && \
+        wget https://repo.radeon.com/amdgpu-install/31.40/ubuntu/noble/amdgpu-install_31.40.314000-1_all.deb && \
         apt install ./amdgpu-install_31.40.314000-1_all.deb -y; \
     fi
     
