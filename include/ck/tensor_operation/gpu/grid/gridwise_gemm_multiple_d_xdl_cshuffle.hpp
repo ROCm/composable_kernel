@@ -710,7 +710,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const BDataType* __restrict__ p_b_grid,
                                DsGridPointer p_ds_grid,
                                EDataType* __restrict__ p_e_grid,
-                               void* __restrict__ p_shared,
+                               void* p_shared, /*FIXME: reinstate __restrict__ qualifier*/
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CDEElementwiseOperation& cde_element_op,
@@ -981,7 +981,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const void* __restrict__ p_b_grid_,
                                DsGridPointer p_ds_grid,
                                void* __restrict__ p_e_grid_,
-                               void* __restrict__ p_shared,
+                               void* p_shared, /*FIXME: reinstate __restrict__ qualifier*/
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CDEElementwiseOperation& cde_element_op,
@@ -1065,7 +1065,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const void* __restrict__ p_b_grid_,
                                DsGridPointer p_ds_grid,
                                void* __restrict__ p_e_grid_,
-                               void* __restrict__ p_shared,
+                               void* p_shared, /*FIXME: reinstate __restrict__ qualifier*/
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CDEElementwiseOperation& cde_element_op,
