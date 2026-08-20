@@ -16,6 +16,14 @@ using WGDispatcherTypesList =
 template <typename T>
 class WGRuntimeTest : public ::testing::Test
 {
+    protected:
+    void SetUp() override
+    {
+        if(ck_tile::get_device_revision() == 0)
+        {
+            GTEST_SKIP() << "WMMA F4 op not supported on asicRevision=0";
+        }
+    }
 };
 
 TYPED_TEST_SUITE(WGRuntimeTest, WGDispatcherTypesList);
