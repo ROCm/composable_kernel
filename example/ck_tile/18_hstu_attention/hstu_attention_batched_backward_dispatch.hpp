@@ -41,7 +41,9 @@ template <typename InOutDataType,
 struct batched_backward_dispatch
 {
     using HstuAttentionTileSettingForKernel1 =
-        typename HstuAttentionBwdTileSettingForKernel1<MaxK>::Type;
+        typename std::conditional_t<kUseSoftmax,
+                                    HstuAttentionWithSoftmaxBwdTileSettingForKernel1<MaxK>,
+                                    HstuAttentionNoSoftmaxBwdTileSettingForKernel1<MaxK>>::Type;
     using HstuAttentionTileSettingForKernel2 =
         typename HstuAttentionBwdTileSettingForKernel2<MaxK>::Type;
 
