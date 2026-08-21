@@ -149,7 +149,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
     using Base::WaveSize;
 
     static constexpr auto xdlops_gemm =
-        XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType>{};
+        XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType, TransposeC>{};
 
     static constexpr index_t PrefetchStages        = 2;
     static constexpr index_t PrefillStages         = 1;
