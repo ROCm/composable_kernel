@@ -3,14 +3,21 @@
 
 #pragma once
 #include "device_prop.hpp"
+#include <algorithm>
 #include <stdexcept>
+#include <string>
+#include <type_traits>
 
 namespace ck_tile {
 namespace detail {
 template <typename GemmConfig, typename T, typename = void>
 struct b_contiguous_items_per_access
 {
-    // Default: 16 / sizeof(T)
+    // Storage units per 16 bytes, NOT elements. Deliberately packing-unaware: the
+    // consumers that have not opted in derive their device-side granularity the same
+    // way, and changing this would desynchronize them. Opt in with
+    // BContiguousItemsPerAccess (see items_per_128b_access) when the device side is
+    // packing-aware.
     static constexpr int value = 16 / static_cast<int>(sizeof(T));
 };
 
@@ -210,6 +217,25 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t)
     return shuffle_b_permuteN(t, GemmConfig{}, number<BlockedXDLNPerWarp>{});
 }
 
+namespace detail {
+// The shuffled views below are built with packed strides and truncating divisions, so they
+// can be smaller than the source: when a dimension is not a multiple of its tile, or when
+// the source carries leading-dim stride padding. The std::copy that follows writes the
+// whole source, so a smaller destination is a heap overflow.
+template <typename T>
+void check_shuffle_view_fits(const ck_tile::HostTensor<T>& src,
+                             const ck_tile::HostTensor<T>& view,
+                             const char* who)
+{
+    if(view.size() < src.size())
+    {
+        throw std::runtime_error(std::string(who) +
+                                 ": destination smaller than source; every dimension must be a "
+                                 "multiple of its tile and B must be unpadded.");
+    }
+}
+} // namespace detail
+
 template <typename FlatmmConfig, typename T>
 auto shuffle_b_v0(const ck_tile::HostTensor<T>& t)
 {
@@ -225,12 +251,15 @@ auto shuffle_b_v0(const ck_tile::HostTensor<T>& t)
                                        k_ / FlatmmConfig::K_Warp_Tile,
                                        divisor,
                                        FlatmmConfig::K_Warp_Tile / divisor});
+        detail::check_shuffle_view_fits(t, t_view, "shuffle_b_v0");
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
     else
     {
-        constexpr int MaxVecSize = 16 / sizeof(T);
+        // A config may override the granularity via BContiguousItemsPerAccess; the value
+        // must match the device-side B granularity for the consuming pipeline.
+        constexpr int MaxVecSize = detail::b_contiguous_items_per_access<FlatmmConfig, T>::value;
         // because ck_tile::get_warp_size returns 64 in host side
         int KLane =
             (ck_tile::is_wave32() ? (ck_tile::get_warp_size() / 2) : (ck_tile::get_warp_size())) /
@@ -241,6 +270,7 @@ auto shuffle_b_v0(const ck_tile::HostTensor<T>& t)
                                        FlatmmConfig::N_Warp_Tile,
                                        k_ / ItemsPerAccess,
                                        ItemsPerAccess});
+        detail::check_shuffle_view_fits(t, t_view, "shuffle_b_v0");
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 1, 3});
     }

@@ -1033,6 +1033,22 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
     static constexpr auto TiledMMAPermuteN = Base::TiledMMAPermuteN;
 
     protected:
+    // Opts the host B preshuffle into the packing-aware granularity so that it matches the
+    // device-side KBPerLoad. Both sides resolve the type through ck_tile::b_shuffle_type_t
+    // and the granularity through ck_tile::items_per_128b_access, so neither can drift.
+    // K_Warp_Tile is restated because Base overrides GemmConfig's under CK_USE_GFX1250;
+    // N_Warp_Tile is restated only for symmetry -- Base takes it from GemmConfig unchanged.
+    using BShuffleType = ck_tile::b_shuffle_type_t<ADataType, BDataType>;
+
+    struct BShuffleConfig : public GemmConfig
+    {
+        static constexpr ck_tile::index_t N_Warp_Tile = Base::N_Warp_Tile;
+        static constexpr ck_tile::index_t K_Warp_Tile = Base::K_Warp_Tile;
+
+        static constexpr ck_tile::index_t BContiguousItemsPerAccess =
+            ck_tile::items_per_128b_access<BShuffleType>();
+    };
+
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
 
@@ -1112,13 +1128,16 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
         {
             if constexpr(TiledMMAPermuteN && BQuantGroupSize::kN == 1)
             {
+                // Not BShuffleConfig: shuffle_b_permuteN's gfx12 path hardcodes its own
+                // granularity, and no packed-4-bit config reaches the non-gfx12 path
+                // (they all have BQuantGroupSize::kN != 1).
                 printf("PreshuffleB with TiledMMAPermuteN\n");
                 b_k_n_dev = ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
             }
             else
             {
                 printf("PreshuffleB without TiledMMAPermuteN\n");
-                b_k_n_dev = ck_tile::shuffle_b_v0<GemmConfig>(b_k_n);
+                b_k_n_dev = ck_tile::shuffle_b_v0<BShuffleConfig>(b_k_n);
             }
         }
         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)

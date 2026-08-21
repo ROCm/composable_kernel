@@ -104,6 +104,26 @@ struct numeric_traits<float>
     using bitwise_type                  = uint32_t;
 };
 
+/**
+ * @brief Number of elements of T that fit in one 128-bit (16-byte) access.
+ *
+ * Use this wherever a host-side layout and a device-side tile distribution must agree on an
+ * access granularity. Deriving it independently on each side has silently produced
+ * mismatched K interleaving, where each side walks the same elements in a different order.
+ *
+ * @tparam T element type
+ * @return element count
+ */
+template <typename T>
+CK_TILE_HOST_DEVICE constexpr int items_per_128b_access()
+{
+    // ck_tile::remove_cvref_t is not visible from this header.
+    using type = std::remove_cv_t<std::remove_reference_t<T>>;
+    static_assert(16 * numeric_traits<type>::PackedSize % sizeof(type) == 0,
+                  "128-bit access is not an integral number of elements for this type");
+    return 16 * numeric_traits<type>::PackedSize / static_cast<int>(sizeof(type));
+}
+
 } // namespace ck_tile
 
 #define CK_TILE_ARITHMETIC_USING_FLOAT(attr_, type_)                                       \

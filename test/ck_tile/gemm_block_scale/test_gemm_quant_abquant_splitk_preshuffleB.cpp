@@ -92,3 +92,23 @@ TYPED_TEST(TestCkTileGemmABQuantSplitKPreshuffleBReject, RuntimeTailAllowsMismat
 {
     this->run_test_with_validation(128, 128, 3328, 9, 0, true /* allow_runtime_splitk_tail */);
 }
+
+// A padded B stride makes the source element space larger than the packed view
+// shuffle_b_v0 builds, so copying the whole source would overrun the destination. The
+// shuffle must reject it rather than write out of bounds.
+// The message is asserted because this fixture also throws std::runtime_error from
+// IsSupportedArgument and from the split-K reject path -- a bare EXPECT_THROW would pass
+// even if the guard were removed.
+TYPED_TEST(TestCkTileGemmABQuantSplitKPreshuffleBReject, RejectsPaddedStrideBInPreshuffle)
+{
+    try
+    {
+        this->run_test_with_validation(128, 128, 1024, 1, /*stride_B_pad=*/128);
+        FAIL() << "expected shuffle_b_v0 to reject a padded B stride";
+    }
+    catch(const std::runtime_error& e)
+    {
+        EXPECT_NE(std::string(e.what()).find("shuffle_b_v0"), std::string::npos)
+            << "threw, but not from the shuffle guard: " << e.what();
+    }
+}
