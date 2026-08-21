@@ -456,13 +456,50 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             // and keep the XOR swizzle for the non-trload buffer whose read is normal-only.
             constexpr auto desc_native = [] {
                 if constexpr(kUseTrLoad)
-                    return make_naive_tensor_descriptor(
-                        make_tuple(
-                            number<NumBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
-                        make_tuple(
-                            number<kNPerBlock * kKPerBlock>{}, number<kKPerBlock>{}, number<1>{}),
-                        number<kKPack>{},
-                        number<1>{});
+                {
+                    if constexpr(kKPerBlock <= 16)
+                    {
+                        return make_naive_tensor_descriptor(
+                            make_tuple(
+                                number<NumBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
+                            make_tuple(number<kNPerBlock * kKPerBlock>{},
+                                       number<kKPerBlock>{},
+                                       number<1>{}),
+                            number<kKPack>{},
+                            number<1>{});
+                    }
+                    else
+                    {
+                        // With trload read,  16 threads per cycle access the [4Tl, 4Tm*4E] block
+                        // and cross-bar transpose it to [4E, 4Tm*4Tl] layout suitable for mfma, we
+                        // want to ensure 16T * 2 dwords to exactly hit 32 banks (for KPerBlock =
+                        // 16, 4 * 16 * sizeof(bf16) = 32 banks mapped by 4 rows; and actual hit 16
+                        // Threads * 2 banks/per-inst is also 32 banks )
+                        static_assert(kKPerBlock % 16 == 0,
+                                      "kKPerBlock should be a multiplier of 16!");
+
+                        constexpr auto desc_native_0 = make_naive_tensor_descriptor(
+                            make_tuple(number<NumBuffers>{},
+                                       number<kKPerBlock / 16>{},
+                                       number<kNPerBlock>{},
+                                       number<16>{}),
+                            make_tuple(number<kNPerBlock * kKPerBlock>{},
+                                       number<kNPerBlock * 16>{},
+                                       number<16>{},
+                                       number<1>{}),
+                            number<kKPack>{},
+                            number<1>{});
+
+                        return transform_tensor_descriptor(
+                            desc_native_0,
+                            make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                                       make_pass_through_transform(number<kNPerBlock>{}),
+                                       make_merge_transform(
+                                           make_tuple(number<kKPerBlock / 16>{}, number<16>{}))),
+                            make_tuple(sequence<0>{}, sequence<2>{}, sequence<1, 3>{}),
+                            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+                    }
+                }
                 else
                     return MakeSwizzledNativeDesc<Problem,
                                                   NumBuffers,
