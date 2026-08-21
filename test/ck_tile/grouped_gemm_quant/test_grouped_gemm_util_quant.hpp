@@ -583,10 +583,10 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             {
 #if CK_TILE_USE_WMMA
                 auto b_shuffle_host =
-                    ck_tile::shuffle_b<GroupedGemKernelParam_Wmma>(b_k_n_tensors[i]);
+                    ck_tile::shuffle_b_v0<GroupedGemKernelParam_Wmma>(b_k_n_tensors[i]);
 #else
                 auto b_shuffle_host =
-                    ck_tile::shuffle_b<GroupedGemKernelParam_Mfma>(b_k_n_tensors[i]);
+                    ck_tile::shuffle_b_v0<GroupedGemKernelParam_Mfma>(b_k_n_tensors[i]);
 #endif
                 b_k_n_dev_buf[i]->ToDevice(b_shuffle_host.data());
             }

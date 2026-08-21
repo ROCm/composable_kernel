@@ -413,7 +413,7 @@ int run_grouped_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         if constexpr(GemmConfig::PreshuffleB && QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             ck_tile::HostTensor<BDataType> b_shuffle_host =
-                ck_tile::shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+                ck_tile::shuffle_b_v0<GemmConfig>(b_k_n_tensors[i]);
             b_k_n_dev_buf[i]->ToDevice(b_shuffle_host.data());
         }
         else
