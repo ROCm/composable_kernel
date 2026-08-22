@@ -15,14 +15,14 @@ namespace ck_tile {
 // Naming: KR = K and V are register-resident, QS = Q and dO staged through LDS.
 //
 // Four static_for loops:
-//   Loop 1 (gemm0_k0_loops): Gemm0 (S = Q@K); Q prefetched and written to q_lds.
-//   Loop 2 (gemm2_k0_loops): Gemm2 (dP = dO@V); dO prefetched and written to do_lds.
+//   Loop 1 (m0_loops): Gemm0 (S = Q@K); Q prefetched and written to q_lds.
+//   Loop 2 (m0_loops): Gemm2 (dP = dO@V); dO prefetched and written to do_lds.
 //   Loop 3 (k1_loops): Gemm1 (dV += P^T @ dO^T); dO^T is transpose-loaded from do_lds.
 //   Loop 4 (k1_loops): Gemm3 (dK += dS^T @ Q^T); Q^T is transpose-loaded from q_lds.
 //
 // LDS layout (fix regions):
-//   q_lds   : [kM0, kK0] x gemm0_k0_loops, normal write/read and transposed loading
-//   do_lds  : [kM0, kK0] x gemm2_k0_loops, normal write/read and transposed loading
+//   q_lds   : [kM0Sub, kQKHeaddim] x m0_loops, normal write/read and transposed loading
+//   do_lds  : [kM0Sub, kVHeaddim] x m0_loops, normal write/read and transposed loading
 template <typename Problem_,
           typename Traits_,
           typename Policy_ = HstuAttentionBwdKernel2PipelinePolicy>
@@ -44,11 +44,11 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kM0        = HstuAttentionTileSetting::kM0;
-    static constexpr index_t kK0        = HstuAttentionTileSetting::kK0;
     static constexpr index_t kN0        = HstuAttentionTileSetting::kN0;
-    static constexpr index_t kK1        = HstuAttentionTileSetting::kK1;
+    static constexpr index_t kM0Sub     = HstuAttentionTileSetting::kM0Sub;
     static constexpr index_t kQKHeaddim = HstuAttentionTileSetting::kQKHeaddim;
     static constexpr index_t kVHeaddim  = HstuAttentionTileSetting::kVHeaddim;
+    static constexpr index_t kK1        = HstuAttentionTileSetting::kK1;
 
     static constexpr bool IsWarpGemm32 = HstuAttentionTileSetting::IsWarpGemm32;
 
@@ -153,7 +153,7 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
         constexpr auto gemm_3 =
             Policy::template GetSGradTQTBlockGemm<Problem, true /* kUseTrLoad */>();
 
-        using Gemm0 = decltype(Policy::template GetQKBlockGemm<Problem>());
+        using Gemm0Combined = decltype(Policy::template GetQKCombinedBlockGemm<Problem>());
 
         // ---- Load K and V into registers (register-resident for the entire Q loop) ----
         auto k_tile = load_tile(k_dram_block_window_tmp);
@@ -170,20 +170,19 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
             return make_tuple(dk_acc, dv_acc);
         };
 
-        constexpr index_t gemm0_k0_loops = kQKHeaddim / kK0;
-        constexpr index_t gemm2_k0_loops = kVHeaddim / kK0;
-        constexpr index_t k1_loops       = kM0 / kK1;
+        constexpr index_t m0_loops = Policy::template GetNumM0Loops<Problem>();
+        constexpr index_t k1_loops = Policy::template GetNumK1Loops<Problem>();
 
         constexpr auto NumQOGradPrefetches = 2;
 
-        static_assert(NumQOGradPrefetches <= gemm0_k0_loops, "Check failed!");
-        static_assert(NumQOGradPrefetches <= gemm2_k0_loops, "Check failed!");
+        static_assert(NumQOGradPrefetches <= m0_loops, "Check failed!");
 
         // ---- Tile type declarations ----
-        using SaccBlockTileType      = decltype(gemm_0.template MakeCBlockTile<kM0, kN0>());
-        using PGradaccBlockTileType  = decltype(gemm_2.template MakeCBlockTile<kM0, kN0>());
-        using PcompBlockTileType     = decltype(cast_tile<CompDataType>(SaccBlockTileType{}));
-        using PGradcompBlockTileType = decltype(cast_tile<CompDataType>(PGradaccBlockTileType{}));
+        using SaccBlockTileType      = decltype(gemm_0.template MakeCBlockTile<kM0Sub, kN0>());
+        using PGradaccBlockTileType  = decltype(gemm_2.template MakeCBlockTile<kM0Sub, kN0>());
+        using CombinedTileType       = decltype(gemm_0.template MakeCBlockTile<kM0, kN0>());
+        using PcompBlockTileType     = decltype(cast_tile<CompDataType>(CombinedTileType{}));
+        using PGradcompBlockTileType = PcompBlockTileType;
 
         SaccBlockTileType sacc_tile;
         PGradaccBlockTileType dpacc_tile;
@@ -196,10 +195,11 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
             Policy::template MakeSGradTRegTileDistribution<Problem>());
 
         // ---- LDS setup ----
-        // Four LDS regions in order:
+        // Two LDS regions in order:
         //   [q_lds | do_lds]
-        // q_lds  : complete-buffered [kM0, kK0], invariant view for normal write/read and
-        // transposed loading do_lds : complete-buffered [kM0, kK0], invariant view for normal
+        // q_lds  : complete-buffered [kM0Sub, kQKHeaddim] x m0_loops, invariant view for normal
+        // write/read and transposed loading
+        // do_lds : complete-buffered [kM0Sub, kVHeaddim] x m0_loops, invariant view for normal
         // write/read and transposed loading
         constexpr index_t q_smem_size =
             Policy::template GetSmemSizeQ<Problem, true /*kUseTrLoad*/>();
@@ -217,19 +217,20 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
                               .get_lengths()[number<0>{}] == kM0,
                       "Check failed!");
         static_assert(Policy::template MakeQLdsBlockDescriptor<Problem, true /*kUseTrLoad */>()
-                              .get_lengths()[number<1>{}] == gemm0_k0_loops * kK0,
+                              .get_lengths()[number<1>{}] == kQKHeaddim,
                       "Check failed!");
 
+        // q_lds windows for normal write and normal read
         using q_lds_window_type = decltype(get_slice_tile(
-            q_lds_monolithic_window, sequence<0, 0>{}, sequence<kM0, kK0>{}));
-        statically_indexed_array<q_lds_window_type, gemm0_k0_loops> q_lds_windows;
-        static_for<0, gemm0_k0_loops, 1>{}([&](auto i_buf) {
+            q_lds_monolithic_window, sequence<0, 0>{}, sequence<kM0Sub, kQKHeaddim>{}));
+        statically_indexed_array<q_lds_window_type, m0_loops> q_lds_windows;
+        static_for<0, m0_loops, 1>{}([&](auto i_buf) {
             q_lds_windows[i_buf] = get_slice_tile(q_lds_monolithic_window,
-                                                  sequence<0, i_buf * kK0>{},
-                                                  sequence<kM0, (i_buf + 1) * kK0>{});
+                                                  sequence<i_buf * kM0Sub, 0>{},
+                                                  sequence<(i_buf + 1) * kM0Sub, kQKHeaddim>{});
         });
 
-        // q_lds_trload, the tensor_view for transposed loading (Q^T, used by Gemm3)
+        // q_lds windows for trload read
         using q_lds_trload_window_type = decltype(get_slice_tile(
             q_lds_monolithic_window, sequence<0, 0>{}, sequence<kK1, kQKHeaddim>{}));
         statically_indexed_array<q_lds_trload_window_type, k1_loops> q_lds_trload_windows;
@@ -255,19 +256,20 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
                               .get_lengths()[number<0>{}] == kM0,
                       "Check failed!");
         static_assert(Policy::template MakeOGradLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>()
-                              .get_lengths()[number<1>{}] == gemm2_k0_loops * kK0,
+                              .get_lengths()[number<1>{}] == kVHeaddim,
                       "Check failed!");
 
+        // do_lds windows for normal write and normal read
         using do_lds_window_type = decltype(get_slice_tile(
-            do_lds_monolithic_window, sequence<0, 0>{}, sequence<kM0, kK0>{}));
-        statically_indexed_array<do_lds_window_type, gemm2_k0_loops> do_lds_windows;
-        static_for<0, gemm2_k0_loops, 1>{}([&](auto i_buf) {
+            do_lds_monolithic_window, sequence<0, 0>{}, sequence<kM0Sub, kVHeaddim>{}));
+        statically_indexed_array<do_lds_window_type, m0_loops> do_lds_windows;
+        static_for<0, m0_loops, 1>{}([&](auto i_buf) {
             do_lds_windows[i_buf] = get_slice_tile(do_lds_monolithic_window,
-                                                   sequence<0, i_buf * kK0>{},
-                                                   sequence<kM0, (i_buf + 1) * kK0>{});
+                                                   sequence<i_buf * kM0Sub, 0>{},
+                                                   sequence<(i_buf + 1) * kM0Sub, kVHeaddim>{});
         });
 
-        // do_lds_trload, the tensor_view for transposed loading
+        // do_lds windows for trload read
         using do_lds_trload_window_type = decltype(get_slice_tile(
             do_lds_monolithic_window, sequence<0, 0>{}, sequence<kK1, kVHeaddim>{}));
         statically_indexed_array<do_lds_trload_window_type, k1_loops> do_lds_trload_windows;
@@ -279,17 +281,17 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
 
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
 
-        // ---- Q DRAM window (per-iteration tile [kM0, kK0]) ----
+        // ---- Q DRAM window (per-iteration tile [kM0Sub, kQKHeaddim]) ----
         auto q_dram_window =
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kM0>{}, number<kK0>{}),
+                             make_tuple(number<kM0Sub>{}, number<kQKHeaddim>{}),
                              {seqlen_q_start, 0},
                              Policy::template MakeQDramTileDistribution<Problem>());
 
-        // ---- dO DRAM window (per-iteration tile [kM0, kK0]) ----
+        // ---- dO DRAM window (per-iteration tile [kM0Sub, kVHeaddim]) ----
         auto do_dram_window =
             make_tile_window(do_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kM0>{}, number<kK0>{}),
+                             make_tuple(number<kM0Sub>{}, number<kVHeaddim>{}),
                              {seqlen_q_start, 0},
                              Policy::template MakeOGradDramTileDistribution<Problem>());
 
@@ -302,7 +304,7 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
                              Policy::template MakeBiasDramTileDistribution<Problem>());
 
         auto null_randval_window =
-            dropout.template MakeRandvalDramWindow<Gemm0>(null_randval_window_tmp, i_n0);
+            dropout.template MakeRandvalDramWindow<Gemm0Combined>(null_randval_window_tmp, i_n0);
 
         // ---- Prefetch first round of Q and dO tiles ----
         using q_tile_type  = decltype(load_tile(q_dram_window));
@@ -311,13 +313,13 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
         statically_indexed_array<do_tile_type, NumQOGradPrefetches> do_tiles;
 
         q_tiles[number<0>{}] = load_tile(q_dram_window);
-        move_tile_window(q_dram_window, {0, kK0});
+        move_tile_window(q_dram_window, {kM0Sub, 0});
 
         clear_tile(dk_acc);
         clear_tile(dv_acc);
 
         do_tiles[number<0>{}] = load_tile(do_dram_window);
-        move_tile_window(do_dram_window, {0, kK0});
+        move_tile_window(do_dram_window, {kM0Sub, 0});
 
         // SiLU activation
         const auto f_dsilu = [](CompDataType x) -> CompDataType {
@@ -346,177 +348,67 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
             // Loop 1: Gemm0 (S = Q@K); prefetch Q to LDS
             // Loop 2: Gemm2 (dP = dO@V); prefetch dO to LDS
             // =======================================================================
-            // Gemm0 accumulates across the gemm0_k0_loops k-slices (BlockGemm is C += A@B),
-            // so sacc_tile must be cleared at the start of every sq iteration.
-            clear_tile(sacc_tile);
-
-            // Gemm2 accumulates across the gemm2_k0_loops k-slices (BlockGemm is C += A@B),
-            // so dpacc_tile must be cleared at the start of every sq iteration.
-            clear_tile(dpacc_tile);
 
             // Ensure the trloading of q in previous itertation completely done by all warps
             __builtin_amdgcn_s_barrier();
 
-            if constexpr(gemm0_k0_loops <= gemm2_k0_loops)
-            {
-                static_for<0, gemm0_k0_loops, 1>{}([&](auto i_k0) {
-                    constexpr auto i_current_buf  = number<i_k0 % NumQOGradPrefetches>{};
-                    constexpr auto i_prefetch_buf = number<(i_k0 + 1) % NumQOGradPrefetches>{};
+            static_for<0, m0_loops, 1>{}([&](auto i_m0) {
+                constexpr auto i_current_buf  = number<i_m0 % NumQOGradPrefetches>{};
+                constexpr auto i_prefetch_buf = number<(i_m0 + 1) % NumQOGradPrefetches>{};
 
-                    // Store Q to q_lds
-                    store_tile(q_lds_windows[i_k0], q_tiles[i_current_buf], partition_index);
+                // Store Q to q_lds
+                store_tile(q_lds_windows[i_m0], q_tiles[i_current_buf], partition_index);
 
-                    // Store dO to do_lds
-                    store_tile(do_lds_windows[i_k0], do_tiles[i_current_buf], partition_index);
+                // Store dO to do_lds
+                store_tile(do_lds_windows[i_m0], do_tiles[i_current_buf], partition_index);
 
-                    // Prefetch next Q tile while current stores are in flight
-                    if constexpr(i_k0 + 1 < gemm0_k0_loops)
-                    {
-                        q_tiles[i_prefetch_buf] = load_tile(q_dram_window);
-                        move_tile_window(q_dram_window, {0, kK0});
-                    }
+                // Prefetch next Q tile while current stores are in flight
+                if constexpr(i_m0 + 1 < m0_loops)
+                {
+                    q_tiles[i_prefetch_buf] = load_tile(q_dram_window);
+                    move_tile_window(q_dram_window, {kM0Sub, 0});
+                }
 
-                    // Prefetch next dO tile while current stores are in flight
-                    if constexpr(i_k0 + 1 < gemm2_k0_loops)
-                    {
-                        do_tiles[i_prefetch_buf] = load_tile(do_dram_window);
-                        move_tile_window(do_dram_window, {0, kK0});
-                    }
+                // Prefetch next dO tile while current stores are in flight
+                if constexpr(i_m0 + 1 < m0_loops)
+                {
+                    do_tiles[i_prefetch_buf] = load_tile(do_dram_window);
+                    move_tile_window(do_dram_window, {kM0Sub, 0});
+                }
 
-                    __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(0x00000001);
 
-                    // Ensure all LDS stores are visible before Gemm0 reads
-                    block_sync_lds();
+                // Ensure all LDS stores are visible before Gemm0 reads
+                block_sync_lds();
 
-                    __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(0x00000001);
 
-                    auto k_slice = get_slice_tile(
-                        k_tile, sequence<0, i_k0 * kK0>{}, sequence<kN0, (i_k0 + 1) * kK0>{});
-
-                    // Gemm0: sacc_tile = Q_sub @ K_sub
-                    gemm_0(sacc_tile, q_lds_windows[i_k0], k_slice);
-
-                    auto v_slice = get_slice_tile(
-                        v_tile, sequence<0, i_k0 * kK0>{}, sequence<kN0, (i_k0 + 1) * kK0>{});
-
-                    // Gemm2: dpacc_tile = dO_sub @ V_sub
-                    gemm_2(dpacc_tile, do_lds_windows[i_k0], v_slice);
+                // Gemm0: sacc_tile = Q_sub @ K
+                gemm_0(sacc_tile, q_lds_windows[i_m0], k_tile);
+                auto s_tmp = cast_tile<CompDataType>(sacc_tile);
+                // Place the [kM0Sub, kN0] sub-tile into the combined [kM0, kN0] pcomp_tile by a
+                // direct thread-buffer copy. M (the sub-tiled dim) is the outermost Y-dim of the C
+                // distribution, so sub-tile i_m0 occupies a contiguous thread-buffer block at
+                // offset i_m0 * sacc_tbuf_size. This avoids set_slice_tile, which miscomputes the
+                // write offsets when slicing the register-interleaved M axis of the MFMA C
+                // fragment.
+                constexpr index_t sacc_tbuf_size = decltype(s_tmp)::get_thread_buffer_size();
+                static_for<0, sacc_tbuf_size, 1>{}([&](auto j) {
+                    pcomp_tile.get_thread_buffer()(number<i_m0 * sacc_tbuf_size + j>{}) =
+                        s_tmp.get_thread_buffer()(number<j>{});
                 });
 
-                move_tile_window(q_dram_window, {kM0, -gemm0_k0_loops * kK0});
-                pcomp_tile = cast_tile<CompDataType>(sacc_tile);
-
-                static_for<gemm0_k0_loops, gemm2_k0_loops, 1>{}([&](auto i_k0) {
-                    constexpr auto i_current_buf  = number<i_k0 % NumQOGradPrefetches>{};
-                    constexpr auto i_prefetch_buf = number<(i_k0 + 1) % NumQOGradPrefetches>{};
-
-                    // Store dO to do_lds
-                    store_tile(do_lds_windows[i_k0], do_tiles[i_current_buf], partition_index);
-
-                    // Prefetch next dO tile while current stores are in flight
-                    if constexpr(i_k0 + 1 < gemm2_k0_loops)
-                    {
-                        do_tiles[i_prefetch_buf] = load_tile(do_dram_window);
-                        move_tile_window(do_dram_window, {0, kK0});
-                    }
-
-                    __builtin_amdgcn_sched_barrier(0x00000001);
-
-                    // Ensure all LDS stores are visible before Gemm2 reads
-                    block_sync_lds();
-
-                    __builtin_amdgcn_sched_barrier(0x00000001);
-
-                    auto v_slice = get_slice_tile(
-                        v_tile, sequence<0, i_k0 * kK0>{}, sequence<kN0, (i_k0 + 1) * kK0>{});
-
-                    // Gemm2: dpacc_tile = dO_sub @ V_sub
-                    gemm_2(dpacc_tile, do_lds_windows[i_k0], v_slice);
+                // Gemm2: dpacc_tile = dO_sub @ V
+                gemm_2(dpacc_tile, do_lds_windows[i_m0], v_tile);
+                auto dp_tmp = cast_tile<CompDataType>(dpacc_tile);
+                // Direct thread-buffer copy of the [kM0Sub, kN0] sub-tile into dscomp_tile (see the
+                // pcomp_tile note above for why set_slice_tile is not used).
+                constexpr index_t dpacc_tbuf_size = decltype(dp_tmp)::get_thread_buffer_size();
+                static_for<0, dpacc_tbuf_size, 1>{}([&](auto j) {
+                    dscomp_tile.get_thread_buffer()(number<i_m0 * dpacc_tbuf_size + j>{}) =
+                        dp_tmp.get_thread_buffer()(number<j>{});
                 });
-
-                move_tile_window(do_dram_window, {kM0, -gemm2_k0_loops * kK0});
-                dscomp_tile = cast_tile<CompDataType>(dpacc_tile);
-            }
-            else
-            {
-                static_for<0, gemm2_k0_loops, 1>{}([&](auto i_k0) {
-                    constexpr auto i_current_buf  = number<i_k0 % NumQOGradPrefetches>{};
-                    constexpr auto i_prefetch_buf = number<(i_k0 + 1) % NumQOGradPrefetches>{};
-
-                    // Store Q to q_lds
-                    store_tile(q_lds_windows[i_k0], q_tiles[i_current_buf], partition_index);
-
-                    // Store dO to do_lds
-                    store_tile(do_lds_windows[i_k0], do_tiles[i_current_buf], partition_index);
-
-                    // Prefetch next Q tile while current stores are in flight
-                    if constexpr(i_k0 + 1 < gemm0_k0_loops)
-                    {
-                        q_tiles[i_prefetch_buf] = load_tile(q_dram_window);
-                        move_tile_window(q_dram_window, {0, kK0});
-                    }
-
-                    // Prefetch next dO tile while current stores are in flight
-                    if constexpr(i_k0 + 1 < gemm2_k0_loops)
-                    {
-                        do_tiles[i_prefetch_buf] = load_tile(do_dram_window);
-                        move_tile_window(do_dram_window, {0, kK0});
-                    }
-
-                    __builtin_amdgcn_sched_barrier(0x00000001);
-
-                    // Ensure all LDS stores are visible before Gemm0 reads
-                    block_sync_lds();
-
-                    __builtin_amdgcn_sched_barrier(0x00000001);
-
-                    auto k_slice = get_slice_tile(
-                        k_tile, sequence<0, i_k0 * kK0>{}, sequence<kN0, (i_k0 + 1) * kK0>{});
-
-                    // Gemm0: sacc_tile = Q_sub @ K_sub
-                    gemm_0(sacc_tile, q_lds_windows[i_k0], k_slice);
-
-                    auto v_slice = get_slice_tile(
-                        v_tile, sequence<0, i_k0 * kK0>{}, sequence<kN0, (i_k0 + 1) * kK0>{});
-
-                    // Gemm2: dpacc_tile = dO_sub @ V_sub
-                    gemm_2(dpacc_tile, do_lds_windows[i_k0], v_slice);
-                });
-
-                move_tile_window(do_dram_window, {kM0, -gemm2_k0_loops * kK0});
-                dscomp_tile = cast_tile<CompDataType>(dpacc_tile);
-
-                static_for<gemm2_k0_loops, gemm0_k0_loops, 1>{}([&](auto i_k0) {
-                    constexpr auto i_current_buf  = number<i_k0 % NumQOGradPrefetches>{};
-                    constexpr auto i_prefetch_buf = number<(i_k0 + 1) % NumQOGradPrefetches>{};
-
-                    // Store Q to q_lds
-                    store_tile(q_lds_windows[i_k0], q_tiles[i_current_buf], partition_index);
-
-                    // Prefetch next Q tile while current stores are in flight
-                    if constexpr(i_k0 + 1 < gemm0_k0_loops)
-                    {
-                        q_tiles[i_prefetch_buf] = load_tile(q_dram_window);
-                        move_tile_window(q_dram_window, {0, kK0});
-                    }
-
-                    __builtin_amdgcn_sched_barrier(0x00000001);
-
-                    // Ensure all LDS stores are visible before Gemm2 reads
-                    block_sync_lds();
-
-                    __builtin_amdgcn_sched_barrier(0x00000001);
-
-                    auto k_slice = get_slice_tile(
-                        k_tile, sequence<0, i_k0 * kK0>{}, sequence<kN0, (i_k0 + 1) * kK0>{});
-
-                    // Gemm0: sacc_tile = Q_sub @ K_sub
-                    gemm_0(sacc_tile, q_lds_windows[i_k0], k_slice);
-                });
-
-                move_tile_window(q_dram_window, {kM0, -gemm0_k0_loops * kK0});
-                pcomp_tile = cast_tile<CompDataType>(sacc_tile);
-            }
+            });
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -551,7 +443,7 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
                 // Signature: Run<BlockGemm, RandValOutputDataType>(start_m0_idx, start_n0_idx,
                 //                                                   p_compute,
                 //                                                   randval_dram_window).
-                dropout.template Run<Gemm0, uint8_t>(
+                dropout.template Run<Gemm0Combined, uint8_t>(
                     seqlen_q_curr, i_n0, combined_mask, null_randval_window);
 
                 constexpr auto spans = PcompBlockTileType::get_distributed_spans();
@@ -677,10 +569,10 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
 
             // Prefetch Q and dO for the *next* outer do-while iteration
             q_tiles[number<0>{}] = load_tile(q_dram_window);
-            move_tile_window(q_dram_window, {0, kK0});
+            move_tile_window(q_dram_window, {kM0Sub, 0});
 
             do_tiles[number<0>{}] = load_tile(do_dram_window);
-            move_tile_window(do_dram_window, {0, kK0});
+            move_tile_window(do_dram_window, {kM0Sub, 0});
 
             auto ds_gemm_tile = cast_tile<QKVDataType>(dscomp_tile);
 

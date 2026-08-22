@@ -205,11 +205,21 @@ struct HstuAttentionBwdPipelineProblemForKernel2
     static constexpr index_t kNumGemm3Warps      = TileSetting_::NumGemm3Warps;
     static constexpr index_t kBlockSize          = TileSetting_::NumWarps * get_warp_size();
 
-    // Q tile: [kM0, kK0]
+    // Q tile: [kM0Sub, kQKHeaddim]
     CK_TILE_HOST_DEVICE static constexpr auto GetQDramTileAccessMaxVectorSize()
     {
-        constexpr index_t kMPerBlock = HstuAttentionTileSetting::kM0;
-        constexpr index_t kKPerBlock = HstuAttentionTileSetting::kK0;
+        constexpr index_t kMPerBlock = HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock = HstuAttentionTileSetting::kQKHeaddim;
+
+        return detail::
+            GetDramTileAccessMaxVectorSize<QKVDataType, kBlockSize, kMPerBlock, kKPerBlock>();
+    }
+
+    // OGrad tile: [kM0Sub, kVHeaddim]
+    CK_TILE_HOST_DEVICE static constexpr auto GetOGradDramTileAccessMaxVectorSize()
+    {
+        constexpr index_t kMPerBlock = HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock = HstuAttentionTileSetting::kVHeaddim;
 
         return detail::
             GetDramTileAccessMaxVectorSize<QKVDataType, kBlockSize, kMPerBlock, kKPerBlock>();

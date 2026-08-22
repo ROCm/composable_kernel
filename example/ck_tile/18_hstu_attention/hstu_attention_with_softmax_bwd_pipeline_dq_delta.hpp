@@ -38,6 +38,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
     static constexpr index_t kN0Sub     = HstuAttentionTileSetting::kN0Sub;
     static constexpr index_t kQKHeaddim = HstuAttentionTileSetting::kQKHeaddim;
     static constexpr index_t kVHeaddim  = HstuAttentionTileSetting::kVHeaddim;
+    static constexpr index_t kK1        = HstuAttentionTileSetting::kK1;
 
     static_assert(Problem::kUseSoftmax == true, "This pipeline only works with the softmax path");
 
@@ -133,6 +134,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
         using Gemm0Combined = decltype(Policy::template GetQKCombinedBlockGemm<Problem>());
 
         constexpr index_t n0_loops = Policy::template GetNumN0Loops<Problem>();
+        constexpr index_t k1_loops = Policy::template GetNumK1Loops<Problem>();
 
         constexpr auto NumKVPrefetches = 2;
         constexpr auto NumKVLdsBuffers = Policy::template GetNumKVLdsBuffers<Problem>();
@@ -271,13 +273,12 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
             "Check failed!");
 
         using kt_lds_read_window_type = decltype(get_slice_tile(
-            kt_lds_read_monolithic_window, sequence<0, 0>{}, sequence<kQKHeaddim, kN0Sub>{}));
-        statically_indexed_array<kt_lds_read_window_type, n0_loops> kt_lds_read_windows;
-        static_for<0, n0_loops, 1>{}([&](auto i_buf) {
-            kt_lds_read_windows[i_buf] =
-                get_slice_tile(kt_lds_read_monolithic_window,
-                               sequence<0, i_buf * kN0Sub>{},
-                               sequence<kQKHeaddim, (i_buf + 1) * kN0Sub>{});
+            kt_lds_read_monolithic_window, sequence<0, 0>{}, sequence<kQKHeaddim, kK1>{}));
+        statically_indexed_array<kt_lds_read_window_type, k1_loops> kt_lds_read_windows;
+        static_for<0, k1_loops, 1>{}([&](auto i_buf) {
+            kt_lds_read_windows[i_buf] = get_slice_tile(kt_lds_read_monolithic_window,
+                                                        sequence<0, i_buf * kK1>{},
+                                                        sequence<kQKHeaddim, (i_buf + 1) * kK1>{});
         });
 
         // ---- Delta LDS staging buffer (reuses K LDS space at smem_ptr) ----
@@ -590,11 +591,9 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
             // Gemm4: dQ += alpha * dS @ K^T
             // K^T is already staged in kt_lds_write_windows from Stage 1.
             // The last block_sync_lds() in Stage 1 guarantees all KT stores are visible.
-            static_for<0, n0_loops, 1>{}([&](auto i_k1) {
-                auto ds_slice =
-                    cast_tile<QKVDataType>(get_slice_tile(dpcomp_tile,
-                                                          sequence<0, i_k1 * kN0Sub>{},
-                                                          sequence<kM0, (i_k1 + 1) * kN0Sub>{}));
+            static_for<0, k1_loops, 1>{}([&](auto i_k1) {
+                auto ds_slice = cast_tile<QKVDataType>(get_slice_tile(
+                    dpcomp_tile, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}));
 
                 // dQ += dS_sub @ KT_sub
                 gemm_4(dq_acc, ds_slice, kt_lds_read_windows[i_k1]);

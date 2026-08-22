@@ -15,12 +15,12 @@ using WarpTile_32x32x16 = ck_tile::sequence<32, 32, 16>;
 template <ck_tile::index_t MaxK>
 struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1;
 
-// Tile-sizes: M N0 N0Sub MaxK
+// Tile-sizes: M N0 N0Sub K1 MaxK
 //
 template <>
 struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<64>
 {
-    using type             = ck_tile::sequence<128, 64, 32, 64>;
+    using type             = ck_tile::sequence<128, 64, 32, 32, 64>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
@@ -28,7 +28,7 @@ struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<64>
 template <>
 struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<96>
 {
-    using type             = ck_tile::sequence<128, 64, 32, 96>;
+    using type             = ck_tile::sequence<128, 64, 32, 32, 96>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
@@ -36,7 +36,7 @@ struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<96>
 template <>
 struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<128>
 {
-    using type             = ck_tile::sequence<128, 32, 16, 128>;
+    using type             = ck_tile::sequence<128, 32, 16, 16, 128>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
@@ -44,7 +44,7 @@ struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<128>
 template <>
 struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<256>
 {
-    using type             = ck_tile::sequence<64, 32, 16, 256>;
+    using type             = ck_tile::sequence<64, 32, 16, 16, 256>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
@@ -57,7 +57,7 @@ struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1;
 template <>
 struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<64>
 {
-    using type             = ck_tile::sequence<128, 64, 32, 64>;
+    using type             = ck_tile::sequence<128, 64, 32, 32, 64>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
@@ -65,7 +65,7 @@ struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<64>
 template <>
 struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<96>
 {
-    using type             = ck_tile::sequence<128, 64, 32, 96>;
+    using type             = ck_tile::sequence<128, 64, 32, 32, 96>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
@@ -73,7 +73,7 @@ struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<96>
 template <>
 struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<128>
 {
-    using type             = ck_tile::sequence<128, 32, 16, 128>;
+    using type             = ck_tile::sequence<128, 32, 16, 16, 128>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
@@ -81,7 +81,7 @@ struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<128>
 template <>
 struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<256>
 {
-    using type             = ck_tile::sequence<64, 32, 16, 256>;
+    using type             = ck_tile::sequence<64, 32, 16, 16, 256>;
     using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
     using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
 };
@@ -184,12 +184,12 @@ struct HstuAttentionWithSoftmaxBwdTileSettingForKernel1<256>
 template <ck_tile::index_t MaxK>
 struct HstuAttentionBwdBlockTileForKernel2;
 
-// Tile-sizes: M N0 K0 K1 MaxK
+// Tile-sizes: M N0 M0Sub K1 MaxK
 //
 template <>
 struct HstuAttentionBwdBlockTileForKernel2<64>
 {
-    using type             = ck_tile::sequence<32, 128, 32, 16, 64>;
+    using type             = ck_tile::sequence<32, 128, 16, 16, 64>;
     using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
     using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
     using gemm3_warps      = ck_tile::sequence<4, 1, 1>;
@@ -198,7 +198,7 @@ struct HstuAttentionBwdBlockTileForKernel2<64>
 template <>
 struct HstuAttentionBwdBlockTileForKernel2<96>
 {
-    using type             = ck_tile::sequence<32, 64, 32, 16, 96>;
+    using type             = ck_tile::sequence<32, 128, 16, 16, 96>;
     using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
     using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
     using gemm3_warps      = ck_tile::sequence<4, 1, 1>;
@@ -207,7 +207,7 @@ struct HstuAttentionBwdBlockTileForKernel2<96>
 template <>
 struct HstuAttentionBwdBlockTileForKernel2<128>
 {
-    using type             = ck_tile::sequence<32, 64, 32, 16, 128>;
+    using type             = ck_tile::sequence<32, 64, 16, 16, 128>;
     using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
     using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
     using gemm3_warps      = ck_tile::sequence<4, 1, 1>;
@@ -216,7 +216,7 @@ struct HstuAttentionBwdBlockTileForKernel2<128>
 template <>
 struct HstuAttentionBwdBlockTileForKernel2<256>
 {
-    using type             = ck_tile::sequence<32, 64, 32, 16, 256>;
+    using type             = ck_tile::sequence<32, 64, 16, 16, 256>;
     using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
     using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
     using gemm3_warps      = ck_tile::sequence<4, 1, 1>;

@@ -28,7 +28,7 @@ struct HstuAttentionBwdTileSettingClassForKernel1
     using Gemm2BlockWarps = Gemm0Gemm2BlockWarps;
     using Gemm2WarpTile   = Gemm0Gemm2WarpTile;
 
-    static_assert(BlockTile::size() == 4, "Check failed!");
+    static_assert(BlockTile::size() == 5, "Check failed!");
     static_assert(Gemm0Gemm2BlockWarps::size() == 3, "Check failed!");
     static_assert(Gemm0Gemm2WarpTile::size() == 3, "Check failed!");
     static_assert(Gemm4BlockWarps::size() == 3, "Check failed!");
@@ -50,7 +50,8 @@ struct HstuAttentionBwdTileSettingClassForKernel1
     static constexpr index_t kM0        = BlockTile::at(number<0>{}); // tile size along q seqlen
     static constexpr index_t kN0        = BlockTile::at(number<1>{}); // tile size along k seqlen
     static constexpr index_t kN0Sub     = BlockTile::at(number<2>{}); // tile size for dividing kN0
-    static constexpr index_t kQKHeaddim = BlockTile::at(number<3>{}); // total length of QK head_dim
+    static constexpr index_t kK1        = BlockTile::at(number<3>{});
+    static constexpr index_t kQKHeaddim = BlockTile::at(number<4>{}); // total length of QK head_dim
     static constexpr index_t kVHeaddim  = kQKHeaddim; // V shares head dim with K in HSTU
 };
 
@@ -100,12 +101,10 @@ struct HstuAttentionBwdTileSettingClassForKernel2
 
     static constexpr index_t NumWarps = max(NumGemm0Gemm2Warps, max(NumGemm1Warps, NumGemm3Warps));
 
-    static constexpr index_t kM0 = BlockTile::at(number<0>{}); // tile size along q seqlen
-    static constexpr index_t kN0 = BlockTile::at(number<1>{}); // tile size along k seqlen
-    static constexpr index_t kK0 =
-        BlockTile::at(number<2>{}); // tile size for dividing kQKHeaddim in Gemm0 and Gemm2
-    static constexpr index_t kK1 =
-        BlockTile::at(number<3>{}); // tile size for dividing kM0 in Gemm1 and Gemm3
+    static constexpr index_t kM0        = BlockTile::at(number<0>{}); // tile size along q seqlen
+    static constexpr index_t kN0        = BlockTile::at(number<1>{}); // tile size along k seqlen
+    static constexpr index_t kM0Sub     = BlockTile::at(number<2>{}); // tile size for dividing kM0
+    static constexpr index_t kK1        = BlockTile::at(number<3>{});
     static constexpr index_t kQKHeaddim = BlockTile::at(number<4>{}); // total length of QK head_dim
     static constexpr index_t kVHeaddim  = kQKHeaddim; // V shares head dim with K in HSTU
 };

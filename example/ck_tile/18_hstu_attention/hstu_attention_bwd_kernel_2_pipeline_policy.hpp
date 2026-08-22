@@ -22,27 +22,17 @@ namespace ck_tile {
 
 struct HstuAttentionBwdKernel2PipelinePolicy
 {
-    // Gemm0 use k0_loop, which unrolls the Gemm along kQKHeaddim
+    // Gemm0, Gemm2 use m0_loop, which unrolls the Gemm along kM0
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumGemm0K0Loops()
+    CK_TILE_DEVICE static constexpr auto GetNumM0Loops()
     {
-        constexpr index_t k0_loops =
-            Problem::HstuAttentionTileSetting::kQKHeaddim / Problem::HstuAttentionTileSetting::kK0;
+        constexpr index_t m0_loops =
+            Problem::HstuAttentionTileSetting::kM0 / Problem::HstuAttentionTileSetting::kM0Sub;
 
-        return k0_loops;
+        return m0_loops;
     }
 
-    // Gemm2 use k0_loop, which unrolls the Gemm along kVHeaddim
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumGemm2K0Loops()
-    {
-        constexpr index_t k0_loops =
-            Problem::HstuAttentionTileSetting::kVHeaddim / Problem::HstuAttentionTileSetting::kK0;
-
-        return k0_loops;
-    }
-
-    // Gemm1 and Gemm3 use k1_loop, which unrolls the Gemm along kM0
+    // Gemm1/Gemm3 all use k1_loop, which unrolls the Gemm along kM0, kK1 reuse kM0Sub at present
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumK1Loops()
     {
@@ -74,7 +64,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         return min(MaxVectorSize, WG::kK / WG::WarpGemmAttribute::Impl::kABKLane);
     }
 
-    // Q alignment -- based on [kM0, kK0] tile
+    // Q alignment -- based on [kM0Sub, kQKHeaddim] tile
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentQ()
     {
@@ -88,11 +78,11 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         return GetAlignmentK<Problem>();
     }
 
-    // dO alignment -- same tile shape as Q
+    // dO alignment -- based ib [kM0Sub, kVHeaddim] tile
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentOGrad()
     {
-        return GetAlignmentQ<Problem>();
+        return Problem::GetOGradDramTileAccessMaxVectorSize();
     }
 
     // dK alignment -- same tile shape as K (output [kN0, kQKHeaddim])
@@ -113,42 +103,113 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // DRAM tile distributions
     // -------------------------------------------------------------------------
 
-    // Q DRAM distribution -- [kM0, kK0], loaded sub-tile by sub-tile
+    // Q DRAM distribution -- [kM0Sub, kQKHeaddim], loaded sub-tile by sub-tile
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK0;
+        constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
         constexpr index_t kKVector = GetAlignmentQ<Problem>();
         constexpr index_t OtherK   = kKPerBlock / kKVector;
 
-        constexpr index_t KPerThread = kKVector;
-        constexpr index_t KThreads   = OtherK;
+        if constexpr(detail::IsPerfectHeaddimSize(kKPerBlock))
+        {
+            constexpr index_t KPerThread = kKVector;
+            constexpr index_t KThreads   = OtherK;
 
-        constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
-        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
-        constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
-                                             sequence<KThreads, KPerThread>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
+            static_assert(MPerThread > 0, "Check failed!");
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
+                                                 sequence<KThreads, KPerThread>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 1>>{});
+        }
+        else
+        {
+            static_assert((OtherK & (OtherK - 1)) != 0, "Check failed!");
+            constexpr index_t KRepPerThread  = (OtherK % 3 == 0) ? 3 : 5;
+            constexpr index_t KThreads       = OtherK / KRepPerThread;
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+
+            static_assert(MPerThread > 0, "Check failed!");
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
+                                                 sequence<KRepPerThread, KThreads, kKVector>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 1>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<0, 0, 2>>{});
+        }
     }
 
-    // dO DRAM distribution -- identical to Q
+    // dO DRAM distribution -- [kM0Sub, kQKHeaddim], loaded sub-tile by sub-tile
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradDramTileDistribution()
     {
-        return MakeQDramTileDistribution<Problem>();
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
+
+        constexpr index_t kKVector = GetAlignmentOGrad<Problem>();
+        constexpr index_t OtherK   = kKPerBlock / kKVector;
+
+        if constexpr(detail::IsPerfectHeaddimSize(kKPerBlock))
+        {
+            constexpr index_t KPerThread = kKVector;
+            constexpr index_t KThreads   = OtherK;
+
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+
+            static_assert(MPerThread > 0, "Check failed!");
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
+                                                 sequence<KThreads, KPerThread>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 1>>{});
+        }
+        else
+        {
+            static_assert((OtherK & (OtherK - 1)) != 0, "Check failed!");
+            constexpr index_t KRepPerThread  = (OtherK % 3 == 0) ? 3 : 5;
+            constexpr index_t KThreads       = OtherK / KRepPerThread;
+            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+
+            static_assert(MPerThread > 0, "Check failed!");
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
+                                                 sequence<KRepPerThread, KThreads, kKVector>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 1>>,
+                                           sequence<1, 2, 2>,
+                                           sequence<0, 0, 2>>{});
+        }
     }
 
-    // K (and V) : [kN0, kQKHeaddim], register-resident B operand
+    // K : [kN0, kQKHeaddim], register-resident B operand
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKRegTileDistribution()
     {
@@ -158,11 +219,14 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             Problem::HstuAttentionTileSetting::kQKHeaddim>();
     }
 
-    // V register tile distribution -- identical to K
+    // V : [kN0, kVHeaddim], register-resident B operand
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVRegTileDistribution()
     {
-        return MakeKRegTileDistribution<Problem>();
+        using BlockGemm = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+        return BlockGemm::template MakeBBlockTileDistribution<
+            Problem::HstuAttentionTileSetting::kN0,
+            Problem::HstuAttentionTileSetting::kVHeaddim>();
     }
 
     // PT register tile distribution
@@ -415,18 +479,17 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // LDS block descriptors
     // -------------------------------------------------------------------------
 
-    // q_lds write/read descriptor: NumBuffers * [kM0, kK0]
+    // q_lds write/read descriptor: NumBuffers * [kM0Sub, kQKHeaddim]
     template <typename Problem,
               index_t NumBuffers,
+              index_t kNPerBlock,
+              index_t kKPerBlock,
               index_t kKPack,
               index_t kKVector,
               index_t WarpGemmKPerThread,
               bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQOGradLdsBlockDescriptor()
     {
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kM0;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK0;
-
         if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
             constexpr index_t SingleBufferSize = kNPerBlock * kKPerBlock;
@@ -439,21 +502,20 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             return transform_tensor_descriptor(
                 desc_0,
                 make_tuple(
-                    make_pass_through_transform(number<kNPerBlock>{}),
-                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{}))),
-                make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
+                    make_pass_through_transform(number<kKPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else if constexpr(WarpGemmKPerThread >= 8)
         {
-            //  static_assert(kKVector == kKPack);
-
-            // In the trload pipeline this q_lds/do_lds buffer is read BOTH normally (Gemm0/Gemm2
-            // A operand) and transposed (Gemm3/Gemm1 via ds_read_b64_tr). Profiling shows the
-            // transpose read is the dominant LDS-conflict source (it is 2x the normal-read count in
-            // kernel 2) and it prefers a plain (contiguous) layout. Use a plain physical layout for
-            // the shared trload buffer (same element space -> GetSmemSize/byte offsets unchanged),
-            // and keep the XOR swizzle for the non-trload buffer whose read is normal-only.
+            // In the trload pipeline this q_lds/do_lds buffer is read BOTH normally
+            // (Gemm0/Gemm2 A operand) and transposed (Gemm3/Gemm1 via ds_read_b64_tr).
+            // Profiling shows the transpose read is the dominant LDS-conflict source (it is 2x
+            // the normal-read count in kernel 2) and it prefers a plain (contiguous) layout.
+            // Use a plain physical layout for the shared trload buffer (same element space ->
+            // GetSmemSize/byte offsets unchanged), and keep the XOR swizzle for the non-trload
+            // buffer whose read is normal-only.
             constexpr auto desc_native = [] {
                 if constexpr(kUseTrLoad)
                 {
@@ -470,11 +532,11 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                     }
                     else
                     {
-                        // With trload read,  16 threads per cycle access the [4Tl, 4Tm*4E] block
-                        // and cross-bar transpose it to [4E, 4Tm*4Tl] layout suitable for mfma, we
-                        // want to ensure 16T * 2 dwords to exactly hit 32 banks (for KPerBlock =
-                        // 16, 4 * 16 * sizeof(bf16) = 32 banks mapped by 4 rows; and actual hit 16
-                        // Threads * 2 banks/per-inst is also 32 banks )
+                        // With trload read,  16 threads per cycle access the [4Tl, 4Tm*4E]
+                        // block and cross-bar transpose it to [4E, 4Tm*4Tl] layout suitable for
+                        // mfma, we want to ensure 16T * 2 dwords to exactly hit 32 banks (for
+                        // KPerBlock = 16, 4 * 16 * sizeof(bf16) = 32 banks mapped by 4 rows;
+                        // and actual hit 16 Threads * 2 banks/per-inst is also 32 banks )
                         static_assert(kKPerBlock % 16 == 0,
                                       "kKPerBlock should be a multiplier of 16!");
 
@@ -508,44 +570,29 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                                   kKPack>();
             }();
 
-            // Logical view: [kNPerBlock, NumBuffers*kKPerBlock] -- buffers stacked along
-            // dim1, matching the other branches and the per-buffer caller slicing.
+            // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
+            // dim0, matching the other branches and the per-buffer caller slicing.
             return transform_tensor_descriptor(
                 desc_native,
                 make_tuple(
-                    make_pass_through_transform(number<kNPerBlock>{}),
-                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{}))),
-                make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
+                    make_pass_through_transform(number<kKPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else
         {
-            static_assert(kKVector % kKPack == 0);
-            constexpr index_t SingleBufferSize =
-                kKPerBlock * kNPerBlock + kKPerBlock * kKPack / kKVector;
+            constexpr auto desc_native =
+                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
 
-            constexpr auto desc_0 =
-                make_naive_tensor_descriptor(make_tuple(number<NumBuffers>{},
-                                                        number<kKPerBlock / kKVector>{},
-                                                        number<kKVector / kKPack>{},
-                                                        number<kNPerBlock>{},
-                                                        number<kKPack>{}),
-                                             make_tuple(number<SingleBufferSize>{},
-                                                        number<kNPerBlock * kKVector + kKPack>{},
-                                                        number<kNPerBlock * kKPack>{},
-                                                        number<kKPack>{},
-                                                        number<1>{}),
-                                             number<kKPack>{},
-                                             number<1>{});
-
+            // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
+            // dim0, matching the other branches and the per-buffer caller slicing.
             return transform_tensor_descriptor(
-                desc_0,
-                make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
-                           make_merge_transform(make_tuple(number<NumBuffers>{},
-                                                           number<kKPerBlock / kKVector>{},
-                                                           number<kKVector / kKPack>{},
-                                                           number<kKPack>{}))),
-                make_tuple(sequence<3>{}, sequence<0, 1, 2, 4>{}),
+                desc_native,
+                make_tuple(
+                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
+                    make_pass_through_transform(number<kKPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
     }
@@ -554,15 +601,19 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
+        constexpr index_t kNPerBlock         = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock         = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKPack             = GetSmemKPackQ<Problem>();
         constexpr index_t kKVector           = GetAlignmentQ<Problem>();
         constexpr index_t WarpGemmKPerThread = GetQKWarpGemmKPerThreadSize<Problem>();
 
         if constexpr(kUseTrLoad)
         {
-            constexpr index_t NumBuffers = GetNumGemm0K0Loops<Problem>();
+            constexpr index_t NumBuffers = GetNumM0Loops<Problem>();
             return MakeQOGradLdsBlockDescriptor<Problem,
                                                 NumBuffers,
+                                                kNPerBlock,
+                                                kKPerBlock,
                                                 kKPack,
                                                 kKVector,
                                                 WarpGemmKPerThread,
@@ -573,6 +624,8 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             constexpr index_t NumBuffers = GetNumQOGradLdsBuffers<Problem>();
             return MakeQOGradLdsBlockDescriptor<Problem,
                                                 NumBuffers,
+                                                kNPerBlock,
+                                                kKPerBlock,
                                                 kKPack,
                                                 kKVector,
                                                 WarpGemmKPerThread>();
@@ -583,15 +636,19 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradLdsBlockDescriptor()
     {
+        constexpr index_t kNPerBlock         = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock         = Problem::HstuAttentionTileSetting::kVHeaddim;
         constexpr index_t kKPack             = GetSmemKPackOGrad<Problem>();
         constexpr index_t kKVector           = GetAlignmentOGrad<Problem>();
         constexpr index_t WarpGemmKPerThread = GetOGradVWarpGemmKPerThreadSize<Problem>();
 
         if constexpr(kUseTrLoad)
         {
-            constexpr index_t NumBuffers = GetNumGemm2K0Loops<Problem>();
+            constexpr index_t NumBuffers = GetNumM0Loops<Problem>();
             return MakeQOGradLdsBlockDescriptor<Problem,
                                                 NumBuffers,
+                                                kNPerBlock,
+                                                kKPerBlock,
                                                 kKPack,
                                                 kKVector,
                                                 WarpGemmKPerThread,
@@ -602,27 +659,24 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             constexpr index_t NumBuffers = GetNumQOGradLdsBuffers<Problem>();
             return MakeQOGradLdsBlockDescriptor<Problem,
                                                 NumBuffers,
+                                                kNPerBlock,
+                                                kKPerBlock,
                                                 kKPack,
                                                 kKVector,
                                                 WarpGemmKPerThread>();
         }
     }
 
-    // qt_lds/dot_lds write descriptor: NumReadBuffers * [kQKHeaddim/kVHeaddim, kK1],
+    // qt_lds/dot_lds write descriptor: [NumReadBuffers * kK1, kQKHeaddim/kVHeaddim],
     // the naive physical layout is determined by at-best benefitting the Lds reading, but
-    // the write descriptor provides a correct view suitable for Lds writing from the q_tile/do_tile
-    template <typename Problem, index_t kHeaddim, index_t NumWriteBuffers, index_t kKPack>
+    // the write descriptor provides a correct view suitable for Lds writing from the
+    // q_tile/do_tile
+    template <typename Problem, index_t kHeaddim, index_t kKPack>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQTOGradTLdsWriteBlockDescriptor()
     {
         constexpr index_t NumReadBuffers = GetNumK1Loops<Problem>();
         constexpr index_t kReadNPerBlock = kHeaddim;
         constexpr index_t kReadKPerBlock = Problem::HstuAttentionTileSetting::kK1;
-
-        constexpr index_t kWriteKPerBlock = Problem::HstuAttentionTileSetting::kK0;
-        constexpr index_t kWriteMPerBlock = Problem::HstuAttentionTileSetting::kM0;
-
-        static_assert(kReadNPerBlock == NumWriteBuffers * kWriteKPerBlock, "Check failed!");
-        static_assert(kWriteMPerBlock == NumReadBuffers * kReadKPerBlock, "Check failed!");
 
         // Shared XOR-swizzled physical [NumReadBuffers, kReadNPerBlock, kReadKPerBlock]
         // (same physical layout as the read descriptor -> write/read stay consistent).
@@ -632,41 +686,16 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                                             kReadKPerBlock,
                                                             kKPack>();
 
-        // Unmerge kReadNPerBlock into [NumWriteBuffers, kWriteKPerBlock] to expose
-        // the write-friendly [kM0, kK0] view over the read-optimal physical layout.
-        constexpr auto desc_unmerged = transform_tensor_descriptor(
+        return transform_tensor_descriptor(
             desc_native,
-            make_tuple(make_pass_through_transform(number<NumReadBuffers>{}),
-                       make_unmerge_transform(
-                           make_tuple(number<NumWriteBuffers>{}, number<kWriteKPerBlock>{})),
-                       make_pass_through_transform(number<kReadKPerBlock>{})),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
-
-        // Reorder: bring NumWriteBuffers to front as the "which kK0 chunk" index,
-        // merge the read-buffer and kReadKPerBlock dims into the M dimension.
-        constexpr auto desc_remerged_1 = transform_tensor_descriptor(
-            desc_unmerged,
-            make_tuple(make_pass_through_transform(number<NumWriteBuffers>{}),
-                       make_merge_transform(
+            make_tuple(make_merge_transform(
                            make_tuple(number<NumReadBuffers>{}, number<kReadKPerBlock>{})),
-                       make_pass_through_transform(number<kWriteKPerBlock>{})),
-            make_tuple(sequence<1>{}, sequence<0, 3>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-
-        // Final merge: [NumWriteBuffers, kM0, kK0] -> [kM0, kQKHeaddim]
-        constexpr auto desc_remerged_2 = transform_tensor_descriptor(
-            desc_remerged_1,
-            make_tuple(make_pass_through_transform(number<kWriteMPerBlock>{}),
-                       make_merge_transform(
-                           make_tuple(number<NumWriteBuffers>{}, number<kWriteKPerBlock>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                       make_pass_through_transform(number<kReadNPerBlock>{})),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return desc_remerged_2;
     }
 
-    // qt_lds/dot_lds read descriptor: NumK1Loops * [kQKHeaddim/kVHeaddim, kK1]
+    // qt_lds/dot_lds read descriptor: [kQKHeaddim/kVHeaddim, NumK1Loops * kK1]
     template <typename Problem, index_t kHeaddim, index_t kKPack>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQTOGradTLdsReadBlockDescriptor()
     {
@@ -692,21 +721,19 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsWriteBlockDescriptor()
     {
-        constexpr index_t kHeaddim        = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t NumWriteBuffers = GetNumGemm0K0Loops<Problem>();
-        constexpr index_t kKPack          = GetSmemKPackQT<Problem>();
+        constexpr index_t kHeaddim = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kKPack   = GetSmemKPackQT<Problem>();
 
-        return MakeQTOGradTLdsWriteBlockDescriptor<Problem, kHeaddim, NumWriteBuffers, kKPack>();
+        return MakeQTOGradTLdsWriteBlockDescriptor<Problem, kHeaddim, kKPack>();
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsWriteBlockDescriptor()
     {
-        constexpr index_t kHeaddim        = Problem::HstuAttentionTileSetting::kVHeaddim;
-        constexpr index_t NumWriteBuffers = GetNumGemm2K0Loops<Problem>();
-        constexpr index_t kKPack          = GetSmemKPackOGradT<Problem>();
+        constexpr index_t kHeaddim = Problem::HstuAttentionTileSetting::kVHeaddim;
+        constexpr index_t kKPack   = GetSmemKPackOGradT<Problem>();
 
-        return MakeQTOGradTLdsWriteBlockDescriptor<Problem, kHeaddim, NumWriteBuffers, kKPack>();
+        return MakeQTOGradTLdsWriteBlockDescriptor<Problem, kHeaddim, kKPack>();
     }
 
     template <typename Problem>
@@ -731,8 +758,8 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // Block GEMM objects
     // -------------------------------------------------------------------------
 
-    // Gemm0: S = Q_lds @ K_reg    [kM0, kN0] = [kM0, kK0] x [kN0, kK0]
-    // Gemm2: dP = dO_lds @ V_reg  [kM0, kN0] = [kM0, kK0] x [kN0, kK0]
+    // Gemm0: S = Q_lds @ K_reg    [kM0Sub, kN0] = [kM0Sub, kQKHeaddim] x [kN0, kQKHeaddim]
+    // Gemm2: dP = dO_lds @ V_reg  [kM0Sub, kN0] = [kM0Sub, kVHeaddim] x [kN0, kVHeaddim]
     // A = Q/dO from LDS (A-smem), B = K/V register-resident (B-reg)
     // -> BlockGemmASmemBRegCRegV1
     template <typename Problem>
@@ -743,9 +770,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::QKVDataType,
             typename Problem::GemmAccDataType,
             Problem::kNumGemm0Gemm2Warps * get_warp_size(),
-            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0,
+            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0Sub,
                                    Problem::HstuAttentionTileSetting::kN0,
-                                   Problem::HstuAttentionTileSetting::kK0>,
+                                   Problem::HstuAttentionTileSetting::kQKHeaddim>,
                           typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
                           typename Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile>>;
 
@@ -796,17 +823,139 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         return BlockGemmASmemBRegCRegV1Hack<GemmProblem, BlockGemmPolicy>{};
     }
 
-    // Gemm2: dP = dO_lds @ V_reg -- identical configuration to Gemm0
+    // Same as GetQKBlockGemm but with kM0 (instead of kM0Sub) as the M tile dimension.
+    // This is used as the BlockGemm template argument to BlockDropout::Run() so that
+    // kMPerBlock = kM0, ensuring dropout is applied to the full pcomp_tile [kM0, kN0]
+    // rather than only the first kM0Sub rows.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetQKCombinedBlockGemm()
+    {
+        using GemmProblem = BlockGemmProblem<
+            typename Problem::QKVDataType,
+            typename Problem::QKVDataType,
+            typename Problem::GemmAccDataType,
+            Problem::kNumGemm0Gemm2Warps * get_warp_size(),
+            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0,
+                                   Problem::HstuAttentionTileSetting::kN0,
+                                   Problem::HstuAttentionTileSetting::kQKHeaddim>,
+                          typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
+                          typename Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile>>;
+
+        auto warp_gemm = [&]() {
+            if constexpr((std::is_same_v<typename Problem::QKVDataType, half_t> ||
+                          std::is_same_v<typename Problem::QKVDataType, bf16_t>) &&
+                         std::is_same_v<typename Problem::GemmAccDataType, float>)
+            {
+                constexpr index_t WarpGemmM =
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<0>{});
+                constexpr index_t WarpGemmK =
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{});
+
+#ifdef __gfx950__
+                static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
+                                  (WarpGemmM == 32 && WarpGemmK == 16),
+                              "Not supported WarpGemm sizes!");
+#else
+                static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)) ||
+                                  (WarpGemmM == 32 && (WarpGemmK == 8 || WarpGemmK == 16)),
+                              "Not supported WarpGemm sizes!");
+#endif
+                return WarpGemmDispatcher<
+                    typename Problem::QKVDataType,
+                    typename Problem::QKVDataType,
+                    typename Problem::GemmAccDataType,
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<0>{}),
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<1>{}),
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{}),
+                    false, // not CTransposed
+                    false,
+                    false,
+                    WGAttrNumAccessEnum::Single>{};
+            }
+            else
+            {
+                static_assert(false, "Not supported data types!");
+            }
+        }();
+
+        using BlockGemmPolicy = BlockGemmASmemBRegCRegV1CustomPolicy<
+            typename Problem::QKVDataType,
+            typename Problem::QKVDataType,
+            typename Problem::GemmAccDataType,
+            typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
+            decltype(warp_gemm)>;
+
+        return BlockGemmASmemBRegCRegV1Hack<GemmProblem, BlockGemmPolicy>{};
+    }
+
+    // Gemm2: dP = dO @ V   [kM0Sub, kN0] = [kM0Sub, kVHeaddim] x [kN0, kVHeaddim]
+    // Uses kVHeaddim as the reduction dimension (V head dim, not QK head dim).
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetOGradVBlockGemm()
     {
-        return GetQKBlockGemm<Problem>();
+        using GemmProblem = BlockGemmProblem<
+            typename Problem::QKVDataType,
+            typename Problem::QKVDataType,
+            typename Problem::GemmAccDataType,
+            Problem::kNumGemm0Gemm2Warps * get_warp_size(),
+            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0Sub,
+                                   Problem::HstuAttentionTileSetting::kN0,
+                                   Problem::HstuAttentionTileSetting::kVHeaddim>,
+                          typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
+                          typename Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile>>;
+
+        auto warp_gemm = [&]() {
+            if constexpr((std::is_same_v<typename Problem::QKVDataType, half_t> ||
+                          std::is_same_v<typename Problem::QKVDataType, bf16_t>) &&
+                         std::is_same_v<typename Problem::GemmAccDataType, float>)
+            {
+                constexpr index_t WarpGemmM =
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<0>{});
+                constexpr index_t WarpGemmK =
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{});
+
+#ifdef __gfx950__
+                static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
+                                  (WarpGemmM == 32 && WarpGemmK == 16),
+                              "Not supported WarpGemm sizes!");
+#else
+                static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)) ||
+                                  (WarpGemmM == 32 && (WarpGemmK == 8 || WarpGemmK == 16)),
+                              "Not supported WarpGemm sizes!");
+#endif
+                return WarpGemmDispatcher<
+                    typename Problem::QKVDataType,
+                    typename Problem::QKVDataType,
+                    typename Problem::GemmAccDataType,
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<0>{}),
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<1>{}),
+                    Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{}),
+                    false, // not CTransposed
+                    false,
+                    false,
+                    WGAttrNumAccessEnum::Single>{};
+            }
+            else
+            {
+                static_assert(false, "Not supported data types!");
+            }
+        }();
+
+        using BlockGemmPolicy = BlockGemmASmemBRegCRegV1CustomPolicy<
+            typename Problem::QKVDataType,
+            typename Problem::QKVDataType,
+            typename Problem::GemmAccDataType,
+            typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
+            decltype(warp_gemm)>;
+
+        return BlockGemmASmemBRegCRegV1Hack<GemmProblem, BlockGemmPolicy>{};
     }
 
     // is_target_warptile_16_32 == true selects the 16x16x32 (native mfma, WGAttrNumAccessEnum::
     // Double) A operand for Gemm1. Its per-lane A register count is twice that of the incoming
-    // 16x16 C fragment, so each K=32 A tile is assembled from two consecutive 16x16 C sub-tiles.
-    // is_target_warptile_16_32 == false keeps the original 16x16x16 (1:1) transpose-free reuse.
+    // 16x16 C fragment, so each K=32 A tile is assembled from two consecutive 16x16 C
+    // sub-tiles. is_target_warptile_16_32 == false keeps the original 16x16x16 (1:1)
+    // transpose-free reuse.
     template <typename Problem,
               bool is_target_warptile_16_32,
               typename PTOutTensor,
@@ -849,8 +998,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
             if constexpr(is_target_warptile_16_32)
             {
-                // Number of 16x16 C sub-tiles packed along K into one 16x16x32 A tile (== 2), and
-                // the per-lane register count of a single 16x16 fragment (== C fragment size).
+                // Number of 16x16 C sub-tiles packed along K into one 16x16x32 A tile (== 2),
+                // and the per-lane register count of a single 16x16 fragment (== C fragment
+                // size).
                 constexpr index_t NumKSub = WarpGemm::kK / 16;
                 constexpr index_t kSubPerThread =
                     CWarpDstr{}.get_ys_to_d_descriptor().get_element_space_size();
@@ -865,9 +1015,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                             c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-                        // C->A transpose is the register identity for one 16x16 fragment; place it
-                        // into sub-access kSub of the K=32 A tile (Double packs the accesses as
-                        // [sub0(kSubPerThread), sub1(kSubPerThread)] in the thread buffer).
+                        // C->A transpose is the register identity for one 16x16 fragment; place
+                        // it into sub-access kSub of the K=32 A tile (Double packs the accesses
+                        // as [sub0(kSubPerThread), sub1(kSubPerThread)] in the thread buffer).
                         static_for<0, kSubPerThread, 1>{}([&](auto i) {
                             pt_warp_tensor.get_thread_buffer()(number<kSub * kSubPerThread + i>{}) =
                                 p_warp_tensor.get_thread_buffer()(number<i>{});
@@ -962,9 +1112,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                             c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-                        // C->A transpose is the register identity for one 16x16 fragment; place it
-                        // into sub-access kSub of the K=32 A tile (Double packs the accesses as
-                        // [sub0(kSubPerThread), sub1(kSubPerThread)] in the thread buffer).
+                        // C->A transpose is the register identity for one 16x16 fragment; place
+                        // it into sub-access kSub of the K=32 A tile (Double packs the accesses
+                        // as [sub0(kSubPerThread), sub1(kSubPerThread)] in the thread buffer).
                         static_for<0, kSubPerThread, 1>{}([&](auto i) {
                             dst_warp_tensor.get_thread_buffer()(
                                 number<kSub * kSubPerThread + i>{}) =
@@ -1040,8 +1190,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 #ifdef __gfx950__
                 // Gemm1 (dV = P^T @ dO^T) reuses Gemm0's C output as its A input via the
                 // transpose-free register copy in PTFromGemm0CToGemm1A, which requires the mfma
-                // A- and C-operand per-lane sizes to coincide (i.e. WarpGemmK == 16). gfx950 still
-                // provides the 16x16x16 fp16 mfma, so allow it here in addition to 16x16x32.
+                // A- and C-operand per-lane sizes to coincide (i.e. WarpGemmK == 16). gfx950
+                // still provides the 16x16x16 fp16 mfma, so allow it here in addition to
+                // 16x16x32.
                 static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -1137,9 +1288,10 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
 #ifdef __gfx950__
                 // Gemm3 (dK = dS^T @ Q^T) reuses Gemm2's C output as its A input via the
-                // transpose-free register copy in SGradTFromGemm2CToGemm3A, which requires the mfma
-                // A- and C-operand per-lane sizes to coincide (i.e. WarpGemmK == 16). gfx950 still
-                // provides the 16x16x16 fp16 mfma, so allow it here in addition to 16x16x32.
+                // transpose-free register copy in SGradTFromGemm2CToGemm3A, which requires the
+                // mfma A- and C-operand per-lane sizes to coincide (i.e. WarpGemmK == 16).
+                // gfx950 still provides the 16x16x16 fp16 mfma, so allow it here in addition to
+                // 16x16x32.
                 static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");

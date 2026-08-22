@@ -35,7 +35,7 @@ namespace ck_tile {
 // GetSmemSize returns GetSmemSizeK + GetSmemSizeV + GetSmemSizeKT.
 struct HstuAttentionBwdKernel1PipelinePolicy
 {
-    // Gemm0, Gemm2 and Gemm4 all use n0_loop, which unrolls the Gemm along kN0
+    // Gemm0, Gemm2 all use n0_loop, which unrolls the Gemm along kN0
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumN0Loops()
     {
@@ -43,6 +43,16 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kN0Sub;
 
         return n0_loops;
+    }
+
+    // Gemm4 uses k1_loop, which unrolls the Gemm along kM0, kK1 reuse kM0Sub at present
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto GetNumK1Loops()
+    {
+        constexpr index_t k1_loops =
+            Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kK1;
+
+        return k1_loops;
     }
 
     // -------------------------------------------------------------------------
@@ -144,6 +154,8 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             constexpr index_t NumWarps       = kBlockSize / get_warp_size();
             constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
 
+            static_assert(NPerThread > 0, "Check failed!");
+
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
                                            tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
@@ -161,6 +173,8 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             constexpr index_t NThreadPerWarp = get_warp_size() / KThreads;
             constexpr index_t NumWarps       = kBlockSize / get_warp_size();
             constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
+
+            static_assert(NPerThread > 0, "Check failed!");
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
@@ -192,6 +206,8 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             constexpr index_t NumWarps       = kBlockSize / get_warp_size();
             constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
 
+            static_assert(NPerThread > 0, "Check failed!");
+
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
                                            tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
@@ -209,6 +225,8 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             constexpr index_t NThreadPerWarp = get_warp_size() / KThreads;
             constexpr index_t NumWarps       = kBlockSize / get_warp_size();
             constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
+
+            static_assert(NPerThread > 0, "Check failed!");
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
@@ -943,7 +961,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             Problem::kNumGemm4Warps * get_warp_size(),
             TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0,
                                    Problem::HstuAttentionTileSetting::kQKHeaddim,
-                                   Problem::HstuAttentionTileSetting::kN0Sub>,
+                                   Problem::HstuAttentionTileSetting::kK1>,
                           typename Problem::HstuAttentionTileSetting::Gemm4BlockWarps,
                           typename Problem::HstuAttentionTileSetting::Gemm4WarpTile>>;
 

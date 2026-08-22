@@ -38,6 +38,7 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D
     static constexpr index_t kN0Sub     = HstuAttentionTileSetting::kN0Sub;
     static constexpr index_t kQKHeaddim = HstuAttentionTileSetting::kQKHeaddim;
     static constexpr index_t kVHeaddim  = kQKHeaddim; // V shares head dim with K in HSTU
+    static constexpr index_t kK1        = HstuAttentionTileSetting::kK1;
 
     static_assert(Problem::kUseSoftmax == true, "This pipeline only works with the softmax path");
 
@@ -134,6 +135,7 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D
         using Gemm0Combined = decltype(Policy::template GetQKCombinedBlockGemm<Problem>());
 
         constexpr index_t n0_loops = Policy::template GetNumN0Loops<Problem>();
+        constexpr index_t k1_loops = Policy::template GetNumK1Loops<Problem>();
 
         constexpr auto NumKVPrefetches = 2;
         constexpr auto NumVLdsBuffers  = Policy::template GetNumKVLdsBuffers<Problem>();
@@ -193,6 +195,7 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D
                               .get_lengths()[number<1>{}] == kQKHeaddim,
                       "Check failed!");
 
+        // k_lds windows for normal write and normal read
         using k_lds_window_type = decltype(get_slice_tile(
             k_lds_monolithic_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
         statically_indexed_array<k_lds_window_type, n0_loops> k_lds_windows;
@@ -202,8 +205,15 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D
                                                   sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
         });
 
-        // In trload mode K is staged once in normal layout and read transposed by Gemm4.
-        statically_indexed_array<k_lds_window_type, n0_loops>& k_lds_trload_windows = k_lds_windows;
+        // k_lds windows for trload read
+        using k_lds_trload_window_type = decltype(get_slice_tile(
+            k_lds_monolithic_window, sequence<0, 0>{}, sequence<kK1, kQKHeaddim>{}));
+        statically_indexed_array<k_lds_trload_window_type, k1_loops> k_lds_trload_windows;
+        static_for<0, k1_loops, 1>{}([&](auto i_buf) {
+            k_lds_trload_windows[i_buf] = get_slice_tile(k_lds_monolithic_window,
+                                                         sequence<i_buf * kK1, 0>{},
+                                                         sequence<(i_buf + 1) * kK1, kQKHeaddim>{});
+        });
 
         QKVDataType* v_lds_ptr =
             reinterpret_cast<QKVDataType*>(static_cast<char*>(smem_ptr) + k_smem_size);
@@ -521,11 +531,9 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D
 
             // Gemm4: dQ += alpha * dS @ K^T
             // K is already staged in k_lds_windows from Stage 1 and read transposed via trload.
-            static_for<0, n0_loops, 1>{}([&](auto i_k1) {
-                auto ds_slice =
-                    cast_tile<QKVDataType>(get_slice_tile(dpcomp_tile,
-                                                          sequence<0, i_k1 * kN0Sub>{},
-                                                          sequence<kM0, (i_k1 + 1) * kN0Sub>{}));
+            static_for<0, k1_loops, 1>{}([&](auto i_k1) {
+                auto ds_slice = cast_tile<QKVDataType>(get_slice_tile(
+                    dpcomp_tile, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}));
 
                 // dQ += dS_sub @ KT_sub
                 gemm_4(dq_acc, ds_slice, k_lds_trload_windows[i_k1]);
