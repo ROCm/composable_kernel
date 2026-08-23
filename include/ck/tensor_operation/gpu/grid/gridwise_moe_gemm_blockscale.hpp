@@ -289,8 +289,22 @@ struct GridwiseMoeGemmBlockScale
     static constexpr auto BlockSizeNumber = Number<BlockSize>{};
 
     using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
+
+    // KPack must satisfy KPack/KGroup = 16/sizeof(B) so that each thread's NkSwizzle slot
+    // matches exactly one 16-byte memory load (= BK1 elements) in the B-preshuffle path.
+    // On gfx1250 the default double-rate instruction has k_per_blk > 16/sizeof(B), which
+    // would give KPack/KGroup > BK1 and break the preshuffle layout. Use the single-rate
+    // instruction's k_per_blk only for computing KPack to enforce this constraint.
+    // KGroup, KLane, and KPerXdlops still derive from the original (double-rate) mfma_selector.
+#if defined(__gfx125__)
+    using preshuffle_mfma_selector =
+        MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB, true>;
+    static constexpr index_t KPack = math::max(math::lcm(AK1Number, BK1Number),
+                                               preshuffle_mfma_selector::selected_mfma.k_per_blk);
+#else
     static constexpr index_t KPack =
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
+#endif
     static constexpr index_t KGroup = []() {
 #if defined(__gfx125__)
         // A memory instruction can only read 16 bytes at a time. If K1PerXdlops *

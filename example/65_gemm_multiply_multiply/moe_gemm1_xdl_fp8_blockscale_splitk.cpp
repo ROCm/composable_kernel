@@ -74,7 +74,7 @@ void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int 
 {
     int KPack = 16 / sizeof(B0DataType);
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = ck::get_warp_size() / NLane;
 
     int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack
