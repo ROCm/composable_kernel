@@ -367,17 +367,20 @@ struct GemmPipelineAgBgCrDefaultPolicy
         using ATypeToUse = typename Problem::AComputeDataType;
         using BTypeToUse = typename Problem::BComputeDataType;
 
-        using WarpGemm = WarpGemmDispatcher<ATypeToUse,
-                                            BTypeToUse,
-                                            typename Problem::CDataType,
-                                            WarpTile::at(I0),
-                                            WarpTile::at(I1),
-                                            WarpTile::at(I2),
-                                            Problem::TransposeC,
-                                            false,
-                                            Problem::UseStructuredSparsity,
-                                            wg_attr_num_access_A,
-                                            wg_attr_num_access_B>;
+        constexpr bool use_packed_num_access = (wg_attr_num_access_A != wg_attr_num_access_B);
+        using WarpGemm                       = WarpGemmDispatcher<ATypeToUse,
+                                                                  BTypeToUse,
+                                                                  typename Problem::CDataType,
+                                                                  WarpTile::at(I0),
+                                                                  WarpTile::at(I1),
+                                                                  WarpTile::at(I2),
+                                                                  Problem::TransposeC,
+                                                                  false,
+                                                                  Problem::UseStructuredSparsity,
+                                                                  wg_attr_num_access_A,
+                                                                  wg_attr_num_access_B,
+                                                                  false,
+                                                                  use_packed_num_access>;
 
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<ATypeToUse,
                                                                       BTypeToUse,

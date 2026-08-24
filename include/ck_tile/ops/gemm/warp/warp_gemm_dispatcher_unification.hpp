@@ -33,7 +33,8 @@ template <bool IsMx,
           bool TransposeC,
           index_t SwizzleFactor,
           index_t AttrNumAccessAV,
-          index_t AttrNumAccessBV>
+          index_t AttrNumAccessBV,
+          bool UsePackedNumAccess>
 struct MmaPipelineSelector;
 
 template <typename AType,
@@ -46,7 +47,8 @@ template <typename AType,
           bool TransposeC,
           index_t SwizzleFactor,
           index_t AttrNumAccessAV,
-          index_t AttrNumAccessBV>
+          index_t AttrNumAccessBV,
+          bool UsePackedNumAccess>
 struct MmaPipelineSelector<true,
                            AType,
                            BType,
@@ -58,7 +60,8 @@ struct MmaPipelineSelector<true,
                            TransposeC,
                            SwizzleFactor,
                            AttrNumAccessAV,
-                           AttrNumAccessBV>
+                           AttrNumAccessBV,
+                           UsePackedNumAccess>
 {
     using Type = ScaleMmaPipeline<AType,
                                   BType,
@@ -70,7 +73,8 @@ struct MmaPipelineSelector<true,
                                   TransposeC,
                                   SwizzleFactor,
                                   AttrNumAccessAV,
-                                  AttrNumAccessBV>;
+                                  AttrNumAccessBV,
+                                  UsePackedNumAccess>;
 };
 
 template <typename AType,
@@ -83,7 +87,8 @@ template <typename AType,
           bool TransposeC,
           index_t SwizzleFactor,
           index_t AttrNumAccessAV,
-          index_t AttrNumAccessBV>
+          index_t AttrNumAccessBV,
+          bool UsePackedNumAccess>
 struct MmaPipelineSelector<false,
                            AType,
                            BType,
@@ -95,7 +100,8 @@ struct MmaPipelineSelector<false,
                            TransposeC,
                            SwizzleFactor,
                            AttrNumAccessAV,
-                           AttrNumAccessBV>
+                           AttrNumAccessBV,
+                           UsePackedNumAccess>
 {
     using Type = WaveWiseMmaPipeline<AType,
                                      BType,
@@ -107,12 +113,17 @@ struct MmaPipelineSelector<false,
                                      TransposeC,
                                      SwizzleFactor,
                                      AttrNumAccessAV,
-                                     AttrNumAccessBV>;
+                                     AttrNumAccessBV,
+                                     UsePackedNumAccess>;
 };
 
-// TODO: Figure out how to deal with the "packed" version of AttrNumAccess. In the unification
-// framework there is no reason to combine packedness with AttrNumAccess but in CK Tile they did,
-// alongside the refactor introducing gfx1250.
+// UsePackedNumAccess is threaded through the dispatch chain explicitly from the pipeline level.
+// When true, operands with NumAccess > 1 use a contiguous-K layout (packed reads) instead of the
+// default strided-K layout (interleaved reads). This is required by some load/transposition
+// arrangements, including, but not limited to, mixed operand types with different NumAccess values.
+// TODO: normalise NumAccess and packing into 1 unambiguous dispatcher, for clarity.
+// TODO: Replace UsePackedNumAccess with independent A/B controls if required (e.g. fp8_t/pk_fp4_t
+// 16x16x128 on gfx1250).
 template <WGAttrNumAccessEnum AttrNumAccess>
 struct get_wgattr_num_access_safe_v
 {
@@ -124,6 +135,9 @@ struct get_wgattr_num_access_safe_v<WGAttrNumAccessEnum::Default>
     static constexpr int32_t value = 1;
 };
 
+// TODO Replace IsScale16 and UseMxScale with a single MmaScaleFamily enum.
+// The new enum should distinguish dense, MX scale8 and MX scale16 selection
+// while preserving the current type-based inference for unambiguous MX input types.
 template <typename AType,
           typename BType,
           typename AccType,
@@ -135,18 +149,25 @@ template <typename AType,
           bool UseStructuredSparsity         = false,
           WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
           WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA,
-          bool IsScale16                     = false>
+          bool IsScale16                     = false,
+          bool UsePackedNumAccess            = false,
+          bool UseMxScale                    = false>
 struct UnificationDispatcher
 {
     static_assert(!IsScale16); // TODO: We can't deal with scale16 yet.
 
-    // TODO: The dispatcher currently determines whether microscaling intrinsics are requested based
-    // on the WaveTile sizes and types. This is potentially dangerous and we should add a dedicated
-    // parameter instead.
-    static constexpr bool IsMxSized = (MPerWave == 16 && NPerWave == 16 && KPerWave == 128) ||
-                                      (MPerWave == 32 && NPerWave == 32 && KPerWave == 64);
-    static constexpr bool IsMx =
-        (IsMxSized && std::is_same_v<AccType, float> && UseStructuredSparsity == false);
+    // pk_fp4_t/pk_fp6x16_t/pk_bf6x16_t are unambiguous (MX, block-scale only).
+    // fp8_t/bf8_t are ambiguous (check UseMxScale)
+    static constexpr bool HasUnambiguousMxType =
+        is_any_of<AType, pk_fp4_t, pk_fp6x16_t, pk_bf6x16_t>::value ||
+        is_any_of<BType, pk_fp4_t, pk_fp6x16_t, pk_bf6x16_t>::value;
+    static constexpr bool IsMx = UseMxScale || HasUnambiguousMxType;
+
+    static_assert(!IsMx || std::is_same_v<AccType, float>,
+                  "MX (block-scaled) MFMA requires a float accumulator");
+    static_assert(!IsMx || !UseStructuredSparsity,
+                  "MX (block-scaled) MFMA pipeline is not compatible with structured "
+                  "sparsity");
 
     // General checks. Structured sparsity Mma pipeline not adapted to UnificationDispatcher yet
     // since we have no sparse tests or examples in CK Tile.
@@ -157,9 +178,10 @@ struct UnificationDispatcher
     static_assert(!IsMx ||
                   (std::is_same_v<AType, fp8_t> || std::is_same_v<AType, bf8_t> ||
                    std::is_same_v<AType, pk_fp4_t>) ||
-                  std::is_same_v<AType, pk_fp6x16_t>);
+                  std::is_same_v<AType, pk_fp6x16_t> || std::is_same_v<AType, pk_bf6x16_t>);
     static_assert(!IsMx || (std::is_same_v<BType, fp8_t> || std::is_same_v<BType, bf8_t> ||
-                            std::is_same_v<BType, pk_fp4_t> || std::is_same_v<BType, pk_fp6x16_t>));
+                            std::is_same_v<BType, pk_fp4_t> || std::is_same_v<BType, pk_fp6x16_t> ||
+                            std::is_same_v<BType, pk_bf6x16_t>));
 
     // Convert WGAttrNumAccessEnums to index_t values. Default value sent to 1 for now, but needs a
     // better implementation TODO.
@@ -179,7 +201,8 @@ struct UnificationDispatcher
                                      TransposeC,
                                      SwizzleFactor,
                                      AttrNumAccessAV,
-                                     AttrNumAccessBV>::Type;
+                                     AttrNumAccessBV,
+                                     UsePackedNumAccess>::Type;
 };
 } // namespace warp_gemm_dispatcher
 } // namespace impl

@@ -62,13 +62,21 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
 
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using WarpGemm        = WarpGemmDispatcher<ADataType,
-                                                   BDataType,
-                                                   typename Problem::CDataType,
-                                                   MPerXdl,
-                                                   NPerXdl,
-                                                   KPerXdl,
-                                                   Problem::TransposeC>;
+        using WarpGemm = WarpGemmDispatcher<ADataType,
+                                            BDataType,
+                                            typename Problem::CDataType,
+                                            MPerXdl,
+                                            NPerXdl,
+                                            KPerXdl,
+                                            Problem::TransposeC,
+                                            false,                        // SwizzleA
+                                            false,                        // UseStructuredSparsity
+                                            WGAttrNumAccessEnum::Default, // AttrNumAccessA
+                                            WGAttrNumAccessEnum::Default, // AttrNumAccessB
+                                            false,                        // IsScale16
+                                            false,                        // UsePackedNumAccess
+                                            true>;                        // UseMxScale
+
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<ADataType,
                                                                       BDataType,
                                                                       typename Problem::CDataType,

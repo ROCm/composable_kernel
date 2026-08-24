@@ -515,7 +515,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 
 #undef FORWARD_METHOD_
 
-    template <typename Problem, bool IsPackMNIter = false>
+    template <typename Problem, bool IsScale = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
         using BlockGemmShape = typename Problem::BlockGemmShape;
@@ -544,7 +544,11 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
                                             Problem::TransposeC,
                                             false,
                                             false,
-                                            wg_attr_num_access>;
+                                            wg_attr_num_access,
+                                            wg_attr_num_access,
+                                            false,
+                                            false,
+                                            IsScale>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::AComputeDataType,
@@ -553,7 +557,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
                                                 BlockWarps,
                                                 WarpGemm,
                                                 1, // KSubTileNum
-                                                IsPackMNIter>;
+                                                IsScale>;
 
         return BlockGemmARegBRegCRegEightWavesV1<Problem, BlockGemmPolicy>{};
     }

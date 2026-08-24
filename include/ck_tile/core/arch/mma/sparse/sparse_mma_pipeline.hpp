@@ -47,6 +47,8 @@ namespace ck_tile::core::arch::mma {
  * @tparam SwizzleFactor   SwizzleFactor for Tile Distribution Encoding calculation.
  * @tparam AttrNumAccessAV Extra unmerge factor for vector dimension for A vec, see amdgcn_mma.hpp.
  * @tparam AttrNumAccessBV Extra unmerge factor for vector dimension for B vec, see amdgcn_mma.hpp.
+ * @tparam UsePackedNumAccess Not supported here, present for interface uniformity with
+ *                         WaveWiseMmaPipeline.
  * @tparam CompilerTarget  The compiler target
  * @tparam MmaOp_          Backend class that will perform the mma op (e.g., smfmac or swmmac)
  * @tparam MmaTransforms   The set of transforms to be applied to input/output WaveTiles
@@ -62,6 +64,7 @@ template <typename ADataType_,
           index_t SwizzleFactor      = 1,
           index_t AttrNumAccessAV    = 1,
           index_t AttrNumAccessBV    = AttrNumAccessAV,
+          bool UsePackedNumAccess    = false,
           typename CompilerTarget =
               decltype(getCMakeCompilerTarget()), // TODO: c++20 amdgcn_target_arch_id GfxTargetId =
                                                   // get_compiler_target(),
@@ -78,14 +81,16 @@ template <typename ADataType_,
           typename MmaTransforms = // TODO: c++20 MmaTransformsI MmaTransforms =
           typename MmaTransformsDefaultSelector<MmaOp_, CompilerTarget>::SelectedTransforms>
 // clang-format off
-struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, BDataType_, CDataType_, WaveTileM, WaveTileN, WaveTileK, AccumPolicy, CTranspose_, SwizzleFactor, AttrNumAccessAV, AttrNumAccessBV, CompilerTarget, MmaOp_, MmaTransforms>>
+struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, BDataType_, CDataType_, WaveTileM, WaveTileN, WaveTileK, AccumPolicy, CTranspose_, SwizzleFactor, AttrNumAccessAV, AttrNumAccessBV, UsePackedNumAccess, CompilerTarget, MmaOp_, MmaTransforms>>
 {
-    using Base = MmaPipelineBase<SparseMmaPipeline<ADataType_, BDataType_, CDataType_, WaveTileM, WaveTileN, WaveTileK, AccumPolicy, CTranspose_, SwizzleFactor, AttrNumAccessAV, AttrNumAccessBV, CompilerTarget, MmaOp_, MmaTransforms>>;
+    using Base = MmaPipelineBase<SparseMmaPipeline<ADataType_, BDataType_, CDataType_, WaveTileM, WaveTileN, WaveTileK, AccumPolicy, CTranspose_, SwizzleFactor, AttrNumAccessAV, AttrNumAccessBV, UsePackedNumAccess, CompilerTarget, MmaOp_, MmaTransforms>>;
     // clang-format on
     using MmaOp                      = MmaOp_;
     static constexpr bool CTranspose = CTranspose_;
 
     static_assert(!CTranspose, "Cannot transpose C in sparse intrinsics.");
+    static_assert(!UsePackedNumAccess,
+                  "Packed NumAccess layout is not supported for the sparse pipeline.");
     static_assert(!MmaOpTraits<MmaOp>::IsSupported ||
                   std::is_same_v<typename MmaOp::ADataType, ADataType_>);
     static_assert(!MmaOpTraits<MmaOp>::IsSupported ||
@@ -142,7 +147,7 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
                     ? 16
                     : MmaOp::kM / MmaOp::kCMBlocks;
 
-            // N size exluding blocks.
+            // N size excluding blocks.
             static constexpr index_t kBNLane = MmaOp::kN / MmaOp::kCNBlocks;
 
             // This value is the size of the middle K dimension, i.e. the second-fastest changing K
@@ -156,6 +161,10 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
             static constexpr index_t kCNLane     = MmaOp::kN / MmaOp::kCNBlocks;
             static constexpr index_t kCM0PerLane = MmaOp::kCMNumAccess;
             static constexpr index_t kCM1PerLane = MmaOp::kCMPerLane / MmaOp::kCMNumAccess;
+
+            // TODO: This might be wrong for gfx1250 M=32 intrinsics.
+            static constexpr index_t kAMBlock = MmaOp::kCMBlocks;
+            static constexpr index_t kBNBlock = MmaOp::kCNBlocks;
         };
 
         // Overall handling of AttrNumAccess in CK Tile is a big mess. This definition will probably
@@ -166,6 +175,18 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
         // into it.
         static constexpr index_t AttrNumAccessV = AttrNumAccessAV;
     };
+
+    // Expose kCMLane for some callers (e.g. gemm_quant block policies)
+    static constexpr index_t kCMLane = WarpGemmAttribute::Impl::kCMLane;
+
+    // Unsupported MmaOps with nonTrivial AttrNumAccess / Swizzle lead to issues in calculator.
+    static constexpr index_t AttrNumAccessAV_support =
+        MmaOpTraits<MmaOp>::IsSupported ? AttrNumAccessAV : 1;
+    static constexpr index_t AttrNumAccessBV_support =
+        MmaOpTraits<MmaOp>::IsSupported ? AttrNumAccessBV : 1;
+    static constexpr index_t SwizzleFactor_support =
+        MmaOpTraits<MmaOp>::IsSupported ? SwizzleFactor : 1;
+
     // TODO: TileDistrEncCalc only supports K composition (kIter). Setting UncompressedA to true
     // ensures that we get a tile distribution for the uncompressed A matrix, which is what the
     // higher level caller will show up with (external).
@@ -173,10 +194,10 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
     // CTranspose!
     using EncCalc           = TileDistrEncCalc<MmaOp,
                                                CTranspose,
-                                               SwizzleFactor,
+                                               SwizzleFactor_support,
                                                FragsK,
-                                               AttrNumAccessAV,
-                                               AttrNumAccessBV,
+                                               AttrNumAccessAV_support,
+                                               AttrNumAccessBV_support,
                                                true>; // UncompressedA
     using AWarpDstrEncoding = typename EncCalc::AWarpDstrEncoding;
     using BWarpDstrEncoding = typename EncCalc::BWarpDstrEncoding;
@@ -225,7 +246,7 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
 
     // ATransformResult is a big ext_vector plus idx, B and C are static_distributed tensors. Fix
     // later TODO.
-    // NOTE: Here we have arrived at the Impl level. We known nothing about CTranspose here, we just
+    // NOTE: Here we have arrived at the Impl level. We know nothing about CTranspose here, we just
     // perform the intrinsic, potentially multiple times for K composition.
     template <typename... Params, typename ATransformResult, typename BTensor, typename CTensor>
     CK_TILE_DEVICE static void execImpl(ATransformResult& a, BTensor& b, CTensor& c)

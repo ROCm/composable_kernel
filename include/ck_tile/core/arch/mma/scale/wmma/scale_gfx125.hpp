@@ -131,6 +131,52 @@ WMMA_SCALE32_IMPL(pk_fp4_t,    pk_fp4_t,    1, 1)
 
 #undef WMMA_SCALE32_IMPL
 
+// Some type combinations already have a DENSE specialisation with a dedicated builtin. 
+// Here, we provide remaining no-scale specialisations because for gfx1250 WMMA,
+// the caller wants to use an actual no-scale instruction.
+// Contrast this with MFMA: the LLVM backend selects the plain v_mfma_f32_16x16x128_f8f6f4 instruction 
+// instead of v_mfma_scale_f32_16x16x128_f8f6f4 whenever the scale args passed to the intrinsic are literal 0.
+// See: https://github.com/ROCm/llvm-project/blob/therock-7.13/llvm/lib/Target/AMDGPU/SIInstrInfo.td#L317-L327
+#define WMMA_UNSCALED_IMPL(A_TYPE, B_TYPE, NUM_ACC_A, NUM_ACC_B)                                                                              \
+    template <typename CompilerTarget>                                                                                                        \
+    struct amdgcn_mma<A_TYPE, B_TYPE, fp32_t, 16u, 16u, 128u, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_gfx1250_t<CompilerTarget>> \
+    : amdgcn_mma_base<A_TYPE, B_TYPE, fp32_t, 16u, 16u, 128u, 32u, 64, NUM_ACC_A, 1, NUM_ACC_B, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>          \
+    {                                                                                                                                         \
+        static constexpr const char* instruction_name = "__builtin_amdgcn_wmma_f32_16x16x128_f8f6f4";                                         \
+                                                                                                                                              \
+        CK_TILE_DEVICE static CVecType exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)                                 \
+        {                                                                                                                                     \
+            return {__builtin_amdgcn_wmma_f32_16x16x128_f8f6f4(PackedDataTypeToFlag_v<A_TYPE>,                                                \
+                                                                scale::detail::to_wmma_scale_arg<A_TYPE>(aVec),                               \
+                                                                PackedDataTypeToFlag_v<B_TYPE>,                                               \
+                                                                scale::detail::to_wmma_scale_arg<B_TYPE>(bVec),                               \
+                                                                0,                                                                            \
+                                                                cVec)};                                                                       \
+        }                                                                                                                                     \
+    };
+
+WMMA_UNSCALED_IMPL(fp8_t,       pk_fp6x16_t, 4, 2)
+WMMA_UNSCALED_IMPL(fp8_t,       pk_bf6x16_t, 4, 2)
+WMMA_UNSCALED_IMPL(fp8_t,       pk_fp4_t,    4, 2)
+WMMA_UNSCALED_IMPL(bf8_t,       pk_fp6x16_t, 4, 2)
+WMMA_UNSCALED_IMPL(bf8_t,       pk_bf6x16_t, 4, 2)
+WMMA_UNSCALED_IMPL(bf8_t,       pk_fp4_t,    4, 2)
+WMMA_UNSCALED_IMPL(pk_fp6x16_t, fp8_t,       2, 4)
+WMMA_UNSCALED_IMPL(pk_fp6x16_t, bf8_t,       2, 4)
+WMMA_UNSCALED_IMPL(pk_fp6x16_t, pk_bf6x16_t, 1, 1)
+WMMA_UNSCALED_IMPL(pk_fp6x16_t, pk_fp4_t,    1, 1)
+WMMA_UNSCALED_IMPL(pk_bf6x16_t, fp8_t,       2, 4)
+WMMA_UNSCALED_IMPL(pk_bf6x16_t, bf8_t,       2, 4)
+WMMA_UNSCALED_IMPL(pk_bf6x16_t, pk_fp6x16_t, 1, 1)
+WMMA_UNSCALED_IMPL(pk_bf6x16_t, pk_bf6x16_t, 1, 1)
+WMMA_UNSCALED_IMPL(pk_bf6x16_t, pk_fp4_t,    1, 1)
+WMMA_UNSCALED_IMPL(pk_fp4_t,    fp8_t,       2, 4)
+WMMA_UNSCALED_IMPL(pk_fp4_t,    bf8_t,       2, 4)
+WMMA_UNSCALED_IMPL(pk_fp4_t,    pk_fp6x16_t, 1, 1)
+WMMA_UNSCALED_IMPL(pk_fp4_t,    pk_bf6x16_t, 1, 1)
+
+#undef WMMA_UNSCALED_IMPL
+
 WMMA_SCALE16_IMPL(fp8_t,       fp8_t,       1, 1)
 WMMA_SCALE16_IMPL(fp8_t,       bf8_t,       1, 1)
 WMMA_SCALE16_IMPL(fp8_t,       pk_fp6x16_t, 4, 2)

@@ -39,9 +39,10 @@ struct WaveWisePipelineKernel
                                                    WaveTileK,
                                                    AccumPolicy,
                                                    TransposeC,
-                                                   1, // SwizzleFactor
-                                                   1, // AttrNumAccessAV
-                                                   1, // AttrNumAccessBV
+                                                   1,     // SwizzleFactor
+                                                   1,     // AttrNumAccessAV
+                                                   1,     // AttrNumAccessBV
+                                                   false, // UsePackedNumAccess
                                                    CompilerTarget>;
 
         using ATensor = typename Pipeline::AWarpTensor;
@@ -100,6 +101,7 @@ struct WaveWisePipelineFactory
                                          1,     // SwizzleFactor
                                          1,     // AttrNumAccessAV
                                          1,     // AttrNumAccessBV
+                                         false, // UsePackedNumAccess
                                          Target>;
     };
 };

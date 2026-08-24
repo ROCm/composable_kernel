@@ -42,7 +42,8 @@ template <typename MmaOp,
           index_t kIter           = 1,
           index_t AttrNumAccessAV = 1,
           index_t AttrNumAccessBV = 1,
-          bool UncompressedA      = false>
+          bool UncompressedA      = false,
+          bool UsePackedNumAccess = false>
 struct TileDistrEncCalc
 {
     private:
@@ -61,8 +62,10 @@ struct TileDistrEncCalc
     static_assert(MmaOp::kABKPerLane % NumAccessB == 0);
     static_assert(MmaOp::kCMNumAccess % SFactor == 0, "kCMNumAccess must be multiple of SFactor");
 
+    // Encoding with Ps2RHssMinor = <1, 0, 0> layout. Lane reads strided K values, i.e. K =
+    // {NumAccess, kABKLane, VecPerAccess}
     template <index_t MajorDimSize, index_t Repeat, index_t NumAccess, index_t CompressionRatio = 1>
-    using ABWarpDstrEnc = tile_distribution_encoding<
+    using ABWarpDstrEncStridedK = tile_distribution_encoding<
         sequence<Repeat>,
         tuple<sequence<MajorDimSize>,
               sequence<NumAccess,
@@ -72,6 +75,64 @@ struct TileDistrEncCalc
         tuple<sequence<1, 0, 0>>,
         sequence<2, 2>,
         sequence<0, 2>>;
+
+    // Encoding with Ps2RHssMinor = <0, 0, 0> layout. Lane reads contiguous K values, i.e. K =
+    // {kABKLane, NumAccess, VecPerAccess}
+    template <index_t MajorDimSize, index_t Repeat, index_t NumAccess, index_t CompressionRatio = 1>
+    using ABWarpDstrEncContiguousK = tile_distribution_encoding<
+        sequence<Repeat>,
+        tuple<sequence<MajorDimSize>,
+              sequence<MmaOp::kK / MmaOp::kABKPerLane,
+                       NumAccess,
+                       MmaOp::kABKPerLane / NumAccess / CompressionRatio * kIter>>,
+        tuple<sequence<2, 0, 1>>,
+        tuple<sequence<0, 0, 0>>,
+        sequence<2, 2>,
+        sequence<1, 2>>;
+
+    // Map-equivalent reshaping of ABWarpDstrEncStridedK for the dense, single-block,
+    // single-repeat, single-access, uncompressed case. It relocates only size-1 dimensions
+    // relative to the general encoding, so it is a PROVABLY IDENTICAL lane/vector register map
+    // (verified by tracing calculate_bottom_index): it keeps the (size-1) Repeat dim OUT of the
+    // lane (P) decomposition (<2, 1> instead of threading it through P as <2, 0, 1>) and splits
+    // H0 from <MajorDimSize> into <1, MajorDimSize>. Correctness therefore rests on equivalence
+    // to ABWarpDstrEncStridedK (arch-independent), NOT on reproducing the legacy hand-written
+    // tree. It additionally COINCIDES term-for-term with the legacy WarpGemm A/B encoding only
+    // in the kAK0PerLane == 1 sub-case (e.g. gfx11/gfx12 16x16x16), which is exactly where
+    // matching the legacy merge/unmerge tree collapses the address arithmetic to the fused
+    // v_lshl_add_u32 (vs a separate v_add_nc_u32 + v_lshlrev_b32). Guarded to Repeat == 1
+    // because the general encoding threads Repeat through the lane mapping; for Repeat > 1 that
+    // term is not size-1 and must remain in P.
+    template <index_t MajorDimSize, index_t Repeat, index_t NumAccess, index_t CompressionRatio = 1>
+    using ABWarpDstrEncStridedKLegacy = tile_distribution_encoding<
+        sequence<Repeat>,
+        tuple<sequence<1, MajorDimSize>,
+              sequence<NumAccess,
+                       MmaOp::kK / MmaOp::kABKPerLane,
+                       MmaOp::kABKPerLane / NumAccess / CompressionRatio * kIter>>,
+        tuple<sequence<2, 1>>,
+        tuple<sequence<1, 1>>,
+        sequence<1, 2, 2>,
+        sequence<0, 0, 2>>;
+
+    // Select the legacy-matching layout only for the case where the general strided-K encoding
+    // diverges from legacy purely by trivial-dimension placement. Confined to WMMA intrinsics
+    // (is_mma_op_wmma_v) so dense-MFMA codegen is left untouched, and to dense/single-C-block/
+    // uncompressed ops; the per-instantiation Repeat == 1 && NumAccess == 1 clause below adds
+    // the remaining conditions. All other cases (packed, multi-block, Repeat > 1, sub-access,
+    // sparse, MFMA) keep the general encoding.
+    static constexpr bool kUseLegacyStridedK =
+        (is_mma_op_wmma_v<MmaOp> && MmaOp::kCMBlocks == 1 && MmaOp::kCNBlocks == 1 &&
+         MmaOp::kCompressionRatio == 1);
+
+    template <index_t MajorDimSize, index_t Repeat, index_t NumAccess, index_t CompressionRatio = 1>
+    using ABWarpDstrEnc = std::conditional_t<
+        (UsePackedNumAccess && NumAccess > 1),
+        ABWarpDstrEncContiguousK<MajorDimSize, Repeat, NumAccess, CompressionRatio>,
+        std::conditional_t<
+            (kUseLegacyStridedK && Repeat == 1 && NumAccess == 1 && CompressionRatio == 1),
+            ABWarpDstrEncStridedKLegacy<MajorDimSize, Repeat, NumAccess, CompressionRatio>,
+            ABWarpDstrEncStridedK<MajorDimSize, Repeat, NumAccess, CompressionRatio>>>;
 
     // Special A Warp distribution encoding just for swizzle case. This was split out since it
     // specifically deals with the M dimension which would make not sense for B.

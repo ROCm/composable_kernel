@@ -639,13 +639,13 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         return number<sub_tile_num>{};
     }
 
-    template <typename Problem, bool PackMNIter = false>
+    template <typename Problem, bool IsScale = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
-        constexpr auto wg_attr_num_access = GetWGAttrNumAccess<Problem, PackMNIter>();
+        constexpr auto wg_attr_num_access = GetWGAttrNumAccess<Problem, IsScale>();
 
         constexpr auto pipeline_tune_params = GetPipelineSubTileNum<Problem>();
         constexpr index_t sub_tile_num      = EnableSubTile ? pipeline_tune_params.value : 1;
@@ -659,7 +659,11 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
                                             Problem::TransposeC,
                                             false,
                                             false,
-                                            wg_attr_num_access>;
+                                            wg_attr_num_access,
+                                            wg_attr_num_access,
+                                            false,
+                                            false,
+                                            IsScale>;
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
                                                                     typename Problem::BDataType,
@@ -667,7 +671,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
                                                                     BlockWarps,
                                                                     WarpGemm,
                                                                     sub_tile_num,
-                                                                    PackMNIter>;
+                                                                    IsScale>;
 
         return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
     }

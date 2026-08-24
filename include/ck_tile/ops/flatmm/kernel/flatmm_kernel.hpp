@@ -800,7 +800,7 @@ struct FlatmmKernel
         const index_t m_dim    = (GM == 0) ? 1 : (kargs.M / GM);
         const index_t m_stride = (GM == 0) ? 0 : 1;
 
-        const index_t k_dim    = (GK == 0) ? 1 : (splitk_batch_offset.splitted_k / GK);
+        const index_t k_dim = (GK == 0) ? 1 : (splitk_batch_offset.splitted_k / (GK == 0 ? 1 : GK));
         const index_t k_stride = 0; // your original code keeps K stride 0
 
         const auto scale_m_view = make_naive_tensor_view<address_space_enum::global>(
@@ -833,7 +833,7 @@ struct FlatmmKernel
         const index_t n_dim    = (GN == 0) ? 1 : (kargs.N / GN);
         const index_t n_stride = (GN == 0) ? 0 : 1;
 
-        const index_t k_dim    = (GK == 0) ? 1 : (splitk_batch_offset.splitted_k / GK);
+        const index_t k_dim = (GK == 0) ? 1 : (splitk_batch_offset.splitted_k / (GK == 0 ? 1 : GK));
         const index_t k_stride = 0;
 
         const auto scale_n_view = make_naive_tensor_view<address_space_enum::global>(

@@ -12,15 +12,6 @@
 #include "mma_traits.hpp"
 #include "mma_transforms.hpp"
 
-#if __clang_major__ >= 23
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-#endif
-
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-#include <concepts>
-#endif
-
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -85,7 +76,7 @@ struct MmaPipelineBase
         }
     }
 
-    // Entry point for dense and sparse operations. TODO: Add c_vec = a_vec * b_vec variant.
+    // CAB = (C, A, B).
     template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
     CK_TILE_DEVICE void operator()(CTensor& c, ATensor& a, const BTensor& b) const
     {
@@ -95,7 +86,43 @@ struct MmaPipelineBase
                                                                typename Derived::AWarpTensor> &&
                       detail::is_similiar_distributed_tensor_v<remove_cvref_t<BTensor>,
                                                                typename Derived::BWarpTensor>);
-        exec<Params...>(a, b, c);
+        if constexpr(MmaOpTraits<typename Derived::MmaOp>::IsScale &&
+                     MmaOpTraits<typename Derived::MmaOp>::IsMfma)
+        {
+            // GFX950 MFMA with (0,0) scale args
+            exec<Params...>(a, b, c, 0, 0);
+        }
+        else
+        {
+            // GFX1250 WMMA with no scale args
+            exec<Params...>(a, b, c);
+        }
+    }
+
+    // AB = (A, B)
+    // Same as CAB when C is not pre-existing
+    template <typename... Params, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE auto operator()(const ATensor& a, const BTensor& b) const
+    {
+        static_assert(detail::is_similiar_distributed_tensor_v<remove_cvref_t<ATensor>,
+                                                               typename Derived::AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<remove_cvref_t<BTensor>,
+                                                               typename Derived::BWarpTensor>);
+        typename Derived::CWarpTensor c;
+        for(index_t i = 0; i < Derived::CWarpTensor::get_thread_buffer_size(); ++i)
+        {
+            c.get_thread_buffer()[i] = typename Derived::CDataType{0};
+        }
+        if constexpr(MmaOpTraits<typename Derived::MmaOp>::IsScale &&
+                     MmaOpTraits<typename Derived::MmaOp>::IsMfma)
+        {
+            exec<Params...>(a, b, c, 0, 0);
+        }
+        else
+        {
+            exec<Params...>(a, b, c);
+        }
+        return c;
     }
 
     template <typename... Params,
@@ -104,8 +131,11 @@ struct MmaPipelineBase
               typename CTensor,
               typename ScaleADataType,
               typename ScaleBDataType>
-    CK_TILE_DEVICE static decltype(auto)
-    exec(ATensor& a, BTensor& b, CTensor& accum, ScaleADataType& scale_A, ScaleBDataType& scale_B)
+    CK_TILE_DEVICE static decltype(auto) exec(ATensor& a,
+                                              BTensor& b,
+                                              CTensor& accum,
+                                              const ScaleADataType& scale_A,
+                                              const ScaleBDataType& scale_B)
     {
         static_assert(MmaOpTraits<typename Derived::MmaOp>::IsScale,
                       "This exec variant is intended for scale policy structs");
@@ -140,8 +170,8 @@ struct MmaPipelineBase
         }
     }
 
-    // Entry point for scale operations. TODO: Add c_vec = a_vec * b_vec variant (+ scaleless
-    // variant?)
+    // Scale operations
+    // CABSS = (C, A, B, ScaleA, ScaleB)
     // TODO: Add support for other scale types.
     template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
     CK_TILE_DEVICE void operator()(CTensor& c,
@@ -158,21 +188,26 @@ struct MmaPipelineBase
                                                                typename Derived::BWarpTensor>);
         exec<Params...>(a, b, c, a_scale, b_scale);
     }
+
+    // ABSS = (A, B, ScaleA, ScaleB)
+    // Same as CABSS, but C is not pre-existing
+    template <typename... Params, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE auto operator()(const ATensor& a,
+                                   const BTensor& b,
+                                   const int32_t& a_scale,
+                                   const int32_t& b_scale) const
+    {
+        static_assert(detail::is_similiar_distributed_tensor_v<remove_cvref_t<ATensor>,
+                                                               typename Derived::AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<remove_cvref_t<BTensor>,
+                                                               typename Derived::BWarpTensor>);
+        typename Derived::CWarpTensor c;
+        for(index_t i = 0; i < Derived::CWarpTensor::get_thread_buffer_size(); ++i)
+        {
+            c.get_thread_buffer()[i] = typename Derived::CDataType{0};
+        }
+        exec<Params...>(a, b, c, a_scale, b_scale);
+        return c;
+    }
 };
-
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-
-/**
- * @concept MmaPipelineI
- * @brief  Expresses the meta-data interface required for a CRTP MmaPipeline.
- */
-template <typename Derived>
-concept MmaPipelineInterface = std::derived_from<Derived, MmaPipelineBase<Derived>>;
-
-#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-
 } // namespace ck_tile::core::arch::mma
-
-#if __clang_major__ >= 23
-#pragma clang diagnostic pop
-#endif

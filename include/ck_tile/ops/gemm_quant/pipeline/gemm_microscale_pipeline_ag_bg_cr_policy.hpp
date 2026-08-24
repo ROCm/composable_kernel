@@ -276,17 +276,20 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
                 ? wg_attr_num_access_compute
                 : GetAttrNumAccess<LDSBDataType>(is_b_load_tr_v, thread_elements);
 #endif
-        using WarpGemm = WarpGemmDispatcher<AComputeDataType,
-                                            BComputeDataType,
-                                            typename Problem::CDataType,
-                                            WarpTile::at(I0),
-                                            WarpTile::at(I1),
-                                            WarpTile::at(I2),
-                                            Problem::TransposeC,
-                                            false,
-                                            false,
-                                            wg_attr_num_accessA,
-                                            wg_attr_num_accessB>;
+        constexpr bool use_packed_num_access = (wg_attr_num_accessA != wg_attr_num_accessB);
+        using WarpGemm                       = WarpGemmDispatcher<AComputeDataType,
+                                                                  BComputeDataType,
+                                                                  typename Problem::CDataType,
+                                                                  WarpTile::at(I0),
+                                                                  WarpTile::at(I1),
+                                                                  WarpTile::at(I2),
+                                                                  Problem::TransposeC,
+                                                                  false,
+                                                                  false,
+                                                                  wg_attr_num_accessA,
+                                                                  wg_attr_num_accessB,
+                                                                  false,
+                                                                  use_packed_num_access>;
         static_assert(is_any_of<AComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
                       is_any_of<BComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value);
         static_assert(std::is_same_v<typename Problem::CDataType, float>);

@@ -51,12 +51,17 @@ static_assert(IsWarpGemmDispatchable<ck_tile::pk_fp6x16_t,
                                      32,
                                      64,
                                      ck_tile::WGAttrNumAccessEnum::Single>::value);
+
+// This invalid case triggers a static assert in the unification framework. That's fine, but would
+// make this test fail to compile, so skip when using the unified framework.
+#ifndef USE_NEW_UNIFIED_FRAMEWORK
 static_assert(!IsWarpGemmDispatchable<ck_tile::half_t,
                                       ck_tile::half_t,
                                       32,
                                       32,
                                       64,
                                       ck_tile::WGAttrNumAccessEnum::Single>::value);
+#endif
 
 using WGDispatcherTypesList =
     ::testing::Types<ck_tile::test::warp_gemm::WGDispCase<ck_tile::pk_fp4_t,

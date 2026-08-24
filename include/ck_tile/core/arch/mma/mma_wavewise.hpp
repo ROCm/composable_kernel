@@ -71,6 +71,7 @@ template <typename ADataType_,
           index_t SwizzleFactor      = 1,
           index_t AttrNumAccessAV    = 1,
           index_t AttrNumAccessBV    = AttrNumAccessAV,
+          bool UsePackedNumAccess    = false,
           typename CompilerTarget =
               decltype(getCMakeCompilerTarget()), // TODO: c++20 amdgcn_target_arch_id GfxTargetId =
                                                   // get_compiler_target(),
@@ -87,9 +88,9 @@ template <typename ADataType_,
           typename MmaTransforms = // TODO: c++20 MmaTransformsI MmaTransforms =
           typename MmaTransformsDefaultSelector<MmaOp_, CompilerTarget>::SelectedTransforms>
 // clang-format off
-struct WaveWiseMmaPipeline : public MmaPipelineBase<WaveWiseMmaPipeline<ADataType_, BDataType_, CDataType_, WaveTileM, WaveTileN, WaveTileK, AccumPolicy, CTranspose_, SwizzleFactor, AttrNumAccessAV, AttrNumAccessBV, CompilerTarget, MmaOp_, MmaTransforms>>
+struct WaveWiseMmaPipeline : public MmaPipelineBase<WaveWiseMmaPipeline<ADataType_, BDataType_, CDataType_, WaveTileM, WaveTileN, WaveTileK, AccumPolicy, CTranspose_, SwizzleFactor, AttrNumAccessAV, AttrNumAccessBV, UsePackedNumAccess, CompilerTarget, MmaOp_, MmaTransforms>>
 {
-    using Base = MmaPipelineBase<WaveWiseMmaPipeline<ADataType_, BDataType_, CDataType_, WaveTileM, WaveTileN, WaveTileK, AccumPolicy, CTranspose_, SwizzleFactor, AttrNumAccessAV, AttrNumAccessBV, CompilerTarget, MmaOp_, MmaTransforms>>;
+    using Base = MmaPipelineBase<WaveWiseMmaPipeline<ADataType_, BDataType_, CDataType_, WaveTileM, WaveTileN, WaveTileK, AccumPolicy, CTranspose_, SwizzleFactor, AttrNumAccessAV, AttrNumAccessBV, UsePackedNumAccess, CompilerTarget, MmaOp_, MmaTransforms>>;
     // clang-format on
     using MmaOp                      = MmaOp_;
     static constexpr bool CTranspose = CTranspose_;
@@ -150,7 +151,7 @@ struct WaveWiseMmaPipeline : public MmaPipelineBase<WaveWiseMmaPipeline<ADataTyp
                     ? 16
                     : MmaOp::kM / MmaOp::kCMBlocks;
 
-            // N size exluding blocks.
+            // N size excluding blocks.
             static constexpr index_t kBNLane = MmaOp::kN / MmaOp::kCNBlocks;
 
             // This value is the size of the middle K dimension, i.e. the second-fastest changing K
@@ -164,6 +165,10 @@ struct WaveWiseMmaPipeline : public MmaPipelineBase<WaveWiseMmaPipeline<ADataTyp
             static constexpr index_t kCNLane     = MmaOp::kN / MmaOp::kCNBlocks;
             static constexpr index_t kCM0PerLane = MmaOp::kCMNumAccess;
             static constexpr index_t kCM1PerLane = MmaOp::kCMPerLane / MmaOp::kCMNumAccess;
+
+            // TODO: This might be wrong for gfx1250 M=32 intrinsics.
+            static constexpr index_t kAMBlock = MmaOp::kCMBlocks;
+            static constexpr index_t kBNBlock = MmaOp::kCNBlocks;
         };
 
         // Overall handling of AttrNumAccess in CK Tile is a big mess. This definition will probably
@@ -175,11 +180,16 @@ struct WaveWiseMmaPipeline : public MmaPipelineBase<WaveWiseMmaPipeline<ADataTyp
         static constexpr index_t AttrNumAccessV = AttrNumAccessAV;
     };
 
-    // Unsupported MmaOps with nonTrivial AttrNumAccess lead to issues in calculator.
+    // Expose kCMLane for some callers (e.g. gemm_quant block policies)
+    static constexpr index_t kCMLane = WarpGemmAttribute::Impl::kCMLane;
+
+    // Unsupported MmaOps with nonTrivial AttrNumAccess / Swizzle lead to issues in calculator.
     static constexpr index_t AttrNumAccessAV_support =
         MmaOpTraits<MmaOp>::IsSupported ? AttrNumAccessAV : 1;
     static constexpr index_t AttrNumAccessBV_support =
         MmaOpTraits<MmaOp>::IsSupported ? AttrNumAccessBV : 1;
+    static constexpr index_t SwizzleFactor_support =
+        MmaOpTraits<MmaOp>::IsSupported ? SwizzleFactor : 1;
 
     // TODO: TileDistrEncCalc only supports K composition (kIter) and always gives post-compression
     // A layout.
@@ -187,10 +197,12 @@ struct WaveWiseMmaPipeline : public MmaPipelineBase<WaveWiseMmaPipeline<ADataTyp
     // CTranspose!
     using EncCalc           = TileDistrEncCalc<MmaOp,
                                                CTranspose,
-                                               SwizzleFactor,
+                                               SwizzleFactor_support,
                                                FragsK,
                                                AttrNumAccessAV_support,
-                                               AttrNumAccessBV_support>;
+                                               AttrNumAccessBV_support,
+                                               false,
+                                               UsePackedNumAccess>;
     using AWarpDstrEncoding = typename EncCalc::AWarpDstrEncoding;
     using BWarpDstrEncoding = typename EncCalc::BWarpDstrEncoding;
     using CWarpDstrEncoding = typename EncCalc::CWarpDstrEncoding;
@@ -221,7 +233,7 @@ struct WaveWiseMmaPipeline : public MmaPipelineBase<WaveWiseMmaPipeline<ADataTyp
     static_assert(WaveTileK % MmaOp::kK == 0u, "WaveTileK must be a multiple of MmaOp::kK");
 
     // TODO: Why does this even need to be a template? The types should be known.
-    // NOTE: Here we have arrived at the Impl level. We known nothing about CTranspose here, we just
+    // NOTE: Here we have arrived at the Impl level. We know nothing about CTranspose here, we just
     // perform the intrinsic, potentially multiple times for K composition.
     template <typename... Params, typename ATensor, typename BTensor, typename CTensor>
     CK_TILE_DEVICE static void execImpl(ATensor& a, BTensor& b, CTensor& c)

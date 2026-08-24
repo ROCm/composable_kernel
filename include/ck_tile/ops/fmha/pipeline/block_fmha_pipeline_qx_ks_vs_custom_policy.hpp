@@ -122,10 +122,14 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                           Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
                                           Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
                                           Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-                                          true,  // TransposeC
-                                          false, // SwizzleA
-                                          false,
-                                          AttrNumAccess>{};
+                                          true,          // TransposeC
+                                          false,         // SwizzleA
+                                          false,         // UseStructuredSparsity
+                                          AttrNumAccess, // AttrNumAccessA
+                                          AttrNumAccess, // AttrNumAccessB
+                                          false,         // IsScale16
+                                          false,         // UsePackedNumAccess
+                                          true>{}; // UseMxScale: select block-scaled (MX) pipeline
             }();
 
             // Ensure that QKBlockGemm's C (S) can be used as KVBlockGemm's A (P)
@@ -142,10 +146,14 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                        Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                                        Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
                                        Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                       true,  // TransposeC
-                                       false, // SwizzleA
-                                       false,
-                                       AttrNumAccess>;
+                                       true,          // TransposeC
+                                       false,         // SwizzleA
+                                       false,         // UseStructuredSparsity
+                                       AttrNumAccess, // AttrNumAccessA
+                                       AttrNumAccess, // AttrNumAccessB
+                                       false,         // IsScale16
+                                       false,         // UsePackedNumAccess
+                                       true>; // UseMxScale: match GetKVBlockGemm scale pipeline
                 // fp8: kABKPerLane / WGAttrNumAccessEnum::Double = 16
                 // fp4: kABKPerLane / WGAttrNumAccessEnum::Single = 32
                 return WarpGemm::WarpGemmAttribute::Impl::kABKPerLane /
@@ -1123,10 +1131,14 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                           Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                                           Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
                                           Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                          true,  // TransposeC
-                                          false, // SwizzleA
-                                          false,
-                                          AttrNumAccess>{};
+                                          true,          // TransposeC
+                                          false,         // SwizzleA
+                                          false,         // UseStructuredSparsity
+                                          AttrNumAccess, // AttrNumAccessA
+                                          AttrNumAccess, // AttrNumAccessB
+                                          false,         // IsScale16
+                                          false,         // UsePackedNumAccess
+                                          true>{}; // UseMxScale: select block-scaled (MX) pipeline
             }();
 
             using BlockGemmPolicy = BlockGemmMxARegBSmemCRegV1CustomPolicy<

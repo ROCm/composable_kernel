@@ -180,6 +180,7 @@ struct ScalePipelineKernel
                                           1,     // SwizzleFactor
                                           2,     // AttrNumAccessAV
                                           2,     // AttrNumAccessBV
+                                          false, // UsePackedNumAccess
                                           CompilerTarget>;
 
         using ATensor = typename Pipeline::AWarpTensor;
@@ -239,6 +240,7 @@ struct ScalePipelineFactory
                                       1,     // SwizzleFactor
                                       2,     // AttrNumAccessAV
                                       2,     // AttrNumAccessBV
+                                      false, // UsePackedNumAccess
                                       Target>;
     };
 };

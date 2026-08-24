@@ -65,7 +65,14 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
             MPerXdl,
             NPerXdl,
             KPerXdl,
-            Problem::TransposeC>;
+            Problem::TransposeC,
+            false,                                                // SwizzleA
+            false,                                                // UseStructuredSparsity
+            WGAttrNumAccessEnum::Default,                         // AttrNumAccessA
+            WGAttrNumAccessEnum::Default,                         // AttrNumAccessB
+            false,                                                // IsScale16
+            false,                                                // UsePackedNumAccess
+            true>;                                                // UseMxScale
         using BlockFlatmmPolicy = BlockFlatmmASmemBSmemCRegV1CustomPolicy< //
             ADataType,
             BDataType,
