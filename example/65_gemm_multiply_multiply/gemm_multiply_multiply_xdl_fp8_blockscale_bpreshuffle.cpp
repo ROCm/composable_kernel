@@ -57,7 +57,7 @@ void preShuffleBuffer(const FP8* src, FP8* dst, int N, int K, int NXdl)
 {
     int KPack = 16;
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = ck::get_warp_size() / NLane;
 
     int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack

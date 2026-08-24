@@ -270,8 +270,22 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
     static constexpr auto BlockSizeNumber = Number<BlockSize>{};
 
     using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
+
+    // KPack must satisfy KPack/KGroup = 16/sizeof(B) so that each thread's NkSwizzle slot
+    // matches exactly one 16-byte memory load (= BK1 elements) in the B-preshuffle path.
+    // On gfx1250 the default double-rate instruction (k_per_blk=64) gives KPack=64 while
+    // KGroup remains 2, so KPack/KGroup=32 and no longer matches the 16-byte load layout.
+    // Use the single-rate instruction's k_per_blk only for computing KPack to restore
+    // KPack=32 and KPack/KGroup=16. KLane and KPerXdlops still use the double-rate selector.
+#if defined(__gfx125__)
+    using preshuffle_mfma_selector =
+        MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB, true>;
+    static constexpr index_t KPack = math::max(math::lcm(AK1Number, BK1Number),
+                                               preshuffle_mfma_selector::selected_mfma.k_per_blk);
+#else
     static constexpr index_t KPack =
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
+#endif
     static constexpr index_t KGroup = []() {
         // A memory instruction can only read 16 bytes at a time. If K1PerXdlops *
         // sizeof(ComputeDataType) > 16, memory read will not conitnues in a wave in B preshuffle
