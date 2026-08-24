@@ -201,6 +201,67 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                    GetVSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>());
     };
 
+    template <typename Problem, index_t NumBuffers, index_t kN, index_t kK, index_t kKPack>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeSwizzledNativeDesc()
+    {
+        using DataType             = remove_cvref_t<typename Problem::QKVDataType>;
+        constexpr index_t DataSize = sizeof(DataType);
+        // Number of kKPack groups the kN row is scattered into (bank-group span).
+#ifdef __gfx950__
+        constexpr index_t NLdsLayer = (64 * 4 / kK / DataSize) < 1 ? 1 : (64 * 4 / kK / DataSize);
+#else
+        constexpr index_t NLdsLayer = (32 * 4 / kK / DataSize) < 1 ? 1 : (32 * 4 / kK / DataSize);
+#endif
+
+        // 4D packed physical layout [NumBuffers, kN/NLdsLayer, (kK/kKPack)*NLdsLayer, kKPack].
+        constexpr index_t SingleBufferSize = kN * kK;
+        constexpr auto desc_0 =
+            make_naive_tensor_descriptor(make_tuple(number<NumBuffers>{},
+                                                    number<kN / NLdsLayer>{},
+                                                    number<kK / kKPack * NLdsLayer>{},
+                                                    number<kKPack>{}),
+                                         make_tuple(number<SingleBufferSize>{},
+                                                    number<kK * NLdsLayer>{},
+                                                    number<kKPack>{},
+                                                    number<1>{}),
+                                         number<kKPack>{},
+                                         number<1>{});
+
+        // XOR-swizzle the (kN/NLdsLayer, kK-group*NLdsLayer) dims -> scatter banks.
+        constexpr auto desc_permuted = transform_tensor_descriptor(
+            desc_0,
+            make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                       make_xor_transform(
+                           make_tuple(number<kN / NLdsLayer>{}, number<kK / kKPack * NLdsLayer>{})),
+                       make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+        // Split the kK-group dim back into [kK/kKPack, NLdsLayer].
+        constexpr auto desc_split = transform_tensor_descriptor(
+            desc_permuted,
+            make_tuple(
+                make_pass_through_transform(number<NumBuffers>{}),
+                make_pass_through_transform(number<kN / NLdsLayer>{}),
+                make_unmerge_transform(make_tuple(number<kK / kKPack>{}, number<NLdsLayer>{})),
+                make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
+
+        // Re-merge to the logical 3D physical view [NumBuffers, kN, kK]:
+        //   kN = (kN/NLdsLayer) * NLdsLayer
+        //   kK = (kK/kKPack) * kKPack
+        return transform_tensor_descriptor(
+            desc_split,
+            make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<kN / NLdsLayer>{}, number<NLdsLayer>{})),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+    }
+
     template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
@@ -238,73 +299,12 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
         { // This path can only be reached if WarpGemm is 16x16x32 or 32x32x16
-            static_assert(kKVector == kKPack);
 
-            constexpr index_t KSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
+            constexpr auto desc_native =
+                MakeSwizzledNativeDesc<Problem, NumKLdsBuffers, kNPerBlock, kKPerBlock, kKPack>();
 
-            static_assert(KSingleSmemElementSpaceSize == GetKSingleSmemElementSpaceSize<Problem>());
-
-            using KDataType = remove_cvref_t<typename Problem::QKVDataType>;
-
-            constexpr index_t DataTypeSize = sizeof(KDataType);
-
-#ifdef __gfx950__
-            // 256 contiguous bytes mapped to 64 banks with each bank 4 contiguous bytes
-            constexpr auto NLdsLayer =
-                (64 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (64 * 4 / kKPerBlock / DataTypeSize);
-#else
-            // 128 contiguous bytes mapped to 32 banks with each bank 4 contiguous bytes
-            constexpr auto NLdsLayer =
-                (32 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataTypeSize);
-#endif
-
-            constexpr auto k_lds_block_desc_0 =
-                make_naive_tensor_descriptor(make_tuple(number<NumKLdsBuffers>{},
-                                                        number<kNPerBlock / NLdsLayer>{},
-                                                        number<kKPerBlock / kKPack * NLdsLayer>{},
-                                                        number<kKPack>{}),
-                                             make_tuple(number<SingleSmemElementSpaceSize>{},
-                                                        number<kKPerBlock * NLdsLayer>{},
-                                                        number<kKPack>{},
-                                                        number<1>{}),
-                                             number<kKPack>{},
-                                             number<1>{});
-
-            constexpr auto k_lds_block_desc_permuted = transform_tensor_descriptor(
-                k_lds_block_desc_0,
-                make_tuple(
-                    make_pass_through_transform(number<NumKLdsBuffers>{}),
-                    make_xor_transform(make_tuple(number<kNPerBlock / NLdsLayer>{},
-                                                  number<kKPerBlock / kKPack * NLdsLayer>{})),
-                    make_pass_through_transform(number<kKPack>{})),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
-
-            constexpr auto k_lds_block_desc_k0_nldslayer_n_k1 = transform_tensor_descriptor(
-                k_lds_block_desc_permuted,
-                make_tuple(make_pass_through_transform(number<NumKLdsBuffers>{}),
-                           make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
-                           make_unmerge_transform(
-                               make_tuple(number<kKPerBlock / kKPack>{}, number<NLdsLayer>{})),
-                           make_pass_through_transform(number<kKPack>{})),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
-
-            // Re-merge to the logical 3D physical view [NumKLdsBuffers, kNPerBlock, kKPerBlock]:
-            constexpr auto k_lds_block_desc = transform_tensor_descriptor(
-                k_lds_block_desc_k0_nldslayer_n_k1,
-                make_tuple(make_pass_through_transform(number<NumKLdsBuffers>{}),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-                make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2, 4>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-
-            // Final 2D logical view: [NumKLdsBuffers * kNPerBlock, kKPerBlock] -- buffers stacked
-            // along dim0, matching the other branches and the per-buffer caller slicing.
             return transform_tensor_descriptor(
-                k_lds_block_desc,
+                desc_native,
                 make_tuple(make_merge_transform(
                                make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
                            make_pass_through_transform(number<kKPerBlock>{})),
