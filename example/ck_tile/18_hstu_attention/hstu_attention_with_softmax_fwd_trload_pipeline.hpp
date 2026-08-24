@@ -287,15 +287,16 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                               .get_lengths()[number<1>{}] == kN1,
                       "Check failed!");
 
-        using v_lds_window_type = decltype(get_slice_tile(
+        // v_lds for normal write and trload read
+        using v_lds_trload_window_type = decltype(get_slice_tile(
             v_lds_monolithic_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
 
-        statically_indexed_array<v_lds_window_type, NumKVLdsBuffers> v_lds_windows;
+        statically_indexed_array<v_lds_trload_window_type, NumKVLdsBuffers> v_lds_trload_windows;
 
         static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
-            v_lds_windows[i_buf] = get_slice_tile(v_lds_monolithic_window,
-                                                  sequence<i_buf * kK1, 0>{},
-                                                  sequence<(i_buf + 1) * kK1, kN1>{});
+            v_lds_trload_windows[i_buf] = get_slice_tile(v_lds_monolithic_window,
+                                                         sequence<i_buf * kK1, 0>{},
+                                                         sequence<(i_buf + 1) * kK1, kN1>{});
         });
 
         auto v_dram_window = make_tile_window(
@@ -431,7 +432,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 __builtin_amdgcn_s_barrier();
             };
 
-            store_tile(v_lds_windows[number<2 % NumKVLdsBuffers>{}],
+            store_tile(v_lds_trload_windows[number<2 % NumKVLdsBuffers>{}],
                        v_tiles[number<0>{}],
                        partition_index);
 
@@ -546,13 +547,13 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 gemm_1(
                     o_acc,
                     get_slice_tile(p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                    v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}]);
+                    v_lds_trload_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}]);
 
                 if constexpr(i_k1 < k1_loops - 1)
                 {
                     __builtin_amdgcn_sched_barrier(0x00000001);
 
-                    store_tile(v_lds_windows[number<(i_k1 + 3) % NumKVLdsBuffers>{}],
+                    store_tile(v_lds_trload_windows[number<(i_k1 + 3) % NumKVLdsBuffers>{}],
                                v_tiles[number<(i_k1 + 1) % NumPrefetchV>{}],
                                partition_index);
 
