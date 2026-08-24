@@ -1,6 +1,8 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
+import collections
 import logging
+import random
 import unittest
 
 from ck4inductor.universal_gemm.gen_instances import (
@@ -28,6 +30,7 @@ from ck4inductor.ck_tile_universal_gemm.gen_instances import (
     ops as gen_ck_tile_gemm_ops_library,
 )
 from ck4inductor import check_headers, include_roots
+from ck4inductor.util import sorted_instances
 
 log = logging.getLogger(__name__)
 
@@ -176,6 +179,77 @@ class TestGenInstances(unittest.TestCase):
         for op in instances:
             self.assertFalse(op.is_wmma)
         self.assertIn("_xdl_", instances[0].name())
+
+
+class TestDeterministicOrder(unittest.TestCase):
+    """Enumeration order must not depend on the filesystem."""
+
+    # Every grep-based enumerator. `ck_tile_universal_gemm` is intentionally absent:
+    # it enumerates from an itertools product and is already deterministic.
+    ENUMERATORS = (
+        ("conv", gen_conv_ops_library),
+        ("conv_wmma", gen_conv_ops_library_wmma),
+        ("gemm", gen_gemm_ops_library),
+        ("gemm_wmma", gen_gemm_ops_library_wmma),
+        ("batched_gemm", gen_batched_gemm_ops_library),
+        ("batched_gemm_wmma", gen_batched_gemm_ops_library_wmma),
+    )
+
+    def test_sorted_instances_is_order_independent(self):
+        # The property that matters: whatever order grep returns, the helper maps it
+        # to one canonical order.
+        instances = gen_conv_ops_library()
+        self.assertTrue(instances)
+
+        forward = [op.name() for op in sorted_instances(instances)]
+        reverse = [op.name() for op in sorted_instances(list(reversed(instances)))]
+        shuffled = list(instances)
+        random.Random(0xC0FFEE).shuffle(shuffled)
+        shuffled_names = [op.name() for op in sorted_instances(shuffled)]
+
+        self.assertEqual(forward, reverse)
+        self.assertEqual(forward, shuffled_names)
+        self.assertEqual(forward, sorted(forward))
+
+    def test_sorted_instances_preserves_every_instance(self):
+        # Sorting must reorder, never drop. Deduping here would shrink the pool and
+        # change which instances a fixed seed selects; the conv pool contains exact
+        # duplicates and they are kept deliberately.
+        instances = gen_conv_ops_library()
+        self.assertTrue(instances)
+
+        result = sorted_instances(instances)
+        self.assertEqual(len(result), len(instances))
+        self.assertEqual(
+            collections.Counter(op.name() for op in result),
+            collections.Counter(op.name() for op in instances),
+        )
+
+    def test_every_grep_based_enumerator_is_sorted(self):
+        # Guards the wiring: the helper existing is not the same as each enumerator
+        # calling it. A new enumerator that forgets the sort fails here.
+        for label, fn in self.ENUMERATORS:
+            with self.subTest(enumerator=label):
+                names = [op.name() for op in fn()]
+                self.assertTrue(names, f"{label} enumerated nothing")
+                self.assertEqual(
+                    names, sorted(names), f"{label} enumeration is not sorted"
+                )
+
+    def test_enumeration_is_repeatable(self):
+        # Two independent enumerations must agree -- catches an enumerator that
+        # sorts by something unstable (e.g. object identity or a set iteration).
+        #
+        # cache_clear() between the calls is important: every enumerator is
+        # @lru_cache(None), so calling one twice returns the *same list object*
+        # and the assertion would compare a list to itself.
+        for label, fn in self.ENUMERATORS:
+            with self.subTest(enumerator=label):
+                fn.cache_clear()
+                first = [op.name() for op in fn()]
+                fn.cache_clear()
+                second = [op.name() for op in fn()]
+                self.assertEqual(first, second)
 
 
 class TestCheckHeaders(unittest.TestCase):

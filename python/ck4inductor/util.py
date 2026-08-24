@@ -127,3 +127,16 @@ def check_headers(headers=_DIAGNOSTIC_HEADERS, try_compile=True):
         "headers": results,
         "ok": all(v["resolved"] for v in results.values()),
     }
+
+
+def sorted_instances(op_instances):
+    """Return the enumerated instances in a deterministic order.
+
+    The enumerators build their lists from `grep -R`, which walks directories in
+    readdir order -- so the order differs per machine and changes on reinstall.
+    Consumers that sample a subset under a fixed seed (PyTorch Inductor draws
+    `ck_max_profiling_configs`) therefore got a different subset per machine from
+    the same wheel. `name()` embeds every template parameter, so it is a total
+    key.
+    """
+    return sorted(op_instances, key=lambda op: op.name())
