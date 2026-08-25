@@ -595,3 +595,150 @@ def make_abquant_kernel_name(
     if transpose_c:
         parts.append("transposec")
     return "_".join(parts)
+
+
+# =============================================================================
+# RowColQuant / TensorQuant shared definitions
+# =============================================================================
+#
+# These two operators are structurally identical -- they differ only in the
+# ck_tile::QuantType enum the codegen emits -- so their naming, tile defaults and
+# trait defaults live here rather than being duplicated per operator.
+#
+# Both the codegen (unified_grouped_gemm_{rowcolquant,tensorquant}_codegen.py) and
+# the runtime wrappers (python/grouped_gemm_{rowcolquant,tensorquant}_utils.py)
+# import from this module. That direction matters: previously the utils layer
+# imported the codegen module to reach the name builder, which inverted the
+# intended layering.
+
+# The only pipeline/epilogue combination these kernels support. The generated
+# header hardwires CompV3 + CShuffle, so any other value would produce a kernel
+# whose *name* disagrees with the code it contains. _build_specs validates against
+# these maps and skips unsupported combinations rather than mislabelling a kernel.
+ROWCOL_TENSOR_QUANT_PIPELINE_MAP = {
+    "compv3": "ck_tile::GemmPipelineAgBgCrCompV3",
+}
+
+ROWCOL_TENSOR_QUANT_BASE_PIPELINE_MAP = {
+    "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
+}
+
+ROWCOL_TENSOR_QUANT_EPILOGUE_MAP = {
+    "cshuffle": "ck_tile::CShuffleEpilogue",
+}
+
+# The dispatcher's ctypes bridge validates stride_A == K, stride_B == K and
+# stride_C == N, which is the packed "rcr" (row-major A, column-major B,
+# row-major C) layout. Any other layout string would flip BLayout in the
+# generated header while the bridge kept rejecting it at runtime.
+ROWCOL_TENSOR_QUANT_SUPPORTED_LAYOUTS = ("rcr",)
+
+# Default tile shape. Single source of truth for the codegen sweep default and the
+# runtime default_{fp8,bf8}_config() helpers; if these drift apart the two halves
+# generate different kernel names and the .so lookup fails at load time.
+# Mirrors tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_{rowcolquant,
+# tensorquant}/configs/default_ci_config.json.
+ROWCOL_TENSOR_QUANT_DEFAULT_TILE = {
+    "tile_m": 128, "tile_n": 128, "tile_k": 64,
+    "warp_m": 2, "warp_n": 2, "warp_k": 1,
+    "warp_tile_m": 32, "warp_tile_n": 32, "warp_tile_k": 16,
+}
+
+# Default traits, shared for the same reason as the tile above. pad_m is enabled
+# because these kernels are used with M values that are not tile-aligned.
+ROWCOL_TENSOR_QUANT_DEFAULT_TRAITS = {
+    "pipeline": "compv3",
+    "epilogue": "cshuffle",
+    "scheduler": "intrawave",
+    "pad_m": True,
+    "pad_n": False,
+    "pad_k": True,
+    "persistent": False,
+    "block_size": 256,
+    "k_block_per_cu": 1,
+}
+
+
+def _make_rowcol_tensor_quant_kernel_name(
+    op: str,
+    dtype: str,
+    layout: str,
+    pipeline: str,
+    epilogue: str,
+    scheduler: str,
+    pad_m: bool,
+    pad_n: bool,
+    pad_k: bool,
+    persistent: bool,
+    tile_m: int, tile_n: int, tile_k: int,
+    warp_m: int, warp_n: int, warp_k: int,
+    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+) -> str:
+    """Shared implementation behind make_{rowcolquant,tensorquant}_kernel_name."""
+    tile_str = (
+        f"{tile_m}x{tile_n}x{tile_k}_"
+        f"{warp_m}x{warp_n}x{warp_k}_"
+        f"{warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
+    )
+    return (
+        f"grouped_gemm_{op}_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}_"
+        f"{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_"
+        f"{str(persistent).capitalize()}_{tile_str}"
+    )
+
+
+def make_rowcolquant_kernel_name(
+    dtype: str,
+    layout: str,
+    pipeline: str,
+    epilogue: str,
+    scheduler: str,
+    pad_m: bool,
+    pad_n: bool,
+    pad_k: bool,
+    persistent: bool,
+    tile_m: int, tile_n: int, tile_k: int,
+    warp_m: int, warp_n: int, warp_k: int,
+    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+) -> str:
+    """Return the canonical RowColQuant kernel name used as KERNEL_NAME.
+
+    Both RowColQuantKernelConfig (utils) and RowColQuantKernelSpec (codegen)
+    delegate here so the Python side and the compiled .so are byte-exact.
+    Matches the naming produced by
+    tile_engine/.../grouped_gemm_rowcolquant_instance_builder.py.
+    """
+    return _make_rowcol_tensor_quant_kernel_name(
+        "rowcolquant", dtype, layout, pipeline, epilogue, scheduler,
+        pad_m, pad_n, pad_k, persistent,
+        tile_m, tile_n, tile_k,
+        warp_m, warp_n, warp_k,
+        warp_tile_m, warp_tile_n, warp_tile_k,
+    )
+
+
+def make_tensorquant_kernel_name(
+    dtype: str,
+    layout: str,
+    pipeline: str,
+    epilogue: str,
+    scheduler: str,
+    pad_m: bool,
+    pad_n: bool,
+    pad_k: bool,
+    persistent: bool,
+    tile_m: int, tile_n: int, tile_k: int,
+    warp_m: int, warp_n: int, warp_k: int,
+    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+) -> str:
+    """Return the canonical TensorQuant kernel name used as KERNEL_NAME.
+
+    See make_rowcolquant_kernel_name; the two differ only in the operator segment.
+    """
+    return _make_rowcol_tensor_quant_kernel_name(
+        "tensorquant", dtype, layout, pipeline, epilogue, scheduler,
+        pad_m, pad_n, pad_k, persistent,
+        tile_m, tile_n, tile_k,
+        warp_m, warp_n, warp_k,
+        warp_tile_m, warp_tile_n, warp_tile_k,
+    )

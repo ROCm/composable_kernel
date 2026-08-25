@@ -1,19 +1,19 @@
 {
     "tile_config": {
         "tile_m": {
-            "max": 256,
-            "min": 64,
-            "step": 256
+            "max": 128,
+            "min": 128,
+            "step": 1
         },
         "tile_n": {
-            "max": 256,
-            "min": 64,
-            "step": 256
+            "max": 128,
+            "min": 128,
+            "step": 1
         },
         "tile_k": {
-            "max": 256,
+            "max": 64,
             "min": 64,
-            "step": 256
+            "step": 1
         },
         "warp_m": {
             "values": [
@@ -32,17 +32,17 @@
         },
         "warp_tile_m": {
             "values": [
-                16
+                32
             ]
         },
         "warp_tile_n": {
             "values": [
-                16
+                32
             ]
         },
         "warp_tile_k": {
             "values": [
-                32
+                16
             ]
         }
     },

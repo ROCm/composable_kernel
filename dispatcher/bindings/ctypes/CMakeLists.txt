@@ -277,6 +277,98 @@ else()
 endif()
 
 # =============================================================================
+# GroupedGemm RowColQuant ctypes Library
+# =============================================================================
+
+file(GLOB ROWCOLQUANT_GEMM_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/grouped_gemm_rowcolquant_*.hpp")
+if(ROWCOLQUANT_GEMM_KERNEL_HEADERS)
+    list(LENGTH ROWCOLQUANT_GEMM_KERNEL_HEADERS _rowcolquant_header_count)
+    if(_rowcolquant_header_count GREATER 1)
+        message(WARNING
+            "Found ${_rowcolquant_header_count} RowColQuant GEMM kernel headers; "
+            "only the first will be compiled into dispatcher_grouped_gemm_rowcolquant_lib. "
+            "Run codegen with a single config or build per-kernel .so files via the Python path.")
+    endif()
+    list(GET ROWCOLQUANT_GEMM_KERNEL_HEADERS 0 ROWCOLQUANT_GEMM_KERNEL_HEADER)
+    message(STATUS "Found RowColQuant GEMM kernel for ctypes lib: ${ROWCOLQUANT_GEMM_KERNEL_HEADER}")
+
+    add_ctypes_library(dispatcher_grouped_gemm_rowcolquant_lib
+        grouped_gemm_rowcolquant_ctypes_lib.cpp
+        KERNEL_HEADER ${ROWCOLQUANT_GEMM_KERNEL_HEADER}
+    )
+    if(NOT DEFINED CK_TILE_ROWCOLQUANT_GFX_ARCH OR CK_TILE_ROWCOLQUANT_GFX_ARCH STREQUAL "")
+        if(CMAKE_HIP_ARCHITECTURES)
+            list(GET CMAKE_HIP_ARCHITECTURES 0 _rowcolquant_gfx_arch)
+        else()
+            set(_rowcolquant_gfx_arch "gfx942")
+        endif()
+        set(CK_TILE_ROWCOLQUANT_GFX_ARCH "${_rowcolquant_gfx_arch}" CACHE STRING
+            "GFX arch for the CMake-built RowColQuant ctypes .so (default: first CMAKE_HIP_ARCHITECTURES or gfx942)")
+    endif()
+    message(STATUS "RowColQuant ctypes lib GFX_ARCH: ${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
+
+    target_compile_definitions(dispatcher_grouped_gemm_rowcolquant_lib PRIVATE
+        CK_TILE_SINGLE_KERNEL_INCLUDE
+        GFX_ARCH="${CK_TILE_ROWCOLQUANT_GFX_ARCH}"
+    )
+else()
+    message(WARNING
+        "No RowColQuant GEMM kernel header found in ${CMAKE_BINARY_DIR}/generated_kernels/. "
+        "dispatcher_grouped_gemm_rowcolquant_lib will NOT be built. "
+        "Run unified_grouped_gemm_rowcolquant_codegen.py --output-dir "
+        "${CMAKE_BINARY_DIR}/generated_kernels/ before configuring to enable this target.")
+    # Do not define the target: the source requires force-included symbols (SelectedKernel,
+    # ADataType, KERNEL_NAME, etc.) that only exist in the generated header. Without it
+    # the build fails at compile time, not load time, breaking any all-target build.
+endif()
+
+# =============================================================================
+# GroupedGemm TensorQuant ctypes Library
+# =============================================================================
+
+file(GLOB TENSORQUANT_GEMM_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/grouped_gemm_tensorquant_*.hpp")
+if(TENSORQUANT_GEMM_KERNEL_HEADERS)
+    list(LENGTH TENSORQUANT_GEMM_KERNEL_HEADERS _tensorquant_header_count)
+    if(_tensorquant_header_count GREATER 1)
+        message(WARNING
+            "Found ${_tensorquant_header_count} TensorQuant GEMM kernel headers; "
+            "only the first will be compiled into dispatcher_grouped_gemm_tensorquant_lib. "
+            "Run codegen with a single config or build per-kernel .so files via the Python path.")
+    endif()
+    list(GET TENSORQUANT_GEMM_KERNEL_HEADERS 0 TENSORQUANT_GEMM_KERNEL_HEADER)
+    message(STATUS "Found TensorQuant GEMM kernel for ctypes lib: ${TENSORQUANT_GEMM_KERNEL_HEADER}")
+
+    add_ctypes_library(dispatcher_grouped_gemm_tensorquant_lib
+        grouped_gemm_tensorquant_ctypes_lib.cpp
+        KERNEL_HEADER ${TENSORQUANT_GEMM_KERNEL_HEADER}
+    )
+    if(NOT DEFINED CK_TILE_TENSORQUANT_GFX_ARCH OR CK_TILE_TENSORQUANT_GFX_ARCH STREQUAL "")
+        if(CMAKE_HIP_ARCHITECTURES)
+            list(GET CMAKE_HIP_ARCHITECTURES 0 _tensorquant_gfx_arch)
+        else()
+            set(_tensorquant_gfx_arch "gfx942")
+        endif()
+        set(CK_TILE_TENSORQUANT_GFX_ARCH "${_tensorquant_gfx_arch}" CACHE STRING
+            "GFX arch for the CMake-built TensorQuant ctypes .so (default: first CMAKE_HIP_ARCHITECTURES or gfx942)")
+    endif()
+    message(STATUS "TensorQuant ctypes lib GFX_ARCH: ${CK_TILE_TENSORQUANT_GFX_ARCH}")
+
+    target_compile_definitions(dispatcher_grouped_gemm_tensorquant_lib PRIVATE
+        CK_TILE_SINGLE_KERNEL_INCLUDE
+        GFX_ARCH="${CK_TILE_TENSORQUANT_GFX_ARCH}"
+    )
+else()
+    message(WARNING
+        "No TensorQuant GEMM kernel header found in ${CMAKE_BINARY_DIR}/generated_kernels/. "
+        "dispatcher_grouped_gemm_tensorquant_lib will NOT be built. "
+        "Run unified_grouped_gemm_tensorquant_codegen.py --output-dir "
+        "${CMAKE_BINARY_DIR}/generated_kernels/ before configuring to enable this target.")
+    # Do not define the target: the source requires force-included symbols (SelectedKernel,
+    # ADataType, KERNEL_NAME, etc.) that only exist in the generated header. Without it
+    # the build fails at compile time, not load time, breaking any all-target build.
+endif()
+
+# =============================================================================
 # GroupedGemm AQuant ctypes Library
 # =============================================================================
 
