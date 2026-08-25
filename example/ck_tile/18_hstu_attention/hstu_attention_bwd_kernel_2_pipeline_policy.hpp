@@ -667,6 +667,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         }
     }
 
+#if !HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     // qt_lds/dot_lds write descriptor: [NumReadBuffers * kK1, kQKHeaddim/kVHeaddim],
     // the naive physical layout is determined by at-best benefitting the Lds reading, but
     // the write descriptor provides a correct view suitable for Lds writing from the
@@ -753,6 +754,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
         return MakeQTOGradTLdsReadBlockDescriptor<Problem, kHeaddim, kKPack>();
     }
+#endif
 
     // -------------------------------------------------------------------------
     // Block GEMM objects

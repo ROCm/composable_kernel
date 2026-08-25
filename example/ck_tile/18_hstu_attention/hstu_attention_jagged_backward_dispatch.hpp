@@ -9,6 +9,7 @@
 #include <ck_tile/host/hip_check_error.hpp>
 #include <ck_tile/ops/epilogue.hpp>
 
+#include "hstu_attention_config.hpp"
 #include "hstu_attention_bool_switch.hpp"
 #include "hstu_attention_bwd_type_config.hpp"
 #include "hstu_attention_bwd_setting.hpp"
@@ -48,7 +49,7 @@ struct jagged_backward_dispatch
     using HstuAttentionTileSettingForKernel2 =
         typename HstuAttentionBwdTileSettingForKernel2<MaxK>::Type;
 
-#ifdef BUILD_HSTU_FOR_GFX95
+#if HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     static constexpr bool use_trload_pipeline = true;
 #else
     static constexpr bool use_trload_pipeline = false;

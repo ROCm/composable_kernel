@@ -11,6 +11,7 @@
 #include <ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp>
 #include <ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_one_warp_v1.hpp>
 
+#include "hstu_attention_config.hpp"
 #include "block_gemm_areg_bsmem_creg_v2_hack_0.hpp"
 #include "block_gemm_areg_bsmem_creg_v2_hack_1.hpp"
 #include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
@@ -543,7 +544,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
-    // used when kUseTrLoad is false
+#if !HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledVRegTileDistribution()
     {
@@ -569,6 +570,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                                        sequence<1, 2>,
                                        sequence<1, 2>>{});
     }
+#endif
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetQKBlockGemmSingleRepM()

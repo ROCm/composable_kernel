@@ -629,6 +629,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
     }
 
+#if !HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKTLdsReadBlockDescriptor()
     {
@@ -678,6 +679,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             make_tuple(sequence<0, 2>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
     }
+#endif
 
     // -------------------------------------------------------------------------
     // Shared memory sizing

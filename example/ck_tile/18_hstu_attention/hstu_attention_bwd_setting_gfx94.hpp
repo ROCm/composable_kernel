@@ -7,7 +7,7 @@
 
 #include "hstu_attention_bwd_tile_setting_define.hpp"
 
-#if !defined(BUILD_HSTU_FOR_GFX95)
+#if defined(BUILD_HSTU_FOR_GFX94)
 using WarpTile_16x16x16 = ck_tile::sequence<16, 16, 16>;
 using WarpTile_16x16x32 = ck_tile::sequence<16, 16, 32>;
 using WarpTile_32x32x16 = ck_tile::sequence<32, 32, 16>;
