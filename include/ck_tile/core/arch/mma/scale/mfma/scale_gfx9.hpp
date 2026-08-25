@@ -61,6 +61,25 @@ struct amdgcn_mma<AType, BType, fp32_t, 16u, 16u, 128u, CompilerTarget, MmaOpFam
             P::op_sel_a, scale_A,                                                                                                                            \
             P::op_sel_b, scale_B)};                                                                                                                          \
     }                                                                                                                                                        \
+};                                                                                                                                                           \
+template <typename CompilerTarget>                                                                                                                           \
+struct amdgcn_mma<AType, BType, fp32_t, 16u, 16u, 128u, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_id_t<CompilerTarget, amdgcn_target_id::GFX950>> \
+: amdgcn_mma_base<AType, BType, fp32_t, 16u, 16u, 128u, 64u, 32, NUM_ACC_A, 1, NUM_ACC_B, 1, 4, 1, MfmaOp, MmaOpFamily::DENSE>                               \
+{                                                                                                                                                            \
+    static constexpr const char* instruction_name = "__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4";                                                      \
+    template <typename... Params>                                                                                                                            \
+    CK_TILE_DEVICE static CVecType                                                                                                                           \
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)                                                                                   \
+    {                                                                                                                                                        \
+        return {__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(                                                                                            \
+            EXPAND_A(aVec),                                                                                                                                  \
+            EXPAND_B(bVec),                                                                                                                                  \
+            cVec,                                                                                                                                            \
+            PackedDataTypeToFlag_v<AType>,                                                                                                                   \
+            PackedDataTypeToFlag_v<BType>,                                                                                                                   \
+            0, 0,                                                                                                                                            \
+            0, 0)};                                                                                                                                          \
+    }                                                                                                                                                        \
 };
 
 #define DEFINE_MMA_SCALE_GFX950_32(AType, BType, EXPAND_A, EXPAND_B, NUM_ACC_A, NUM_ACC_B)                                                                  \
@@ -82,6 +101,25 @@ struct amdgcn_mma<AType, BType, fp32_t, 32u, 32u, 64u, CompilerTarget, MmaOpFami
             PackedDataTypeToFlag_v<BType>,                                                                                                                  \
             P::op_sel_a, scale_A,                                                                                                                           \
             P::op_sel_b, scale_B)};                                                                                                                         \
+    }                                                                                                                                                       \
+};                                                                                                                                                          \
+template <typename CompilerTarget>                                                                                                                          \
+struct amdgcn_mma<AType, BType, fp32_t, 32u, 32u, 64u, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_id_t<CompilerTarget, amdgcn_target_id::GFX950>> \
+: amdgcn_mma_base<AType, BType, fp32_t, 32u, 32u, 64u, 64u, 32, NUM_ACC_A, 1, NUM_ACC_B, 1, 16, 4, MfmaOp, MmaOpFamily::DENSE>                              \
+{                                                                                                                                                           \
+    static constexpr const char* instruction_name = "__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4";                                                      \
+    template <typename... Params>                                                                                                                           \
+    CK_TILE_DEVICE static CVecType                                                                                                                          \
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)                                                                                  \
+    {                                                                                                                                                       \
+        return {__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(                                                                                            \
+            EXPAND_A(aVec),                                                                                                                                 \
+            EXPAND_B(bVec),                                                                                                                                 \
+            cVec,                                                                                                                                           \
+            PackedDataTypeToFlag_v<AType>,                                                                                                                  \
+            PackedDataTypeToFlag_v<BType>,                                                                                                                  \
+            0, 0,                                                                                                                                           \
+            0, 0)};                                                                                                                                         \
     }                                                                                                                                                       \
 };
 

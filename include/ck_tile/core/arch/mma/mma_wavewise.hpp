@@ -236,52 +236,92 @@ struct WaveWiseMmaPipeline : public MmaPipelineBase<WaveWiseMmaPipeline<ADataTyp
     // NOTE: Here we have arrived at the Impl level. We know nothing about CTranspose here, we just
     // perform the intrinsic, potentially multiple times for K composition.
     template <typename... Params, typename ATensor, typename BTensor, typename CTensor>
-    CK_TILE_DEVICE static void execImpl(ATensor& a, BTensor& b, CTensor& c)
+    CK_TILE_DEVICE static void execImpl(const ATensor& a, const BTensor& b, CTensor& c)
     {
-        // Thread_buffer types allow us to select the ext_vectors for individual MmaOp calls.
-        using AThreadBufType = thread_buffer<typename MmaOp::AVecType, FragsM * FragsK>;
-        using BThreadBufType = thread_buffer<typename MmaOp::BVecType, FragsN * FragsK>;
-        using CThreadBufType = thread_buffer<typename MmaOp::CVecType, FragsM * FragsN>;
+        auto& c_buf = c.get_thread_buffer().template get_as<typename MmaOp::CVecType>();
 
-        auto& a_buf = reinterpret_cast<const AThreadBufType&>(a);
-        auto& b_buf = reinterpret_cast<const BThreadBufType&>(b);
-        auto& c_buf = reinterpret_cast<CThreadBufType&>(c);
+        if constexpr(FragsM == 1 && FragsN == 1)
+        {
+            // Replicate the legacy WarpGemmImpl::operator() + WarpGemmAttributeMfmaIterateK
+            // accumulation pattern so the new framework reproduces the legacy WarpGemm's gfx9
+            // assembly on its own. The legacy WarpGemm path is being deprecated, so we cannot
+            // route to it; instead we mimic it here. Load the A/B thread buffers into local
+            // value copies and accumulate every K fragment into a LOCAL C accumulator, then
+            // write it back to the C thread buffer once. Using a local accumulator instead of
+            // read-modify-writing c_buf.at(0) through the buffer reference each iteration
+            // reproduces the legacy ACC-VGPR allocation (this covers both the single-fragment
+            // FragsK == 1 case and the K-composed FragsK > 1 / IterateK case).
+            // For some unknown reason the outer lambda with parameters is important to get the
+            // same assembly even though it does nothing (a separate function also works).
+            using AVec1 = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
+            using BVec1 = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
 
-        if constexpr(AccumPolicy == MmaAccumPolicy::ROW_MAJOR)
-        {
-            for(uint32_t bm = 0u; bm < FragsM; ++bm)
-            {
-                for(uint32_t bn = 0u; bn < FragsN; ++bn)
+            const auto a_buf1 = a.get_thread_buffer().template get_as<AVec1>();
+            const auto b_buf1 = b.get_thread_buffer().template get_as<BVec1>();
+
+            auto c_vec = c_buf.at(0);
+            [](const auto& a_buf2, const auto& b_buf2, auto& c_vec2) {
+                if constexpr(FragsK == 1)
                 {
-                    for(uint32_t bk = 0u; bk < FragsK; ++bk)
-                    {
-                        c_buf.at(bm * FragsN + bn) =
-                            MmaOp::template exec<Params...>(a_buf.at(bm * FragsK + bk),
-                                                            b_buf.at(bn * FragsK + bk),
-                                                            c_buf.at(bm * FragsN + bn));
-                    }
+                    c_vec2 = MmaOp::template exec<Params...>(
+                        a_buf2.template get_as<typename MmaOp::AVecType>().at(0),
+                        b_buf2.template get_as<typename MmaOp::BVecType>().at(0),
+                        c_vec2);
                 }
-            }
-        }
-        else if constexpr(AccumPolicy == MmaAccumPolicy::COL_MAJOR)
-        {
-            for(uint32_t bn = 0u; bn < FragsN; ++bn)
-            {
-                for(uint32_t bm = 0u; bm < FragsM; ++bm)
+                else
                 {
-                    for(uint32_t bk = 0u; bk < FragsK; ++bk)
-                    {
-                        c_buf.at(bm * FragsN + bn) =
-                            MmaOp::template exec<Params...>(a_buf.at(bm * FragsK + bk),
-                                                            b_buf.at(bn * FragsK + bk),
-                                                            c_buf.at(bm * FragsN + bn));
-                    }
+                    static_for<0, FragsK, 1>{}([&](auto bk) {
+                        c_vec2 = MmaOp::template exec<Params...>(
+                            a_buf2.template get_as<typename MmaOp::AVecType>().at(bk),
+                            b_buf2.template get_as<typename MmaOp::BVecType>().at(bk),
+                            c_vec2);
+                    });
                 }
-            }
+            }(a_buf1, b_buf1, c_vec);
+            c_buf.at(0) = c_vec;
         }
         else
         {
-            static_assert(false, "Invalid accumulation policy");
+            const auto& a_buf = a.get_thread_buffer().template get_as<typename MmaOp::AVecType>();
+            const auto& b_buf = b.get_thread_buffer().template get_as<typename MmaOp::BVecType>();
+
+            if constexpr(AccumPolicy == MmaAccumPolicy::ROW_MAJOR)
+            {
+
+                for(uint32_t bm = 0u; bm < FragsM; ++bm)
+                {
+                    for(uint32_t bn = 0u; bn < FragsN; ++bn)
+                    {
+                        for(uint32_t bk = 0u; bk < FragsK; ++bk)
+                        {
+                            c_buf.at(bm * FragsN + bn) =
+                                MmaOp::template exec<Params...>(a_buf.at(bm * FragsK + bk),
+                                                                b_buf.at(bn * FragsK + bk),
+                                                                c_buf.at(bm * FragsN + bn));
+                        }
+                    }
+                }
+            }
+            else if constexpr(AccumPolicy == MmaAccumPolicy::COL_MAJOR)
+            {
+                for(uint32_t bn = 0u; bn < FragsN; ++bn)
+                {
+                    for(uint32_t bm = 0u; bm < FragsM; ++bm)
+                    {
+                        for(uint32_t bk = 0u; bk < FragsK; ++bk)
+                        {
+                            c_buf.at(bm * FragsN + bn) =
+                                MmaOp::template exec<Params...>(a_buf.at(bm * FragsK + bk),
+                                                                b_buf.at(bn * FragsK + bk),
+                                                                c_buf.at(bm * FragsN + bn));
+                        }
+                    }
+                }
+            }
+            else
+            {
+                static_assert(false, "Invalid accumulation policy");
+            }
         }
     }
 };

@@ -239,20 +239,15 @@ struct ScaleMmaPipeline : public MmaPipelineBase<ScaleMmaPipeline<ADataType_, BD
               typename CTensor,
               typename ScaleADataType,
               typename ScaleBDataType>
-    CK_TILE_DEVICE static void execImpl(ATensor& a,
-                                        BTensor& b,
+    CK_TILE_DEVICE static void execImpl(const ATensor& a,
+                                        const BTensor& b,
                                         CTensor& c,
                                         const ScaleADataType& scale_A,
                                         const ScaleBDataType& scale_B)
     {
-        // Thread_buffer types allow us to select the ext_vectors for individual MmaOp calls.
-        using AThreadBufType = thread_buffer<typename MmaOp::AVecType, FragsM * FragsK>;
-        using BThreadBufType = thread_buffer<typename MmaOp::BVecType, FragsN * FragsK>;
-        using CThreadBufType = thread_buffer<typename MmaOp::CVecType, FragsM * FragsN>;
-
-        auto& a_buf = reinterpret_cast<const AThreadBufType&>(a);
-        auto& b_buf = reinterpret_cast<const BThreadBufType&>(b);
-        auto& c_buf = reinterpret_cast<CThreadBufType&>(c);
+        const auto& a_buf = a.get_thread_buffer().template get_as<typename MmaOp::AVecType>();
+        const auto& b_buf = b.get_thread_buffer().template get_as<typename MmaOp::BVecType>();
+        auto& c_buf       = c.get_thread_buffer().template get_as<typename MmaOp::CVecType>();
 
         if constexpr(AccumPolicy == MmaAccumPolicy::ROW_MAJOR)
         {
@@ -298,15 +293,11 @@ struct ScaleMmaPipeline : public MmaPipelineBase<ScaleMmaPipeline<ADataType_, BD
 
     // No-scale execImpl() without explicit scale args.
     template <typename... Params, typename ATensor, typename BTensor, typename CTensor>
-    CK_TILE_DEVICE static void execImpl(ATensor& a, BTensor& b, CTensor& c)
+    CK_TILE_DEVICE static void execImpl(const ATensor& a, const BTensor& b, CTensor& c)
     {
-        using AThreadBufType = thread_buffer<typename MmaOp::AVecType, FragsM * FragsK>;
-        using BThreadBufType = thread_buffer<typename MmaOp::BVecType, FragsN * FragsK>;
-        using CThreadBufType = thread_buffer<typename MmaOp::CVecType, FragsM * FragsN>;
-
-        auto& a_buf = reinterpret_cast<const AThreadBufType&>(a);
-        auto& b_buf = reinterpret_cast<const BThreadBufType&>(b);
-        auto& c_buf = reinterpret_cast<CThreadBufType&>(c);
+        const auto& a_buf = a.get_thread_buffer().template get_as<typename MmaOp::AVecType>();
+        const auto& b_buf = b.get_thread_buffer().template get_as<typename MmaOp::BVecType>();
+        auto& c_buf       = c.get_thread_buffer().template get_as<typename MmaOp::CVecType>();
 
         // check non-scale MmaOp support
         static_assert(MmaOpTraits<DenseFallbackMmaOp>::IsSupported,

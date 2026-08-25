@@ -44,7 +44,7 @@ struct MmaPipelineBase
      * @return The output WaveTile D after accumulation and post-transform.
      */
     template <typename... Params, typename ATensor, typename BTensor, typename CTensor>
-    CK_TILE_DEVICE static decltype(auto) exec(ATensor& a, BTensor& b, CTensor& accum)
+    CK_TILE_DEVICE static decltype(auto) exec(const ATensor& a, const BTensor& b, CTensor& accum)
     {
         if constexpr(MmaOpTraits<typename Derived::MmaOp>::IsSupported)
         {
@@ -78,7 +78,7 @@ struct MmaPipelineBase
 
     // CAB = (C, A, B).
     template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
-    CK_TILE_DEVICE void operator()(CTensor& c, ATensor& a, const BTensor& b) const
+    CK_TILE_DEVICE void operator()(CTensor& c, const ATensor& a, const BTensor& b) const
     {
         static_assert(detail::is_similiar_distributed_tensor_v<remove_cvref_t<CTensor>,
                                                                typename Derived::CWarpTensor> &&

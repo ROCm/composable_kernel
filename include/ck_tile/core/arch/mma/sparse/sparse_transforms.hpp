@@ -144,10 +144,12 @@ static CK_TILE_DEVICE int32_t extract_fragment_idx(const SparseIdxPack<NumIdxWor
 template <index_t CompressionRatio>
 struct SparseCompressTransform
 {
-    // This function takes A in uncompressed form as a big ext_vector, and returns a
-    // compressed ext_vector.
+    /**
+     * This function takes A in uncompressed form as a big ext_vector, and returns an owned
+     * compressed ext_vector.
+     */
     template <typename VecType>
-    CK_TILE_DEVICE static decltype(auto) execExtVec(VecType& v)
+    CK_TILE_DEVICE static auto execExtVec(VecType input)
     {
         using VecTraits                         = vector_traits<remove_cvref_t<VecType>>;
         using ScalarT                           = typename VecTraits::scalar_type;
@@ -159,19 +161,22 @@ struct SparseCompressTransform
 
         static_assert(VecN % CompressionRatio == 0, "VecN must be divisible by CompressionRatio");
         static_assert(CompressedSize > 0, "CompressedSize must be > 0");
+        static_assert(!std::is_reference_v<VecCompressed>,
+                      "Sparse compression must own its transformed vector");
 
-        auto idx = sparse::detail::compress_a_impl<ScalarT, CompressedSize>(v);
+        auto idx        = sparse::detail::compress_a_impl<ScalarT, CompressedSize>(input);
+        auto compressed = *ck_tile::bit_cast<VecCompressed*>(&input);
 
-        return std::tuple<VecCompressed&, IdxType>(*ck_tile::bit_cast<VecCompressed*>(&v), idx);
+        return std::tuple<VecCompressed, IdxType>{compressed, idx};
     }
 
-    // This function takes A in uncompressed form as a static_distributed tensor and performs an
-    // in-place compression, returning a compressed ext_vector. It would be a little bit cleaner if
-    // it returned a compressed static_distributed tensor, but this would require access to another
-    // Tile Distr encoding for the compressed one. This would have to be passed down, breaking the
-    // MmaPipeline Base API, or calculated in place, which is a bit annoying. TODO.
+    /**
+     * This function takes A in uncompressed form as a static_distributed tensor and returns an
+     * owned compressed ext_vector. Returning an owned value keeps const inputs valid after the
+     * transform call completes.
+     */
     template <typename ATensor>
-    CK_TILE_DEVICE static decltype(auto) exec(ATensor& a_tensor)
+    CK_TILE_DEVICE static auto exec(const ATensor& a_tensor)
     {
         // Properties of ATensor as a big ext vector.
         using ADataType        = typename ATensor::DataType;
