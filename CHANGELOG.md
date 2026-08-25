@@ -2,6 +2,16 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## Composable Kernel 1.2.0 for ROCm 10.0
+
+### Added
+
+* Added multiple D (bias) and large tensor support to the CK Tile quantized GEMM kernel for row-column quantization.
+
+### Changed
+
+* Improved performance of row-column quantized a8w8 GEMM through better instruction scheduling in the eight-waves pipeline, wider epilogue stores, and nontemporal C/D memory access.
+
 ## Composable Kernel 1.2.0 for ROCm 7.13
 
 ### Added
