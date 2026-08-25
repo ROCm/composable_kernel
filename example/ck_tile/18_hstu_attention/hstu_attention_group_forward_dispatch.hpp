@@ -8,6 +8,7 @@
 #include <ck_tile/host/stream_config.hpp>
 #include <ck_tile/ops/epilogue.hpp>
 
+#include "hstu_attention_config.hpp"
 #include "hstu_attention_bool_switch.hpp"
 #include "hstu_attention_fwd_type_config.hpp"
 #include "hstu_attention_fwd_setting.hpp"
@@ -40,7 +41,7 @@ struct group_forward_dispatch
                                     HstuAttentionWithSoftmaxFwdTileSetting<MaxK, MTile>,
                                     HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile>>::Type;
 
-#ifdef BUILD_HSTU_FOR_GFX95
+#if HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     static constexpr bool use_trload_pipeline = true;
 #else
     static constexpr bool use_trload_pipeline = false;

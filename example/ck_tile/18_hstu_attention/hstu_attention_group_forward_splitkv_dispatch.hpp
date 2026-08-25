@@ -9,6 +9,7 @@
 #include <ck_tile/ops/epilogue.hpp>
 #include <ck_tile/host/hip_check_error.hpp>
 
+#include "hstu_attention_config.hpp"
 #include "hstu_attention_bool_switch.hpp"
 #include "hstu_attention_fwd_type_config.hpp"
 #include "hstu_attention_fwd_setting.hpp"
@@ -46,7 +47,7 @@ struct group_forward_splitkv_dispatch
     using HstuAttentionCombineTileSetting =
         typename HstuAttentionFwdSplitKVCombineTileSetting<MaxK>::Type;
 
-#ifdef BUILD_HSTU_FOR_GFX95
+#if HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     static constexpr bool use_trload_pipeline = true;
 #else
     static constexpr bool use_trload_pipeline = false;
