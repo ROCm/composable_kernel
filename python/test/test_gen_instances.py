@@ -1,9 +1,9 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-import collections
 import logging
 import random
 import unittest
+from dataclasses import replace
 
 from ck4inductor.universal_gemm.gen_instances import (
     gen_ops_library as gen_gemm_ops_library,
@@ -30,7 +30,7 @@ from ck4inductor.ck_tile_universal_gemm.gen_instances import (
     ops as gen_ck_tile_gemm_ops_library,
 )
 from ck4inductor import check_headers, include_roots
-from ck4inductor.util import sorted_instances
+from ck4inductor.util import canonical_instances
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +69,11 @@ class TestGenInstances(unittest.TestCase):
         # scheduler (unlike the XDL ones, which leave a BlkGemmPipeSched
         # placeholder and expand by 16), so only the 4 conv specs x 2 layouts
         # multiply out.
+        #
+        # De-duplication does not break this: CK repeats two source lines here
+        # (its `// generic instance` appears in both the _generic and the _part1
+        # tuple alias), and each repeat expands into a whole 8-instance block, so
+        # dropping it removes a multiple of 8.
         self.assertEqual(
             len(instances) % 8,
             0,
@@ -195,35 +200,69 @@ class TestDeterministicOrder(unittest.TestCase):
         ("batched_gemm_wmma", gen_batched_gemm_ops_library_wmma),
     )
 
-    def test_sorted_instances_is_order_independent(self):
+    def test_canonical_instances_is_order_independent(self):
         # The property that matters: whatever order grep returns, the helper maps it
         # to one canonical order.
         instances = gen_conv_ops_library()
         self.assertTrue(instances)
 
-        forward = [op.name() for op in sorted_instances(instances)]
-        reverse = [op.name() for op in sorted_instances(list(reversed(instances)))]
+        forward = [op.name() for op in canonical_instances(instances)]
+        reverse = [op.name() for op in canonical_instances(list(reversed(instances)))]
         shuffled = list(instances)
         random.Random(0xC0FFEE).shuffle(shuffled)
-        shuffled_names = [op.name() for op in sorted_instances(shuffled)]
+        shuffled_names = [op.name() for op in canonical_instances(shuffled)]
 
         self.assertEqual(forward, reverse)
         self.assertEqual(forward, shuffled_names)
         self.assertEqual(forward, sorted(forward))
 
-    def test_sorted_instances_preserves_every_instance(self):
-        # Sorting must reorder, never drop. Deduping here would shrink the pool and
-        # change which instances a fixed seed selects; the conv pool contains exact
-        # duplicates and they are kept deliberately.
+    def test_canonical_instances_drops_duplicate_names(self):
+        # The helper must collapse repeats while keeping every distinct instance.
+        #
+        # Asserted as properties, never as a count: the enumerated totals drift
+        # with the CK sources.
         instances = gen_conv_ops_library()
         self.assertTrue(instances)
 
-        result = sorted_instances(instances)
-        self.assertEqual(len(result), len(instances))
-        self.assertEqual(
-            collections.Counter(op.name() for op in result),
-            collections.Counter(op.name() for op in instances),
-        )
+        result = canonical_instances(instances)
+        names = [op.name() for op in result]
+
+        self.assertEqual(len(set(names)), len(names), "duplicate names survived")
+        # Nothing distinct was lost -- this is what makes the drop safe.
+        self.assertEqual(set(names), {op.name() for op in instances})
+
+        # Fires even if a future CK release happens to ship no natural duplicates:
+        # feeding the pool twice must still yield one copy of each instance.
+        doubled = [op.name() for op in canonical_instances(list(instances) * 2)]
+        self.assertEqual(doubled, names)
+
+        # Canonical means a fixed point: re-canonicalizing changes nothing.
+        self.assertEqual([op.name() for op in canonical_instances(result)], names)
+
+    def test_name_collision_between_distinct_instances_is_rejected(self):
+        # Dropping a same-name op is only legal because `name()` is a total key:
+        # it derives from dict_items(), so two ops sharing a name agree on every
+        # template parameter. The helper enforces that rather than assuming it.
+        #
+        # Fail fast rather than dropping one: `name()` IS the generated kernel
+        # identity, so there is no safe winner. And because equal sort keys keep
+        # input order, keeping the first would make the survivor depend on
+        # grep/readdir order -- reintroducing exactly the nondeterminism this
+        # helper exists to remove.
+        instances = gen_conv_ops_library()
+        self.assertTrue(instances)
+
+        # Forge a collision: same name(), different template parameters.
+        impostor = replace(instances[0], k_per_block=instances[0].k_per_block + 8)
+        self.assertNotEqual(impostor, instances[0])
+        impostor.name = instances[0].name  # bind the victim's name onto it
+
+        with self.assertRaisesRegex(ValueError, "share the name"):
+            canonical_instances([instances[0], impostor])
+
+        # An honest pool is unaffected.
+        names = [op.name() for op in canonical_instances(instances[:4])]
+        self.assertEqual(names, sorted(op.name() for op in instances[:4]))
 
     def test_every_grep_based_enumerator_is_sorted(self):
         # Guards the wiring: the helper existing is not the same as each enumerator
@@ -234,6 +273,20 @@ class TestDeterministicOrder(unittest.TestCase):
                 self.assertTrue(names, f"{label} enumerated nothing")
                 self.assertEqual(
                     names, sorted(names), f"{label} enumeration is not sorted"
+                )
+
+    def test_every_grep_based_enumerator_is_name_unique(self):
+        # The dedup counterpart of the sortedness guard above: the helper existing
+        # is not the same as each enumerator routing through it. A new enumerator
+        # that forgets it fails here.
+        for label, fn in self.ENUMERATORS:
+            with self.subTest(enumerator=label):
+                names = [op.name() for op in fn()]
+                self.assertTrue(names, f"{label} enumerated nothing")
+                self.assertEqual(
+                    len(set(names)),
+                    len(names),
+                    f"{label} returned duplicate instance names",
                 )
 
     def test_enumeration_is_repeatable(self):

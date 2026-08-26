@@ -8,7 +8,7 @@ from dataclasses import replace
 from functools import lru_cache, partial
 from typing import List
 
-from ..util import library_path, sorted_instances
+from ..util import library_path, canonical_instances
 
 from .op import CKGemmOperation
 
@@ -167,7 +167,7 @@ def gen_ops_library() -> List[CKGemmOperation]:
 
     log.debug("ck instances from library: %d", len(op_instances))
 
-    return sorted_instances(_substitute_scheduler_spec(op_instances))
+    return canonical_instances(_substitute_scheduler_spec(op_instances))
 
 
 def _substitute_scheduler_spec(
@@ -275,7 +275,7 @@ def gen_ops_library_wmma() -> List[CKGemmOperation]:
 
     log.debug("ck WMMA instances from library: %d", len(op_instances))
 
-    return sorted_instances(_substitute_scheduler_spec(op_instances))
+    return canonical_instances(_substitute_scheduler_spec(op_instances))
 
 
 @lru_cache(None)

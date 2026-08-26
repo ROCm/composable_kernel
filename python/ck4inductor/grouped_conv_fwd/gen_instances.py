@@ -8,7 +8,7 @@ from dataclasses import replace
 from functools import lru_cache
 from typing import List
 
-from ..util import library_path, sorted_instances
+from ..util import library_path, canonical_instances
 
 from .op import CKGroupedConvFwdOp
 
@@ -188,7 +188,7 @@ def gen_conv_ops_library() -> List[CKGroupedConvFwdOp]:
 
     log.debug("ck instances from library: %d", len(op_instances))
 
-    return sorted_instances(_substitute_templated_args(op_instances))
+    return canonical_instances(_substitute_templated_args(op_instances))
 
 
 # Only the bias-less WMMA header is enumerated. The other WMMA headers are
@@ -237,7 +237,7 @@ def gen_conv_ops_library_wmma() -> List[CKGroupedConvFwdOp]:
 
     log.debug("ck wmma conv instances from library: %d", len(op_instances))
 
-    return sorted_instances(
+    return canonical_instances(
         [
             replace(instance, is_wmma=True)
             for instance in _substitute_templated_args(op_instances)

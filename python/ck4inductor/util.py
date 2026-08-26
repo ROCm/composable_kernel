@@ -129,14 +129,39 @@ def check_headers(headers=_DIAGNOSTIC_HEADERS, try_compile=True):
     }
 
 
-def sorted_instances(op_instances):
-    """Return the enumerated instances in a deterministic order.
+def canonical_instances(op_instances):
+    """Return the enumerated instances in a deterministic, duplicate-free order.
 
-    The enumerators build their lists from `grep -R`, which walks directories in
-    readdir order -- so the order differs per machine and changes on reinstall.
-    Consumers that sample a subset under a fixed seed (PyTorch Inductor draws
-    `ck_max_profiling_configs`) therefore got a different subset per machine from
-    the same wheel. `name()` embeds every template parameter, so it is a total
-    key.
+    Two problems, one canonicalization.
+
+    *Order.* The enumerators build their lists from `grep -R`, which walks
+    directories in readdir order -- so the order differs per machine and changes
+    on reinstall. Consumers that sample a subset under a fixed seed (PyTorch
+    Inductor draws `ck_max_profiling_configs`) therefore got a different subset
+    per machine from the same wheel. `name()` embeds every template parameter, so
+    it is a total key.
+
+    *Duplicates.* CK's headers repeat some instance lines, but in C++ those
+    repeats are not duplicates -- they are one instance appearing in several
+    disjoint sets. `..._merged_groups_instance.hpp` lists its only `_V3` entry in
+    both the base alias and the gfx950 `_2x` alias, which are mutually exclusive
+    arms of a `get_device_name()` branch; the WMMA header repeats its `// generic
+    instance` into each partN list, and separate translation units consume those.
+    Grepping a directory flattens those partitions into one pool, so the repeats
+    become genuine duplicates *here* and nowhere else.
     """
-    return sorted(op_instances, key=lambda op: op.name())
+    survivors = {}
+    for op in sorted(op_instances, key=lambda op: op.name()):
+        kept = survivors.setdefault(op.name(), op)
+        # Dropping a same-name op is only legal because name() is a total key --
+        # it is built from dict_items(), so equal names imply equal parameters.
+        # Check that here rather than trusting it: after the fact both ops are
+        # no longer available to compare, so this is the only point where the
+        # loss is detectable.
+        if kept is not op and kept != op:
+            raise ValueError(
+                "ck4inductor instances differ but share the name "
+                f"{op.name()!r}; name() must uniquely encode every "
+                "template parameter"
+            )
+    return list(survivors.values())
