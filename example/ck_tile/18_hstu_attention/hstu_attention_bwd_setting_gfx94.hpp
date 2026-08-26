@@ -52,7 +52,7 @@ struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<256>
 template <ck_tile::index_t MaxK>
 struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1;
 
-// Tile-sizes: M N0 N0Sub MaxK
+// Tile-sizes: M N0 N0Sub K1 MaxK
 //
 template <>
 struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<64>

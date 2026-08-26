@@ -668,46 +668,104 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     }
 
 #if !HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
-    // qt_lds/dot_lds write descriptor: [NumReadBuffers * kK1, kQKHeaddim/kVHeaddim],
-    // the naive physical layout is determined by at-best benefitting the Lds reading, but
-    // the write descriptor provides a correct view suitable for Lds writing from the
-    // q_tile/do_tile
-    template <typename Problem, index_t kHeaddim, index_t kKPack>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQTOGradTLdsWriteBlockDescriptor()
+    template <typename Problem, typename WarpGemm, index_t NumBuffers, index_t kN, index_t kK>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeWarpGemmAwareBLdsReadBlockNativeDesc()
     {
-        constexpr index_t NumReadBuffers = GetNumK1Loops<Problem>();
-        constexpr index_t kReadNPerBlock = kHeaddim;
-        constexpr index_t kReadKPerBlock = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kKPack   = WarpGemm::WarpGemmAttribute::Impl::kABKPerLane;
+        constexpr index_t NThreads = WarpGemm::WarpGemmAttribute::Impl::kBNLane;
 
-        // Shared XOR-swizzled physical [NumReadBuffers, kReadNPerBlock, kReadKPerBlock]
-        // (same physical layout as the read descriptor -> write/read stay consistent).
-        constexpr auto desc_native = MakeSwizzledNativeDesc<Problem,
-                                                            NumReadBuffers,
-                                                            kReadNPerBlock,
-                                                            kReadKPerBlock,
-                                                            kKPack>();
+        constexpr auto desc_native_0 =
+            make_naive_tensor_descriptor(make_tuple(number<NumBuffers>{},
+                                                    number<kN / NThreads>{},
+                                                    number<kK / kKPack>{},
+                                                    number<NThreads>{},
+                                                    number<kKPack>{}),
+                                         make_tuple(number<kN * kK>{},
+                                                    number<kK * NThreads>{},
+                                                    number<NThreads * kKPack>{},
+                                                    number<kKPack>{},
+                                                    number<1>{}),
+                                         number<kKPack>{},
+                                         number<1>{});
 
         return transform_tensor_descriptor(
+            desc_native_0,
+            make_tuple(
+                make_pass_through_transform(number<NumBuffers>{}),
+                make_merge_transform(make_tuple(number<kN / NThreads>{}, number<NThreads>{})),
+                make_merge_transform(make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsWriteBlockDescriptor()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t NumBuffers = GetNumK1Loops<Problem>();
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
+
+        constexpr auto desc_native = MakeWarpGemmAwareBLdsReadBlockNativeDesc<Problem,
+                                                                              WG,
+                                                                              NumBuffers,
+                                                                              kNPerBlock,
+                                                                              kKPerBlock>();
+        // the same native tensor desc as the ReadBlockDescriptor, but transposed tensor view
+        return transform_tensor_descriptor(
             desc_native,
-            make_tuple(make_merge_transform(
-                           make_tuple(number<NumReadBuffers>{}, number<kReadKPerBlock>{})),
-                       make_pass_through_transform(number<kReadNPerBlock>{})),
+            make_tuple(make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{})),
+                       make_pass_through_transform(number<kNPerBlock>{})),
             make_tuple(sequence<0, 2>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
     }
 
-    // qt_lds/dot_lds read descriptor: [kQKHeaddim/kVHeaddim, NumK1Loops * kK1]
-    template <typename Problem, index_t kHeaddim, index_t kKPack>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQTOGradTLdsReadBlockDescriptor()
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsWriteBlockDescriptor()
     {
+        using BlockGemm = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
+
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
         constexpr index_t NumBuffers = GetNumK1Loops<Problem>();
-        constexpr index_t kNPerBlock = kHeaddim;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
-        // Same XOR-swizzled physical layout as the matching write descriptor -- both
-        // agree on element mapping and element_space_size (== NumBuffers*kN*kK1).
-        constexpr auto desc_native =
-            MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
+        constexpr auto desc_native = MakeWarpGemmAwareBLdsReadBlockNativeDesc<Problem,
+                                                                              WG,
+                                                                              NumBuffers,
+                                                                              kNPerBlock,
+                                                                              kKPerBlock>();
+
+        // the same native tensor desc as the ReadBlockDescriptor, but transposed tensor view
+        return transform_tensor_descriptor(
+            desc_native,
+            make_tuple(make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{})),
+                       make_pass_through_transform(number<kNPerBlock>{})),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsReadBlockDescriptor()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t NumBuffers = GetNumK1Loops<Problem>();
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
+
+        constexpr auto desc_native = MakeWarpGemmAwareBLdsReadBlockNativeDesc<Problem,
+                                                                              WG,
+                                                                              NumBuffers,
+                                                                              kNPerBlock,
+                                                                              kKPerBlock>();
 
         // merge: NumK1Loops * [kQKHeaddim, kK1] -> [kQKHeaddim, kM0]
         return transform_tensor_descriptor(
@@ -720,39 +778,31 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsWriteBlockDescriptor()
-    {
-        constexpr index_t kHeaddim = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t kKPack   = GetSmemKPackQT<Problem>();
-
-        return MakeQTOGradTLdsWriteBlockDescriptor<Problem, kHeaddim, kKPack>();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsWriteBlockDescriptor()
-    {
-        constexpr index_t kHeaddim = Problem::HstuAttentionTileSetting::kVHeaddim;
-        constexpr index_t kKPack   = GetSmemKPackOGradT<Problem>();
-
-        return MakeQTOGradTLdsWriteBlockDescriptor<Problem, kHeaddim, kKPack>();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsReadBlockDescriptor()
-    {
-        constexpr index_t kHeaddim = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t kKPack   = GetSmemKPackQT<Problem>();
-
-        return MakeQTOGradTLdsReadBlockDescriptor<Problem, kHeaddim, kKPack>();
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsReadBlockDescriptor()
     {
-        constexpr index_t kHeaddim = Problem::HstuAttentionTileSetting::kVHeaddim;
-        constexpr index_t kKPack   = GetSmemKPackOGradT<Problem>();
+        using BlockGemm = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
 
-        return MakeQTOGradTLdsReadBlockDescriptor<Problem, kHeaddim, kKPack>();
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t NumBuffers = GetNumK1Loops<Problem>();
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
+
+        constexpr auto desc_native = MakeWarpGemmAwareBLdsReadBlockNativeDesc<Problem,
+                                                                              WG,
+                                                                              NumBuffers,
+                                                                              kNPerBlock,
+                                                                              kKPerBlock>();
+
+        // merge: NumK1Loops * [kQKHeaddim, kK1] -> [kQKHeaddim, kM0]
+        return transform_tensor_descriptor(
+            desc_native,
+            make_tuple(
+                make_pass_through_transform(number<kNPerBlock>{}),
+                make_merge_transform(make_tuple(number<NumBuffers>{}, number<kKPerBlock>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
     }
 #endif
 
