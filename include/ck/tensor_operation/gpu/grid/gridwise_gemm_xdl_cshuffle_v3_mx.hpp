@@ -502,14 +502,35 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
         index_t K, index_t KPad, index_t N, index_t NPad, index_t StrideB, index_t BK0)
     {
+        // When B packs more elements per storage unit than A (BPackedSize > APackedSize),
+        // B's physical K extent is K * APackedSize / BPackedSize.
+        // e.g. A=fp8 (packed_size=1), B=fp4x2 (packed_size=2): BK = K/2.
+        const index_t BK = [&] {
+            if constexpr(BPackedSize > APackedSize)
+            {
+                static_assert(BPackedSize % APackedSize == 0,
+                              "BPackedSize must be an exact multiple of APackedSize for BK "
+                              "conversion");
+                return K * APackedSize / BPackedSize;
+            }
+            else
+                return K;
+        }();
+        const index_t BKPad = [&] {
+            if constexpr(BPackedSize > APackedSize)
+                return KPad * APackedSize / BPackedSize;
+            else
+                return KPad;
+        }();
+
         const auto b_grid_desc_nraw_kraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(I1, StrideB));
+                return make_naive_tensor_descriptor(make_tuple(N, BK), make_tuple(I1, StrideB));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(StrideB, I1));
+                return make_naive_tensor_descriptor(make_tuple(N, BK), make_tuple(StrideB, I1));
             }
         }();
 
@@ -536,7 +557,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             const auto b_grid_desc_n_k =
                 transform_tensor_descriptor(b_grid_desc_nraw_kraw,
                                             make_tuple(make_right_pad_transform(N, NPad - N),
-                                                       make_right_pad_transform(K, KPad - K)),
+                                                       make_right_pad_transform(BK, BKPad - BK)),
                                             make_tuple(Sequence<0>{}, Sequence<1>{}),
                                             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
@@ -566,11 +587,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           GemmSpec == GemmSpecialization::MKPadding)
         {
             // pad K, but not N
-            const auto b_grid_desc_n_k = transform_tensor_descriptor(
-                b_grid_desc_nraw_kraw,
-                make_tuple(make_pass_through_transform(N), make_right_pad_transform(K, KPad - K)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            const auto b_grid_desc_n_k =
+                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
+                                            make_tuple(make_pass_through_transform(N),
+                                                       make_right_pad_transform(BK, BKPad - BK)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
                 b_grid_desc_n_k,
