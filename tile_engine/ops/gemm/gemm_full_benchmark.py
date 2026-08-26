@@ -70,13 +70,28 @@ VARIANT_CONFIGS = {
 }
 DEFAULT_VARIANT = "gemm_universal"
 
-# Bridge variant string (expand_sweep / GemmKernelConfig.variant) per benchmark
-# variant. Anything not listed goes through the regular "standard" path.
-BRIDGE_VARIANT = {
-    "gemm_multi_abd": "multi_abd",
-}
 CI_CONFIG_NAME = "default_ci_config.json"
 EXAMPLE_PROBLEMS_NAME = "example_problems.json"
+
+# Map the driver's --variant (a configs-dir selector) onto the single codegen/
+# runtime variant token understood by expand_sweep / unified_gemm_codegen /
+# GemmKernelConfig.variant. Every --variant choice must have an entry here.
+CODEGEN_VARIANT = {
+    "gemm_universal": "standard",
+    "gemm_multi_d": "multi_d",
+    "gemm_multi_abd": "multi_abd",
+    "gemm_preshuffle": "preshuffle",
+    "grouped_gemm": "grouped",
+}
+
+# Some variants only support a subset of dtypes/layouts. The preshuffle op
+# (tile_engine gemm_preshuffle) supports fp16/bf16/fp8/bf8 and rcr ONLY.
+VARIANT_SUPPORTED_DTYPES = {
+    "gemm_preshuffle": ("fp16", "bf16", "fp8", "bf8"),
+}
+VARIANT_SUPPORTED_LAYOUTS = {
+    "gemm_preshuffle": ("rcr",),
+}
 
 # Fallback problem set if a variant ships no example_problems.json.
 DEFAULT_PROBLEMS = [
@@ -86,7 +101,7 @@ DEFAULT_PROBLEMS = [
     {"M": 257, "N": 257, "K": 257},
 ]
 
-SUPPORTED_DTYPES = ("fp16", "bf16")
+SUPPORTED_DTYPES = ("fp16", "bf16", "fp8", "bf8")
 # Row-major C only: ck_tile's universal GEMM rejects column-major C at build.
 # The 4-char codes (rcrr, ...) are the multi_abd A,B,E,D layouts; TE gemm_multi_abd
 # only supports rcrr today.
@@ -288,7 +303,12 @@ def main():
         choices=tuple(VARIANT_CONFIGS),
         help="GEMM variant (selects the configs/ directory)",
     )
-    parser.add_argument("--arch", default="gfx942")
+    parser.add_argument(
+        "--arch",
+        default=None,
+        help="GPU arch (e.g. gfx942/gfx950). Auto-detected via rocminfo when "
+        "omitted; never silently defaulted to a specific GPU.",
+    )
     parser.add_argument(
         "--dtype",
         default="fp16",
@@ -366,15 +386,36 @@ def main():
     print(f"  Variant: {args.variant}")
     print(f"  Configs: {', '.join(config_paths)}")
 
-    bridge_variant = BRIDGE_VARIANT.get(args.variant, "standard")
+    if args.variant == "grouped_gemm":
+        print(
+            "  ERROR: grouped_gemm is not supported by this driver; "
+            "use tile_engine/ops/gemm/grouped_gemm/grouped_gemm_benchmark.py"
+        )
+        return 1
+    codegen_variant = CODEGEN_VARIANT[args.variant]
+    # Per-variant dtype/layout guards (e.g. preshuffle is rcr-only, no fp32).
+    ok_dtypes = VARIANT_SUPPORTED_DTYPES.get(args.variant)
+    if ok_dtypes and args.dtype not in ok_dtypes:
+        print(
+            f"  ERROR: variant {args.variant} supports dtypes {ok_dtypes}, "
+            f"got {args.dtype!r}"
+        )
+        return 1
+    ok_layouts = VARIANT_SUPPORTED_LAYOUTS.get(args.variant)
+    if ok_layouts and args.layout not in ok_layouts:
+        print(
+            f"  ERROR: variant {args.variant} supports layouts {ok_layouts}, "
+            f"got {args.layout!r}"
+        )
+        return 1
     # Multi-ABD needs the 4-char (A,B,E,D) layout; if the user left the 3-char
     # default in place, extend it (D defaults to the C/E layout).
     sweep_layout = args.layout
-    if bridge_variant == "multi_abd" and len(sweep_layout) == 3:
+    if codegen_variant == "multi_abd" and len(sweep_layout) == 3:
         sweep_layout = sweep_layout + sweep_layout[2]
     # multi_abd supports only the 'rcrr' layout today; reject anything else up
     # front instead of silently building an unsupported/divergent kernel.
-    if bridge_variant == "multi_abd" and sweep_layout != "rcrr":
+    if codegen_variant == "multi_abd" and sweep_layout != "rcrr":
         raise SystemExit(
             f"multi_abd supports only the 'rcrr' layout today, got {sweep_layout!r}"
         )
@@ -383,7 +424,7 @@ def main():
     # config; otherwise expand_sweep falls back to any multi_abd_config block in
     # the JSON and finally to the Old-TE 2/2/2 all-PassThrough default.
     mabd_kwargs = {}
-    if bridge_variant == "multi_abd":
+    if codegen_variant == "multi_abd":
         if args.multi_abd_num_a is not None:
             mabd_kwargs["num_a_tensors"] = args.multi_abd_num_a
         if args.multi_abd_num_b is not None:
@@ -405,7 +446,7 @@ def main():
                 args.arch,
                 dtype=args.dtype,
                 layout=sweep_layout,
-                variant=bridge_variant,
+                variant=codegen_variant,
                 mabd_cli_overrides=(mabd_kwargs or None),
                 **mabd_kwargs,
             )

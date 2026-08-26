@@ -19,8 +19,9 @@ A unified kernel dispatch system for AMD GPUs with C++ and Python frontends, sup
 6. [External Integration](#external-integration)
 7. [Core Concepts](#core-concepts)
 8. [Operation Support Matrix](#operation-support-matrix)
-9. [Troubleshooting](#troubleshooting)
-10. [File Structure](#file-structure)
+9. [Environment Variables](#environment-variables)
+10. [Troubleshooting](#troubleshooting)
+11. [File Structure](#file-structure)
 
 ---
 
@@ -806,6 +807,25 @@ This matrix shows all CK Tile operations with per-data-type, per-layout, and per
 | bf8 | bf8 | bf8 | fp32 | fp16 |
 | fp6 | fp6 | fp6 | fp32 | fp32 |
 | fp4 | fp16 or bf16 | fp4 | fp32 | fp16 or bf16 |
+
+## Environment Variables
+
+The dispatcher and its Python tooling read the following environment variables at
+runtime. All are optional; unset means the listed default. (Compile-time `-D`
+defines such as `GEMM_KEY_*` and `CK_TILE_SINGLE_KERNEL_INCLUDE` are build flags,
+not runtime knobs, and are covered under [CMake Options](#cmake-options-reference).)
+
+| Variable | Default | Consumed in | Purpose |
+|----------|---------|-------------|---------|
+| `HIPCC` | `hipcc` (from `PATH`) | `python/dispatcher_common.py`, `scripts/compile_gemm_examples.py`, other `*_builder` scripts | Override the hipcc compiler used to JIT-build the ctypes kernel libraries. |
+| `CK_TILE_HIPCC` | `/opt/rocm/bin/hipcc` | `python/batched_contraction_utils.py`, `python/mx_gemm_utils.py` | Per-op hipcc override for the batched-contraction and mx_gemm bindings (takes precedence there). |
+| `GFX_ARCH` | `gfx942` (parity harness only) | `parity_diag/regression/ab_same_harness.py`; also required as a `-DGFX_ARCH=<arch>` compile flag by the ctypes libs | Target GPU architecture. The ctypes kernel build **requires** it (no silent default); the parity harness falls back to `gfx942`. |
+| `CK_DISPATCHER_LOG_LEVEL` | `info` | `include/ck_tile/dispatcher/dispatcher_log.hpp` | Dispatcher log verbosity. |
+| `CK_DISPATCHER_PRESHUFFLE_CACHE` | off | `bindings/ctypes/gemm_ctypes_lib.cpp` | Opt-in host-side shuffled-B cache for the preshuffle GEMM bridge. Safe **only** when B is immutable and kept alive across calls (perf sweeps); off by default so every call recomputes the shuffle. |
+| `GEMM_PARITY_UNITTEST` | off | `tests/test_gemm_parity.py` | Gate that enables the on-device GEMM parity unittest (skipped unless set). |
+| `PARITY_DEVICE` | `0` | `parity_diag/regression/ab_efficient_sweep.py`, `ab_same_harness.py` | GPU index the A/B parity harness runs on. |
+| `AB_REPEATS` | `3` | `parity_diag/regression/ab_same_harness.py` | Repeat count for the interleaved A/B parity sweep. |
+| `OLD_TE_GEN` | unset | `parity_diag/regression/ab_same_harness.py` | Pin/override the Old-TE baseline generation used by the parity sweep. |
 
 ## Troubleshooting
 
