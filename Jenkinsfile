@@ -34,6 +34,60 @@ def loadCk() {
         : 'develop')
     library("ck@${branch}")
 }
+def showCompilerInfo(boolean deferBinaryInfo = false, String dockerImage = "") {
+    def image = dockerImage ?: ck.getDockerImageName()
+    def requestedVersion = params.COMPILER_VERSION ?: "ROCm ${params.ROCMVERSION} release"
+    def requestedCommit = params.COMPILER_COMMIT ?: "not pinned"
+
+    echo """Compiler configuration:
+  Docker image: ${image}
+  Compiler executable: ${params.BUILD_COMPILER}
+  Requested compiler version: ${requestedVersion}
+  Requested compiler commit: ${requestedCommit}"""
+
+    env.COMPILER_INFO_DEFERRED = String.valueOf(deferBinaryInfo)
+    if (deferBinaryInfo) {
+        echo "Compiler binary details deferred until the Docker image rebuild completes."
+        return
+    }
+
+    try {
+        def imageInfo = ck.pullImage(docker_name: image)
+        image = imageInfo[1]
+
+        withEnv([
+            "CK_COMPILER_IMAGE=${image}",
+            "CK_BUILD_COMPILER=${params.BUILD_COMPILER}"
+        ]) {
+            sh(
+                label: 'Show compiler image ID',
+                script: '''#!/bin/bash
+                    set -eu
+                    docker image inspect --format='Compiler image ID: {{.Id}}' "$CK_COMPILER_IMAGE"
+                '''
+            )
+            withDockerContainer(image: image, args: '') {
+                sh(
+                    label: 'Show compiler version',
+                    script: '''#!/bin/bash
+                        set -eu
+                        echo "Compiler executable: $CK_BUILD_COMPILER"
+                        "$CK_BUILD_COMPILER" --version
+                    '''
+                )
+            }
+        }
+        env.COMPILER_INFO_DEFERRED = "false"
+    }
+    catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+        throw e
+    }
+    catch (Exception e) {
+        env.COMPILER_INFO_DEFERRED = "true"
+        echo "Compiler binary details are not available yet: ${e.getMessage()}"
+    }
+}
+
 
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
@@ -274,6 +328,7 @@ pipeline {
                 script {
                     loadCk()
                     ck.runOnHealthyNode(rocmnode("nogpu")) {
+                        showCompilerInfo(params.BUILD_DOCKER.toBoolean())
                         ck.checkoutComposableKernel()
                         env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || ck.shouldRunCICheck())
                         echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
@@ -295,6 +350,9 @@ pipeline {
                             ck.runOnHealthyNode(rocmnode("nogpu")) {
                                 deleteDir()
                                 ck.buildDocker('/opt/rocm')
+                                if ("${env.COMPILER_INFO_DEFERRED}".toBoolean()) {
+                                    showCompilerInfo(false, env.CK_BASE_IMAGE)
+                                }
                                 cleanWs()
                             }
                         }
