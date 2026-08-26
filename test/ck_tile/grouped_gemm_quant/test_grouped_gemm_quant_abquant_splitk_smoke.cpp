@@ -51,11 +51,7 @@ constexpr ck_tile::index_t N_Warp      = 4;
 constexpr ck_tile::index_t K_Warp      = 1;
 constexpr ck_tile::index_t M_Warp_Tile = 16;
 constexpr ck_tile::index_t N_Warp_Tile = 16;
-#if CK_TILE_USE_WMMA
-constexpr ck_tile::index_t K_Warp_Tile = 16;
-#else
-constexpr ck_tile::index_t K_Warp_Tile = 64;
-#endif
+constexpr ck_tile::index_t K_Warp_Tile = ck_tile::get_k_warp_tile<ADataType, M_Warp_Tile>();
 constexpr bool kPadM                   = false;
 constexpr bool kPadN                   = false;
 constexpr bool kPadK                   = false;
