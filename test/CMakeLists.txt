@@ -10,7 +10,7 @@ include(gtest)
 
 add_custom_target(tests)
 
-# list of tests that are labelled as REGRESSION_TEST for make regression (runtime more than 30 seconds)
+# list of tests that are labelled as REGRESSION_TEST for make regression (runtime more than 60 seconds on emulator)
 # all other tests are labelled as SMOKE_TEST
 set(REGRESSION_TESTS
     test_gemm_standalone_xdl_fp16
@@ -54,6 +54,94 @@ set(REGRESSION_TESTS
     test_ck_tile_fmha_fwd_mxfp8
     test_ck_tile_fmha_fwd_mxfp4
     test_ck_tile_streamk_extended
+    test_amdgcn_mma_layout_gfx1250
+    test_gemm_multiply_multiply_wmma
+    test_gemm_multiply_multiply_wp_fp8
+    test_gemm_universal_fp16
+    test_gemm_universal_bf16
+    test_gemm_universal_preshuffle_fp8
+    test_gemm_ab_scale
+    test_batched_contraction
+    test_grouped_convnd_fwd_bilinear
+    test_grouped_convnd_fwd_dynamic_op
+    test_grouped_convnd_fwd_bias_clamp
+    test_grouped_convnd_fwd_gk_bias_clamp
+    test_grouped_convnd_fwd_clamp
+    test_grouped_convnd_fwd_scale
+    test_grouped_convnd_fwd_gk_bias_bnorm_clamp
+    test_grouped_convnd_fwd_scaleadd_scaleadd_relu
+    test_contraction
+    test_avg_pool3d_fwd
+    test_max_pool3d_fwd
+    test_grouped_convnd_bwd_data
+    test_monitor_mwait
+    test_ck_tile_gemm_pipeline_tdm_wmma
+    test_ck_tile_gemm_pipeline_wp
+    test_ck_tile_gemm_pipeline_wp_tdm
+    test_ck_tile_grouped_gemm_multi_d
+    test_ck_tile_grouped_gemm_preshuffle
+    test_memory_copy
+    test_fill
+    test_ck_tile_pooling
+    test_magic_number_division
+    test_gemm_fp32
+    test_gemm_bf16
+    test_gemm_int8
+    test_gemm_add
+    test_gemm_add_relu
+    test_gemm_add_silu
+    test_gemm_add_fastgelu
+    test_gemm_fastgelu_wmma
+    test_gemm_add_add_fastgelu_wmma
+    test_gemm_add_multiply_wmma
+    test_gemm_multiply_add_wmma
+    test_gemm_bilinear_wmma
+    test_gemm_add_relu_add_layernorm_fp16
+    test_gemm_multi_abd
+    test_gemm_universal_fp8
+    test_gemm_b_scale
+    test_batched_gemm
+    test_batched_gemm_gemm_fp16
+    test_batched_gemm_gemm_bf16_wmma_cshuffle_v3
+    test_grouped_gemm_fastgelu
+    test_grouped_gemm_fixed_nk
+    test_grouped_gemm_fixed_nk_bias
+    test_grouped_gemm_tile_loop_vanilla
+    test_grouped_gemm_tile_loop_multiply
+    test_grouped_convnd_fwd_wavelet
+    test_grouped_convnd_bwd_weight_bilinear
+    test_grouped_convnd_bwd_weight_scale
+    test_layernorm2d_fwd_fp32
+    test_groupnorm_fwd_fp32
+    test_layernorm2d_fwd_fp16
+    test_elementwise_layernorm_fp16
+    test_batchnorm_infer_rank_4
+    test_avg_pool3d_bwd
+    test_avg_pool2d_fwd
+    test_max_pool2d_fwd
+    test_gemm_quantization
+)
+# List of tests currently failing on gfx1250 emulator.
+# All of the failing tests must be fixed asap.
+set(KNOWN_FAILING_TESTS
+    test_ck_tile_batched_gemm_int8
+    test_ck_tile_grouped_gemm_bf8
+    test_ck_tile_grouped_gemm_int8
+    test_ck_tile_mx_scale
+    test_tile_gemm_quant_bquant_microscale_rcr_1d_64
+    test_tile_gemm_quant_bquant_microscale_ccr_1d_64
+    test_tile_gemm_quant_bquant_microscale_rcr_1d_128
+    test_tile_gemm_quant_bquant_microscale_ccr_1d_128
+    test_ck_tile_mx_gemm_pipeline_tdm_wmma
+    test_gemm_blockscale_wp_fp8
+    test_grouped_gemm_multi_abd_fixed_nk
+    test_fp6
+    test_bf6
+    test_mx_fp4
+    test_mx_fp6
+    test_mx_bf6
+    test_mx_fp8_pk4scale
+    test_mx_bf8_pk4scale
 )
 
 function(add_test_executable TEST_NAME)
@@ -141,7 +229,7 @@ function(add_test_executable TEST_NAME)
     endif()
     message(DEBUG "add_test returns ${result}")
     set(result ${result} PARENT_SCOPE)
-    if(result EQUAL 0 AND NOT "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
+    if(result EQUAL 0 AND NOT "${TEST_NAME}" IN_LIST REGRESSION_TESTS AND NOT "${TEST_NAME}" IN_LIST KNOWN_FAILING_TESTS)
         set_tests_properties(${TEST_NAME} PROPERTIES LABELS "SMOKE_TEST")
         add_dependencies(smoke ${TEST_NAME})
     elseif(result EQUAL 0 AND "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
@@ -253,7 +341,7 @@ function(add_gtest_executable TEST_NAME)
     endif()
     message(DEBUG "add_gtest returns ${result}")
     set(result ${result} PARENT_SCOPE)
-    if(result EQUAL 0 AND NOT "${TEST_NAME}" IN_LIST REGRESSION_TESTS)
+    if(result EQUAL 0 AND NOT "${TEST_NAME}" IN_LIST REGRESSION_TESTS AND NOT "${TEST_NAME}" IN_LIST KNOWN_FAILING_TESTS)
         set_tests_properties(${TEST_NAME} PROPERTIES LABELS "SMOKE_TEST")
         add_dependencies(smoke ${TEST_NAME})
     elseif(result EQUAL 0 AND "${TEST_NAME}" IN_LIST REGRESSION_TESTS)

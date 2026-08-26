@@ -943,7 +943,11 @@ def cmake_build(Map conf=[:]){
                     }
                     else{ //do not run tests on gfx1250, just build everything
                         echo "Building for gfx1250"
-                        sh "ninja -j${nt} install"
+                        sh """
+                            export HSA_MODEL_LIB=/libhsakmtmodel.so
+                            export HSA_MODEL_TOPOLOGY=/topology/mi450
+                            ninja -j${nt} install smoke
+                        """
                     }
                     if (params.RUN_ROCM_CK_TESTS) {
                         sh 'ninja check-rocm-ck'
@@ -1518,7 +1522,7 @@ def runBuildCKAndTests(String arch) {
         case "gfx1250":
             gpuTarget = "gfx1250"
             extraSetupArgs = " -DDISABLE_DL_KERNELS=\"ON\""
-            extraBuildArgs = [docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_gfx1250"]
+            extraBuildArgs = [docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_gfx1250_ffm"]
             break
         case "gfx10-1-generic":
         case "gfx10-3-generic":
