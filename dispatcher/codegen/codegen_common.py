@@ -248,18 +248,22 @@ def parallel_generate(
     generate_fn: Callable[[T], R],
     items: Sequence[T],
     parallel: bool = True,
+    max_workers: Optional[int] = None,
 ) -> List[R]:
     """Run ``generate_fn`` over ``items``, optionally in parallel.
 
     Logs per-item progress (best-of-conv pattern).
     Returns a flat list of results in completion order.
+
+    ``max_workers`` caps the thread pool size; ``None`` keeps the previous
+    behavior of letting ThreadPoolExecutor pick its own default.
     """
     results: List[R] = []
     if not items:
         return results
 
     if parallel and len(items) > 1:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(generate_fn, item): item for item in items}
             for future in concurrent.futures.as_completed(futures):
                 result = future.result()

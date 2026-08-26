@@ -8,6 +8,7 @@
 | GEMM | streamk_gemm [5][6][7]<br>engine: gemm_streamk/<br>example: 40_streamk_gemm/ | ✅ | ✅ | ❌ | ❌ | | | | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | |
 | GEMM | batched_gemm [11]<br>engine: batched_gemm/<br>example: 16_batched_gemm/ | ✅ | | | | | | | ✅ | | | | ✅ | ✅ | ✅ | ✅ | 0.0833 |
 | GEMM | batched_contraction<br>example: 41_batched_contraction/ | ✅ | | | | | | | ✅ | | | | ✅ | ✅ | ✅ | ❌ | 0.0833 |
+| GEMM | batched_contraction_multi_abd [13]<br>engine: gemm/contraction_multi_abd/ | ✅ | ❌ | ❌ | ❌ | | | | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | |
 | GEMM | block_scale_gemm/gemm_rowcolquant [9]<br>engine: block_scale_gemm/gemm_rowcolquant/<br>example: 38_block_scale_gemm/ | | ✅ | | ✅ | | | | ✅ | | | | ❌ | ✅ | ✅ | ✅ | 0.0833 |
 | GEMM | block_scale_gemm/gemm_tensor_quant [9]<br>engine: block_scale_gemm/gemm_tensor_quant/<br>example: 38_block_scale_gemm/ | | ✅ | | ✅ | | | | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | 0.0833 |
 | GEMM | flatmm<br>example: 18_flatmm/ | ❌ | ❌ | ❌ | ❌ | | ❌ | ❌ | ❌ | | | | ❌ | ❌ | ❌ | ❌ | |
@@ -60,6 +61,7 @@
 - [10] **grouped_gemm:** Tile engine filters to gfx942, gfx950, and gfx12-generic (gfx1201) targets only. Supports fp16 and fp8 datatypes with all 4 layouts.
 - [11] **batched_gemm:** Tile engine supports fp16 with rcr layout only. The engine filters to gfx90a, gfx942, gfx950, and gfx1201 targets.
 - [12] **mx_gemm:** Microscaling GEMM supporting fp4 and fp8 MX datatypes with rcr layout. Validated on gfx942 and gfx950 only.
+- [13] **batched_contraction_multi_abd:** `configs/default_config.json` declares no `dtype`/`layout` traits, so the engine sweeps the fp16/rcr defaults. bf16, fp8 and bf8 kernels build (verified on gfx942) but have no engine configuration, hence ❌. fp32 does not build for this kernel even though other GEMM ops support it. `rrr`/`ccr`/`crr` trip the row-major-B `static_assert` in `gemm_pipeline_ag_bg_cr_comp_v3.hpp`, which still fires with `pad_k` enabled, at 128x128x32, and on the `mem` pipeline. Multiple D tensors are supported; multiple A or B tensors and `persistent=true` are rejected during codegen. No entry in `sampling/op_weights.json`, so the op is outside the daily sampling tier.
 - Reduce operations do not use matrix layouts.
 
 **Layout codes:** Each layout code specifies the memory layout of tensors A, B, and C as row-major (r) or column-major (c). For example, `rcr` means A is row-major, B is column-major, and C is row-major. For gemm_multi_d, the instance builder uses 4-character codes (e.g., `rcrr`) where the 4th character specifies the D tensor layout; in the table above, the 3-character A/B/C portion is shown since the D layout is always row-major (r) for all supported configurations.

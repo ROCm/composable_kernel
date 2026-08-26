@@ -511,6 +511,53 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/batched_gemm_ctypes_lib.cpp)
     endif()
 endif()
 
+# --- Batched-Contraction Multi-ABD (registry-bypass, multi-tensor + multi-dim ABI) ---
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/batched_contraction_multi_abd_ctypes_lib.cpp)
+    file(GLOB CMA_KERNEL_HEADERS
+        "${CMAKE_BINARY_DIR}/generated_kernels/contraction_multi_abd_*.hpp")
+    if(CMA_KERNEL_HEADERS)
+        list(SORT CMA_KERNEL_HEADERS)
+        list(GET CMA_KERNEL_HEADERS 0 CMA_KERNEL_HEADER)
+        message(STATUS "Found batched-contraction-multi-abd kernel for ctypes lib: ${CMA_KERNEL_HEADER}")
+
+        # Resolve the GPU architecture for the CMake-driven build path.
+        # The Python bridge always passes -DGFX_ARCH=... explicitly via hipcc, so
+        # this only affects builds driven through CMake directly. Unlike the
+        # sibling libs, there is no hard-coded fallback arch: the arch must come
+        # from -DCK_TILE_CMA_GFX_ARCH or CMAKE_HIP_ARCHITECTURES, else we fail.
+        if(NOT DEFINED CK_TILE_CMA_GFX_ARCH OR CK_TILE_CMA_GFX_ARCH STREQUAL "")
+            if(CMAKE_HIP_ARCHITECTURES)
+                list(GET CMAKE_HIP_ARCHITECTURES 0 _cma_gfx_arch)
+            else()
+                # Do not guess: a wrong arch compiles cleanly and then mis-tunes
+                # or fails to load on the real device.
+                message(FATAL_ERROR
+                    "Cannot resolve a GPU architecture for "
+                    "dispatcher_batched_contraction_multi_abd_lib: neither "
+                    "CK_TILE_CMA_GFX_ARCH nor CMAKE_HIP_ARCHITECTURES is set. "
+                    "Pass -DCK_TILE_CMA_GFX_ARCH=<gfxNNN>.")
+            endif()
+            set(CK_TILE_CMA_GFX_ARCH "${_cma_gfx_arch}" CACHE STRING
+                "GPU architecture for dispatcher_batched_contraction_multi_abd_lib (CMake path)")
+        endif()
+        message(STATUS "Batched-Contraction Multi-ABD ctypes lib GFX_ARCH: ${CK_TILE_CMA_GFX_ARCH}")
+
+        add_ctypes_library(dispatcher_batched_contraction_multi_abd_lib
+            batched_contraction_multi_abd_ctypes_lib.cpp
+            KERNEL_HEADER ${CMA_KERNEL_HEADER}
+        )
+        target_compile_definitions(dispatcher_batched_contraction_multi_abd_lib PRIVATE
+            CK_TILE_SINGLE_KERNEL_INCLUDE
+            GFX_ARCH="${CK_TILE_CMA_GFX_ARCH}"
+        )
+    else()
+        message(STATUS
+            "No batched-contraction-multi-abd kernel found for ctypes lib - skipping "
+            "dispatcher_batched_contraction_multi_abd_lib (built at runtime by the Python "
+            "bridge once a kernel header exists)")
+    endif()
+endif()
+
 # --- Batched-Contraction (registry-bypass, force-included kernel) ------------
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/batched_contraction_ctypes_lib.cpp)
     file(GLOB BC_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/batched_contraction_*.hpp")

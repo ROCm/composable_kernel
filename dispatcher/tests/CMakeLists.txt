@@ -42,6 +42,24 @@ set_tests_properties(dispatcher_test_batched_contraction_gpu_correctness PROPERT
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# Bridge on-device GPU correctness test (SKIPs cleanly without a GPU/hipcc).
+add_test(
+    NAME dispatcher_test_contraction_multi_abd_gpu_correctness
+    # Run the script directly: this module is script-style (a parameterized
+    # function + main() guard), not unittest.TestCase, so `unittest discover`
+    # would collect 0 tests and pass vacuously. main() skips (exit 0) without a
+    # GPU/hipcc and returns nonzero only on a real correctness failure.
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_contraction_multi_abd_gpu_correctness.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+set_tests_properties(dispatcher_test_contraction_multi_abd_gpu_correctness PROPERTIES
+    LABELS "dispatcher;python;bridge;gpu"
+    # Builds a kernel from source via hipcc before running; needs more than the
+    # 600s the sibling bridges use.
+    TIMEOUT 1800
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # =============================================================================
 # Python Tests
 # =============================================================================

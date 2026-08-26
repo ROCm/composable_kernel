@@ -710,6 +710,7 @@ This matrix shows all CK Tile operations with per-data-type, per-layout, and per
 | | | | | | **Data Types** | | | | | **Layouts** | | | | **GPU Targets** | | |
 |:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Op** | **CK Tile Kernel** | **fp16** | **fp8** | **bf16** | **bf8** | **int8** | **fp4** | **fp6** | **rcr** | **rrr** | **ccr** | **crr** | **90a** | **942** | **950** | **1201** |
+| GEMM | batched_contraction_multi_abd [9]<br>engine: `dispatcher/` | ✅ | ✅ | ✅ | ✅ |  |  |  | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
 | GEMM | gemm_multi_d [5]<br>engine: `dispatcher/`<br>example: `19_gemm_multi_d/` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | GEMM | gemm_preshuffle [1][2]<br>engine: `dispatcher/` | ✅ | ✅ | ✅ | ✅ | ✅ |  |  | ✅ |  |  |  | ✅ | ✅ | ✅ | ❌ |
 | GEMM | gemm_universal [3][4][7][8]<br>engine: `dispatcher/`<br>example: `03_gemm/` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -751,6 +752,7 @@ This matrix shows all CK Tile operations with per-data-type, per-layout, and per
 - [6] **grouped_conv:** `arch_filter.py` defines conv operator types (`CONV_FWD`, `CONV_BWD_DATA`, `CONV_BWD_WEIGHT`, `CONV3D_*`) but dispatcher infrastructure is incomplete (ctypes bindings are stubs, `conv_utils.hpp` does not exist).
 - [7] **(all dispatcher ops):** gfx908, gfx1100, and gfx1200 also have `warp_tile_combos` in `arch_specs.json` but are not shown in the matrix's 4 GPU columns.
 - [8] **(all dispatcher ops):** `int4`, `fp32`, `fp64` are valid dispatcher data types (defined in `kernel_key.hpp` `DataType` enum) but have no dedicated matrix columns.
+- [9] **batched_contraction_multi_abd:** Reaches the kernel through the divergent-ABI bridge (`batched_contraction_multi_abd_ctypes_lib.cpp`) rather than the kernel registry, because the argument list is arrays of A/B/D pointers plus per-tensor dim/stride arrays. `fp16` and `bf16` are verified against a NumPy reference on hardware; `fp8`/`bf8` are build-verified only. `fp32` builds for other ops but not for this one, so it is excluded even though it has no column here. Only `rcr` is usable: `rrr`/`ccr`/`crr` trip the row-major-B `static_assert` in `gemm_pipeline_ag_bg_cr_comp_v3.hpp`, which still fires with `pad_k` enabled, at 128x128x32, and on the `mem` pipeline. Multiple D tensors are supported; multiple A or B tensors and `persistent=true` are rejected at config-construction time (see `validate_contraction_multi_abd_params`).
 
 ### Dispatcher GEMM Configuration Detail
 
