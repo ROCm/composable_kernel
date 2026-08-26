@@ -671,30 +671,56 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem, typename WarpGemm, index_t NumBuffers, index_t kN, index_t kK>
     CK_TILE_HOST_DEVICE static constexpr auto MakeWarpGemmAwareBLdsReadBlockNativeDesc()
     {
-        constexpr index_t kKPack   = WarpGemm::WarpGemmAttribute::Impl::kABKPerLane;
-        constexpr index_t NThreads = WarpGemm::WarpGemmAttribute::Impl::kBNLane;
+        constexpr index_t kKPack    = WarpGemm::WarpGemmAttribute::Impl::kABKPerLane;
+        constexpr index_t NThreads  = WarpGemm::WarpGemmAttribute::Impl::kBNLane;
+        constexpr index_t NLdsLayer = kN / NThreads;
 
-        constexpr auto desc_native_0 =
+        // 4D packed physical layout [NumBuffers, NThreads, (kK/kKPack)*NLdsLayer, kKPack].
+        constexpr index_t SingleBufferSize = kN * kK;
+        constexpr auto desc_0 =
             make_naive_tensor_descriptor(make_tuple(number<NumBuffers>{},
-                                                    number<kN / NThreads>{},
-                                                    number<kK / kKPack>{},
                                                     number<NThreads>{},
+                                                    number<kK / kKPack * NLdsLayer>{},
                                                     number<kKPack>{}),
-                                         make_tuple(number<kN * kK>{},
-                                                    number<kK * NThreads>{},
-                                                    number<NThreads * kKPack>{},
+                                         make_tuple(number<SingleBufferSize>{},
+                                                    number<kK * NLdsLayer>{},
                                                     number<kKPack>{},
                                                     number<1>{}),
                                          number<kKPack>{},
                                          number<1>{});
 
-        return transform_tensor_descriptor(
-            desc_native_0,
+        // XOR-swizzle the (NThreads, kK-group*NLdsLayer) dims -> scatter banks.
+        constexpr auto desc_permuted = transform_tensor_descriptor(
+            desc_0,
+            make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                       make_xor_transform(
+                           make_tuple(number<NThreads>{}, number<kK / kKPack * NLdsLayer>{})),
+                       make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+        // Split the kK-group dim back into [kK/kKPack, NLdsLayer].
+        constexpr auto desc_split = transform_tensor_descriptor(
+            desc_permuted,
             make_tuple(
                 make_pass_through_transform(number<NumBuffers>{}),
-                make_merge_transform(make_tuple(number<kN / NThreads>{}, number<NThreads>{})),
-                make_merge_transform(make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
-            make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2, 4>{}),
+                make_pass_through_transform(number<NThreads>{}),
+                make_unmerge_transform(make_tuple(number<kK / kKPack>{}, number<NLdsLayer>{})),
+                make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
+
+        // Re-merge to the logical 3D physical view [NumBuffers, kN, kK]:
+        //   kN = NLdsLayer * NThreads
+        //   kK = (kK/kKPack) * kKPack
+        return transform_tensor_descriptor(
+            desc_split,
+            make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<NLdsLayer>{}, number<NThreads>{})),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<0>{}, sequence<3, 1>{}, sequence<2, 4>{}),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
     }
 
