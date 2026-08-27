@@ -417,13 +417,15 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem, index_t NumBuffers, index_t kN, index_t kK, index_t kKPack>
     CK_TILE_HOST_DEVICE static constexpr auto MakeSwizzledNativeDesc()
     {
-        using DataType             = remove_cvref_t<typename Problem::QKVDataType>;
-        constexpr index_t DataSize = sizeof(DataType);
+        constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
+
         // Number of kKPack groups the kN row is scattered into (bank-group span).
 #ifdef __gfx950__
-        constexpr index_t NLdsLayer = (64 * 4 / kK / DataSize) < 1 ? 1 : (64 * 4 / kK / DataSize);
+        constexpr index_t NLdsLayer =
+            (64 * 4 / kK / ElementBytes) < 1 ? 1 : (64 * 4 / kK / ElementBytes);
 #else
-        constexpr index_t NLdsLayer = (32 * 4 / kK / DataSize) < 1 ? 1 : (32 * 4 / kK / DataSize);
+        constexpr index_t NLdsLayer =
+            (32 * 4 / kK / ElementBytes) < 1 ? 1 : (32 * 4 / kK / ElementBytes);
 #endif
 
         // 4D packed physical layout [NumBuffers, kN/NLdsLayer, (kK/kKPack)*NLdsLayer, kKPack].
@@ -671,15 +673,28 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem, typename WarpGemm, index_t NumBuffers, index_t kN, index_t kK>
     CK_TILE_HOST_DEVICE static constexpr auto MakeWarpGemmAwareBLdsReadBlockNativeDesc()
     {
-        constexpr index_t kKPack    = WarpGemm::WarpGemmAttribute::Impl::kABKPerLane;
-        constexpr index_t NThreads  = WarpGemm::WarpGemmAttribute::Impl::kBNLane;
-        constexpr index_t NLdsLayer = kN / NThreads;
+        constexpr index_t kKPack = WarpGemm::WarpGemmAttribute::Impl::kABKPerLane;
+
+        constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
+
+        // Number of kKPack groups the kN row is scattered into (bank-group span).
+#ifdef __gfx950__
+        constexpr index_t MaxNLdsLayer =
+            (64 * 4 / kK / ElementBytes) < 1 ? 1 : (64 * 4 / kK / ElementBytes);
+#else
+        constexpr index_t MaxNLdsLayer =
+            (32 * 4 / kK / ElementBytes) < 1 ? 1 : (32 * 4 / kK / ElementBytes);
+#endif
+
+        constexpr index_t NThreads = WarpGemm::WarpGemmAttribute::Impl::kBNLane;
+
+        constexpr index_t NLdsLayer = min(kN / NThreads, MaxNLdsLayer);
 
         // 4D packed physical layout [NumBuffers, NThreads, (kK/kKPack)*NLdsLayer, kKPack].
         constexpr index_t SingleBufferSize = kN * kK;
         constexpr auto desc_0 =
             make_naive_tensor_descriptor(make_tuple(number<NumBuffers>{},
-                                                    number<NThreads>{},
+                                                    number<kN / NLdsLayer>{},
                                                     number<kK / kKPack * NLdsLayer>{},
                                                     number<kKPack>{}),
                                          make_tuple(number<SingleBufferSize>{},
@@ -694,7 +709,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             desc_0,
             make_tuple(make_pass_through_transform(number<NumBuffers>{}),
                        make_xor_transform(
-                           make_tuple(number<NThreads>{}, number<kK / kKPack * NLdsLayer>{})),
+                           make_tuple(number<kN / NLdsLayer>{}, number<kK / kKPack * NLdsLayer>{})),
                        make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
             make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
@@ -704,7 +719,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             desc_permuted,
             make_tuple(
                 make_pass_through_transform(number<NumBuffers>{}),
-                make_pass_through_transform(number<NThreads>{}),
+                make_pass_through_transform(number<kN / NLdsLayer>{}),
                 make_unmerge_transform(make_tuple(number<kK / kKPack>{}, number<NLdsLayer>{})),
                 make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
@@ -717,7 +732,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             desc_split,
             make_tuple(make_pass_through_transform(number<NumBuffers>{}),
                        make_merge_transform_v3_division_mod(
-                           make_tuple(number<NLdsLayer>{}, number<NThreads>{})),
+                           make_tuple(number<NLdsLayer>{}, number<kN / NLdsLayer>{})),
                        make_merge_transform_v3_division_mod(
                            make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<0>{}, sequence<3, 1>{}, sequence<2, 4>{}),
