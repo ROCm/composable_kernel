@@ -1528,7 +1528,7 @@ def runBuildCKAndTests(String arch) {
         case "gfx1250":
             gpuTarget = "gfx1250"
             extraSetupArgs = " -DDISABLE_DL_KERNELS=\"ON\""
-            extraBuildArgs = [docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_gfx1250_ffm"]
+            extraBuildArgs = [docker_name: "${env.CK_DOCKERHUB}:ck_ub24.04_gfx1250_ffm"]
             break
         case "gfx10-1-generic":
         case "gfx10-3-generic":

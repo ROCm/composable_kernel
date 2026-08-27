@@ -90,11 +90,8 @@ set(REGRESSION_EXAMPLES
 # List of examples currently failing on gfx1250 emulator.
 # All of the failing examples must be fixed asap.
 set(KNOWN_FAILING_EXAMPLES
-    example_gemm_multiply_multiply_xdl_fp8_blockscale_bpreshuffle
     example_gemm_mx_fp6
     example_gemm_mx_bf6
-    example_gemm_mx_fp8_fp4
-    example_gemm_mx_fp8_fp4_bpreshuffle
 )
 
 

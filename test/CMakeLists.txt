@@ -124,9 +124,6 @@ set(REGRESSION_TESTS
 # List of tests currently failing on gfx1250 emulator.
 # All of the failing tests must be fixed asap.
 set(KNOWN_FAILING_TESTS
-    test_ck_tile_batched_gemm_int8
-    test_ck_tile_grouped_gemm_bf8
-    test_ck_tile_grouped_gemm_int8
     test_ck_tile_mx_scale
     test_tile_gemm_quant_bquant_microscale_rcr_1d_64
     test_tile_gemm_quant_bquant_microscale_ccr_1d_64
