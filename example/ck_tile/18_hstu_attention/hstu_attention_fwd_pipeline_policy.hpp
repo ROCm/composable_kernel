@@ -201,20 +201,28 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                    GetVSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>());
     };
 
-    template <typename Problem, index_t NumBuffers, index_t kN, index_t kK, index_t kKPack>
+    template <typename Problem,
+              index_t NumBuffers,
+              index_t SingleBufferSize,
+              index_t kN,
+              index_t kK,
+              index_t kKPack>
     CK_TILE_HOST_DEVICE static constexpr auto MakeSwizzledNativeDesc()
     {
-        using DataType             = remove_cvref_t<typename Problem::QKVDataType>;
-        constexpr index_t DataSize = sizeof(DataType);
+        constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
+
         // Number of kKPack groups the kN row is scattered into (bank-group span).
 #ifdef __gfx950__
-        constexpr index_t NLdsLayer = (64 * 4 / kK / DataSize) < 1 ? 1 : (64 * 4 / kK / DataSize);
+        constexpr index_t NLdsLayer =
+            (64 * 4 / kK / ElementBytes) < 1 ? 1 : (64 * 4 / kK / ElementBytes);
 #else
-        constexpr index_t NLdsLayer = (32 * 4 / kK / DataSize) < 1 ? 1 : (32 * 4 / kK / DataSize);
+        constexpr index_t NLdsLayer =
+            (32 * 4 / kK / ElementBytes) < 1 ? 1 : (32 * 4 / kK / ElementBytes);
 #endif
 
+        static_assert(SingleBufferSize >= kN * kK, "Check failed!");
+
         // 4D packed physical layout [NumBuffers, kN/NLdsLayer, (kK/kKPack)*NLdsLayer, kKPack].
-        constexpr index_t SingleBufferSize = kN * kK;
         constexpr auto desc_0 =
             make_naive_tensor_descriptor(make_tuple(number<NumBuffers>{},
                                                     number<kN / NLdsLayer>{},
@@ -271,7 +279,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
 
-        constexpr index_t SingleSmemElementSpaceSize =
+        constexpr index_t SingleBufferSize =
             GetSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>();
 
         // for hdim96 and hdim160, use simplest layout
@@ -283,7 +291,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
-                make_tuple(number<SingleSmemElementSpaceSize>{}, number<kKPerBlock>{}, number<1>{}),
+                make_tuple(number<SingleBufferSize>{}, number<kKPerBlock>{}, number<1>{}),
                 number<kKVector>{},
                 number<1>{});
 
@@ -300,8 +308,12 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
         { // This path can only be reached if WarpGemm is 16x16x32 or 32x32x16
 
-            constexpr auto desc_native =
-                MakeSwizzledNativeDesc<Problem, NumKLdsBuffers, kNPerBlock, kKPerBlock, kKPack>();
+            constexpr auto desc_native = MakeSwizzledNativeDesc<Problem,
+                                                                NumKLdsBuffers,
+                                                                SingleBufferSize,
+                                                                kNPerBlock,
+                                                                kKPerBlock,
+                                                                kKPack>();
 
             return transform_tensor_descriptor(
                 desc_native,
@@ -326,7 +338,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                                                         number<kKVector / kKPack>{},
                                                         number<kNPerBlock>{},
                                                         number<kKPack>{}),
-                                             make_tuple(number<SingleSmemElementSpaceSize>{},
+                                             make_tuple(number<SingleBufferSize>{},
                                                         number<kNPerBlock * kKVector + kKPack>{},
                                                         number<kNPerBlock * kKPack>{},
                                                         number<kKPack>{},
@@ -409,8 +421,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kK1;
 
-        constexpr index_t SingleSmemElementSpaceSize =
-            GetSingleSmemElementSpaceSize<Problem, kUseTrLoad>();
+        constexpr index_t SingleBufferSize = GetSingleSmemElementSpaceSize<Problem, kUseTrLoad>();
 
         if constexpr(!kUseTrLoad)
         {
@@ -431,10 +442,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             static_assert(VSingleSmemElementSpaceSize == GetVSingleSmemElementSpaceSize<Problem>());
 
+            // the naive Lds is laid-out comforting the reading of V^t by gemm_1()
             constexpr auto v_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(
                     number<NumVLdsBuffers>{}, number<N0>{}, number<N1>{}, number<kKPerBlock>{}),
-                make_tuple(number<SingleSmemElementSpaceSize>{},
+                make_tuple(number<SingleBufferSize>{},
                            number<N1 * kKPerBlock + kKPack>{},
                            number<kKPerBlock>{},
                            number<1>{}),
@@ -453,44 +465,34 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else
         {
-            constexpr index_t kKPack = GetSmemKPackV<Problem, true>();
-
-            constexpr auto XorGroupSize =
-                Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<0>{});
+            // With trload read,  16 threads per cycle access the [4Tl, 4Tm*4E] block and cross-bar
+            // transpose it to [4E, 4Tm*4Tl] layout suitable for mfma. For hdim128, kK1=32, [32,
+            // 128] = [2R*4Th*4Tl, 8R*4Tm*4E],  8R columns swizzled by 32 rows, for each value of
+            // 8R, the 4Tl rows is mapped to separate bigger bank-groups (each has BankGroupSize
+            // elements), able to guarantee 16 threads (4Tl*4Tm) in one cycle hitting to separate
+            // smaller bank-groups (each has 4 elements, two dwords)
+            constexpr auto BankGroupSize =
+                Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{});
 
             constexpr index_t VSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
 
             static_assert(VSingleSmemElementSpaceSize ==
                           GetVSingleSmemElementSpaceSize<Problem, true>());
 
-            constexpr auto v_lds_block_desc_naive =
-                make_naive_tensor_descriptor(make_tuple(number<NumVLdsBuffers>{},
-                                                        number<kKPerBlock>{},
-                                                        number<kNPerBlock / XorGroupSize>{},
-                                                        number<XorGroupSize>{}),
-                                             make_tuple(number<SingleSmemElementSpaceSize>{},
-                                                        number<kNPerBlock>{},
-                                                        number<XorGroupSize>{},
-                                                        number<1>{}),
-                                             number<kKPack>{},
-                                             number<1>{});
+            constexpr auto desc_native = MakeSwizzledNativeDesc<Problem,
+                                                                NumVLdsBuffers,
+                                                                SingleBufferSize,
+                                                                kKPerBlock, // kN
+                                                                kNPerBlock, // kK
+                                                                BankGroupSize>();
 
-            constexpr auto v_lds_block_desc_permuted = transform_tensor_descriptor(
-                v_lds_block_desc_naive,
-                make_tuple(make_pass_through_transform(number<NumVLdsBuffers>{}),
-                           make_xor_transform(make_tuple(number<kKPerBlock>{},
-                                                         number<kNPerBlock / XorGroupSize>{})),
-                           make_pass_through_transform(number<XorGroupSize>{})),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
-
+            // merge: NumVLdsBuffers * [kK1, kVHeaddim] -> [kN0, kVHeaddim]
             return transform_tensor_descriptor(
-                v_lds_block_desc_permuted,
+                desc_native,
                 make_tuple(make_merge_transform(
                                make_tuple(number<NumVLdsBuffers>{}, number<kKPerBlock>{})),
-                           make_merge_transform_v3_division_mod(make_tuple(
-                               number<kNPerBlock / XorGroupSize>{}, number<XorGroupSize>{}))),
-                make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
+                           make_pass_through_transform(number<kNPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         };
     }
