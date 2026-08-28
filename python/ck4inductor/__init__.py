@@ -19,8 +19,10 @@ if TYPE_CHECKING:
 
 # Needs to be manually updated at each release; it cannot be derived here. Release
 # tags (therock-*) exist only in the monorepo, but the wheel is built from the
-# filtered mirror, whose reachable tags stop at therock-7.10.
-BASE_VERSION = "7.14"
+# filtered mirror, whose reachable tags stop at therock-7.10. Track the ROCm
+# version named by the CHANGELOG heading, which is the only statement of it in
+# this tree.
+BASE_VERSION = "10.0"
 
 _HASH_WIDTH = 7
 
