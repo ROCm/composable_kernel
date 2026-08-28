@@ -66,7 +66,9 @@ template <typename ArchTag, typename... Attrs>
 using kernel_attr_for = typename detail::kernel_attr_for_helper<ArchTag, Attrs...>::type;
 
 #if CK_TILE_USE_LAUNCH_BOUNDS
-#define KENTRY_LAUNCH_BOUNDS __launch_bounds__(Kernel::kBlockSize, MinBlockPerCu)
+// Use compiler-specific encoding of MinBlockPerCu, where 0 is "unspecified".
+#define KENTRY_MIN_WAVES_PER_EU (0 < (MinBlockPerCu) ? (MinBlockPerCu) : 0)
+#define KENTRY_LAUNCH_BOUNDS __launch_bounds__(Kernel::kBlockSize, KENTRY_MIN_WAVES_PER_EU)
 #else
 #define KENTRY_LAUNCH_BOUNDS
 #endif
@@ -99,6 +101,7 @@ KENTRY_LAUNCH_BOUNDS KENTRY_ATTR_NO_PACKED_FP32_OPS __global__ //
 }
 
 #undef KENTRY_LAUNCH_BOUNDS
+#undef KENTRY_MIN_WAVES_PER_EU
 #undef KENTRY_BODY
 #undef KENTRY_ATTR_NO_PACKED_FP32_OPS
 
