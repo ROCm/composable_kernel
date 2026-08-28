@@ -1078,20 +1078,18 @@ struct FastGelu
     template <>
     __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
     {
-#if defined(__gfx125__)
-        const bhalf_t c1 = type_convert<bhalf_t>(0.035677f);
-        const bhalf_t c2 = type_convert<bhalf_t>(0.797885f);
-        const bhalf_t u  = x * (c1 * x * x + c2);
-
-        y = type_convert<bhalf_t>(0.5f) * x *
-            (type_convert<bhalf_t>(1.f) + __builtin_amdgcn_tanh_bf16(u));
-#else
+        // Note: gfx125x has native bf16 transcendentals (v_tanh_bf16) and packed bf16
+        // arithmetic.
+        // However, an all-bf16 0.5*x*(1+tanh(u)) computes the small tail value by
+        // cancelling 1 against a tanh(u) that has rounded to nearly -1, which loses most
+        // of it: 61% error at x = -3, and exactly 0 below x ~ -3.06.
+        // fp32 costs one extra instruction per element and is way more accurate,
+        // because gfx125x has packed fp32 math too.
         float y_f;
 
         this->operator()<float, float>(y_f, type_convert<float>(x));
 
         y = type_convert<bhalf_t>(y_f);
-#endif
     }
 
     template <>
