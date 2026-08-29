@@ -23,9 +23,15 @@ namespace ck_tile {
 struct HstuAttentionFwdPipelineQRKSVSPolicy
 {
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumKVLdsBuffers()
+    CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
     {
-        return 4;
+        return 2;
+    }
+
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto GetNumVLdsBuffers()
+    {
+        return 2;
     }
 
     template <typename Problem>
@@ -147,66 +153,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetKSingleSmemElementSpaceSize()
-    {
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t kKPack     = GetSmemKPackK<Problem>();
-        constexpr index_t kKVector   = GetAlignmentK<Problem>();
-
-        // for hdim96 and hdim160
-        if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
-        {
-            return kKPerBlock * kNPerBlock;
-        }
-        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
-        {
-            static_assert(kKVector == kKPack);
-
-            return kKPerBlock * kNPerBlock;
-        }
-        else
-        {
-            static_assert(kKVector % kKPack == 0);
-
-            return kKPerBlock * kNPerBlock + kKPerBlock * kKPack / kKVector;
-        };
-    };
-
-    template <typename Problem, bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVSingleSmemElementSpaceSize()
-    {
-        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
-        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
-
-        if constexpr(!kUseTrLoad)
-        {
-            constexpr index_t N1     = GetAlignmentV<Problem>();
-            constexpr index_t N0     = kNPerBlock / N1;
-            constexpr index_t kKPack = GetPVTWarpGemmKPerThreadSize<Problem>();
-
-            return N0 * (N1 * kKPerBlock + kKPack);
-        }
-        else
-        {
-            return kNPerBlock * kKPerBlock;
-        };
-    };
-
-    template <typename Problem, bool kPipelineUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSingleSmemElementSpaceSize()
-    {
-        return max(GetKSingleSmemElementSpaceSize<Problem>(),
-                   GetVSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>());
-    };
-
-    template <typename Problem,
-              index_t NumBuffers,
-              index_t SingleBufferSize,
-              index_t kN,
-              index_t kK,
-              index_t kKPack>
+    template <typename Problem, index_t NumBuffers, index_t kN, index_t kK, index_t kKPack>
     CK_TILE_HOST_DEVICE static constexpr auto MakeSwizzledNativeDesc()
     {
         constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
@@ -218,7 +165,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t BankSpanBytes = 32 * 4;
 #endif
 
-        static_assert(SingleBufferSize >= kN * kK, "Check failed!");
+        constexpr index_t SingleBufferSize = kN * kK;
 
         if constexpr(kK * ElementBytes < BankSpanBytes)
         {
@@ -306,21 +253,16 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
-        constexpr index_t NumKLdsBuffers = GetNumKVLdsBuffers<Problem>();
+        constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
 
-        constexpr index_t SingleBufferSize =
-            GetSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>();
-
         // for hdim96 and hdim160, use simplest layout
         if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
-            constexpr index_t KSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
-
-            static_assert(KSingleSmemElementSpaceSize == GetKSingleSmemElementSpaceSize<Problem>());
+            constexpr index_t SingleBufferSize = kNPerBlock * kKPerBlock;
 
             constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
@@ -341,12 +283,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
         { // This path can only be reached if WarpGemm is 16x16x32 or 32x32x16
 
-            constexpr auto desc_native = MakeSwizzledNativeDesc<Problem,
-                                                                NumKLdsBuffers,
-                                                                SingleBufferSize,
-                                                                kNPerBlock,
-                                                                kKPerBlock,
-                                                                kKPack>();
+            constexpr auto desc_native =
+                MakeSwizzledNativeDesc<Problem, NumKLdsBuffers, kNPerBlock, kKPerBlock, kKPack>();
 
             return transform_tensor_descriptor(
                 desc_native,
@@ -360,10 +298,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         {
             static_assert(kKVector % kKPack == 0);
 
-            constexpr index_t KSingleSmemElementSpaceSize =
+            constexpr index_t SingleBufferSize =
                 kKPerBlock * kNPerBlock + kKPerBlock * kKPack / kKVector;
-
-            static_assert(KSingleSmemElementSpaceSize == GetKSingleSmemElementSpaceSize<Problem>());
 
             constexpr auto k_lds_block_desc_0 =
                 make_naive_tensor_descriptor(make_tuple(number<NumKLdsBuffers>{},
@@ -449,12 +385,10 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
-        constexpr index_t NumVLdsBuffers = GetNumKVLdsBuffers<Problem>();
+        constexpr index_t NumVLdsBuffers = GetNumVLdsBuffers<Problem>();
         constexpr index_t kBlockSize     = Problem::kBlockSize;
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kK1;
-
-        constexpr index_t SingleBufferSize = GetSingleSmemElementSpaceSize<Problem, kUseTrLoad>();
 
         if constexpr(!kUseTrLoad)
         {
@@ -471,9 +405,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             static_assert(kKPack >= K2, "Check failed!");
 
-            constexpr index_t VSingleSmemElementSpaceSize = N0 * (N1 * kKPerBlock + kKPack);
-
-            static_assert(VSingleSmemElementSpaceSize == GetVSingleSmemElementSpaceSize<Problem>());
+            constexpr index_t SingleBufferSize = N0 * (N1 * kKPerBlock + kKPack);
 
             // the naive Lds is laid-out comforting the reading of V^t by gemm_1()
             constexpr auto v_lds_block_desc_0 = make_naive_tensor_descriptor(
@@ -507,14 +439,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             constexpr auto BankGroupSize =
                 Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{});
 
-            constexpr index_t VSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
-
-            static_assert(VSingleSmemElementSpaceSize ==
-                          GetVSingleSmemElementSpaceSize<Problem, true>());
-
             constexpr auto desc_native = MakeSwizzledNativeDesc<Problem,
                                                                 NumVLdsBuffers,
-                                                                SingleBufferSize,
                                                                 kKPerBlock, // kN
                                                                 kNPerBlock, // kK
                                                                 BankGroupSize>();
@@ -782,12 +708,23 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem, bool kPipelineUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeKV()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeK()
     {
-        constexpr index_t num_kv_lds_buffers = GetNumKVLdsBuffers<Problem>();
+        constexpr auto actual_bytes =
+            MakeKLdsBlockDescriptor<Problem, kPipelineUseTrLoad>().get_element_space_size() *
+            sizeof(typename Problem::QKVDataType);
 
-        return num_kv_lds_buffers * GetSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>() *
-               sizeof(typename Problem::QKVDataType);
+        return (actual_bytes + 63) / 64 * 64;
+    };
+
+    template <typename Problem, bool kPipelineUseTrLoad = false>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeV()
+    {
+        auto actual_bytes =
+            MakeVLdsBlockDescriptor<Problem, kPipelineUseTrLoad>().get_element_space_size() *
+            sizeof(typename Problem::QKVDataType);
+
+        return (actual_bytes + 63) / 64 * 64;
     };
 
     template <typename Problem>
@@ -799,7 +736,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return GetSmemSizeKV<Problem, kPipelineUseTrLoad>() + GetSmemSizeDropout<Problem>();
+        return GetSmemSizeK<Problem, kPipelineUseTrLoad>() +
+               GetSmemSizeV<Problem, kPipelineUseTrLoad>() + GetSmemSizeDropout<Problem>();
     }
 };
 

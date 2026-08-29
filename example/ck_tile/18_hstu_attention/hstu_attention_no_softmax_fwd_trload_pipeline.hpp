@@ -148,7 +148,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         static_assert(n0_loops == k1_loops, "n0_loops == k1_loops required by this pipeline");
 
-        constexpr auto NumKVLdsBuffers = Policy::template GetNumKVLdsBuffers<Problem>();
+        constexpr auto NumKLdsBuffers = Policy::template GetNumKLdsBuffers<Problem>();
+        constexpr auto NumVLdsBuffers = Policy::template GetNumVLdsBuffers<Problem>();
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -215,7 +216,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         static_assert(
             Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
-                NumKVLdsBuffers * kN0Sub,
+                NumKLdsBuffers * kN0Sub,
             "Check failed!");
         static_assert(
             Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths()[number<1>{}] ==
@@ -225,9 +226,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         using k_lds_window_type = decltype(get_slice_tile(
             k_lds_monolithic_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
 
-        statically_indexed_array<k_lds_window_type, NumKVLdsBuffers> k_lds_windows;
+        statically_indexed_array<k_lds_window_type, NumKLdsBuffers> k_lds_windows;
 
-        static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
+        static_for<0, NumKLdsBuffers, 1>{}([&](auto i_buf) {
             k_lds_windows[i_buf] = get_slice_tile(k_lds_monolithic_window,
                                                   sequence<i_buf * kN0Sub, 0>{},
                                                   sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
@@ -235,7 +236,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<QKVDataType*>(smem_ptr),
+            reinterpret_cast<QKVDataType*>(
+                reinterpret_cast<char*>(smem_ptr) +
+                Policy::template GetSmemSizeK<Problem, true /*kPipelineUseTrLoad*/>()),
             Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>());
         auto v_lds_monolithic_window = make_tile_window(
             v_lds,
@@ -243,7 +246,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
             {0, 0});
 
         static_assert(Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>()
-                              .get_lengths()[number<0>{}] == NumKVLdsBuffers * kK1,
+                              .get_lengths()[number<0>{}] == NumVLdsBuffers * kK1,
                       "Check failed!");
         static_assert(Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>()
                               .get_lengths()[number<1>{}] == kN1,
@@ -253,9 +256,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         using v_lds_trload_window_type = decltype(get_slice_tile(
             v_lds_monolithic_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
 
-        statically_indexed_array<v_lds_trload_window_type, NumKVLdsBuffers> v_lds_trload_windows;
+        statically_indexed_array<v_lds_trload_window_type, NumVLdsBuffers> v_lds_trload_windows;
 
-        static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
+        static_for<0, NumVLdsBuffers, 1>{}([&](auto i_buf) {
             v_lds_trload_windows[i_buf] = get_slice_tile(v_lds_monolithic_window,
                                                          sequence<i_buf * kK1, 0>{},
                                                          sequence<(i_buf + 1) * kK1, kN1>{});
@@ -323,9 +326,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         {
             // STAGE 1, Gemm_0 ( S = Q@K )
             static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                store_tile(k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}],
-                           k_tiles[i_n0],
-                           partition_index);
+                store_tile(
+                    k_lds_windows[number<i_n0 % NumKLdsBuffers>{}], k_tiles[i_n0], partition_index);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -338,7 +340,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                 block_sync_lds();
 
                 // execute current unroll of gemm_0
-                gemm_0(sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}]);
+                gemm_0(sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKLdsBuffers>{}]);
 
                 auto tmp_tile = cast_tile<CompDataType>(sacc_tile);
 
@@ -402,7 +404,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
             {
                 auto randval_lds_ptr =
                     reinterpret_cast<char*>(smem_ptr) +
-                    Policy::template GetSmemSizeKV<Problem, true /*kPipelineUseTrLoad*/>();
+                    Policy::template GetSmemSizeK<Problem, true /*kPipelineUseTrLoad*/>() +
+                    Policy::template GetSmemSizeV<Problem, true /*kPipelineUseTrLoad*/>();
 
                 dropout.template Run<decltype(gemm_0), CompDataType, uint8_t>(
                     randval_lds_ptr, seqlen_k_curr, pcomp_tile, null_randval_window);
@@ -410,16 +413,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
             auto p = cast_tile<PDataType>(pcomp_tile);
 
-            // check whether first V-LdsBufer overlap with last K-LdsBuffer,
-            // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
-            if constexpr((k1_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
-            {
-                __builtin_amdgcn_s_barrier();
-            };
-
             // STAGE 3, Gemm_1 ( O = P@V )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
-                store_tile(v_lds_trload_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
+                store_tile(v_lds_trload_windows[number<i_k1 % NumVLdsBuffers>{}],
                            v_tiles[number<i_k1>{}],
                            partition_index);
 
@@ -438,7 +434,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                 gemm_1(
                     o_acc,
                     get_slice_tile(p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                    v_lds_trload_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}]);
+                    v_lds_trload_windows[number<i_k1 % NumVLdsBuffers>{}]);
             });
         } while(seqlen_k_curr < seqlen_k_end);
 
