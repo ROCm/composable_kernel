@@ -102,10 +102,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
     {
-        if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
-            return 8;
-        else
-            return 4;
+        return max(GetQKWarpGemmKPerThreadSize<Problem>(), GetAlignmentK<Problem>());
     }
 
     template <typename Problem>
@@ -117,10 +114,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
-        if constexpr(GetPVTWarpGemmKPerThreadSize<Problem, kUseTrLoad>() >= 8)
-            return 8;
-        else
-            return 4;
+        return max(GetPVTWarpGemmKPerThreadSize<Problem, kUseTrLoad>(),
+                   GetAlignmentV<Problem, kUseTrLoad>());
     }
 
     template <typename Problem, bool kUseTrLoad = false>
@@ -280,7 +275,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             return k_lds_block_desc;
         }
-        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= 8)
+        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() == GetSmemKPackK<Problem>())
         { // This path can only be reached if WarpGemm is 16x16x32 or 32x32x16
 
             constexpr auto desc_native =
@@ -296,32 +291,32 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else
         {
-            static_assert(kKVector % kKPack == 0);
+            constexpr index_t kDsReadVector = GetQKWarpGemmKPerThreadSize<Problem>();
 
             constexpr index_t SingleBufferSize =
-                kKPerBlock * kNPerBlock + kKPerBlock * kKPack / kKVector;
+                kKPerBlock * kNPerBlock + kKPerBlock * kDsReadVector / kKVector;
 
-            constexpr auto k_lds_block_desc_0 =
-                make_naive_tensor_descriptor(make_tuple(number<NumKLdsBuffers>{},
-                                                        number<kKPerBlock / kKVector>{},
-                                                        number<kKVector / kKPack>{},
-                                                        number<kNPerBlock>{},
-                                                        number<kKPack>{}),
-                                             make_tuple(number<SingleBufferSize>{},
-                                                        number<kNPerBlock * kKVector + kKPack>{},
-                                                        number<kNPerBlock * kKPack>{},
-                                                        number<kKPack>{},
-                                                        number<1>{}),
-                                             number<kKPack>{},
-                                             number<1>{});
+            constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<NumKLdsBuffers>{},
+                           number<kKPerBlock / kKVector>{},
+                           number<kKVector / kDsReadVector>{},
+                           number<kNPerBlock>{},
+                           number<kDsReadVector>{}),
+                make_tuple(number<SingleBufferSize>{},
+                           number<kNPerBlock * kKVector + kDsReadVector>{},
+                           number<kNPerBlock * kDsReadVector>{},
+                           number<kDsReadVector>{},
+                           number<1>{}),
+                number<kDsReadVector>{},
+                number<1>{});
 
             constexpr auto k_lds_block_desc = transform_tensor_descriptor(
                 k_lds_block_desc_0,
                 make_tuple(make_merge_transform(
                                make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
                            make_merge_transform(make_tuple(number<kKPerBlock / kKVector>{},
-                                                           number<kKVector / kKPack>{},
-                                                           number<kKPack>{}))),
+                                                           number<kKVector / kDsReadVector>{},
+                                                           number<kDsReadVector>{}))),
                 make_tuple(sequence<0, 3>{}, sequence<1, 2, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -400,22 +395,21 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             // K2 is the vector size for storing shuffled tile to LDS
             constexpr index_t K2 = ElemPerThread / N1;
 
-            // GetSmemKPackV() is the vector size for loading from LDS by BlockGemm
-            constexpr index_t kKPack = GetSmemKPackV<Problem>();
+            constexpr index_t kDsReadVector = GetPVTWarpGemmKPerThreadSize<Problem, kUseTrLoad>();
 
-            static_assert(kKPack >= K2, "Check failed!");
+            static_assert(kDsReadVector >= K2, "Check failed!");
 
-            constexpr index_t SingleBufferSize = N0 * (N1 * kKPerBlock + kKPack);
+            constexpr index_t SingleBufferSize = N0 * (N1 * kKPerBlock + kDsReadVector);
 
             // the naive Lds is laid-out comforting the reading of V^t by gemm_1()
             constexpr auto v_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(
                     number<NumVLdsBuffers>{}, number<N0>{}, number<N1>{}, number<kKPerBlock>{}),
                 make_tuple(number<SingleBufferSize>{},
-                           number<N1 * kKPerBlock + kKPack>{},
+                           number<N1 * kKPerBlock + kDsReadVector>{},
                            number<kKPerBlock>{},
                            number<1>{}),
-                number<kKPack>{},
+                number<kDsReadVector>{},
                 number<1>{});
 
             constexpr auto v_lds_block_desc = transform_tensor_descriptor(
@@ -789,7 +783,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeV()
     {
-        auto actual_bytes =
+        constexpr auto actual_bytes =
             MakeVLdsBlockDescriptor<Problem, kPipelineUseTrLoad>().get_element_space_size() *
             sizeof(typename Problem::QKVDataType);
 
