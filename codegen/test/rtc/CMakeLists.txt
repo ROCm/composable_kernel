@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 find_package(hip)
 file(GLOB RTC_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 add_library(ck_rtc ${RTC_SOURCES})

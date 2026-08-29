@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -18,6 +18,10 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -92,7 +96,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Dl<
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, EDataType, float, PassThrough, PassThrough, CDEElementOp>;
 
-int main()
+int main(int argc, char* argv[])
 {
     bool do_verification = true;
     bool time_kernel     = false;
@@ -108,6 +112,34 @@ int main()
 
     float requant_scale = 0.03;
 
+    if(argc == 1)
+    {
+        // do nothing
+    }
+    else if(argc == 3 || argc == 9)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+        if(argc == 9)
+        {
+            M = std::stoi(argv[3]);
+            N = std::stoi(argv[4]);
+            K = std::stoi(argv[5]);
+
+            StrideA = std::stoi(argv[6]);
+            StrideB = std::stoi(argv[7]);
+            StrideE = std::stoi(argv[8]);
+        }
+    }
+    else
+    {
+        std::cout << "arg1: verification (0=no, 1=yes)\n"
+                  << " arg2: Measure kernel execution time (1=ON, 0=Off)\n"
+                  << " arg3 to 8: M (128x), N(128x), K(16x), StrideA, StrideB, StrideE\n"
+                  << std::endl;
+        exit(1);
+    }
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             using namespace ck::literals;
@@ -115,12 +147,14 @@ int main()
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
                 return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1_uz}));
+                                            std::vector<std::size_t>({stride, 1_uz}),
+                                            layout);
             }
             else
             {
                 return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1_uz, stride}));
+                                            std::vector<std::size_t>({1_uz, stride}),
+                                            layout);
             }
         };
 

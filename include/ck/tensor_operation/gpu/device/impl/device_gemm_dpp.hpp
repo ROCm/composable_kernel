@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -168,7 +168,7 @@ struct DeviceGemmDpp : public DeviceGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& karg)
     {
-        if(ck::is_gfx103_supported() || ck::is_gfx11_supported())
+        if(ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             return GridwiseGemm::CheckValidity(karg);
         }

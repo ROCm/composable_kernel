@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,9 +43,6 @@ struct ThreadwiseTensorSliceTransfer_v5r1
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
     using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
-
-    using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
-    using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v5r1(const SrcDesc& src_desc,
                                                             const Index& src_slice_origin,
@@ -198,8 +195,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                     src_vector.template AsType<SrcData>()[Number<src_vector_offset>{}];
             });
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -212,8 +208,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move
             static_for<0, nDim, 1>{}([&](auto i) {
@@ -368,8 +363,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                 is_dst_valid,
                 dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -382,8 +376,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move
             static_for<0, nDim, 1>{}([&](auto i) {

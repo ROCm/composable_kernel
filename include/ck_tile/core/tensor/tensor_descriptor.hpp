@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -77,6 +77,20 @@ struct tensor_descriptor : public tensor_adaptor<Transforms,
     {
     }
 
+    template <coord_transform_enum TargetTransformType>
+    CK_TILE_HOST_DEVICE static constexpr bool has_transform()
+    {
+        bool found = false;
+        static_for<0, ntransform_, 1>{}([&](auto i) {
+            using TransformType = remove_cvref_t<decltype(Transforms{}.at(i))>;
+            if constexpr(TransformType::get_type_enum() == TargetTransformType)
+            {
+                found = true;
+            }
+        });
+        return found;
+    }
+
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension()
     {
         return Base::get_num_of_top_dimension();
@@ -133,31 +147,50 @@ struct tensor_descriptor : public tensor_adaptor<Transforms,
 
     CK_TILE_HOST_DEVICE static constexpr bool is_known_at_compile_time() { return is_static(); }
 
+    template <index_t Internal = 0>
     CK_TILE_HOST_DEVICE static constexpr auto get_top_dimension_safe_vector_length_strides()
     {
-        return Base::get_top_dimension_safe_vector_length_strides(
+        return Base::template get_top_dimension_safe_vector_length_strides<Internal>(
             to_array<index_t, ndim_hidden_>(GuaranteedVectorLengths{}),
             to_array<index_t, ndim_hidden_>(GuaranteedVectorStrides{}));
-    }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tensor_descriptor{");
-
-        // tensor_adaptor
-        Base::print();
-        printf(", ");
-
-        // element_space_size_
-        printf("element_space_size_: ");
-        print(element_space_size_);
-
-        printf("}");
     }
 
     // TODO make these private
     ElementSpaceSize element_space_size_;
 };
+
+template <typename Transforms,
+          typename LowerDimensionHiddenIdss,
+          typename UpperDimensionHiddenIdss,
+          typename TopDimensionHiddenIds,
+          typename ElementSpaceSize,
+          typename GuaranteedVectorLengths,
+          typename GuaranteedVectorStrides>
+CK_TILE_HOST_DEVICE static void print(const tensor_descriptor<Transforms,
+                                                              LowerDimensionHiddenIdss,
+                                                              UpperDimensionHiddenIdss,
+                                                              TopDimensionHiddenIds,
+                                                              ElementSpaceSize,
+                                                              GuaranteedVectorLengths,
+                                                              GuaranteedVectorStrides>& descriptor)
+{
+    printf("tensor_descriptor{\n");
+    // first print the tensor adaptor part of the descriptor using the base class print
+    using Base = typename tensor_descriptor<Transforms,
+                                            LowerDimensionHiddenIdss,
+                                            UpperDimensionHiddenIdss,
+                                            TopDimensionHiddenIds,
+                                            ElementSpaceSize,
+                                            GuaranteedVectorLengths,
+                                            GuaranteedVectorStrides>::Base;
+    print(static_cast<const Base&>(descriptor));
+    printf("element_space_size_: %ld,\n", static_cast<long>(descriptor.get_element_space_size()));
+    printf("guaranteed_vector_lengths: ");
+    print(GuaranteedVectorLengths{});
+    printf(",\nguaranteed_vector_strides: ");
+    print(GuaranteedVectorStrides{});
+    printf("}\n}\n");
+}
 
 template <typename Adaptor, typename ElementSpaceSize>
 CK_TILE_HOST_DEVICE constexpr auto
@@ -217,12 +250,13 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
 namespace detail {
 
 template <typename Lengths, typename Strides, index_t I, typename AccOld>
-CK_TILE_HOST_DEVICE constexpr auto calculate_element_space_size_impl(const Lengths& lengths,
-                                                                     const Strides& strides,
-                                                                     number<I> i,
-                                                                     AccOld acc_old)
+CK_TILE_HOST_DEVICE constexpr long_index_t calculate_element_space_size_impl(const Lengths& lengths,
+                                                                             const Strides& strides,
+                                                                             number<I> i,
+                                                                             AccOld acc_old)
 {
-    auto acc_new = acc_old + (lengths[i] - number<1>{}) * strides[i];
+    long_index_t acc_new = acc_old + static_cast<long_index_t>(lengths[i] - number<1>{}) *
+                                         static_cast<long_index_t>(strides[i]);
 
     if constexpr(i.value < Lengths::size() - 1)
     {
@@ -268,8 +302,12 @@ make_naive_tensor_descriptor(const tuple<Lengths...>& lengths,
 
     constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
 
-    const auto element_space_size =
+    const long_index_t element_space_size_long =
         detail::calculate_element_space_size_impl(lengths, strides, number<0>{}, long_number<1>{});
+    constexpr long_index_t element_space_size_clamp_value =
+        static_cast<long_index_t>(std::numeric_limits<index_t>::max());
+    const index_t element_space_size =
+        static_cast<index_t>(std::min(element_space_size_long, element_space_size_clamp_value));
 
     using GuaranteedVectorLengths =
         typename sequence_merge<typename uniform_sequence_gen<N, -1>::type,
@@ -304,8 +342,12 @@ make_naive_tensor_descriptor_with_offset(const tuple<Lengths...>& lengths,
                                          number<GuaranteedLastDimensionVectorStride> = number<-1>{})
 {
     const auto desc_0 = [&]() {
-        const auto element_space_size = detail::calculate_element_space_size_impl(
+        const auto element_space_size_long = detail::calculate_element_space_size_impl(
             lengths, strides, number<0>{}, long_number<1>{});
+        constexpr long_index_t element_space_size_clamp_value =
+            static_cast<long_index_t>(std::numeric_limits<index_t>::max());
+        const index_t element_space_size =
+            static_cast<index_t>(std::min(element_space_size_long, element_space_size_clamp_value));
 
         const auto transforms = make_tuple(make_offset_transform(element_space_size, os));
 
@@ -363,14 +405,31 @@ make_naive_tensor_descriptor_packed(const tuple<Lengths...>& lengths,
 
     constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
 
-    const auto element_space_size = container_reduce(lengths, multiplies{}, long_number<1>{});
+    const auto element_space_size = container_reduce(lengths, multiplies<>{}, long_number<1>{});
+
+    constexpr index_t first_dim_length = []() {
+        if constexpr(is_constant_v<remove_cvref_t<decltype(element_space_size)>>)
+            return decltype(element_space_size)::value;
+        else
+            return -1;
+    }();
+    using last_t                      = remove_cvref_t<decltype(lengths.template get<N - 1>())>;
+    constexpr index_t last_dim_length = []() {
+        if constexpr(is_constant_v<last_t>)
+            return std::max(last_t::value, GuaranteedLastDimensionVectorLength);
+        else
+            return -1;
+    }();
 
     using GuaranteedVectorLengths =
-        typename sequence_merge<typename uniform_sequence_gen<N, -1>::type,
-                                sequence<GuaranteedLastDimensionVectorLength>>::type;
+        typename sequence_merge<sequence<first_dim_length>,
+                                typename uniform_sequence_gen<N - 1, -1>::type,
+                                sequence<last_dim_length>>::type;
 
     using GuaranteedVectorStrides =
-        typename sequence_merge<typename uniform_sequence_gen<N, -1>::type, sequence<1>>::type;
+        typename sequence_merge<sequence<1>,
+                                typename uniform_sequence_gen<N - 1, -1>::type,
+                                sequence<1>>::type;
 
     return tensor_descriptor<remove_cv_t<decltype(transforms)>,
                              remove_cv_t<decltype(low_dim_hidden_idss)>,
@@ -392,7 +451,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_naive_tensor_descriptor_packed_with_offs
     number<GuaranteedLastDimensionVectorLength> = number<-1>{})
 {
     const auto desc_0 = [&]() {
-        const auto element_space_size = container_reduce(lengths, multiplies{}, long_number<1>{});
+        const auto element_space_size = container_reduce(lengths, multiplies<>{}, long_number<1>{});
 
         const auto transforms = make_tuple(make_offset_transform(element_space_size, offset));
 
@@ -455,8 +514,12 @@ make_naive_tensor_descriptor_aligned(const tuple<Lengths...>& lengths, Align ali
             }
             else
             {
-                return container_reduce(
-                    lengths, multiplies{}, number<stride_n_minus_2>{}, i + I1, number<N - 1>{}, I1);
+                return container_reduce(lengths,
+                                        multiplies<>{},
+                                        number<stride_n_minus_2>{},
+                                        i + I1,
+                                        number<N - 1>{},
+                                        I1);
             }
         },
         number<N>{});

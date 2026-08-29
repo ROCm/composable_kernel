@@ -1,8 +1,11 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "test_batched_gemm_softmax_gemm_util.hpp"
+
+ck::index_t param_mask     = 0xffff;
+ck::index_t instance_index = -1;
 
 template <typename Tuple>
 class TestBatchedGemmSoftmaxGemmFP16 : public TestBatchedGemmSoftmaxGemm<Tuple>
@@ -104,7 +107,7 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16)
         {4096, 4096, 64, 64, 768},
         {4096, 4096, 128, 128, 768},
     };
-    this->bench_  = true;
+
     this->verify_ = false;
     this->Run();
 }
@@ -117,8 +120,8 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16_IrregularK)
                                                    {1024, 64, 80, 64, 16},
                                                    {4096, 4096, 40, 40, 16},
                                                    {4096, 64, 40, 64, 16}};
-    this->bench_   = true;
-    this->verify_  = false;
+
+    this->verify_ = false;
     this->Run();
 }
 
@@ -173,4 +176,21 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, AdhocTest)
         {576, 576, 64, 64, 24},
     };
     this->Run();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

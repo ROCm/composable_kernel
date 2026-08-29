@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 cmake_minimum_required(VERSION 3.16)
 project(composable_kernel_host)
 
@@ -12,6 +15,8 @@ configure_file(${CK_ROOT}/include/ck/config.h.in ${CK_ROOT}/include/ck/config.h)
 find_package(ROCM)
 include(ROCMInstallTargets)
 include(ROCMTest)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{ROCM_PATH})
+find_package(hiprtc REQUIRED)
 
 rocm_setup_version(VERSION 1.0)
 
@@ -22,12 +27,12 @@ file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
 
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
-add_compile_options(-std=c++17)
+add_compile_options(-std=c++20)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
 # TODO: Use object library
 add_library(ck_host STATIC ${SOURCES})
-target_link_libraries(ck_host PRIVATE ck_headers)
+target_link_libraries(ck_host PRIVATE ck_headers hiprtc::hiprtc)
 
 set_target_properties(ck_host PROPERTIES 
     LINKER_LANGUAGE CXX

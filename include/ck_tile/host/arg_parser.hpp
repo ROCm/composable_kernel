@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,10 @@
 #include <unordered_map>
 #include <vector>
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck_tile {
 /*
  * a host side utility, arg parser for, either
@@ -234,3 +238,6 @@ class ArgParser
     std::vector<std::string> keys;
 };
 } // namespace ck_tile
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

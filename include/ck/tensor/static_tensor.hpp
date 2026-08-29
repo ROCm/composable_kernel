@@ -1,9 +1,13 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_STATIC_TENSOR_HPP
 #define CK_STATIC_TENSOR_HPP
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 // StaticTensor for Scalar
@@ -270,4 +274,7 @@ __host__ __device__ constexpr auto make_static_tensor(TensorDesc, X invalid_elem
 }
 
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif
 #endif

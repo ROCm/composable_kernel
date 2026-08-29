@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,6 +20,10 @@ namespace ck_tile {
  *
  *   // create stream config with _some_stream_id_, and benchmark using cpu timer
  *   stream_config s = stream_config{_some_stream_id_, true, 0, 3, 10, false};
+ *
+ *   // create stream config with _some_stream_id_, and enable gpu timer for rotating buffer with
+ *rotating buffer count stream_config s = stream_config{_some_stream_id_, true, 0, 3, 10, true,
+ *true, 1};
  **/
 
 struct stream_config

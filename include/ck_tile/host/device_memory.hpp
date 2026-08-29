@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -157,6 +157,13 @@ struct DeviceMem
         if(mpDeviceBuf)
         {
             HIP_CHECK_ERROR(hipMemset(mpDeviceBuf, 0, mMemSize));
+        }
+    }
+    void SetBytePattern(uint8_t pattern) const
+    {
+        if(mpDeviceBuf)
+        {
+            HIP_CHECK_ERROR(hipMemset(mpDeviceBuf, pattern, mMemSize));
         }
     }
     template <typename T>

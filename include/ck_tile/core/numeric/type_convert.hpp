@@ -1,16 +1,18 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
-#include <stdint.h>
-#include <tuple>
-#include <type_traits>
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/numeric/half.hpp"
-#include "ck_tile/core/numeric/bfloat16.hpp"
-#include "ck_tile/core/numeric/float8.hpp"
-#include "ck_tile/core/numeric/int8.hpp"
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
+#include "ck_tile/core/utility/type_traits.hpp"
+#else
+#if defined(__gfx125__)
+#include "ck_tile/core/numeric/mxfp_scale.hpp"
+#endif
+
+#include <type_traits>
+#endif
 
 namespace ck_tile {
 
@@ -44,27 +46,37 @@ CK_TILE_HOST_DEVICE constexpr Y type_convert(X x)
     return static_cast<Y>(type_convert<non_const_y, non_const_x>(x));
 }
 
-#define CK_TILE_TYPE_CONVERT(dtype_, dname_, stype_, sname_)                    \
-    template <>                                                                 \
-    CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x) \
-    {                                                                           \
-        return sname_##_to_##dname_(x);                                         \
-    }
+template <typename Y, typename X>
+CK_TILE_HOST_DEVICE constexpr Y scaled_type_convert(X x, float scale);
 
-CK_TILE_TYPE_CONVERT(float, float, fp16_t, fp16)
-CK_TILE_TYPE_CONVERT(float, float, bf16_t, bf16)
-CK_TILE_TYPE_CONVERT(float, float, fp8_t, fp8)
-CK_TILE_TYPE_CONVERT(float, float, bf8_t, bf8)
+#if defined(__gfx125__)
+// Declare a template function for wave-wise scaled conversion
+/* scale is packed 4 form, see details for FP8/BF8, FP4, FP6 */
+template <typename Y, typename X, int Scale_sel>
+struct pk4scaled_type_convert_impl
+{
+    CK_TILE_DEVICE static constexpr Y run(X x, Packed4Scale_E8M0 scale);
+};
 
-CK_TILE_TYPE_CONVERT(fp16_t, fp16, float, float)
-CK_TILE_TYPE_CONVERT(bf16_t, bf16, float, float)
-CK_TILE_TYPE_CONVERT(fp8_t, fp8, float, float)
-CK_TILE_TYPE_CONVERT(bf8_t, bf8, float, float)
+template <typename Y, typename X, int Scale_sel = 0>
+CK_TILE_DEVICE constexpr Y pk4scaled_type_convert(X x, Packed4Scale_E8M0 scale)
+{
+    return pk4scaled_type_convert_impl<Y, X, Scale_sel>::run(x, scale);
+}
 
-CK_TILE_TYPE_CONVERT(float, float, int8_t, int8)
-CK_TILE_TYPE_CONVERT(int8_t, int8, float, float)
+// pk6scaled_type_convert for FP6 E2M3 and BF6 E3M2
+template <typename Y, typename X, int Scale_sel>
+struct pk6scaled_type_convert_impl
+{
+    CK_TILE_DEVICE static constexpr Y run(X x, Packed4Scale_E8M0 scale);
+};
 
-#undef CK_TILE_TYPE_CONVERT
+template <typename Y, typename X, int Scale_sel = 0>
+CK_TILE_DEVICE constexpr Y pk6scaled_type_convert(X x, Packed4Scale_E8M0 scale)
+{
+    return pk6scaled_type_convert_impl<Y, X, Scale_sel>::run(x, scale);
+}
+#endif
 #endif
 
 } // namespace ck_tile

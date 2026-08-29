@@ -1,9 +1,11 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host_utility/hip_check_error.hpp"
 
 #include "ck/library/utility/device_memory.hpp"
+
+namespace ck {
 
 DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
 {
@@ -74,3 +76,5 @@ DeviceMem::~DeviceMem()
         hip_check_error(hipFree(mpDeviceBuf));
     }
 }
+
+} // namespace ck

@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "../experimental/gemm_benchmark/mx_wp_gemm_xdl_benchmark_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
+#include "ck/utility/filter_tuple.hpp"
+
+namespace ck::tensor_operation::device::instance {
+
+template <int Shards, int ShardIndex>
+void add_mx_wp_gemm_xdl_benchmark_instances_shard(
+    mx_wp_gemm_xdl_benchmark_instances& instances)
+{
+    if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row>)
+    {
+        add_device_operation_instances(
+            instances,
+            ck::util::filter_tuple_by_modulo_t<gemm_rrr_instances, Shards, ShardIndex>{});
+    }
+    else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col>)
+    {
+        add_device_operation_instances(
+            instances,
+            ck::util::filter_tuple_by_modulo_t<gemm_rcr_instances, Shards, ShardIndex>{});
+    }
+    else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row>)
+    {
+        add_device_operation_instances(
+            instances,
+            ck::util::filter_tuple_by_modulo_t<gemm_crr_instances, Shards, ShardIndex>{});
+    }
+    else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col>)
+    {
+        add_device_operation_instances(
+            instances,
+            ck::util::filter_tuple_by_modulo_t<gemm_ccr_instances, Shards, ShardIndex>{});
+    }
+}
+
+} // namespace ck::tensor_operation::device::instance

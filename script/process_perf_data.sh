@@ -1,4 +1,7 @@
 #!/bin/bash 
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 #
 # in order to run this script you'd need the following python packages:
 
@@ -10,10 +13,39 @@
 # please contact Illia.Silin@amd.com for more details
 
 #process results
-python3 process_perf_data.py perf_gemm.log
-python3 process_perf_data.py perf_onnx_gemm.log
-python3 process_perf_data.py perf_resnet50_N256.log
-python3 process_perf_data.py perf_resnet50_N4.log
+file=./perf_gemm_gfx90a.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_gemm_gfx90a.log
+fi
+file=./perf_onnx_gemm_gfx90a.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_onnx_gemm_gfx90a.log
+fi
+file=./perf_resnet50_N256_gfx90a.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_resnet50_N256_gfx90a.log
+fi
+file=./perf_resnet50_N4_gfx90a.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_resnet50_N4_gfx90a.log
+fi
+
+file=./perf_gemm_gfx942.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_gemm_gfx942.log
+fi
+file=./perf_onnx_gemm_gfx942.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_onnx_gemm_gfx942.log
+fi
+file=./perf_resnet50_N256_gfx942.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_resnet50_N256_gfx942.log
+fi
+file=./perf_resnet50_N4_gfx942.log
+if [ -e "$file" ]; then
+    python3 process_perf_data.py perf_resnet50_N4_gfx942.log
+fi
 
 file=./perf_onnx_gemm_gfx10.log
 if [ -e "$file" ]; then

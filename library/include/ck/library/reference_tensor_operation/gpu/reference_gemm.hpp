@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,7 +8,12 @@
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 template <typename ALayout,
@@ -25,19 +30,23 @@ template <typename ALayout,
           typename ComputeTypeB>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        naive_gemm_kernel(const ADataType* __restrict__ p_a_grid,
-                          const BDataType* __restrict__ p_b_grid,
-                          CDataType* __restrict__ p_c_grid,
-                          index_t m,
-                          index_t n,
-                          index_t k,
-                          const AElementwiseOperation a_element_op,
-                          const BElementwiseOperation b_element_op,
-                          const CDEElementwiseOperation c_element_op)
+    naive_gemm_kernel(const ADataType* __restrict__ p_a_grid,
+                      const BDataType* __restrict__ p_b_grid,
+                      CDataType* __restrict__ p_c_grid,
+                      index_t m,
+                      index_t n,
+                      index_t k,
+                      const AElementwiseOperation a_element_op,
+                      const BElementwiseOperation b_element_op,
+                      const CDEElementwiseOperation c_element_op)
 {
     using RowMajor = ck::tensor_layout::gemm::RowMajor;
+    using ElementDataTypeA =
+        ck::conditional_t<is_same_v<ComputeTypeA, ck::tf32_t>, float, ComputeTypeA>;
+    using ElementDataTypeB =
+        ck::conditional_t<is_same_v<ComputeTypeB, ck::tf32_t>, float, ComputeTypeB>;
 
     const int row_idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int col_idx = blockIdx.y * blockDim.y + threadIdx.y;
@@ -46,8 +55,8 @@ __global__ void
     {
 
         AccDataType v_acc{0};
-        ComputeTypeA v_a{0};
-        ComputeTypeB v_b{0};
+        ElementDataTypeA v_a{0};
+        ElementDataTypeB v_b{0};
         CDataType v_c{0};
 
         for(int k_idx = 0; k_idx < k; ++k_idx)
@@ -76,7 +85,34 @@ __global__ void
             // apply b_element_op
             b_element_op(v_b, p_b_grid[element_idx_b]);
             // multiply and accumulate
-            v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
+            if constexpr(is_same_v<ComputeTypeA, ComputeTypeB> &&
+                         is_same_v<ComputeTypeA, ck::tf32_t>)
+            {
+#if defined(__gfx942__)
+                v_acc += ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_a)) *
+                         ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_b));
+#elif defined(__gfx950__)
+                ck::bhalf_t v_a_bf16_big = ck::type_convert<ck::bhalf_t>(v_a);
+                ck::bhalf_t v_a_bf16_small =
+                    ck::type_convert<ck::bhalf_t>(v_a - type_convert<float>(v_a_bf16_big));
+                ck::bhalf_t v_b_bf16_big = ck::type_convert<ck::bhalf_t>(v_b);
+                ck::bhalf_t v_b_bf16_small =
+                    ck::type_convert<ck::bhalf_t>(v_b - type_convert<float>(v_b_bf16_big));
+
+                v_acc += ck::type_convert<AccDataType>(v_a_bf16_big) *
+                             ck::type_convert<AccDataType>(v_b_bf16_small) +
+                         ck::type_convert<AccDataType>(v_a_bf16_small) *
+                             ck::type_convert<AccDataType>(v_b_bf16_big) +
+                         ck::type_convert<AccDataType>(v_a_bf16_big) *
+                             ck::type_convert<AccDataType>(v_b_bf16_big);
+#else
+                v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
+#endif
+            }
+            else
+            {
+                v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
+            }
         }
         // apply c_element_op
         c_element_op(v_c, v_acc);
@@ -178,20 +214,20 @@ struct ReferenceGemm : public device::BaseOperator
                                                       ComputeTypeA,
                                                       ComputeTypeB>;
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              grid_dim,
-                                              block_dim,
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              arg.p_c_grid_,
-                                              arg.m_,
-                                              arg.n_,
-                                              arg.k_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.c_element_op_);
+                return ck::launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  grid_dim,
+                                                  block_dim,
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+                                                  arg.m_,
+                                                  arg.n_,
+                                                  arg.k_,
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.c_element_op_);
             };
 
             return launch_kernel();
@@ -243,3 +279,6 @@ struct ReferenceGemm : public device::BaseOperator
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

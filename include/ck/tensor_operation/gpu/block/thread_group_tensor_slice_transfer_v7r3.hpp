@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -42,7 +42,8 @@ template <typename ThreadGroup,
           index_t DstScalarPerVector,
           typename ThreadTransferSrcResetCoordinateAfterRunFlags,
           typename ThreadTransferDstResetCoordinateAfterRunFlags,
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          typename InterDatas      = DstDatas>
 struct ThreadGroupTensorSliceTransfer_v7r3
 {
     static constexpr index_t nDim =
@@ -97,7 +98,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
         static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
                       "wrong! ThreadGroup::GetNumOfThread() too small");
 
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
@@ -123,7 +124,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
                             const SrcBuffers& src_bufs,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.RunRead(src_descs, src_bufs, thread_scratch_id);
@@ -131,20 +132,50 @@ struct ThreadGroupTensorSliceTransfer_v7r3
     }
 
     template <typename T>
-    using is_tuple = decltype(std::declval<T&>().IsTuple());
+    using is_tuple = decltype(declval<T&>().IsTuple());
 
     template <typename DstBuffers, index_t ThreadScratchId = 0>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value)
                 threadwise_transfer_.RunWrite(dst_descs, dst_bufs, thread_scratch_id);
             else
                 threadwise_transfer_.RunWrite(dst_descs, tie(dst_bufs), thread_scratch_id);
+        }
+    }
+
+    template <typename DstBuffers,
+              typename DstVgprDescs,
+              typename DstVgprBuffers,
+              index_t ThreadScratchId = 0>
+    __device__ void
+    RunWriteAndStoreVgpr(const DstDescs& dst_descs,
+                         DstBuffers dst_bufs,
+                         const DstVgprDescs& dst_vgpr_desc,
+                         DstVgprBuffers dst_vgpr_buf,
+                         Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
+    {
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
+           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
+        {
+            if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value &&
+                         is_detected<is_tuple, decltype(dst_vgpr_buf)>::value)
+                threadwise_transfer_.RunWriteAndStoreVgpr(
+                    dst_descs, dst_bufs, dst_vgpr_desc, dst_vgpr_buf, thread_scratch_id);
+            else if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value)
+                threadwise_transfer_.RunWriteAndStoreVgpr(
+                    dst_descs, dst_bufs, dst_vgpr_desc, tie(dst_vgpr_buf), thread_scratch_id);
+            else if constexpr(is_detected<is_tuple, decltype(dst_vgpr_buf)>::value)
+                threadwise_transfer_.RunWriteAndStoreVgpr(
+                    dst_descs, tie(dst_bufs), dst_vgpr_desc, dst_vgpr_buf, thread_scratch_id);
+            else
+                threadwise_transfer_.RunWriteAndStoreVgpr(
+                    dst_descs, tie(dst_bufs), dst_vgpr_desc, tie(dst_vgpr_buf), thread_scratch_id);
         }
     }
 
@@ -162,7 +193,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
     __device__ void
     MoveSrcSliceWindow(const SrcDescs& src_descs, Number<ISrc> iSrc, const Index& step)
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.MoveSrcSliceWindow(src_descs, iSrc, step);
@@ -179,7 +210,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
     __device__ void
     MoveDstSliceWindow(const DstDescs& dst_descs, Number<IDst> iDst, const Index& step)
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.MoveDstSliceWindow(dst_descs, iDst, step);
@@ -212,7 +243,8 @@ struct ThreadGroupTensorSliceTransfer_v7r3
                                            DstScalarPerVector,
                                            ThreadTransferSrcResetCoordinateAfterRunFlags,
                                            ThreadTransferDstResetCoordinateAfterRunFlags,
-                                           NumThreadScratch>;
+                                           NumThreadScratch,
+                                           InterDatas>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

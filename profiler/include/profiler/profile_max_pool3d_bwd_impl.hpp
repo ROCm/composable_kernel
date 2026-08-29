@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,7 +34,8 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
                                  std::vector<index_t> window_strides,
                                  std::vector<index_t> window_dilations,
                                  std::vector<index_t> input_left_pads,
-                                 std::vector<index_t> input_right_pads)
+                                 std::vector<index_t> input_right_pads,
+                                 index_t instance_index = -1)
 {
     // AtomicAdd only support f32 for now. ComputeDataType must be float32
     using ComputeDataType = float;
@@ -84,7 +85,8 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
             using namespace ck::literals;
 
             return HostTensorDescriptor({N_, C_, D, H, W},
-                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
+                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_},
+                                        ck::tensor_layout::convolution::NDHWC{});
         };
 
     Tensor<InDataType> in_n_c_di_hi_wi(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
@@ -177,8 +179,14 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
 
     int num_kernel = 0;
 
-    for(auto& inst_ptr : instance_ptrs)
+    for(size_t i = 0; i < instance_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instance_ptrs[i];
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
             static_cast<DOutDataType*>(dout_device_buf.GetDeviceBuffer()),
             static_cast<IndexDataType*>(indices_device_buf.GetDeviceBuffer()),
@@ -275,7 +283,7 @@ bool profile_max_pool3d_bwd_impl(int do_verification,
                   << best_instance_name << std::endl;
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;

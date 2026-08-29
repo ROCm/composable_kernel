@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,6 +25,7 @@ struct mask_info
     ck_tile::index_t seqlen_k;
     ck_tile::index_t y, x;
     ck_tile::index_t left, right; // FA style SWA left/right
+    ck_tile::index_t sink;
 
     void serialize(std::ostream& os) const
     {
@@ -39,6 +40,7 @@ struct mask_info
             os << "g(" << y << ":" << x << ")";
         }
     }
+
     static mask_info decode(std::string str, ck_tile::index_t seqlen_q, ck_tile::index_t seqlen_k)
     {
         ck_tile::index_t x_total = seqlen_k;
@@ -54,109 +56,133 @@ struct mask_info
             if(t == "xt" || t == "xb")
             {
                 // xformer style sliding window attn from top-left
-                ck_tile::index_t window_size = atoi(v.c_str());
+                ck_tile::index_t window_size = std::stoi(v);
                 ck_tile::index_t left_size   = -1;
                 ck_tile::index_t right_size  = 0;
+                ck_tile::index_t sink_size   = 0;
                 if(window_size > 0)
                 {
                     left_size  = window_size / 2;
                     right_size = window_size - 1 - left_size;
                 }
                 auto r = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
-                    left_size, right_size, y_total, x_total, t == "xt");
+                    left_size, right_size, sink_size, y_total, x_total, t == "xt");
 
                 tmp.type  = t == "xt" ? mask_enum::mask_top_left : mask_enum::mask_bottom_right;
                 tmp.y     = r.at(ck_tile::number<0>{});
                 tmp.x     = r.at(ck_tile::number<1>{});
                 tmp.left  = left_size;
                 tmp.right = right_size;
+                tmp.sink  = 0;
             }
-            else
+            else if(t == "t" || t == "b" || t == "g")
             {
                 auto found_1 = v.find(",");
                 if(found_1 == std::string::npos)
                 {
-                    printf("not supported value %s, %s\n", v.c_str(), str.c_str());
-                    assert(0);
+                    throw std::invalid_argument("invalid mask value: " + str);
                 }
-                tmp.type            = mask_enum::window_generic;
-                ck_tile::index_t v0 = atoi(v.substr(0, found_1).c_str());
-                ck_tile::index_t v1 = atoi(v.substr(found_1 + 1).c_str());
+                tmp.type              = mask_enum::window_generic;
+                ck_tile::index_t v0   = atoi(v.substr(0, found_1).c_str());
+                auto found_2          = v.find(',', found_1 + 1);
+                ck_tile::index_t v1   = 0;
+                ck_tile::index_t sink = 0;
+                // ck_tile::index_t v1 = atoi(v.substr(found_1 + 1).c_str());
                 // TODO: some validation
                 if(t == "t")
                 {
+                    if(found_2 != std::string::npos)
+                    {
+                        v1   = atoi(v.substr(found_1 + 1, found_2 - found_1 - 1).c_str());
+                        sink = atoi(v.substr(found_2 + 1).c_str());
+                    }
+                    else
+                    {
+                        v1   = atoi(v.substr(found_1 + 1).c_str());
+                        sink = 0;
+                    }
                     tmp.type = mask_enum::mask_top_left;
                     auto r   = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
-                        v0, v1, y_total, x_total, true);
+                        v0, v1, sink, y_total, x_total, true);
                     tmp.y     = r.at(ck_tile::number<0>{});
                     tmp.x     = r.at(ck_tile::number<1>{});
                     tmp.left  = v0;
                     tmp.right = v1;
+                    tmp.sink  = sink;
                 }
                 else if(t == "b")
                 {
+                    if(found_2 != std::string::npos)
+                    {
+                        v1   = atoi(v.substr(found_1 + 1, found_2 - found_1 - 1).c_str());
+                        sink = atoi(v.substr(found_2 + 1).c_str());
+                    }
+                    else
+                    {
+                        v1   = atoi(v.substr(found_1 + 1).c_str());
+                        sink = 0;
+                    }
                     tmp.type = mask_enum::mask_bottom_right;
                     auto r   = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
-                        v0, v1, y_total, x_total, false);
+                        v0, v1, sink, y_total, x_total, false);
                     tmp.y     = r.at(ck_tile::number<0>{});
                     tmp.x     = r.at(ck_tile::number<1>{});
                     tmp.left  = v0;
                     tmp.right = v1;
+                    tmp.sink  = sink;
                 }
                 else if(t == "g")
                 {
+                    tmp.type  = mask_enum::window_generic;
                     tmp.y     = v0;
                     tmp.x     = v1;
                     tmp.left  = v0; // TODO: don't use this?
                     tmp.right = v1;
-                }
-                else
-                {
-                    printf("not supported type %s, %s\n", t.c_str(), str.c_str());
-                    assert(0);
+                    tmp.sink  = 0;
                 }
             }
+            else
+            {
+                throw std::invalid_argument("invalid mask value: " + str);
+            }
+        }
+        else if(str == "0")
+        {
+            tmp.type  = mask_enum::no_mask;
+            tmp.left  = -1;
+            tmp.right = -1;
+            tmp.sink  = 0;
+        }
+        else if(str == "1" || str == "t")
+        {
+            tmp.type  = mask_enum::mask_top_left;
+            tmp.y     = seqlen_q;
+            tmp.x     = 1;
+            tmp.left  = -1;
+            tmp.right = 0;
+            tmp.sink  = 0;
+        }
+        else if(str == "2" || str == "b")
+        {
+            tmp.type  = mask_enum::mask_bottom_right;
+            tmp.y     = seqlen_q;
+            tmp.x     = seqlen_k - seqlen_q + 1;
+            tmp.left  = -1;
+            tmp.right = 0;
+            tmp.sink  = 0;
         }
         else
         {
-            auto set_causal_top_left = [&]() {
-                tmp.type  = mask_enum::mask_top_left;
-                tmp.y     = seqlen_q;
-                tmp.x     = 1;
-                tmp.left  = -1;
-                tmp.right = 0;
-            };
-            auto set_causal_bottom_right = [&]() {
-                tmp.type  = mask_enum::mask_bottom_right;
-                tmp.y     = seqlen_q;
-                tmp.x     = seqlen_k - seqlen_q + 1;
-                tmp.left  = -1;
-                tmp.right = 0;
-            };
-            if(str == "t")
-                set_causal_top_left();
-            else if(str == "b")
-                set_causal_bottom_right();
-            else
-            {
-                tmp.type = static_cast<mask_enum>(atoi(str.c_str()));
-                if(tmp.type == mask_enum::mask_top_left)
-                {
-                    set_causal_top_left();
-                }
-                else if(tmp.type == mask_enum::mask_bottom_right)
-                {
-                    set_causal_bottom_right();
-                }
-            }
+            throw std::invalid_argument("invalid mask value: " + str);
         }
         return tmp;
     }
-    ck_tile::index_t get_unmaskarea() const
+
+    std::size_t get_unmaskarea() const
     {
         if(type == mask_enum::no_mask)
-            return seqlen_q * seqlen_k;
-        ck_tile::index_t area = 0;
+            return static_cast<std::size_t>(seqlen_q) * seqlen_k;
+        std::size_t area = 0;
         for(ck_tile::index_t i_y = 0; i_y < seqlen_q; ++i_y)
         {
             ck_tile::index_t x_start = std::max(-y + i_y + 1, static_cast<ck_tile::index_t>(0));
@@ -168,7 +194,8 @@ struct mask_info
         }
         return area;
     }
-    friend std::ostream& operator<<(std::ostream& os, const mask_info& mi)
+
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, const mask_info& mi)
     {
         mi.serialize(os);
         return os;

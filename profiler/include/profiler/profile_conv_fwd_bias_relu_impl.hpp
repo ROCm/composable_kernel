@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -56,7 +56,8 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
                                      std::vector<ck::index_t> conv_filter_strides,
                                      std::vector<ck::index_t> conv_filter_dilations,
                                      std::vector<ck::index_t> input_left_pads,
-                                     std::vector<ck::index_t> input_right_pads)
+                                     std::vector<ck::index_t> input_right_pads,
+                                     int instance_index = -1)
 {
     const ck::index_t Y = filter_spatial_lengths[0];
     const ck::index_t X = filter_spatial_lengths[1];
@@ -75,13 +76,13 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
                          is_same<decltype(layout), ck::tensor_layout::convolution::KCYX>::value ||
                          is_same<decltype(layout), ck::tensor_layout::convolution::NKHW>::value)
             {
-                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz});
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz}, layout);
             }
             else if constexpr(is_same<decltype(layout), tensor_layout::convolution::NHWC>::value ||
                               is_same<decltype(layout), tensor_layout::convolution::KYXC>::value ||
                               is_same<decltype(layout), tensor_layout::convolution::NHWK>::value)
             {
-                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_}, layout);
             }
         };
 
@@ -184,8 +185,14 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device Conv instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),

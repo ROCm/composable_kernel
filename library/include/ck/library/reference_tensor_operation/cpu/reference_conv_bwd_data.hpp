@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,6 +10,10 @@
 
 #include "ck/library/utility/host_tensor.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace host {
@@ -28,6 +32,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t NumAElementwiseTensor                                         = 0,
           ck::index_t NumBElementwiseTensor                                         = 0,
           ck::index_t NumDElementwiseTensor                                         = 0,
+          typename ComputeDataType                                                  = OutDataType,
           typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvBwdData : public device::BaseOperator
 {
@@ -142,8 +147,10 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                                          c,
                                                          x);
 
-                                    v_acc += ck::type_convert<float>(v_out) *
-                                             ck::type_convert<float>(v_wei);
+                                    v_acc += ck::type_convert<float>(
+                                                 ck::type_convert<ComputeDataType>(v_out)) *
+                                             ck::type_convert<float>(
+                                                 ck::type_convert<ComputeDataType>(v_wei));
                                 }
                             }
                         }
@@ -235,8 +242,11 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                                     y,
                                                     x);
 
-                                                v_acc += ck::type_convert<float>(v_out) *
-                                                         ck::type_convert<float>(v_wei);
+                                                v_acc +=
+                                                    ck::type_convert<float>(
+                                                        ck::type_convert<ComputeDataType>(v_out)) *
+                                                    ck::type_convert<float>(
+                                                        ck::type_convert<ComputeDataType>(v_wei));
                                             }
                                         }
                                     }
@@ -354,8 +364,12 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                                                 x);
 
                                                             v_acc +=
-                                                                ck::type_convert<float>(v_out) *
-                                                                ck::type_convert<float>(v_wei);
+                                                                ck::type_convert<float>(
+                                                                    ck::type_convert<
+                                                                        ComputeDataType>(v_out)) *
+                                                                ck::type_convert<float>(
+                                                                    ck::type_convert<
+                                                                        ComputeDataType>(v_wei));
                                                         }
                                                     }
                                                 }
@@ -496,3 +510,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

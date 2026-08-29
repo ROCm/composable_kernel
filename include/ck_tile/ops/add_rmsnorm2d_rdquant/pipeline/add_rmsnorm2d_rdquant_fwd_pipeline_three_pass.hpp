@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -92,13 +92,13 @@ struct AddRmsnorm2dRdquantFwdPipelineThreePass
 
         static constexpr index_t Block_N = Problem::BlockShape::Block_N;
         index_t num_n_tile_iteration =
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(row_size, Block_N));
+            amd_wave_read_first_lane(integer_divide_ceil(row_size, Block_N));
 
         using XTensorType = decltype(cast_tile<ComputeDataType>(load_tile(a_window)));
         auto square_sum   = block_reduce2d.template MakeYBlockTile<XTensorType>();
         set_tile(square_sum, reduce_square_sum_func.GetIdentityValue<ComputeDataType>());
 
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             const auto a = load_tile(a_window);
             const auto b = load_tile(b_window);
@@ -149,7 +149,7 @@ struct AddRmsnorm2dRdquantFwdPipelineThreePass
         if constexpr(kSaveX)
             __syncthreads();
 
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             auto x = [&]() {
                 if constexpr(kSaveX)
@@ -226,7 +226,7 @@ struct AddRmsnorm2dRdquantFwdPipelineThreePass
         }
         move_tile_window(gamma_window, {Block_N});
 
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             auto x = [&]() {
                 if constexpr(kSaveX)

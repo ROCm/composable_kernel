@@ -1,53 +1,13 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
-#include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/scheduler_enum.hpp"
 
 namespace ck {
-
-enum struct BlockGemmPipelineVersion
-{
-    // For GEMM
-    v1, // Naive
-    v2, // Mem
-    v3, // Comp
-    v4, // Comp, double lds buffer
-    v5, // Comp, double global prefetch register buffer
-
-    // For GEMM with preshuffled weight
-    // v1, single lds buffer
-    // v2, double lds buffer
-};
-enum struct BlockGemmPipelineScheduler
-{
-    Intrawave,
-    Interwave,
-};
-
-enum struct TailNumber
-{
-    // Single / Double buffer pipeline
-    Odd,
-    Even,
-
-    // Long prefetch pipeline, up to 8
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-
-    // Unroll stages > Prefetch stages, number of loop is multiple of unroll stages
-    Empty,
-    // Unroll stages <= Prefetch stages, number of loop is multiple of unroll stages add
-    // prefetchstages
-    Full,
-};
 
 enum SchedulerGroup : uint32_t
 {
@@ -72,12 +32,15 @@ template <index_t BlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t KPerXDL,
-          bool IsF4F6 = false>
+          bool IsF4_A = false,
+          bool IsF4_B = false,
+          bool IsF6_A = false,
+          bool IsF6_B = false>
 struct BlockwiseGemmXdlops_pipeline_hotloop_inst
 {
-    static constexpr index_t WaveSize = 64;
     static constexpr index_t WaveNumM = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t WaveNumN = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / WaveNumM / WaveNumN;
 
     static constexpr index_t A_LDS_Read_Width = ALDSReadWidth;
     static constexpr index_t B_LDS_Read_Width = BLDSReadWidth;
@@ -100,7 +63,14 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t C_MFMA_Inst_Num =
         MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
 
-    static constexpr index_t C_MFMA_SpeedUp = IsF4F6 ? 2 : 1;
+    static constexpr index_t C_MFMA_SpeedUp =
+#if defined(__gfx125__)
+        (IsF4_A && IsF4_B) ? 2 : 1; // gfx1250: 2x speedup only if BOTH are FP4
+#else
+        ((IsF4_A || IsF6_A) && (IsF4_B || IsF6_B))
+            ? 2
+            : 1; // Other archs: 2x speedup if BOTH are FP4 or FP6
+#endif
 
     static constexpr index_t C_MFMA_Inst_Cycle = []() {
         if constexpr(NPerXDL == 16)

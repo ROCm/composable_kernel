@@ -1,9 +1,12 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "profiler/profile_max_pool2d_bwd_impl.hpp"
 #include "test_pool_fwd_common.hpp"
+
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 
 template <typename T>
 class MaxPool2dBWDTest : public ::testing::Test
@@ -20,8 +23,13 @@ class MaxPool2dBWDTest : public ::testing::Test
 
     void Run()
     {
-        for(auto param : this->params)
+        for(size_t i = 0; i < this->params.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& param = this->params[i];
             bool success =
                 ck::profiler::profile_max_pool2d_bwd_impl<InDataType,
                                                           OutDataType,
@@ -37,7 +45,8 @@ class MaxPool2dBWDTest : public ::testing::Test
                                                                  param.window_strides_,
                                                                  param.window_dilations_,
                                                                  param.input_left_pads_,
-                                                                 param.input_right_pads_);
+                                                                 param.input_right_pads_,
+                                                                 instance_index);
             EXPECT_TRUE(success);
         }
     }
@@ -137,3 +146,20 @@ TYPED_TEST(MaxPool2D_f16, MaxPool2DTest_f16) { this->Run(); }
 TYPED_TEST(MaxPool2D_bf16, MaxPool2DTest_bf16) { this->Run(); }
 
 TYPED_TEST(MaxPool2D_f8, MaxPool2DTest_f8) { this->Run(); }
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}

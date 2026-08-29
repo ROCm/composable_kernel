@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -19,6 +19,10 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using namespace ck;
 using namespace ck::tensor_operation::device;
@@ -84,7 +88,7 @@ using DeviceReduceInstance_2 = DeviceReduceMultiBlock<InOutDataType,
 static bool do_verify;
 static int init_method;
 static float alpha;
-static float beta;
+static float beta_;
 static bool time_kernel;
 
 int main(int argc, char* argv[])
@@ -100,13 +104,13 @@ int main(int argc, char* argv[])
     const std::array<int, 2> reduceDims = {3, 4};
     // const std::array<int, 3> invariantDims = {0, 1, 2};
 
-    const std::vector<size_t> inLengths_1 = {64, 320, 80, 4, 128};
+    std::vector<size_t> inLengths_1 = {64, 320, 80, 4, 128};
 
     // input lengths of the second reduction, which is also the output lengths of the first
     // reduction
-    const std::vector<size_t> inLengths_2 = {64, 320, 80, 4};
+    std::vector<size_t> inLengths_2 = {64, 320, 80, 4};
 
-    const std::vector<size_t> outLengths = {64, 320, 80};
+    std::vector<size_t> outLengths = {64, 320, 80};
 
     if(argc == 1)
     {
@@ -114,11 +118,26 @@ int main(int argc, char* argv[])
         init_method = 2;
         time_kernel = true;
     }
-    else if(argc == 4)
+    else if((argc == 4) || (argc == 9))
     {
         do_verify   = static_cast<bool>(argv[1]);
         init_method = atoi(argv[2]);
         time_kernel = static_cast<bool>(atoi(argv[3]));
+        if(argc == 9)
+        {
+            inLengths_1[0] = atoi(argv[4]);
+            inLengths_1[1] = atoi(argv[5]);
+            inLengths_1[2] = atoi(argv[6]);
+            inLengths_1[3] = atoi(argv[7]);
+            inLengths_1[4] = atoi(argv[8]);
+            inLengths_2[0] = inLengths_1[0];
+            inLengths_2[1] = inLengths_1[1];
+            inLengths_2[2] = inLengths_1[2];
+            inLengths_2[3] = inLengths_1[3];
+            outLengths[0]  = inLengths_1[0];
+            outLengths[1]  = inLengths_1[1];
+            outLengths[2]  = inLengths_1[2];
+        }
     }
     else
     {
@@ -131,7 +150,7 @@ int main(int argc, char* argv[])
     };
 
     alpha = 1.0f;
-    beta  = 0.0f;
+    beta_ = 0.0f;
 
     Tensor<InOutDataType> in_1(inLengths_1);
 
@@ -155,22 +174,22 @@ int main(int argc, char* argv[])
         case 0: break;
         case 1:
             in_1.GenerateTensorValue(GeneratorTensor_1<InOutDataType>{1}, num_thread);
-            if(beta != 0.0f)
+            if(beta_ != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_1<InOutDataType>{1}, num_thread);
             break;
         case 2:
             in_1.GenerateTensorValue(GeneratorTensor_2<InOutDataType>{-5, 5}, num_thread);
-            if(beta != 0.0f)
+            if(beta_ != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_2<InOutDataType>{-5, 5}, num_thread);
             break;
         default:
             in_1.GenerateTensorValue(GeneratorTensor_3<InOutDataType>{-5.0, 5.0}, num_thread);
-            if(beta != 0.0f)
+            if(beta_ != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_3<InOutDataType>{-5.0, 5.0},
                                             num_thread);
         }
 
-        if(beta != 0.0f)
+        if(beta_ != 0.0f)
             for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
                 out.mData[i] = out_ref.mData[i];
     };
@@ -181,7 +200,7 @@ int main(int argc, char* argv[])
 
     in_1_dev.ToDevice(in_1.mData.data());
 
-    if(beta != 0.0f)
+    if(beta_ != 0.0f)
         out_dev.ToDevice(out.mData.data());
 
     InElementwiseOperation in_elementwise_op;
@@ -227,7 +246,7 @@ int main(int argc, char* argv[])
                                                                arrOutStrides,
                                                                reduceDims,
                                                                static_cast<double>(alpha),
-                                                               static_cast<double>(beta),
+                                                               static_cast<double>(beta_),
                                                                in_1.mData.data(),
                                                                nullptr,
                                                                out_ref.mData.data(),
@@ -279,7 +298,7 @@ int main(int argc, char* argv[])
                                                        arrOutStrides,
                                                        reduceDims_2,
                                                        static_cast<double>(alpha),
-                                                       static_cast<double>(beta),
+                                                       static_cast<double>(beta_),
                                                        in_2_dev.GetDeviceBuffer(),
                                                        nullptr,
                                                        out_dev.GetDeviceBuffer(),

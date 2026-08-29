@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cassert>
 #include <cstdlib>
@@ -140,8 +140,8 @@ union pixel
 {
     struct __attribute__((packed))
     {
-        unsigned int r : 6;
-        unsigned int c : 10;
+        ushort r : 6;
+        ushort c : 10;
     };
     ushort data;
 };

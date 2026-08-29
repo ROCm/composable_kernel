@@ -47,6 +47,14 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     template <ck::index_t NDimSpatial>
     void Run()
     {
+        if constexpr(std::is_same_v<DataType, float>)
+        {
+            if(ck::is_wmma_supported())
+            {
+                GTEST_SKIP() << "Skipping test: WMMA architecture doesn't support FP32";
+            }
+        }
+
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
 

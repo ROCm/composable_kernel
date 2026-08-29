@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 #include <type_traits>
 
 #include "ck/utility/functional2.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_explicit_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_explicit.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -32,22 +32,24 @@ void add_explicit_gemm_device_operation_instances(
     ck::static_for<0, std::tuple_size_v<DeviceGemmV3Ops>, 1>{}([&](auto i) {
         using DeviceGemmOp = std::tuple_element_t<i, DeviceGemmV3Ops>;
 
-        using NewOpInstance = DeviceGroupedConvBwdWeight_Explicit_Xdl<NDimSpatial,
-                                                                      InLayout,
-                                                                      WeiLayout,
-                                                                      OutLayout,
-                                                                      InDataType,
-                                                                      WeiDataType,
-                                                                      OutDataType,
-                                                                      InElementwiseOperation,
-                                                                      WeiElementwiseOperation,
-                                                                      OutElementwiseOperation,
-                                                                      DeviceGemmOp>;
+        using NewOpInstance = DeviceGroupedConvBwdWeight_Explicit<NDimSpatial,
+                                                                  InLayout,
+                                                                  WeiLayout,
+                                                                  OutLayout,
+                                                                  InDataType,
+                                                                  WeiDataType,
+                                                                  OutDataType,
+                                                                  InElementwiseOperation,
+                                                                  WeiElementwiseOperation,
+                                                                  OutElementwiseOperation,
+                                                                  DeviceGemmOp>;
 
         static_assert(std::is_base_of_v<BaseOp, NewOpInstance>,
-                      "wrong! NewOpInstance should be derived from BaseOp");
+                      "NewOpInstance must derive from BaseOp");
+        static_assert(std::is_default_constructible_v<NewOpInstance>,
+                      "NewOpInstance must be default-constructible");
 
-        op_instances.push_back(std::make_unique<NewOpInstance>(NewOpInstance{}));
+        op_instances.push_back(std::make_unique<NewOpInstance>());
     });
 }
 

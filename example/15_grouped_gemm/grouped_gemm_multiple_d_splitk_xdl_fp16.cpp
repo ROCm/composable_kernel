@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -22,6 +22,11 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_multiple_d.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -85,7 +90,7 @@ struct ExecutionConfig final
     bool do_verification = true;
     int init_method      = 1;
     int k_batch          = 128;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 };
 
 bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)

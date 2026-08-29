@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -48,6 +48,7 @@ struct MoeSmoothquant
     static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
     static constexpr index_t Repeat_N        = Problem::BlockShape::Repeat_N;
+    static constexpr index_t kBlockSize      = Problem::BlockShape::BlockSize;
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -92,7 +93,11 @@ struct MoeSmoothquant
         return dim3(hargs.topk, integer_divide_ceil(hargs.tokens, Block_M), 1);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? Problem::BlockShape::template GetBlockSize<true>()
+                           : Problem::BlockShape::template GetBlockSize<false>();
+    }
 
     // clang-format off
     template <typename T> struct t2s;
@@ -133,7 +138,7 @@ struct MoeSmoothquant
         const index_t i_topk  = blockIdx.x;
         const index_t i_token = blockIdx.y * Block_M;
         const index_t i_token_in_thrd =
-            __builtin_amdgcn_readfirstlane(threadIdx.x / Problem::BlockShape::ThreadPerBlock_N);
+            amd_wave_read_first_lane(threadIdx.x / Problem::BlockShape::ThreadPerBlock_N);
 
         const index_t i_expert = reinterpret_cast<const index_t*>(
             kargs.p_topk_ids)[(i_token + i_token_in_thrd) * kargs.topk + i_topk];

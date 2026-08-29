@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_TRANSFORM_FORWARD_CONVOLUTION3D_INTO_GEMM_V4R4R4_NHWC_KYXC_NHWK_HPP
 #define CK_TRANSFORM_FORWARD_CONVOLUTION3D_INTO_GEMM_V4R4R4_NHWC_KYXC_NHWK_HPP
@@ -136,13 +136,6 @@ transform_forward_convolution3d_into_gemm_v4r4r4_ndhwc_kzyxc_ndhwk_pad(
         make_tuple(make_pass_through_transform(N * Do * Ho * Wo), make_pass_through_transform(K)),
         make_tuple(Sequence<0>{}, Sequence<1>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-    // const auto out_grid_desc_gemmm_gemmn = transform_tensor_descriptor(
-    //     out_n_do_ho_wo_k_grid_desc,
-    //     make_tuple(make_merge_transform(make_tuple(N, Do, Ho, Wo)),
-    //                make_pass_through_transform(K)),
-    //     make_tuple(Sequence<0, 1, 2, 3>{}, Sequence<3>{}),
-    //     make_tuple(Sequence<0>{}, Sequence<1>{}));
 
     return make_tuple(in_grid_desc_gemmk0_gemmm_gemmk1,
                       wei_grid_desc_gemmk0_gemmn_gemmk1,

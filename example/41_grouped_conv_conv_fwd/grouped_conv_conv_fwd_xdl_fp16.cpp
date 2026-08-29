@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -19,6 +19,10 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using In0DataType       = ck::half_t;
 using Wei0DataType      = ck::half_t;
@@ -73,11 +77,11 @@ using DeviceBatchedGemmGemmInstance =
         8,           // AK1
         8,           // BK1
         4,           // B1K1
-        32,          // MPerXDL
-        32,          // NPerXDL
-        1,           // MXdlPerWave
-        4,           // NXdlPerWave
-        4,           // Gemm1NXdlPerWave
+        16,          // MPerXDL
+        16,          // NPerXDL
+        2,           // MXdlPerWave
+        8,           // NXdlPerWave
+        8,           // Gemm1NXdlPerWave
         S<4, 64, 1>, // ABlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
@@ -102,7 +106,7 @@ using DeviceBatchedGemmGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+        4>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 #include "run_grouped_conv_conv_fwd_example.inc"
 

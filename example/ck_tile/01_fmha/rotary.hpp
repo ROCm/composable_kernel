@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,11 @@
 
 #include <cassert>
 #include <cmath>
+
+#ifndef M_PI // Not there on windows...
+#define M_PI 3.141592653589793238462643383279502884
+#endif
+
 #include <functional>
 #include <iterator>
 #include <optional>

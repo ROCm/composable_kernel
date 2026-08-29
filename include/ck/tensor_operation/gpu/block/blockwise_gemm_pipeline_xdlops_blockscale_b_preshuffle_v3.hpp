@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -152,6 +152,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MWaves;
+    using Base::WaveSize;
 
     static constexpr index_t PrefetchStages        = 2;
     static constexpr index_t LocalPrefetchStages   = 2;
@@ -166,7 +167,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         constexpr index_t M1 = TileDesc_M0_M1_M2_K{}.GetLength(Number<1>{});
         constexpr index_t M2 = TileDesc_M0_M1_M2_K{}.GetLength(Number<2>{});
         constexpr index_t K2 = KPack / KGroup;
-        constexpr index_t K1 = 64 / NPerXDL;
+        constexpr index_t K1 = WaveSize / NPerXDL;
         constexpr index_t K0 = KRepeat * KGroup;
 
         return transform_tensor_descriptor(
@@ -415,6 +416,15 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     {
         ignore = b_block_desc;
         ignore = b_block_buf;
+
+        static_assert(sizeof(AccDataType) == 4 && is_floating_point<AccDataType>::value,
+                      "bpreshuffle accumulator anchor requires 32-bit float AccDataType");
+
+        // The empty asm is a read/write VGPR use of the updated accumulator.
+        // It keeps each post-scale accumulator definition visible to the
+        // optimizer, which enables determinism for bitwise-stable repeated launches.
+        auto anchor_accumulator_value = [&](auto& value) { asm volatile("" : "+v"(value)); };
+
         __builtin_amdgcn_sched_barrier(0);
         static_assert(CScaleThreadDesc{}.GetLength(Number<0>{}) == 1,
                       "Pipeline v3 only support scaleblocksliceK=1");
@@ -537,18 +547,16 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
         // Local prefetch A1
         block_sync_lds();
-        static_for<0, LocalPrefetchStages, 1>{}([&](auto m0) {
-            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                    a_thread_copy_.Run(
-                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                        make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                        a_block_buf.At(I0),
-                        a_thread_desc_,
-                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
-                        a_thread_buf);
-                });
-            });
+        static_ford<Sequence<LocalPrefetchStages, KRepeat, KGroup>>{}([&](auto mkk) {
+            constexpr auto m0  = Number<mkk[Number<0>{}]>{};
+            constexpr auto k0  = Number<mkk[Number<1>{}]>{};
+            constexpr auto kg0 = Number<mkk[Number<2>{}]>{};
+            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                               make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                               a_block_buf.At(I0),
+                               a_thread_desc_,
+                               make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                               a_thread_buf);
         });
 
 #if 1
@@ -562,12 +570,27 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             vector_type<ComputeDataType, KPack> a_thread_vec;
             vector_type<ComputeDataType, KPack> b_thread_vec;
 
-            static_for<0, KPack, 1>{}([&](auto ik) {
-                a_thread_vec.template AsType<ComputeDataType>()(ik) = a_thread_buf
-                    [Number<a_thread_desc_.CalculateOffset(make_tuple(I0, I0, I0, k0, I0, ik))>{}];
-                b_thread_vec.template AsType<ComputeDataType>()(ik) = b_thread_bufs
-                    [I0][Number<b_thread_desc_.CalculateOffset(make_tuple(I0, I0, k0, ik))>{}];
-            });
+            auto loadA = thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                                  decltype(a_thread_buf),
+                                                  decltype(a_thread_desc_),
+                                                  ComputeDataType,
+                                                  Number<0>,
+                                                  Number<0>,
+                                                  Number<0>,
+                                                  decltype(k0),
+                                                  Number<0>,
+                                                  index_expression::Ik>{a_thread_vec, a_thread_buf};
+            auto loadB =
+                thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                         decltype(b_thread_bufs[I0]),
+                                         decltype(b_thread_desc_),
+                                         ComputeDataType,
+                                         Number<0>,
+                                         Number<0>,
+                                         decltype(k0),
+                                         index_expression::Ik>{b_thread_vec, b_thread_bufs[I0]};
+
+            static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB));
 
             using mfma_input_type =
                 typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
@@ -628,11 +651,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     }
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        vector_type<AccDataType, 2> c_scale_thread_vec;
-                        c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
-                            c_scale_thread_buf[m0];
-                        c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
-                            c_scale_thread_buf[m0];
+                        const auto c_scale_thread = c_scale_thread_buf[m0];
 
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             constexpr auto mfma_buf_offset =
@@ -658,22 +677,31 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                 vector_type<ComputeDataType, KPack> a_thread_vec;
                                 vector_type<ComputeDataType, KPack> b_thread_vec;
 
-                                static_for<0, KPack, 1>{}([&](auto ik) {
-                                    a_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                            make_tuple((a_local_buf_offset +
-                                                        HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                           2,
-                                                       I0,
-                                                       I0,
-                                                       k0,
-                                                       I0,
-                                                       ik))>{}];
-                                    b_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                        b_thread_bufs
-                                            [b_local_buf_id][Number<b_thread_desc_.CalculateOffset(
-                                                make_tuple(b_local_buf_offset, I0, k0, ik))>{}];
-                                });
+                                constexpr auto var =
+                                    (a_local_buf_offset + HotloopLocalBufSwitch * mfma_reg_buf) % 2;
+                                auto loadA = thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                                                      decltype(a_thread_buf),
+                                                                      decltype(a_thread_desc_),
+                                                                      ComputeDataType,
+                                                                      Number<var>,
+                                                                      Number<0>,
+                                                                      Number<0>,
+                                                                      decltype(k0),
+                                                                      Number<0>,
+                                                                      index_expression::Ik>{
+                                    a_thread_vec, a_thread_buf};
+                                auto loadB = thread_buf_to_vec_loader<
+                                    decltype(b_thread_vec),
+                                    decltype(b_thread_bufs[b_local_buf_id]),
+                                    decltype(b_thread_desc_),
+                                    ComputeDataType,
+                                    Number<b_local_buf_offset>,
+                                    Number<0>,
+                                    decltype(k0),
+                                    index_expression::Ik>{b_thread_vec,
+                                                          b_thread_bufs[b_local_buf_id]};
+
+                                static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB));
 
                                 using mfma_input_type =
                                     typename vector_type<ComputeDataType,
@@ -689,24 +717,29 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                            static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
-                                using pk_fma_type = typename vector_type<AccDataType, 2>::type;
-
-                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                    .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                            // Keep the post-scale FMA scalar; the old packed 2-lane update hits
+                            // ROCm 7.2 gfx950 illegal-type legalization/codegen issues.
+                            static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                                auto& c_acc_vec =
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                        .template AsType<AccDataType>();
+                                const auto c_partial_acc =
                                     c_thread_buf_per_scale
                                         .GetVectorTypeReference(Number<scale_buf_offset>{})
-                                        .template AsType<pk_fma_type>()[t],
-                                    c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
-                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                        .template AsType<pk_fma_type>()[t]);
+                                        .template AsType<AccDataType>()(t);
+                                c_acc_vec(t) = __builtin_elementwise_fma(
+                                    c_partial_acc, c_scale_thread, c_acc_vec(t));
+                                anchor_accumulator_value(c_acc_vec(t));
                             });
                         });
 
-                        // We have to 1 stage early sync the lds for workaround the compiler
-                        // limitation
-                        if constexpr(m0.value == (MRepeat - LocalPrefetchStages - 1))
+                        // Compiler issue. Previously the sync was done one stage earlier to fix it.
+                        // Problem shows up again with latest compiler so we sync at the correct
+                        // iteration and then we force the instructions before the sync
+                        static_assert(MRepeat >= LocalPrefetchStages);
+                        if constexpr(m0.value == (MRepeat - LocalPrefetchStages))
                         {
+                            __builtin_amdgcn_sched_barrier(0); // force all instructions before this
                             block_sync_lds();
                         }
 
@@ -714,28 +747,28 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                                      ? local_read_buf
                                                      : mfma_reg_buf;
 
-                        static_for<0, KRepeat, 1>{}([&](auto k0) {
-                            static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                a_thread_copy_.Run(
-                                    a_block_desc_m0_m1_m2_k0_k1_k2,
-                                    make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                               I0,
-                                               I0,
-                                               Number<k0 * KGroup + kg0>{},
-                                               I0,
-                                               I0),
-                                    a_block_buf.At(Number<lds_buf>{}),
-                                    a_thread_desc_,
-                                    make_tuple(Number<(m0 + LocalPrefetchStages +
-                                                       HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                      2>{},
-                                               I0,
-                                               I0,
-                                               k0,
-                                               I0,
-                                               Number<kg0 * KPack / KGroup>{}),
-                                    a_thread_buf);
-                            });
+                        static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                            constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                            constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                            a_thread_copy_.Run(
+                                a_block_desc_m0_m1_m2_k0_k1_k2,
+                                make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                           I0,
+                                           I0,
+                                           Number<k0 * KGroup + kg0>{},
+                                           I0,
+                                           I0),
+                                a_block_buf.At(Number<lds_buf>{}),
+                                a_thread_desc_,
+                                make_tuple(Number<(m0 + LocalPrefetchStages +
+                                                   HotloopLocalBufSwitch * mfma_reg_buf) %
+                                                  2>{},
+                                           I0,
+                                           I0,
+                                           k0,
+                                           I0,
+                                           Number<kg0 * KPack / KGroup>{}),
+                                a_thread_buf);
                         });
                     });
 
@@ -767,11 +800,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                vector_type<AccDataType, 2> c_scale_thread_vec;
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
-                    c_scale_thread_buf[m0];
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
-                    c_scale_thread_buf[m0];
+                const auto c_scale_thread = c_scale_thread_buf[m0];
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
@@ -795,14 +824,30 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(a_local_buf_offset % 2, I0, I0, k0, I0, ik))>{}];
-                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                b_thread_bufs[b_local_buf_id][Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(b_local_buf_offset, I0, k0, ik))>{}];
-                        });
+                        constexpr auto var = a_local_buf_offset % 2;
+                        auto loadA         = thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                                                      decltype(a_thread_buf),
+                                                                      decltype(a_thread_desc_),
+                                                                      ComputeDataType,
+                                                                      Number<var>,
+                                                                      Number<0>,
+                                                                      Number<0>,
+                                                                      decltype(k0),
+                                                                      Number<0>,
+                                                                      index_expression::Ik>{a_thread_vec,
+                                                                                            a_thread_buf};
+                        auto loadB =
+                            thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                                     decltype(b_thread_bufs[b_local_buf_id]),
+                                                     decltype(b_thread_desc_),
+                                                     ComputeDataType,
+                                                     Number<b_local_buf_offset>,
+                                                     Number<0>,
+                                                     decltype(k0),
+                                                     index_expression::Ik>{
+                                b_thread_vec, b_thread_bufs[b_local_buf_id]};
+
+                        static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB));
 
                         using mfma_input_type =
                             typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
@@ -816,47 +861,48 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
-                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
-
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                    // Keep the post-scale FMA scalar; the old packed 2-lane update hits ROCm 7.2
+                    // gfx950 illegal-type legalization/codegen issues.
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                        auto& c_acc_vec = c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                              .template AsType<AccDataType>();
+                        const auto c_partial_acc =
                             c_thread_buf_per_scale
                                 .GetVectorTypeReference(Number<scale_buf_offset>{})
-                                .template AsType<pk_fma_type>()[t],
-                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                .template AsType<pk_fma_type>()[t]);
+                                .template AsType<AccDataType>()(t);
+                        c_acc_vec(t) =
+                            __builtin_elementwise_fma(c_partial_acc, c_scale_thread, c_acc_vec(t));
+                        anchor_accumulator_value(c_acc_vec(t));
                     });
                 });
 
                 if constexpr(m0.value == (MRepeat - LocalPrefetchStages))
                 {
+                    __builtin_amdgcn_sched_barrier(0); // force all instructions before this
                     block_sync_lds();
                 }
 
                 constexpr auto lds_buf = m0.value >= (MRepeat - LocalPrefetchStages) ? I1 : I0;
 
-                static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    static_for<0, KGroup, 1>{}([&](auto kg0) {
-                        a_thread_copy_.Run(
-                            a_block_desc_m0_m1_m2_k0_k1_k2,
-                            make_tuple(Number<(m0 + LocalPrefetchStages) % MRepeat>{},
-                                       I0,
-                                       I0,
-                                       Number<k0 * KGroup + kg0>{},
-                                       I0,
-                                       I0),
-                            a_block_buf.At(Number<lds_buf>{}),
-                            a_thread_desc_,
-                            make_tuple(Number<(m0 + LocalPrefetchStages) % 2>{},
-                                       I0,
-                                       I0,
-                                       k0,
-                                       I0,
-                                       Number<kg0 * KPack / KGroup>{}),
-                            a_thread_buf);
-                    });
+                static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                    constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                    constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                       make_tuple(Number<(m0 + LocalPrefetchStages) % MRepeat>{},
+                                                  I0,
+                                                  I0,
+                                                  Number<k0 * KGroup + kg0>{},
+                                                  I0,
+                                                  I0),
+                                       a_block_buf.At(Number<lds_buf>{}),
+                                       a_thread_desc_,
+                                       make_tuple(Number<(m0 + LocalPrefetchStages) % 2>{},
+                                                  I0,
+                                                  I0,
+                                                  k0,
+                                                  I0,
+                                                  Number<kg0 * KPack / KGroup>{}),
+                                       a_thread_buf);
                 });
             });
 
@@ -867,11 +913,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                vector_type<AccDataType, 2> c_scale_thread_vec;
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
-                    c_scale_thread_buf[m0];
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
-                    c_scale_thread_buf[m0];
+                const auto c_scale_thread = c_scale_thread_buf[m0];
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
@@ -893,20 +935,29 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             vector_type<ComputeDataType, KPack> a_thread_vec;
                             vector_type<ComputeDataType, KPack> b_thread_vec;
+                            constexpr auto var = (a_local_buf_offset + HotloopLocalBufSwitch) % 2;
+                            auto loadA         = thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                                                          decltype(a_thread_buf),
+                                                                          decltype(a_thread_desc_),
+                                                                          ComputeDataType,
+                                                                          Number<var>,
+                                                                          Number<0>,
+                                                                          Number<0>,
+                                                                          decltype(k0),
+                                                                          Number<0>,
+                                                                          index_expression::Ik>{
+                                a_thread_vec, a_thread_buf};
+                            auto loadB = thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                                                  decltype(b_thread_bufs[I1]),
+                                                                  decltype(b_thread_desc_),
+                                                                  ComputeDataType,
+                                                                  Number<b_local_buf_offset>,
+                                                                  Number<0>,
+                                                                  decltype(k0),
+                                                                  index_expression::Ik>{
+                                b_thread_vec, b_thread_bufs[I1]};
 
-                            static_for<0, KPack, 1>{}([&](auto ik) {
-                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                        make_tuple((a_local_buf_offset + HotloopLocalBufSwitch) % 2,
-                                                   I0,
-                                                   I0,
-                                                   k0,
-                                                   I0,
-                                                   ik))>{}];
-                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                    b_thread_bufs[I1][Number<b_thread_desc_.CalculateOffset(
-                                        make_tuple(b_local_buf_offset, I0, k0, ik))>{}];
-                            });
+                            static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB));
 
                             using mfma_input_type =
                                 typename vector_type<ComputeDataType,
@@ -923,44 +974,44 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
-                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
-
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                    // Keep the post-scale FMA scalar; the old packed 2-lane update hits ROCm 7.2
+                    // gfx950 illegal-type legalization/codegen issues.
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                        auto& c_acc_vec = c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                              .template AsType<AccDataType>();
+                        const auto c_partial_acc =
                             c_thread_buf_per_scale
                                 .GetVectorTypeReference(Number<scale_buf_offset>{})
-                                .template AsType<pk_fma_type>()[t],
-                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                .template AsType<pk_fma_type>()[t]);
+                                .template AsType<AccDataType>()(t);
+                        c_acc_vec(t) =
+                            __builtin_elementwise_fma(c_partial_acc, c_scale_thread, c_acc_vec(t));
+                        anchor_accumulator_value(c_acc_vec(t));
                     });
                 });
 
                 if constexpr(m0.value < (MRepeat - LocalPrefetchStages))
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<m0 + LocalPrefetchStages>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + LocalPrefetchStages + HotloopLocalBufSwitch) %
-                                           2>{},
-                                    I0,
-                                    I0,
-                                    k0,
-                                    I0,
-                                    Number<kg0 * KPack / KGroup>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(Number<m0 + LocalPrefetchStages>{},
+                                       I0,
+                                       I0,
+                                       Number<k0 * KGroup + kg0>{},
+                                       I0,
+                                       I0),
+                            a_block_buf.At(I1),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + LocalPrefetchStages + HotloopLocalBufSwitch) % 2>{},
+                                I0,
+                                I0,
+                                k0,
+                                I0,
+                                Number<kg0 * KPack / KGroup>{}),
+                            a_thread_buf);
                     });
                 }
             });
@@ -971,11 +1022,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         else
         {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                vector_type<AccDataType, 2> c_scale_thread_vec;
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
-                    c_scale_thread_buf[m0];
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
-                    c_scale_thread_buf[m0];
+                const auto c_scale_thread = c_scale_thread_buf[m0];
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
@@ -998,14 +1045,29 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             vector_type<ComputeDataType, KPack> a_thread_vec;
                             vector_type<ComputeDataType, KPack> b_thread_vec;
 
-                            static_for<0, KPack, 1>{}([&](auto ik) {
-                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                        make_tuple(a_local_buf_offset % 2, I0, I0, k0, I0, ik))>{}];
-                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                    b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
-                                        make_tuple(b_local_buf_offset, I0, k0, ik))>{}];
-                            });
+                            constexpr auto var = a_local_buf_offset % 2;
+                            auto loadA         = thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                                                          decltype(a_thread_buf),
+                                                                          decltype(a_thread_desc_),
+                                                                          ComputeDataType,
+                                                                          Number<var>,
+                                                                          Number<0>,
+                                                                          Number<0>,
+                                                                          decltype(k0),
+                                                                          Number<0>,
+                                                                          index_expression::Ik>{
+                                a_thread_vec, a_thread_buf};
+                            auto loadB = thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                                                  decltype(b_thread_bufs[I0]),
+                                                                  decltype(b_thread_desc_),
+                                                                  ComputeDataType,
+                                                                  Number<b_local_buf_offset>,
+                                                                  Number<0>,
+                                                                  decltype(k0),
+                                                                  index_expression::Ik>{
+                                b_thread_vec, b_thread_bufs[I0]};
+
+                            static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB));
 
                             using mfma_input_type =
                                 typename vector_type<ComputeDataType,
@@ -1022,38 +1084,39 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
-                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
-
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                    // Keep the post-scale FMA scalar; the old packed 2-lane update hits ROCm 7.2
+                    // gfx950 illegal-type legalization/codegen issues.
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                        auto& c_acc_vec = c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                              .template AsType<AccDataType>();
+                        const auto c_partial_acc =
                             c_thread_buf_per_scale
                                 .GetVectorTypeReference(Number<scale_buf_offset>{})
-                                .template AsType<pk_fma_type>()[t],
-                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                .template AsType<pk_fma_type>()[t]);
+                                .template AsType<AccDataType>()(t);
+                        c_acc_vec(t) =
+                            __builtin_elementwise_fma(c_partial_acc, c_scale_thread, c_acc_vec(t));
+                        anchor_accumulator_value(c_acc_vec(t));
                     });
                 });
 
                 if constexpr(m0.value < (MRepeat - LocalPrefetchStages))
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                a_block_buf.At(I0),
-                                a_thread_desc_,
-                                make_tuple(Number<(m0 + LocalPrefetchStages) % 2>{},
-                                           I0,
-                                           I0,
-                                           k0,
-                                           I0,
-                                           Number<kg0 * KPack / KGroup>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(
+                                Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                            a_block_buf.At(I0),
+                            a_thread_desc_,
+                            make_tuple(Number<(m0 + LocalPrefetchStages) % 2>{},
+                                       I0,
+                                       I0,
+                                       k0,
+                                       I0,
+                                       Number<kg0 * KPack / KGroup>{}),
+                            a_thread_buf);
                     });
                 }
             });

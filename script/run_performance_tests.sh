@@ -1,4 +1,7 @@
 #!/bin/bash 
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 #
 # in order to run this script you'd first need to build the ckProfiler executable in ../build/bin/
 # run the script as "./run_performance_tests.sh <verification> <tag for your test environment> <branch name> <node name>
@@ -18,6 +21,8 @@ export branch=$3
 echo 'Branch name: ' $branch
 export host_name=$4
 echo 'Host name: ' $host_name
+export arch=$5
+echo 'GPU architecture: ' $arch
 
 function print_log_header(){
 	rm -f $1;
@@ -32,7 +37,7 @@ function print_log_header(){
 }
 
 #run gemm tests
-export gemm_log="perf_gemm.log"
+export gemm_log="perf_gemm_$arch.log"
 print_log_header $gemm_log $env_type $branch $host_name
 ./profile_gemm.sh gemm 0 0 $verify 1 0 1 | tee -a $gemm_log
 ./profile_gemm.sh gemm 1 0 $verify 1 0 1 | tee -a $gemm_log
@@ -52,15 +57,15 @@ print_log_header $gemm_log $env_type $branch $host_name
 ./profile_gemm.sh gemm 3 3 $verify 1 0 1 | tee -a $gemm_log
 
 #run ONNX gemm tests
-export onnx_log="perf_onnx_gemm.log"
+export onnx_log="perf_onnx_gemm_$arch.log"
 print_log_header $onnx_log $env_type $branch $host_name
 ./profile_onnx_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
 ./profile_onnx_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
 
 #run resnet50 tests
-export resnet256_log="perf_resnet50_N256.log"
+export resnet256_log="perf_resnet50_N256_$arch.log"
 print_log_header $resnet256_log $env_type $branch $host_name
 ./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 256 | tee -a $resnet256_log
-export resnet4_log="perf_resnet50_N4.log"
+export resnet4_log="perf_resnet50_N4_$arch.log"
 print_log_header $resnet4_log $env_type $branch $host_name
 ./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 4 | tee -a $resnet4_log

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <gtest/gtest.h>
@@ -97,13 +97,13 @@ class TestCkTileImageToColumn : public ::testing::Test
             kargs.N * kargs.output_spatial_lengths[0] * kargs.output_spatial_lengths[1],
             kargs.filter_spatial_lengths[0] * kargs.filter_spatial_lengths[1] * kargs.C,
             kargs.G);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 blocks = Kernel::BlockSize();
 
         constexpr ck_tile::index_t kBlockPerCu = 2;
 
         ck_tile::launch_kernel(
             ck_tile::stream_config{},
-            ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         // reference
         ck_tile::reference_im2col<DataType, DataType, NDimSpatial>(in, out_host, conv_params);

@@ -1,0 +1,134 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Logs - View container logs and build output
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Logs - View container logs and build output
+
+Usage: ck-logs [options] [container_name]
+
+Options:
+  -h, --help              Show this help message
+  --name <name>           Specify container name
+  -f, --follow            Follow log output
+  -n, --tail <N>          Show last N lines (default: 100)
+  --cmake                 Show CMake configuration log
+  --build                 Show last build log
+
+Arguments:
+  container_name          Optional container name (default: ck_<username>_<branch>)
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name
+
+Examples:
+  ck-logs                    # Show last 100 lines of container logs
+  ck-logs -f                 # Follow container logs
+  ck-logs -n 500             # Show last 500 lines
+  ck-logs --cmake            # Show CMake configuration
+  ck-logs --build            # Show build log
+
+EOF
+}
+
+# Parse arguments
+follow=false
+tail_lines=100
+show_cmake=false
+show_build=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --name)
+            CONTAINER_NAME="$2"
+            shift 2
+            ;;
+        -f|--follow)
+            follow=true
+            shift
+            ;;
+        -n|--tail)
+            tail_lines="$2"
+            shift 2
+            ;;
+        --cmake)
+            show_cmake=true
+            shift
+            ;;
+        --build)
+            show_build=true
+            shift
+            ;;
+        *)
+            CONTAINER_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
+# Check if container exists
+if ! container_exists "${CONTAINER_NAME}"; then
+    echo "Container '${CONTAINER_NAME}' does not exist"
+    exit 1
+fi
+
+# Show CMake log
+if [ "$show_cmake" = true ]; then
+    echo "CMake Configuration Log:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    if docker exec "${CONTAINER_NAME}" test -f /workspace/build/CMakeCache.txt 2>/dev/null; then
+        docker exec "${CONTAINER_NAME}" bash -c "
+            cd /workspace/build
+            echo 'GPU_TARGETS:' \$(grep 'GPU_TARGETS:' CMakeCache.txt | cut -d'=' -f2)
+            echo 'CMAKE_BUILD_TYPE:' \$(grep 'CMAKE_BUILD_TYPE:' CMakeCache.txt | cut -d'=' -f2)
+            echo 'CMAKE_CXX_COMPILER:' \$(grep 'CMAKE_CXX_COMPILER:' CMakeCache.txt | cut -d'=' -f2)
+            echo 'BUILD_TESTING:' \$(grep 'BUILD_TESTING:' CMakeCache.txt | cut -d'=' -f2)
+        "
+    else
+        echo "CMake not configured yet"
+    fi
+    exit 0
+fi
+
+# Show build log (last build output)
+if [ "$show_build" = true ]; then
+    echo "Last Build Log:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    if docker exec "${CONTAINER_NAME}" test -f /workspace/build/.ninja_log 2>/dev/null; then
+        docker exec "${CONTAINER_NAME}" bash -c "tail -50 /workspace/build/.ninja_log"
+    else
+        echo "No build log found"
+    fi
+    exit 0
+fi
+
+# Show container logs
+echo "Container Logs (${CONTAINER_NAME}):"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ "$follow" = true ]; then
+    docker logs -f "${CONTAINER_NAME}"
+else
+    docker logs --tail "${tail_lines}" "${CONTAINER_NAME}"
+fi

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,13 +11,16 @@ struct WarpGemmImpl
 {
     using WarpGemmAttribute = remove_cvref_t<WarpGemmAttribute_>;
 
-    static constexpr index_t kM = WarpGemmAttribute::kM;
-    static constexpr index_t kN = WarpGemmAttribute::kN;
-    static constexpr index_t kK = WarpGemmAttribute::kK;
+    static constexpr index_t kM      = WarpGemmAttribute::kM;
+    static constexpr index_t kN      = WarpGemmAttribute::kN;
+    static constexpr index_t kK      = WarpGemmAttribute::kK;
+    static constexpr index_t kCMLane = WarpGemmAttribute::kCMLane;
     /// @brief The number of elements in K dimension processed by single thread in wavefront.
     ///
     /// @note  Note that WarpGemm may run MFMA instruction multiple times (on different K).
     ///        In such situation this value reflects this fact.
+    static constexpr index_t kAKPack     = WarpGemmAttribute::kAKPack;
+    static constexpr index_t kBKPack     = WarpGemmAttribute::kBKPack;
     static constexpr index_t kKPerThread = WarpGemmAttribute::kKPerThread;
 
     using ADataType = typename WarpGemmAttribute::ADataType;
@@ -41,9 +44,8 @@ struct WarpGemmImpl
         return WarpGemmAttribute_::get_num_of_access();
     }
 
-    template <typename CTensor, typename ATensor, typename BTensor, bool post_nop_ = false>
-    CK_TILE_DEVICE void
-    operator()(CTensor& c, const ATensor& a, const BTensor& b, bool_constant<post_nop_> = {}) const
+    template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE void operator()(CTensor& c, const ATensor& a, const BTensor& b) const
     {
         static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CWarpTensor> &&
                       detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
@@ -59,21 +61,18 @@ struct WarpGemmImpl
         auto c_vec       = c.get_thread_buffer().template get_as<CVec>()[I0];
 
         // c_vec += a_vec * b_vec
-        WarpGemmAttribute{}(c_vec, a_vec, b_vec, bool_constant<post_nop_>{});
+        WarpGemmAttribute{}.template operator()<Params...>(c_vec, a_vec, b_vec);
 
         c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
     }
 
-    template <typename CTensor,
+    template <typename... Params,
+              typename CTensor,
               typename ATensor,
               typename BTensor,
-              index_t i_subk,
-              bool post_nop_ = false>
-    CK_TILE_DEVICE void operator()(CTensor& c,
-                                   const ATensor& a,
-                                   const BTensor& b,
-                                   number<i_subk>,
-                                   bool_constant<post_nop_> = {}) const
+              index_t i_subk>
+    CK_TILE_DEVICE void
+    operator()(CTensor& c, const ATensor& a, const BTensor& b, number<i_subk>) const
     {
         using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
         using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
@@ -86,12 +85,43 @@ struct WarpGemmImpl
         auto c_vec       = c.get_thread_buffer().template get_as<CVec>()[I0];
 
         // c_vec += a_vec * b_vec
-        WarpGemmAttribute{}(c_vec, a_vec, b_vec, number<i_subk>{}, bool_constant<post_nop_>{});
+        WarpGemmAttribute{}.template operator()<Params...>(c_vec, a_vec, b_vec, number<i_subk>{});
 
         c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
     }
 
-    template <typename ATensor, typename BTensor>
+    template <typename... Params,
+              typename CTensor,
+              typename ATensor,
+              typename BTensor,
+              typename AScaleType,
+              typename BScaleType>
+    CK_TILE_DEVICE void operator()(CTensor& c,
+                                   const ATensor& a,
+                                   const BTensor& b,
+                                   const AScaleType& a_scale,
+                                   const BScaleType& b_scale) const
+    {
+        static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
+        using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
+        using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
+        using CVec = ext_vector_t<CDataType, CTensor::get_thread_buffer_size()>;
+
+        constexpr auto I0 = number<0>{};
+
+        const auto a_vec = a.get_thread_buffer().template get_as<AVec>()[I0];
+        const auto b_vec = b.get_thread_buffer().template get_as<BVec>()[I0];
+        auto c_vec       = c.get_thread_buffer().template get_as<CVec>()[I0];
+
+        // c_vec += a_vec * b_vec
+        WarpGemmAttribute{}.template operator()<Params...>(c_vec, a_vec, a_scale, b_vec, b_scale);
+
+        c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
+    }
+
+    template <typename... Params, typename ATensor, typename BTensor>
     CK_TILE_DEVICE auto operator()(const ATensor& a, const BTensor& b) const
     {
         using CTensor = CWarpTensor;
@@ -109,7 +139,71 @@ struct WarpGemmImpl
         const auto b_vec = b.get_thread_buffer().template get_as<BVec>()[I0];
 
         // c_vec = a_vec * b_vec
-        auto c_vec = WarpGemmAttribute{}(a_vec, b_vec);
+        auto c_vec = WarpGemmAttribute{}.template operator()<Params...>(a_vec, b_vec);
+
+        c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
+
+        return c;
+    }
+
+    // c_out = a * b + c_in : fp32 accumulate, narrowed (e.g. bf16) C output tile (tail handler)
+    template <typename... Params, typename CInTensor, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE auto
+    mac_downconvert(const CInTensor& c_in, const ATensor& a, const BTensor& b) const
+    {
+        static_assert(detail::is_similiar_distributed_tensor_v<CInTensor, CWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
+
+        using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
+        using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
+        using CVec = ext_vector_t<CDataType, CInTensor::get_thread_buffer_size()>;
+
+        constexpr auto I0 = number<0>{};
+
+        const auto a_vec = a.get_thread_buffer().template get_as<AVec>()[I0];
+        const auto b_vec = b.get_thread_buffer().template get_as<BVec>()[I0];
+        const auto c_vec = c_in.get_thread_buffer().template get_as<CVec>()[I0];
+
+        auto c_out_vec =
+            WarpGemmAttribute{}.template mac_downconvert<Params...>(c_vec, a_vec, b_vec);
+
+        using COutDataType = typename WarpGemmAttribute::Impl::TraitsType::COutDataType;
+        using COutTensor   = static_distributed_tensor<COutDataType, CWarpDstr>;
+        using COutVec      = ext_vector_t<COutDataType, COutTensor::get_thread_buffer_size()>;
+
+        COutTensor c_out;
+        c_out.get_thread_buffer().template set_as<COutVec>(I0, c_out_vec);
+        return c_out;
+    }
+
+    template <typename... Params,
+              typename ATensor,
+              typename BTensor,
+              typename AScaleType,
+              typename BScaleType>
+    CK_TILE_DEVICE auto operator()(const ATensor& a,
+                                   const BTensor& b,
+                                   const AScaleType& a_scale,
+                                   const BScaleType& b_scale) const
+    {
+        using CTensor = CWarpTensor;
+        static_assert(detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
+        CTensor c;
+
+        using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
+        using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
+        using CVec = ext_vector_t<CDataType, CTensor::get_thread_buffer_size()>;
+
+        constexpr auto I0 = number<0>{};
+
+        const auto a_vec = a.get_thread_buffer().template get_as<AVec>()[I0];
+        const auto b_vec = b.get_thread_buffer().template get_as<BVec>()[I0];
+
+        // c_vec = a_vec * b_vec
+        auto c_vec =
+            WarpGemmAttribute{}.template operator()<Params...>(a_vec, a_scale, b_vec, b_scale);
 
         c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
 

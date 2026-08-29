@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,6 +11,10 @@
 
 #define CK_MNK_LOOP
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 #ifdef __gfx12__
@@ -51,13 +55,12 @@ template <index_t BlockSize,
  */
 struct BlockwiseGemmWMMA
 {
-    static constexpr auto I0    = Number<0>{};
-    static constexpr auto I1    = Number<1>{};
-    static constexpr auto I2    = Number<2>{};
-    static constexpr auto I3    = Number<3>{};
-    static constexpr auto I4    = Number<4>{};
-    static constexpr auto I5    = Number<5>{};
-    static constexpr auto WmmaK = Number<16>{};
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -75,6 +78,8 @@ struct BlockwiseGemmWMMA
 
     static constexpr auto wmma_gemm =
         WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC>{};
+
+    static constexpr auto WmmaK = Number<wmma_gemm.wmma_instr.k_per_wmma>{};
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWMMA);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWMMA);
@@ -362,56 +367,50 @@ struct BlockwiseGemmWMMA
         }
         else
         {
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, KPerBlock / KPack, 1>{}([&](auto k) { // k=0,1,2 instead of
-                                                                        // k=0,kpack*1, ..
-                        // read B
-                        b_thread_copy_.Run(
-                            b_block_desc_k0_n0_n1_n2_k1,
-                            make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
-                            b_block_buf,
-                            b_thread_desc_,
-                            make_tuple(I0, n0, I0, I0, I0, I0),
-                            b_thread_buf);
-                        // read A
-                        a_thread_copy_.Run(
-                            a_block_desc_k0_m0_m1_m2_k1,
-                            make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
-                            a_block_buf,
-                            a_thread_desc_,
-                            make_tuple(I0, m0, I0, I0, I0, I0),
-                            a_thread_buf);
+            static_ford<Sequence<NRepeat, MRepeat, KPerBlock / KPack>>{}([&](auto nmk) {
+                constexpr auto n0 = Number<nmk[Number<0>{}]>{};
+                constexpr auto m0 = Number<nmk[Number<1>{}]>{};
+                constexpr auto k = Number<nmk[Number<2>{}]>{}; // k=0,1,2 instead of k=0,kpack*1, ..
+                // read B
+                b_thread_copy_.Run(
+                    b_block_desc_k0_n0_n1_n2_k1,
+                    make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                    b_block_buf,
+                    b_thread_desc_,
+                    make_tuple(I0, n0, I0, I0, I0, I0),
+                    b_thread_buf);
+                // read A
+                a_thread_copy_.Run(
+                    a_block_desc_k0_m0_m1_m2_k1,
+                    make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
+                    a_block_buf,
+                    a_thread_desc_,
+                    make_tuple(I0, m0, I0, I0, I0, I0),
+                    a_thread_buf);
 
-                        vector_type<FloatA, KPack / A_KRow> a_thread_vec;
-                        vector_type<FloatB, KPack / B_KRow> b_thread_vec;
+                vector_type<FloatA, KPack / A_KRow> a_thread_vec;
+                vector_type<FloatB, KPack / B_KRow> b_thread_vec;
 
-                        static_for<0, KPack / A_KRow, 1>{}([&](auto i) {
-                            a_thread_vec.template AsType<FloatA>()(i) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(i / A_K1, m0, 0, 0, 0, i % A_K1))>{}];
-                        });
-
-                        static_for<0, KPack / B_KRow, 1>{}([&](auto i) {
-                            b_thread_vec.template AsType<FloatB>()(i) =
-                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(i / B_K1, n0, 0, 0, 0, i % B_K1))>{}];
-                        });
-
-                        using wmma_input_type_a =
-                            typename vector_type<FloatA, WmmaK / A_KRow>::type;
-                        using wmma_input_type_b =
-                            typename vector_type<FloatB, WmmaK / B_KRow>::type;
-
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
-
-                        wmma_gemm.template Run<>(
-                            a_thread_vec.template AsType<wmma_input_type_a>(),
-                            b_thread_vec.template AsType<wmma_input_type_b>(),
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                    });
+                static_for<0, KPack / A_KRow, 1>{}([&](auto i) {
+                    a_thread_vec.template AsType<FloatA>()(i) =
+                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                            make_tuple(i / A_K1, m0, 0, 0, 0, i % A_K1))>{}];
                 });
+
+                static_for<0, KPack / B_KRow, 1>{}([&](auto i) {
+                    b_thread_vec.template AsType<FloatB>()(i) =
+                        b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                            make_tuple(i / B_K1, n0, 0, 0, 0, i % B_K1))>{}];
+                });
+
+                using wmma_input_type_a = typename vector_type<FloatA, WmmaK / A_KRow>::type;
+                using wmma_input_type_b = typename vector_type<FloatB, WmmaK / B_KRow>::type;
+
+                constexpr index_t c_offset = c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                wmma_gemm.template Run<>(a_thread_vec.template AsType<wmma_input_type_a>(),
+                                         b_thread_vec.template AsType<wmma_input_type_b>(),
+                                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
             });
         }
     }
@@ -859,60 +858,47 @@ struct BlockwiseGemmWMMA
         }
         else
         {
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, KPerBlock / KPack, 1>{}([&](auto k) { // k=0,1,2 instead of
-                                                                        // k=0,kpack*1, ..
-                        // read B
-                        b_thread_copy_.Run(
-                            b_block_desc_k0_n0_n1_n2_k1,
-                            make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
-                            b_block_buf,
-                            b_thread_desc_,
-                            make_tuple(I0, n0, I0, I0, I0, I0),
-                            b_thread_buf);
-                        // read A
-                        a_thread_copy_.Run(
-                            a_block_desc_k0_m0_m1_m2_k1,
-                            make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
-                            a_block_buf,
-                            a_thread_desc_,
-                            make_tuple(I0, m0, I0, I0, I0, I0),
-                            a_thread_buf);
+            static_ford<Sequence<NRepeat, MRepeat, KPerBlock / KPack>>{}([&](auto nmk) {
+                constexpr auto n0 = Number<nmk[Number<0>{}]>{};
+                constexpr auto m0 = Number<nmk[Number<1>{}]>{};
+                constexpr auto k = Number<nmk[Number<2>{}]>{}; // k=0,1,2 instead of k=0,kpack*1, ..
+                // read B
+                b_thread_copy_.Run(
+                    b_block_desc_k0_n0_n1_n2_k1,
+                    make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                    b_block_buf,
+                    b_thread_desc_,
+                    make_tuple(I0, n0, I0, I0, I0, I0),
+                    b_thread_buf);
+                // read A
+                a_thread_copy_.Run(
+                    a_block_desc_k0_m0_m1_m2_k1,
+                    make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
+                    a_block_buf,
+                    a_thread_desc_,
+                    make_tuple(I0, m0, I0, I0, I0, I0),
+                    a_thread_buf);
 
-                        vector_type<FloatA, KPack> a_thread_vec;
-                        vector_type<FloatB, KPack> b_thread_vec;
+                vector_type<FloatA, KPack> a_thread_vec;
+                vector_type<FloatB, KPack> b_thread_vec;
 
-                        static_for<0, KPack, 1>{}([&](auto i) {
-                            b_thread_vec.template AsType<FloatB>()(i) =
-                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(i / B_K1 / B_KRow,
-                                               n0,
-                                               0,
-                                               (i / B_K1) % B_KRow,
-                                               0,
-                                               i % B_K1))>{}];
-                            a_thread_vec.template AsType<FloatA>()(i) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(i / A_K1 / A_KRow,
-                                               m0,
-                                               0,
-                                               (i / A_K1) % A_KRow,
-                                               0,
-                                               i % A_K1))>{}];
-                        });
-
-                        using wmma_input_type_a = typename vector_type<FloatA, WmmaK>::type;
-                        using wmma_input_type_b = typename vector_type<FloatB, WmmaK>::type;
-
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
-
-                        wmma_gemm.Run(a_thread_vec.template AsType<wmma_input_type_a>(),
-                                      b_thread_vec.template AsType<wmma_input_type_b>(),
-                                      c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                    });
+                static_for<0, KPack, 1>{}([&](auto i) {
+                    b_thread_vec.template AsType<FloatB>()(i) =
+                        b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(
+                            i / B_K1 / B_KRow, n0, 0, (i / B_K1) % B_KRow, 0, i % B_K1))>{}];
+                    a_thread_vec.template AsType<FloatA>()(i) =
+                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(
+                            i / A_K1 / A_KRow, m0, 0, (i / A_K1) % A_KRow, 0, i % A_K1))>{}];
                 });
+
+                using wmma_input_type_a = typename vector_type<FloatA, WmmaK>::type;
+                using wmma_input_type_b = typename vector_type<FloatB, WmmaK>::type;
+
+                constexpr index_t c_offset = c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                wmma_gemm.Run(a_thread_vec.template AsType<wmma_input_type_a>(),
+                              b_thread_vec.template AsType<wmma_input_type_b>(),
+                              c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
             });
         }
     }
@@ -1028,3 +1014,6 @@ struct BlockwiseGemmWMMA
 #endif
 
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

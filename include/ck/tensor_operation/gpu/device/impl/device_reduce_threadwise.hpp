@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,10 @@
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -390,3 +394,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InDataType,
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

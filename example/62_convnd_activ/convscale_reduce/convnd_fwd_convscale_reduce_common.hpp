@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -22,6 +22,10 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/utility/type.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 namespace ew = ck::tensor_operation::element_wise;
 
@@ -265,10 +269,10 @@ bool run_grouped_conv_fwd(bool do_verification,
     auto device_ew_scale = DeviceElementwiseScale{};
     auto scale_invoker   = device_ew_scale.MakeInvoker();
     auto scale_argument  = device_ew_scale.MakeArgument(e_g_n_k_wos_lengths,
-                                                       {e_g_n_k_wos_strides},
-                                                       {e_g_n_k_wos_strides},
-                                                       {conv_device_buf.GetDeviceBuffer()},
-                                                       {out_device_buf.GetDeviceBuffer()},
+                                                        {e_g_n_k_wos_strides},
+                                                        {e_g_n_k_wos_strides},
+                                                        {conv_device_buf.GetDeviceBuffer()},
+                                                        {out_device_buf.GetDeviceBuffer()},
                                                        scale_convert);
 
     if(!device_ew_scale.IsSupportedArgument(scale_argument))

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -23,8 +23,17 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp"
+#endif
 #include "ck/tensor_operation/gpu/device/tensor_size_check.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -122,7 +131,6 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WmmaK  = 16;
 
     static constexpr auto AEnableLds_auto = NWaves == 1 ? false : true;
     static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
@@ -167,17 +175,18 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         }
         else
         {
-            constexpr auto A_KRow      = 2;
-            constexpr auto A_K0PerWmma = WmmaK / A_KRow / K1Number;
-            const auto A_KWmma         = K / WmmaK;
+            const index_t WmmaK    = get_wmma_k<ADataType>();
+            constexpr auto A_KRow  = 2;
+            const auto A_K0PerWmma = WmmaK / A_KRow / K1Number;
+            const auto A_KWmma     = K / WmmaK;
 
             const auto M0 = M / MPerBlock;
             // 0   1     0         1                2        3             4        5          6
             // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
             return transform_tensor_descriptor(
                 in_gemmm_gemmk_desc,
-                make_tuple(make_unmerge_transform(make_tuple(
-                               A_KWmma, Number<A_K0PerWmma>{}, Number<A_KRow>{}, K1Number)),
+                make_tuple(make_unmerge_transform(
+                               make_tuple(A_KWmma, A_K0PerWmma, Number<A_KRow>{}, K1Number)),
                            make_unmerge_transform(
                                make_tuple(M0 * MRepeat, Number<MWaves>{}, Number<MPerWmma>{}))),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
@@ -211,17 +220,18 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         }
         else
         {
-            constexpr auto B_KRow      = 2;
-            constexpr auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
-            const auto B_KWmma         = K / WmmaK;
+            constexpr auto B_KRow  = 2;
+            const index_t WmmaK    = get_wmma_k<BDataType, K1>();
+            const auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
+            const auto B_KWmma     = K / WmmaK;
 
             const auto N0 = N / NPerBlock;
             // 0   1     0         1                2        3             4        5          6
             // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
             return transform_tensor_descriptor(
                 wei_gemmn_gemmk_desc,
-                make_tuple(make_unmerge_transform(make_tuple(
-                               B_KWmma, Number<B_K0PerWmma>{}, Number<B_KRow>{}, K1Number)),
+                make_tuple(make_unmerge_transform(
+                               make_tuple(B_KWmma, B_K0PerWmma, Number<B_KRow>{}, K1Number)),
                            make_unmerge_transform(
                                make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
@@ -595,7 +605,10 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         {
             return false;
         }
-
+        if(!is_xdl_wmma_k_supported<ADataType, KPerBlock>())
+        {
+            return false;
+        }
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
@@ -1028,8 +1041,29 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
         return str.str();
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    std::string GetInstanceString() const override
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
+    }
+#endif
 };
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

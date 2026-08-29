@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,6 +10,10 @@
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace host {
@@ -145,3 +149,6 @@ struct ReferencefpAintBGemm : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

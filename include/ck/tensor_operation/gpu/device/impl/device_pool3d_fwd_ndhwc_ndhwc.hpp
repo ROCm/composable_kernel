@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,10 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -409,3 +413,7 @@ struct DevicePool3dFwd_NDHWC_NDHWC : public DevicePoolFwd<5,
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

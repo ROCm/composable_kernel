@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
  * @file
@@ -8,14 +8,17 @@
  * X dimension is considered contiguous in memory, so a single instruction can access
  several adjacent and properly aligned elements (vector); the access pattern along X tile
  dimension is parameterized only by the suggested vector size `VecSize`.
- * We can't access more than `MaxVecSize = TileElementsPerThread = TileSize / BlockSize` elements
- with a single memory access, so the actual vector size along the X dimension is
- `X0 = min(MaxVecSize, VecSize)`.
- * This leaves `X1 = XPerTile / X0` threads per tile in X dimension.
- * X1 is also the number of threads per warp in X dimension, that is,
- X dimension is not split between warps, and each warp accesses X dimension entirely,
- and there is no iteration in X dimension.
- * The tuple <X0, X1> defines the X-axis access pattern.
+ * We can't access more than `LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size)`
+ elements with a single memory access, so the actual vector size per access along the X
+ dimension is `X1 = min(LargestVec, VecSize)`.
+ * `X0 = min(warp_size, XPerTile / X1)` is then the number of threads per warp in X dim.
+ * If a single thread doesn't have enough vector loads to cover the whole X tile
+ (`X0 * X1 < XPerTile`), there is also a per-thread X iteration dimension
+ `X2 = XPerTile / (X0 * X1)`. When `X2 == 1` (the common case), X iteration is elided
+ and the encoding is `<X0, X1>` (NDimY = 2); otherwise the encoding is `<X0, X1, X2>`
+ with X2 placed in the middle of the Ys iteration list, giving NDimY = 3. Both encodings
+ preserve reverse symmetry between the regular and the shuffled distribution.
+ * The tuple <X0, X1[, X2]> defines the X-axis access pattern.
  This part is common between the 2D distribution patterns.
 
  * What's different between the different 2D distribution patterns, is the Y axis access pattern.
@@ -25,7 +28,7 @@
  * (3) number of iterations to cover the entire Y axis.
 
  * The raked here represents how data is partitioned across different processing granularity.
- * It represents howe we are going to access the data in thread, warp, or blocked in contiguous
+ * It represents how we are going to access the data in thread, warp, or blocked in contiguous
  region.
  * From below, the qualifier for 'raked' is the part of warp/thread hierarchy
  * in the split of Y tile dimension where the iteration happens,
@@ -77,6 +80,7 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/tensor/tile_distribution_encoding.hpp"
+#include "ck_tile/core/utility/print.hpp"
 
 namespace ck_tile {
 
@@ -100,10 +104,10 @@ enum struct tile_distribution_pattern
      * @brief Block raked pattern - aka linear.
      *
      */
-    block_raked,
+    block_raked
 };
 
-struct TileDistributionEncodingPattern
+struct tile_distribution_encoding_pattern
 {
 };
 
@@ -125,7 +129,7 @@ template <index_t BlockSize,
           index_t VecSize,
           tile_distribution_pattern DistributionPattern,
           index_t NumWaveGroups = 1>
-struct TileDistributionEncodingPattern2D : public TileDistributionEncodingPattern
+struct tile_distribution_encoding_pattern_2d : public tile_distribution_encoding_pattern
 {
 };
 
@@ -135,21 +139,22 @@ template <index_t BlockSize,
           index_t XPerTile,
           index_t VecSize,
           index_t NumWaveGroups>
-struct TileDistributionEncodingPattern2D<BlockSize,
-                                         YPerTile,
-                                         XPerTile,
-                                         VecSize,
-                                         tile_distribution_pattern::thread_raked,
-                                         NumWaveGroups> : public TileDistributionEncodingPattern
+struct tile_distribution_encoding_pattern_2d<BlockSize,
+                                             YPerTile,
+                                             XPerTile,
+                                             VecSize,
+                                             tile_distribution_pattern::thread_raked,
+                                             NumWaveGroups>
+    : public tile_distribution_encoding_pattern
 {
-
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
     static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
-    static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
+    static constexpr index_t X0         = min(warp_size, XPerTile / X1); // # of threads in X dim
+    static constexpr index_t X2         = XPerTile / (X0 * X1);          // # of X-iters per thread
 
     // # of rows in Y dim accessed by single wavefront in one iteration
     static constexpr index_t Y1 = warp_size / X0;
@@ -163,52 +168,113 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize,
                   "X0 * warp_ys * Y0 must cover whole workgroup!");
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
+    static_assert(X0 * X1 * X2 == XPerTile, "X0, X1, X2 must cover whole XPerTile");
 
-    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
         if constexpr(NumWaveGroups != 1)
         {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<Y0>,
-                                           tuple<sequence<Y1, Y2>, sequence<X0, X1>>,
-                                           tuple<sequence<0>, sequence<1, 2>>,
-                                           tuple<sequence<0>, sequence<0, 0>>, // -> <Y0>, <Y1, X0>
-                                           sequence<1, 2>,
-                                           sequence<1, 1>>{}); // -> <Y2, X1>
+            if constexpr(X2 == 1)
+            {
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<Y0>,
+                                               tuple<sequence<Y1, Y2>, sequence<X0, X1>>,
+                                               tuple<sequence<0>, sequence<1, 2>>,
+                                               tuple<sequence<0>, sequence<0, 0>>, // -> <Y0>, <Y1,
+                                                                                   // X0>
+                                               sequence<1, 2>,
+                                               sequence<1, 1>>{}); // -> <Y2, X1>
+            }
+            else
+            {
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<Y0>,
+                                               tuple<sequence<Y1, Y2>, sequence<X0, X1, X2>>,
+                                               tuple<sequence<0>, sequence<1, 2>>,
+                                               tuple<sequence<0>, sequence<0, 0>>, // -> <Y0>, <Y1,
+                                                                                   // X0>
+                                               sequence<1, 2, 2>,
+                                               sequence<1, 2, 1>>{}); // -> <Y2, X2, X1>
+            }
         }
         else
         {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<0>, sequence<1, 0>>, // -> <Y0>, <Y1, X0>
-                                           sequence<1, 2>,
-                                           sequence<2, 1>>{}); // -> <Y2, X1>
+            if constexpr(X2 == 1)
+            {
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<0>, sequence<1, 0>>, // -> <Y0>, <Y1,
+                                                                                   // X0>
+                                               sequence<1, 2>,
+                                               sequence<2, 1>>{}); // -> <Y2, X1>
+            }
+            else
+            {
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1, X2>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<0>, sequence<1, 0>>, // -> <Y0>, <Y1,
+                                                                                   // X0>
+                                               sequence<1, 2, 2>,
+                                               sequence<2, 2, 1>>{}); // -> <Y2, X2, X1>
+            }
         }
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_shuffled_2d_static_tile_distribution()
     {
         if constexpr(NumWaveGroups != 1)
         {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<Y0>,
-                                           tuple<sequence<X0, X1>, sequence<Y1, Y2>>,
-                                           tuple<sequence<0>, sequence<2, 1>>,
-                                           tuple<sequence<0>, sequence<0, 0>>, // -> <Y0>, <Y1, X0>
-                                           sequence<1, 2>,
-                                           sequence<1, 1>>{}); // -> <X1, Y2>
+            if constexpr(X2 == 1)
+            {
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<Y0>,
+                                               tuple<sequence<X0, X1>, sequence<Y1, Y2>>,
+                                               tuple<sequence<0>, sequence<2, 1>>,
+                                               tuple<sequence<0>, sequence<0, 0>>, // -> <Y0>, <Y1,
+                                                                                   // X0>
+                                               sequence<1, 2>,
+                                               sequence<1, 1>>{}); // -> <X1, Y2>
+            }
+            else
+            {
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<Y0>,
+                                               tuple<sequence<X0, X1, X2>, sequence<Y1, Y2>>,
+                                               tuple<sequence<0>, sequence<2, 1>>,
+                                               tuple<sequence<0>, sequence<0, 0>>, // -> <Y0>, <Y1,
+                                                                                   // X0>
+                                               sequence<1, 1, 2>,
+                                               sequence<1, 2, 1>>{}); // -> <X1, X2, Y2>
+            }
         }
         else
         {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
-                                           tuple<sequence<2>, sequence<2, 1>>,
-                                           tuple<sequence<0>, sequence<1, 0>>, // -> <Y0>, <Y1, X0>
-                                           sequence<1, 2>,
-                                           sequence<1, 2>>{}); // -> <X1, Y2>
+            if constexpr(X2 == 1)
+            {
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
+                                               tuple<sequence<2>, sequence<2, 1>>,
+                                               tuple<sequence<0>, sequence<1, 0>>, // -> <Y0>, <Y1,
+                                                                                   // X0>
+                                               sequence<1, 2>,
+                                               sequence<1, 2>>{}); // -> <X1, Y2>
+            }
+            else
+            {
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<X0, X1, X2>, sequence<Y0, Y1, Y2>>,
+                                               tuple<sequence<2>, sequence<2, 1>>,
+                                               tuple<sequence<0>, sequence<1, 0>>, // -> <Y0>, <Y1,
+                                                                                   // X0>
+                                               sequence<1, 1, 2>,
+                                               sequence<1, 2, 2>>{}); // -> <X1, X2, Y2>
+            }
         }
     }
 };
@@ -219,12 +285,13 @@ template <index_t BlockSize,
           index_t XPerTile,
           index_t VecSize,
           index_t NumWaveGroups>
-struct TileDistributionEncodingPattern2D<BlockSize,
-                                         YPerTile,
-                                         XPerTile,
-                                         VecSize,
-                                         tile_distribution_pattern::warp_raked,
-                                         NumWaveGroups> : public TileDistributionEncodingPattern
+struct tile_distribution_encoding_pattern_2d<BlockSize,
+                                             YPerTile,
+                                             XPerTile,
+                                             VecSize,
+                                             tile_distribution_pattern::warp_raked,
+                                             NumWaveGroups>
+    : public tile_distribution_encoding_pattern
 {
 
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -232,7 +299,8 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
     static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
-    static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
+    static constexpr index_t X0         = min(warp_size, XPerTile / X1); // # of threads in X dim
+    static constexpr index_t X2         = XPerTile / (X0 * X1);          // # of X-iters per thread
 
     static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
     static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
@@ -242,27 +310,54 @@ struct TileDistributionEncodingPattern2D<BlockSize,
 
     static constexpr index_t Y1 = YPerTile / (Y2 * Y0); // # of iters within wavefront
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
+    static_assert(X0 * X1 * X2 == XPerTile, "X0, X1, X2 must cover whole XPerTile");
 
-    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<2, 0>>, // -> <Y0>, <Y2, X0>
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{}); // -> <Y1, X1>
+        if constexpr(X2 == 1)
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<0>, sequence<2, 0>>, // -> <Y0>, <Y2, X0>
+                                           sequence<1, 2>,
+                                           sequence<1, 1>>{}); // -> <Y1, X1>
+        }
+        else
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1, X2>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<0>, sequence<2, 0>>, // -> <Y0>, <Y2, X0>
+                                           sequence<1, 2, 2>,
+                                           sequence<1, 2, 1>>{}); // -> <Y1, X2, X1>
+        }
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_shuffled_2d_static_tile_distribution()
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
-                                       tuple<sequence<2>, sequence<2, 1>>,
-                                       tuple<sequence<0>, sequence<2, 0>>, // -> <Y0>, <Y2, X0>
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{}); // -> <X1, Y1>
+        if constexpr(X2 == 1)
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
+                                           tuple<sequence<2>, sequence<2, 1>>,
+                                           tuple<sequence<0>, sequence<2, 0>>, // -> <Y0>, <Y2, X0>
+                                           sequence<1, 2>,
+                                           sequence<1, 1>>{}); // -> <X1, Y1>
+        }
+        else
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<X0, X1, X2>, sequence<Y0, Y1, Y2>>,
+                                           tuple<sequence<2>, sequence<2, 1>>,
+                                           tuple<sequence<0>, sequence<2, 0>>, // -> <Y0>, <Y2, X0>
+                                           sequence<1, 1, 2>,
+                                           sequence<1, 2, 1>>{}); // -> <X1, X2, Y1>
+        }
     }
 };
 
@@ -272,12 +367,13 @@ template <index_t BlockSize,
           index_t XPerTile,
           index_t VecSize,
           index_t NumWaveGroups>
-struct TileDistributionEncodingPattern2D<BlockSize,
-                                         YPerTile,
-                                         XPerTile,
-                                         VecSize,
-                                         tile_distribution_pattern::block_raked,
-                                         NumWaveGroups> : public TileDistributionEncodingPattern
+struct tile_distribution_encoding_pattern_2d<BlockSize,
+                                             YPerTile,
+                                             XPerTile,
+                                             VecSize,
+                                             tile_distribution_pattern::block_raked,
+                                             NumWaveGroups>
+    : public tile_distribution_encoding_pattern
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
@@ -286,35 +382,111 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
     static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
-    static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
+    static constexpr index_t X0         = min(warp_size, XPerTile / X1); // # of threads in X dim
+    static constexpr index_t X2         = XPerTile / (X0 * X1);          // # of X-iters per thread
     static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
     static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
     static constexpr index_t Y1 = num_warps;
     static_assert(X0 * Y2 * Y1 == BlockSize, "X0 * Y2 * Y1 must cover whole workgroup!");
     static constexpr index_t Y0 = YPerTile / (Y2 * Y1); // # of iters
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
+    static_assert(X0 * X1 * X2 == XPerTile, "X0, X1, X2 must cover whole XPerTile");
 
-    CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>, // -> <Y1>, <Y2, X0>
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{}); // -> <Y0, X1>
+        if constexpr(X2 == 1)
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>, // -> <Y1>, <Y2, X0>
+                                           sequence<1, 2>,
+                                           sequence<0, 1>>{}); // -> <Y0, X1>
+        }
+        else
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1, X2>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>, // -> <Y1>, <Y2, X0>
+                                           sequence<1, 2, 2>,
+                                           sequence<0, 2, 1>>{}); // -> <Y0, X2, X1>
+        }
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto make_shuffled_2d_static_tile_distribution()
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
-                                       tuple<sequence<2>, sequence<2, 1>>,
-                                       tuple<sequence<1>, sequence<2, 0>>, // -> <Y1>, <Y2, X0>
-                                       sequence<1, 2>,
-                                       sequence<1, 0>>{}); // -> <X1, Y0>
+        if constexpr(X2 == 1)
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
+                                           tuple<sequence<2>, sequence<2, 1>>,
+                                           tuple<sequence<1>, sequence<2, 0>>, // -> <Y1>, <Y2, X0>
+                                           sequence<1, 2>,
+                                           sequence<1, 0>>{}); // -> <X1, Y0>
+        }
+        else
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<X0, X1, X2>, sequence<Y0, Y1, Y2>>,
+                                           tuple<sequence<2>, sequence<2, 1>>,
+                                           tuple<sequence<1>, sequence<2, 0>>, // -> <Y1>, <Y2, X0>
+                                           sequence<1, 1, 2>,
+                                           sequence<1, 2, 0>>{}); // -> <X1, X2, Y0>
+        }
     }
 };
+
+// Helper function to convert enum to string
+constexpr const char* tile_distribution_pattern_to_string(tile_distribution_pattern pattern)
+{
+    switch(pattern)
+    {
+    case tile_distribution_pattern::thread_raked: return "thread_raked";
+    case tile_distribution_pattern::warp_raked: return "warp_raked";
+    case tile_distribution_pattern::block_raked: return "block_raked";
+    default: return "unknown";
+    }
+}
+
+template <index_t BlockSize,
+          index_t YPerTile,
+          index_t XPerTile,
+          index_t VecSize,
+          tile_distribution_pattern DistributionPattern,
+          index_t NumWaveGroups>
+CK_TILE_HOST_DEVICE void print(const tile_distribution_encoding_pattern_2d<BlockSize,
+                                                                           YPerTile,
+                                                                           XPerTile,
+                                                                           VecSize,
+                                                                           DistributionPattern,
+                                                                           NumWaveGroups>&)
+{
+    using PatternType = tile_distribution_encoding_pattern_2d<BlockSize,
+                                                              YPerTile,
+                                                              XPerTile,
+                                                              VecSize,
+                                                              DistributionPattern,
+                                                              NumWaveGroups>;
+
+    printf("tile_distribution_encoding_pattern_2d<BlockSize:%d, YPerTile:%d, XPerTile:%d, "
+           "VecSize:%d, %s>: ",
+           BlockSize,
+           YPerTile,
+           XPerTile,
+           VecSize,
+           tile_distribution_pattern_to_string(DistributionPattern));
+    printf("{<Y0, Y1, Y2>: <%d, %d, %d>, <X0, X1, X2>: <%d, %d, %d>}\n",
+           PatternType::Y0,
+           PatternType::Y1,
+           PatternType::Y2,
+           PatternType::X0,
+           PatternType::X1,
+           PatternType::X2);
+}
 
 } // namespace ck_tile

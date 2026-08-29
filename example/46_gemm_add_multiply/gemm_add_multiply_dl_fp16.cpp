@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_dl.hpp"

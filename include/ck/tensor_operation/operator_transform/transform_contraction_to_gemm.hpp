@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -217,6 +217,30 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
                                                       make_pass_through_transform(N)),
                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+    }
+
+    //
+    // D0
+    //
+    static auto MakeD0GridDescriptorPair(const std::vector<index_t>& d0_gs_ms_ns_lengths_vec,
+                                         const std::vector<index_t>& d0_gs_ms_ns_strides_vec)
+    {
+        return MakeGridDescriptorPair<NumDimG, NumDimM, NumDimN, CSpec>(d0_gs_ms_ns_lengths_vec,
+                                                                        d0_gs_ms_ns_strides_vec);
+    }
+
+    // TODO: rename to G_MRaw_NRaw
+    static auto MakeD0GridDescriptor_G_M_N(const std::vector<index_t>& d0_gs_ms_ns_lengths_vec,
+                                           const std::vector<index_t>& d0_gs_ms_ns_strides_vec)
+    {
+        return MakeD0GridDescriptorPair(d0_gs_ms_ns_lengths_vec, d0_gs_ms_ns_strides_vec).first;
+    }
+
+    static auto MakeD0GridDescriptor_M_N(const std::vector<index_t>& d0_gs_ms_ns_lengths_vec,
+                                         const std::vector<index_t>& d0_gs_ms_ns_strides_vec)
+    {
+        return matrix_padder.PadD0Descriptor_M_N(
+            MakeD0GridDescriptorPair(d0_gs_ms_ns_lengths_vec, d0_gs_ms_ns_strides_vec).second);
     }
 
     //

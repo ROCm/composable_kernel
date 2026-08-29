@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,10 @@
 #include "ck/tensor_operation/gpu/warp/xdlops_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 template <index_t BlockSize,
@@ -30,8 +34,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    static constexpr index_t WaveSize = 64;
-
     static constexpr index_t KPerBlock = K0PerBlock * KPack;
 
     static constexpr index_t A_K0 = AK0MK1BlockDesc{}.GetLength(I0);
@@ -42,8 +44,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
     static constexpr index_t KPerThread  = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t K0PerThread = K0PerBlock / xdlops_gemm.K0PerXdlops;
 
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               FloatAcc,
@@ -90,7 +93,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -268,12 +271,27 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
                     vector_type<FloatAB, KPack> a_thread_vec;
                     vector_type<FloatAB, KPack> b_thread_vec;
                     constexpr index_t k0 = k / KPack;
-                    static_for<0, KPack, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
-                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
-                            [Number<b_thread_desc_.CalculateOffset(make_tuple(k0, n0, i))>{}];
-                    });
+
+                    auto loadA = thread_buf_to_vec_loader<
+                        decltype(a_thread_vec),
+                        decltype(a_thread_buf),
+                        decltype(a_thread_desc_),
+                        FloatAB,
+                        Number<0>,
+                        Number<0>,
+                        Number<0>,
+                        index_expression::Add<index_expression::Ik, decltype(k)>>{a_thread_vec,
+                                                                                  a_thread_buf};
+                    auto loadB =
+                        thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                                 decltype(b_thread_buf),
+                                                 decltype(b_thread_desc_),
+                                                 FloatAB,
+                                                 Number<k0>,
+                                                 Number<n0>,
+                                                 index_expression::Ik>{b_thread_vec, b_thread_buf};
+
+                    static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB));
 
                     using mfma_input_type =
                         typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
@@ -318,3 +336,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 };
 
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

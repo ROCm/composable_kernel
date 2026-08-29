@@ -1,7 +1,7 @@
-# ONLY XDL_KERNELS
-set(GROUPED_CONV3D_BWD_DATA_BILINEAR
-   xdl/device_grouped_conv3d_bwd_data_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
-   xdl/device_grouped_conv3d_bwd_data_xdl_scale_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
-   xdl/device_grouped_conv3d_bwd_data_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp)
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
 
-add_instance_library(device_grouped_conv3d_bwd_data_scale_instance ${GROUPED_CONV3D_BWD_DATA_BILINEAR})
+# grouped_conv3d_bwd_data_scale - layout-specific instances
+
+# NDHWGC - Required by MIOpen
+add_subdirectory(ndhwgc)

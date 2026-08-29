@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 EXE="$(find . -name tile_example_layernorm2d_fwd -type f | head -n 1)"
 
 for fquant in "" "-fquant=1 -prec_o=int8" "-fquant=1 -prec_o=fp8"; do

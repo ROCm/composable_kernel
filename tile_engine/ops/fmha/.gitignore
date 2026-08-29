@@ -1,0 +1,3 @@
+*.log
+build/
+*_build*/

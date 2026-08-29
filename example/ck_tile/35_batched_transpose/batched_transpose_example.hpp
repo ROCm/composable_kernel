@@ -1,5 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
@@ -14,6 +15,7 @@ struct batched_transpose_trait
 {
     std::string type;
     std::string layout;
+    std::string pipeline;
 };
 
 struct batched_transpose_kargs : public ck_tile::BatchedTransposeHostArgs

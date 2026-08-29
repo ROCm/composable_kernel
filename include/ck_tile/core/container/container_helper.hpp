@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,7 +16,7 @@ template <typename TData, index_t NSize>
 CK_TILE_HOST_DEVICE constexpr auto container_push_back(const array<TData, NSize>& a, const TData& x)
 {
     array<TData, NSize + 1> r;
-    static_for<0, NSize, 1>{}([&r, &a ](auto i) constexpr { r(i) = a[i]; });
+    static_for<0, NSize, 1>{}([&r, &a](auto i) constexpr { r(i) = a[i]; });
     r[number<NSize>{}] = x;
     return r;
 }
@@ -39,7 +39,7 @@ CK_TILE_HOST_DEVICE constexpr auto
 container_reorder_given_new2old(const array<TData, NSize>& old_array, sequence<IRs...> /*new2old*/)
 {
     static_assert(NSize == sizeof...(IRs), "wrong! size not consistent");
-    static_assert(is_valid_sequence_map<sequence<IRs...>>{}, "wrong! invalid reorder map");
+    static_assert(is_valid_sequence_map<sequence<IRs...>>::value, "wrong! invalid reorder map");
     return make_array<remove_cvref_t<TData>>(old_array[IRs]...);
 }
 
@@ -89,7 +89,7 @@ CK_TILE_HOST_DEVICE constexpr auto container_reorder_given_new2old(const tuple<T
 {
     static_assert(sizeof...(Ts) == sizeof...(IRs), "wrong! size not consistent");
 
-    static_assert(is_valid_sequence_map<sequence<IRs...>>{}, "wrong! invalid reorder map");
+    static_assert(is_valid_sequence_map<sequence<IRs...>>::value, "wrong! invalid reorder map");
 
     return make_tuple(old_tuple[number<IRs>{}]...);
 }
@@ -109,7 +109,7 @@ CK_TILE_HOST_DEVICE constexpr auto container_reorder_given_new2old(sequence<Is..
 {
     static_assert(sizeof...(Is) == sizeof...(IRs), "wrong! size not consistent");
 
-    static_assert(is_valid_sequence_map<sequence<IRs...>>{}, "wrong! invalid reorder map");
+    static_assert(is_valid_sequence_map<sequence<IRs...>>::value, "wrong! invalid reorder map");
 
     return sequence<sequence<Is...>::at(number<IRs>{})...>{};
 }
@@ -120,7 +120,7 @@ CK_TILE_HOST_DEVICE constexpr auto container_reorder_given_old2new(sequence<Is..
 {
     static_assert(sizeof...(Is) == sizeof...(IRs), "wrong! size not consistent");
 
-    static_assert(is_valid_sequence_map<sequence<IRs...>>{}, "wrong! invalid reorder map");
+    static_assert(is_valid_sequence_map<sequence<IRs...>>::value, "wrong! invalid reorder map");
 
     constexpr auto new2old = typename sequence_map_inverse<sequence<IRs...>>::type{};
 
@@ -239,7 +239,6 @@ template <typename TData, index_t NSize, typename Reduce, typename Init>
 CK_TILE_HOST_DEVICE constexpr auto
 container_reverse_exclusive_scan(const array<TData, NSize>& x, Reduce f, Init init)
 {
-#if 0
     array<TData, NSize> y;
 
     TData r = init;
@@ -252,21 +251,6 @@ container_reverse_exclusive_scan(const array<TData, NSize>& x, Reduce f, Init in
     y(number<0>{}) = r;
 
     return y;
-#else
-    array<TData, NSize> y;
-
-    TData r = init;
-
-    for(index_t i = NSize - 1; i > 0; --i)
-    {
-        y(i) = r;
-        r    = f(r, x[i]);
-    }
-
-    y(0) = r;
-
-    return y;
-#endif
 }
 
 template <index_t... Is, typename Reduce, index_t Init>
@@ -337,26 +321,55 @@ container_reverse_exclusive_scan(const tuple<Xs...>& x, Reduce reduce, Init init
 }
 #endif
 
-// TODO: update to like container_reverse_exclusive_scan to deal with tuple of Numebr<>
+// A prior in-place scan into `tuple<Xs...> y;` could not write a runtime
+// int back into a `constant<N>` slot when the input was a mixed
+// (runtime, compile-time) tuple. Mirror `container_reverse_exclusive_scan_impl`
+// above: recursively build a fresh tuple via `container_push_front` so each
+// element type is deduced independently and heterogeneous tuples work.
+//
+// Semantics preserved exactly vs. the original inclusive scan:
+//   y[N-1] = f(init,        x[N-1])
+//   y[N-2] = f(y[N-1],      x[N-2])
+//   ...
+//   y[0]   = f(y[1],        x[0])
+// Reduce arg order stays `f(r_old, x[i])` to match the prior call site.
+template <typename... Xs, typename Reduce, index_t I, typename YOld, typename ROld>
+CK_TILE_HOST_DEVICE constexpr auto container_reverse_inclusive_scan_impl(
+    const tuple<Xs...>& x, Reduce reduce, number<I> i, YOld y_old, ROld r_old)
+{
+    auto r_new = reduce(r_old, x[i]);
+
+    auto y_new = container_push_front(y_old, r_new);
+
+    if constexpr(i.value > 0)
+    {
+        return container_reverse_inclusive_scan_impl(x, reduce, i - number<1>{}, y_new, r_new);
+    }
+    else
+    {
+        return y_new;
+    }
+}
+
 template <typename... Xs, typename Reduce, typename TData>
 CK_TILE_HOST_DEVICE constexpr auto
 container_reverse_inclusive_scan(const tuple<Xs...>& x, Reduce f, TData init)
 {
     constexpr index_t NSize = sizeof...(Xs);
 
-    tuple<Xs...> y;
+    // y[N-1] = f(init, x[N-1]) -- inclusive's first emitted element already
+    // includes the last input.
+    auto r_init = f(init, x[number<NSize - 1>{}]);
+    auto y_init = make_tuple(r_init);
 
-    TData r = init;
-
-    static_for<NSize - 1, 0, -1>{}([&](auto i) {
-        r    = f(r, x[i]);
-        y(i) = r;
-    });
-
-    r              = f(r, x[number<0>{}]);
-    y(number<0>{}) = r;
-
-    return y;
+    if constexpr(NSize > 1)
+    {
+        return container_reverse_inclusive_scan_impl(x, f, number<NSize - 2>{}, y_init, r_init);
+    }
+    else
+    {
+        return y_init;
+    }
 }
 
 template <typename X, typename... Ys>

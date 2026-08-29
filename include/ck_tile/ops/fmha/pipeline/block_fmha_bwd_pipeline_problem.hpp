@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -27,6 +27,7 @@ template <typename QDataType_,
           bool kIsDeterministic_,
           typename FmhaMask_,
           typename FmhaDropout_,
+          bool kUseTrLoad_,
           typename Traits_>
 struct BlockFmhaBwdPipelineProblem
 {
@@ -53,20 +54,20 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr index_t kBlockSize    = BlockFmhaShape::NumWarps * get_warp_size();
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kUseTrLoad       = kUseTrLoad_;
 
     // attributes from traits
-    static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
-    static constexpr auto BiasEnum       = Traits::BiasEnum;
-    static constexpr bool kHasBiasGrad   = Traits::kHasBiasGrad;
-    static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
+    static constexpr index_t kPadHeadDimQ = Traits::kPadHeadDimQ;
+    static constexpr index_t kPadHeadDimV = Traits::kPadHeadDimV;
+    static constexpr auto BiasEnum        = Traits::BiasEnum;
+    static constexpr bool kHasBiasGrad    = Traits::kHasBiasGrad;
+    static constexpr index_t kBlockPerCu  = Traits::kBlockPerCu;
 };
 
 template <typename ODataType_,
           typename OGradDataType_,
           typename DDataType_,
+          typename LSEDataType_,
           index_t kBlockSize_,
           index_t kVHeaddim_,
           bool kIsGroupMode_,
@@ -76,6 +77,7 @@ struct BlockFmhaBwdOGradDotOPipelineProblem
     using ODataType     = remove_cvref_t<ODataType_>;
     using OGradDataType = remove_cvref_t<OGradDataType_>;
     using DDataType     = remove_cvref_t<DDataType_>;
+    using LSEDataType   = remove_cvref_t<LSEDataType_>;
     using Traits        = remove_cvref_t<Traits_>;
 
     static_assert(0 < kBlockSize_ && kBlockSize_ % get_warp_size() == 0,
@@ -95,7 +97,6 @@ template <typename AccDataType_,
           typename QGradDataType_,
           index_t kBlockSize_,
           index_t kM0_,
-          index_t kN0_,
           index_t kQKHeaddim_,
           bool kIsGroupMode_,
           bool kIsDeterministic_,
@@ -111,7 +112,6 @@ struct BlockFmhaBwdConvertQGradPipelineProblem
 
     static constexpr index_t kBlockSize    = kBlockSize_;
     static constexpr index_t kM0           = kM0_;
-    static constexpr index_t kN0           = kN0_;
     static constexpr index_t kQKHeaddim    = kQKHeaddim_;
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;

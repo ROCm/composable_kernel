@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,7 +35,8 @@ bool profile_pool2d_fwd_impl(int do_verification,
                              std::vector<index_t> window_strides,
                              std::vector<index_t> window_dilations,
                              std::vector<index_t> input_left_pads,
-                             std::vector<index_t> input_right_pads)
+                             std::vector<index_t> input_right_pads,
+                             index_t instance_index = -1)
 {
     constexpr index_t InOutRank  = 4;
     constexpr index_t WindowRank = 2;
@@ -74,7 +75,9 @@ bool profile_pool2d_fwd_impl(int do_verification,
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {
             using namespace ck::literals;
 
-            return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
+            return HostTensorDescriptor({N_, C_, H, W},
+                                        {C_ * H * W, 1_uz, W * C_, C_},
+                                        ck::tensor_layout::convolution::NCHW{});
         };
 
     Tensor<InDataType> in_n_c_hi_wi(f_host_tensor_descriptor(N, C, Hi, Wi));
@@ -148,8 +151,14 @@ bool profile_pool2d_fwd_impl(int do_verification,
 
     int num_kernel = 0;
 
-    for(auto& inst_ptr : instance_ptrs)
+    for(size_t i = 0; i < instance_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instance_ptrs[i];
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
             static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
@@ -261,7 +270,7 @@ bool profile_pool2d_fwd_impl(int do_verification,
                   << best_instance_name << std::endl;
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;

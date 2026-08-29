@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -69,9 +69,9 @@ struct static_uford_one_shot_impl
     CK_TILE_HOST_DEVICE constexpr void operator()(F f, CurrentUnpackIds, number<current_acc>) const
     {
         constexpr auto r_lens_stride =
-            reverse_exclusive_scan_sequence(RemainLengths{}, multiplies{}, number<1>{});
+            reverse_exclusive_scan_sequence(RemainLengths{}, multiplies<>{}, number<1>{});
         constexpr auto r_upks_stride =
-            reverse_exclusive_scan_sequence(RamainUnpacks{}, multiplies{}, number<1>{});
+            reverse_exclusive_scan_sequence(RamainUnpacks{}, multiplies<>{}, number<1>{});
 
         constexpr index_t current_stride = r_lens_stride.front() / r_upks_stride.front();
         constexpr index_t pack_len       = RamainUnpacks::front();
@@ -127,7 +127,7 @@ template <class Lengths,
           class Orders  = typename arithmetic_sequence_gen<0, Lengths::size(), 1>::type>
 struct static_uford
 {
-    static constexpr index_t num_packs = reduce_on_sequence(Unpacks{}, multiplies{}, number<1>{});
+    static constexpr index_t num_packs = reduce_on_sequence(Unpacks{}, multiplies<>{}, number<1>{});
 
     CK_TILE_HOST_DEVICE constexpr static_uford()
     {
@@ -142,7 +142,7 @@ struct static_uford
     {
         using L_ = decltype(Lengths{} / Unpacks{});
 
-        return reduce_on_sequence(L_{}, multiplies{}, number<1>{});
+        return reduce_on_sequence(L_{}, multiplies<>{}, number<1>{});
     }
 
     // F signature: F(sequence<...> multi_id...)

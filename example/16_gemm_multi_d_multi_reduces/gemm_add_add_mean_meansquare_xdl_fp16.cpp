@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -18,6 +18,10 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -76,7 +80,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
 //######|        |        |        |      Type|      Type|            Type|         DataType|       Type|      Type|              Type|       Type| Elementwise| Elementwise|  Elementwise| Elementwise| Elementwise|           Reduce|           Reduce| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|       ClusterLengths| ReduceThreadTransfer| DstScalarPerVector|
 //######|        |        |        |          |          |                |                 |           |          |                  |           |   Operation|   Operation|    Operation|   Operation|   Operation|        Operation|        Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _MPerBlock_NPerBlock|      ScalarPerVector|         _MPerBlock|
 //######|        |        |        |          |          |                |                 |           |          |                  |           |            |            |             |            |            |                 |                 |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                     |           _NPerBlock|                   |
-        < ALayout, BLayout, ELayout, ADataType, BDataType, GemmAccDataType, CShuffleDataType, DsDataType, EDataType, ReduceAccDataType, RsDataType,  AElementOp,  BElementOp, CDEElementOp, QsElementOp, RsElementOp, RsThreadReduceOp, RsGlobalReduceOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<64, 4>,                    4,                  1>;
+        < ALayout, BLayout, ELayout, ADataType, BDataType, GemmAccDataType, CShuffleDataType, DsDataType, EDataType, ReduceAccDataType, RsDataType,  AElementOp,  BElementOp, CDEElementOp, QsElementOp, RsElementOp, RsThreadReduceOp, RsGlobalReduceOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   16,   16,    8,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<32, 8>,                    4,                  1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
@@ -127,7 +131,7 @@ auto f_host_tensor_descriptor2d =
         }
     };
 
-int main()
+int main(int argc, char* argv[])
 {
     ck::index_t M = 1024;
     ck::index_t N = 1024;
@@ -138,6 +142,38 @@ int main()
     ck::index_t StrideD0 = 0;
     ck::index_t StrideD1 = 1024;
     ck::index_t StrideE  = 1024;
+
+    bool do_verification = true;
+    bool time_kernel     = false;
+
+    if(argc == 1)
+    {
+        // do nothing
+    }
+    else if(argc == 3 || argc == 10)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+        if(argc == 10)
+        {
+            M = std::stoi(argv[3]);
+            N = std::stoi(argv[4]);
+            K = std::stoi(argv[5]);
+
+            StrideA  = std::stoi(argv[6]);
+            StrideB  = std::stoi(argv[7]);
+            StrideD1 = std::stoi(argv[8]);
+            StrideE  = std::stoi(argv[9]);
+        }
+    }
+    else
+    {
+        std::cout << "arg1: verification (0=no, 1=yes)\n"
+                  << " arg2: Measure kernel execution time (1=ON, 0=Off)\n"
+                  << " arg3 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD1, StrideE\n"
+                  << std::endl;
+        exit(1);
+    }
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
@@ -204,8 +240,7 @@ int main()
 
     invoker.Run(argument, StreamConfig{nullptr, false});
 
-    bool do_verification = true;
-    bool pass            = true;
+    bool pass = true;
 
     if(do_verification)
     {
@@ -264,7 +299,6 @@ int main()
         pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
     }
 
-    bool time_kernel = true;
     if(time_kernel)
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});

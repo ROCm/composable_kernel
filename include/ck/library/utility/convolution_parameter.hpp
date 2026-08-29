@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -110,4 +110,5 @@ ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, char* const argv[])
 } // namespace utils
 } // namespace ck
 
-std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p);
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                         const ck::utils::conv::ConvParam& p);

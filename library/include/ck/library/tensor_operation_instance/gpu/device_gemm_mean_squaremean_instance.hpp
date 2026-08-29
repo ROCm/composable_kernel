@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,6 +19,7 @@ namespace instance {
 
 using DeviceGemmAddAddMeanSquareMeanPtr = ck::tensor_operation::device::DeviceGemmReducePtr<1, 2>;
 
+#if defined(CK_USE_XDL)
 void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
     std::vector<DeviceGemmAddAddMeanSquareMeanPtr>&);
 void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
@@ -27,6 +28,18 @@ void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f
     std::vector<DeviceGemmAddAddMeanSquareMeanPtr>&);
 void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
     std::vector<DeviceGemmAddAddMeanSquareMeanPtr>&);
+#endif // CK_USE_XDL
+
+#if defined(CK_USE_WMMA)
+void add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+    std::vector<DeviceGemmAddAddMeanSquareMeanPtr>&);
+void add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+    std::vector<DeviceGemmAddAddMeanSquareMeanPtr>&);
+void add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
+    std::vector<DeviceGemmAddAddMeanSquareMeanPtr>&);
+void add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
+    std::vector<DeviceGemmAddAddMeanSquareMeanPtr>&);
+#endif // CK_USE_WMMA
 
 template <typename ADataType,
           typename BDataType,
@@ -45,33 +58,61 @@ auto get_device_gemm_add_add_mean_squaremean_instances()
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#if defined(CK_USE_XDL)
             ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
                     op_ptrs);
+#endif
+#if defined(CK_USE_WMMA)
+            ck::tensor_operation::device::instance::
+                add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+                    op_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#if defined(CK_USE_XDL)
             ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
                     op_ptrs);
+#endif
+#if defined(CK_USE_WMMA)
+            ck::tensor_operation::device::instance::
+                add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+                    op_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#if defined(CK_USE_XDL)
             ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
                     op_ptrs);
+#endif
+#if defined(CK_USE_WMMA)
+            ck::tensor_operation::device::instance::
+                add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
+                    op_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#if defined(CK_USE_XDL)
             ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
                     op_ptrs);
+#endif
+#if defined(CK_USE_WMMA)
+            ck::tensor_operation::device::instance::
+                add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
+                    op_ptrs);
+#endif
         }
     }
 

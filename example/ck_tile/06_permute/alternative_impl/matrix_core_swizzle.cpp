@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "matrix_core_swizzle.hpp"
 #include "matrix_core_swizzle_kernel.hpp"
 

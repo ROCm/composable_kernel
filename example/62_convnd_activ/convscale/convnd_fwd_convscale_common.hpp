@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -21,6 +21,10 @@
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ConvScale   = ck::tensor_operation::element_wise::ConvScale;
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 void print_helper_msg()
 {

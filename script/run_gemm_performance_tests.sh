@@ -1,4 +1,7 @@
 #!/bin/bash 
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 #
 # in order to run this script you'd first need to build the ckProfiler executable in ../build/bin/
 # run the script as "./run_gemm_performance_tests.sh <verification> <tag for your test environment> <branch name> <node name> <arch>

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -37,7 +37,7 @@ using DeviceOpInstanceKK_Generic = ck::tensor_operation::device::
         //#####################################|        |        |        |      Type|      Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|            Data|
         //#####################################|        |        |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|            Type|
         //#####################################|        |        |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                |
-        DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   256,   128,    16,   4,   4,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,              S<1, 16, 1, 16>,               4, ComputeDataType>;
+        DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   256,   128,    16,   4,   4,   16,   16,    8,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,              S<1, 16, 1, 16>,               2, ComputeDataType>;
 // clang-format on
 
 template <ck::index_t NumDimM,
@@ -193,4 +193,36 @@ using DeviceOpInstanceMN_FP64 = ck::tensor_operation::device::
         //#####################################|        |        |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|            Type|
         //#####################################|        |        |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                |
         DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   128,   128,    16,   1,   1,   16,   16,    4,    4,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              1,         0,     S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              1,         0,           1,           1,              S<1, 16, 1, 16>,               1, ComputeDataType>;
+// clang-format on
+
+// Macro to instantiate all four layout variants of DeviceOpInstance.
+//
+// BASE:   Generic (for fp16/bf16/fp32) or FP64 (for fp64 - different tile sizes)
+// SUFFIX: NN for bilinear (DsDataType = Tuple<DDataType>),
+//         N  for scale    (DsDataType = Tuple<>)
+//
+// Requires these names to be defined in the calling TU before invocation:
+//   NumDimM, NumDimN, NumDimK, ADataType, BDataType, AccDataType,
+//   CShuffleDataType, DsDataType, EDataType, ComputeDataType,
+//   AElementOp, BElementOp, CDEElementOp
+//
+// Example: CK_CONTRACTION_DEVICE_OP_INSTANCES(Generic, NN);
+//   expands to DeviceOpInstanceKKNN, DeviceOpInstanceKNNN,
+//              DeviceOpInstanceMKNN, DeviceOpInstanceMNNN,
+//   and sets DeviceOpInstance = DeviceOpInstanceKKNN.
+// clang-format off
+#define CK_CONTRACTION_DEVICE_OP_INSTANCES(BASE, SUFFIX)                                          \
+    using DeviceOpInstanceKK##SUFFIX = DeviceOpInstanceKK_##BASE<NumDimM, NumDimN, NumDimK,       \
+        ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,               \
+        ComputeDataType, AElementOp, BElementOp, CDEElementOp>;                                   \
+    using DeviceOpInstanceKN##SUFFIX = DeviceOpInstanceKN_##BASE<NumDimM, NumDimN, NumDimK,       \
+        ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,               \
+        ComputeDataType, AElementOp, BElementOp, CDEElementOp>;                                   \
+    using DeviceOpInstanceMK##SUFFIX = DeviceOpInstanceMK_##BASE<NumDimM, NumDimN, NumDimK,       \
+        ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,               \
+        ComputeDataType, AElementOp, BElementOp, CDEElementOp>;                                   \
+    using DeviceOpInstanceMN##SUFFIX = DeviceOpInstanceMN_##BASE<NumDimM, NumDimN, NumDimK,       \
+        ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,               \
+        ComputeDataType, AElementOp, BElementOp, CDEElementOp>;                                   \
+    using DeviceOpInstance = DeviceOpInstanceKK##SUFFIX
 // clang-format on

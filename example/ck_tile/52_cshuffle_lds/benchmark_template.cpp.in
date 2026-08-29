@@ -1,0 +1,100 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
+// clang-format off
+
+#include "benchmark_cshuffle_lds.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include <iostream>
+#include <cstdlib>
+#include <cstring>
+
+using Epilogue = ck_tile::BenchmarkEpilogue<
+    @A_TYPE@, @B_TYPE@, @ACC_TYPE@, @O_TYPE@,
+    @M@, @N@, @M_WAVE@, @N_WAVE@, @M_XDL@, @N_XDL@, @K_XDL@>;
+
+using StoreSetup = ck_tile::LdsStoreSetup<Epilogue>;
+using LoadSetup = ck_tile::LdsLoadSetup<Epilogue>;
+
+void print_help(const char* prog)
+{
+    std::cout << "Usage: " << prog << " [options]\n"
+              << "\n"
+              << "LDS microbenchmark for CShuffleEpilogue (@CONFIG_NAME@)\n"
+              << "\n"
+              << "Options:\n"
+              << "  -w, --warmup <N>   Warmup iterations (default: 3)\n"
+              << "  -i, --iters <N>    Benchmark iterations (default: 10)\n"
+              << "  -h, --help         Show this help message\n"
+              << "\n"
+              << "Configuration:\n"
+              << "  MFMA tile:   @M_XDL@x@N_XDL@x@K_XDL@\n"
+              << "  Wave layout: @M_WAVE@x@N_WAVE@\n"
+              << "  Block tile:  @M@x@N@\n"
+              << std::endl;
+}
+
+int main(int argc, char** argv)
+{
+    int warmup = 3;
+    int iters  = 10;
+
+    for (int i = 1; i < argc; ++i)
+    {
+        if (std::strcmp(argv[i], "-h") == 0 || std::strcmp(argv[i], "--help") == 0)
+        {
+            print_help(argv[0]);
+            return 0;
+        }
+        else if ((std::strcmp(argv[i], "-w") == 0 || std::strcmp(argv[i], "--warmup") == 0) && i + 1 < argc)
+        {
+            int val = std::atoi(argv[++i]);
+            if (val <= 0)
+            {
+                std::cerr << "Error: --warmup requires a positive integer\n";
+                return 1;
+            }
+            warmup = val;
+        }
+        else if ((std::strcmp(argv[i], "-i") == 0 || std::strcmp(argv[i], "--iters") == 0) && i + 1 < argc)
+        {
+            int val = std::atoi(argv[++i]);
+            if (val <= 0)
+            {
+                std::cerr << "Error: --iters requires a positive integer\n";
+                return 1;
+            }
+            iters = val;
+        }
+        else
+        {
+            std::cerr << "Unknown option: " << argv[i] << "\n";
+            print_help(argv[0]);
+            return 1;
+        }
+    }
+
+    std::cout << "=== @CONFIG_NAME@ ===" << std::endl;
+
+    ck_tile::stream_config stream{nullptr, true, 0, warmup, iters, true};
+
+    // Store benchmark
+    {
+        float ms = ck_tile::launch_kernel(stream,
+            ck_tile::make_kernel(ck_tile::StoreTile<StoreSetup>{},
+                                 dim3(1), dim3(StoreSetup::kBlockSize), 0));
+        double gb_s = (double(StoreSetup::kBytes) / 1e9) / (ms / 1e3);
+        std::cout << "Store: " << ms << " ms, " << gb_s << " GB/s" << std::endl;
+    }
+
+    // Load benchmark
+    {
+        float ms = ck_tile::launch_kernel(stream,
+            ck_tile::make_kernel(ck_tile::LoadTile<LoadSetup>{},
+                                 dim3(1), dim3(LoadSetup::kBlockSize), 0));
+        double gb_s = (double(LoadSetup::kBytes) / 1e9) / (ms / 1e3);
+        std::cout << "Load:  " << ms << " ms, " << gb_s << " GB/s" << std::endl;
+    }
+
+    return 0;
+}

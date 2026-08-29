@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(FMHA_CPP_FOLDER ${CMAKE_CURRENT_BINARY_DIR})
 set(FMHA_SRC_FOLDER ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/)
 set(CK_TILE_SRC_FOLDER ${CMAKE_SOURCE_DIR}/include/ck_tile/)
@@ -40,7 +43,7 @@ execute_process(
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
-  message( FATAL_ERROR "CK Tile MHA FAILED to genrate a list of kernels via Python.")
+  message( FATAL_ERROR "CK Tile MHA FAILED to generate a list of kernels via Python.")
 else()
   file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_GEN_BLOBS)
 endif()
@@ -74,4 +77,3 @@ add_instance_library(device_mha_instance ${device_files})
 if (TARGET device_mha_instance)
   add_dependencies(device_mha_instance generate_cpp_files)
 endif()
-

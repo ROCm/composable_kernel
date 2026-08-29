@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 
@@ -71,10 +71,14 @@ void add_device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f16_instances(
                                                   PassThrough,
                                                   PassThrough>>>& instances)
 {
+#if CK_BUILD_DEPRECATED
     add_device_operation_instances(instances,
                                    device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f16_instances{});
     add_device_operation_instances(
         instances, device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_1x1_s1_p0_f16_instances{});
+#else
+    std::ignore = instances;
+#endif
 }
 
 } // namespace instance

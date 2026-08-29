@@ -1,36 +1,106 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#include <numeric>
+#include <functional>
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
 #include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/timer.hpp"
+#include "ck_tile/host/flush_icache.hpp"
+#include "ck_tile/host/rotating_buffers.hpp"
 #include <cstddef>
 #include <hip/hip_runtime.h>
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#pragma clang diagnostic ignored "-Wlifetime-safety-lifetimebound-violation"
+#endif
 namespace ck_tile {
 
-#define LOW_CU_PROCESSORS 80
-#define HIGH_CU_PROCESSORS 228
-#define OPTIMAL_LATENCY_LOW_CU_PROCESSORS 0.005
-#define OPTIMAL_LATENCY_HIGH_CU_PROCESSORS 0.0015
-#define OPTIMAL_LATENCY_SAFE_MARGIN 0.01
+template <typename T, typename = void>
+inline constexpr bool kattr_no_packed_fp32_ops_v = false;
+template <typename T>
+inline constexpr bool
+    kattr_no_packed_fp32_ops_v<T, std::void_t<decltype(T::kattr_no_packed_fp32_ops)>> =
+        T::kattr_no_packed_fp32_ops;
 
-template <int MaxThreadPerBlock, int MinBlockPerCu, typename Kernel, typename... Args>
-#if CK_TILE_USE_LAUNCH_BOUNDS
-__launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
-#endif
-    __global__ void kentry(Args... args)
+// TODO: rename to something more specific (e.g. kernel_attr_no_packed_fp32) since
+// kernel_attr<bool> only controls the no-packed-fp32-ops flag, not a general attribute bag.
+template <bool no_packed_fp32_ops>
+struct kernel_attr
 {
-#if defined(__HIP_DEVICE_COMPILE__)
-    Kernel{}(args...);
+    // The kernel function attribute "no-packed-fp32-ops": Disable the use of packed FP32
+    // instructions so that they can be co-executed with matrix operations
+    static constexpr bool kattr_no_packed_fp32_ops = no_packed_fp32_ops;
+};
+
+// Compose an architecture tag with kernel attributes.
+// Inherits ArchTag for symbol mangling and adds attribute flags.
+// kernel_attr_for<gfx950_t>              -> gfx950_t  (identity)
+// kernel_attr_for<gfx950_t, kernel_attr<true>> -> unique type with attribute
+namespace detail {
+template <typename ArchTag, typename... Attrs>
+struct kernel_attr_for_impl : ArchTag, Attrs...
+{
+};
+
+template <typename ArchTag, typename... Attrs>
+struct kernel_attr_for_helper
+{
+    using type = kernel_attr_for_impl<ArchTag, Attrs...>;
+};
+
+template <typename ArchTag>
+struct kernel_attr_for_helper<ArchTag>
+{
+    using type = ArchTag;
+};
+} // namespace detail
+
+template <typename ArchTag, typename... Attrs>
+using kernel_attr_for = typename detail::kernel_attr_for_helper<ArchTag, Attrs...>::type;
+
+#if CK_TILE_USE_LAUNCH_BOUNDS
+#define KENTRY_LAUNCH_BOUNDS __launch_bounds__(Kernel::kBlockSize, MinBlockPerCu)
 #else
-    (..., (ignore = args, 0));
+#define KENTRY_LAUNCH_BOUNDS
 #endif
+#if defined(__HIP_DEVICE_COMPILE__)
+#define KENTRY_BODY Kernel{}(args...)
+#define KENTRY_ATTR_NO_PACKED_FP32_OPS __attribute__((target("no-packed-fp32-ops")))
+#else
+#define KENTRY_BODY (..., (ignore = args, 0))
+#define KENTRY_ATTR_NO_PACKED_FP32_OPS
+#endif
+
+template <int MinBlockPerCu, typename Kernel, typename... Args>
+KENTRY_LAUNCH_BOUNDS __global__ void kentry(Args... args)
+{
+    KENTRY_BODY;
 }
+template <typename Attr, int MinBlockPerCu, typename Kernel, typename... Args>
+KENTRY_LAUNCH_BOUNDS __global__ //
+    std::enable_if_t<!kattr_no_packed_fp32_ops_v<Attr>>
+    kentry(Args... args)
+{
+    KENTRY_BODY;
+}
+template <typename Attr, int MinBlockPerCu, typename Kernel, typename... Args>
+KENTRY_LAUNCH_BOUNDS KENTRY_ATTR_NO_PACKED_FP32_OPS __global__ //
+    std::enable_if_t<kattr_no_packed_fp32_ops_v<Attr>>
+    kentry(Args... args)
+{
+    KENTRY_BODY;
+}
+
+#undef KENTRY_LAUNCH_BOUNDS
+#undef KENTRY_BODY
+#undef KENTRY_ATTR_NO_PACKED_FP32_OPS
 
 //
 // return a anonymous functor(lambda) to be called later
@@ -39,19 +109,65 @@ __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 //
 // the "static __device__ operator()(some_arg)" is the entry point of KernelImpl
 //
-template <int MaxThreadPerBlock = CK_TILE_MAX_THREAD_PER_BLOCK,
-          int MinBlockPerCu     = CK_TILE_MIN_BLOCK_PER_CU,
+// Attr can be used to support linking multiple object files that have the same kernel compiled for
+// different architectures. In this case each object file has to use a different tag (gfx9_t,
+// gfx12_t etc.), so the kernel will have different symbols for each architecture. It can also be
+// used to pass some compile-time attributes to the kernel.
+template <int MinBlockPerCu = CK_TILE_MIN_BLOCK_PER_CU,
+          typename Attr     = void,
           typename KernelImpl,
           typename... Args>
-CK_TILE_HOST auto
-make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byte, Args... args)
+CK_TILE_HOST auto make_kernel(KernelImpl /*f*/,
+                              dim3 grid_dim,
+                              dim3 block_dim,
+                              std::size_t lds_byte,
+                              [[clang::lifetimebound]] Args... args)
 {
-    const auto kernel = kentry<MaxThreadPerBlock, MinBlockPerCu, KernelImpl, Args...>;
-
+    const auto kernel = []() {
+        if constexpr(std::is_void_v<Attr>)
+            return kentry<MinBlockPerCu, KernelImpl, Args...>;
+        else
+            return kentry<Attr, MinBlockPerCu, KernelImpl, Args...>;
+    }();
     return [=](const stream_config& s) {
         kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
     };
 }
+
+//
+// overload of make_kernel: Cluster launch version of make_kernel
+//
+#if CK_TILE_ENABLE_CLUSTER_LAUNCH
+template <int MinBlockPerCu = CK_TILE_MIN_BLOCK_PER_CU, typename KernelImpl, typename... Args>
+CK_TILE_HOST auto make_kernel(KernelImpl /*f*/,
+                              dim3 cluster_dim,
+                              dim3 grid_dim,
+                              dim3 block_dim,
+                              std::size_t lds_byte,
+                              Args... args)
+{
+    const auto kernel = kentry<MinBlockPerCu, KernelImpl, Args...>;
+    return [=](const stream_config& s) {
+        // Set cluster dimensions as launch attributes
+        hipLaunchConfig_t config{};
+        config.gridDim          = grid_dim;
+        config.blockDim         = block_dim;
+        config.dynamicSmemBytes = lds_byte;
+        config.stream           = s.stream_id_;
+
+        hipLaunchAttribute attrs[1];
+        attrs[0].id               = hipLaunchAttributeClusterDimension;
+        attrs[0].val.clusterDim.x = cluster_dim.x;
+        attrs[0].val.clusterDim.y = cluster_dim.y;
+        attrs[0].val.clusterDim.z = cluster_dim.z;
+        config.attrs              = attrs;
+        config.numAttrs           = 1;
+
+        // Launch kernel with cluster attributes
+        return hipLaunchKernelEx(&config, kernel, args...);
+    };
+}
+#endif
 
 template <typename... Callables>
 CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... callables)
@@ -61,6 +177,99 @@ CK_TILE_HOST void launch_and_check(const stream_config& sc, Callables&&... calla
     {
         HIP_CHECK_ERROR(hipGetLastError());
     }
+}
+
+// Measure the preprocess time during the cold iterations
+template <typename TimerType, typename PreprocessFunc>
+CK_TILE_HOST double
+preprocess_profiling_impl(TimerType timer, const stream_config& s, PreprocessFunc preprocess)
+{
+    timer.start(s.stream_id_);
+    for(int i = 0; i < s.nrepeat_; i++)
+    {
+        if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+        {
+            preprocess();
+        }
+    }
+    timer.stop(s.stream_id_);
+
+    return timer.duration() / s.nrepeat_;
+}
+
+template <typename TimerType, typename CallablesFunc, typename PreprocessFunc = std::nullptr_t>
+CK_TILE_HOST double timing_loop_flush_cache_impl(TimerType timer,
+                                                 const stream_config& s,
+                                                 CallablesFunc&& callables_func,
+                                                 PreprocessFunc preprocess = nullptr)
+{
+    auto run_flush_cache = [&]() { ck_tile::flush_icache(); };
+    // Warm up
+    for(int i = 0; i < s.cold_niters_; i++)
+    {
+        if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+        {
+            preprocess();
+        }
+        callables_func();
+    }
+    // Main timing loop
+    int i = 0;
+    timer.start(s.stream_id_);
+    while(i < s.nrepeat_)
+    {
+        run_flush_cache();
+        if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+        {
+            preprocess();
+        }
+
+        callables_func();
+        i++;
+    }
+    timer.stop(s.stream_id_);
+    // Flush cache timing loop
+    auto flush_cache_time = preprocess_profiling_impl(gpu_timer{}, s, run_flush_cache);
+    if(i == 0)
+    {
+        return 0.;
+    }
+    // Exclude flush cache from result
+    return (timer.duration() / s.nrepeat_) - flush_cache_time;
+}
+
+template <typename TimerType, typename CallablesFunc, typename PreprocessFunc = std::nullptr_t>
+CK_TILE_HOST double timing_loop_impl(TimerType timer,
+                                     const stream_config& s,
+                                     CallablesFunc&& callables_func,
+                                     PreprocessFunc preprocess = nullptr)
+{
+    for(int i = 0; i < s.cold_niters_; i++)
+    {
+        if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+        {
+            preprocess();
+        }
+        callables_func();
+    }
+
+    int i = 0;
+    timer.start(s.stream_id_);
+    while(i < s.nrepeat_)
+    {
+        if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+        {
+            preprocess();
+        }
+
+        callables_func();
+        i++;
+    }
+    timer.stop(s.stream_id_);
+
+    if(i == 0)
+        return 0.;
+    return timer.duration() / s.nrepeat_;
 }
 
 // clang-format off
@@ -101,37 +310,21 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
         return 0;
     }
 
-    auto time_launches = [&](auto timer) {
-        // Warmup
-        for(int i = 0; i < s.cold_niters_; i++)
-        {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-
-        timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++)
-        {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-        timer.stop(s.stream_id_);
-
-        return timer.duration() / s.nrepeat_;
-    };
+    auto callables_func = [&]() { launch_and_check(s, std::forward<Callables>(callables)...); };
 
     if(s.is_gpu_timer_)
     {
-        return time_launches(gpu_timer{});
+        return timing_loop_impl(gpu_timer{}, s, callables_func);
     }
     else
     {
-        return time_launches(cpu_timer{});
+        return timing_loop_impl(cpu_timer{}, s, callables_func);
     }
 }
 
 template <typename PreprocessFunc, typename... Callables>
-CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
-                                            PreprocessFunc preprocess,
-                                            Callables&&... callables)
+CK_TILE_HOST float
+launch_kernel_time_mask(const stream_config& s, PreprocessFunc preprocess, Callables&&... callables)
 {
     static_assert(sizeof...(callables) > 0, "At least one callable is required!");
 
@@ -142,39 +335,46 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
         return 0;
     }
 
-    auto time_launches = [&](auto timer) {
-        // Warmup
-        for(int i = 0; i < s.cold_niters_; i++)
-        {
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-
-        timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++)
-        {
-            preprocess();
-            launch_and_check(s, std::forward<Callables>(callables)...);
-        }
-        timer.stop(s.stream_id_);
-
-        hipDeviceProp_t deviceProps;
-        HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
-
-        float preprocess_offset = (deviceProps.multiProcessorCount >= HIGH_CU_PROCESSORS)
-                                      ? OPTIMAL_LATENCY_HIGH_CU_PROCESSORS
-                                  : (deviceProps.multiProcessorCount == LOW_CU_PROCESSORS)
-                                      ? OPTIMAL_LATENCY_LOW_CU_PROCESSORS
-                                      : OPTIMAL_LATENCY_SAFE_MARGIN;
-        return (timer.duration() - preprocess_offset * s.nrepeat_) / s.nrepeat_;
-    };
+    auto callables_func = [&]() { launch_and_check(s, std::forward<Callables>(callables)...); };
 
     if(s.is_gpu_timer_)
     {
-        return time_launches(gpu_timer{});
+        return timing_loop_impl(gpu_timer{}, s, callables_func, preprocess);
     }
     else
     {
-        return time_launches(cpu_timer{});
+        return timing_loop_impl(cpu_timer{}, s, callables_func, preprocess);
     }
 }
+
+template <typename PreprocessFunc, typename... Callables>
+CK_TILE_HOST float launch_kernel_time_mask_flush_cache(const stream_config& s,
+                                                       PreprocessFunc preprocess,
+                                                       Callables&&... callables)
+{
+    static_assert(sizeof...(callables) > 0, "At least one callable is required!");
+
+    if(!s.time_kernel_)
+    {
+        preprocess();
+        launch_and_check(s, std::forward<Callables>(callables)...);
+        return 0;
+    }
+
+    auto callables_func = [&]() { launch_and_check(s, std::forward<Callables>(callables)...); };
+
+    if(s.is_gpu_timer_)
+    {
+        return timing_loop_flush_cache_impl(gpu_timer{}, s, callables_func, preprocess);
+    }
+    else
+    {
+        return timing_loop_flush_cache_impl(cpu_timer{}, s, callables_func, preprocess);
+    }
+}
+
 } // namespace ck_tile
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

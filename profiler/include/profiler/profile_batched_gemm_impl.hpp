@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -47,7 +47,8 @@ bool profile_batched_gemm_impl(int do_verification,
                                int BatchStrideA,
                                int BatchStrideB,
                                int BatchStrideC,
-                               int BatchCount)
+                               int BatchCount,
+                               int instance_index = -1)
 {
     bool pass = true;
 
@@ -61,11 +62,13 @@ bool profile_batched_gemm_impl(int do_verification,
 
         if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 
@@ -81,6 +84,12 @@ bool profile_batched_gemm_impl(int do_verification,
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
     std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     switch(init_method)
     {
@@ -126,20 +135,20 @@ bool profile_batched_gemm_impl(int do_verification,
     b_device_buf.ToDevice(b_g_k_n.mData.data());
     c_device_buf.ToDevice(c_g_m_n_device_result.mData.data());
 
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
-
     std::string best_op_name;
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
     // profile device op instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
         std::unique_ptr<tensor_operation::device::BaseArgument> argument_ptr;
         // false branch for multi d dl kernel
         if constexpr(std::is_same<
@@ -256,7 +265,6 @@ bool profile_batched_gemm_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
     return pass;
 }
 

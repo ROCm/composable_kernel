@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_subdirectory(binary)
 add_subdirectory(convinvscale)
 add_subdirectory(convscale)

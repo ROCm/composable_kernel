@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 
@@ -58,7 +58,8 @@ using device_gemm_wmma_bf16_bf16_bf16_mk_kn_mn_instances = std::tuple<
         DeviceGemmWmma_CShuffle<      Row,     Row,     Row,  BF16,  BF16,  BF16,     F32,     BF16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,           1,    64,    64,    32,    64,  8,   16,   16,      4,       1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,        1,        1,       S<1, 16, 1,  4>,                      8>,
         DeviceGemmWmma_CShuffle<      Row,     Row,     Row,  BF16,  BF16,  BF16,     F32,     BF16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,           1,    64,    32,    64,    64,  8,   16,   16,      2,       2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,        1,        1,       S<1, 16, 1,  4>,                      8>,
         // 1 Wave
-        DeviceGemmWmma_CShuffle<      Row,     Row,     Row,  BF16,  BF16,  BF16,     F32,     BF16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,           1,    32,    16,    32,    64,  8,   16,   16,      1,       2,     S<2, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<2, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,        1,        1,       S<1, 16, 1,  2>,                      8>,
+        DeviceGemmWmma_CShuffle<      Row,     Row,     Row,  BF16,  BF16,  BF16,     F32,     BF16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,           1,    32,    16,    32,    64,  8,   16,   16,      1,       2,     S<2, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<2, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,        1,        1,       S<1, 16, 1,  2>,                      8>
+        ,
         DeviceGemmWmma_CShuffle<      Row,     Row,     Row,  BF16,  BF16,  BF16,     F32,     BF16, PassThrough, PassThrough, PassThrough, GemmMNKPadding,           1,    32,    16,    16,    64,  8,   16,   16,      1,       1,     S<2, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<2, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,        1,        1,       S<1, 16, 1,  2>,                      8>
     // clang-format on
     >;

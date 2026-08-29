@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -30,7 +30,6 @@ using AddReluAdd  = ck::tensor_operation::element_wise::AddReluAdd;
 
 static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
-
 // e = elementwise((a * b), d0, d1)
 // h = layernorm(e, gamma, beta)
 // outout: h[m, n]

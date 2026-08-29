@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -222,16 +222,28 @@ template <index_t X>
 __host__ __device__ constexpr auto next_power_of_two()
 {
     // TODO: X need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
-    constexpr index_t Y = 1 << (32 - __builtin_clz(X - 1));
+    constexpr index_t Y = X > 1 ? (1 << (32 - __builtin_clz(X - 1))) : X;
     return Y;
 }
 
 template <index_t X>
-__host__ __device__ constexpr auto next_power_of_two(Number<X> x)
+__host__ __device__ constexpr auto next_power_of_two(Number<X>)
 {
-    // TODO: X need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
-    constexpr index_t Y = 1 << (32 - __builtin_clz(x.value - 1));
-    return Number<Y>{};
+    return Number<next_power_of_two<X>()>{};
+}
+
+__host__ __device__ constexpr int32_t integer_log2_floor(int32_t x)
+{
+    // x valid for 1 ~ 0x7fffffff
+    // __builtin_clz will produce unexpected result if x is 0;
+    return (x > 0) ? (31 - __builtin_clz(x)) : -1;
+}
+
+__host__ __device__ constexpr bool is_power_of_two_integer(int32_t x)
+{
+    // x valid for 1 ~ 0x7fffffff
+    // Powers of 2 always positive
+    return (x > 0) ? !(x & (x - 1)) : false;
 }
 
 } // namespace math

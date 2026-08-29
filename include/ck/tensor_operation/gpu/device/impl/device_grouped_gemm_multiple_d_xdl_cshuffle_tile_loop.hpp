@@ -1,9 +1,10 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <tuple>
 
@@ -26,6 +27,18 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+// Dummy kernel to use as a fallback in the kernel selection logic
+// Is not used in practice, but only used in case of misconfigured parameters
+template <typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CDEElementwiseOperation>
+__global__ void kernel_dummy(const void CK_CONSTANT_ADDRESS_SPACE*,
+                             const index_t,
+                             const AElementwiseOperation,
+                             const BElementwiseOperation,
+                             const CDEElementwiseOperation)
+{
+}
 ///
 /// @brief      Entry point kernel for device-wide Grouped GEMM operation.
 ///
@@ -60,134 +73,100 @@ template <typename GridwiseGemm,
           BlockGemmPipelineVersion BlkGemmPipelineVer>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_multiple_d_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                           const index_t group_count,
-                                           const AElementwiseOperation a_element_op,
-                                           const BElementwiseOperation b_element_op,
-                                           const CDEElementwiseOperation cde_element_op)
+    kernel_grouped_gemm_multiple_d_xdl(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                       const index_t group_count,
+                                       const AElementwiseOperation a_element_op,
+                                       const BElementwiseOperation b_element_op,
+                                       const CDEElementwiseOperation cde_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-
-    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
-    __shared__ uint8_t p_shared[shared_size];
-    __shared__ uint8_t p_shared1[shared_size];
-
-    const auto gemm_desc_ptr =
-        reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
-
-    constexpr auto NumDTensor = DsDataType::Size();
-    index_t tile_id           = get_block_1d_id();
-    index_t tile_offset       = 0;
-    index_t group_id          = -1;
-    index_t group_offset      = 0;
-    index_t grid_size_grp     = 0;
-
-    index_t gemm_tile_id_start = 0;
-    index_t gemm_tile_id_end   = 0;
-
-    index_t M = 0, N = 0, K = 0;
-
-    auto b2c_tile_map = OffsettedBlockToCTileMap(LocalBlock2ETileMap(1, 1), 1, 1);
-
-    do
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
-        // Find corresponding GEMM group for our tile
-        while(!(tile_id >= gemm_tile_id_start && tile_id < gemm_tile_id_end) &&
-              group_id < group_count)
+        constexpr index_t shared_size =
+            GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch());
+        __shared__ uint8_t p_shared[shared_size];
+        __shared__ uint8_t p_shared1[shared_size];
+
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(
+            cast_pointer_to_generic_address_space(gemm_descs_const));
+
+        constexpr auto NumDTensor = DsDataType::Size();
+        index_t tile_id           = get_block_1d_id();
+        index_t tile_offset       = 0;
+        index_t group_id          = -1;
+        index_t group_offset      = 0;
+        index_t grid_size_grp     = 0;
+
+        index_t gemm_tile_id_start = 0;
+        index_t gemm_tile_id_end   = 0;
+
+        index_t M = 0, N = 0, K = 0;
+
+        auto b2c_tile_map = OffsettedBlockToCTileMap(LocalBlock2ETileMap(1, 1), 1, 1);
+
+        do
         {
-            group_offset += grid_size_grp;
-            group_id++;
-
-            if(group_id >= group_count)
-                return;
-
-            M = gemm_desc_ptr[group_id].M;
-            N = gemm_desc_ptr[group_id].N;
-            K = gemm_desc_ptr[group_id].K;
-
-            if(M == 0 || N == 0 || K == 0)
+            // Find corresponding GEMM group for our tile
+            while(!(tile_id >= gemm_tile_id_start && tile_id < gemm_tile_id_end) &&
+                  group_id < group_count)
             {
-                grid_size_grp = 0;
-                continue;
-            }
+                group_offset += grid_size_grp;
+                group_id++;
 
-            b2c_tile_map =
-                OffsettedBlockToCTileMap(LocalBlock2ETileMap(M, N, 4), group_offset, tile_offset);
-            grid_size_grp = b2c_tile_map.CalculateGridSize(M, N);
+                if(group_id >= group_count)
+                    return;
 
-            gemm_tile_id_start = group_offset;
-            gemm_tile_id_end   = group_offset + grid_size_grp;
-        }
+                M = gemm_desc_ptr[group_id].M;
+                N = gemm_desc_ptr[group_id].N;
+                K = gemm_desc_ptr[group_id].K;
 
-        using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
-        DsGridPointer p_ds_grid;
-
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-            p_ds_grid(i)    = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
-        });
-
-        static constexpr index_t kbatch  = 1;
-        static constexpr index_t k_grain = kbatch * KPerBlock;
-        index_t K_split                  = (K + k_grain - 1) / k_grain * KPerBlock;
-
-        const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
-
-        // Update tile offset if we have moved within group
-        b2c_tile_map.UpdateTileOffset(tile_offset);
-
-        using Problem = typename GridwiseGemm::Problem;
-        auto problem  = Problem(gemm_desc_ptr[group_id].M,
-                               gemm_desc_ptr[group_id].N,
-                               gemm_desc_ptr[group_id].K,
-                               gemm_desc_ptr[group_id].StrideA,
-                               gemm_desc_ptr[group_id].StrideB,
-                               gemm_desc_ptr[group_id].StrideDs,
-                               gemm_desc_ptr[group_id].StrideE,
-                               kbatch);
-
-        if(has_main_k_block_loop)
-        {
-            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
-                         BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-            {
-                GridwiseGemm::template Run<OffsettedBlockToCTileMap,
-                                           true,
-                                           InMemoryDataOperationEnum::Set,
-                                           TailNumber::Full>(
-                    static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                    static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                    p_ds_grid,
-                    static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                    static_cast<void*>(p_shared),
-                    problem,
-                    a_element_op,
-                    b_element_op,
-                    cde_element_op,
-                    b2c_tile_map);
-            }
-            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
-            {
-                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
+                if(M == 0 || N == 0 || K == 0)
                 {
-                    GridwiseGemm::template Run<OffsettedBlockToCTileMap,
-                                               true,
-                                               InMemoryDataOperationEnum::Set,
-                                               TailNumber::One>(
-                        static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                        static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                        p_ds_grid,
-                        static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                        static_cast<void*>(p_shared),
-                        problem,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op,
-                        b2c_tile_map);
+                    grid_size_grp = 0;
+                    continue;
                 }
-                else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Full)
+
+                b2c_tile_map = OffsettedBlockToCTileMap(
+                    LocalBlock2ETileMap(M, N, 4), group_offset, tile_offset);
+                grid_size_grp = b2c_tile_map.CalculateGridSize(M, N);
+
+                gemm_tile_id_start = group_offset;
+                gemm_tile_id_end   = group_offset + grid_size_grp;
+            }
+
+            using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
+            DsGridPointer p_ds_grid;
+
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                p_ds_grid(i) = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
+            });
+
+            static constexpr index_t kbatch  = 1;
+            static constexpr index_t k_grain = kbatch * KPerBlock;
+            index_t K_split                  = (K + k_grain - 1) / k_grain * KPerBlock;
+
+            const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
+
+            // Update tile offset if we have moved within group
+            b2c_tile_map.UpdateTileOffset(tile_offset);
+
+            using Problem = typename GridwiseGemm::Problem;
+            auto problem  = Problem(gemm_desc_ptr[group_id].M,
+                                   gemm_desc_ptr[group_id].N,
+                                   gemm_desc_ptr[group_id].K,
+                                   gemm_desc_ptr[group_id].StrideA,
+                                   gemm_desc_ptr[group_id].StrideB,
+                                   gemm_desc_ptr[group_id].StrideDs,
+                                   gemm_desc_ptr[group_id].StrideE,
+                                   kbatch);
+
+            if(has_main_k_block_loop)
+            {
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
+                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     GridwiseGemm::template Run<OffsettedBlockToCTileMap,
                                                true,
@@ -204,15 +183,14 @@ __global__ void
                         cde_element_op,
                         b2c_tile_map);
                 }
-
-                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 2)
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
                 {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                     {
                         GridwiseGemm::template Run<OffsettedBlockToCTileMap,
                                                    true,
                                                    InMemoryDataOperationEnum::Set,
-                                                   TailNumber::Two>(
+                                                   TailNumber::One>(
                             static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
                             static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
                             p_ds_grid,
@@ -224,16 +202,12 @@ __global__ void
                             cde_element_op,
                             b2c_tile_map);
                     }
-                }
-
-                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Three)
+                    else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Full)
                     {
                         GridwiseGemm::template Run<OffsettedBlockToCTileMap,
                                                    true,
                                                    InMemoryDataOperationEnum::Set,
-                                                   TailNumber::Three>(
+                                                   TailNumber::Full>(
                             static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
                             static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
                             p_ds_grid,
@@ -245,84 +219,166 @@ __global__ void
                             cde_element_op,
                             b2c_tile_map);
                     }
-                }
 
-                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Four)
+                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 2)
                     {
-                        GridwiseGemm::template Run<OffsettedBlockToCTileMap,
-                                                   true,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   TailNumber::Four>(
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
+                        {
+                            GridwiseGemm::template Run<OffsettedBlockToCTileMap,
+                                                       true,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Two>(
+                                static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                                static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                                p_ds_grid,
+                                static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                                static_cast<void*>(p_shared),
+                                problem,
+                                a_element_op,
+                                b_element_op,
+                                cde_element_op,
+                                b2c_tile_map);
+                        }
+                    }
+
+                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Three)
+                        {
+                            GridwiseGemm::template Run<OffsettedBlockToCTileMap,
+                                                       true,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Three>(
+                                static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                                static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                                p_ds_grid,
+                                static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                                static_cast<void*>(p_shared),
+                                problem,
+                                a_element_op,
+                                b_element_op,
+                                cde_element_op,
+                                b2c_tile_map);
+                        }
+                    }
+
+                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Four)
+                        {
+                            GridwiseGemm::template Run<OffsettedBlockToCTileMap,
+                                                       true,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Four>(
+                                static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                                static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                                p_ds_grid,
+                                static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                                static_cast<void*>(p_shared),
+                                problem,
+                                a_element_op,
+                                b_element_op,
+                                cde_element_op,
+                                b2c_tile_map);
+                        }
+                    }
+
+                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Five)
+                        {
+                            GridwiseGemm::template Run<OffsettedBlockToCTileMap,
+                                                       true,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Five>(
+                                static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                                static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                                p_ds_grid,
+                                static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                                static_cast<void*>(p_shared),
+                                problem,
+                                a_element_op,
+                                b_element_op,
+                                cde_element_op,
+                                b2c_tile_map);
+                        }
+                    }
+
+                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
+                        {
+                            GridwiseGemm::template Run<OffsettedBlockToCTileMap,
+                                                       true,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Six>(
+                                static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                                static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                                p_ds_grid,
+                                static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                                static_cast<void*>(p_shared),
+                                problem,
+                                a_element_op,
+                                b_element_op,
+                                cde_element_op,
+                                b2c_tile_map);
+                        }
+                    }
+
+                    if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Seven)
+                        {
+                            GridwiseGemm::template Run<OffsettedBlockToCTileMap,
+                                                       true,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Seven>(
+                                static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
+                                static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
+                                p_ds_grid,
+                                static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
+                                static_cast<void*>(p_shared),
+                                problem,
+                                a_element_op,
+                                b_element_op,
+                                cde_element_op,
+                                b2c_tile_map);
+                        }
+                    }
+                }
+                // Tail number could be Odd or Even
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        GridwiseGemm::template Run_2Lds<OffsettedBlockToCTileMap,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        TailNumber::Odd>(
                             static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
                             static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
                             p_ds_grid,
                             static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
                             static_cast<void*>(p_shared),
+                            static_cast<void*>(p_shared1),
                             problem,
                             a_element_op,
                             b_element_op,
                             cde_element_op,
                             b2c_tile_map);
                     }
-                }
-
-                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Five)
+                    else
                     {
-                        GridwiseGemm::template Run<OffsettedBlockToCTileMap,
-                                                   true,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   TailNumber::Five>(
+                        GridwiseGemm::template Run_2Lds<OffsettedBlockToCTileMap,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        TailNumber::Even>(
                             static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
                             static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
                             p_ds_grid,
                             static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
                             static_cast<void*>(p_shared),
-                            problem,
-                            a_element_op,
-                            b_element_op,
-                            cde_element_op,
-                            b2c_tile_map);
-                    }
-                }
-
-                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
-                    {
-                        GridwiseGemm::template Run<OffsettedBlockToCTileMap,
-                                                   true,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   TailNumber::Six>(
-                            static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                            static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                            p_ds_grid,
-                            static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                            static_cast<void*>(p_shared),
-                            problem,
-                            a_element_op,
-                            b_element_op,
-                            cde_element_op,
-                            b2c_tile_map);
-                    }
-                }
-
-                if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Seven)
-                    {
-                        GridwiseGemm::template Run<OffsettedBlockToCTileMap,
-                                                   true,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   TailNumber::Seven>(
-                            static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                            static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                            p_ds_grid,
-                            static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                            static_cast<void*>(p_shared),
+                            static_cast<void*>(p_shared1),
                             problem,
                             a_element_op,
                             b_element_op,
@@ -331,72 +387,33 @@ __global__ void
                     }
                 }
             }
-            // Tail number could be Odd or Even
-            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            else
             {
-                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    GridwiseGemm::template Run_2Lds<OffsettedBlockToCTileMap,
-                                                    true,
-                                                    InMemoryDataOperationEnum::Set,
-                                                    TailNumber::Odd>(
+                    GridwiseGemm::template Run<OffsettedBlockToCTileMap,
+                                               false,
+                                               InMemoryDataOperationEnum::Set,
+                                               TailNumber::Full>(
                         static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
                         static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
                         p_ds_grid,
                         static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
                         static_cast<void*>(p_shared),
-                        static_cast<void*>(p_shared1),
                         problem,
                         a_element_op,
                         b_element_op,
                         cde_element_op,
                         b2c_tile_map);
                 }
-                else
-                {
-                    GridwiseGemm::template Run_2Lds<OffsettedBlockToCTileMap,
-                                                    true,
-                                                    InMemoryDataOperationEnum::Set,
-                                                    TailNumber::Even>(
-                        static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                        static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                        p_ds_grid,
-                        static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                        static_cast<void*>(p_shared),
-                        static_cast<void*>(p_shared1),
-                        problem,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op,
-                        b2c_tile_map);
-                }
             }
-        }
-        else
-        {
-            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-            {
-                GridwiseGemm::template Run<OffsettedBlockToCTileMap,
-                                           false,
-                                           InMemoryDataOperationEnum::Set,
-                                           TailNumber::Full>(
-                    static_cast<const ADataType*>(gemm_desc_ptr[group_id].p_a_grid),
-                    static_cast<const BDataType*>(gemm_desc_ptr[group_id].p_b_grid),
-                    p_ds_grid,
-                    static_cast<EDataType*>(gemm_desc_ptr[group_id].p_e_grid),
-                    static_cast<void*>(p_shared),
-                    problem,
-                    a_element_op,
-                    b_element_op,
-                    cde_element_op,
-                    b2c_tile_map);
-            }
-        }
 
-        tile_id += get_grid_size();
-        tile_offset += get_grid_size();
+            tile_id += get_grid_size();
+            tile_offset += get_grid_size();
+            block_sync_lds();
 
-    } while(group_id < group_count);
+        } while(group_id < group_count);
+    }
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -467,10 +484,31 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                                        BElementwiseOperation,
                                        CDEElementwiseOperation>
 {
-    using DeviceOp                      = DeviceGroupedGemmMultipleDXdlCShuffleTileLoop;
-    static constexpr index_t NumDTensor = DsDataType::Size();
+    using DeviceOp                         = DeviceGroupedGemmMultipleDXdlCShuffleTileLoop;
+    static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               true>();
+    static constexpr auto WarpTileConfig32 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               false>();
+    static constexpr auto NXdlPerWave64    = WarpTileConfig64.At(3);
+    static constexpr auto NXdlPerWave32    = WarpTileConfig32.At(3);
+    static constexpr index_t NumDTensor    = DsDataType::Size();
 
-    using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<
+    template <typename WarpTileConfig>
+    using GridwiseGemmBase = GridwiseGemmMultiD_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         DsLayout,
@@ -491,10 +529,10 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         KPerBlock,
         AK1,
         BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave,
+        WarpTileConfig::At(0),
+        WarpTileConfig::At(1),
+        WarpTileConfig::At(2),
+        WarpTileConfig::At(3),
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -511,15 +549,18 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         BBlockTransferDstScalarPerVector_BK1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        WarpTileConfig::At(4),
+        WarpTileConfig::At(5),
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEShuffleBlockTransferScalarPerVectors,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB>;
+    using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
+    using KernelConfig    = TileLoopKernelConfig<BlockSize>;
     using KernelArguments = GroupedGemmKernelArgument<NumDTensor>;
     using Block2ETileMap  = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     using OffsettedLocalBlock2ETileMap = OffsettedBlockToCTileMap2<Block2ETileMap>;
@@ -566,17 +607,6 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         index_t tile_count_;
     };
 
-    struct KernelConfig
-    {
-        // The oversubscription factor for the number of blocks that can simultaneously reside on
-        // GPU.
-        static constexpr int BLOCK_SUBSCRIPTION_FACTOR = 1;
-        static constexpr int BLOCK_WAVES               = BlockSize / get_warp_size();
-        static constexpr int CU_SIMDS                  = 4;
-        // Assume we want to have at most 2 waves per SIMD
-        static constexpr int CU_BLOCKS = math::integer_divide_floor(2 * CU_SIMDS, BLOCK_WAVES);
-    };
-
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -593,6 +623,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         ///
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
+        template <typename GridwiseGemm>
         float Run(const Argument& arg,
                   const void* dev_gemm_args,
                   const StreamConfig& stream_config = StreamConfig{})
@@ -600,13 +631,13 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             if(dev_gemm_args == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
             float ave_time = 0;
-            ave_time       = DispatchKernel(arg, dev_gemm_args, stream_config);
+            ave_time       = DispatchKernel<GridwiseGemm>(arg, dev_gemm_args, stream_config);
 
             return ave_time;
         }
@@ -624,18 +655,21 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         ///
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(arg.p_dev_gemm_args_ == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
-            return Run(arg, arg.p_dev_gemm_args_, stream_config);
+            return Run<GridwiseGemm>(arg, arg.p_dev_gemm_args_, stream_config);
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -644,53 +678,13 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         }
 
         private:
+        template <typename GridwiseGemm>
         float DispatchKernel(const Argument& arg,
                              const void* dev_gemm_args,
                              const StreamConfig& stream_config) const
         {
-            const auto kernel = kernel_grouped_gemm_multiple_d_xdl<GridwiseGemm,
-                                                                   KernelArguments,
-                                                                   GemmSpec,
-                                                                   ADataType,
-                                                                   BDataType,
-                                                                   DsDataType,
-                                                                   EDataType,
-                                                                   ALayout,
-                                                                   BLayout,
-                                                                   DsLayout,
-                                                                   ELayout,
-                                                                   KPerBlock,
-                                                                   OffsettedLocalBlock2ETileMap,
-                                                                   Block2ETileMap,
-                                                                   AElementwiseOperation,
-                                                                   BElementwiseOperation,
-                                                                   CDEElementwiseOperation,
-                                                                   BlkGemmPipeSched,
-                                                                   BlkGemmPipelineVer>;
+            const auto kernel = GetKernelFunction<GridwiseGemm>();
             return LaunchKernel(kernel, arg, dev_gemm_args, stream_config);
-        }
-
-        template <typename KernelFunction>
-        int CalculateMaxOccupancyGridSize(const KernelFunction& kernel,
-                                          const StreamConfig& stream_config) const
-        {
-            // Calculate max number of workgroups that can simultaneously reside on the CU.
-            int occ_num_blocks            = 0;
-            size_t dyn_shared_mem_per_blk = 0;
-            hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                &occ_num_blocks, kernel, BlockSize, dyn_shared_mem_per_blk));
-
-            int cu_count = getAvailableComputeUnitCount(stream_config);
-
-            if(stream_config.log_level_ > 0)
-            {
-                std::cout << "MaxActiveBlocksPerCU: " << occ_num_blocks
-                          << ", available CUs count: " << cu_count << ", occup. grid size: "
-                          << ck::math::min(occ_num_blocks, KernelConfig::CU_BLOCKS) * cu_count
-                          << std::endl;
-            }
-
-            return cu_count * ck::math::min(occ_num_blocks, KernelConfig::CU_BLOCKS);
         }
 
         template <typename KernelFunction>
@@ -699,7 +693,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                            const void* dev_gemm_args,
                            const StreamConfig& stream_config) const
         {
-            int grid_size = CalculateMaxOccupancyGridSize(kernel, stream_config);
+            int grid_size = KernelConfig::CalculateMaxOccupancyGridSize(kernel, stream_config);
 
             if(stream_config.log_level_ > 0)
             {
@@ -730,36 +724,24 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA,
+                                      ComputeTypeB,
+                                      MPerXDL,
+                                      NPerXDL,
+                                      WarpTileConfig32.At(0),
+                                      WarpTileConfig32.At(1)>())
         {
             return false;
         }
-
         bool supported = true;
 
         constexpr index_t k_batch = 1;
+        bool isWave64             = get_warp_size() == 64;
         for(index_t i = 0; i < arg.group_count_; ++i)
         {
             std::array<const void*, NumDTensor> placeholder_p_ds_grid{};
             std::array<index_t, NumDTensor> stride_Ds;
             std::copy_n(arg.gemm_descs_[i].stride_Ds_.begin(), NumDTensor, stride_Ds.begin());
-            using GridArg = typename GridwiseGemm::Argument;
-            GridArg gridwise_arg(nullptr,               // p_a_grid,
-                                 nullptr,               // p_b_grid,
-                                 placeholder_p_ds_grid, // p_ds_grid,
-                                 nullptr,               // p_e_grid  ,
-                                 arg.gemm_descs_[i].M_,
-                                 arg.gemm_descs_[i].N_,
-                                 arg.gemm_descs_[i].K_,
-                                 arg.gemm_descs_[i].stride_A_,
-                                 arg.gemm_descs_[i].stride_B_,
-                                 stride_Ds,
-                                 arg.gemm_descs_[i].stride_C_,
-                                 k_batch,
-                                 arg.a_element_op_,
-                                 arg.b_element_op_,
-                                 arg.cde_element_op_);
-
             if((arg.gemm_descs_[i].K_ % AK1 != 0 || arg.gemm_descs_[i].K_ % BK1 != 0) &&
                !(GemmSpec == GemmSpecialization::MKPadding ||
                  GemmSpec == GemmSpecialization::NKPadding ||
@@ -768,8 +750,62 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             {
                 return false;
             }
+            if(isWave64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    using GridArg = typename GridwiseGemm64::Argument;
+                    GridArg gridwise_arg(nullptr,               // p_a_grid,
+                                         nullptr,               // p_b_grid,
+                                         placeholder_p_ds_grid, // p_ds_grid,
+                                         nullptr,               // p_e_grid  ,
+                                         arg.gemm_descs_[i].M_,
+                                         arg.gemm_descs_[i].N_,
+                                         arg.gemm_descs_[i].K_,
+                                         arg.gemm_descs_[i].stride_A_,
+                                         arg.gemm_descs_[i].stride_B_,
+                                         stride_Ds,
+                                         arg.gemm_descs_[i].stride_C_,
+                                         k_batch,
+                                         arg.a_element_op_,
+                                         arg.b_element_op_,
+                                         arg.cde_element_op_);
 
-            supported = supported && GridwiseGemm::CheckValidity(gridwise_arg);
+                    supported = supported && GridwiseGemm64::CheckValidity(gridwise_arg);
+                }
+                else
+                {
+                    supported = false;
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    using GridArg = typename GridwiseGemm32::Argument;
+                    GridArg gridwise_arg(nullptr,               // p_a_grid,
+                                         nullptr,               // p_b_grid,
+                                         placeholder_p_ds_grid, // p_ds_grid,
+                                         nullptr,               // p_e_grid  ,
+                                         arg.gemm_descs_[i].M_,
+                                         arg.gemm_descs_[i].N_,
+                                         arg.gemm_descs_[i].K_,
+                                         arg.gemm_descs_[i].stride_A_,
+                                         arg.gemm_descs_[i].stride_B_,
+                                         stride_Ds,
+                                         arg.gemm_descs_[i].stride_C_,
+                                         k_batch,
+                                         arg.a_element_op_,
+                                         arg.b_element_op_,
+                                         arg.cde_element_op_);
+
+                    supported = supported && GridwiseGemm32::CheckValidity(gridwise_arg);
+                }
+                else
+                {
+                    supported = false;
+                }
+            }
         }
 
         return supported;
@@ -780,14 +816,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(std::vector<const void*>& p_As,
-                             std::vector<const void*>& p_Bs,
-                             std::vector<std::array<const void*, NumDTensor>>& p_Ds,
-                             std::vector<void*>& p_Es,
-                             std::vector<GemmDesc>& gemm_descs,
-                             AElementwiseOperation a_elementwise_op,
-                             BElementwiseOperation b_elementwise_op,
-                             CDEElementwiseOperation cde_elementwise_op)
+    template <typename GridwiseGemm>
+    static auto GetKernelFunction()
     {
         const auto kernel = kernel_grouped_gemm_multiple_d_xdl<GridwiseGemm,
                                                                KernelArguments,
@@ -808,15 +838,51 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                                                                CDEElementwiseOperation,
                                                                BlkGemmPipeSched,
                                                                BlkGemmPipelineVer>;
-        int occupancy, num_cu;
-        hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
+        return kernel;
+    }
 
-        hipDeviceProp_t dev_prop;
-        hipDevice_t dev;
-        hip_check_error(hipGetDevice(&dev));
-        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
-        num_cu = dev_prop.multiProcessorCount;
+    static auto GetKernelFunction()
+    {
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                const auto kernel = GetKernelFunction<GridwiseGemm64>();
+                return kernel;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                const auto kernel = GetKernelFunction<GridwiseGemm32>();
+                return kernel;
+            }
+        }
+
+        // This is here to handle the case where MXdlPerWave/NxdPerWave is too small
+        // This is caught by IsSupportedArgument(), but as GetKernelFunction is sometimes called
+        // before we need a fallback kernel to return here.
+        return kernel_dummy<AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation>;
+    }
+
+    static int GetKernelOccupancy()
+    {
+        const auto kernel = GetKernelFunction();
+        return KernelConfig::GetKernelOccupancy(kernel);
+    }
+
+    static auto MakeArgument(std::vector<const void*>& p_As,
+                             std::vector<const void*>& p_Bs,
+                             std::vector<std::array<const void*, NumDTensor>>& p_Ds,
+                             std::vector<void*>& p_Es,
+                             std::vector<GemmDesc>& gemm_descs,
+                             AElementwiseOperation a_elementwise_op,
+                             BElementwiseOperation b_elementwise_op,
+                             CDEElementwiseOperation cde_elementwise_op)
+    {
+        int occupancy = GetKernelOccupancy();
+        int num_cu    = KernelConfig::GetComputeUnitCount();
 
         return Argument{p_As,
                         p_Bs,
@@ -840,34 +906,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                         BElementwiseOperation b_elementwise_op,
                         CDEElementwiseOperation cde_elementwise_op) override
     {
-        const auto kernel = kernel_grouped_gemm_multiple_d_xdl<GridwiseGemm,
-                                                               KernelArguments,
-                                                               GemmSpec,
-                                                               ADataType,
-                                                               BDataType,
-                                                               DsDataType,
-                                                               EDataType,
-                                                               ALayout,
-                                                               BLayout,
-                                                               DsLayout,
-                                                               ELayout,
-                                                               KPerBlock,
-                                                               OffsettedLocalBlock2ETileMap,
-                                                               Block2ETileMap,
-                                                               AElementwiseOperation,
-                                                               BElementwiseOperation,
-                                                               CDEElementwiseOperation,
-                                                               BlkGemmPipeSched,
-                                                               BlkGemmPipelineVer>;
-        int occupancy, num_cu;
-        hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
-
-        hipDeviceProp_t dev_prop;
-        hipDevice_t dev;
-        hip_check_error(hipGetDevice(&dev));
-        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
-        num_cu = dev_prop.multiProcessorCount;
+        int occupancy = GetKernelOccupancy();
+        int num_cu    = KernelConfig::GetComputeUnitCount();
 
         return std::make_unique<Argument>(p_As,
                                           p_Bs,

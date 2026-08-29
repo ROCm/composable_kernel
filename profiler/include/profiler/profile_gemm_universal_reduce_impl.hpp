@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,6 +10,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3r1.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3r1.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/gemm_universal_reduce.hpp"
@@ -46,7 +47,8 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
                                         int KBatch,
                                         int n_warmup,
                                         int n_iter,
-                                        uint64_t rotating = 0)
+                                        uint64_t rotating  = 0,
+                                        int instance_index = -1)
 {
     bool pass = true;
 
@@ -56,11 +58,11 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
 
@@ -82,10 +84,21 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
 
     switch(init_method)
     {
-    case 0: break;
+    case 0:
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
+        break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        break;
+    case 2:
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        break;
+    case 3:
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -152,8 +165,15 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
     float best_kbatch     = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
+
         std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 32, 38};
 
         if(KBatch > 0)
@@ -161,9 +181,9 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
             kbatch_list = {KBatch};
         }
 
-        for(std::size_t i = 0; i < kbatch_list.size(); i++)
+        for(std::size_t batch_id = 0; batch_id < kbatch_list.size(); batch_id++)
         {
-            auto kbatch_curr = kbatch_list[i];
+            auto kbatch_curr = kbatch_list[batch_id];
 
             auto argument_ptr =
                 op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),

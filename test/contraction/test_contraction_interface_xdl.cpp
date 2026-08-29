@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <stdexcept>
 #include <vector>
@@ -100,6 +100,8 @@ class ContractionDeviceOpWrapper
         const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
             DeviceOp>::GetInstances();
 
+        std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
         for(auto& op_ptr : op_ptrs)
         {
             auto argument_ptr =
@@ -180,4 +182,15 @@ TEST(TestContractionSupportedArgs, DEMemoryAccess)
     EXPECT_FALSE(
         wrapper.isSupported(Dims, Dims, Dims, Dims, Strides, Strides, Strides, InvalidStrides));
     EXPECT_TRUE(wrapper.isSupported(Dims, Dims, Dims, Dims, Strides, Strides, Strides, Strides));
+}
+
+int main(int argc, char** argv)
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
+    {
+        std::cout << "FP32/64 are not supported on gfx11 and gfx12." << std::endl;
+        return 0;
+    }
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

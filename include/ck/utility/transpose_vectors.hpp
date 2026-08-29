@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,22 +18,6 @@ struct transpose_vectors;
 // transpose fp16 2x2
 __device__ void transpose_fp16_2x2(const half2_t& x0, const half2_t& x1, half2_t& y0, half2_t& y1)
 {
-#if 0
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-
-    const vector_type<half_t, 2> vx0{x0}, vx1{x1};
-    vector_type<half_t, 2> vy0, vy1;
-
-    vy0.template AsType<half_t>()(I0) = vx0.template AsType<half_t>()[I0];
-    vy0.template AsType<half_t>()(I1) = vx1.template AsType<half_t>()[I0];
-
-    vy1.template AsType<half_t>()(I0) = vx0.template AsType<half_t>()[I1];
-    vy1.template AsType<half_t>()(I1) = vx1.template AsType<half_t>()[I1];
-
-    y0 = vy0.template AsType<half2_t>()[I0];
-    y1 = vy1.template AsType<half2_t>()[I0];
-#else
     constexpr int32_t m0 = 0x05040100;
     constexpr int32_t m1 = 0x07060302;
 
@@ -43,7 +27,6 @@ __device__ void transpose_fp16_2x2(const half2_t& x0, const half2_t& x1, half2_t
     // index is reversed because of little endianness (least significant bits first)
     y0 = bit_cast<half2_t>(__builtin_amdgcn_perm(bit_cast<int32_t>(x1), bit_cast<int32_t>(x0), m0));
     y1 = bit_cast<half2_t>(__builtin_amdgcn_perm(bit_cast<int32_t>(x1), bit_cast<int32_t>(x0), m1));
-#endif
 }
 
 template <index_t NX, index_t NY>

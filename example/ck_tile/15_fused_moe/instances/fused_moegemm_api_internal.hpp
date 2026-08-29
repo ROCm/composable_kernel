@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,11 +16,11 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
 {
     using f_traits = ck_tile::FusedMoeGemmTraits<Ts_::GateOnly, Ts_::FusedQuant == 1, 1 /*atomic*/>;
     using f_shape  = ck_tile::FusedMoeGemmShape<typename Ts_::BlockTile_0,
-                                               typename Ts_::WarpPerBlock_0,
-                                               typename Ts_::WarpTile_0,
-                                               typename Ts_::BlockTile_1,
-                                               typename Ts_::WarpPerBlock_0,
-                                               typename Ts_::WarpTile_0>;
+                                                typename Ts_::WarpPerBlock_0,
+                                                typename Ts_::WarpTile_0,
+                                                typename Ts_::BlockTile_1,
+                                                typename Ts_::WarpPerBlock_0,
+                                                typename Ts_::WarpTile_0>;
 
     constexpr auto get_activation_ = []() {
         if constexpr(Ts_::Activation == 0)
@@ -53,7 +53,7 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
     using f_kernel      = ck_tile::FusedMoeGemmKernel<f_partitioner, f_pipeline, void>;
 
     const dim3 grids                       = f_kernel::GridSize(a);
-    constexpr dim3 blocks                  = f_kernel::BlockSize();
+    const dim3 blocks                      = f_kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     static int printed = 0;
@@ -66,5 +66,5 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
     }
 
     return ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(f_kernel{}, grids, blocks, 0, kargs));
+        s, ck_tile::make_kernel<kBlockPerCu>(f_kernel{}, grids, blocks, 0, kargs));
 }

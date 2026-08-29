@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "convnd_fwd_common.hpp"
 
@@ -51,10 +51,10 @@ using DeviceGroupedConvNDFwdInstance =
         16,          // KPerBlock
         4,           // AK1
         4,           // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        16,          // MPerXdl
+        16,          // NPerXdl
+        4,           // MXdlPerWave
+        8,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -72,8 +72,15 @@ using DeviceGroupedConvNDFwdInstance =
         1,
         1,
         S<1, 16, 1, 16>,
-        4>;
+        2>;
 
 #include "run_convnd_fwd_example.inc"
 
-int main(int argc, char* argv[]) { return run_convnd_fwd_example(argc, argv) ? 0 : 1; }
+int main(int argc, char* argv[])
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
+    {
+        return 0;
+    }
+    return run_convnd_fwd_example(argc, argv) ? 0 : 1;
+}

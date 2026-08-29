@@ -1,13 +1,13 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
 #include "ck/tensor_operation/gpu/device/impl/device_fpAintB_gemm_wmma.hpp"
 
 // Implementation follows the paper:
-// Kim, Young Jin, Rawn Henry, Raffy Fahim, and Hany Hassan Awadalla. “Who Says Elephants Can’t Run:
-// Bringing Large Scale MoE Models into Cloud Scale Production.” arXiv, November 17, 2022.
+// Kim, Young Jin, Rawn Henry, Raffy Fahim, and Hany Hassan Awadalla. "Who Says Elephants Can't Run:
+// Bringing Large Scale MoE Models into Cloud Scale Production." arXiv, November 17, 2022.
 // https://doi.org/10.48550/arXiv.2211.10017. Assume weight (Matrix B) is add preprocess to
 // unsigned.
 

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,6 +34,7 @@ using ReduceOutElementOps = ck::Tuple<Div, Div>;
 using DeviceGemmReduceNoOpPtr =
     ck::tensor_operation::device::DeviceGemmReducePtr<0, ReducePtrsGlobal::Size()>;
 
+#ifdef CK_USE_XDL
 void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
 
@@ -45,6 +46,20 @@ void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_kn_mn_instances(
 
 void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
+#endif
+#ifdef CK_USE_WMMA
+void add_device_gemm_reduce_wmma_cshuffle_v3_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+    std::vector<DeviceGemmReduceNoOpPtr>&);
+
+void add_device_gemm_reduce_wmma_cshuffle_v3_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+    std::vector<DeviceGemmReduceNoOpPtr>&);
+
+void add_device_gemm_reduce_wmma_cshuffle_v3_f16_f16_f16_f32_f32_km_kn_mn_instances(
+    std::vector<DeviceGemmReduceNoOpPtr>&);
+
+void add_device_gemm_reduce_wmma_cshuffle_v3_f16_f16_f16_f32_f32_km_nk_mn_instances(
+    std::vector<DeviceGemmReduceNoOpPtr>&);
+#endif
 
 } // namespace instance
 } // namespace device
@@ -70,7 +85,8 @@ bool profile_gemm_reduce_impl(int do_verification,
                               int K,
                               int StrideA,
                               int StrideB,
-                              int StrideC)
+                              int StrideC,
+                              int instance_index = -1)
 {
     bool pass = true;
 
@@ -80,11 +96,11 @@ bool profile_gemm_reduce_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
 
@@ -210,33 +226,61 @@ bool profile_gemm_reduce_impl(int do_verification,
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#ifdef CK_USE_XDL
             ck::tensor_operation::device::instance::
                 add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
                     gemm_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+            ck::tensor_operation::device::instance::
+                add_device_gemm_reduce_wmma_cshuffle_v3_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+                    gemm_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#ifdef CK_USE_XDL
             ck::tensor_operation::device::instance::
                 add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instances(
                     gemm_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+            ck::tensor_operation::device::instance::
+                add_device_gemm_reduce_wmma_cshuffle_v3_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+                    gemm_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#ifdef CK_USE_XDL
             ck::tensor_operation::device::instance::
                 add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_kn_mn_instances(
                     gemm_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+            ck::tensor_operation::device::instance::
+                add_device_gemm_reduce_wmma_cshuffle_v3_f16_f16_f16_f32_f32_km_kn_mn_instances(
+                    gemm_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#ifdef CK_USE_XDL
             ck::tensor_operation::device::instance::
                 add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances(
                     gemm_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+            ck::tensor_operation::device::instance::
+                add_device_gemm_reduce_wmma_cshuffle_v3_f16_f16_f16_f32_f32_km_nk_mn_instances(
+                    gemm_ptrs);
+#endif
         }
     }
 
@@ -249,10 +293,15 @@ bool profile_gemm_reduce_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-
     // profile device GEMM instances
-    for(auto& gemm_ptr : gemm_ptrs)
+    for(size_t i = 0; i < gemm_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& gemm_ptr    = gemm_ptrs[i];
         auto argument_ptr = gemm_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
                                                           b_device_buf.GetDeviceBuffer(),
                                                           nullptr,
@@ -273,6 +322,8 @@ bool profile_gemm_reduce_impl(int do_verification,
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
+        std::string gemm_name = gemm_ptr->GetTypeString();
+
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // init DO, D1 to 0
@@ -281,8 +332,6 @@ bool profile_gemm_reduce_impl(int do_verification,
 
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
-            std::string gemm_name = gemm_ptr->GetTypeString();
 
             std::size_t flop = std::size_t(2) * M * N * K;
 
@@ -310,9 +359,9 @@ bool profile_gemm_reduce_impl(int do_verification,
                 reduce0_device_buf.FromDevice(reduce0_m_device_result.mData.data());
                 reduce1_device_buf.FromDevice(reduce1_m_device_result.mData.data());
 
-                ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-                ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
-                ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
+                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                pass = pass & ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
+                pass = pass & ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
 
                 if(do_log)
                 {
@@ -339,7 +388,7 @@ bool profile_gemm_reduce_impl(int do_verification,
         }
         else
         {
-            std::cout << "does not support this GEMM problem" << std::endl;
+            std::cout << gemm_name << ": does not support this GEMM problem" << std::endl;
         }
     }
 

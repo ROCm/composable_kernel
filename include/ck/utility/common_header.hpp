@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,7 +33,8 @@
 #include "ck/utility/thread_group.hpp"
 #include "ck/utility/debug.hpp"
 
-#if __clang_major__ == 20
+#include "ck/utility/amd_arch.hpp"
+#if __clang_major__ >= 20
 #include "amd_buffer_addressing_builtins.hpp"
 #else
 #include "amd_buffer_addressing.hpp"
@@ -44,6 +45,7 @@
 #include "ck/utility/thread_group.hpp"
 #include "ck/utility/synchronization.hpp"
 #include "ck/utility/amd_address_space.hpp"
+#include "ck/utility/amd_cluster_load.hpp"
 #include "ck/utility/static_buffer.hpp"
 #include "ck/utility/dynamic_buffer.hpp"
 

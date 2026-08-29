@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -45,6 +45,12 @@ bool run_convnd_example(int argc, char* argv[], const OutElementOp& out_element_
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
 
         conv_param = ck::utils::conv::parse_conv_param(num_dim_spatial, 5, argv);
+    }
+
+    if(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::SoftRelu> &&
+       init_method != 2)
+    {
+        std::cout << "Running SoftRelu op with int initialization. Risk of overflow.\n\n";
     }
 
     const auto in_element_op  = InElementOp{};

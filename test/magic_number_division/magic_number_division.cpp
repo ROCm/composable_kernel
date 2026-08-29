@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -12,6 +12,8 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+
+using ::ck::DeviceMem;
 
 __global__ void gpu_magic_number_division(uint32_t magic_multiplier,
                                           uint32_t magic_shift,
@@ -56,10 +58,27 @@ __host__ void cpu_magic_number_division(uint32_t magic_multiplier,
     }
 }
 
-int main(int, char*[])
+int main(int argc, char* argv[])
 {
-    uint64_t num_divisor  = 4096;
-    uint64_t num_dividend = 1L << 16;
+    uint64_t num_divisor   = 4096;
+    uint64_t num_dividend  = 1L << 16;
+    uint32_t divisor_start = 0;
+    uint32_t divisor_end   = num_divisor;
+
+    if(argc == 1)
+    {
+        // use default range
+    }
+    else if(argc == 3)
+    {
+        divisor_start = std::stoi(argv[1]);
+        divisor_end   = std::stoi(argv[2]);
+    }
+    else
+    {
+        std::cerr << "arg1 to 2: divisor_start divisor_end" << std::endl;
+        return 1;
+    }
 
     std::vector<int32_t> divisors_host(num_divisor);
     std::vector<int32_t> dividends_host(num_dividend);
@@ -90,6 +109,10 @@ int main(int, char*[])
 
     for(std::size_t i = 0; i < num_divisor; ++i)
     {
+        if(i < divisor_start || i > divisor_end)
+        {
+            continue;
+        }
         // run naive division on GPU
         gpu_naive_division<<<1024, 256>>>(
             divisors_host[i],

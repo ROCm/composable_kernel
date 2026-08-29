@@ -1,12 +1,14 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iomanip>
 #include <iostream>
 #include <typeinfo>
+#if defined(__unix__)
 #include <unistd.h>
+#endif
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -44,7 +46,8 @@ int profile_gemm_impl(int do_verification,
                       int StrideB,
                       int StrideC,
                       int n_warmup,
-                      int n_iter)
+                      int n_iter,
+                      int instance_index = -1)
 {
     bool pass = true;
 
@@ -54,11 +57,11 @@ int profile_gemm_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
 
@@ -142,8 +145,14 @@ int profile_gemm_impl(int do_verification,
 
     int instance_id = 0;
     // profile device op instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                         static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
@@ -213,7 +222,9 @@ int profile_gemm_impl(int do_verification,
         instance_id++;
     }
 
+#if defined(__unix__)
     sleep(2);
+#endif
 
     // Run the best instance again
     {

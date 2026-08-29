@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <tuple>
 #include <cstdlib>
@@ -107,14 +107,14 @@ int execute_conv_fwd()
         auto& op_ptr        = op_ptrs[i];
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         wei.GetDeviceBuffer(),
-                                                        {},
+                                                          {},
                                                         out.GetDeviceBuffer(),
                                                         in_lengths,
                                                         in_strides,
                                                         wei_lengths,
                                                         wei_strides,
-                                                        {},
-                                                        {},
+                                                          {},
+                                                          {},
                                                         out_lengths,
                                                         out_strides,
                                                         filter_strides,

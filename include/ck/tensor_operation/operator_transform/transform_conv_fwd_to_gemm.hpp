@@ -1,6 +1,5 @@
-
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -62,7 +61,7 @@ struct TransformConvFwdToGemm
             calculate_element_space_size_impl(c_g_n_k_wos_lengths, c_g_n_k_wos_strides, I1);
         const long_index_t element_space_size = math::max(a_element_space_size * sizeof(ADataType),
                                                           c_element_space_size * sizeof(CDataType));
-        constexpr long_index_t TwoGB          = (long_index_t{1} << 31);
+        constexpr long_index_t TwoGB          = (long_index_t{1} << 31); // 2GB threshold
 
         const IndexType N = a_g_n_c_wis_lengths[I1];
 
@@ -393,7 +392,9 @@ struct TransformConvFwdToGemm
         return is_a_descriptor_smaller_than_2GB && is_c_descriptor_smaller_than_2GB;
     }
 
+    template <typename DsPointer>
     __host__ auto SplitConvProblem(const ADataType* a_grid_ptr_base,
+                                   DsPointer& ds_grid_ptr_base,
                                    CDataType* c_grid_ptr_base) const
     {
         // Create copies
@@ -484,11 +485,17 @@ struct TransformConvFwdToGemm
             a_right_offset = ((Wo_ / 2) * ConvStrideW_ - InLeftPadW_) * WiStride_;
             c_right_offset = (Wo_ / 2) * WoStride_;
         }
+
+        static constexpr index_t NumDTensor = DsPointer::Size();
+        const auto ds_grid_right_ptr        = generate_tuple(
+            [&](auto i) { return ds_grid_ptr_base(i) + c_right_offset; }, Number<NumDTensor>{});
+
         // Return left transform, right transformer, right offset to Input and right offset to
         // Output
         return ck::make_tuple(conv_to_gemm_transformer_left,
                               conv_to_gemm_transformer_right,
                               a_grid_ptr_base + a_right_offset,
+                              ds_grid_right_ptr,
                               c_grid_ptr_base + c_right_offset);
     }
 
@@ -1359,11 +1366,11 @@ struct TransformConvFwdToGemm
             {
 
                 const auto wei_gemmn_groups_gemmk_desc = make_naive_tensor_descriptor(
-                    make_tuple(K_, NumGroupsToMerge, FilterSizeNumType{}),
-                    make_tuple(KStrideTensorB_, GStrideTensorB_, CStrideTensorB_));
+                    make_tuple(NumGroupsToMerge, K_, FilterSizeNumType{}),
+                    make_tuple(GStrideTensorB_, KStrideTensorB_, CStrideTensorB_));
                 return transform_tensor_descriptor(
                     wei_gemmn_groups_gemmk_desc,
-                    make_tuple(make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
+                    make_tuple(make_merge_transform(make_tuple(NumGroupsToMerge, K_)),
                                make_pass_through_transform(FilterSizeNumType{})),
                     make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -1378,11 +1385,11 @@ struct TransformConvFwdToGemm
             else
             {
                 const auto wei_gemmn_groups_gemmk_desc = make_naive_tensor_descriptor(
-                    make_tuple(K_, NumGroupsToMerge, ZYX_ * C_),
-                    make_tuple(KStrideTensorB_, GStrideTensorB_, CStrideTensorB_));
+                    make_tuple(NumGroupsToMerge, K_, ZYX_ * C_),
+                    make_tuple(GStrideTensorB_, KStrideTensorB_, CStrideTensorB_));
                 return transform_tensor_descriptor(
                     wei_gemmn_groups_gemmk_desc,
-                    make_tuple(make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
+                    make_tuple(make_merge_transform(make_tuple(NumGroupsToMerge, K_)),
                                make_pass_through_transform(ZYX_ * C_)),
                     make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -1493,16 +1500,16 @@ struct TransformConvFwdToGemm
         else
         {
             const auto nhwo_groups_k_1_desc = make_naive_tensor_descriptor(
-                make_tuple(N_, Wo_, NumGroupsToMerge, K_, 1),
+                make_tuple(N_, Wo_, NumGroupsToMerge, 1, K_),
                 make_tuple(
-                    NStrideTensorC_, WoStride_, GStrideTensorC_, KStrideTensorC_, GStrideTensorC_));
+                    NStrideTensorC_, WoStride_, GStrideTensorC_, GStrideTensorC_, KStrideTensorC_));
             // Padd 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 nhwo_groups_k_1_desc,
                 make_tuple(make_merge_transform(make_tuple(N_, Wo_)),
                            make_pass_through_transform(NumGroupsToMerge),
-                           make_pass_through_transform(K_),
-                           make_pad_transform(1, 0, NumGroupsToMerge - 1)),
+                           make_pad_transform(1, 0, NumGroupsToMerge - 1),
+                           make_pass_through_transform(K_)),
                 make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
             // We need only matrices from diagonal. X_or returns 0 for the same
@@ -1516,13 +1523,13 @@ struct TransformConvFwdToGemm
                 make_tuple(make_pass_through_transform(NDoHoWo),
                            make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
                            make_pass_through_transform(K_)),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}));
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
             // Merge To M, N
             return transform_tensor_descriptor(
                 unmerged_padded_desc,
                 make_tuple(make_merge_transform(make_tuple(NDoHoWo, NumGroupsToMerge)),
-                           make_merge_transform(make_tuple(K_, NumGroupsToMerge))),
+                           make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
                 make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
@@ -1548,20 +1555,20 @@ struct TransformConvFwdToGemm
         else
         {
             const auto nhwo_groups_k_1_desc =
-                make_naive_tensor_descriptor(make_tuple(N_, Ho_, Wo_, NumGroupsToMerge, K_, 1),
+                make_naive_tensor_descriptor(make_tuple(N_, Ho_, Wo_, NumGroupsToMerge, 1, K_),
                                              make_tuple(NStrideTensorC_,
                                                         HoStride_,
                                                         WoStride_,
                                                         GStrideTensorC_,
-                                                        KStrideTensorC_,
-                                                        GStrideTensorC_));
+                                                        GStrideTensorC_,
+                                                        KStrideTensorC_));
             // Padd 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 nhwo_groups_k_1_desc,
                 make_tuple(make_merge_transform(make_tuple(N_, Ho_, Wo_)),
                            make_pass_through_transform(NumGroupsToMerge),
-                           make_pass_through_transform(K_),
-                           make_pad_transform(1, 0, NumGroupsToMerge - 1)),
+                           make_pad_transform(1, 0, NumGroupsToMerge - 1),
+                           make_pass_through_transform(K_)),
                 make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}, Sequence<4>{}, Sequence<5>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
             // We need only matrices from diagonal. X_or returns 0 for the same
@@ -1575,13 +1582,13 @@ struct TransformConvFwdToGemm
                 make_tuple(make_pass_through_transform(NDoHoWo),
                            make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
                            make_pass_through_transform(K_)),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}));
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
             // Merge To M, N
             return transform_tensor_descriptor(
                 unmerged_padded_desc,
                 make_tuple(make_merge_transform(make_tuple(NDoHoWo, NumGroupsToMerge)),
-                           make_merge_transform(make_tuple(K_, NumGroupsToMerge))),
+                           make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
                 make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
@@ -1606,21 +1613,21 @@ struct TransformConvFwdToGemm
         else
         {
             const auto nhwo_groups_k_1_desc =
-                make_naive_tensor_descriptor(make_tuple(N_, Do_, Ho_, Wo_, NumGroupsToMerge, K_, 1),
+                make_naive_tensor_descriptor(make_tuple(N_, Do_, Ho_, Wo_, NumGroupsToMerge, 1, K_),
                                              make_tuple(NStrideTensorC_,
                                                         DoStride_,
                                                         HoStride_,
                                                         WoStride_,
                                                         GStrideTensorC_,
-                                                        KStrideTensorC_,
-                                                        GStrideTensorC_));
+                                                        GStrideTensorC_,
+                                                        KStrideTensorC_));
             // Padd 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 nhwo_groups_k_1_desc,
                 make_tuple(make_merge_transform(make_tuple(N_, Do_, Ho_, Wo_)),
                            make_pass_through_transform(NumGroupsToMerge),
-                           make_pass_through_transform(K_),
-                           make_pad_transform(1, 0, NumGroupsToMerge - 1)),
+                           make_pad_transform(1, 0, NumGroupsToMerge - 1),
+                           make_pass_through_transform(K_)),
                 make_tuple(Sequence<0, 1, 2, 3>{}, Sequence<4>{}, Sequence<5>{}, Sequence<6>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
             // We need only matrices from diagonal. X_or returns 0 for the same
@@ -1634,13 +1641,13 @@ struct TransformConvFwdToGemm
                 make_tuple(make_pass_through_transform(NDoHoWo),
                            make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
                            make_pass_through_transform(K_)),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}));
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
             // Merge To M, N
             return transform_tensor_descriptor(
                 unmerged_padded_desc,
                 make_tuple(make_merge_transform(make_tuple(NDoHoWo, NumGroupsToMerge)),
-                           make_merge_transform(make_tuple(K_, NumGroupsToMerge))),
+                           make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
                 make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
         }

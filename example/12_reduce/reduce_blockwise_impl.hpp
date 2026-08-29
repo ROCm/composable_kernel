@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -117,7 +117,7 @@ int reduce_blockwise_impl(bool do_verification,
     using InOutDataTypeInDevice = typename std::
         conditional<std::is_same<InOutDataType, int4_t>::value, int8_t, InOutDataType>::type;
 #else
-    using InOutDataTypeInDevice   = InOutDataType;
+    using InOutDataTypeInDevice = InOutDataType;
 #endif
 
     using DeviceReduceInstance =

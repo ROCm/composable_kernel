@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/profiler/include
@@ -15,28 +18,42 @@ set(REGRESSION_TESTS
     test_gemm_splitk
     test_gemm_universal_wmma_fp16
     test_gemm_universal_xdl_fp16
-    test_gemm_universal_streamk_fp16
-    test_gemm_universal_streamk_bf16
-    test_gemm_universal_streamk_fp8
     test_batched_gemm_softmax_gemm_fp16
     test_batched_gemm_softmax_gemm_permute_fp16
     test_batched_gemm_bias_softmax_gemm_permute_fp16
     test_batched_gemm_softmax_gemm_permute_bf16
     test_batched_gemm_bias_softmax_gemm_permute_bf16
     test_grouped_gemm_splitk
+    test_batched_gemm_b_scale_wmma
     test_reduce_no_index
     test_reduce_with_index
     test_convnd_fwd
     test_convnd_bwd_data
     test_grouped_convnd_fwd
+    test_grouped_convnd_fwd_bias_bnorm_clamp
+    test_grouped_convnd_fwd_scaleadd_ab
     test_grouped_convnd_bwd_weight
     test_softmax_rank3
     test_softmax_rank4
     test_batchnorm_fwd_rank_4
     test_batchnorm_bwd_rank_4
     test_grouped_convnd_bwd_data_xdl
+    test_grouped_convnd_bwd_data_wmma
+    test_grouped_convnd_bwd_data_wmma_large_cases
+    test_grouped_conv_bwd_data_wmma_scale
     test_conv_tensor_rearrange
     test_gemm_mx
+    test_ck_tile_batched_transpose
+    test_ck_tile_fmha_bwd_fp32
+    test_ck_tile_fmha_bwd_bf16
+    test_ck_tile_fmha_bwd_fp16
+    test_ck_tile_fmha_fwd_fp32
+    test_ck_tile_fmha_fwd_bf16
+    test_ck_tile_fmha_fwd_fp16
+    test_ck_tile_fmha_fwd_fp8bf16
+    test_ck_tile_fmha_fwd_mxfp8
+    test_ck_tile_fmha_fwd_mxfp4
+    test_ck_tile_streamk_extended
 )
 
 function(add_test_executable TEST_NAME)
@@ -44,26 +61,30 @@ function(add_test_executable TEST_NAME)
     set(result 1)
     if(DEFINED DTYPES)
         foreach(source IN LISTS ARGN)
+            get_filename_component(source_name ${source} NAME)
             set(test 0)
-            if((source MATCHES "_fp16" OR source MATCHES "_f16") AND NOT "fp16" IN_LIST DTYPES)
+            if((source_name MATCHES "_fp16|_f16") AND NOT "fp16" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_fp32" OR source MATCHES "_f32") AND NOT "fp32" IN_LIST DTYPES)
+            if((source_name MATCHES "_fp32|_f32") AND NOT "fp32" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_fp64" OR source MATCHES "_f64") AND NOT "fp64" IN_LIST DTYPES)
+            if((source_name MATCHES "_tf32|_tf32") AND NOT "tf32" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_fp8" OR source MATCHES "_f8") AND NOT "fp8" IN_LIST DTYPES)
+            if((source_name MATCHES "_fp64|_f64") AND NOT "fp64" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_bf8" OR source MATCHES "_bf8") AND NOT "bf8" IN_LIST DTYPES)
+            if((source_name MATCHES "_fp8|_f8") AND NOT "fp8" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_bf16" OR source MATCHES "_b16") AND NOT "bf16" IN_LIST DTYPES)
+            if((source_name MATCHES "_bf8|_bf8") AND NOT "bf8" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_int8" OR source MATCHES "_i8") AND NOT "int8" IN_LIST DTYPES)
+            if((source_name MATCHES "_bf16|_b16") AND NOT "bf16" IN_LIST DTYPES)
+                set(test 1)
+            endif()
+            if((source_name MATCHES "_int8|_i8") AND NOT "int8" IN_LIST DTYPES)
                 set(test 1)
             endif()
             if(test EQUAL 1)
@@ -76,37 +97,37 @@ function(add_test_executable TEST_NAME)
     set(TEST_TARGETS ${SUPPORTED_GPU_TARGETS})
 
     foreach(source IN LISTS ARGN)
-        if(NOT DEFINED DPP_KERNELS AND source MATCHES "_dpp")
+        get_filename_component(source_name ${source} NAME)
+        if(NOT DEFINED DPP_KERNELS AND source_name MATCHES "_dpp")
             message(DEBUG "removing dpp test ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-    foreach(source IN LISTS ARGN)
-        if(NOT DEFINED DL_KERNELS AND source MATCHES "_dl")
+        if(NOT DEFINED DL_KERNELS AND source_name MATCHES "_dl")
             message(DEBUG "removing dl test ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-    foreach(source IN LISTS ARGN)
-        if(NOT TEST_TARGETS MATCHES "gfx9" AND source MATCHES "xdl")
+        if(NOT TEST_TARGETS MATCHES "gfx9|gfx11|gfx12" AND source_name MATCHES "xdl")
             message(DEBUG "removing xdl test ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-    foreach(source IN LISTS ARGN)
-	if(NOT TEST_TARGETS MATCHES "gfx11" AND NOT TEST_TARGETS MATCHES "gfx12" AND source MATCHES "wmma")
+        if(NOT TEST_TARGETS MATCHES "gfx11|gfx12" AND source_name MATCHES "wmma")
             message(DEBUG "removing wmma test ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
     endforeach()
     #only continue if there are some source files left on the list
+    set(source_name_list "")
+    foreach(source IN LISTS ARGN)
+        get_filename_component(source_name ${source} NAME)
+        list(APPEND source_name_list ${source_name})
+    endforeach()
     if(ARGN)
-        if(ARGN MATCHES "_xdl")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
-        elseif(ARGN MATCHES "_wmma")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
-        elseif(ARGN MATCHES "_smfmac")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+        if(source_name_list MATCHES "_xdl")
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx10-3-generic amdgcnspirv)
+        elseif(source_name_list MATCHES "_wmma")
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950 amdgcnspirv)
+        elseif(source_name_list MATCHES "_smfmac")
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic gfx1250 amdgcnspirv)
         endif()
         set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
         add_executable(${TEST_NAME} ${ARGN})
@@ -134,26 +155,30 @@ function(add_gtest_executable TEST_NAME)
     set(result 1)
     if(DEFINED DTYPES)
         foreach(source IN LISTS ARGN)
+            get_filename_component(source_name ${source} NAME)
             set(test 0)
-            if((source MATCHES "_fp16" OR source MATCHES "_f16") AND NOT "fp16" IN_LIST DTYPES)
+            if((source_name MATCHES "_fp16|_f16") AND NOT "fp16" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_fp32" OR source MATCHES "_f32") AND NOT "fp32" IN_LIST DTYPES)
+            if((source_name MATCHES "_fp32|_f32") AND NOT "fp32" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_fp64" OR source MATCHES "_f64") AND NOT "fp64" IN_LIST DTYPES)
+            if((source_name MATCHES "_tf32|_tf32") AND NOT "tf32" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_fp8" OR source MATCHES "_f8") AND NOT "fp8" IN_LIST DTYPES)
+            if((source_name MATCHES "_fp64|_f64") AND NOT "fp64" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_bf8" OR source MATCHES "_bf8") AND NOT "bf8" IN_LIST DTYPES)
+            if((source_name MATCHES "_fp8|_f8") AND NOT "fp8" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_bf16" OR source MATCHES "_b16") AND NOT "bf16" IN_LIST DTYPES)
+            if((source_name MATCHES "_bf8|_bf8") AND NOT "bf8" IN_LIST DTYPES)
                 set(test 1)
             endif()
-            if((source MATCHES "_int8" OR source MATCHES "_i8") AND NOT "int8" IN_LIST DTYPES)
+            if((source_name MATCHES "_bf16|_b16") AND NOT "bf16" IN_LIST DTYPES)
+                set(test 1)
+            endif()
+            if((source_name MATCHES "_int8|_i8") AND NOT "int8" IN_LIST DTYPES)
                 set(test 1)
             endif()
             if(test EQUAL 1)
@@ -166,43 +191,52 @@ function(add_gtest_executable TEST_NAME)
     set(TEST_TARGETS ${SUPPORTED_GPU_TARGETS})
 
     foreach(source IN LISTS ARGN)
-        if(NOT DEFINED DL_KERNELS AND source MATCHES "_dl")
+        get_filename_component(source_name ${source} NAME)
+        if(NOT DEFINED DL_KERNELS AND source_name MATCHES "_dl")
             message(DEBUG "removing dl test ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-
-    foreach(source IN LISTS ARGN)
-        if(NOT TEST_TARGETS MATCHES "gfx9" AND source MATCHES "xdl")
+        if(NOT TEST_TARGETS MATCHES "gfx9|gfx11|gfx12" AND source_name MATCHES "xdl")
             message(DEBUG "removing xdl test ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+        if(NOT TEST_TARGETS MATCHES "gfx95|gfx125" AND source_name MATCHES "mx_")
+            message(DEBUG "removing microscaling test ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+        if(NOT TEST_TARGETS MATCHES "gfx11|gfx12" AND source_name MATCHES "wmma")
+            message(DEBUG "removing wmma test ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
     endforeach()
 
     foreach(source IN LISTS ARGN)
-    if(NOT TEST_TARGETS MATCHES "gfx95" AND source MATCHES "mx_")
-        message(DEBUG "removing microscaling test ${source} ")
-        list(REMOVE_ITEM ARGN "${source}")
-    endif()
-    endforeach()
-
-    foreach(source IN LISTS ARGN)
-	if(NOT TEST_TARGETS MATCHES "gfx11" AND NOT TEST_TARGETS MATCHES "gfx12" AND source MATCHES "wmma")
-             message(DEBUG "removing wmma test ${source} ")
+        if((source MATCHES "monitor_mwait" OR source MATCHES "async_lds_load_store") AND NOT TEST_TARGETS MATCHES "gfx125" )
+             message(DEBUG "removing synchronization test ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
     endforeach()
 
     #only continue if there are some source files left on the list
+    set(source_name_list "")
+    foreach(source IN LISTS ARGN)
+        get_filename_component(source_name ${source} NAME)
+        list(APPEND source_name_list ${source_name})
+    endforeach()
     if(ARGN)
-        if(ARGN MATCHES "_xdl")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
-        elseif(ARGN MATCHES "_wmma")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
-        elseif(ARGN MATCHES "_smfmac")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
-        elseif(ARGN MATCHES "_mx") #only build mx example for gfx950
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+        if(source_name_list MATCHES "_xdl")
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx10-3-generic amdgcnspirv)
+        elseif(source_name_list MATCHES "_wmma")
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950 amdgcnspirv)
+        elseif(source_name_list MATCHES "monitor_mwait" OR source_name_list MATCHES "async_lds_load_store") #only build sync tests for gfx1250+
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic amdgcnspirv)
+        elseif(source_name_list MATCHES "_smfmac")
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic gfx1250 amdgcnspirv)
+        elseif(source_name_list MATCHES "_mx") #only build mx example for gfx950 and gfx125x
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic amdgcnspirv)
+             if(ARGN MATCHES "_pk4scale") #only build pk4scale for gfx1250
+                list(REMOVE_ITEM TEST_TARGETS gfx950)
+             endif()
         endif()
         set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
         add_executable(${TEST_NAME} ${ARGN})
@@ -232,21 +266,33 @@ add_compile_options(-Wno-c++20-extensions)
 add_subdirectory(ck_tile)
 add_subdirectory(magic_number_division)
 add_subdirectory(space_filling_curve)
+add_subdirectory(threadwise_transfer_helper)
 add_subdirectory(conv_util)
 add_subdirectory(reference_conv_fwd)
 add_subdirectory(gemm)
 add_subdirectory(gemm_add)
+add_subdirectory(gemm_bias_add_reduce)
+add_subdirectory(gemm_blockscale_wp)
 add_subdirectory(gemm_layernorm)
+add_subdirectory(gemm_multi_abd)
+add_subdirectory(gemm_multiply_multiply_wp)
 add_subdirectory(gemm_split_k)
 add_subdirectory(gemm_universal)
-add_subdirectory(gemm_universal_streamk)
+add_subdirectory(gemm_universal_preshuffle)
+add_subdirectory(gemm_ab_scale)
+add_subdirectory(gemm_b_scale)
 add_subdirectory(gemm_reduce)
+add_subdirectory(gemm_universal_reduce)
+add_subdirectory(batched_contraction)
 add_subdirectory(batched_gemm)
 add_subdirectory(batched_gemm_reduce)
 add_subdirectory(batched_gemm_gemm)
+add_subdirectory(batched_gemm_multiple_d_gemm_multiple_d)
 add_subdirectory(batched_gemm_softmax_gemm)
 add_subdirectory(batched_gemm_softmax_gemm_permute)
+add_subdirectory(batched_gemm_b_scale)
 add_subdirectory(grouped_gemm)
+add_subdirectory(grouped_gemm_tile_loop)
 add_subdirectory(reduce)
 add_subdirectory(convnd_fwd)
 add_subdirectory(convnd_bwd_data)
@@ -269,15 +315,39 @@ add_subdirectory(conv_tensor_rearrange)
 add_subdirectory(transpose)
 add_subdirectory(permute_scale)
 add_subdirectory(wrapper)
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx11")
+add_subdirectory(quantization)
+add_subdirectory(device_memory)
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx11|gfx12")
     add_subdirectory(wmma_op)
 endif()
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx942" OR SUPPORTED_GPU_TARGETS MATCHES "gfx950") # smfmac needs ROCm6.2
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx942|gfx950") # smfmac needs ROCm6.2
     add_subdirectory(smfmac_op)
 endif()
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx950") 
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx950")
     add_subdirectory(mx_mfma_op)
+endif()
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
+    add_subdirectory(mx_wmma_op)
+endif()
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx950|gfx125")
     add_subdirectory(gemm_mx)
 endif()
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx12")
+    add_subdirectory(s_prefetch_op)
+    add_subdirectory(s_prefetch_inst_op)
+endif()
+
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
+    add_subdirectory(prefetch_op)
+endif()
+
+add_subdirectory(cluster_load)
+add_subdirectory(cluster_launch)
+
 add_subdirectory(position_embedding)
 add_subdirectory(scatter_gather)
+add_subdirectory(synchronization)
+add_subdirectory(gpu_reference)
+add_subdirectory(util)
+add_subdirectory(gpu_verification)
+add_subdirectory(swiglu_oai_activation)

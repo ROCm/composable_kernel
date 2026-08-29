@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -18,6 +18,13 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/numeric.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -94,10 +101,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceContractionMultiple
     32,
     8,
     8,
-    32,
-    32,
+    16,
+    16,
+    8,
     4,
-    2,
     S<4, 64, 1>,
     S<1, 0, 2>,
     S<1, 0, 2>,
@@ -115,7 +122,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceContractionMultiple
     1,
     1,
     S<1, 32, 1, 8>,
-    8>;
+    4>;
 
 int main(int argc, char* argv[])
 {
@@ -160,12 +167,12 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    Tensor<A0DataType> a0_ms_ks(a0_ms_ks_lengths, a0_ms_ks_strides);
-    Tensor<A1DataType> a1_ms_ks(a1_ms_ks_lengths, a1_ms_ks_strides);
-    Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides);
-    Tensor<EDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides);
-    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
-    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides);
+    Tensor<A0DataType> a0_ms_ks(a0_ms_ks_lengths, a0_ms_ks_strides, Row{});
+    Tensor<A1DataType> a1_ms_ks(a1_ms_ks_lengths, a1_ms_ks_strides, Bypass{});
+    Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides, Row{});
+    Tensor<EDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides, Row{});
+    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
+    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
     std::cout << "a0_ms_ks: " << a0_ms_ks.mDesc << std::endl;
     std::cout << "a1_ms_ks: " << a1_ms_ks.mDesc << std::endl;
@@ -213,7 +220,7 @@ int main(int argc, char* argv[])
     auto invoker   = device_op.MakeInvoker();
     auto argument  = device_op.MakeArgument(
         std::array<const void*, 2>{a0_device_buf.GetDeviceBuffer(),
-                                   a1_device_buf.GetDeviceBuffer()},
+                                    a1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 1>{b_device_buf.GetDeviceBuffer()},
         std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
         e_device_buf.GetDeviceBuffer(),
@@ -264,9 +271,9 @@ int main(int argc, char* argv[])
     if(do_verification)
     {
 
-        Tensor<CShuffleDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
+        Tensor<CShuffleDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
-        Tensor<A0DataType> a_ms_ks(a0_ms_ks_lengths, a0_ms_ks_strides);
+        Tensor<A0DataType> a_ms_ks(a0_ms_ks_lengths, a0_ms_ks_strides, Row{});
 
         for(size_t m0 = 0; m0 < a_ms_ks.mDesc.GetLengths()[0]; ++m0)
         {
@@ -299,7 +306,6 @@ int main(int argc, char* argv[])
         auto ref_op      = ReferenceOpInstance{};
         auto ref_invoker = ref_op.MakeInvoker();
 
-        Tensor<float> empty_tensor(std::vector<ck::index_t>{}, std::vector<ck::index_t>{});
         auto ref_argument =
             ref_op.MakeArgument(a_ms_ks, b_ns_ks, c_ms_ns_host_result, PassThrough{}, b_element_op);
 

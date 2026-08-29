@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,6 +12,10 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck_tile {
 
 // use aggregate initialization for this type
@@ -81,42 +85,29 @@ struct array
             data[i] = static_cast<value_type>(c);
     }
 
-    // template <typename Y>
-    // CK_TILE_HOST_DEVICE constexpr array(const array& o)
-    // {
-    //     // static_assert(ArrayType::size() == size(), "wrong! size not the same");
-    //     __content = o.__content;
-    // }
-    // CK_TILE_HOST_DEVICE constexpr array& operator=(const array& o)
-    // {
-    //     // static_assert(ArrayType::size() == size(), "wrong! size not the same");
-    //     __content = o.__content;
-    //     return *this;
-    // }
-
     CK_TILE_HOST_DEVICE static constexpr auto size() { return N; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return is_static_v<value_type>; }
 
     // clang-format off
     CK_TILE_HOST_DEVICE constexpr auto& get()                                           { return data; }
     CK_TILE_HOST_DEVICE constexpr const auto& get() const                               { return data; }
-    CK_TILE_HOST_DEVICE constexpr auto& get(index_t i)                                  { return data[i]; }
-    CK_TILE_HOST_DEVICE constexpr const auto& get(index_t i) const                      { return data[i]; }
+    CK_TILE_HOST_DEVICE constexpr auto& get(index_t i) [[clang::lifetimebound]]                                 { return data[i]; }
+    CK_TILE_HOST_DEVICE constexpr const auto& get(index_t i) const [[clang::lifetimebound]]                     { return data[i]; }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& get()                      { return data[I]; }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& get() const          { return data[I]; }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& get(number<I>)             { return data[I]; }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& get(number<I>)[[clang::lifetimebound]]             { return data[I]; }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& get(number<I>) const { return data[I]; }
 
     CK_TILE_HOST_DEVICE constexpr auto& at(index_t i)                                   { return get(i); }
-    CK_TILE_HOST_DEVICE constexpr const auto& at(index_t i) const                       { return get(i); }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at()                       { return get(I); }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const           { return get(I); }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>)              { return get(I); }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const  { return get(I); }
+    CK_TILE_HOST_DEVICE constexpr const auto& at(index_t i) const  [[clang::lifetimebound]]                     { return get(i); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at() [[clang::lifetimebound]]                      { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const [[clang::lifetimebound]]          { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>) [[clang::lifetimebound]]              { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const [[clang::lifetimebound]] { return get(I); }
 
-    CK_TILE_HOST_DEVICE constexpr const value_type& operator[](index_t i) const { return get(i); }
-    CK_TILE_HOST_DEVICE constexpr value_type& operator[](index_t i)             { return get(i); }
-    CK_TILE_HOST_DEVICE constexpr value_type& operator()(index_t i)             { return get(i); }     // TODO: compatible
+    CK_TILE_HOST_DEVICE constexpr const value_type& operator[](index_t i) const [[clang::lifetimebound]] { return get(i); }
+    CK_TILE_HOST_DEVICE constexpr value_type& operator[](index_t i) [[clang::lifetimebound]]            { return get(i); }
+    CK_TILE_HOST_DEVICE constexpr value_type& operator()(index_t i) [[clang::lifetimebound]]            { return get(i); }     // TODO: compatible
 #if 0
     template <typename ArrayLike>
     CK_TILE_HOST_DEVICE constexpr auto operator=(const ArrayLike& arr)
@@ -177,12 +168,29 @@ struct array<T, 0>
     CK_TILE_HOST_DEVICE constexpr array() {}
     CK_TILE_HOST_DEVICE static constexpr index_t size() { return 0; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return is_static_v<T>; };
-    CK_TILE_HOST_DEVICE void print() const { printf("array{size: 0, data: []}"); }
 };
 
-template <typename, typename>
-struct vector_traits;
+template <typename T, index_t N>
+CK_TILE_HOST_DEVICE static void print(const array<T, N>& a)
+{
+    printf("array{size: %ld, data: [", static_cast<long>(N));
+    for(index_t i = 0; i < N; ++i)
+    {
+        if(i > 0)
+            printf(", ");
+        print(a[i]);
+    }
+    printf("]}");
+}
 
+template <typename T>
+CK_TILE_HOST_DEVICE static void print(const array<T, 0>&)
+{
+    printf("array{size: 0, data: []}");
+}
+
+template <typename T, typename>
+struct vector_traits;
 // specialization for array
 template <typename T, index_t N>
 struct vector_traits<array<T, N>, void>
@@ -225,13 +233,6 @@ CK_TILE_HOST_DEVICE constexpr details::return_type<D, Ts...> make_array(Ts&&... 
 {
     return {std::forward<Ts>(ts)...};
 }
-
-// // make empty array
-// template <typename T>
-// CK_TILE_HOST_DEVICE constexpr auto make_array()
-// {
-//     return array<T, 0>{};
-// }
 
 // compatible with old ck's initializer, make an array and fill it withe the last element from
 // initializer_list
@@ -287,3 +288,7 @@ CK_TILE_HOST_DEVICE constexpr auto to_array(const X& x)
 }
 
 } // namespace ck_tile
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

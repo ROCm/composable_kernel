@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,10 +11,10 @@
 namespace ck {
 namespace ranges {
 template <typename InputRange, typename OutputIterator>
-auto copy(InputRange&& range, OutputIterator iter)
-    -> decltype(std::copy(std::begin(std::forward<InputRange>(range)),
-                          std::end(std::forward<InputRange>(range)),
-                          iter))
+auto copy(InputRange&& range,
+          OutputIterator iter) -> decltype(std::copy(std::begin(std::forward<InputRange>(range)),
+                                                     std::end(std::forward<InputRange>(range)),
+                                                     iter))
 {
     return std::copy(std::begin(std::forward<InputRange>(range)),
                      std::end(std::forward<InputRange>(range)),

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,7 @@ struct FmhaFwdAppendKVKernel
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 
@@ -41,7 +42,7 @@ struct FmhaFwdAppendKVKernel
     template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
     // clang-format on
 
-    __host__ static std::string GetName()
+    CK_TILE_HOST static std::string GetName()
     {
         // sync with generate.py
         // clang-format off
@@ -142,41 +143,41 @@ struct FmhaFwdAppendKVKernel
     {
     };
 
-    __host__ static constexpr Kargs MakeKargs(void* q_ptr,
-                                              void* k_ptr,
-                                              const void* knew_ptr,
-                                              void* v_ptr,
-                                              const void* vnew_ptr,
-                                              ck_tile::index_t seqlen_q,
-                                              const void* seqlen_k_ptr,
-                                              ck_tile::index_t seqlen_knew,
-                                              ck_tile::index_t hdim_q,
-                                              ck_tile::index_t hdim_v,
-                                              ck_tile::index_t num_head_q,
-                                              ck_tile::index_t nhead_ratio_qk,
-                                              const void* rotary_cos_ptr,
-                                              const void* rotary_sin_ptr,
-                                              ck_tile::index_t rotary_dim,
-                                              bool has_mask,
-                                              const void* block_table_ptr,
-                                              ck_tile::index_t batch_stride_block_table,
-                                              ck_tile::index_t page_block_size,
-                                              const void* cache_batch_idx,
-                                              ck_tile::index_t stride_q,
-                                              ck_tile::index_t stride_k,
-                                              ck_tile::index_t stride_knew,
-                                              ck_tile::index_t stride_v,
-                                              ck_tile::index_t stride_vnew,
-                                              ck_tile::index_t nhead_stride_q,
-                                              ck_tile::index_t nhead_stride_k,
-                                              ck_tile::index_t nhead_stride_knew,
-                                              ck_tile::index_t nhead_stride_v,
-                                              ck_tile::index_t nhead_stride_vnew,
-                                              ck_tile::index_t batch_stride_q,
-                                              ck_tile::index_t batch_stride_k,
-                                              ck_tile::index_t batch_stride_knew,
-                                              ck_tile::index_t batch_stride_v,
-                                              ck_tile::index_t batch_stride_vnew)
+    CK_TILE_HOST static constexpr Kargs MakeKargs(void* q_ptr,
+                                                  void* k_ptr,
+                                                  const void* knew_ptr,
+                                                  void* v_ptr,
+                                                  const void* vnew_ptr,
+                                                  ck_tile::index_t seqlen_q,
+                                                  const void* seqlen_k_ptr,
+                                                  ck_tile::index_t seqlen_knew,
+                                                  ck_tile::index_t hdim_q,
+                                                  ck_tile::index_t hdim_v,
+                                                  ck_tile::index_t num_head_q,
+                                                  ck_tile::index_t nhead_ratio_qk,
+                                                  const void* rotary_cos_ptr,
+                                                  const void* rotary_sin_ptr,
+                                                  ck_tile::index_t rotary_dim,
+                                                  bool has_mask,
+                                                  const void* block_table_ptr,
+                                                  ck_tile::index_t batch_stride_block_table,
+                                                  ck_tile::index_t page_block_size,
+                                                  const void* cache_batch_idx,
+                                                  ck_tile::index_t stride_q,
+                                                  ck_tile::index_t stride_k,
+                                                  ck_tile::index_t stride_knew,
+                                                  ck_tile::index_t stride_v,
+                                                  ck_tile::index_t stride_vnew,
+                                                  ck_tile::index_t nhead_stride_q,
+                                                  ck_tile::index_t nhead_stride_k,
+                                                  ck_tile::index_t nhead_stride_knew,
+                                                  ck_tile::index_t nhead_stride_v,
+                                                  ck_tile::index_t nhead_stride_vnew,
+                                                  ck_tile::index_t batch_stride_q,
+                                                  ck_tile::index_t batch_stride_k,
+                                                  ck_tile::index_t batch_stride_knew,
+                                                  ck_tile::index_t batch_stride_v,
+                                                  ck_tile::index_t batch_stride_vnew)
     {
         Kargs kargs{
             {q_ptr,
@@ -254,15 +255,15 @@ struct FmhaFwdAppendKVKernel
         return ck_tile::make_tuple(i_tile, i_nhead, i_batch);
     }
 
-    __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // divide problem
         const auto [i_tile, i_nhead, i_batch] = GetTileIndex(kargs);
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kM0);
-        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kN0);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile * FmhaPipeline::kM0);
+        const index_t i_n0 = amd_wave_read_first_lane(i_tile * FmhaPipeline::kN0);
 
         const index_t i_cache_batch = [&, i_batch_ = i_batch] {
             if constexpr(kIsPagedKV)
@@ -647,44 +648,29 @@ struct FmhaFwdAppendKVKernel
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kN0>{}),
                              {0, i_n0});
 
-        if constexpr(kApplyRoPE)
-        {
-            FmhaPipeline{}(q_dram_window,
-                           k_dram_window,
-                           i_page_block_k,
-                           k_page_block_navigator,
-                           knew_dram_window,
-                           v_dram_window,
-                           i_page_block_v,
-                           v_page_block_navigator,
-                           vnew_dram_window,
-                           q_rotary_cos_dram_window,
-                           q_rotary_sin_dram_window,
-                           knew_rotary_cos_dram_window,
-                           knew_rotary_sin_dram_window,
-                           kargs.rotary_dim,
-                           kargs.seqlen_q <= i_m0,
-                           skip_append_kv);
-        }
-        else
-        {
-            FmhaPipeline{}(q_dram_window,
-                           k_dram_window,
-                           i_page_block_k,
-                           k_page_block_navigator,
-                           knew_dram_window,
-                           v_dram_window,
-                           i_page_block_v,
-                           v_page_block_navigator,
-                           vnew_dram_window,
-                           q_rotary_cos_dram_window,
-                           q_rotary_sin_dram_window,
-                           knew_rotary_cos_dram_window,
-                           knew_rotary_sin_dram_window,
-                           0, // rotary_dim not used
-                           kargs.seqlen_q <= i_m0,
-                           skip_append_kv);
-        }
+        // If kApplyRoPe is false, we set the rotary_dim to 0
+        auto rotary_dim = [&]() {
+            if constexpr(kApplyRoPE)
+                return kargs.rotary_dim;
+            else
+                return 0;
+        }();
+        FmhaPipeline{}(q_dram_window,
+                       k_dram_window,
+                       i_page_block_k,
+                       k_page_block_navigator,
+                       knew_dram_window,
+                       v_dram_window,
+                       i_page_block_v,
+                       v_page_block_navigator,
+                       vnew_dram_window,
+                       q_rotary_cos_dram_window,
+                       q_rotary_sin_dram_window,
+                       knew_rotary_cos_dram_window,
+                       knew_rotary_sin_dram_window,
+                       rotary_dim,
+                       kargs.seqlen_q <= i_m0,
+                       skip_append_kv);
     }
 };
 

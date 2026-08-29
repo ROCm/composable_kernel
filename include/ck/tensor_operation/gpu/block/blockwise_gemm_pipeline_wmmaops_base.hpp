@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,7 +9,12 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/warp/wmma_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
+#include "ck/utility/thread_buf_to_vec_loader.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 template <index_t BlockSize,
@@ -30,6 +35,7 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
+          index_t KInner,
           bool TransposeC = false>
 struct BlockwiseGemmWmmaops_pipeline_base
 {
@@ -38,6 +44,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -54,16 +61,21 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static constexpr index_t B_KRow = 1;
 #endif
 
-    static constexpr index_t A_K1 = AWmmaTileDesc{}.GetLength(I5);
-    static constexpr index_t B_K1 = BWmmaTileDesc{}.GetLength(I5);
+    static constexpr auto wmma_gemm = WmmaGemm<ComputeTypeA,
+                                               ComputeTypeB,
+                                               AccDataType,
+                                               MPerWmma,
+                                               NPerWmma,
+                                               KPack / KInner,
+                                               TransposeC>{};
+
+    static constexpr index_t KPerThread = wmma_gemm.wmma_instr.k_per_blk * KInner;
+    static constexpr index_t A_K1       = ck::math::min(AWmmaTileDesc{}.GetLength(I6), KPerThread);
+    static constexpr index_t B_K1       = ck::math::min(BWmmaTileDesc{}.GetLength(I6), KPerThread);
 
     static_assert(KPack % (A_K1 * A_KRow) == 0, "wrong!");
     static_assert(KPack % (B_K1 * B_KRow) == 0, "wrong!");
-
-    static constexpr auto wmma_gemm =
-        WmmaGemm<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma, KPack, TransposeC>{};
-
-    static constexpr index_t KRepeat = KPerBlock / KPack;
+    static constexpr index_t KRepeat = ck::math::max(KPerBlock / KPack, 1);
 
     static constexpr auto WmmaK = Number<wmma_gemm.wmma_instr.k_per_wmma>{};
 
@@ -90,6 +102,158 @@ struct BlockwiseGemmWmmaops_pipeline_base
                               wmma_gemm.GetRegSizePerWmma(),
                               true>
         c_thread_buf_;
+
+    struct Empty
+    {
+        __device__ Empty() {};
+        template <index_t NBuffer>
+        __device__ void GlobalLoad(bool cond)
+        {
+            ignore = NBuffer;
+            ignore = cond;
+        }
+    };
+
+    template <index_t ScaleSliceSizeMN,
+              index_t ScaleSliceStrideMN,
+              index_t ScaleSliceSizeK,
+              index_t NumberOfBuffers,
+              index_t RegSizePerWmma,
+              typename GridDesc,
+              typename ThreadCopy,
+              typename GridBuffer,
+              typename ThreadStaticBuffer,
+              typename ThreadDesc>
+    struct ABScale
+    {
+        __device__ ABScale(GridDesc scale_grid_desc_,
+                           ThreadCopy scale_thread_copy_,
+                           GridBuffer scale_grid_buf_)
+            : scale_thread_copy(scale_thread_copy_),
+              scale_grid_desc(scale_grid_desc_),
+              scale_grid_buf(scale_grid_buf_) {};
+
+        static constexpr index_t num_scale_k_block = ThreadDesc{}.GetLength(Number<1>{});
+        static constexpr index_t num_scale_krepeat = KRepeat / num_scale_k_block;
+
+        static constexpr index_t num_slice_mn      = ScaleSliceSizeMN;
+        static constexpr index_t num_slice_k       = ScaleSliceSizeK;
+        static constexpr index_t reg_size_per_wmma = RegSizePerWmma;
+
+        static constexpr auto scale_thread_desc = ThreadDesc{};
+
+        static constexpr auto scale_thread_copy_step =
+            make_tuple(make_multi_index(ScaleSliceStrideMN, 0),
+                       make_multi_index(-ScaleSliceSizeMN / RegSizePerWmma * ScaleSliceStrideMN, 0),
+                       make_multi_index(-ScaleSliceSizeMN / RegSizePerWmma * ScaleSliceStrideMN,
+                                        ScaleSliceSizeK));
+
+        template <index_t NBuffer>
+        __device__ void GlobalLoad(bool cond)
+        {
+            static_for<0, ScaleSliceSizeMN / RegSizePerWmma, 1>{}([&](auto m0) {
+                scale_thread_copy.Run(scale_grid_desc,
+                                      scale_grid_buf,
+                                      scale_thread_desc,
+                                      make_tuple(m0 * Number<RegSizePerWmma>{}, Number<0>{}),
+                                      scale_thread_bufs(Number<NBuffer>{}));
+
+                scale_thread_copy.MoveSrcSliceWindow(scale_grid_desc,
+                                                     scale_thread_copy_step.At(Number<0>{}));
+            });
+
+            if(cond)
+            {
+                scale_thread_copy.MoveSrcSliceWindow(scale_grid_desc,
+                                                     scale_thread_copy_step.At(Number<2>{}));
+            }
+            else
+            {
+                scale_thread_copy.MoveSrcSliceWindow(scale_grid_desc,
+                                                     scale_thread_copy_step.At(Number<1>{}));
+            }
+        }
+
+        ThreadCopy scale_thread_copy;
+        GridDesc scale_grid_desc;
+        GridBuffer scale_grid_buf;
+        StaticallyIndexedArray<ThreadStaticBuffer, Number<NumberOfBuffers>{}> scale_thread_bufs;
+    };
+
+    template <typename AScaleStruct, typename BScaleStruct>
+    struct CScale
+    {
+        __device__ CScale() {}
+
+        static constexpr auto reg_size_per_wmma =
+            ck::is_same_v<BScaleStruct, Empty> && ck::is_same_v<AScaleStruct, Empty>
+                ? 1
+                : wmma_gemm.GetRegSizePerWmma();
+        static constexpr auto c_scale_thread_desc = make_naive_tensor_descriptor_packed(make_tuple(
+            Number<ck::math::max(AScaleStruct::num_slice_k, BScaleStruct::num_slice_k)>{},
+            Number<AScaleStruct::num_slice_mn>{},
+            Number<BScaleStruct::num_slice_mn>{}));
+        using CScaleThreadDesc                    = decltype(c_scale_thread_desc);
+        static constexpr auto num_scale_k_block   = CScaleThreadDesc{}.GetLength(Number<0>{});
+        static constexpr auto num_scale_m_block   = CScaleThreadDesc{}.GetLength(Number<1>{});
+        static constexpr auto num_scale_n_block   = CScaleThreadDesc{}.GetLength(Number<2>{});
+        using ThreadStaticBuffer = decltype(make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
+            c_scale_thread_desc.GetElementSpaceSize()));
+
+        __device__ void Load(AScaleStruct& a_scale_struct, BScaleStruct& b_scale_struct)
+        {
+            using AScaleThreadDesc = decltype(AScaleStruct::scale_thread_desc);
+            using BScaleThreadDesc = decltype(BScaleStruct::scale_thread_desc);
+
+            static_ford<Sequence<num_scale_m_block, num_scale_n_block, num_scale_k_block>>{}(
+                [&](auto mnk) {
+                    constexpr auto m0 = Number<mnk[Number<0>{}]>{};
+                    constexpr auto n0 = Number<mnk[Number<1>{}]>{};
+                    constexpr auto k0 = Number<mnk[Number<2>{}]>{};
+                    constexpr index_t c_offset =
+                        CScaleThreadDesc{}.CalculateOffset(make_tuple(k0, m0, n0));
+                    constexpr index_t a_offset =
+                        AScaleThreadDesc{}.CalculateOffset(make_tuple(m0, k0));
+                    constexpr index_t b_offset =
+                        BScaleThreadDesc{}.CalculateOffset(make_tuple(n0, k0));
+
+                    c_scale_thread_bufs(I0)(Number<c_offset>{}) =
+                        a_scale_struct.scale_thread_bufs(I0)[Number<a_offset>{}] *
+                        b_scale_struct.scale_thread_bufs(I0)[Number<b_offset>{}];
+                });
+        }
+
+        __device__ void Clear()
+        {
+            static_for<0, reg_size_per_wmma, 1>{}([&](auto t) {
+                c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
+                    .template AsType<AccDataType>()(Number<t>{}) = 0;
+            });
+        }
+
+        template <index_t k_index, index_t m_index, index_t n_index, typename CThreadBuf>
+        __device__ void UpdateCThreadBuf(CThreadBuf& c_thread_buf)
+        {
+            static_for<0, reg_size_per_wmma, 1>{}([&](auto t) {
+                constexpr index_t c_offset =
+                    c_thread_desc_.CalculateOffset(make_tuple(m_index, n_index, t));
+                constexpr index_t cscale_offset = CScaleThreadDesc{}.CalculateOffset(make_tuple(
+                    k_index,
+                    (m_index * num_scale_m_block / MRepeat) % num_scale_m_block +
+                        (Number<t / (reg_size_per_wmma / AScaleStruct::reg_size_per_wmma)>{}) %
+                            AScaleStruct::reg_size_per_wmma,
+                    (n_index * num_scale_n_block / NRepeat) % num_scale_n_block));
+                c_thread_buf(Number<c_offset>{}) +=
+                    c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
+                        .template AsType<AccDataType>()[Number<t>{}] *
+                    type_convert<AccDataType>(c_scale_thread_bufs(I0)[Number<cscale_offset>{}]);
+            });
+        }
+
+        StaticallyIndexedArray<ThreadStaticBuffer, Number<1>{}> c_scale_thread_bufs;
+        StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, AccDataType, 1, reg_size_per_wmma, true>
+            c_thread_buf_per_scale;
+    };
 
     __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
 
@@ -119,8 +283,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
         const auto wmma_krow = 0;
 #endif
 
-        //  |KRepeat   |MRepeat|MWave    |KRow  |MLane  |KPack
-        return make_tuple(0, 0, waveId_m, wmma_krow, wmma_a_idx, 0);
+        return make_tuple(0, 0, 0, waveId_m, wmma_krow, wmma_a_idx, 0);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -137,8 +300,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
         const auto wmma_krow = 0;
 #endif
 
-        //  |KRepeat   |NRepeat|Nwave     |KRow  |NLane  |KPack
-        return make_tuple(0, 0, waveId_n, wmma_krow, wmma_b_idx, 0);
+        return make_tuple(0, 0, 0, waveId_n, wmma_krow, wmma_b_idx, 0);
     }
 
     template <index_t m0, index_t n0>
@@ -169,7 +331,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    using Tuple6 = decltype(CalculateAThreadOriginDataIndex());
+    using Tuple7 = decltype(CalculateAThreadOriginDataIndex());
 
     /**
      * @brief Constructor for BlockwiseGemmWmmaops_pipeline_base.
@@ -189,8 +351,8 @@ struct BlockwiseGemmWmmaops_pipeline_base
      * repeat dimensions.
      */
     __host__ __device__
-    BlockwiseGemmWmmaops_pipeline_base(Tuple6 a_origin = CalculateAThreadOriginDataIndex(),
-                                       Tuple6 b_origin = CalculateBThreadOriginDataIndex())
+    BlockwiseGemmWmmaops_pipeline_base(Tuple7 a_origin = CalculateAThreadOriginDataIndex(),
+                                       Tuple7 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
         static_assert(AWmmaTileDesc::IsKnownAtCompileTime() &&
@@ -205,13 +367,30 @@ struct BlockwiseGemmWmmaops_pipeline_base
                       "wrong!");
     }
 
+    // transposed WMMA output C' = B' * A'
+    __host__ __device__ static constexpr auto
+    GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs()
+    {
+        constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
+            wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
+
+        constexpr auto NAccVgprs = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+
+        return make_naive_tensor_descriptor_packed(
+            //        |MRepeat            |MWave |MSubGroup |NRepeat           |NWave
+            //        |NThreadPerSubGroup |MAccVgprs
+            make_tuple(Number<MRepeat>{}, I1, I1, Number<NRepeat>{}, I1, I1, NAccVgprs));
+    }
+
+    static constexpr auto MAccVgprs =
+        wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths()[I2];
+
     __host__ __device__ static constexpr auto
     GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()
     {
         constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
             wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
 
-        constexpr auto MAccVgprs = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
         constexpr auto AccStride = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I3];
         return make_naive_tensor_descriptor(
             //        |MRepeat           |MWave |MSubGroup |NRepeat           |NWave
@@ -254,10 +433,12 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                                 Number<KRepeat>{},
                                                 I1,
                                                 I1,
+                                                I1,
                                                 Number<A_K1>{}),
                                      make_tuple(Number<A_K1>{},
                                                 Number<KPack / A_KRow>{},
                                                 Number<KPack / A_KRow * MRepeat>{},
+                                                I0,
                                                 I0,
                                                 I0,
                                                 I1));
@@ -268,10 +449,12 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                                 Number<KRepeat>{},
                                                 I1,
                                                 I1,
+                                                I1,
                                                 Number<B_K1>{}),
                                      make_tuple(Number<B_K1>{},
                                                 Number<KPack / B_KRow>{},
                                                 Number<KPack / B_KRow * NRepeat>{},
+                                                I0,
                                                 I0,
                                                 I0,
                                                 I1));
@@ -285,9 +468,9 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                          ComputeTypeA,
                                          decltype(a_block_desc_k0_m0_m1_m2_k1),
                                          decltype(a_thread_desc_),
-                                         Sequence<KPack / A_K1 / A_KRow, MRepeat, 1, 1, 1, A_K1>,
-                                         Sequence<0, 1, 2, 3, 4, 5>,
-                                         5,
+                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, 1, A_K1>,
+                                         Sequence<0, 1, 2, 3, 4, 5, 6>,
+                                         6,
                                          A_K1,
                                          A_K1>;
 
@@ -296,9 +479,9 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                          ComputeTypeB,
                                          decltype(b_block_desc_k0_n0_n1_n2_k1),
                                          decltype(b_thread_desc_),
-                                         Sequence<KPack / B_K1 / B_KRow, NRepeat, 1, 1, 1, B_K1>,
-                                         Sequence<0, 1, 2, 3, 4, 5>,
-                                         5,
+                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, 1, B_K1>,
+                                         Sequence<0, 1, 2, 3, 4, 5, 6>,
+                                         6,
                                          B_K1,
                                          B_K1>;
 
@@ -307,3 +490,6 @@ struct BlockwiseGemmWmmaops_pipeline_base
 };
 
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

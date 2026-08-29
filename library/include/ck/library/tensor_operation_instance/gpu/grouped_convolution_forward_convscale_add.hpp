@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,6 +20,7 @@ using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 using ConvScaleAdd = ck::tensor_operation::element_wise::ConvScaleAdd;
 
 #ifdef CK_ENABLE_FP8
+#ifdef CK_USE_XDL
 void add_device_grouped_conv3d_fwd_xdl_convscale_add_ndhwgc_gkzyxc_ndhwgk_f8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
@@ -35,6 +36,25 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_add_ndhwgc_gkzyxc_ndhwgk_f8_ins
                                                                 ConvScaleAdd,
                                                                 F8,
                                                                 F8>>>& instances);
+#endif
+
+#ifdef CK_USE_WMMA_FP8
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_convscale_add_ndhwgc_gkzyxc_ndhwgk_f8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<NDHWGK>,
+                                                                NDHWGK,
+                                                                F8,
+                                                                F8,
+                                                                ck::Tuple<F32>,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                ConvScaleAdd,
+                                                                F8,
+                                                                F8>>>& instances);
+#endif
 #endif
 
 template <ck::index_t NumDimSpatial,
@@ -90,8 +110,14 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<OutDataType, f8_t> && is_same_v<AComputeType, f8_t> &&
                          is_same_v<BComputeType, f8_t>)
             {
+#ifdef CK_USE_XDL
                 add_device_grouped_conv3d_fwd_xdl_convscale_add_ndhwgc_gkzyxc_ndhwgk_f8_instances(
                     op_ptrs);
+#endif
+#ifdef CK_USE_WMMA_FP8
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_convscale_add_ndhwgc_gkzyxc_ndhwgk_f8_instances(
+                    op_ptrs);
+#endif
             }
 #endif
         }

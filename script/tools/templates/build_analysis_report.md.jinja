@@ -1,0 +1,125 @@
+# Composable Kernel Build Time Analysis Report
+
+**Generated:** {{ timestamp }}
+**Target:** {{ target }}
+**Granularity:** {{ granularity }}µs
+**Files Analyzed:** {{ num_files }}
+
+## Executive Summary
+
+- **Wall Clock Time:** {{ build_time }} seconds
+- **Trace Time:** {{ total_trace_time|us_to_s|round(1) }} seconds
+- **Template Instantiation Time:** {{ total_template_time|us_to_s|round(1) }} seconds ({{ (100 * total_template_time / total_trace_time)|round(1) }}% of trace)
+- **Total Events Captured:** {{ total_events|format_number }} (across {{ num_files }} file{{ 's' if num_files != 1 else '' }})
+- **Total Template Instantiations:** {{ total_instantiations|format_number }}
+- **Unique Template Families:** {{ unique_families }}
+
+{% if num_files > 1 -%}
+## Per-File Analysis
+
+| File | Events | Template Time (ms) | % of Total |
+|------|--------|-------------------|------------|
+{% for file in file_stats[:20] -%}
+| {{ file.name|truncate(50)|pad(50) }} | {{ "%7d"|format(file.events) }} | {{ "%17.2f"|format(file.template_time|us_to_ms) }} | {{ "%9.1f"|format(100 * file.template_time / total_template_time if total_template_time > 0 else 0) }}% |
+{% endfor %}
+
+{% endif -%}
+## Compilation Phase Breakdown
+
+| Phase | Time (ms) | Time (s) | % of Total |
+|-------|-----------|----------|------------|
+{% for phase, dur in phases[:20] -%}
+| {{ phase|pad(40) }} | {{ "%9.2f"|format(dur|us_to_ms) }} | {{ "%8.2f"|format(dur|us_to_s) }} | {{ "%9.1f"|format(100 * dur / total_trace_time) }}% |
+{% endfor %}
+
+## Top 30 Most Expensive Individual Instantiations
+
+{% if num_files > 1 -%}
+| Rank | Template | Type | Time (ms) | File |
+|------|----------|------|-----------|------|
+{% for inst in top_individual[:30] -%}
+| {{ "%4d"|format(loop.index) }} | {{ inst.detail|truncate(50) }} | {{ inst.inst_type|pad(5) }} | {{ "%9.2f"|format(inst.dur|us_to_ms) }} | {{ inst.file|truncate(20) }} |
+{% endfor -%}
+{% else -%}
+| Rank | Template | Type | Time (ms) |
+|------|----------|------|-----------|
+{% for inst in top_individual[:30] -%}
+| {{ "%4d"|format(loop.index) }} | {{ inst.detail|truncate(70) }} | {{ inst.inst_type|pad(5) }} | {{ "%9.2f"|format(inst.dur|us_to_ms) }} |
+{% endfor -%}
+{% endif %}
+
+## Template Families by Total Time (Top 50)
+
+| Rank | Template Family | Count | Total (ms) | Avg (ms) | % of Total |
+|------|-----------------|-------|------------|----------|------------|
+{% for name, stats in templates_by_time[:50] -%}
+| {{ "%4d"|format(loop.index) }} | {{ name|truncate(43)|pad(43) }} | {{ "%5d"|format(stats.count) }} | {{ "%10.2f"|format(stats.total_dur|us_to_ms) }} | {{ "%8.2f"|format(stats.avg|us_to_ms) }} | {{ "%9.1f"|format(stats.pct) }}% |
+{% endfor %}
+
+## Template Families by Instantiation Count (Top 50)
+
+| Rank | Template Family | Count | Total (ms) | Avg (ms) |
+|------|-----------------|-------|------------|----------|
+{% for name, stats in templates_by_count[:50] -%}
+| {{ "%4d"|format(loop.index) }} | {{ name|truncate(43)|pad(43) }} | {{ "%5d"|format(stats.count) }} | {{ "%10.2f"|format(stats.total_dur|us_to_ms) }} | {{ "%8.2f"|format(stats.avg|us_to_ms) }} |
+{% endfor %}
+
+## Key Insights
+
+### 1. Template Instantiation Impact
+- Template instantiation accounts for {{ (100 * total_template_time / total_trace_time)|round(1) }}% of total trace time
+{% if unique_families >= 10 -%}
+- Top 10 template families account for {{ top10_pct|round(1) }}% of instantiation time
+{% endif %}
+
+### 2. Most Expensive Templates
+{% if templates_by_time|length > 0 -%}
+- **{{ templates_by_time[0][0] }}**: {{ templates_by_time[0][1].count|format_number }} instantiations, {{ (templates_by_time[0][1].total_dur|us_to_s)|round(2) }}s total
+{% endif -%}
+{% if templates_by_time|length > 1 -%}
+- **{{ templates_by_time[1][0] }}**: {{ templates_by_time[1][1].count|format_number }} instantiations, {{ (templates_by_time[1][1].avg|us_to_ms)|round(2) }}ms average
+{% endif %}
+
+## Optimization Recommendations
+
+### High-Impact Targets (by total time)
+{% for name, stats in templates_by_time[:5] -%}
+**{{ loop.index }}. {{ name }}** - {{ (stats.total_dur|us_to_s)|round(1) }}s total ({{ stats.pct|round(1) }}%)
+   - {{ stats.count|format_number }} instantiations, {{ (stats.avg|us_to_ms)|round(2) }}ms average
+   {% if stats.count > 100 -%}
+   - Strategy: Extern templates - High instantiation count suggests repeated compilation
+   {% elif stats.avg|us_to_ms > 50 -%}
+   - Strategy: Template specialization - High individual cost suggests complexity
+   {% else -%}
+   - Strategy: Explicit instantiation - Pre-instantiate common configurations
+   {% endif %}
+
+{% endfor %}
+### Frequently Instantiated (optimization candidates)
+{% for name, stats in templates_by_count[:5] if stats.count > 100 -%}
+**{{ name }}** - {{ stats.count|format_number }} times ({{ (stats.total_dur|us_to_s)|round(2) }}s total)
+   - Consider: Precompiled headers or extern templates to avoid recompilation
+
+{% endfor %}
+### Most Expensive Individual Instantiations
+{% for inst in top_individual[:3] -%}
+**{{ loop.index }}. {{ inst.detail|truncate(60) }}** - {{ (inst.dur|us_to_ms)|round(1) }}ms
+   - Strategy: Profile and simplify this specific instantiation
+
+{% endfor %}
+
+## Detailed Statistics
+
+- **Total Unique Templates:** {{ unique_families }}
+- **Total Instantiations:** {{ total_instantiations|format_number }}
+{% if total_instantiations > 0 -%}
+- **Average Instantiation Time:** {{ ((total_template_time // total_instantiations)|us_to_ms)|round(3) }}ms
+{% endif -%}
+{% if unique_families > 0 -%}
+- **Median Template Family Count:** {{ median_count }}
+{% endif %}
+
+---
+
+*Report generated using Clang -ftime-trace with {{ granularity }}µs granularity*
+*Analysis tool: ck-build-analysis*

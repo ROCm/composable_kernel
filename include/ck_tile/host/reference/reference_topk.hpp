@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -15,11 +15,11 @@ namespace ck_tile {
 
 /*
     similiar to torch.topk()
-    x (Tensor) – the input tensor.
-    k (int) – the k in “top-k”
-    dim (int, optional) – the dimension to sort along
-    largest (bool, optional) – largest or smallest elements
-    sorted (bool, optional) – elements in sorted order or not
+    x (Tensor) - the input tensor.
+    k (int) - the k in "top-k"
+    dim (int, optional) - the dimension to sort along
+    largest (bool, optional) - largest or smallest elements
+    sorted (bool, optional) - elements in sorted order or not
 
     output:
     y_values
@@ -38,8 +38,8 @@ CK_TILE_HOST void reference_topk(const HostTensor<DataType>& x,
 {
     // rank must be the same
     index_t rank = x.get_num_of_dimension();
-    assert(rank == y_values.get_num_of_dimension());
-    assert(rank == y_indices.get_num_of_dimension());
+    assert(static_cast<std::size_t>(rank) == y_values.get_num_of_dimension());
+    assert(static_cast<size_t>(rank) == y_indices.get_num_of_dimension());
     assert(dim == -1 || dim < rank);
 
     index_t topk_dim     = dim == -1 ? (rank - 1) : dim;
@@ -47,7 +47,8 @@ CK_TILE_HOST void reference_topk(const HostTensor<DataType>& x,
     auto x_len           = x.get_lengths();
 
     assert(k <= topk_src_len);
-    assert(k == y_values.get_length(topk_dim) && k == y_indices.get_length(topk_dim));
+    assert(static_cast<size_t>(k) == y_values.get_length(topk_dim) &&
+           static_cast<size_t>(k) == y_indices.get_length(topk_dim));
 
     index_t n_parallel = x.get_element_size() / topk_src_len;
 

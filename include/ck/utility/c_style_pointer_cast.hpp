@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SDX-License-Identifier: MIT
 
 #ifndef CK_C_STYLE_POINTER_CAST_HPP
 #define CK_C_STYLE_POINTER_CAST_HPP
@@ -12,13 +12,17 @@ namespace ck {
 template <typename PY,
           typename PX,
           typename enable_if<is_pointer_v<PY> && is_pointer_v<PX>, bool>::type = false>
-__host__ __device__ PY c_style_pointer_cast(PX p_x)
+__host__ __device__ PY c_style_pointer_cast([[clang::lifetimebound]] PX p_x)
 {
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wcast-align"
+#endif
     return (PY)p_x; // NOLINT(old-style-cast, cast-align)
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 }
 
 } // namespace ck

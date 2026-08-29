@@ -1,14 +1,25 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+include(CheckCXXCompilerFlag)
+
+# We need to pass '-x hip' since check_cxx_compiler_flag assumes c++ and not HIP. 
+check_cxx_compiler_flag("--offload-compress -x hip" CXX_COMPILER_SUPPORTS_OFFLOAD_COMPRESS)
+
 function(add_instance_library INSTANCE_NAME)
     message(DEBUG "adding instance ${INSTANCE_NAME}")
     set(result 1)
     if(DEFINED DTYPES)
         foreach(source IN LISTS ARGN)
+            get_filename_component(source_name ${source} NAME)
             set(test 0)
             foreach(type IN LISTS DTYPES)
                 if(type MATCHES "fp16")
                     set(type1 "_f16")
                 elseif(type MATCHES "fp32")
                     set(type1 "_f32")
+                elseif(type MATCHES "tf32")
+                    set(type1 "_tf32")
                 elseif(type MATCHES "fp8")
                     set(type1 "_f8")
                 elseif(type MATCHES "bf16")
@@ -19,13 +30,13 @@ function(add_instance_library INSTANCE_NAME)
                     set(type1 "_i8")
                 endif()
                 #make an exception for reduction kernels
-                if("${source}" MATCHES "${type}" OR "${source}" MATCHES "${type1}" OR "${source}" MATCHES "device_reduce_instance" OR ${source} MATCHES "device_image_to_column")
+                if("${source_name}" MATCHES "${type}" OR "${source_name}" MATCHES "${type1}" OR "${source_name}" MATCHES "device_reduce_instance" OR ${source_name} MATCHES "device_image_to_column")
                     #if filename matches any selected type, exit type loop and do no exclude the file from the list
                     set(test 0)
                     break()
-                elseif((source MATCHES "fp8" OR source MATCHES "fp32" OR source MATCHES "fp64" OR source MATCHES "bf16" OR source MATCHES "int8" OR source MATCHES "fp16" OR
-                    source MATCHES "_f8" OR source MATCHES "_f32" OR source MATCHES "_f64" OR source MATCHES "_i8" OR source MATCHES "_f16" OR source MATCHES "_b16") AND
-                    NOT(source MATCHES type OR source MATCHES type1))
+                elseif((source_name MATCHES "fp8" OR source_name MATCHES "fp32" OR source_name MATCHES "tf32" OR source_name MATCHES "fp64" OR source_name MATCHES "bf16" OR source_name MATCHES "int8" OR source_name MATCHES "fp16" OR
+                         source_name MATCHES "_f8" OR source_name MATCHES "_f32" OR source_name MATCHES "_tf32" OR source_name MATCHES "_f64" OR source_name MATCHES "_i8" OR source_name MATCHES "_f16" OR source_name MATCHES "_b16") AND
+                    NOT (source_name MATCHES type OR source_name MATCHES type1))
                     #if filename contains a type which doesn't match any selected type, mark it for removal
                     set(test 1)
                 endif()
@@ -39,111 +50,140 @@ function(add_instance_library INSTANCE_NAME)
 
     set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
 
-    # Do not build DPP instances if DPP_KERNELS macro is not set
+    # SPIR-V target: remove from XDL/WMMA/MX/MHA instance target lists
+    # since these require architecture-specific intrinsics
+    if("amdgcnspirv" IN_LIST INST_TARGETS)
+        set(CK_HAS_SPIRV_TARGET TRUE)
+    else()
+        set(CK_HAS_SPIRV_TARGET FALSE)
+    endif()
+
     foreach(source IN LISTS ARGN)
-        if(NOT DEFINED DPP_KERNELS AND source MATCHES "_dpp")
+        get_filename_component(source_name ${source} NAME)
+
+        # Do not build DPP instances if DPP_KERNELS macro is not set
+        if(NOT DEFINED DPP_KERNELS AND source_name MATCHES "_dpp")
             message(DEBUG "removing dpp instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-    # Do not build DL instances if DL_KERNELS macro is not set
-    foreach(source IN LISTS ARGN)
-        if(NOT DEFINED DL_KERNELS AND source MATCHES "_dl")
+        # Do not build DL instances if DL_KERNELS macro is not set
+        if(NOT DEFINED DL_KERNELS AND source_name MATCHES "_dl")
             message(DEBUG "removing dl instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-    # Do not build XDL instances if gfx9 targets are not on the target list
-    foreach(source IN LISTS ARGN)
-        if(NOT INST_TARGETS MATCHES "gfx9" AND source MATCHES "_xdl")
+        # Do not build XDL instances if gfx9 targets are not on the target list
+        if(((NOT INST_TARGETS MATCHES "gfx9" AND NOT INST_TARGETS MATCHES "gfx11" AND NOT INST_TARGETS MATCHES "gfx12") OR FORCE_DISABLE_XDL) AND source_name MATCHES "_xdl")
             message(DEBUG "removing xdl instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-    # Do not build MX instances if gfx950 targets are not on the target list
-    foreach(source IN LISTS ARGN)
-        if(NOT INST_TARGETS MATCHES "gfx950" AND source MATCHES "_mx")
+        # Do not build MX instances if gfx950 targets are not on the target list
+        if(NOT INST_TARGETS MATCHES "gfx950|gfx125" AND source_name MATCHES "_mx")
             message(DEBUG "removing MX instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-    # Do not build WMMA instances if gfx11 targets are not on the target list
-    foreach(source IN LISTS ARGN)
-	if(NOT INST_TARGETS MATCHES "gfx11" AND NOT INST_TARGETS MATCHES "gfx12" AND source MATCHES "_wmma")
+        # Do not build WMMA instances if gfx11 targets are not on the target list
+        if(((NOT INST_TARGETS MATCHES "gfx11" AND NOT INST_TARGETS MATCHES "gfx12") OR FORCE_DISABLE_WMMA) AND source_name MATCHES "_wmma")
             message(DEBUG "removing wmma instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-    endforeach()
-    # Do not build mha instances if gfx94 or gfx90a targets are not on the target list
-    foreach(source IN LISTS ARGN)
-	    if((NOT BUILD_MHA_LIB OR (NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx90a" AND NOT INST_TARGETS MATCHES "gfx95")) AND source MATCHES "mha")
-         message(DEBUG "removing mha instance ${source} ")
-         list(REMOVE_ITEM ARGN "${source}")
-    endif()
-    endforeach()
-    # Do not build XDL gemm_universal_f8 or gemm_multiply_multiply_f8 for any targets except gfx94
-    if(NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
-        foreach(source IN LISTS ARGN)
-            if(NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx95" AND source MATCHES "gemm_multiply_multiply" AND source MATCHES "_f8_")
+        # Do not build mha instances if gfx94 or gfx90a targets are not on the target list
+        if((NOT BUILD_MHA_LIB OR (NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx90a" AND NOT INST_TARGETS MATCHES "gfx95")) AND source_name MATCHES "mha")
+            message(DEBUG "removing mha instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+        # Do not build XDL gemm_universal_f8 or gemm_multiply_multiply_f8 for any targets except gfx94, gfx95 and gfx12
+        if(NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
+            if(NOT INST_TARGETS MATCHES "gfx94|gfx95|gfx12" AND source_name MATCHES "gemm_multiply_multiply" AND source_name MATCHES "_f8_")
                 message(DEBUG "removing gemm_multiply_multiply_f8 instance ${source} ")
                 list(REMOVE_ITEM ARGN "${source}")
             endif()
-        endforeach()
-        foreach(source IN LISTS ARGN)
-            if(NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx95" AND source MATCHES "gemm_xdl_universal" AND source MATCHES "_f8_")
+            if(NOT INST_TARGETS MATCHES "gfx94|gfx95|gfx12" AND source_name MATCHES "gemm_xdl_universal" AND source_name MATCHES "_f8_")
                 message(DEBUG "removing gemm_universal_f8 instance ${source} ")
                 list(REMOVE_ITEM ARGN "${source}")
             endif()
-        endforeach()
-    endif()
-    # Do not build WMMA gemm_universal_f8 for any targets except gfx12+
-    foreach(source IN LISTS ARGN)
-        if(NOT INST_TARGETS MATCHES "gfx12" AND source MATCHES "gemm_wmma_universal" AND source MATCHES "_f8_")
-            message(DEBUG "removing gemm_universal_f8 instance ${source} ")
+            if(NOT INST_TARGETS MATCHES "gfx94|gfx95|gfx12" AND source_name MATCHES "gemm_blockscale" AND source_name MATCHES "_f8_")
+                message(DEBUG "removing gemm_blockscale_f8 instance ${source} ")
+                list(REMOVE_ITEM ARGN "${source}")
+            endif()
+        endif()
+        # Do not build WMMA gemm_universal_f8 for any targets except gfx12+
+        if((NOT INST_TARGETS MATCHES "gfx12" OR FORCE_DISABLE_WMMA) AND source_name MATCHES "gemm_wmma_universal" AND source_name MATCHES "_f8_")
+            message(DEBUG "removing gemm_wmma_universal_f8 instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
+        # Do not build WMMA grouped conv 3d fwd fp8 / bf8 for any targets except gfx12+
+        if(NOT INST_TARGETS MATCHES "gfx12" AND source_name MATCHES "grouped_conv3d_fwd_wmma" AND source_name MATCHES "_(f8|fp8|bf8)_")
+            message(DEBUG "removing grouped_conv3d_fwd_wmma fp8/bf8 instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+        # Do not build gemm_universal_preshuffle_f8 for any targets except gfx94, gfx95 and gfx12
+        if(NOT (INST_TARGETS MATCHES "gfx94|gfx95|gfx12") AND (source_name MATCHES "gemm_universal_preshuffle") AND source_name MATCHES "_f8_" )
+            message(DEBUG "removing gemm_universal_preshuffle_f8 instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+        # Do not build gemm_ab_scale_f8 for any targets except gfx94, gfx95 and gfx12
+        if(NOT (INST_TARGETS MATCHES "gfx942" OR INST_TARGETS MATCHES "gfx950" OR INST_TARGETS MATCHES "gfx12") AND (source_name MATCHES "gemm_ab_scale") AND (source_name MATCHES "_f8_f8_"))
+            message(DEBUG "removing gemm_ab_scale_f8 instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+        # Do not build gemm_blockscale_wp_f8 for any targets except gfx94, gfx95 and gfx12
+        if(NOT (INST_TARGETS MATCHES "gfx942" OR INST_TARGETS MATCHES "gfx950" OR INST_TARGETS MATCHES "gfx12") AND (source_name MATCHES "gemm_blockscale_wp") AND (source_name MATCHES "_f8_f8_"))
+            message(DEBUG "removing gemm_blockscale_wp_f8 instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+        # Only build tf32 instances for gfx942 & gfx950
+        if(source_name MATCHES "_tf32_")
+            if(NOT ((INST_TARGETS MATCHES "gfx942|gfx950") AND CK_ENABLE_TF32))
+                message(DEBUG "removing tf32 instance ${source} ")
+                list(REMOVE_ITEM ARGN "${source}")
+            endif()
+        endif()
+
     endforeach()
+
+    #set the target filters
+    set(UNSUPPORTED_TARGETS "gfx900;gfx906;gfx906:xnack-;gfx90c")
+    set(NON_XDL_TARGETS ${UNSUPPORTED_TARGETS} gfx1030 gfx1031 gfx1032 gfx1033 gfx1034 gfx1035 gfx1036 gfx10-3-generic amdgcnspirv)
+    set(NON_WMMA_TARGETS ${NON_XDL_TARGETS} gfx908 gfx90a gfx942 gfx950 gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack-)
+    set(NON_MHA_TARGETS ${NON_XDL_TARGETS} gfx908:xnack- gfx908:xnack+ gfx908 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx11-generic gfx12-generic gfx1250)
+    set(NON_MX_TARGETS ${NON_XDL_TARGETS} gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx11-generic gfx12-generic)
+    set(NON_F8_TARGETS ${NON_XDL_TARGETS} gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx11-generic)
 
     message(DEBUG "remaining instances: ${ARGN}")
     #only continue if there are some source files left on the list
     if(ARGN)
         set(INST_OBJ)
         foreach(source IN LISTS ARGN)
+            get_filename_component(source_name ${source} NAME)
+
             set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
-            if(source MATCHES "_xdl")
-                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
-            elseif(source MATCHES "_wmma")
-                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
-            elseif(source MATCHES "mha")
-                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx908 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+            if(source_name MATCHES "_xdl")
+                list(REMOVE_ITEM INST_TARGETS ${NON_XDL_TARGETS})
+            elseif(source_name MATCHES "_wmma")
+                list(REMOVE_ITEM INST_TARGETS ${NON_WMMA_TARGETS})
+            elseif(source_name MATCHES "mha")
+                list(REMOVE_ITEM INST_TARGETS ${NON_MHA_TARGETS})
+            endif()
+            if(source_name MATCHES "_mx")
+                list(REMOVE_ITEM INST_TARGETS ${NON_MX_TARGETS})
             endif()
 
-            if(source MATCHES "_mx")
-                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
-            endif()
-
-            #only build the fp8 gemm instances for gfx90a if the build argument is set, otherwise only build for gfx942/gfx950
+            #only build the fp8 gemm instances for gfx90a if the build argument is set, otherwise only build for gfx942/gfx950 and gfx1200/gfx1201
             if(NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
-                if(source MATCHES "gemm_xdl_universal" AND source MATCHES "f8")
-                    list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
-                endif()
-                if(source MATCHES "gemm_multiply_multiply" AND source MATCHES "f8")
-                    list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+                if(source_name MATCHES "gemm_xdl_universal|gemm_multiply_multiply|gemm_universal_preshuffle|gemm_blockscale" AND source_name MATCHES "_f8_")
+                    list(REMOVE_ITEM INST_TARGETS ${NON_F8_TARGETS})
                 endif()
             else()
-                if(source MATCHES "gemm_xdl_universal" AND source MATCHES "f8")
-                    list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx908 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
-                endif()
-                if(source MATCHES "gemm_multiply_multiply" AND source MATCHES "f8")
-                    list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx908 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+                if(source_name MATCHES "gemm_xdl_universal|gemm_multiply_multiply|gemm_universal_preshuffle|gemm_blockscale" AND source_name MATCHES "_f8_")
+                    list(REMOVE_ITEM INST_TARGETS ${NON_F8_TARGETS})
                 endif()
             endif()
-            if(source MATCHES "gemm_wmma_universal" AND source MATCHES "f8")
+            if(source_name MATCHES "gemm_wmma_universal" AND source_name MATCHES "f8")
                 list(FILTER INST_TARGETS INCLUDE REGEX "gfx12")
             endif()
             set(offload_targets)
             foreach(target IN LISTS INST_TARGETS)
-                    string(APPEND offload_targets "--offload-arch=${target} ")
+                string(APPEND offload_targets "--offload-arch=${target} ")
             endforeach()
             set_source_files_properties(${source} PROPERTIES COMPILE_FLAGS ${offload_targets})
             list(APPEND INST_OBJ ${source})
@@ -165,11 +205,16 @@ function(add_instance_library INSTANCE_NAME)
             list(APPEND FMHA_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
             target_compile_options(device_mha_instance PRIVATE ${FMHA_COMPILE_OPTIONS})
         endif()
-        
+
         target_compile_features(${INSTANCE_NAME} PUBLIC)
 
+        # splits debug information into separate .dwo files to reduce debug section size
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+            target_compile_options(${INSTANCE_NAME} PRIVATE -gsplit-dwarf)
+        endif()
+
         # flags to compress the library
-        if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+        if(NOT DISABLE_OFFLOAD_COMPRESS AND CXX_COMPILER_SUPPORTS_OFFLOAD_COMPRESS)
             message(DEBUG "Adding --offload-compress flag for ${INSTANCE_NAME}")
             target_compile_options(${INSTANCE_NAME} PRIVATE --offload-compress)
         endif()
@@ -184,6 +229,22 @@ function(add_instance_library INSTANCE_NAME)
     set(result ${result} PARENT_SCOPE)
 endfunction(add_instance_library INSTANCE_NAME)
 
+# Helper function to add layout-specific instance objects to CK_DEVICE_CONV_INSTANCES
+# Usage: add_conv_layout_instances(operation_name layout1 layout2 ...)
+# Example: add_conv_layout_instances(grouped_conv3d_fwd_convscale ndhwgc gndhwc)
+function(add_conv_layout_instances OP_NAME)
+    foreach(layout ${ARGN})
+        set(target_name "device_${OP_NAME}_${layout}_instance")
+        if(TARGET ${target_name})
+            list(APPEND CK_DEVICE_CONV_INSTANCES $<TARGET_OBJECTS:${target_name}>)
+            message(VERBOSE "Added ${target_name} to CK_DEVICE_CONV_INSTANCES")
+        else()
+            message(VERBOSE "Target ${target_name} does not exist (may be filtered by MIOPEN_REQ_LIBS_ONLY)")
+        endif()
+    endforeach()
+    set(CK_DEVICE_CONV_INSTANCES ${CK_DEVICE_CONV_INSTANCES} PARENT_SCOPE)
+endfunction()
+
 
 file(GLOB dir_list LIST_DIRECTORIES true *)
 set(CK_DEVICE_OTHER_INSTANCES)
@@ -192,6 +253,39 @@ set(CK_DEVICE_CONV_INSTANCES)
 set(CK_DEVICE_MHA_INSTANCES)
 set(CK_DEVICE_CONTRACTION_INSTANCES)
 set(CK_DEVICE_REDUCTION_INSTANCES)
+
+# Track convolution operations that are now split by layout
+set(layout_split_ops
+    "grouped_conv1d_fwd"
+    "grouped_conv1d_bwd_weight"
+    "grouped_conv2d_fwd"
+    "grouped_conv2d_bwd_data"
+    "grouped_conv2d_bwd_weight"
+    "grouped_conv2d_fwd_clamp"
+    "grouped_conv2d_fwd_bias_clamp"
+    "grouped_conv2d_fwd_bias_bnorm_clamp"
+    "grouped_conv2d_fwd_dynamic_op"
+    "grouped_conv3d_fwd"
+    "grouped_conv3d_bwd_data"
+    "grouped_conv3d_bwd_weight"
+    "grouped_conv3d_fwd_scale"
+    "grouped_conv3d_fwd_clamp"
+    "grouped_conv3d_fwd_bias_clamp"
+    "grouped_conv3d_fwd_bias_bnorm_clamp"
+    "grouped_conv3d_fwd_bilinear"
+    "grouped_conv3d_fwd_convscale"
+    "grouped_conv3d_fwd_convscale_add"
+    "grouped_conv3d_fwd_convscale_relu"
+    "grouped_conv3d_fwd_convinvscale"
+    "grouped_conv3d_fwd_dynamic_op"
+    "grouped_conv3d_fwd_scaleadd_ab"
+    "grouped_conv3d_fwd_scaleadd_scaleadd_relu"
+    "grouped_conv3d_bwd_data_bilinear"
+    "grouped_conv3d_bwd_data_scale"
+    "grouped_conv3d_bwd_weight_bilinear"
+    "grouped_conv3d_bwd_weight_scale"
+)
+
 FOREACH(subdir_path ${dir_list})
     set(target_dir)
     IF(IS_DIRECTORY "${subdir_path}")
@@ -218,6 +312,10 @@ FOREACH(subdir_path ${dir_list})
             message(DEBUG "fp32 instance found!")
             set(add_inst 1)
         endif()
+        if(("${cmake_instance}" MATCHES "_tf32" OR "${cmake_instance}" MATCHES "_tf32") AND DTYPES MATCHES "tf32")
+            message(DEBUG "tf32 instance found!")
+            set(add_inst 1)
+        endif()
         if(("${cmake_instance}" MATCHES "_fp64" OR "${cmake_instance}" MATCHES "_f64") AND DTYPES MATCHES "fp64")
             message(DEBUG "fp64 instance found!")
             set(add_inst 1)
@@ -232,6 +330,7 @@ FOREACH(subdir_path ${dir_list})
                 "${cmake_instance}" MATCHES "_f16" OR
                 "${cmake_instance}" MATCHES "_fp32" OR
                 "${cmake_instance}" MATCHES "_f32" OR
+                "${cmake_instance}" MATCHES "_tf32" OR
                 "${cmake_instance}" MATCHES "_fp64" OR
                 "${cmake_instance}" MATCHES "_f64" OR
                 "${cmake_instance}" MATCHES "_bf16" OR
@@ -255,41 +354,44 @@ FOREACH(subdir_path ${dir_list})
             message(DEBUG "Found only dl instances, but DL_KERNELS is not set. Skipping.")
             set(add_inst 0)
         endif()
-        if(("${cmake_instance}" MATCHES "ONLY XDL_KERNELS") AND (NOT INST_TARGETS MATCHES "gfx9"))
+        if(("${cmake_instance}" MATCHES "ONLY XDL_KERNELS") AND (NOT INST_TARGETS MATCHES "gfx9|gfx11|gfx12" OR FORCE_DISABLE_XDL))
             message(DEBUG "Found only xdl instances, but gfx9 is not on the targets list. Skipping.")
             set(add_inst 0)
         endif()
-        if(("${cmake_instance}" MATCHES "ONLY MX_KERNELS") AND (NOT INST_TARGETS MATCHES "gfx950"))
+        if(("${cmake_instance}" MATCHES "ONLY MX_KERNELS") AND (NOT INST_TARGETS MATCHES "gfx950|gfx125"))
             message(DEBUG "Found only MX instances, but gfx950 is not on the targets list. Skipping.")
             set(add_inst 0)
         endif()
-	    if(("${cmake_instance}" MATCHES "ONLY WMMA_KERNELS") AND (NOT INST_TARGETS MATCHES "gfx11") AND (NOT INST_TARGETS MATCHES "gfx12"))
+	    if(("${cmake_instance}" MATCHES "ONLY WMMA_KERNELS") AND (((NOT INST_TARGETS MATCHES "gfx11") AND (NOT INST_TARGETS MATCHES "gfx12")) OR FORCE_DISABLE_WMMA))
             message(DEBUG "Found only wmma instances, but gfx11 is not on the targets list. Skipping.")
             set(add_inst 0)
         endif()
-        if(("${cmake_instance}" MATCHES "ONLY XDL_AND_DL_KERNELS") AND (NOT DEFINED DL_KERNELS) AND (NOT INST_TARGETS MATCHES "gfx9"))
+        if(("${cmake_instance}" MATCHES "ONLY XDL_AND_DL_KERNELS") AND (NOT DEFINED DL_KERNELS) AND (NOT INST_TARGETS MATCHES "gfx9|gfx11|gfx12"))
             message(DEBUG "Found only xdl and dl instances, but gfx9 is not on the targets listand DL_KERNELS is not set. Skipping.")
             set(add_inst 0)
         endif()
-	    if(("${cmake_instance}" MATCHES "ONLY XDL_AND_WMMA_KERNELS") AND (NOT INST_TARGETS MATCHES "gfx11") AND (NOT INST_TARGETS MATCHES "gfx12") AND (NOT INST_TARGETS MATCHES "gfx9"))
+	    if(("${cmake_instance}" MATCHES "ONLY XDL_AND_WMMA_KERNELS") AND ((NOT INST_TARGETS MATCHES "gfx9|gfx11|gfx12") OR (FORCE_DISABLE_XDL AND FORCE_DISABLE_WMMA)))
             message(DEBUG "Found only xdl and wmma instances, but gfx11 and gfx9 are not on the targets list. Skipping.")
             set(add_inst 0)
         endif()
-	    if(("${cmake_instance}" MATCHES "XDL_DL_WMMA_KERNELS") AND (NOT INST_TARGETS MATCHES "gfx11") AND (NOT INST_TARGETS MATCHES "gfx12") AND (NOT INST_TARGETS MATCHES "gfx9") AND (NOT DEFINED DL_KERNELS))
+	    if(("${cmake_instance}" MATCHES "XDL_DL_WMMA_KERNELS") AND (NOT INST_TARGETS MATCHES "gfx9|gfx11|gfx12") AND (NOT DEFINED DL_KERNELS))
             message(DEBUG "Found xdl, dl, and wmma instances, but none of those meet the target list. Skipping.")
             set(add_inst 0)
         endif()
-        if(("${cmake_instance}" MATCHES "gemm_multiply_multiply" AND "${cmake_instance}" MATCHES "_f8_" ) AND (NOT INST_TARGETS MATCHES "gfx94") AND (NOT INST_TARGETS MATCHES "gfx95") AND (NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH))
-            message(DEBUG "Found gemm_multiply_multiply_f8 instances, but gfx94/gfx95 not on the target list. Skipping.")
+        if("${cmake_instance}" MATCHES "gemm_multiply_multiply_wp" AND (NOT INST_TARGETS MATCHES "gfx94|gfx95|gfx12"))
+            message(DEBUG "Found gemm_multiply_multiply_wp instances, but gfx94/gfx95/gfx12 not on the target list. Skipping. ${cmake_instance}")
+            set(add_inst 0)
+        elseif("${cmake_instance}" MATCHES "gemm_multiply_multiply" AND (NOT INST_TARGETS MATCHES "gfx94|gfx95|gfx11|gfx12"))
+            message(DEBUG "Found gemm_multiply_multiply instances, but gfx94/gfx95/gfx11/gfx12 not on the target list. Skipping. ${cmake_instance}")
             set(add_inst 0)
         endif()
-        if(("${cmake_instance}" MATCHES "gemm_universal_preshuffle" AND "${cmake_instance}" MATCHES "_f8_" ) AND (NOT INST_TARGETS MATCHES "gfx94") AND (NOT INST_TARGETS MATCHES "gfx95") AND (NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH))
-            message(STATUS "Found gemm_universal_preshuffle_f8 instances, but gfx94/gfx95 not on the target list. Skipping.")
+        if(("${cmake_instance}" MATCHES "gemm_universal_preshuffle|gemm_blockscale|gemm_ab_scale" AND "${cmake_instance}" MATCHES "_f8_" ) AND (NOT INST_TARGETS MATCHES "gfx94|gfx95|gfx12") AND (NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH))
+            message(DEBUG "Found gemm_f8 instances, but gfx94/gfx95 not on the target list. Skipping.")
             set(add_inst 0)
         endif()
         if ("${cmake_instance}" MATCHES "gemm_bilinear")
             set(add_inst 0)
-            if((SUPPORTED_GPU_TARGETS MATCHES "gfx9") AND (DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES))
+            if((SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx11|gfx12") AND (DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES))
                 set(add_inst 1)
             endif()
             if((SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]") AND (DTYPES MATCHES "int8" OR NOT DEFINED DTYPES))
@@ -297,39 +399,152 @@ FOREACH(subdir_path ${dir_list})
             endif()
         endif()
 
+        # Build the required pattern based on library settings
+        set(required_pattern "")
+        set(pattern_parts "")
         if(MIOPEN_REQ_LIBS_ONLY)
             message(STATUS "Removing all sources that are not required for MIOpen")
-            if(NOT "${cmake_instance}" MATCHES "conv")
-                set(add_inst 0)
-            endif()
+            list(APPEND pattern_parts "conv")
+        endif()
+        if(HIPTENSOR_REQ_LIBS_ONLY)
+            message(STATUS "Removing all sources that are not required for HipTensor")
+            list(APPEND pattern_parts "contract" "reduce" "element")
+        endif()
+        if(pattern_parts)
+            string(JOIN "|" required_pattern ${pattern_parts})
+        endif()
+        # Apply the pattern if one was set
+        if(required_pattern AND NOT "${cmake_instance}" MATCHES "${required_pattern}")
+            set(add_inst 0)
         endif()
 
         if((add_inst EQUAL 1))
             get_filename_component(target_dir ${subdir_path} NAME)
-            add_subdirectory(${target_dir})
-            if("${cmake_instance}" MATCHES "gemm")
-                list(APPEND CK_DEVICE_GEMM_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
-            elseif("${cmake_instance}" MATCHES "conv")
-                 list(APPEND CK_DEVICE_CONV_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
-            elseif("${cmake_instance}" MATCHES "mha")
-                 list(APPEND CK_DEVICE_MHA_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
-            elseif("${cmake_instance}" MATCHES "contr")
-                 list(APPEND CK_DEVICE_CONTRACTION_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
-            elseif("${cmake_instance}" MATCHES "reduce")
-                 list(APPEND CK_DEVICE_REDUCTION_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
-            else()
-                 list(APPEND CK_DEVICE_OTHER_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
-            endif()
-            message(DEBUG "add_instance_directory ${subdir_path}")
+
+            if(NOT target_dir IN_LIST layout_split_ops)
+                add_subdirectory(${target_dir})
+                if (TARGET device_${target_dir}_instance)
+                    if("${cmake_instance}" MATCHES "gemm")
+                        list(APPEND CK_DEVICE_GEMM_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+                    elseif("${cmake_instance}" MATCHES "conv")
+                        list(APPEND CK_DEVICE_CONV_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+                    elseif("${cmake_instance}" MATCHES "mha")
+                        list(APPEND CK_DEVICE_MHA_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+                    elseif("${cmake_instance}" MATCHES "contr")
+                        list(APPEND CK_DEVICE_CONTRACTION_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+                    elseif("${cmake_instance}" MATCHES "reduce")
+                        list(APPEND CK_DEVICE_REDUCTION_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+                    else()
+                        list(APPEND CK_DEVICE_OTHER_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+                    endif()
+                    message(DEBUG "add_instance_directory ${subdir_path}")
+                endif()
+            endif()  # NOT IN_LIST check
         else()
             message(DEBUG "skip_instance_directory ${subdir_path}")
         endif()
     ENDIF()
 ENDFOREACH()
 
+# =============================================================================
+# Layout-Split Convolution Operations (Explicit Includes)
+# =============================================================================
+# These operations are now split by data layout for selective linking.
+# Each operation includes multiple layout subdirectories (gnhwc, nhwgc, etc.)
 
+if(NOT HIPTENSOR_REQ_LIBS_ONLY OR MIOPEN_REQ_LIBS_ONLY)
+    message(STATUS "Including layout-split convolution operations...")
 
-if(CK_DEVICE_OTHER_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
+    # 1D convolutions
+    add_subdirectory(grouped_conv1d_fwd)
+    add_subdirectory(grouped_conv1d_bwd_weight)
+
+    # 2D convolutions - core operations
+    add_subdirectory(grouped_conv2d_fwd)
+    add_subdirectory(grouped_conv2d_bwd_data)
+    add_subdirectory(grouped_conv2d_bwd_weight)
+
+    # 2D convolutions - variants
+    add_subdirectory(grouped_conv2d_fwd_clamp)
+    add_subdirectory(grouped_conv2d_fwd_bias_clamp)
+    add_subdirectory(grouped_conv2d_fwd_bias_bnorm_clamp)
+    add_subdirectory(grouped_conv2d_fwd_dynamic_op)
+
+    # 3D convolutions - core operations
+    add_subdirectory(grouped_conv3d_fwd)
+    add_subdirectory(grouped_conv3d_bwd_data)
+    add_subdirectory(grouped_conv3d_bwd_weight)
+
+    # 3D convolutions - variants
+    add_subdirectory(grouped_conv3d_fwd_scale)
+    add_subdirectory(grouped_conv3d_fwd_clamp)
+    add_subdirectory(grouped_conv3d_fwd_bias_clamp)
+    add_subdirectory(grouped_conv3d_fwd_bias_bnorm_clamp)
+    add_subdirectory(grouped_conv3d_fwd_bilinear)
+    add_subdirectory(grouped_conv3d_fwd_convscale)
+    add_subdirectory(grouped_conv3d_fwd_convscale_add)
+    add_subdirectory(grouped_conv3d_fwd_convscale_relu)
+    add_subdirectory(grouped_conv3d_fwd_convinvscale)
+    add_subdirectory(grouped_conv3d_fwd_dynamic_op)
+    add_subdirectory(grouped_conv3d_fwd_scaleadd_ab)
+    add_subdirectory(grouped_conv3d_fwd_scaleadd_scaleadd_relu)
+    add_subdirectory(grouped_conv3d_bwd_data_bilinear)
+    add_subdirectory(grouped_conv3d_bwd_data_scale)
+    add_subdirectory(grouped_conv3d_bwd_weight_bilinear)
+    add_subdirectory(grouped_conv3d_bwd_weight_scale)
+
+    # Collect layout-specific instance targets into CK_DEVICE_CONV_INSTANCES
+    # Each layout subdirectory creates targets like device_grouped_conv3d_fwd_convscale_ndhwgc_instance
+    # We need to explicitly add these to CK_DEVICE_CONV_INSTANCES since they're excluded from auto-discovery
+
+    message(DEBUG "Collecting layout-specific convolution instances...")
+
+    # 1D convolutions
+    add_conv_layout_instances(grouped_conv1d_fwd gnwc)
+    add_conv_layout_instances(grouped_conv1d_bwd_weight gnwc nwgc)
+
+    # 2D convolutions - core operations
+    add_conv_layout_instances(grouped_conv2d_fwd nhwgc gnhwc ngchw)
+    add_conv_layout_instances(grouped_conv2d_bwd_data nhwgc gnhwc ngchw)
+    add_conv_layout_instances(grouped_conv2d_bwd_weight nhwgc gnhwc ngchw)
+
+    # 2D convolutions - variants
+    add_conv_layout_instances(grouped_conv2d_fwd_clamp nhwgc)
+    add_conv_layout_instances(grouped_conv2d_fwd_bias_clamp nhwgc)
+    add_conv_layout_instances(grouped_conv2d_fwd_bias_bnorm_clamp nhwgc)
+    add_conv_layout_instances(grouped_conv2d_fwd_dynamic_op nhwgc)
+
+    # 3D convolutions - core operations
+    add_conv_layout_instances(grouped_conv3d_fwd ndhwgc gndhwc ngcdhw)
+    add_conv_layout_instances(grouped_conv3d_bwd_data ndhwgc gndhwc ngcdhw)
+    add_conv_layout_instances(grouped_conv3d_bwd_weight ndhwgc gndhwc ngcdhw)
+
+    # 3D convolutions - variants
+    add_conv_layout_instances(grouped_conv3d_fwd_scale ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_clamp ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_bias_clamp ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_bias_bnorm_clamp ndhwgc nhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_bilinear ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_convscale ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_convscale_add ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_convscale_relu ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_convinvscale ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_dynamic_op ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_scaleadd_ab ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_fwd_scaleadd_scaleadd_relu ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_bwd_data_bilinear ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_bwd_data_scale ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_bwd_weight_bilinear ndhwgc)
+    add_conv_layout_instances(grouped_conv3d_bwd_weight_scale ndhwgc)
+
+    message(STATUS "Collected layout-specific convolution instances for umbrella library")
+endif()
+
+# =============================================================================
+# End of Layout-Split Operations
+# =============================================================================
+
+if(CK_DEVICE_OTHER_INSTANCES AND (NOT MIOPEN_REQ_LIBS_ONLY OR HIPTENSOR_REQ_LIBS_ONLY))
         add_library(device_other_operations ${CK_DEVICE_OTHER_INSTANCES})
         add_library(composablekernels::device_other_operations ALIAS device_other_operations)
         set_target_properties(device_other_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -365,7 +580,7 @@ if(CK_DEVICE_OTHER_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_GEMM_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
+if(CK_DEVICE_GEMM_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
         add_library(device_gemm_operations ${CK_DEVICE_GEMM_INSTANCES})
         add_library(composablekernels::device_gemm_operations ALIAS device_gemm_operations)
         target_compile_features(device_gemm_operations PUBLIC)
@@ -386,32 +601,8 @@ if(CK_DEVICE_GEMM_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_CONV_INSTANCES)
-        add_library(device_conv_operations ${CK_DEVICE_CONV_INSTANCES})
-        add_library(composablekernels::device_conv_operations ALIAS device_conv_operations)
-        target_compile_features(device_conv_operations PUBLIC)
-        set_target_properties(device_conv_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        set_target_properties(device_conv_operations
-            PROPERTIES
-            VERSION ${CMAKE_PROJECT_VERSION}
-            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
-        )
-        target_include_directories(device_conv_operations PUBLIC
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd>
-        )
-        rocm_install(TARGETS device_conv_operations
-            EXPORT device_conv_operationsTargets)
-        rocm_install(EXPORT device_conv_operationsTargets
-            FILE composable_kerneldevice_conv_operationsTargets.cmake
-            NAMESPACE composable_kernel::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        )
-endif()
-if(CK_DEVICE_MHA_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY AND BUILD_MHA_LIB)
+
+if(CK_DEVICE_MHA_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY AND BUILD_MHA_LIB)
         set(gpu_list ${INST_TARGETS})
         if(gpu_list MATCHES "gfx94" OR gpu_list MATCHES "gfx90a" OR gpu_list MATCHES "gfx95")
             add_library(device_mha_operations ${CK_DEVICE_MHA_INSTANCES})
@@ -423,7 +614,7 @@ if(CK_DEVICE_MHA_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY AND BUILD_MHA_LIB)
             add_library(composablekernels::device_mha_operations ALIAS device_mha_operations)
             target_compile_features(device_mha_operations PUBLIC)
             set_target_properties(device_mha_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-            
+
             rocm_install(TARGETS device_mha_operations
                 EXPORT device_mha_operationsTargets)
             rocm_install(EXPORT device_mha_operationsTargets
@@ -433,7 +624,7 @@ if(CK_DEVICE_MHA_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY AND BUILD_MHA_LIB)
             )
         endif()
 endif()
-if(CK_DEVICE_CONTRACTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
+if(CK_DEVICE_CONTRACTION_INSTANCES AND (NOT MIOPEN_REQ_LIBS_ONLY OR HIPTENSOR_REQ_LIBS_ONLY))
         add_library(device_contraction_operations ${CK_DEVICE_CONTRACTION_INSTANCES})
         add_library(composablekernels::device_contraction_operations ALIAS device_contraction_operations)
         target_compile_features(device_contraction_operations PUBLIC)
@@ -455,7 +646,7 @@ if(CK_DEVICE_CONTRACTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_REDUCTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
+if(CK_DEVICE_REDUCTION_INSTANCES AND (NOT MIOPEN_REQ_LIBS_ONLY OR HIPTENSOR_REQ_LIBS_ONLY))
         add_library(device_reduction_operations ${CK_DEVICE_REDUCTION_INSTANCES})
         add_library(composablekernels::device_reduction_operations ALIAS device_reduction_operations)
         target_compile_features(device_reduction_operations PUBLIC)
@@ -477,19 +668,80 @@ if(CK_DEVICE_REDUCTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         )
 endif()
 
-if(NOT MIOPEN_REQ_LIBS_ONLY)
+
+# =============================================================================
+# Convolution Operations Library (STATIC)
+# =============================================================================
+# This uses the CK_DEVICE_CONV_INSTANCES collected during directory discovery above
+# Conditional on MIOPEN_REQ_LIBS_ONLY to include only required layouts or all layouts
+
+# Create device_conv_operations from CK_DEVICE_CONV_INSTANCES (like the old approach)
+if(CK_DEVICE_CONV_INSTANCES AND (NOT HIPTENSOR_REQ_LIBS_ONLY OR MIOPEN_REQ_LIBS_ONLY))
+    add_library(device_conv_operations ${CK_DEVICE_CONV_INSTANCES})
+    add_library(composablekernels::device_conv_operations ALIAS device_conv_operations)
+    target_compile_features(device_conv_operations PUBLIC)
+    set_target_properties(device_conv_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    set_target_properties(device_conv_operations
+        PROPERTIES
+        VERSION ${CMAKE_PROJECT_VERSION}
+        SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+    )
+    target_include_directories(device_conv_operations PUBLIC
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd>
+    )
+    rocm_install(TARGETS device_conv_operations
+        EXPORT device_conv_operationsTargets)
+    rocm_install(EXPORT device_conv_operationsTargets
+        FILE composable_kerneldevice_conv_operationsTargets.cmake
+        NAMESPACE composable_kernel::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+    )
+
+    if(MIOPEN_REQ_LIBS_ONLY)
+        message(STATUS "Created device_conv_operations STATIC library (MIOpen-required layouts only)")
+    else()
+        message(STATUS "Created device_conv_operations STATIC library (all layouts)")
+    endif()
+endif()
+
+# =============================================================================
+# Top-Level device_operations Interface Library
+# =============================================================================
+# This umbrella library links all operation types for backward compatibility
+
+if(NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
     add_library(device_operations INTERFACE)
     target_link_libraries(device_operations INTERFACE
-        device_contraction_operations
         device_conv_operations
         device_gemm_operations
         device_other_operations
-        device_reduction_operations
         utility)
+    # Conditionally add optional libraries if they exist
+    if(TARGET device_contraction_operations)
+        target_link_libraries(device_operations INTERFACE device_contraction_operations)
+    endif()
+    if(TARGET device_reduction_operations)
+        target_link_libraries(device_operations INTERFACE device_reduction_operations)
+    endif()
+    if(TARGET device_mha_operations)
+        target_link_libraries(device_operations INTERFACE device_mha_operations)
+    endif()
+    add_library(composablekernels::device_operations ALIAS device_operations)
+    message(STATUS "Created top-level device_operations interface library")
 endif()
+
+# =============================================================================
+# Header Installation
+# =============================================================================
 
 set(DEV_OPS_INC_DIRS
     ${PROJECT_SOURCE_DIR}/include/ck/
     ${PROJECT_SOURCE_DIR}/library/include/ck/
 )
 rocm_install(DIRECTORY ${DEV_OPS_INC_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck)
+
+# =============================================================================

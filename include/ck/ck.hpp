@@ -1,9 +1,10 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/config.h"
+#include <stdint.h>
 
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
@@ -50,49 +51,78 @@
 #endif
 
 // define general macros for various architectures
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
+    defined(__gfx9_4_generic__)
 #define __gfx9__
 #endif
-#if defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
 #endif
-#if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)
+#if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__) || \
+    defined(__gfx1013__) || defined(__gfx10_1_generic__)
 #define __gfx101__
 #endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
-    defined(__gfx1034__) || defined(__gfx1035__) || defined(__gfx1036__) || \
-    defined(__gfx10_3_generic__)
+    defined(__gfx1033__) || defined(__gfx1034__) || defined(__gfx1035__) || \
+    defined(__gfx1036__) || defined(__gfx10_3_generic__)
 #define __gfx103__
 #endif
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
     defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
-    defined(__gfx1152__) || defined(__gfx11_generic__)
+    defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
-#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__) || \
+    defined(__gfx1250__)
 #define __gfx12__
 #endif
-
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
+#define __gfx120__
+#endif
+#if defined(__gfx1250__)
+#define __gfx125__
+#endif
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
-#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx9__)
+#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx90c__) || defined(__gfx906__) || \
+    defined(__gfx9__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-#elif defined(__gfx103__)
+#elif defined(__gfx101__) || defined(__gfx103__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__) || defined(__gfx12__)
+#elif defined(__gfx11__) || defined(__gfx120__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
+#elif defined(__gfx125__)
+#define CK_BUFFER_RESOURCE_3RD_DWORD 0
+#elif defined(__SPIRV__) // SPIR-V: dynamically select via ZCFS at runtime
+#define CK_BUFFER_RESOURCE_3RD_DWORD                                                               \
+    ((__builtin_amdgcn_processor_is("gfx1100") || __builtin_amdgcn_processor_is("gfx1101") ||      \
+      __builtin_amdgcn_processor_is("gfx1102") || __builtin_amdgcn_processor_is("gfx1103") ||      \
+      __builtin_amdgcn_processor_is("gfx1150") || __builtin_amdgcn_processor_is("gfx1151") ||      \
+      __builtin_amdgcn_processor_is("gfx1152") || __builtin_amdgcn_processor_is("gfx1153") ||      \
+      __builtin_amdgcn_processor_is("gfx1200") || __builtin_amdgcn_processor_is("gfx1201"))        \
+         ? 0x31004000                                                                              \
+         : ((__builtin_amdgcn_processor_is("gfx1030") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1031") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1032") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1034") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1035") || __builtin_amdgcn_processor_is("gfx1036")) \
+                ? 0x31014000                                                                       \
+                : 0x00020000))
+#else
+#define CK_BUFFER_RESOURCE_3RD_DWORD -1 // Unknown device
 #endif
 
 // FMA instruction
-#ifndef __HIP_DEVICE_COMPILE__                   // for host code, define nothing
-#elif defined(__gfx803__) || defined(__gfx900__) // for GPU code
-#define CK_USE_AMD_V_MAC_F32
-#elif defined(__gfx906__) || defined(__gfx9__) || defined(__gfx103__) // for GPU code
+#ifndef __HIP_DEVICE_COMPILE__ // for host code, define nothing
+#elif defined(__gfx906__) || defined(__gfx9__) || defined(__gfx103__) || defined(__gfx1011__) || \
+    defined(__gfx1012__) // for GPU code
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
-#elif defined(__gfx11__) || defined(__gfx12__)
+#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx90c__) || defined(__gfx101__)
+#define CK_USE_AMD_V_MAC_F32
+#elif defined(__gfx11__) || defined(__gfx120__)
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8_GFX11
@@ -145,13 +175,59 @@
 
 // V_DOT inline instructions, less efficient since they require adding
 // `s_nop`s to avoid hazard
+#ifdef __gfx125__
+#define CK_USE_AMD_V_DOT_INLINE_ASM 1
+#else
 #define CK_USE_AMD_V_DOT_INLINE_ASM 0
+#endif
 
+#ifdef __gfx12__
+#define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 0
+#else
 // inner product using V_DOT with DPP8 modifiers
 #define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
+#endif
 
 // LDS direct loads using inline assembly
+#if defined(__gfx125__)
+#define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 1
+#else
 #define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 0
+#endif
+
+// cluster launch support for gfx1250
+#ifndef CK_ENABLE_CLUSTER_LAUNCH
+#ifdef __HIP_DEVICE_COMPILE__ // for device code
+#if defined(__gfx125__)
+#define CK_ENABLE_CLUSTER_LAUNCH 1
+#else
+#define CK_ENABLE_CLUSTER_LAUNCH 0
+#endif
+#else // for host code
+#if defined(CK_USE_GFX1250)
+#define CK_ENABLE_CLUSTER_LAUNCH 1
+#else
+#define CK_ENABLE_CLUSTER_LAUNCH 0
+#endif
+#endif
+#endif
+
+// use llvm builtin bf16 data type after ROCm 6.5
+#ifndef CK_USE_LLVM_BUILTIN_BF16
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 5 && HIP_VERSION_PATCH >= 50421) || \
+    (HIP_VERSION_MAJOR >= 7)
+#define CK_USE_LLVM_BUILTIN_BF16 1
+#else
+#define CK_USE_LLVM_BUILTIN_BF16 0
+#endif
+#endif
+
+// hardware support _bf16 data type
+#if(defined(__gfx950__) || defined(__gfx12__))
+#define CK_ARCH_SUPPORT_BUILTIN_BF16 1
+#else
+#define CK_ARCH_SUPPORT_BUILTIN_BF16 0
+#endif
 
 // set rounding to nearest even as default for bf16 conversions
 #define CK_USE_RNE_BF16_CONVERSION 1
@@ -222,9 +298,6 @@
 // TODO: separate index calculation into "compile-time", "global", "block", "wave", "thread"
 #define CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE 0
 
-// workaround: conv crash when K, C is even
-#define CK_WORKAROUND_DISABLE_FILTER1x1STRIDE1PAD0_WHEN_K_C_IS_EVEN 1
-
 // workaround: compiler crash when compiling recursive lambda
 #define CK_WORKAROUND_SWDEV_275126 1
 
@@ -233,6 +306,9 @@
 
 // workaround: compiler gnerating inefficient ds_write instructions
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
+
+// workaround: gfx1250 does not support a negative offset
+#define CK_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE 1
 
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,6 +9,12 @@
 #include "ck_tile/core.hpp"
 
 namespace ck_tile {
+
+enum struct CastPolicy
+{
+    BeforeLDSWrite,
+    AfterLDSRead,
+};
 
 enum struct GemmPipelineScheduler
 {
@@ -41,7 +47,8 @@ enum struct TailNumber
 
 } // namespace ck_tile
 
-inline std::ostream& operator<<(std::ostream& os, const ck_tile::GemmPipelineScheduler& s)
+inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                const ck_tile::GemmPipelineScheduler& s)
 {
     switch(s)
     {
@@ -53,7 +60,8 @@ inline std::ostream& operator<<(std::ostream& os, const ck_tile::GemmPipelineSch
     return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os, const ck_tile::TailNumber& s)
+inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                const ck_tile::TailNumber& s)
 {
     switch(s)
     {

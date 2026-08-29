@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,10 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -44,23 +48,23 @@ template <typename DeviceOp,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_multi_query_attention_wmma(const ADataType* __restrict__ p_a_grid,
-                                          const B0DataType* __restrict__ p_b0_grid,
-                                          const B1DataType* __restrict__ p_b1_grid,
-                                          CDataType* __restrict__ p_c_grid,
-                                          index_t M,  // SequenceQ
-                                          index_t N,  // SequenceK
-                                          index_t K,  // HeadDim
-                                          index_t O,  // SequenceK
-                                          index_t G0, // Batch
-                                          index_t G1, // HeadNum
-                                          float alpha,
-                                          bool input_permute,
-                                          bool output_permute)
+    kernel_multi_query_attention_wmma(const ADataType* __restrict__ p_a_grid,
+                                      const B0DataType* __restrict__ p_b0_grid,
+                                      const B1DataType* __restrict__ p_b1_grid,
+                                      CDataType* __restrict__ p_c_grid,
+                                      index_t M,  // SequenceQ
+                                      index_t N,  // SequenceK
+                                      index_t K,  // HeadDim
+                                      index_t O,  // SequenceK
+                                      index_t G0, // Batch
+                                      index_t G1, // HeadNum
+                                      float alpha,
+                                      bool input_permute,
+                                      bool output_permute)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__))
 
     // clang-format off
 // ***************************************************
@@ -288,8 +292,6 @@ struct DeviceMultiQueryAttentionForward_Wmma
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
 
-    static constexpr auto WmmaK = 16;
-
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
@@ -327,11 +329,12 @@ struct DeviceMultiQueryAttentionForward_Wmma
         }
         else
         {
+            const index_t WmmaK = get_wmma_k<ADataType>();
             return Transform::
                 MakeAGridDescriptor_AKWmma_MBlockRepeat_MWaves_AK0PerWmma_AKRow_MPerWmma_AK1(
                     Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec,
                                                        a_gs_ms_ks_strides_vec),
-                    Number<WmmaK>{},
+                    WmmaK,
                     Number<MRepeat>{},
                     Number<MWaves>{},
                     Number<MPerWmma>{},
@@ -352,11 +355,12 @@ struct DeviceMultiQueryAttentionForward_Wmma
         }
         else
         {
+            const index_t WmmaK = get_wmma_k<B0DataType>();
             return Transform::
                 MakeB0GridDescriptor_BKWmma_LBlockRepeat_LWaves_BK0PerWmma_BKRow_LPerWmma_BK1(
                     Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec,
                                                         b0_gs_ls_ks_strides_vec),
-                    Number<WmmaK>{},
+                    WmmaK,
                     Number<LRepeat>{},
                     Number<LWaves>{},
                     Number<LPerWmma>{},
@@ -377,11 +381,12 @@ struct DeviceMultiQueryAttentionForward_Wmma
         }
         else
         {
+            const index_t WmmaK = get_wmma_k<B1DataType>();
             return Transform::
                 MakeB1GridDescriptor_BLWmma_NBlockRepeat_NWaves__BL0PerWmma_BLRow_NPerWmma_BL1(
                     Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec,
                                                         b1_gs_ns_ls_strides_vec),
-                    Number<WmmaK>{},
+                    WmmaK,
                     Number<NRepeat>{},
                     Number<NWaves>{},
                     Number<NPerWmma>{},
@@ -614,7 +619,14 @@ struct DeviceMultiQueryAttentionForward_Wmma
             printf("DeviceOp: Arch err");
             return false;
         }
-
+        if(!is_xdl_wmma_k_supported<ADataType, KPerBlock>())
+        {
+            return false;
+        }
+        if(!is_xdl_wmma_k_supported<ADataType, LPerBlock>())
+        {
+            return false;
+        }
         constexpr index_t array_size = 4;
         ck::index_t G0               = arg.G0_;
         ck::index_t G1               = arg.G1_;
@@ -948,147 +960,6 @@ struct DeviceMultiQueryAttentionForward_Wmma
         // TODO: properly implement this check
         return true;
     }
-#if 0
-    static bool IsSupportedArgument(const Argument& arg)
-    {
-        if(ck::is_gfx11_supported())
-        {
-            if constexpr(!(is_same_v<Acc0DataType, float> || is_same_v<Acc0DataType, int32_t>))
-            {
-                printf("DeviceOp: Acc0 Type err");
-                return false;
-            }
-
-            if constexpr(!(is_same_v<Acc1DataType, float> || is_same_v<Acc1DataType, int32_t>))
-            {
-                printf("DeviceOp: Acc1 Type err");
-                return false;
-            }
-        }
-        else
-        {
-            printf("DeviceOp: Arch err");
-            return false;
-        }
-
-        if(!GridwiseOp::CheckValidity(arg.a_grid_desc,
-                                      arg.b0_grid_desc,
-                                      arg.b1_grid_desc,
-                                      arg.c_grid_desc_m_n_,
-                                      arg.block_2_ctile_map_))
-        {
-            return false;
-        }
-
-        // Check if C permute dimension matches GEMM + GEMM shape
-        const index_t c_g = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
-
-        if(!(c_g == arg.batch_count_))
-        {
-            printf("DeviceOp: BatchCount err");
-            return false;
-        }
-
-        // Note: we need raw lengths since threadwise copy can not handle vector load when part of
-        // vector is out of bounds
-        // Note: need lowest dim in Ms/Ns/Ks/Os, not merged M/N/K/O
-        const auto MzRaw = arg.raw_lengths_mz_lz_kz_nz_[0];
-        const auto LzRaw = arg.raw_lengths_mz_lz_kz_nz_[1];
-        const auto KzRaw = arg.raw_lengths_mz_lz_kz_nz_[2];
-        const auto NzRaw = arg.raw_lengths_mz_lz_kz_nz_[3];
-
-        // Check scalar per vector requirement
-        const auto a_extent_lowest  = ABlockTransferSrcVectorDim == 2 ? KzRaw : MzRaw;
-        const auto b0_extent_lowest = B0BlockTransferSrcVectorDim == 2 ? KzRaw : LzRaw;
-        const auto b1_extent_lowest = B1BlockTransferSrcVectorDim == 2 ? LzRaw : NzRaw;
-        const auto c_extent_lowest  = NzRaw;
-
-        if(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
-             b0_extent_lowest % B0BlockTransferSrcScalarPerVector == 0 &&
-             b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
-             c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
-        {
-            printf("DeviceOp: Data Transfer Vector scalar err");
-            return false;
-        }
-
-        // Check vector load/store requirement
-        const auto a_stride_lowest =
-            ABlockTransferSrcVectorDim == 2 ? arg.a_mz_kz_strides_[1] : arg.a_mz_kz_strides_[0];
-        const auto b0_stride_lowest =
-            B0BlockTransferSrcVectorDim == 2 ? arg.b0_lz_kz_strides_[1] : arg.b0_lz_kz_strides_[0];
-        const auto b1_stride_lowest =
-            B1BlockTransferSrcVectorDim == 2 ? arg.b1_nz_lz_strides_[1] : arg.b1_nz_lz_strides_[0];
-        const auto c_stride_lowest = arg.c_mz_nz_strides_[1];
-
-        if(!(a_stride_lowest == 1 || b0_stride_lowest == 1 || b1_stride_lowest == 1 ||
-             c_stride_lowest == 1))
-        {
-            printf("DeviceOp: Data Vectorize transfer err");
-            return false;
-        }
-
-        return true;
-    }
-
-    // polymorphic
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
-    {
-        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
-    }
-
-    static auto MakeArgument(
-        const ADataType* p_a,
-        const B0DataType* p_b0,
-        const B1DataType* p_b1,
-        CDataType* p_c,
-        const std::array<void*, NumAcc0Bias> p_acc0_biases,
-        const std::array<void*, NumAcc1Bias> p_acc1_biases,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_lengths,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_strides,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ls_ks_lengths,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ls_ks_strides,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_ns_ls_lengths,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_ns_ls_strides,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_ns_lengths,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& c_gs_ms_ns_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ls_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ls_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias> acc1_biases_gs_ms_ns_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias> acc1_biases_gs_ms_ns_strides,
-        AElementwiseOperation a_element_op,
-        B0ElementwiseOperation b0_element_op,
-        AccElementwiseOperation acc_element_op,
-        B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op)
-    {
-        return Argument{p_a,
-                        p_b0,
-                        p_b1,
-                        p_c,
-                        p_acc0_biases,
-                        p_acc1_biases,
-                        a_gs_ms_ks_lengths,
-                        a_gs_ms_ks_strides,
-                        b0_gs_ls_ks_lengths,
-                        b0_gs_ls_ks_strides,
-                        b1_gs_ns_ls_lengths,
-                        b1_gs_ns_ls_strides,
-                        c_gs_ms_ns_lengths,
-                        c_gs_ms_ns_strides,
-                        acc0_biases_gs_ms_ls_lengths,
-                        acc0_biases_gs_ms_ls_strides,
-                        acc1_biases_gs_ms_ns_lengths,
-                        acc1_biases_gs_ms_ns_strides,
-                        1,
-                        1,
-                        a_element_op,
-                        b0_element_op,
-                        acc_element_op,
-                        b1_element_op,
-                        c_element_op};
-    }
-#endif
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(
@@ -1243,3 +1114,6 @@ struct DeviceMultiQueryAttentionForward_Wmma
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

@@ -1,95 +1,32 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convinvscale.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_relu.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_scale.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "profiler/common.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
+
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
 namespace ck {
 namespace profiler {
-
-template <typename DataType>
-inline constexpr double get_rtol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 1e-1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 1.5e-1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
-template <typename DataType>
-inline constexpr double get_atol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 16.1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 8192.1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
 
 template <ck::index_t NDimSpatial,
           typename InLayout,
@@ -105,9 +42,10 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
                                                 int init_method,
                                                 bool do_log,
                                                 bool time_kernel,
-                                                const ck::utils::conv::ConvParam& conv_param)
+                                                const ck::utils::conv::ConvParam& conv_param,
+                                                index_t instance_index = -1)
 {
-    auto pass = true; // return status
+    auto pass = true;
 
     using CShuffleDataType = float;
 
@@ -180,23 +118,70 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
 
-    // random scale values
-    auto scale_in = type_convert<float>(
-        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
-    auto scale_wei = type_convert<float>(
-        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
-    auto scale_out = type_convert<float>(
-        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
+    // random scale values (avoid zero)
+    float scale_in, scale_wei, scale_out;
+    auto rand_f8 = []() {
+        float v = 0.f;
+        while(v == 0.f)
+        {
+            v = type_convert<float>(
+                type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
+        }
+        return v;
+    };
+    scale_in  = rand_f8();
+    scale_wei = rand_f8();
+    scale_out = rand_f8();
 
-    // initialize out_element_op for each iteration
-    const auto out_element_op = OutElementOp{scale_in, scale_wei, scale_out};
+    OutElementOp out_element_op;
+    if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::ScaleScalePass>)
+    {
+        using Scale    = ck::tensor_operation::element_wise::Scale;
+        out_element_op = OutElementOp{Scale{scale_in}, Scale{scale_wei}, PassThrough{}};
+    }
+    else if constexpr(std::is_same_v<OutElementOp,
+                                     ck::tensor_operation::element_wise::ScaleScaleRelu>)
+    {
+        using Scale    = ck::tensor_operation::element_wise::Scale;
+        using Relu     = ck::tensor_operation::element_wise::Relu;
+        out_element_op = OutElementOp{Scale{scale_in}, Scale{scale_wei}, Relu{}};
+    }
+    else if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::Scale>)
+    {
+        out_element_op = OutElementOp{scale_out};
+    }
+    else
+    {
+        out_element_op = OutElementOp{scale_in, scale_wei, scale_out};
+    }
 
     std::cout << "scale_in: " << scale_in << std::endl;
     std::cout << "scale_wei: " << scale_wei << std::endl;
     std::cout << "scale_out: " << scale_out << std::endl;
 
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   InElementOp,
+                                                                                   WeiElementOp,
+                                                                                   OutElementOp,
+                                                                                   AComputeType,
+                                                                                   BComputeType>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
+
     // run reference op
-    if(do_verification)
+    if(do_verification == 1)
     {
 
         std::cout << "\nVerifying algorithm against reference convolution..." << std::endl;
@@ -226,13 +211,83 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
         c.SetZero();
         ref_invoker.Run(ref_argument);
 
-        host_output.ForEach([&](auto&, auto idx) { out_element_op(host_output(idx), c(idx)); });
+        host_output.ForEach([&](auto&, auto idx) {
+            if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::Scale>)
+            {
+                const auto conv_shuffle = ck::type_convert<CShuffleDataType>(c(idx));
+                if constexpr(std::is_same_v<OutDataType, int8_t>)
+                {
+                    const auto conv_val = ck::type_convert<OutDataType>(conv_shuffle);
+                    out_element_op(host_output(idx), conv_val);
+                }
+                else
+                {
+                    out_element_op(host_output(idx), conv_shuffle);
+                }
+            }
+            else
+            {
+                out_element_op(host_output(idx), c(idx));
+            }
+        });
+    }
+    else if(do_verification == 2)
+    {
+        // GPU reference
+        // WORKAROUND: For int8_t with Scale, use CPU post-processing to match CPU reference
+        // Pure GPU approach fails int8 test (see 2026-01-07-int8-scale-debugging.md)
+        if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::Scale> &&
+                     std::is_same_v<OutDataType, int8_t>)
+        {
+            // Compute conv to CShuffleDataType (float), then post-process on CPU
+            DeviceMem gpu_ref_c_dev(sizeof(CShuffleDataType) * c.mDesc.GetElementSpaceSize());
+
+            ck::ref::naive_conv_fwd<InLayout, WeiLayout, OutLayout>(
+                static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                static_cast<CShuffleDataType*>(gpu_ref_c_dev.GetDeviceBuffer()),
+                conv_param,
+                in_element_op,
+                wei_element_op,
+                PassThrough{});
+
+            ck::hip_check_error(hipDeviceSynchronize());
+
+            Tensor<CShuffleDataType> gpu_c(out_g_n_k_wos_desc);
+            gpu_ref_c_dev.FromDevice(gpu_c.mData.data());
+
+            // Post-process on CPU to match CPU reference behavior
+            host_output.ForEach([&](auto&, auto idx) {
+                const auto conv_shuffle = ck::type_convert<CShuffleDataType>(gpu_c(idx));
+                const auto conv_val     = ck::type_convert<OutDataType>(conv_shuffle);
+                out_element_op(host_output(idx), conv_val);
+            });
+        }
+        else
+        {
+            // Normal path for non-int8 or non-Scale cases
+            DeviceMem gpu_ref_out_dev(sizeof(OutDataType) *
+                                      device_output.mDesc.GetElementSpaceSize());
+
+            ck::ref::naive_conv_fwd<InLayout, WeiLayout, OutLayout>(
+                static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                static_cast<OutDataType*>(gpu_ref_out_dev.GetDeviceBuffer()),
+                conv_param,
+                in_element_op,
+                wei_element_op,
+                out_element_op);
+
+            ck::hip_check_error(hipDeviceSynchronize());
+            gpu_ref_out_dev.FromDevice(host_output.mData.data());
+        }
     }
 
     std::string best_op_name;
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int valids            = 0;
 
     auto run_impl = [&](auto& op_ptr, auto& argument_ptr) {
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
@@ -241,6 +296,7 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
             out_device_buf.SetZero();
 
             std::string op_name = op_ptr->GetTypeString();
+            valids++;
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -265,7 +321,7 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
                 best_gb_per_sec = gb_per_sec;
             }
 
-            if(do_verification)
+            if(do_verification == 1)
             {
                 out_device_buf.FromDevice(device_output.mData.data());
 
@@ -277,15 +333,32 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
 
                 if(do_log)
                 {
-                    LogRangeAsType<InDataType>(std::cout << "input : ", input.mData, ",")
+                    LogRangeAsType<float>(std::cout << "input : ", input.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "host_output  : ", host_output.mData, ",")
                         << std::endl;
-                    LogRangeAsType<WeiDataType>(std::cout << "weight: ", weight.mData, ",")
+                    LogRangeAsType<float>(std::cout << "device_output: ", device_output.mData, ",")
                         << std::endl;
-                    LogRangeAsType<OutDataType>(
-                        std::cout << "host_output  : ", host_output.mData, ",")
+                }
+            }
+            else if(do_verification == 2)
+            {
+                out_device_buf.FromDevice(device_output.mData.data());
+
+                pass =
+                    pass & ck::utils::check_err(device_output,
+                                                host_output,
+                                                "Error: Device and GPU ref results do not match!",
+                                                get_rtol<OutDataType>(),
+                                                get_atol<OutDataType>());
+
+                if(do_log)
+                {
+                    LogRangeAsType<float>(std::cout << "input : ", input.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "gpu_ref_output  : ", host_output.mData, ",")
                         << std::endl;
-                    LogRangeAsType<OutDataType>(
-                        std::cout << "device_output: ", device_output.mData, ",")
+                    LogRangeAsType<float>(std::cout << "device_output: ", device_output.mData, ",")
                         << std::endl;
                 }
             }
@@ -311,14 +384,15 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
                                                                                    AComputeType,
                                                                                    BComputeType>;
 
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
-
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
+
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
                                                         wei_device_buf.GetDeviceBuffer(),
                                                         {},
@@ -342,9 +416,12 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
         run_impl(op_ptr, argument_ptr);
     }
 
-    std::cout << "Best configuration parameters:"
-              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
+    printf("\033[36mvalids: %d\033[0m\n", valids);
+
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
+              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
+              << "\nGB/s: " << best_gb_per_sec << std::endl;
+
     return pass;
 }
 

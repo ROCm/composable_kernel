@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,7 +57,7 @@ struct SmoothquantPipelineTwoPass
 
         static constexpr index_t Block_N = Problem::BlockShape::Block_N;
         index_t num_n_tile_iteration =
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(row_size, Block_N));
+            amd_wave_read_first_lane(integer_divide_ceil(row_size, Block_N));
 
         auto reduce_absmax_func  = ReduceOp::AbsMax{};
         auto reduce_absmax3_func = [](auto acc_, auto v_0_, auto v_1_) {
@@ -77,7 +77,7 @@ struct SmoothquantPipelineTwoPass
         auto absmax       = block_reduce2d.template MakeYBlockTile<XTensorType>();
         set_tile(absmax, reduce_absmax_func.GetIdentityValue<ComputeDataType>());
 
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             const auto x       = load_tile(x_window);
             const auto smscale = load_tile(smscale_window);
@@ -121,7 +121,7 @@ struct SmoothquantPipelineTwoPass
         move_tile_window(qy_window, {0, stride_to_right_most_window});
 
         // recompute y and quantize y to qy
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             const auto x       = load_tile(x_window);
             const auto smscale = load_tile(smscale_window);

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -16,6 +16,7 @@ namespace instance {
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
+using TF32 = ck::tf32_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

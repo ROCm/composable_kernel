@@ -1,11 +1,12 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <type_traits>
 
 #include <ck_tile/core/numeric/math.hpp>
+#include <ck_tile/core/numeric/math_v2.hpp>
 #include <ck_tile/core/numeric/type_convert.hpp>
 
 #define CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH 0
@@ -19,6 +20,10 @@
 #define CK_TILE_ATTENTION_USE_SOFTSIGN_ASM 0
 #endif
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck_tile {
 namespace internal {
 __device__ inline float
@@ -162,6 +167,17 @@ struct StandardAttention
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
+
+    template <typename Params>
+    __device__ __forceinline__ bool LogitsSinkMask(const Params& params,
+                                                   [[maybe_unused]] uint32_t batch_idx,
+                                                   uint32_t qo_idx,
+                                                   uint32_t kv_idx,
+                                                   [[maybe_unused]] uint32_t qo_head_idx,
+                                                   [[maybe_unused]] uint32_t kv_head_idx) const
+    {
+        return !params.impl_mask.IsOutOfSinkBound(qo_idx, kv_idx);
+    }
 };
 
 template <bool UseExp2 = false>
@@ -223,6 +239,17 @@ struct LogitsSoftCap
                                                [[maybe_unused]] uint32_t kv_head_idx) const
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
+    }
+
+    template <typename Params>
+    __device__ __forceinline__ bool LogitsSinkMask(const Params& params,
+                                                   [[maybe_unused]] uint32_t batch_idx,
+                                                   uint32_t qo_idx,
+                                                   uint32_t kv_idx,
+                                                   [[maybe_unused]] uint32_t qo_head_idx,
+                                                   [[maybe_unused]] uint32_t kv_head_idx) const
+    {
+        return !params.impl_mask.IsOutOfSinkBound(qo_idx, kv_idx);
     }
 };
 
@@ -297,6 +324,21 @@ struct ComposedAttention
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
+
+    template <typename Params>
+    __device__ __forceinline__ bool LogitsSinkMask(const Params& params,
+                                                   [[maybe_unused]] uint32_t batch_idx,
+                                                   uint32_t qo_idx,
+                                                   uint32_t kv_idx,
+                                                   [[maybe_unused]] uint32_t qo_head_idx,
+                                                   [[maybe_unused]] uint32_t kv_head_idx) const
+    {
+        return !params.impl_mask.IsOutOfSinkBound(qo_idx, kv_idx);
+    }
 };
 
 } // namespace ck_tile
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

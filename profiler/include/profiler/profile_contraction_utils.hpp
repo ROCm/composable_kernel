@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,10 @@
 
 #include "ck/ck.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
+#endif
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
@@ -81,3 +85,6 @@ assign_default_strides(Col, std::vector<ck::index_t>& strides, std::vector<ck::i
         stride *= dims[s];
     }
 }
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

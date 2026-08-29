@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_CONTAINER_HELPER_HPP
 #define CK_CONTAINER_HELPER_HPP
@@ -19,7 +19,7 @@ __host__ __device__ constexpr auto container_push_back(const Array<TData, NSize>
 {
     Array<TData, NSize + 1> r;
 
-    static_for<0, NSize, 1>{}([&r, &a ](auto i) constexpr { r(i) = a[i]; });
+    static_for<0, NSize, 1>{}([&r, &a](auto i) constexpr { r(i) = a[i]; });
 
     r(Number<NSize>{}) = x;
 

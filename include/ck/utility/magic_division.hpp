@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,10 +9,6 @@
 #include "number.hpp"
 #include "type.hpp"
 #include "tuple.hpp"
-
-#ifdef CK_CODE_GEN_RTC
-#define INT32_MAX 2147483647
-#endif
 
 namespace ck {
 
@@ -75,7 +71,7 @@ struct MagicDivision
     // integral_constant<uint32_t, .>
     template <uint32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicNumbers(integral_constant<uint32_t, Divisor>)
+    CalculateMagicNumbers(integral_constant<uint32_t, Divisor>)
     {
         constexpr auto tmp = CalculateMagicNumbers(uint32_t{Divisor});
 
@@ -88,7 +84,7 @@ struct MagicDivision
 
     template <uint32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicMultiplier(integral_constant<uint32_t, Divisor>)
+    CalculateMagicMultiplier(integral_constant<uint32_t, Divisor>)
     {
         constexpr uint32_t multiplier = CalculateMagicMultiplier(uint32_t{Divisor});
 
@@ -97,7 +93,7 @@ struct MagicDivision
 
     template <uint32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicShift(integral_constant<uint32_t, Divisor>)
+    CalculateMagicShift(integral_constant<uint32_t, Divisor>)
     {
         constexpr uint32_t shift = CalculateMagicShift(uint32_t{Divisor});
 
@@ -107,21 +103,21 @@ struct MagicDivision
     // integral_constant<int32_t, .>
     template <int32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicNumbers(integral_constant<int32_t, Divisor>)
+    CalculateMagicNumbers(integral_constant<int32_t, Divisor>)
     {
         return CalculateMagicNumbers(integral_constant<uint32_t, Divisor>{});
     }
 
     template <int32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicMultiplier(integral_constant<int32_t, Divisor>)
+    CalculateMagicMultiplier(integral_constant<int32_t, Divisor>)
     {
         return CalculateMagicMultiplier(integral_constant<uint32_t, Divisor>{});
     }
 
     template <int32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicShift(integral_constant<int32_t, Divisor>)
+    CalculateMagicShift(integral_constant<int32_t, Divisor>)
     {
         return CalculateMagicShift(integral_constant<uint32_t, Divisor>{});
     }

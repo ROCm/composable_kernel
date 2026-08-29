@@ -1,8 +1,13 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using InDataType           = int8_t;
 using WeiDataType          = int8_t;
@@ -76,8 +81,27 @@ using DeviceGroupedConvNDFwdInstance =
 
 #include "run_conv2d_fwd_perchannel_quantization_example.inc"
 
-int main()
+int main(int argc, char* argv[])
 {
+    bool do_verification = true;
+    bool time_kernel     = false;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 3)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: time kernel (0=no, 1=yes)\n");
+        exit(0);
+    }
+
     const auto out_element_op = OutElementOp{ActivationOp{}};
-    run_conv2d_fwd_perchannel_quantization_example(out_element_op);
+    run_conv2d_fwd_perchannel_quantization_example(out_element_op, do_verification, time_kernel);
 }

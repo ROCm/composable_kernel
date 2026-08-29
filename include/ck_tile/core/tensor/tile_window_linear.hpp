@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "ck_tile/core/arch/arch.hpp"
@@ -74,8 +74,9 @@ struct tile_window_linear
         static constexpr auto get_num_non_linear_access()
         {
             constexpr auto sfc_access_lens = Base::Traits::SFC_Ys::access_lengths;
-            using ys_to_rhs_major          = typename decltype(
-                typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
+            using ys_to_rhs_major =
+                typename decltype(typename Base::TileDstr{}
+                                      .get_static_tile_distribution_encoding())::Ys2RHsMajor;
 
             constexpr auto non_linear = [&]() {
                 index_t cnt = 1;
@@ -109,8 +110,9 @@ struct tile_window_linear
         static constexpr auto get_non_linear_access_map()
         {
             constexpr auto sfc_access_lens = Base::Traits::SFC_Ys::access_lengths;
-            using ys_to_rhs_major          = typename decltype(
-                typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
+            using ys_to_rhs_major =
+                typename decltype(typename Base::TileDstr{}
+                                      .get_static_tile_distribution_encoding())::Ys2RHsMajor;
             constexpr auto non_linear_map = [&]() {
                 array<index_t, Base::Traits::NumAccess> m_{0};
                 index_t cumulative_len_            = 1;
@@ -244,8 +246,9 @@ struct tile_window_linear
     {
         using SFC_Ys          = typename Base::Traits::SFC_Ys;
         constexpr auto idx_ys = SFC_Ys::get_index(number<i_access>{});
-        using ys_to_rhs_major = typename decltype(
-            typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
+        using ys_to_rhs_major =
+            typename decltype(typename Base::TileDstr{}
+                                  .get_static_tile_distribution_encoding())::Ys2RHsMajor;
 
         constexpr auto modified_idx_ys = generate_tuple(
             [&](auto i_dim_y) {
@@ -274,7 +277,7 @@ struct tile_window_linear
     {
         constexpr auto linear_coord = get_bottom_linear_coordinate(number<i_access>{});
         constexpr auto is_pure_linear_tensor =
-            reduce_on_sequence(LinearBottomDims{}, multiplies{}, number<1>{});
+            reduce_on_sequence(LinearBottomDims{}, multiplies<>{}, number<1>{});
         if constexpr(is_pure_linear_tensor)
         {
             // this case usually is a LDS window, everything is known at compile tile.
@@ -514,7 +517,8 @@ struct tile_window_linear
             size_per_buf;
 
         const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
-        m0_set_with_memory(m0_init_value); // This should be wave independent
+        m0_set_with_memory(
+            amd_wave_read_first_lane(m0_init_value)); // This should be wave independent
 
         using vector_t = typename Base::Traits::vector_t;
 

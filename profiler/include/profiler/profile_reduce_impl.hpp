@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -144,7 +144,8 @@ bool profile_reduce_impl_impl(bool do_verification,
                               const std::vector<size_t>& inLengths,
                               const std::array<int, NumReduceDim>& reduceDims,
                               float alpha,
-                              float beta)
+                              float beta,
+                              index_t instance_index = -1)
 {
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::instance;
@@ -296,6 +297,8 @@ bool profile_reduce_impl_impl(bool do_verification,
             ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
                 ReduceOp>::GetInstances();
 
+        std::cout << "found " << reduce_ptrs.size() << " instances" << std::endl;
+
         if(reduce_ptrs.empty())
         {
             throw std::runtime_error("Wrong! No device REDUCE instance found");
@@ -354,8 +357,14 @@ bool profile_reduce_impl_impl(bool do_verification,
             (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
         };
 
-        for(auto& reduce_ptr : reduce_ptrs)
+        for(size_t i = 0; i < reduce_ptrs.size(); i++)
         {
+            if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
+            auto& reduce_ptr  = reduce_ptrs[i];
             auto argument_ptr = reduce_ptr->MakeArgumentPointer(arrInLengths,
                                                                 arrInStrides,
                                                                 arrOutLengths,
@@ -373,7 +382,9 @@ bool profile_reduce_impl_impl(bool do_verification,
             if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
                 continue;
             else
+            {
                 num_kernel++;
+            }
 
             std::string reduce_name = reduce_ptr->GetTypeString();
 
@@ -447,7 +458,7 @@ bool profile_reduce_impl_impl(bool do_verification,
             "The requested reduction operation is not supported, please check!");
     };
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
@@ -467,7 +478,8 @@ bool profile_reduce_impl(bool do_verification,
                          bool PropagateNan,
                          bool UseIndex,
                          float alpha,
-                         float beta)
+                         float beta,
+                         index_t instance_index = -1)
 {
     bool matched = false;
     bool pass    = true;
@@ -475,13 +487,11 @@ bool profile_reduce_impl(bool do_verification,
     using tuple_of_description_instances =
         tensor_operation::device::instance::reduce_description_instances;
 
-    const auto tuple_object = tuple_of_description_instances{};
-
     static_for<0, std::tuple_size<tuple_of_description_instances>::value, 1>{}([&](auto i) {
         if(matched)
             return;
 
-        using descType = remove_cvref_t<decltype(std::get<i>(tuple_object))>;
+        using descType = std::tuple_element_t<i.value, tuple_of_description_instances>;
 
         if(!description_match(
                descType{}, inLengths.size(), reduceDims, ReduceOpId, PropagateNan, UseIndex))
@@ -505,7 +515,8 @@ bool profile_reduce_impl(bool do_verification,
                                                                      inLengths,
                                                                      arrReduceDims,
                                                                      alpha,
-                                                                     beta);
+                                                                     beta,
+                                                                     instance_index);
 
         matched = true;
     });

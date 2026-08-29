@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,72 +13,11 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/flush_cache.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_wmma_cshuffle_v3_common.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-
-template <typename GridwiseGemm,
-          typename ComputePtrOffsetOfStridedBatch,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-#endif
-        kernel_batched_gemm_wmma_cshuffle_v3(
-            typename GridwiseGemm::Argument
-                karg, // This works for now but it actually receives a
-                      // DeviceBatchedGemm_Wmma_CShuffleV3::Argument
-                      // argument through implicit conversion to base class!
-            const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_c_grid)>>;
-    if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
-                   (std::is_same_v<c_data_type, ck::half_t> ||
-                    std::is_same_v<c_data_type, ck::bhalf_t>)))
-    {
-#endif
-        // The normal approach to batching would be to increase the grid size by just stretching out
-        // the grid Z dimension (which is the outermost dimension), but this depends on lower level
-        // functions not directly using the Z dimension for other calculations. As it turns out, k
-        // batching does rely directly on blockIdx.Z through SplitKBatchOffset. Therefore, for now
-        // we will use the grid Y dimension for batching. This may be a bit fragile.
-        const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
-
-        const long_index_t a_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-        const long_index_t b_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
-        const long_index_t c_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
-
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-
-        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-            karg.p_a_grid + splitk_batch_offset.a_k_split_offset + a_batch_offset,
-            karg.p_b_grid + splitk_batch_offset.b_k_split_offset + b_batch_offset,
-            karg.p_c_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
-            p_shared,
-            karg);
-#if defined(__gfx11__)
-    }
-#endif
-#else
-    ignore = karg;
-    ignore = compute_ptr_offset_of_batch;
-#endif
-}
 
 /// @brief \"Universal\" Batched GEMM operation without SplitK support.
 ///
@@ -239,45 +178,17 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
     static_assert(PermuteB == false,
                   "Permute B functionality not supported by DeviceBatchedGemm operations.\n");
 
-    struct ComputePtrOffsetOfStridedBatch
-    {
-        ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                       index_t BatchStrideB,
-                                       index_t BatchStrideC)
-            : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideC_(BatchStrideC)
-        {
-        }
-
-        __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideA_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideB_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideC_);
-        }
-
-        private:
-        index_t BatchStrideA_;
-        index_t BatchStrideB_;
-        index_t BatchStrideC_;
-    };
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
         BLayout,
+        Tuple<>, // DsLayout
         CLayout,
-        ADataType,
-        BDataType,
+        Tuple<ADataType>,
+        Tuple<BDataType>,
         AccDataType,
         CShuffleDataType,
+        Tuple<>, // DsDataType
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -312,7 +223,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
@@ -320,314 +231,39 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         false,  // PermuteA not supported by DeviceBatchedGemm base class.
         false>; // PermuteB not supported by DeviceBatchedGemm base class.
 
+    using DeviceGemmCommon = DeviceBatchedGemm_Wmma_CShuffleV3_Common<
+        GridwiseGemm,
+        Tuple<ADataType>,
+        Tuple<BDataType>,
+        CDataType,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        BlockSize,
+        AK1,
+        BK1,
+        GemmSpec,
+        Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ComputeTypeA,
+        ComputeTypeB,
+        false, // IsBScaled
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation>;
+
     // Argument
-    struct Argument : public GridwiseGemm::Argument
-    {
-        __host__ Argument(const ADataType* p_a_grid_,
-                          const BDataType* p_b_grid_,
-                          CDataType* p_c_grid_,
-                          index_t M_,
-                          index_t N_,
-                          index_t K_,
-                          index_t StrideA_,
-                          index_t StrideB_,
-                          index_t StrideC_,
-                          index_t BatchStrideA_,
-                          index_t BatchStrideB_,
-                          index_t BatchStrideC_,
-                          index_t Batch_,
-                          index_t k_batch_,
-                          bool is_reduce_ = false)
-            : GridwiseGemm::Argument(p_a_grid_,
-                                     p_b_grid_,
-                                     p_c_grid_,
-                                     M_,
-                                     N_,
-                                     K_,
-                                     StrideA_,
-                                     StrideB_,
-                                     StrideC_,
-                                     k_batch_,
-                                     is_reduce_),
-              Batch(Batch_),
-              compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideC_}
-        {
-        }
+    using Argument = typename DeviceGemmCommon::Argument;
 
-        index_t Batch;
-        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
-    };
-
-    /// @brief  Helper structure responsible for kernel invocation.
-    ///
-    /// @paragraph  The `Invoker` class is responsible for preparation and invocation of actual GPU
-    ///             kernel function. It usually determines the launched grid size prepares kernel
-    ///             arguments as well as perform specific kernel configuration selection based on
-    ///             runtime arguments.
-    ///
-    /// @note       If appropriately configured it may measure kernel execution time.
-    ///
-    struct Invoker : public BaseInvoker
-    {
-        /// @brief  This function issues GPU kernel execution.
-        /// @param arg           The GPU kernel arguments.
-        /// @param stream_config The HIP stream configuration helper structure.
-        /// @return              The kernel's average execution time (if time measurement is
-        ///                      enabled).
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
-        {
-            if(stream_config.log_level_ > 0)
-            {
-                arg.Print();
-                GridwiseGemm::BlockwiseGemmPipe::HotLoopInstList::Print();
-            }
-
-            if(!GridwiseGemm::CheckValidity(arg))
-            {
-                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
-            }
-
-            index_t gdx, gdy, gdz;
-            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N, arg.KBatch);
-
-            // The normal approach to batching would be to increase the grid size by just stretching
-            // out the grid Z dimension (which is the outermost dimension), but this depends on
-            // lower level functions not directly using the Z dimension for other calculations. As
-            // it turns out, k batching does rely directly on blockIdx.Z through SplitKBatchOffset.
-            // Therefore, for now we will use the grid Y dimension for batching. This may be a bit
-            // fragile.
-            gdy *= arg.Batch;
-
-            float ave_time = 0;
-
-            index_t k_grain = arg.KBatch * KPerBlock;
-            index_t K_split = (arg.K + k_grain - 1) / k_grain * KPerBlock;
-
-            const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
-
-            const auto Run = [&](const auto& kernel) {
-                if(stream_config.flush_cache)
-                {
-                    Argument arg_ = arg;
-
-                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
-                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
-                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
-                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
-
-                    // Packed sizes are 1 for all implemented data types but we include it anyway
-                    // for future compatibility.
-                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
-                                         sizeof(ADataType) / GridwiseGemm::APackedSize;
-                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
-                                         sizeof(BDataType) / GridwiseGemm::BPackedSize;
-
-                    // Note: the grid descriptors and size_a / size_b do *not* take batching into
-                    // account, so we have to manually multiply overall buffer sizes for rotating
-                    // memory by batch.
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
-                        arg_,
-                        stream_config.rotating_count,
-                        arg_.Batch * size_a_buffer,
-                        arg_.Batch * size_b_buffer);
-                    rotating_mem.Print();
-
-                    auto run_flush_cache = [&]() {
-                        // flush icache
-                        ck::utility::flush_icache();
-                        // rotating mem
-                        rotating_mem.Next();
-                        // clear c mem
-                        if(arg_.KBatch > 1)
-                            // Note: we multiply by batch since we want to clear the C matrix for
-                            // the whole batch. Untested since we don't have k batching ATM.
-                            // Note: This seems incorrect for non-contiguous memory layouts for C
-                            // (padding, gaps).
-                            HIP_CHECK_ERROR(
-                                hipMemsetAsync(arg_.p_c_grid,
-                                               0,
-                                               arg_.Batch * arg_.M * arg_.N * sizeof(CDataType),
-                                               stream_config.stream_id_));
-                    };
-
-                    ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
-                        stream_config,
-                        run_flush_cache,
-                        kernel,
-                        dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        arg_,
-                        arg_.compute_ptr_offset_of_batch);
-                }
-                else
-                {
-                    auto clear_workspace = [&]() {
-                        // clear c mem
-                        if(arg.KBatch > 1)
-                            // Note: we multiply by batch since we want to clear the C matrix for
-                            // the whole batch. Untested since we don't have k batching ATM.
-                            // Note: This seems incorrect for non-contiguous memory layouts for C
-                            // (padding, gaps).
-                            HIP_CHECK_ERROR(
-                                hipMemsetAsync(arg.p_c_grid,
-                                               0,
-                                               arg.Batch * arg.M * arg.N * sizeof(CDataType),
-                                               stream_config.stream_id_));
-                    };
-
-                    ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
-                        stream_config,
-                        clear_workspace,
-                        kernel,
-                        dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        arg,
-                        arg.compute_ptr_offset_of_batch);
-                }
-            };
-
-            constexpr index_t minimum_occupancy = []() {
-                if constexpr(BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave)
-                {
-                    return 2;
-                }
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                {
-                    return (MPerBlock * NPerBlock / BlockSize <= 128) ? 2 : 1;
-                }
-                else
-                {
-                    return 1;
-                }
-            }();
-
-            if(has_main_k_block_loop)
-            {
-                // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
-                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                {
-                    if(arg.KBatch > 1)
-                    {
-                        const auto kernel = kernel_batched_gemm_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            ComputePtrOffsetOfStridedBatch,
-                            true,
-                            InMemoryDataOperationEnum::AtomicAdd,
-                            minimum_occupancy>;
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_batched_gemm_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            remove_reference_t<ComputePtrOffsetOfStridedBatch>,
-                            true,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
-                        Run(kernel);
-                    }
-                }
-                else
-                {
-                    // TODO: Implement
-                }
-            }
-            else
-            {
-                // Tail number always 1
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                {
-                    if(arg.KBatch > 1)
-                    {
-                        const auto kernel = kernel_batched_gemm_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            ComputePtrOffsetOfStridedBatch,
-                            false,
-                            InMemoryDataOperationEnum::AtomicAdd,
-                            minimum_occupancy>;
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_batched_gemm_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            remove_reference_t<ComputePtrOffsetOfStridedBatch>,
-                            false,
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
-                        Run(kernel);
-                    }
-                }
-            }
-
-            return ave_time;
-        }
-
-        // polymorphic
-        float Run(const BaseArgument* p_arg,
-                  const StreamConfig& stream_config = StreamConfig{}) override
-        {
-            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
-        }
-    };
-
-    static constexpr bool IsValidCompilationParameter()
-    {
-        // TODO: properly implement this check
-        return true;
-    }
-
-    static bool IsSupportedArgument(const Argument& arg)
-    {
-        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
-        {
-            return false;
-        }
-
-        if constexpr(std::is_same_v<CDataType, ck::half_t> ||
-                     std::is_same_v<CDataType, ck::bhalf_t>)
-        {
-            if(arg.KBatch > 1 && ck::is_gfx11_supported())
-            {
-                // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-                return false;
-            }
-        }
-
-        if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
-                     std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
-        {
-            if(ck::is_gfx11_supported())
-            {
-                return false;
-            }
-        }
-
-        if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
-                                                       GemmSpec == GemmSpecialization::NKPadding ||
-                                                       GemmSpec == GemmSpecialization::MNKPadding ||
-                                                       GemmSpec == GemmSpecialization::KPadding))
-        {
-            return false;
-        }
-
-        return GridwiseGemm::CheckValidity(arg);
-    }
+    // Invoker
+    using Invoker = typename DeviceGemmCommon::Invoker;
 
     // polymorphic
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
-        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
+        return DeviceGemmCommon::IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
-    // TODO: This is not part of the DeviceBatchedGemm base class but it was part of
-    // DeviceBatchedGemmV2. Remove?
-    // index_t GetKPerBlock() override { return KPerBlock; }
-    // bool GetPermuteA() override { return PermuteA; }
-    // bool GetPermuteB() override { return PermuteB; }
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
@@ -659,7 +295,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                         BatchStrideB,
                         BatchStrideC,
                         Batch,
-                        1 /* KBatch */};
+                        1, /* KBatch */
+                        AElementwiseOperation{},
+                        BElementwiseOperation{},
+                        CElementwiseOperation{}};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -695,7 +334,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                                           BatchStrideB,
                                           BatchStrideC,
                                           Batch,
-                                          1); // KBatch
+                                          1,
+                                          AElementwiseOperation{},
+                                          BElementwiseOperation{},
+                                          CElementwiseOperation{}); // KBatch
     }
 
     // polymorphic
@@ -707,48 +349,15 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
     // polymorphic
     std::string GetTypeString() const override
     {
-        auto str = std::stringstream();
-
-        std::map<BlockGemmPipelineScheduler, std::string> BlkGemmPipelineSchedulerToString{
-            {BlockGemmPipelineScheduler::Intrawave, "Intrawave"},
-            {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
-
-        std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
-            {BlockGemmPipelineVersion::v1, "v1"},
-            {BlockGemmPipelineVersion::v2, "v2"},
-            {BlockGemmPipelineVersion::v3, "v3"},
-            {BlockGemmPipelineVersion::v4, "v4"},
-            {BlockGemmPipelineVersion::v5, "v5"}};
-
-        // clang-format off
-        str << "DeviceBatchedGemm_Wmma_CShuffleV3"
-            << "<"
-            << getGemmSpecializationString(GemmSpec) << ", "
-            << std::string(ALayout::name)[0]
-            << std::string(BLayout::name)[0]
-            << std::string(CLayout::name)[0]
-            << ">"
-            << " BlkSize: "
-            << BlockSize << ", "
-            << "BlkTile: "
-            << MPerBlock << "x" << NPerBlock << "x" << KPerBlock << ", "
-            << "WaveTile: "
-            << MPerWmma << "x"<<NPerWmma << ", "
-            << "WaveMap: "
-            << MRepeat << "x" << NRepeat << ", "
-            << "VmemReadVec: "
-            << ABlockTransferSrcScalarPerVector << "x" << BBlockTransferSrcScalarPerVector << ", "
-            << "BlkGemmPipelineScheduler: "
-            << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
-            << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
-            << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
-            << "KPack: "
-            << GridwiseGemm::KPack;
-        // clang-format on
-
-        return str.str();
+        return DeviceGemmCommon::template GetTypeString<MPerWmma,
+                                                        NPerWmma,
+                                                        MRepeat,
+                                                        NRepeat,
+                                                        ABlockTransferSrcScalarPerVector,
+                                                        BBlockTransferSrcScalarPerVector,
+                                                        ALayout,
+                                                        BLayout,
+                                                        CLayout>();
     }
     REGISTER_EXTRA_PRINTING_METHODS
 };

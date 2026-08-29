@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <limits>
 #include <iostream>
@@ -13,6 +13,10 @@
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_backward.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batchnorm_backward_impl.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -403,10 +407,10 @@ bool bnorm_bwd_nhwc_test(bool do_verification,
     return (pass);
 };
 
-static const double epsilon = std::numeric_limits<float>::epsilon();
-
 int main(int argc, char* argv[])
 {
+    static const double epsilon = std::numeric_limits<float>::epsilon();
+
     bool pass = true;
 
     if(argc > 1)

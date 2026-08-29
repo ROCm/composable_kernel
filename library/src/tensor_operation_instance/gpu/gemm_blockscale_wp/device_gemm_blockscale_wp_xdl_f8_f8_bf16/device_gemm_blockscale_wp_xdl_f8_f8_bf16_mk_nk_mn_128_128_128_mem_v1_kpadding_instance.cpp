@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "device_gemm_blockscale_wp_xdl_f8_f8_bf16_mk_nk_mn_128_128_128.hpp"
 

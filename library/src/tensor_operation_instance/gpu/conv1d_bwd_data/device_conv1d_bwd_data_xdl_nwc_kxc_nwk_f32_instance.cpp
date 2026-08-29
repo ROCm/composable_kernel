@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 
@@ -82,10 +82,14 @@ void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(
         DeviceConvBwdData<1, NWC, KXC, NWK, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances)
 {
+#if CK_BUILD_DEPRECATED
     add_device_operation_instances(instances,
                                    device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances{});
     add_device_operation_instances(
         instances, device_conv1d_bwd_data_xdl_nwc_kxc_nwk_1x1_s1_p0_f32_instances{});
+#else
+    std::ignore = instances;
+#endif
 }
 
 } // namespace instance

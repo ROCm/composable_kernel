@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(example_permute)
 
 add_example_executable(example_permute_1xHxW_fp16 permute_1xHxW_fp16.cpp)

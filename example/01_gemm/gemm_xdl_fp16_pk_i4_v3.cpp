@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -249,9 +249,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
-    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
+         ck::is_gfx11_supported() || ck::is_gfx12_supported()))
     {
-        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+        std::cout << "This kernel support gfx942, gfx950, gfx11 and gfx12 only" << std::endl;
 
         return true;
     }

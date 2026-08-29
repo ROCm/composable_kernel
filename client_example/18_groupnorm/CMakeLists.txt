@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_executable(client_groupnorm_bwd_data groupnorm_bwd_data.cpp)
 target_link_libraries(client_groupnorm_bwd_data PRIVATE composable_kernel::device_other_operations)
 

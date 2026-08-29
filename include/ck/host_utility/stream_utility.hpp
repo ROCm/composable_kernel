@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,8 @@
 
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
+
+namespace ck {
 
 static inline int getAvailableComputeUnitCount(const StreamConfig& stream_config)
 {
@@ -41,3 +43,5 @@ static inline int getAvailableComputeUnitCount(const StreamConfig& stream_config
 
     return (ret);
 };
+
+} // namespace ck

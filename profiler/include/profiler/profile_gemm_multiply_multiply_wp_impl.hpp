@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,6 +20,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "profiler/common.hpp"
 
 namespace ck {
 namespace profiler {
@@ -29,7 +30,7 @@ void preShuffleBuffer(const InOutDataType* src, InOutDataType* dst, int N, int K
 {
     int KPack = 16;
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = ck::get_warp_size() / NLane;
 
     int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack
@@ -83,7 +84,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                                                            int KBatch,
                                                            int n_warmup,
                                                            int n_iter,
-                                                           uint64_t rotating = 0)
+                                                           uint64_t rotating  = 0,
+                                                           int instance_index = -1)
 {
     bool pass = true;
 
@@ -112,6 +114,28 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
+    // Update strides based on tensor properties if they are <= 0
+    auto get_stride = [](auto& tensor, auto layout, ck::index_t current_stride) -> ck::index_t {
+        if(current_stride <= 0)
+        {
+            if constexpr(std::is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
+            {
+                return tensor.GetStrides()[0];
+            }
+            else
+            {
+                return tensor.GetStrides()[1];
+            }
+        }
+        return current_stride;
+    };
+
+    StrideA  = get_stride(a_m_k, ALayout{}, StrideA);
+    StrideB  = get_stride(b_k_n, BLayout{}, StrideB);
+    StrideD0 = get_stride(d0_m_n, D0Layout{}, StrideD0);
+    StrideD1 = get_stride(d1_m_n, D1Layout{}, StrideD1);
+    StrideE  = get_stride(e_m_n_host_result, ELayout{}, StrideE);
+
     int total_gemm_needed =
         a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes() +
         d0_m_n.GetElementSpaceSizeInBytes() + d1_m_n.GetElementSpaceSizeInBytes();
@@ -133,8 +157,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-5, 5});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-1, 1});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -228,9 +252,15 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     float best_kbatch     = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t j = 0; j < op_ptrs.size(); j++)
     {
-        int NPerXdl = op_ptr->GetPreShuffleParameters();
+        if((instance_index != -1) && (instance_index != static_cast<int>(j)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[j];
+        int NPerXdl  = op_ptr->GetPreShuffleParameters();
 
         std::vector<int> kbatch_list = {1, 2, 4, 8};
 
@@ -282,8 +312,8 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                                   is_same_v<EDataType, int8_t>))
                     {
                         std::string msg = "Error: Incorrect results!";
-                        double rtol     = 1e-3;
-                        double atol     = 5e-2;
+                        double rtol     = get_rtol<EDataType>();
+                        double atol     = get_atol<EDataType>();
                         pass            = pass & ck::utils::check_err(
                                           e_m_n_device_result, e_m_n_host_result, msg, rtol, atol);
                     }
@@ -322,6 +352,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                 std::size_t flop = std::size_t(2) * M * N * K;
 
                 std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                                        sizeof(D0DataType) * M * N + sizeof(D1DataType) * M * N +
                                         sizeof(EDataType) * M * N;
 
                 float tflops = static_cast<float>(flop) / 1.E9 / ave_time;

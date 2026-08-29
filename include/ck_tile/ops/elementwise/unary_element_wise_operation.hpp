@@ -1,18 +1,49 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include <cstdint>
 #include <type_traits>
+
+#define CONSTEXPR_LOOKUP_TABLE_FOR_BF16 1
+#define CONSTEXPR_LOOKUP_TABLE_FOR_FP8 0
+#define CONSTEXPR_LOOKUP_TABLE_FOR_BF8 0
 
 namespace ck_tile {
 namespace element_wise {
 
-// Fast int4x4 to fp16x8_t data type conversion based on paper
-// [Who Says Elephants Can't Run: Bringing Large Scale MoE Models into Cloud Scale Production]
-// (https://arxiv.org/abs/2211.10017) and implementation:
-// https://github.com/NVIDIA/FasterTransformer/blob/main/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h
+// Generalized constexpr lookup table generator
+template <typename T, std::size_t N, typename F, std::size_t... Is>
+constexpr std::array<T, N> make_lookup_table_impl(F&& func, std::index_sequence<Is...>)
+{
+    return {func(Is)...};
+}
+
+template <typename T, std::size_t N, typename F>
+constexpr std::array<T, N> make_lookup_table(F&& func)
+{
+    return make_lookup_table_impl<T, N>(std::forward<F>(func), std::make_index_sequence<N>{});
+}
+
+/**
+ * @brief Fast int4x4 to fp16x8_t data type conversion based on paper
+ * "Who Says Elephants Can't Run: Bringing Large Scale MoE Models into Cloud Scale Production"
+ * @see https://arxiv.org/abs/2211.10017
+ * @see
+ * https://github.com/NVIDIA/FasterTransformer/blob/main/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h
+ *
+ * This function converts 4 4-bit integers into 4 fp16 values.
+ * @note `int q` contains 4 bytes, low 4 bits of each byte represent an int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to fp16(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be fp16(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
 CK_TILE_DEVICE fp16x4_t i4_to_half4(int q)
 {
     const int LO = 0x000f000f;
@@ -46,6 +77,18 @@ CK_TILE_DEVICE fp16x4_t i4_to_half4(int q)
     return res;
 }
 
+/**
+ * @brief This function dequantizes 4 int4 values into 4 fp16 values and applies scaling.
+ *
+ * @note `int q` contains 4 bytes, low 4 bits of each byte represent an int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to fp16(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be fp16(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
 CK_TILE_DEVICE fp16x4_t i4_to_half4_scale(int q, const fp16x2_t& scale)
 {
     const int LO = 0x000f000f;
@@ -81,8 +124,22 @@ CK_TILE_DEVICE fp16x4_t i4_to_half4_scale(int q, const fp16x2_t& scale)
     return res;
 }
 
+/**
+ * @brief This function converts 4 4-bit integers into 4 bf16 values.
+ *
+ * @note `int q` contains 4 bytes, low 4 bits of each byte represent an int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to bf16(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be bf16(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
 CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
 {
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_BF16
+    // This approach fails validation in GEMM tests.
     uint32_t i8s = (q & 0xf) | ((q & 0xf0) << 4) | ((q & 0xf00) << 8) | ((q & 0xf000) << 12);
 
     static constexpr uint32_t fp32_base = 0x4B000000;
@@ -108,12 +165,564 @@ CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
         __byte_perm(fp32_intermediates_casted[3], fp32_intermediates_casted[2], 0x7632));
 
     return res;
+#else
+    // Lookup table for bf16_t values corresponding to int4 values -8 to 7
+    constexpr auto bf16_lookup_table = make_lookup_table<bf16_t, 16>(
+        [](int i) { return bit_cast<bf16_t>(float_to_bf16_rtn_raw(i - 8)); });
+
+    return bf16x4_t{bf16_lookup_table[(q >> 0) & 0xf],
+                    bf16_lookup_table[(q >> 16) & 0xf],
+                    bf16_lookup_table[(q >> 4) & 0xf],
+                    bf16_lookup_table[(q >> 20) & 0xf]};
+#endif
+}
+
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_FP8
+/**
+ * @brief This function converts 8 packed 4-bit integers into 8 fp8 values.
+ *
+ * @note `int q` contains 4 bytes, each byte represents 2 int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to fp8(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be fp8(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
+CK_TILE_DEVICE fp8x8_t amd_assembly_i4_to_fp8x8(int a)
+{
+#if CK_TILE_USE_OCP_FP8
+    // register values [3, 2, 1, 0]
+    static constexpr uint32_t reg0 = 0xcaccced0;
+    // register values [7, 6, 5, 4]
+    static constexpr uint32_t reg1 = 0xb8c0c4c8;
+    // register values [-1, -2, -3, -4]
+    static constexpr uint32_t reg2 = 0x44403800;
+    // register values [-5, -6, -7, -8]
+    static constexpr uint32_t reg3 = 0x4e4c4a48;
+#else
+    // register values [3, 2, 1, 0]
+    static constexpr uint32_t reg0 = 0xd2d4d6d8;
+    // register values [7, 6, 5, 4]
+    static constexpr uint32_t reg1 = 0xc0c8ccd0;
+    // register values [-1, -2, -3, -4]
+    static constexpr uint32_t reg2 = 0x4C484000;
+    // register values [-5, -6, -7, -8]
+    static constexpr uint32_t reg3 = 0x56545250;
+#endif
+
+    uint32_t tmp_pos, tmp_neg, tmp_res_even, tmp_res_odd, final_sel;
+
+    // ---- Lower 4 int4 values (even positions) ----
+    // Extract dictionary indices: low 3 bits of each byte (values 0..7).
+    uint32_t dict_sel = a & 0x07070707;
+    // sign bit is bit[2] of each nibble after bias; shift to isolate per-byte sign.
+    uint32_t sign = a >> 1;
+    // Build final selector:
+    //   - bit 2 of each byte (0x04) selects negative vs positive table
+    //   - 0x03020100 selects byte lanes [0,1,2,3] in order
+    final_sel = (sign & 0x04040404) | 0x03020100;
+    // Lookup positive and negative fp8 codes from the small register tables.
+    tmp_pos = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    // Select per-lane between tmp_pos and tmp_neg using the sign-derived selector.
+    tmp_res_even = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
+
+    // ---- Upper 4 int4 values (odd positions) ----
+    // Shift to bring the high-nibble int4s into place and repeat the process.
+    a >>= 4;
+    dict_sel  = a & 0x07070707;
+    sign      = a >> 1;
+    final_sel = (sign & 0x04040404) | 0x03020100;
+
+    tmp_pos           = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg           = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    tmp_res_odd       = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
+    auto tmp_res_low  = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x06040200);
+    auto tmp_res_high = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x07050301);
+
+    return bit_cast<fp8x8_t>((static_cast<uint64_t>(tmp_res_high) << 32) | tmp_res_low);
+}
+#else
+CK_TILE_DEVICE fp8x4_t i4_to_fp8x4(int q)
+{
+    // The approach below can be used once this compiler issue is resolved:
+    // "constexpr bit cast involving type 'unsigned _BitInt(8)' is not yet supported"
+    // Lookup table for fp8_t values corresponding to int4 values -8 to 7
+    constexpr auto fp8_lookup_table = make_lookup_table<fp8_t, 16>(
+        [](int i) { return impl::cast_to_f8<float, fp8_t, true, false>(i - 8, 0); });
+
+    return fp8x4_t{fp8_lookup_table[(q >> 0) & 0xf],
+                   fp8_lookup_table[(q >> 16) & 0xf],
+                   fp8_lookup_table[(q >> 4) & 0xf],
+                   fp8_lookup_table[(q >> 20) & 0xf]};
+}
+#endif
+
+CK_TILE_DEVICE float amd_assembly_fp8_to_fp32(uint32_t src)
+{
+    float res;
+    asm volatile("v_cvt_f32_fp8 %0, %1, src0_sel:BYTE_0" : "=v"(res) : "v"(src));
+    return res;
+}
+
+CK_TILE_DEVICE float amd_assembly_bf8_to_fp32(uint32_t src)
+{
+    float res;
+    asm volatile("v_cvt_f32_bf8 %0, %1, src0_sel:BYTE_0" : "=v"(res) : "v"(src));
+    return res;
+}
+
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_BF8
+/**
+ * @brief This function converts 8 packed 4-bit integers into 8 bf8 values.
+ *
+ * @note `int q` contains 4 bytes, each byte represents 2 int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to bf8(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be bf8(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
+CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(uint32_t a)
+{
+#if CK_TILE_USE_OCP_FP8
+    // register values [3, 2, 1, 0]
+    static constexpr uint32_t reg0 = 0Xc5c6c7c8;
+    // register values [7, 6, 5, 4]
+    static constexpr uint32_t reg1 = 0Xbcc0c2c4;
+    // register values [11, 10, 9, 8]
+    static constexpr uint32_t reg2 = 0X42403c00;
+    // register values [15, 14, 13, 12]
+    static constexpr uint32_t reg3 = 0X47464544;
+#else
+    // register values [3, 2, 1, 0]
+    static constexpr uint32_t reg0 = 0Xc9cacbcc;
+    // register values [7, 6, 5, 4]
+    static constexpr uint32_t reg1 = 0Xc0c4c6c8;
+    // register values [11, 10, 9, 8]
+    static constexpr uint32_t reg2 = 0X46444000;
+    // register values [15, 14, 13, 12]
+    static constexpr uint32_t reg3 = 0X4b4a4948;
+#endif
+
+    uint32_t tmp_pos, tmp_neg, tmp_res_even, tmp_res_odd, final_sel;
+
+    // ---- Lower 4 int4 values (even positions) ----
+    // Extract dictionary indices: low 3 bits of each byte (values 0..7).
+    uint32_t dict_sel = a & 0x07070707;
+
+    // sign bit is bit[2] of each nibble after bias; shift to isolate per-byte sign.
+    uint32_t sign = a >> 1;
+    // Build final selector:
+    //   - bit 2 of each byte (0x04) selects negative vs positive table
+    //   - 0x03020100 selects byte lanes [0,1,2,3] in order
+    final_sel = (sign & 0x04040404) | 0x03020100;
+
+    // Lookup positive and negative fp8 codes from the small register tables.
+    tmp_pos = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    // Select per-lane between tmp_pos and tmp_neg using the sign-derived selector.
+    tmp_res_even = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
+
+    // ---- Upper 4 int4 values (odd positions) ----
+    // Shift to bring the high-nibble int4s into place and repeat the process.
+    a >>= 4;
+    dict_sel  = a & 0x07070707;
+    sign      = a >> 1;
+    final_sel = (sign & 0x04040404) | 0x03020100;
+
+    tmp_pos           = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg           = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    tmp_res_odd       = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
+    auto tmp_res_low  = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x06040200);
+    auto tmp_res_high = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x07050301);
+
+    return bit_cast<bf8x8_t>((static_cast<uint64_t>(tmp_res_high) << 32) | tmp_res_low);
+}
+#else
+CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
+{
+    // The approach below can be used once this compiler issue is resolved:
+    // "constexpr bit cast involving type 'unsigned _BitInt(8)' is not yet supported"
+    // Lookup table for bf8_t values corresponding to int4 values -8 to 7
+    constexpr auto bf8_lookup_table = make_lookup_table<bf8_t, 16>(
+        [](int i) { return impl::cast_to_f8<float, bf8_t, true, false>(i - 8, 0); });
+
+    return bf8x4_t{bf8_lookup_table[(q >> 0) & 0xf],
+                   bf8_lookup_table[(q >> 16) & 0xf],
+                   bf8_lookup_table[(q >> 4) & 0xf],
+                   bf8_lookup_table[(q >> 20) & 0xf]};
+}
+#endif
+
+CK_TILE_HOST_DEVICE bf16x8_t bf8x8_to_bf16x8_scale(const bf8x8_t& src, const float& scale)
+{
+    bf16x8_t y;
+#if defined(__gfx950__)
+    constexpr index_t USE_BOTTOM = 0;
+    constexpr index_t USE_TOP    = 1;
+
+    auto convert_quartet = [&](index_t src_offset, index_t dst_offset) {
+        union
+        {
+            uint32_t packed;
+            bf8_t elements[4];
+        } input;
+
+        union
+        {
+            bf16x2_t vec;
+            bf16_t elements[2];
+        } output;
+
+        input.elements[0] = src[src_offset];
+        input.elements[1] = src[src_offset + 1];
+        input.elements[2] = src[src_offset + 2];
+        input.elements[3] = src[src_offset + 3];
+
+        output.vec    = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.packed, scale, USE_BOTTOM);
+        y[dst_offset] = output.elements[0];
+        y[dst_offset + 1] = output.elements[1];
+
+        output.vec        = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.packed, scale, USE_TOP);
+        y[dst_offset + 2] = output.elements[0];
+        y[dst_offset + 3] = output.elements[1];
+    };
+
+    convert_quartet(0, 0);
+    convert_quartet(4, 4);
+#else
+    static_for<0, 8, 1>{}([&](auto i) {
+        y[i.value] = type_convert<bf16_t>(type_convert<float>(src[i.value]) * scale);
+    });
+#endif
+    return y;
+}
+
+CK_TILE_HOST_DEVICE bf16x8_t fp8x8_to_bf16x8_scale(const fp8x8_t& src, const float& scale)
+{
+    bf16x8_t y;
+#if defined(__gfx950__)
+    constexpr index_t USE_BOTTOM = 0;
+    constexpr index_t USE_TOP    = 1;
+
+    auto convert_quartet = [&](index_t src_offset, index_t dst_offset) {
+        union
+        {
+            uint32_t packed;
+            fp8_t elements[4];
+        } input;
+
+        union
+        {
+            bf16x2_t vec;
+            bf16_t elements[2];
+        } output;
+
+        input.elements[0] = src[src_offset];
+        input.elements[1] = src[src_offset + 1];
+        input.elements[2] = src[src_offset + 2];
+        input.elements[3] = src[src_offset + 3];
+
+        output.vec    = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp8(input.packed, scale, USE_BOTTOM);
+        y[dst_offset] = output.elements[0];
+        y[dst_offset + 1] = output.elements[1];
+
+        output.vec        = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp8(input.packed, scale, USE_TOP);
+        y[dst_offset + 2] = output.elements[0];
+        y[dst_offset + 3] = output.elements[1];
+    };
+
+    convert_quartet(0, 0);
+    convert_quartet(4, 4);
+#else
+    static_for<0, 8, 1>{}([&](auto i) {
+        y[i.value] = type_convert<bf16_t>(type_convert<float>(src[i.value]) * scale);
+    });
+#endif
+    return y;
+}
+
+CK_TILE_HOST_DEVICE fp8x8_t bf16x8_to_fp8x8_scale(const bf16x8_t& src, const float& scale)
+{
+    fp8x8_t y;
+#if defined(__gfx950__)
+    constexpr int16x2_t INIT_DST = {0, 0};
+
+    auto convert_pair = [&](const bf16_t& src0, const bf16_t& src1, index_t dst_offset) {
+        union
+        {
+            bf16x2_t vec;
+            bf16_t elements[2];
+        } input;
+
+        union
+        {
+            int16x2_t packed;
+            fp8_t elements[4];
+        } output;
+
+        input.elements[0] = src0;
+        input.elements[1] = src1;
+
+        output.packed = __builtin_amdgcn_cvt_scalef32_pk_fp8_bf16(INIT_DST, input.vec, scale, 0);
+        y[dst_offset] = output.elements[0];
+        y[dst_offset + 1] = output.elements[1];
+    };
+
+    auto convert_quartet = [&](index_t src_offset, index_t dst_offset) {
+        convert_pair(src[src_offset], src[src_offset + 1], dst_offset);
+        convert_pair(src[src_offset + 2], src[src_offset + 3], dst_offset + 2);
+    };
+
+    convert_quartet(0, 0);
+    convert_quartet(4, 4);
+#else
+    static_for<0, 8, 1>{}([&](auto i) {
+        y[i.value] = type_convert<fp8_t>(type_convert<float>(src[i.value]) * scale);
+    });
+#endif
+    return y;
+}
+
+CK_TILE_HOST_DEVICE fp16x8_t fp8x8_to_fp16x8_scale(const fp8x8_t& src, const float& scale)
+{
+    fp16x8_t y;
+#if defined(__gfx950__)
+    constexpr index_t USE_BOTTOM = 0;
+    constexpr index_t USE_TOP    = 1;
+
+    auto convert_quartet = [&](index_t src_offset, index_t dst_offset) {
+        union
+        {
+            uint32_t packed;
+            fp8_t elements[4];
+        } input;
+
+        union
+        {
+            fp16x2_t vec;
+            fp16_t elements[2];
+        } output;
+
+        input.elements[0] = src[src_offset];
+        input.elements[1] = src[src_offset + 1];
+        input.elements[2] = src[src_offset + 2];
+        input.elements[3] = src[src_offset + 3];
+
+        output.vec    = __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(input.packed, scale, USE_BOTTOM);
+        y[dst_offset] = output.elements[0];
+        y[dst_offset + 1] = output.elements[1];
+
+        output.vec        = __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(input.packed, scale, USE_TOP);
+        y[dst_offset + 2] = output.elements[0];
+        y[dst_offset + 3] = output.elements[1];
+    };
+
+    convert_quartet(0, 0);
+    convert_quartet(4, 4);
+#else
+    static_for<0, 8, 1>{}([&](auto i) {
+        y[i.value] = type_convert<fp16_t>(type_convert<float>(src[i.value]) * scale);
+    });
+#endif
+    return y;
+}
+
+CK_TILE_HOST_DEVICE fp8x8_t fp16x8_to_fp8x8_scale(const fp16x8_t& src, const float& scale)
+{
+    fp8x8_t y;
+#if defined(__gfx950__)
+    constexpr int16x2_t INIT_DST = {0, 0};
+
+    auto convert_pair = [&](const fp16_t& src0, const fp16_t& src1, index_t dst_offset) {
+        union
+        {
+            fp16x2_t vec;
+            fp16_t elements[2];
+        } input;
+
+        union
+        {
+            int16x2_t packed;
+            fp8_t elements[4];
+        } output;
+
+        input.elements[0] = src0;
+        input.elements[1] = src1;
+
+        output.packed     = __builtin_amdgcn_cvt_scalef32_pk_fp8_f16(INIT_DST, input.vec, scale, 0);
+        y[dst_offset]     = output.elements[0];
+        y[dst_offset + 1] = output.elements[1];
+    };
+
+    auto convert_quartet = [&](index_t src_offset, index_t dst_offset) {
+        convert_pair(src[src_offset], src[src_offset + 1], dst_offset);
+        convert_pair(src[src_offset + 2], src[src_offset + 3], dst_offset + 2);
+    };
+
+    convert_quartet(0, 0);
+    convert_quartet(4, 4);
+#else
+    static_for<0, 8, 1>{}([&](auto i) {
+        y[i.value] = type_convert<fp8_t>(type_convert<float>(src[i.value]) * scale);
+    });
+#endif
+    return y;
+}
+
+CK_TILE_HOST_DEVICE fp16x8_t bf8x8_to_fp16x8_scale(const bf8x8_t& src, const float& scale)
+{
+    fp16x8_t y;
+#if defined(__gfx950__)
+    constexpr index_t USE_BOTTOM = 0;
+    constexpr index_t USE_TOP    = 1;
+
+    auto convert_quartet = [&](index_t src_offset, index_t dst_offset) {
+        union
+        {
+            uint32_t packed;
+            bf8_t elements[4];
+        } input;
+
+        union
+        {
+            fp16x2_t vec;
+            fp16_t elements[2];
+        } output;
+
+        input.elements[0] = src[src_offset];
+        input.elements[1] = src[src_offset + 1];
+        input.elements[2] = src[src_offset + 2];
+        input.elements[3] = src[src_offset + 3];
+
+        output.vec    = __builtin_amdgcn_cvt_scalef32_pk_f16_bf8(input.packed, scale, USE_BOTTOM);
+        y[dst_offset] = output.elements[0];
+        y[dst_offset + 1] = output.elements[1];
+
+        output.vec        = __builtin_amdgcn_cvt_scalef32_pk_f16_bf8(input.packed, scale, USE_TOP);
+        y[dst_offset + 2] = output.elements[0];
+        y[dst_offset + 3] = output.elements[1];
+    };
+
+    convert_quartet(0, 0);
+    convert_quartet(4, 4);
+#else
+    static_for<0, 8, 1>{}([&](auto i) {
+        y[i.value] = type_convert<fp16_t>(type_convert<float>(src[i.value]) * scale);
+    });
+#endif
+    return y;
+}
+
+CK_TILE_HOST_DEVICE bf16x8_t fp4x4_to_bf16x8_scale(const pk_fp4x4_t& src, const float& scale)
+{
+    bf16x8_t y;
+#if defined(__gfx950__)
+    union
+    {
+        uint32_t u32;
+        pk_fp4x4_t pf4;
+    } cvt;
+
+    constexpr index_t USE_BYTE_0 = 0;
+    constexpr index_t USE_BYTE_1 = 1;
+    constexpr index_t USE_BYTE_2 = 2;
+    constexpr index_t USE_BYTE_3 = 3;
+
+    cvt.pf4     = src;
+    bf16x2_t y0 = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp4(cvt.u32, scale, USE_BYTE_0);
+    bf16x2_t y1 = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp4(cvt.u32, scale, USE_BYTE_1);
+    bf16x2_t y2 = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp4(cvt.u32, scale, USE_BYTE_2);
+    bf16x2_t y3 = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp4(cvt.u32, scale, USE_BYTE_3);
+
+    y[0] = y0[0];
+    y[1] = y0[1];
+    y[2] = y1[0];
+    y[3] = y1[1];
+    y[4] = y2[0];
+    y[5] = y2[1];
+    y[6] = y3[0];
+    y[7] = y3[1];
+#else
+    static_for<0, 4, 1>{}([&](auto i) {
+        auto yi            = pk_fp4_to_bf16x2(src[i.value], scale);
+        y[2 * i.value]     = yi[0];
+        y[2 * i.value + 1] = yi[1];
+    });
+#endif
+    return y;
+}
+
+CK_TILE_HOST_DEVICE fp16x8_t fp4x4_to_fp16x8_scale(const pk_fp4x4_t& src, const float& scale)
+{
+    fp16x8_t y;
+#if defined(__gfx950__)
+    union
+    {
+        uint32_t u32;
+        pk_fp4x4_t pf4;
+    } cvt;
+
+    constexpr index_t USE_BYTE_0 = 0;
+    constexpr index_t USE_BYTE_1 = 1;
+    constexpr index_t USE_BYTE_2 = 2;
+    constexpr index_t USE_BYTE_3 = 3;
+
+    cvt.pf4     = src;
+    fp16x2_t y0 = __builtin_amdgcn_cvt_scalef32_pk_f16_fp4(cvt.u32, scale, USE_BYTE_0);
+    fp16x2_t y1 = __builtin_amdgcn_cvt_scalef32_pk_f16_fp4(cvt.u32, scale, USE_BYTE_1);
+    fp16x2_t y2 = __builtin_amdgcn_cvt_scalef32_pk_f16_fp4(cvt.u32, scale, USE_BYTE_2);
+    fp16x2_t y3 = __builtin_amdgcn_cvt_scalef32_pk_f16_fp4(cvt.u32, scale, USE_BYTE_3);
+
+    y[0] = y0[0];
+    y[1] = y0[1];
+    y[2] = y1[0];
+    y[3] = y1[1];
+    y[4] = y2[0];
+    y[5] = y2[1];
+    y[6] = y3[0];
+    y[7] = y3[1];
+#else
+    static_for<0, 4, 1>{}([&](auto i) {
+        auto yi            = pk_fp4_to_fp16x2(src[i.value], scale);
+        y[2 * i.value]     = yi[0];
+        y[2 * i.value + 1] = yi[1];
+    });
+#endif
+    return y;
 }
 
 struct PassThroughPack8
 {
+    static constexpr const char* name = "PassThroughPack8";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(fp16x8_t& y, const fp8x8_t& x) const
+    {
+#if defined(__gfx950__)
+        y = fp8x8_to_fp16x8_scale(x, 1.0f);
+#else
+        static_for<0, 8, 1>{}(
+            [&](auto i) { y[i.value] = type_convert<fp16_t>(type_convert<float>(x[i.value])); });
+#endif
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const fp16x8_t& x) const
+    {
+#if defined(__gfx950__)
+        y = fp16x8_to_fp8x8_scale(x, 1.0f);
+#else
+        static_for<0, 8, 1>{}(
+            [&](auto i) { y[i.value] = type_convert<fp8_t>(type_convert<float>(x[i.value])); });
+#endif
+    }
 
     CK_TILE_HOST_DEVICE constexpr void operator()(fp16x8_t& y, const pk_int4x4_t& x) const
     {
@@ -121,16 +730,102 @@ struct PassThroughPack8
         y.hi = i4_to_half4(bit_cast<int>(x) >> 8);
     }
 
+    CK_TILE_HOST_DEVICE constexpr void operator()(bf16x8_t& y, const fp8x8_t& x) const
+    {
+#if defined(__gfx950__)
+        y = fp8x8_to_bf16x8_scale(x, 1.0f);
+#else
+        static_for<0, 8, 1>{}(
+            [&](auto i) { y[i.value] = type_convert<bf16_t>(type_convert<float>(x[i.value])); });
+#endif
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const bf16x8_t& x) const
+    {
+#if defined(__gfx950__)
+        y = bf16x8_to_fp8x8_scale(x, 1.0f);
+#else
+        static_for<0, 8, 1>{}(
+            [&](auto i) { y[i.value] = type_convert<fp8_t>(type_convert<float>(x[i.value])); });
+#endif
+    }
+
     CK_TILE_HOST_DEVICE constexpr void operator()(bf16x8_t& y, const pk_int4x4_t& x) const
     {
         y.lo = i4_to_bhalf4(bit_cast<int>(x));
-        y.hi = i4_to_bhalf4(bit_cast<int>(x) >> 16);
+        y.hi = i4_to_bhalf4(bit_cast<int>(x) >> 8);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const pk_int4x4_t& x) const
+    {
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_FP8
+        y = amd_assembly_i4_to_fp8x8(bit_cast<uint32_t>(x));
+#else
+        y.lo = i4_to_fp8x4(bit_cast<int>(x));
+        y.hi = i4_to_fp8x4(bit_cast<int>(x) >> 8);
+#endif
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(bf8x8_t& y, const pk_int4x4_t& x) const
+    {
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_BF8
+        y = amd_assembly_i4_to_bf8x8(bit_cast<uint32_t>(x));
+#else
+        y.lo = i4_to_bf8x4(bit_cast<int>(x));
+        y.hi = i4_to_bf8x4(bit_cast<int>(x) >> 8);
+#endif
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const pk_fp4x4_t& x) const
+    {
+        pk_fp4_t f0 = pk_fp4_t{x[0]};
+        pk_fp4_t f1 = pk_fp4_t{x[1]};
+        pk_fp4_t f2 = pk_fp4_t{x[2]};
+        pk_fp4_t f3 = pk_fp4_t{x[3]};
+
+        fp8x2_t x0 = f0.to_fp8x2();
+        fp8x2_t x1 = f1.to_fp8x2();
+        fp8x2_t x2 = f2.to_fp8x2();
+        fp8x2_t x3 = f3.to_fp8x2();
+
+        y[0] = x0[0];
+        y[1] = x0[1];
+        y[2] = x1[0];
+        y[3] = x1[1];
+        y[4] = x2[0];
+        y[5] = x2[1];
+        y[6] = x3[0];
+        y[7] = x3[1];
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(bf8x8_t& y, const pk_fp4x4_t& x) const
+    {
+        pk_fp4_t f0 = pk_fp4_t{x[0]};
+        pk_fp4_t f1 = pk_fp4_t{x[1]};
+        pk_fp4_t f2 = pk_fp4_t{x[2]};
+        pk_fp4_t f3 = pk_fp4_t{x[3]};
+
+        bf8x2_t x0 = f0.to_bf8x2();
+        bf8x2_t x1 = f1.to_bf8x2();
+        bf8x2_t x2 = f2.to_bf8x2();
+        bf8x2_t x3 = f3.to_bf8x2();
+
+        y[0] = x0[0];
+        y[1] = x0[1];
+        y[2] = x1[0];
+        y[3] = x1[1];
+        y[4] = x2[0];
+        y[5] = x2[1];
+        y[6] = x3[0];
+        y[7] = x3[1];
     }
     constexpr const static bool is_pack8_invocable = true;
 };
 
 struct DequantPack8
 {
+    static constexpr const char* name = "DequantPack8";
+
     template <typename Y, typename X, typename Z>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x, const Z& z) const;
 
@@ -141,21 +836,59 @@ struct DequantPack8
         y.hi = i4_to_half4_scale(bit_cast<int>(x) >> 8, z);
     }
 
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(bf16x8_t& y, const pk_fp4x4_t& x, const float& z) const
+    {
+        y = fp4x4_to_bf16x8_scale(x, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(fp16x8_t& y, const pk_fp4x4_t& x, const float& z) const
+    {
+        y = fp4x4_to_fp16x8_scale(x, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(bf16x8_t& y, const bf8x8_t& x, const float& z) const
+    {
+        y = bf8x8_to_bf16x8_scale(x, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(bf16x8_t& y, const fp8x8_t& x, const float& z) const
+    {
+        y = fp8x8_to_bf16x8_scale(x, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(fp16x8_t& y, const fp8x8_t& x, const float& z) const
+    {
+        y = fp8x8_to_fp16x8_scale(x, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(fp16x8_t& y, const bf8x8_t& x, const float& z) const
+    {
+        y = bf8x8_to_fp16x8_scale(x, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(bf16x8_t& y, const bf16x8_t& x, const float& z) const
+    {
+        static_for<0, 8, 1>{}([&](auto i) {
+            y[i.value] = type_convert<bf16_t>(type_convert<float>(x[i.value]) * z);
+        });
+    }
+
     constexpr const static bool is_pack8_invocable = true;
 };
 
 struct PassThroughPack2
 {
+    static constexpr const char* name = "PassThroughPack2";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
-
-#if 0
-    CK_TILE_HOST_DEVICE constexpr void operator()(ck_tile::fp16x2_t& y, const ck_tile::f8x2_t& x) const
-    {
-        auto t = type_convert<float2_t>(x);
-        y      = type_convert<fp16x2_t>(t);
-    }
-#endif
 
     CK_TILE_HOST_DEVICE constexpr void operator()(fp16x2_t& y, const pk_int4_t& x) const
     {
@@ -172,225 +905,102 @@ struct PassThroughPack2
 
 struct PassThrough
 {
+    static constexpr const char* name = "PassThrough";
+
+    template <class T>
+    using raw_t = std::remove_cv_t<std::remove_reference_t<T>>;
+
+    template <class Y, class X>
+    CK_TILE_HOST_DEVICE void operator()(Y&& y, const X& x) const
+    {
+        /*  Only do the assignment when
+            - y is an *l-value*   and
+            - y is *not* const     */
+        if constexpr(std::is_lvalue_reference_v<Y&&> && !std::is_const_v<raw_t<Y>>)
+        {
+            y = ck_tile::type_convert<raw_t<Y>>(x);
+        }
+        /*  otherwise (r-value or const)     -> do nothing  */
+    }
+
     template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<double, double>(double& y, const double& x) const
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        y = x;
+        y = ck_tile::type_convert<raw_t<Y>>(x);
     }
 
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, double>(float& y, const double& x) const
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&...) const -> void
     {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<double, float>(double& y, const float& x) const
-    {
-        y = type_convert<double>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, float>(float& y, const float& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::fp16_t>(ck_tile::fp16_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp16_t, float>(ck_tile::fp16_t& y,
-                                                                const float& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf16_t, ck_tile::bf16_t>(ck_tile::bf16_t& y, const ck_tile::bf16_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int32_t, int32_t>(int32_t& y, const int32_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf16_t, float>(ck_tile::bf16_t& y,
-                                                                const float& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::bf16_t>(float& y,
-                                                                const ck_tile::bf16_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf16_t, ck_tile::fp16_t>(ck_tile::bf16_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::fp16_t>(float& y,
-                                                                const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp16_t, int8_t>(ck_tile::fp16_t& y,
-                                                                 const int8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf16_t, int8_t>(ck_tile::bf16_t& y,
-                                                                 const int8_t& x) const
-    {
-        y = type_convert<ck_tile::bf16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<uint8_t, uint8_t>(uint8_t& y, const uint8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, int32_t>(int8_t& y, const int32_t& x) const
-    {
-        y = type_convert<int8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int32_t, int8_t>(int32_t& y, const int8_t& x) const
-    {
-        y = type_convert<int32_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int8_t, float>(int8_t& y, const float& x) const
-    {
-        y = type_convert<int8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, int8_t>(float& y, const int8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-#ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int4_t, int4_t>(int4_t& y, const int4_t& x) const
-    {
-        y = x;
-    }
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<int4_t, int>(int4_t& y, const int& x) const
-    {
-        y = type_convert<int4_t>(x);
-    }
-#endif
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp8_t, ck_tile::fp8_t>(ck_tile::fp8_t& y, const ck_tile::fp8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::fp8_t>(float& y,
-                                                               const ck_tile::fp8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::fp8_t, float>(ck_tile::fp8_t& y,
-                                                               const float& x) const
-    {
-        y = type_convert<ck_tile::fp8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::fp8_t>(ck_tile::fp16_t& y, const ck_tile::fp8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp8_t, ck_tile::fp16_t>(ck_tile::fp8_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = type_convert<ck_tile::fp8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf8_t, ck_tile::bf8_t>(ck_tile::bf8_t& y, const ck_tile::bf8_t& x) const
-    {
-        y = x;
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<float, ck_tile::bf8_t>(float& y,
-                                                               const ck_tile::bf8_t& x) const
-    {
-        y = type_convert<float>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void operator()<ck_tile::bf8_t, float>(ck_tile::bf8_t& y,
-                                                               const float& x) const
-    {
-        y = type_convert<ck_tile::bf8_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::fp16_t, ck_tile::bf8_t>(ck_tile::fp16_t& y, const ck_tile::bf8_t& x) const
-    {
-        y = type_convert<ck_tile::fp16_t>(x);
-    }
-
-    template <>
-    CK_TILE_HOST_DEVICE void
-    operator()<ck_tile::bf8_t, ck_tile::fp16_t>(ck_tile::bf8_t& y, const ck_tile::fp16_t& x) const
-    {
-        y = ck_tile::type_convert<ck_tile::bf8_t>(x);
+        // Just assign e with c
+        if constexpr(std::is_same_v<E, C>)
+        {
+            e = c;
+        }
+        else
+        {
+            e = ck_tile::type_convert<E>(c);
+        }
     }
 };
 
-#if 0
+struct AddScale
+{
+    static constexpr const char* name = "AddScale";
+
+    template <typename E, typename... As>
+    CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const As&... as) const
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(0.0f);
+
+        // Add by each D parameter using fold expression
+        ((result += ck_tile::type_convert<float>(as)), ...);
+
+        a = ck_tile::type_convert<E>(scale * result);
+    }
+
+    float scale = 1.0;
+};
+
+struct MultiDMultiply
+{
+    static constexpr const char* name = "MultiDMultiply";
+
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(c);
+
+        // Multiply by each D parameter using fold expression
+        ((result *= ck_tile::type_convert<float>(ds)), ...);
+
+        e = ck_tile::type_convert<E>(result);
+    }
+};
+
+struct MultiDAdd
+{
+    static constexpr const char* name = "MultiDAdd";
+
+    template <typename E, typename C, typename... Ds>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(c);
+
+        // Add by each D parameter using fold expression
+        ((result += ck_tile::type_convert<float>(ds)), ...);
+
+        e = ck_tile::type_convert<E>(result);
+    }
+};
+
 struct UnaryConvert
 {
+    static constexpr const char* name = "UnaryConvert";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
@@ -398,62 +1008,10 @@ struct UnaryConvert
     }
 };
 
-struct ConvertBF16RTN
-{
-    // convert to bf16 using round to nearest (rtn)
-    template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
-    {
-        // check Y datatype
-        static_assert(std::is_same_v<Y, ck_tile::bf16_t>, "Data type is not supported by this operation!");
-
-        // check X datatype
-        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
-                      "Data type is not supported by this operation!");
-
-        y = bf16_convert_rtn<Y>(x);
-    }
-};
-
-struct ConvertF8SR
-{
-    // convert to fp8 using stochastic rounding (SR)
-    template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
-    {
-        // check Y datatype
-        static_assert(std::is_same_v<Y, ck_tile::fp8_t> || std::is_same_v<Y, ck_tile::bf8_t>,
-                      "Data type is not supported by this operation!");
-
-        // check X datatype
-        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
-                      "Data type is not supported by this operation!");
-
-        y = f8_convert_sr<Y>(x);
-    }
-};
-
-struct ConvertF8RNE
-{
-    // convert to fp8 using rounding to nearest even
-    template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
-    {
-        // check Y datatype
-        static_assert(std::is_same_v<Y, ck_tile::fp8_t> || std::is_same_v<Y, ck_tile::bf8_t>,
-                      "Data type is not supported by this operation!");
-
-        // check X datatype
-        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
-                      "Data type is not supported by this operation!");
-
-        y = f8_convert_rne<Y>(x);
-    }
-};
-#endif
-
 struct Scale
 {
+    static constexpr const char* name = "Scale";
+
     CK_TILE_HOST_DEVICE Scale(float scale = 1.f) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -501,6 +1059,8 @@ struct Scale
 
 struct ScaleAndResetNaNToMinusInfinity
 {
+    static constexpr const char* name = "ScaleAndResetNaNToMinusInfinity";
+
     CK_TILE_HOST_DEVICE ScaleAndResetNaNToMinusInfinity(float scale) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -517,6 +1077,8 @@ struct ScaleAndResetNaNToMinusInfinity
 
 struct UnaryDivide
 {
+    static constexpr const char* name = "UnaryDivide";
+
     CK_TILE_HOST_DEVICE UnaryDivide(const int32_t divider = 1) : divider_(divider) {}
 
     template <typename T>
@@ -534,14 +1096,16 @@ struct UnaryDivide
 
 struct UnarySquare
 {
-    template <typename T>
-    CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
+    static constexpr const char* name = "UnarySquare";
+
+    template <typename Y, typename X>
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        static_assert(std::is_same_v<T, float> || std::is_same_v<T, ck_tile::fp16_t> ||
-                          std::is_same_v<T, double> || std::is_same_v<T, int32_t> ||
-                          std::is_same_v<T, int8_t>
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t> ||
+                          std::is_same_v<X, double> || std::is_same_v<X, int32_t> ||
+                          std::is_same_v<X, int8_t>
 #ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                          || std::is_same_v<T, int4_t>
+                          || std::is_same_v<X, int4_t>
 #endif
                       ,
                       "Data type is not supported by this operation!");
@@ -551,6 +1115,8 @@ struct UnarySquare
 
 struct UnaryAbs
 {
+    static constexpr const char* name = "UnaryAbs";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -565,6 +1131,8 @@ struct UnaryAbs
 
 struct UnarySqrt
 {
+    static constexpr const char* name = "UnarySqrt";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -577,6 +1145,8 @@ struct UnarySqrt
 
 struct Relu
 {
+    static constexpr const char* name = "Relu";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -603,123 +1173,74 @@ struct Relu
 // gpu code use lower accuracy "_ocml_exp_f32" and "rcp" function
 struct FastGelu
 {
-    template <typename Y, typename X>
-    CK_TILE_HOST void operator()(Y& y, const X& x) const;
-
-    template <typename Y, typename X>
-    CK_TILE_DEVICE void operator()(Y& y, const X& x) const;
-
-    template <>
-    CK_TILE_HOST void operator()<float, float>(float& y, const float& x) const
-    {
-        // const float u   = -2.f * x * (0.035677f * x * x + 0.797885f);
-        const float c1  = -2.0 * 0.035677f;
-        const float c2  = -2.0 * 0.797885f;
-        const float u   = x * (c1 * x * x + c2);
-        const float emu = exp(u);
-        y               = x / (1.f + emu);
-    }
+    static constexpr const char* name = "FastGelu";
 
     // device code, use lower precision "__ocml_exp_f32" and "rcp"
-    template <>
-    CK_TILE_DEVICE void operator()<float, float>(float& y, const float& x) const
+    template <typename Y, typename X>
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
+        const float x_f = type_convert<float>(x);
+#if defined(__gfx125__)
+        const float c1 = 0.035677f;
+        const float c2 = 0.797885f;
+        const float u  = x_f * (c1 * x_f * x_f + c2);
+
+        y = type_convert<Y>(0.5f * x_f * (1.f + __builtin_amdgcn_tanhf(u)));
+#elif defined(__HIP_DEVICE_COMPILE__)
         // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
         const float c1  = -2.0 * 0.035677f;
         const float c2  = -2.0 * 0.797885f;
-        const float u   = x * (c1 * x * x + c2);
+        const float u   = x_f * (c1 * x_f * x_f + c2);
         const float emu = __ocml_exp_f32(u);
 
-        y = x * ck_tile::rcp(1.f + emu);
+        y = type_convert<Y>(x_f * ck_tile::rcp(1.f + emu));
+#else
+        // const float u   = -2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1  = -2.0 * 0.035677f;
+        const float c2  = -2.0 * 0.797885f;
+        const float u   = x_f * (c1 * x_f * x_f + c2);
+        const float emu = exp(u);
+        y               = x_f / (1.f + emu);
+#endif
     }
 
     template <>
-    CK_TILE_HOST void operator()<ck_tile::fp16_t, ck_tile::fp16_t>(ck_tile::fp16_t& y,
-                                                                   const ck_tile::fp16_t& x) const
+    CK_TILE_HOST_DEVICE void
+    operator()<ck_tile::fp16_t, ck_tile::fp16_t>(ck_tile::fp16_t& y, const ck_tile::fp16_t& x) const
     {
-        float y_f;
+#if defined(__gfx125__)
+        const ck_tile::fp16_t c1 = type_convert<ck_tile::fp16_t>(0.035677f);
+        const ck_tile::fp16_t c2 = type_convert<ck_tile::fp16_t>(0.797885f);
+        const ck_tile::fp16_t u  = x * (c1 * x * x + c2);
 
-        this->operator()<float, float>(y_f, type_convert<float>(x));
-
-        y = type_convert<ck_tile::fp16_t>(y_f);
+        y = type_convert<ck_tile::fp16_t>(0.5f) * x *
+            (type_convert<ck_tile::fp16_t>(1.f) + __builtin_amdgcn_tanhh(u));
+#else
+        this->operator()(y, type_convert<float>(x));
+#endif
     }
 
     template <>
-    CK_TILE_DEVICE void operator()<ck_tile::fp16_t, ck_tile::fp16_t>(ck_tile::fp16_t& y,
-                                                                     const ck_tile::fp16_t& x) const
+    CK_TILE_HOST_DEVICE void
+    operator()<ck_tile::bf16_t, ck_tile::bf16_t>(ck_tile::bf16_t& y, const ck_tile::bf16_t& x) const
     {
-        float y_f;
+#if defined(__gfx125__)
+        const ck_tile::bf16_t c1 = type_convert<ck_tile::bf16_t>(0.035677f);
+        const ck_tile::bf16_t c2 = type_convert<ck_tile::bf16_t>(0.797885f);
+        const ck_tile::bf16_t u  = x * (c1 * x * x + c2);
 
-        this->operator()<float, float>(y_f, type_convert<float>(x));
-
-        y = type_convert<ck_tile::fp16_t>(y_f);
-    }
-
-    template <>
-    CK_TILE_HOST void operator()<ck_tile::fp16_t, float>(ck_tile::fp16_t& y, const float& x) const
-    {
-        float y_f;
-
-        this->operator()<float, float>(y_f, x);
-
-        y = type_convert<ck_tile::fp16_t>(y_f);
-    }
-
-    template <>
-    CK_TILE_DEVICE void operator()<ck_tile::fp16_t, float>(ck_tile::fp16_t& y, const float& x) const
-    {
-        float y_f;
-
-        this->operator()<float, float>(y_f, x);
-
-        y = type_convert<ck_tile::fp16_t>(y_f);
-    }
-
-    template <>
-    CK_TILE_HOST void operator()<ck_tile::bf16_t, float>(ck_tile::bf16_t& y, const float& x) const
-    {
-        float y_f;
-
-        this->operator()<float, float>(y_f, x);
-
-        y = type_convert<ck_tile::bf16_t>(y_f);
-    }
-
-    template <>
-    CK_TILE_DEVICE void operator()<ck_tile::bf16_t, float>(ck_tile::bf16_t& y, const float& x) const
-    {
-        float y_f;
-
-        this->operator()<float, float>(y_f, x);
-
-        y = type_convert<ck_tile::bf16_t>(y_f);
-    }
-
-    template <>
-    CK_TILE_DEVICE void operator()<ck_tile::bf16_t, ck_tile::bf16_t>(ck_tile::bf16_t& y,
-                                                                     const ck_tile::bf16_t& x) const
-    {
-        float y_f;
-
-        this->operator()<float, float>(y_f, type_convert<float>(x));
-
-        y = type_convert<ck_tile::bf16_t>(y_f);
-    }
-
-    template <>
-    CK_TILE_HOST void operator()<ck_tile::bf16_t, ck_tile::bf16_t>(ck_tile::bf16_t& y,
-                                                                   const ck_tile::bf16_t& x) const
-    {
-        float y_f;
-
-        this->operator()<float, float>(y_f, type_convert<float>(x));
-
-        y = type_convert<ck_tile::bf16_t>(y_f);
+        y = type_convert<ck_tile::bf16_t>(0.5f) * x *
+            (type_convert<ck_tile::bf16_t>(1.f) + __builtin_amdgcn_tanh_bf16(u));
+#else
+        this->operator()(y, type_convert<float>(x));
+#endif
     }
 };
 
 struct FastGeluAsm
 {
+    static constexpr const char* name = "FastGeluAsm";
+
     template <typename Y, typename X>
     CK_TILE_HOST void operator()(Y& y, const X& x) const;
 
@@ -821,6 +1342,8 @@ struct FastGeluAsm
 // y = 0.5*x*(1+erf(x/sqrt(2)))
 struct Gelu
 {
+    static constexpr const char* name = "Gelu";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -841,6 +1364,8 @@ struct Gelu
 
 struct Sigmoid
 {
+    static constexpr const char* name = "Sigmoid";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -855,6 +1380,8 @@ struct Sigmoid
 
 struct Silu
 {
+    static constexpr const char* name = "Silu";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -944,20 +1471,23 @@ struct SiluAsm
 
 struct TanH
 {
-    template <typename T>
-    CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
+    template <typename Y, typename X>
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
-                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
-                          std::is_same_v<T, int32_t>,
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, double> ||
+                          std::is_same_v<X, ck_tile::fp16_t> ||
+                          std::is_same_v<X, ck_tile::bf16_t> || std::is_same_v<X, int8_t> ||
+                          std::is_same_v<X, int32_t>,
                       "Data type is not supported by this operation!");
 
-        y = ck_tile::tanh(x);
+        y = type_convert<Y>(ck_tile::tanh(x));
     };
 };
 
 struct ACos
 {
+    static constexpr const char* name = "ACos";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -972,6 +1502,8 @@ struct ACos
 
 struct Neg
 {
+    static constexpr const char* name = "Neg";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -986,6 +1518,8 @@ struct Neg
 
 struct ATan
 {
+    static constexpr const char* name = "ATan";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1000,6 +1534,8 @@ struct ATan
 
 struct Sin
 {
+    static constexpr const char* name = "Sin";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1014,6 +1550,8 @@ struct Sin
 
 struct ASinH
 {
+    static constexpr const char* name = "ASinH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1028,6 +1566,8 @@ struct ASinH
 
 struct Cos
 {
+    static constexpr const char* name = "Cos";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1042,6 +1582,8 @@ struct Cos
 
 struct ACosH
 {
+    static constexpr const char* name = "ACosH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1056,6 +1598,8 @@ struct ACosH
 
 struct Tan
 {
+    static constexpr const char* name = "Tan";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1070,6 +1614,8 @@ struct Tan
 
 struct ATanH
 {
+    static constexpr const char* name = "ATanH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1084,6 +1630,8 @@ struct ATanH
 
 struct SinH
 {
+    static constexpr const char* name = "SinH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1098,6 +1646,8 @@ struct SinH
 
 struct Ceil
 {
+    static constexpr const char* name = "Ceil";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1112,6 +1662,8 @@ struct Ceil
 
 struct Exp
 {
+    static constexpr const char* name = "Exp";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1126,6 +1678,8 @@ struct Exp
 
 struct CosH
 {
+    static constexpr const char* name = "CosH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1140,6 +1694,8 @@ struct CosH
 
 struct Floor
 {
+    static constexpr const char* name = "Floor";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1154,6 +1710,8 @@ struct Floor
 
 struct Log
 {
+    static constexpr const char* name = "Log";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1168,6 +1726,8 @@ struct Log
 
 struct ASin
 {
+    static constexpr const char* name = "ASin";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1182,6 +1742,8 @@ struct ASin
 
 struct Rcp
 {
+    static constexpr const char* name = "Rcp";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1196,6 +1758,8 @@ struct Rcp
 
 struct Swish
 {
+    static constexpr const char* name = "Swish";
+
     Swish(float beta = 1.0f) : beta_(beta) {}
 
     template <typename Y, typename X>
@@ -1218,6 +1782,8 @@ struct Swish
 
 struct SoftRelu
 {
+    static constexpr const char* name = "SoftRelu";
+
     SoftRelu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1236,6 +1802,8 @@ struct SoftRelu
 
 struct Power
 {
+    static constexpr const char* name = "Power";
+
     Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
         : alpha_(alpha), beta_(beta), gamma_(gamma){};
 
@@ -1259,6 +1827,8 @@ struct Power
 
 struct ClippedRelu
 {
+    static constexpr const char* name = "ClippedRelu";
+
     ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename T>
@@ -1278,6 +1848,8 @@ struct ClippedRelu
 
 struct LeakyRelu
 {
+    static constexpr const char* name = "LeakyRelu";
+
     LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
 
     template <typename T>
@@ -1295,6 +1867,8 @@ struct LeakyRelu
 
 struct Elu
 {
+    static constexpr const char* name = "Elu";
+
     Elu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1312,6 +1886,8 @@ struct Elu
 
 struct Logistic
 {
+    static constexpr const char* name = "Logistic";
+
     Logistic(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1328,8 +1904,27 @@ struct Logistic
     const float alpha_;
 };
 
+struct Clamp
+{
+    CK_TILE_HOST_DEVICE Clamp(float lower = std::numeric_limits<float>::lowest(),
+                              float upper = std::numeric_limits<float>::max())
+        : lower_(lower), upper_(upper) {};
+
+    template <typename T>
+    CK_TILE_HOST_DEVICE constexpr void operator()(T& y, const T& x) const
+    {
+        T lower = ck_tile::type_convert<T>(lower_);
+        T upper = ck_tile::type_convert<T>(upper_);
+        y       = ck_tile::clamp(x, lower, upper);
+    }
+
+    float lower_, upper_;
+};
+
 struct ConvInvscale
 {
+    static constexpr const char* name = "ConvInvscale";
+
     CK_TILE_HOST_DEVICE
     ConvInvscale(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1353,6 +1948,8 @@ struct ConvInvscale
 
 struct ConvScale
 {
+    static constexpr const char* name = "ConvScale";
+
     CK_TILE_HOST_DEVICE
     ConvScale(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1376,6 +1973,8 @@ struct ConvScale
 
 struct ConvScaleRelu
 {
+    static constexpr const char* name = "ConvScaleRelu";
+
     CK_TILE_HOST_DEVICE
     ConvScaleRelu(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1402,11 +2001,62 @@ struct ConvScaleRelu
 template <typename DstType, typename SrcType>
 struct Cast
 {
+    static constexpr const char* name = "Cast";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(DstType& y, const SrcType& x) const
     {
         y = ck_tile::type_convert<DstType>(x);
     };
+};
+
+/**
+ * @brief Compose two unary element-wise functions into one.
+ *
+ *
+ * @note The Ds tensor can be used by at most one of the composed functions.
+ * This holds even if compositions are chained:
+ * In `Compose<FA, Compose<FB, FC>>`, only one of `FA`, `FB`, or `FC` can use
+ * the Ds tensor.
+ *
+ * @tparam FuncA    The first function to be applied.
+ * @tparam FuncB    The second function to be applied.
+ * @tparam FuncADs  Whether `FuncA` uses the Ds tensor.
+ * @tparam FuncBDs  Whether `FuncB` uses the Ds tensor.
+ */
+template <typename FuncA, typename FuncB, bool FuncADs = false, bool FuncBDs = false>
+struct Compose
+{
+    static_assert(!(FuncADs && FuncBDs), "Only one composed function may use the Ds tensor.");
+
+    CK_TILE_HOST_DEVICE Compose(FuncA func_a_ = FuncA{}, FuncB func_b_ = FuncB{})
+        : func_a(func_a_), func_b(func_b_)
+    {
+    }
+
+    template <typename AIn, typename BOut, typename AOut = AIn, typename... ADs>
+    CK_TILE_HOST_DEVICE constexpr void operator()(BOut& y, const AIn& x, const ADs&... ds) const
+    {
+        AOut tmp;
+        if constexpr(FuncADs)
+        {
+            func_a(tmp, x, ds...);
+            func_b(y, tmp);
+        }
+        else if constexpr(FuncBDs)
+        {
+            func_a(tmp, x);
+            func_b(y, tmp, ds...);
+        }
+        else
+        {
+            func_a(tmp, x);
+            func_b(y, tmp);
+        }
+    }
+
+    const FuncA func_a;
+    const FuncB func_b;
 };
 
 // support fastconvert of int8 to fp16

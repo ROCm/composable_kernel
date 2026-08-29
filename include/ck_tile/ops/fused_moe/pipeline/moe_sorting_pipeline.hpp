@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,14 +13,6 @@
 #endif
 
 namespace ck_tile {
-
-// template <typename Problem_, typename Policy_ = MoeSortingPolicy>
-// struct MoeSortingPipeline
-// {
-//     // TODO: this kernel only support warp per row
-//     using Problem    = remove_cvref_t<Problem_>;
-//     using Policy     = remove_cvref_t<Policy_>;
-//     using WeightType = typename Problem::WeightType;
 
 //     template <typename TopkIdWindow, typename WeightWindow>
 //     CK_TILE_DEVICE auto operator()(const TopkIdWindow& topk_id_window,

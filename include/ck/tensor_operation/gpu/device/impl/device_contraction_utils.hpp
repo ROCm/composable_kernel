@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,17 +35,15 @@ auto CalculateMaxRead(const std::vector<index_t>& lengths, const std::vector<ind
     if(lengths.size() != NumDim1 + NumDim2)
     {
         std::ostringstream err;
-        err << "Incorrect number of lengths in "
-            << "device_contraction_utils.hpp"
-            << ":" << __LINE__ << ", in function: " << __func__;
+        err << "Incorrect number of lengths in " << "device_contraction_utils.hpp" << ":"
+            << __LINE__ << ", in function: " << __func__;
         throw std::runtime_error(err.str());
     }
     if(strides.size() != NumDim1 + NumDim2)
     {
         std::ostringstream err;
-        err << "Incorrect number of strides in "
-            << "device_contraction_utils.hpp"
-            << ":" << __LINE__ << ", in function: " << __func__;
+        err << "Incorrect number of strides in " << "device_contraction_utils.hpp" << ":"
+            << __LINE__ << ", in function: " << __func__;
         throw std::runtime_error(err.str());
     }
 

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -100,12 +100,12 @@ static auto create_gemm_desc(const ck::index_t G, const ck::index_t NDoHoWo, con
     if constexpr(std::is_same_v<InputLayout, GNWC> || std::is_same_v<InputLayout, GNHWC> ||
                  std::is_same_v<InputLayout, GNDHWC>)
     {
-        return HostTensorDescriptor({G, NDoHoWo, CZYX});
+        return HostTensorDescriptor({G, NDoHoWo, CZYX}, InputLayout{});
     }
     else if constexpr(std::is_same_v<InputLayout, NWGC> || std::is_same_v<InputLayout, NHWGC> ||
                       std::is_same_v<InputLayout, NDHWGC>)
     {
-        return HostTensorDescriptor({G, NDoHoWo, CZYX}, {CZYX, CZYX * G, 1});
+        return HostTensorDescriptor({G, NDoHoWo, CZYX}, {CZYX, CZYX * G, 1}, InputLayout{});
     }
     else
     {
@@ -122,7 +122,8 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
                                         int init_method,
                                         bool do_log,
                                         bool time_kernel,
-                                        const ck::utils::conv::ConvParam& conv_param)
+                                        const ck::utils::conv::ConvParam& conv_param,
+                                        index_t instance_index = -1)
 {
     const ck::index_t NDoHoWo =
         conv_param.N_ *
@@ -226,9 +227,14 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
     // profile device op instances
     bool pass                   = true;
     bool is_supporting_instance = false;
-
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<InputDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<OutputDataType*>(out_device_buf.GetDeviceBuffer()),
@@ -288,9 +294,8 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
         }
     }
 
-    std::cout << "Best configuration parameters:"
-              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\nGB/s: " << best_gb_per_sec << std::endl;
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
+              << "\navg_time: " << best_avg_time << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     return is_supporting_instance && pass;
 }

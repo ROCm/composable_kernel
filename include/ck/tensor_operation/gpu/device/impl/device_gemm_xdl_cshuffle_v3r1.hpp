@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -85,12 +85,33 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                                                            BElementwiseOperation,
                                                            CElementwiseOperation>
 {
-    static constexpr index_t NumDTensor = DsDataType::Size();
+    static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               true>();
+    static constexpr auto WarpTileConfig32 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               CShuffleMXdlPerWavePerShuffle,
+                                                               CShuffleNXdlPerWavePerShuffle,
+                                                               false>();
+    static constexpr auto NXdlPerWave64    = WarpTileConfig64.At(3);
+    static constexpr auto NXdlPerWave32    = WarpTileConfig32.At(3);
+    static constexpr index_t NumDTensor    = DsDataType::Size();
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
+    template <typename WarpTileConfig>
+    using GridwiseGemmBase = GridwiseGemm_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         CLayout,
@@ -109,10 +130,10 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
         KPerBlock,
         AK1,
         BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave,
+        WarpTileConfig::At(0),
+        WarpTileConfig::At(1),
+        WarpTileConfig::At(2),
+        WarpTileConfig::At(3),
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -129,16 +150,18 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
         BBlockTransferDstScalarPerVector_BK1,
         false,
         BBlockLdsExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        WarpTileConfig::At(4),
+        WarpTileConfig::At(5),
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB>;
+    using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
-    struct Argument : public GridwiseGemm::Argument
+    struct Argument : public GridwiseGemm64::Argument
     {
         Argument(const ADataType* p_a_grid_,
                  const BDataType* p_b_grid_,
@@ -152,17 +175,17 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                  std::array<ck::index_t, NumDTensor> StrideDs_,
                  index_t StrideC_,
                  index_t k_batch_)
-            : GridwiseGemm::Argument(p_a_grid_,
-                                     p_b_grid_,
-                                     reinterpret_cast<ReduceDataType*>(p_c_grid_),
-                                     M_,
-                                     N_,
-                                     K_,
-                                     StrideA_,
-                                     StrideB_,
-                                     StrideC_,
-                                     k_batch_,
-                                     true),
+            : GridwiseGemm64::Argument(p_a_grid_,
+                                       p_b_grid_,
+                                       reinterpret_cast<ReduceDataType*>(p_c_grid_),
+                                       M_,
+                                       N_,
+                                       K_,
+                                       StrideA_,
+                                       StrideB_,
+                                       StrideC_,
+                                       k_batch_,
+                                       true),
               p_ds(p_ds_),
               StrideDs(StrideDs_)
         {
@@ -278,9 +301,10 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             return ave_time;
         }
 
-        float Run(const Argument& arg_, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg_, const StreamConfig& stream_config = StreamConfig{})
         {
-            auto arg = *dynamic_cast<const typename GridwiseGemm::Argument*>(&arg_);
+            auto arg = *reinterpret_cast<const typename GridwiseGemm::Argument*>(&arg_);
 
             if(!(!(arg.IsReduceAdd() || NumDTensor > 0) &&
                  std::is_same<CDataType, ReduceDataType>::value))
@@ -542,6 +566,8 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             return ave_time;
         }
 
+        INVOKER_RUN_IMPL
+
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -558,11 +584,15 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA,
+                                      ComputeTypeB,
+                                      MPerXDL,
+                                      NPerXDL,
+                                      WarpTileConfig32.At(0),
+                                      WarpTileConfig32.At(1)>())
         {
             return false;
         }
-
         if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
                                                        GemmSpec == GemmSpecialization::NKPadding ||
                                                        GemmSpec == GemmSpecialization::MNKPadding ||
@@ -571,7 +601,22 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
+            }
+        }
+        return false;
     }
 
     // polymorphic
@@ -677,7 +722,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();

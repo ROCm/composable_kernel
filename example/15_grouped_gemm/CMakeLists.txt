@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(example_grouped_gemm_xdl)
 add_example_executable(example_grouped_gemm_xdl_fp32 grouped_gemm_xdl_fp32.cpp)
 add_example_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_fp32)
@@ -33,3 +36,30 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_executable(example_grouped_gemm_xdl_int4 grouped_gemm_xdl_int4.cpp)
     add_example_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_int4)
 endif()
+
+add_custom_target(example_grouped_gemm_wmma)
+add_example_executable(example_grouped_gemm_wmma_splitk_fp16 grouped_gemm_wmma_splitk_fp16.cpp)
+add_example_dependencies(example_grouped_gemm_wmma example_grouped_gemm_wmma_splitk_fp16)
+
+add_example_executable(example_grouped_gemm_wmma_splitk_bf16 grouped_gemm_wmma_splitk_bf16.cpp)
+add_example_dependencies(example_grouped_gemm_wmma example_grouped_gemm_wmma_splitk_bf16)
+
+add_example_executable(example_grouped_gemm_multiple_d_wmma_fp16 grouped_gemm_multiple_d_wmma_fp16.cpp)
+add_example_dependencies(example_grouped_gemm_wmma example_grouped_gemm_multiple_d_wmma_fp16)
+
+add_example_executable(example_grouped_gemm_wmma_fixed_nk_fp16 grouped_gemm_wmma_fixed_nk_fp16.cpp)
+add_example_dependencies(example_grouped_gemm_wmma example_grouped_gemm_wmma_fixed_nk_fp16)
+
+add_example_executable(example_grouped_gemm_wmma_fixed_nk_bias_fp16 grouped_gemm_wmma_fixed_nk_bias_fp16.cpp)
+add_example_dependencies(example_grouped_gemm_wmma example_grouped_gemm_wmma_fixed_nk_bias_fp16)
+
+
+list(APPEND gpu_list_tf32 gfx942 gfx950)
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+    if(gpu IN_LIST gpu_list_tf32 AND target EQUAL 0)
+        add_example_executable(example_grouped_gemm_xdl_fp32_tf32 grouped_gemm_xdl_fp32_tf32.cpp)
+        add_example_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_fp32_tf32)
+        set(target 1)
+    endif()
+endforeach()

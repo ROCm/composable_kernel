@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -46,9 +46,9 @@ int run_layernorm4d_fwd_example()
         {0, W * C, C, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
-                                 save_mean.mDesc.GetStrides().end()},
+                                    save_mean.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{save_mean.mDesc.GetStrides().begin(),
-                                 save_mean.mDesc.GetStrides().end()},
+                                    save_mean.mDesc.GetStrides().end()},
         {1, 2, 3},
         1e-4,
         x_dev.GetDeviceBuffer(),

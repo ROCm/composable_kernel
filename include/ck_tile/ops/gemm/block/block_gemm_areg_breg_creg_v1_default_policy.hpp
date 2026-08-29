@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,6 +28,8 @@ struct BlockGemmARegBRegCRegV1DefaultPolicy
             return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution{}, 4, 1);
         }
     }
+
+    static constexpr index_t KSubTileNum = 1;
 };
 
 } // namespace ck_tile

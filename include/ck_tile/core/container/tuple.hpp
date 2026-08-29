@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,11 @@
 #include <utility>
 #include <initializer_list>
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#pragma clang diagnostic ignored "-Wlifetime-safety-lifetimebound-violation"
+#endif
 #ifndef CK_TILE_TUPLE_IMPL
 #define CK_TILE_TUPLE_IMPL 1
 #endif
@@ -98,13 +103,14 @@ CK_TILE_HOST_DEVICE constexpr T getv(const tuple_object<I, T, true>&)
 }
 
 template <index_t I, class T>
-CK_TILE_HOST_DEVICE constexpr const T& getv(const tuple_object<I, T, false>& x)
+CK_TILE_HOST_DEVICE constexpr const T&
+getv([[clang::lifetimebound]] const tuple_object<I, T, false>& x)
 {
     return x.element;
 }
 
 template <index_t I, class T>
-CK_TILE_HOST_DEVICE constexpr T& getv(tuple_object<I, T, false>& x)
+CK_TILE_HOST_DEVICE constexpr T& getv([[clang::lifetimebound]] tuple_object<I, T, false>& x)
 {
     return x.element;
 }
@@ -262,12 +268,18 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
         return flag;
     }
 
+    CK_TILE_HOST_DEVICE static constexpr bool IsTuple() { return true; }
+
 #define TP_COM_() static_assert(I < size(), "wrong! out of range")
     // clang-format off
-    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() const          { TP_COM_(); return impl::getv<I>(*this); }
-    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) const { TP_COM_(); return get<I>(); }
-    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get()                      { TP_COM_(); return impl::getv<I>(*this); }
-    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>)             { TP_COM_(); return get<I>(); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() const &          { TP_COM_(); return impl::getv<I>(*this); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) const & { TP_COM_(); return get<I>(); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() &                { TP_COM_(); return impl::getv<I>(*this); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) &       { TP_COM_(); return get<I>(); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() &&               { TP_COM_(); return impl::getv<I>(std::move(*this)); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) &&      { TP_COM_(); return std::move(*this).template get<I>(); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() const &&         { TP_COM_(); return impl::getv<I>(std::move(*this)); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) const &&{ TP_COM_(); return std::move(*this).template get<I>(); }
 
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) at() const          { TP_COM_(); return impl::getv<I>(*this); }
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) at(number<I>) const { TP_COM_(); return get<I>(); }
@@ -277,16 +289,14 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator[](number<I>)             { TP_COM_(); return get<I>(); }
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator[](number<I>) const { TP_COM_(); return get<I>(); }
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator()(number<I>)             { TP_COM_(); return get<I>(); }  // TODO: compatible
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator()(number<I>) const { TP_COM_(); return get<I>(); }
 
     // below function should be used under tuple_array<> type, no extra check will perform here
     template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as()                            { return reinterpret_cast<tuple_array<Tx, size()>&>(*this); }
     template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as() const                      { return reinterpret_cast<const tuple_array<Tx, size()>&>(*this); }
-    // below index is for index *AFTER* type convert, not before
-    //template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as(index_t i)                   { TP_COM_(); return reinterpret_cast<tuple_array<Tx, size()>&>(*this).at(i); }
-    //template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as(index_t i) const             { TP_COM_(); return reinterpret_cast<const tuple_array<Tx, size()>&>(*this).at(i); }
     template <typename Tx, index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as(number<I>)        { TP_COM_(); return reinterpret_cast<tuple_array<Tx, size()>&>(*this).at(number<I>{}); }
     template <typename Tx, index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as(number<I>) const  { TP_COM_(); return reinterpret_cast<const tuple_array<Tx, size()>&>(*this).at(number<I>{}); }
-    
+
     // template <typename Tx> CK_TILE_HOST_DEVICE constexpr void set_as(index_t i, const Tx & x)               { TP_COM_(); reinterpret_cast<tuple_array<Tx, size()>&>(*this).at(i) = x; }
     template <typename Tx, index_t I> CK_TILE_HOST_DEVICE constexpr void set_as(number<I>, const Tx & x)    { TP_COM_(); reinterpret_cast<tuple_array<Tx, size()>&>(*this).at(number<I>{}) = x; }
 
@@ -294,24 +304,34 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 #undef TP_COM_
 };
 
-template <typename, typename = void>
+template <typename... T>
+CK_TILE_HOST_DEVICE void print(const tuple<T...>& t)
+{
+    printf("tuple<");
+    if constexpr(sizeof...(T) > 0)
+    {
+        bool first = true;
+        static_for<0, sizeof...(T), 1>{}([&t, &first](auto i) {
+            if(!first)
+                printf(", ");
+            print(t.get(i));
+            first = false;
+        });
+    }
+    printf(">");
+}
+
+template <typename, typename>
 struct vector_traits;
 
 // specialization for array
 template <typename... T>
-struct vector_traits<tuple<T...>>
+struct vector_traits<tuple<T...>, void>
 {
     using scalar_type                    = __type_pack_element<0, T...>;
     static constexpr index_t vector_size = sizeof...(T);
 };
 
-// template <class... T>
-// CK_TILE_HOST_DEVICE constexpr
-// tuple<T...>
-// make_tuple(T const&... t)
-// {
-//     return {t...};
-// }
 template <typename... Xs>
 CK_TILE_HOST_DEVICE constexpr bool operator==(const tuple<Xs...>& a, const tuple<Xs...>& b)
 {
@@ -470,6 +490,12 @@ transform_tuples_impl(F f, const X& x, const Y& y, const Z& z, sequence<Is...>)
     return make_tuple(f(x.at(number<Is>{}), y.at(number<Is>{}), z.at(number<Is>{}))...);
 }
 
+template <typename F, typename Tuple, index_t... Is>
+constexpr decltype(auto) apply_impl(F&& f, Tuple&& t, sequence<Is...>)
+{
+    return std::forward<F>(f)(std::forward<Tuple>(t).get(number<Is>{})...);
+}
+
 } // namespace detail
 
 template <typename F, typename X>
@@ -491,6 +517,13 @@ CK_TILE_HOST_DEVICE constexpr auto transform_tuples(F f, const X& x, const Y& y,
 {
     return detail::transform_tuples_impl(
         f, x, y, z, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
+}
+
+template <typename F, typename Tuple>
+constexpr decltype(auto) apply(F&& f, Tuple&& t)
+{
+    constexpr index_t N = std::decay_t<Tuple>::size();
+    return detail::apply_impl(std::forward<F>(f), std::forward<Tuple>(t), make_index_sequence<N>{});
 }
 
 namespace detail {
@@ -655,9 +688,12 @@ CK_TILE_HOST_DEVICE constexpr auto operator+(const tuple<Xs...>& x, const Y& y)
     static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
-    tuple<Xs...> r;
-    static_for<0, NSize, 1>{}([&](auto i) { r[i] = x[i] + y[i]; });
-    return r;
+    // A prior in-place `tuple<Xs...> r; r[i] = x[i] + y[i];` could not write
+    // a runtime int back into a `constant<N>` slot when x is a mixed
+    // (runtime, compile-time) tuple. Mirror the `operator+(tuple<Xs>, tuple<Ys>)`
+    // overload below: build a fresh tuple via generate_tuple so each element
+    // type is deduced from the lambda.
+    return generate_tuple([&](auto i) { return x[i] + y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs, typename... Ys>
@@ -677,9 +713,9 @@ CK_TILE_HOST_DEVICE constexpr auto operator-(const tuple<Xs...>& x, const Y& y)
     static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
-    tuple<Xs...> r;
-    static_for<0, NSize, 1>{}([&](auto i) { r[i] = x[i] - y[i]; });
-    return r;
+    // See operator+ above. Mirror the tuple<Xs>-tuple<Ys> overload below to
+    // support mixed (runtime, compile-time) lengths.
+    return generate_tuple([&](auto i) { return x[i] - y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs, typename... Ys>
@@ -699,9 +735,9 @@ CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, const Y& y)
     static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
-    tuple<Xs...> r;
-    static_for<0, NSize, 1>{}([&](auto i) { r[i] = x[i] * y[i]; });
-    return r;
+    // See operator+ above. Mirror the tuple<Xs>*tuple<Ys> overload below to
+    // support mixed (runtime, compile-time) lengths.
+    return generate_tuple([&](auto i) { return x[i] * y[i]; }, number<NSize>{});
 }
 
 // MultiIndex = scalar * MultiIndex
@@ -712,9 +748,9 @@ template <
 CK_TILE_HOST_DEVICE constexpr auto operator*(Y a, const tuple<Xs...>& x)
 {
     constexpr index_t NSize = sizeof...(Xs);
-    tuple<Xs...> r;
-    static_for<0, NSize, 1>{}([&](auto i) { r[i] = a * x[i]; });
-    return r;
+    // See operator+ above. Use generate_tuple to support mixed
+    // (runtime, compile-time) tuple<Xs...> elements.
+    return generate_tuple([&](auto i) { return a * x[i]; }, number<NSize>{});
 }
 
 // MultiIndex = MultiIndex * scalar
@@ -827,4 +863,7 @@ struct tuple_element<I, const ck_tile::tuple<Ts...>>
                                   number<arr[5]>>{};                                     \
         }                                                                                \
     }()
+#endif
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
 #endif

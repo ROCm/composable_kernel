@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -27,15 +27,17 @@ int profile_gemm_add_silu(int argc, char* argv[])
 
     enum struct MatrixDataType
     {
-        F16_INT8_F16_F16,    // 0
-        BF16_INT8_BF16_BF16, // 1
+        F16_INT8_F16_F16    = 0,
+        BF16_INT8_BF16_BF16 = 1,
+        F16_F16_F16_F16     = 2,
+        BF16_BF16_BF16_BF16 = 3
     };
 
     if(argc != 15)
     {
         // clang-format off
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: f16&i8 1: bf16&i8)\n");
+        printf("arg2: data type (0: f16&i8 1: bf16&i8 2: f16&f16 3: bf16&bf16)\n");
         printf("arg3: matrix layout (0: E[m, n] = ReLU(A[m, k] * B[k, n] + D0[m, n]);\n");
         printf("                     1: E[m, n] = ReLU(A[m, k] * B[n, k] + D0[m, n]);\n");
         printf("                     2: E[m, n] = ReLU(A[k, m] * B[k, n] + D0[m, n]);\n");
@@ -127,6 +129,14 @@ int profile_gemm_add_silu(int argc, char* argv[])
     else if(data_type == MatrixDataType::BF16_INT8_BF16_BF16 && layout == MatrixLayout::MK_KN_MN_MN)
     {
         return profile(BF16{}, INT8{}, F32{}, BF16{}, BF16{}, Row{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::BF16_BF16_BF16_BF16 && layout == MatrixLayout::MK_KN_MN_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, BF16{}, Row{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::MK_KN_MN_MN)
+    {
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Row{}, Row{}, Row{}, Row{});
     }
     else
     {

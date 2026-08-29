@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,7 +11,9 @@ template <typename AType_,
           typename BType_,
           typename CType_,
           typename BlockWarps_,
-          typename WarpGemm_>
+          typename WarpGemm_,
+          index_t KSubTileNum_ = 1, // this variable is used for split K into multiple subtiles in
+          bool PackMNIter_     = false> // order to reduce register usage per wave>
 struct BlockGemmARegBRegCRegV1CustomPolicy
 {
     using AType = remove_cvref_t<AType_>;
@@ -25,6 +27,9 @@ struct BlockGemmARegBRegCRegV1CustomPolicy
     static constexpr index_t kKWarps = BlockWarps::at(number<2>{});
 
     using WarpGemm = remove_cvref_t<WarpGemm_>;
+
+    static constexpr index_t KSubTileNum = KSubTileNum_;
+    static constexpr bool PackMNIter     = PackMNIter_;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()

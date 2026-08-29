@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,6 +21,7 @@ namespace instance {
 using PassThrough          = ck::tensor_operation::element_wise::PassThrough;
 using ScaleAddScaleAddRelu = ck::tensor_operation::element_wise::ScaleAddScaleAddRelu;
 
+#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
 void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
@@ -85,6 +86,42 @@ void add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhw
                                                                 PassThrough,
                                                                 ScaleAddScaleAddRelu>>>& instances);
 #endif
+#endif
+
+#ifdef CK_USE_WMMA
+#ifdef CK_ENABLE_BF16
+// grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<NDHWGK, G_K>,
+                                                                NDHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                ck::Tuple<BF16, BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                ScaleAddScaleAddRelu>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<NDHWGK, G_K>,
+                                                                NDHWGK,
+                                                                F16,
+                                                                F16,
+                                                                ck::Tuple<F16, F16>,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                ScaleAddScaleAddRelu>>>& instances);
+#endif
+#endif
 
 template <ck::index_t NumDimSpatial,
           typename InLayout,
@@ -138,32 +175,48 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
+#ifdef CK_USE_XDL
                 add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                     op_ptrs);
+#endif
             }
 #endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                          is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
             {
+#ifdef CK_USE_XDL
                 add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                     op_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_f16_instances(
+                    op_ptrs);
+#endif
             }
 #endif
 #ifdef CK_ENABLE_BF16
             if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                          is_same_v<WeiDataType, ck::bhalf_t> && is_same_v<OutDataType, ck::bhalf_t>)
             {
+#ifdef CK_USE_XDL
                 add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                     op_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+                    op_ptrs);
+#endif
             }
 #endif
 #ifdef CK_ENABLE_INT8
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                          is_same_v<OutDataType, int8_t>)
             {
+#ifdef CK_USE_XDL
                 add_device_grouped_conv3d_fwd_xdl_scaleadd_scaleadd_relu_ndhwgc_gkzyxc_ndhwgk_int8_instances(
                     op_ptrs);
+#endif
             }
 #endif
         }

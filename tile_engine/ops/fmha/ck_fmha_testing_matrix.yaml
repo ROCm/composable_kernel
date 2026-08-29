@@ -1,0 +1,788 @@
+test_categories:
+  Smoke:
+    description: "Pre-submit sanity checks. Fast execution, covering basic functionality and edge cases."
+    test_patterns:
+      - "*/Smoke.*"
+    labels: ["Smoke"]
+
+  Full:
+    description: "Post-submit validation. Comprehensive coverage of modern LLM architectures and CK operational constraints."
+    test_patterns:
+      - "*/Smoke.*"
+      - "*/Full.*"
+    labels: ["Full"]
+
+  Nightly:
+    description: "Nightly exhaustive coverage. Sweeps all combinations of precision, layout, masking, and padding."
+    test_patterns:
+      - "*"
+    labels: ["Nightly"]
+
+execution_settings:
+  default_timeout: 60
+  category_timeouts:
+    Smoke: 60      # 1 min per test
+    Full: 300      # 5 min per test
+    Nightly: 600   # 10 min per test
+
+# =============================================================================
+# Forward Pass (Prefill) & Stochastic Execution (Dropout)
+# =============================================================================
+forward_tests:
+  # ---------------------------------------------------------------------------
+  # Smoke Tests (Fast, representative subset)
+  # ---------------------------------------------------------------------------
+  smoke:
+    - name: "GQA_4to1_Prefill_Basic"
+      description: "Baseline GQA prefill; primary optimization target."
+      batch: [1, 4]
+      seqlen_q: [2048]
+      seqlen_k: [2048]
+      nhead_q: [32]
+      nhead_k: [8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false, true]
+
+    - name: "Small_GQA_7to1_SubWarp"
+      description: "Sub-warp vectorized loads; low LDS utilization bounds."
+      batch: [1]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [14]
+      nhead_k: [2]
+      hdim_q: [64]
+      hdim_v: [64]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "MHA_H96_Irregular_Dim"
+      description: "Non-power-of-2 hdim; forces complex padding/striding in LDS."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [32]
+      nhead_k: [32]
+      hdim_q: [96]
+      hdim_v: [96]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    # CK smoke test edge cases (from example/ck_tile/01_fmha/script/smoke_test_fwd.sh)
+    - name: "CK_Asymmetric_Hdim_Small"
+      description: "Asymmetric hdim_q != hdim_v; tests vectorized load widths."
+      batch: [2]
+      seqlen_q: [55]
+      seqlen_k: [256]
+      nhead_q: [2]
+      nhead_k: [1]
+      hdim_q: [16]
+      hdim_v: [32, 64, 128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "CK_Tiny_Sequences"
+      description: "Edge cases: sq=1, sq=3, very short sequences."
+      batch: [1, 2]
+      seqlen_q: [1, 3, 33]
+      seqlen_k: [10, 99, 33]
+      nhead_q: [2]
+      nhead_k: [1]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "CK_Asymmetric_Seqlen"
+      description: "Asymmetric seqlen_q != seqlen_k from CK smoke tests."
+      batch: [1, 2]
+      seqlen_q: [100, 99, 1024]
+      seqlen_k: [51, 256, 256]
+      nhead_q: [3]
+      nhead_k: [3]
+      hdim_q: [64, 128]
+      hdim_v: [64, 128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    # Hdim sweep covering all supported (hdim_q, hdim_v) pairs.
+    # YAML cartesian product creates some orphan combos (hdim_q != hdim_v pairs
+    # without kernels). The benchmark silently skips these. Use --validate to list them.
+    # Supported pairs: h32, h64, h80x96, h96, h96x128, h128, h160, h192x128, h192, h256
+    - name: "CK_All_Hdim_Sweep"
+      description: "Sweep all supported hdim combos. Orphan pairs are skipped at runtime."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [8]
+      nhead_k: [4]
+      hdim_q: [32, 64, 80, 96, 128, 160, 192, 256]
+      hdim_v: [32, 64, 96, 128, 160, 192, 256]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "CK_FP8_Basic"
+      description: "FP8 basic forward test."
+      batch: [1, 2]
+      seqlen_q: [128]
+      seqlen_k: [128]
+      nhead_q: [1]
+      nhead_k: [1]
+      hdim_q: [64, 128, 192, 256]
+      hdim_v: [64, 128, 128, 256]
+      dtype: ["fp8bf16", "fp8fp32"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    # Production model configs (from aiter model_shapes.json)
+    - name: "GQA_16to1_Large"
+      description: "16:1 GQA ratio (70B-class models)."
+      batch: [1, 4]
+      seqlen_q: [2048]
+      seqlen_k: [2048]
+      nhead_q: [64]
+      nhead_k: [4]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "MQA_128to8_Decode"
+      description: "405B-class decode: 128 Q heads, 8 KV heads, single token query."
+      batch: [1, 8, 64]
+      seqlen_q: [1]
+      seqlen_k: [1024, 4096]
+      nhead_q: [128]
+      nhead_k: [8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "MLA_Sparse_Decode"
+      description: "Multi-latent attention decode (R1-class): asymmetric h192x128."
+      batch: [1, 4]
+      seqlen_q: [1]
+      seqlen_k: [1024, 4096]
+      nhead_q: [128]
+      nhead_k: [128]
+      hdim_q: [192]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Vision_Transformer_Shapes"
+      description: "Vision-text hybrid (Maverick-class): h88 and h128 mixed."
+      batch: [1, 4]
+      seqlen_q: [256, 1024]
+      seqlen_k: [256, 1024]
+      nhead_q: [16, 40]
+      nhead_k: [8, 16]
+      hdim_q: [88, 128]
+      hdim_v: [88, 128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "FP8_Varlen_Realistic"
+      description: "FP8 with realistic GQA and variable lengths (from aiter tests)."
+      batch: [1, 8]
+      seqlen_q: [113, 256, 1024]
+      seqlen_k: [203, 512, 1024]
+      nhead_q: [8, 32, 40]
+      nhead_k: [1, 8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp8bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Extreme_GQA_Ratios"
+      description: "Extreme GQA: 5:1, 10:1, 24:4, 48:8 from aiter test suite."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [5, 10, 24, 48]
+      nhead_k: [1, 1, 4, 8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Paged_Decode_Shapes"
+      description: "Paged attention decode patterns: single-token Q, long KV context."
+      batch: [4, 80, 128]
+      seqlen_q: [1, 4]
+      seqlen_k: [512, 4096]
+      nhead_q: [8, 16, 64]
+      nhead_k: [1, 4]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Prefill_Odd_Lengths"
+      description: "Prefill with non-standard seq lengths from aiter test suite."
+      batch: [2]
+      seqlen_q: [113, 339, 799, 1023, 3131]
+      seqlen_k: [203, 339, 799, 1024, 3131]
+      nhead_q: [32]
+      nhead_k: [8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+  # ---------------------------------------------------------------------------
+  # Full Tests (Modern LLM Architectures & CK Constraints)
+  # ---------------------------------------------------------------------------
+  full:
+    - name: "MHA_H256_High_LDS_Pressure"
+      description: "High LDS pressure; tests block partitioner limits with hdim=256."
+      batch: [1, 4]
+      seqlen_q: [4096]
+      seqlen_k: [4096]
+      nhead_q: [8]
+      nhead_k: [4]
+      hdim_q: [256]
+      hdim_v: [256]
+      dtype: ["bf16"]
+      layout: ["BHSD", "BSHD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [true]
+
+    - name: "MQA_64to1_Broadcast"
+      description: "Pure MQA; tests extreme KV to Q broadcast logic (64:1)."
+      batch: [2]
+      seqlen_q: [4096]
+      seqlen_k: [4096]
+      nhead_q: [64]
+      nhead_k: [1]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "GQA_6to1_Irregular"
+      description: "Irregular 6:1 GQA ratio; tests tile distribution."
+      batch: [2]
+      seqlen_q: [4096]
+      seqlen_k: [4096]
+      nhead_q: [48]
+      nhead_k: [8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "MLA_H128xH576_Asymmetric"
+      description: "Multi-latent attention fusion; asymmetric Q/KV (128 vs 576)."
+      batch: [1, 4]
+      seqlen_q: [4096]
+      seqlen_k: [4096]
+      nhead_q: [128]
+      nhead_k: [128]
+      hdim_q: [128]
+      hdim_v: [576]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [true]
+
+    - name: "Asymmetric_Head_Dims_192_128"
+      description: "Test asymmetric head dimensions (192x128)."
+      batch: [2]
+      seqlen_q: [2048]
+      seqlen_k: [2048]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [192]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD", "BSHD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Asymmetric_Head_Dims_128_192"
+      description: "Test asymmetric head dimensions (128x192)."
+      batch: [2]
+      seqlen_q: [2048]
+      seqlen_k: [2048]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [128]
+      hdim_v: [192]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Diverse_Head_Dims_Sweep"
+      description: "Sweep across various head dimensions to ensure broad coverage."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [48, 64, 72, 96, 128, 160, 256]
+      hdim_v: [48, 64, 72, 96, 128, 160, 256]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Stochastic_Execution_Dropout_Sweep"
+      description: "PRNG state synchronization and warp alignment with stochastic masking across dims."
+      batch: [4]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [16]
+      nhead_k: [8]
+      hdim_q: [48, 64, 72, 96, 128, 160, 256]
+      hdim_v: [48, 64, 72, 96, 128, 160, 256]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.1, 0.2]
+      lse: [false, true]
+
+    - name: "Padding_Boundary_Stress_Odd_Lengths"
+      description: "Test sequences that are not perfect multiples of the tile size to validate padding logic."
+      batch: [2]
+      seqlen_q: [259, 500, 987, 1023]
+      seqlen_k: [259, 500, 987, 1023]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Bias_Variants_Sweep"
+      description: "Test elementwise and alibi bias across different sequence lengths and batch sizes."
+      batch: [1, 4]
+      seqlen_q: [512, 1024]
+      seqlen_k: [512, 1024]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [64, 128]
+      hdim_v: [64, 128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["elementwise", "alibi"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Extreme_Batch_Size_Stress"
+      description: "Test very large batch sizes to stress grid launch dimensions and scheduling."
+      batch: [64, 128, 256]
+      seqlen_q: [128]
+      seqlen_k: [128]
+      nhead_q: [8]
+      nhead_k: [8]
+      hdim_q: [64]
+      hdim_v: [64]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+    - name: "Long_Sequence_Stress"
+      description: "Test very long sequences (approaching split-KV territory but forced dense)."
+      batch: [1]
+      seqlen_q: [8192, 16384]
+      seqlen_k: [8192, 16384]
+      nhead_q: [16]
+      nhead_k: [4]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["bf16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [true]
+
+    - name: "Cross_Attention_Shapes"
+      description: "Test shapes typical of cross-attention where seqlen_q != seqlen_k."
+      batch: [2]
+      seqlen_q: [1, 32, 128]
+      seqlen_k: [1024, 4096]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+
+    - name: "CK_Benchmark_Standard"
+      description: "Standard CK benchmark sweep (from benchmark_fwd.sh)."
+      batch: [32, 16, 8, 4, 2, 1]
+      seqlen_q: [512, 1024, 2048, 4096, 8192, 16384]
+      seqlen_k: [512, 1024, 2048, 4096, 8192, 16384]
+      nhead_q: [32, 16, 8]
+      nhead_k: [32, 16, 8]
+      hdim_q: [64, 128, 256]
+      hdim_v: [64, 128, 256]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+
+    - name: "CK_Benchmark_V3_Large"
+      description: "V3 pipeline benchmark with very long sequences (from benchmark_fwd_v3.sh)."
+      batch: [1]
+      seqlen_q: [16384, 37200, 65536]
+      seqlen_k: [16384, 37200, 65536]
+      nhead_q: [16, 40, 64]
+      nhead_k: [1, 16, 40, 64]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      lse: [false]
+
+# =============================================================================
+# Backward Pass (Gradient Computation)
+# =============================================================================
+backward_tests:
+  # ---------------------------------------------------------------------------
+  # Smoke Tests
+  # ---------------------------------------------------------------------------
+  smoke:
+    - name: "Bwd_Basic_No_Features"
+      description: "Basic backward pass without optional features."
+      batch: [1, 2]
+      seqlen_q: [512]
+      seqlen_k: [512]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_GQA_Smoke"
+      description: "Backward GQA smoke test (4:1 and 8:1 ratios)."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [32]
+      nhead_k: [8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_Hdim_Sweep_Smoke"
+      description: "Backward across key head dimensions."
+      batch: [2]
+      seqlen_q: [512]
+      seqlen_k: [512]
+      nhead_q: [8]
+      nhead_k: [8]
+      hdim_q: [64, 96, 128, 256]
+      hdim_v: [64, 96, 128, 256]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_With_Mask_Dropout"
+      description: "Backward with causal mask and dropout."
+      batch: [2]
+      seqlen_q: [512]
+      seqlen_k: [512]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [64, 128]
+      hdim_v: [64, 128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.1]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_Asymmetric_Hdim_Smoke"
+      description: "Backward with asymmetric head dimensions."
+      batch: [2]
+      seqlen_q: [512]
+      seqlen_k: [512]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [192]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+  # ---------------------------------------------------------------------------
+  # Full Tests
+  # ---------------------------------------------------------------------------
+  full:
+    - name: "Bwd_GQA_Support"
+      description: "Backward pass with Grouped Query Attention."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [32, 64]
+      nhead_k: [8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_High_Capacity_H256"
+      description: "Backward pass with hdim=256; high LDS pressure."
+      batch: [1]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [8]
+      nhead_k: [4]
+      hdim_q: [256]
+      hdim_v: [256]
+      dtype: ["bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_Irregular_H96"
+      description: "Backward pass with non-power-of-2 hdim."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [32]
+      nhead_k: [32]
+      hdim_q: [96]
+      hdim_v: [96]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_All_Features_Enabled"
+      description: "Backward pass with bias gradients, dropout, and deterministic accumulation."
+      batch: [2]
+      seqlen_q: [512]
+      seqlen_k: [512]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [48, 64, 72, 96, 128, 160, 256]
+      hdim_v: [48, 64, 72, 96, 128, 160, 256]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["elementwise", "alibi"]
+      dropout: [0.1]
+      has_dbias: [true]
+      is_deterministic: [true]
+
+    - name: "Bwd_Padding_Boundary_Stress"
+      description: "Test backward pass with sequences that are not perfect multiples of the tile size."
+      batch: [1]
+      seqlen_q: [259, 500, 1023]
+      seqlen_k: [259, 500, 1023]
+      nhead_q: [8]
+      nhead_k: [8]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask", "top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_Asymmetric_Head_Dims_192_128"
+      description: "Test backward pass with asymmetric head dimensions (192x128)."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [192]
+      hdim_v: [128]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["top_left"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_Asymmetric_Head_Dims_128_192"
+      description: "Test backward pass with asymmetric head dimensions (128x192)."
+      batch: [2]
+      seqlen_q: [1024]
+      seqlen_k: [1024]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [128]
+      hdim_v: [192]
+      dtype: ["fp16", "bf16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_Diverse_Head_Dims_Sweep"
+      description: "Sweep backward pass across various head dimensions."
+      batch: [2]
+      seqlen_q: [512]
+      seqlen_k: [512]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [48, 64, 72, 96, 128, 160, 256]
+      hdim_v: [48, 64, 72, 96, 128, 160, 256]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]
+
+    - name: "Bwd_Cross_Attention_Shapes"
+      description: "Test shapes typical of cross-attention where seqlen_q != seqlen_k in backward."
+      batch: [2]
+      seqlen_q: [1, 32, 128]
+      seqlen_k: [1024, 4096]
+      nhead_q: [16]
+      nhead_k: [16]
+      hdim_q: [128]
+      hdim_v: [128]
+      dtype: ["fp16"]
+      layout: ["BHSD"]
+      mask: ["no_mask"]
+      bias: ["none"]
+      dropout: [0.0]
+      has_dbias: [false]
+      is_deterministic: [false]

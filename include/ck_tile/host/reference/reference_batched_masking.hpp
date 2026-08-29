@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,7 +20,7 @@ CK_TILE_HOST void reference_batched_masking(HostTensor<CDataType>& c_b_m_n, cons
         {
             for(int m = 0; m < M; ++m)
             {
-                if(mask.IsOutOfBound(m, n))
+                if(mask.IsOutOfSinkBound(m, n))
                     c_b_m_n(batch, m, n) = -ck_tile::numeric<CDataType>::infinity();
             }
         }

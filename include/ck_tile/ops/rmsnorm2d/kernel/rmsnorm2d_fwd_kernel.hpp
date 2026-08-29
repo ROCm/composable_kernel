@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -58,17 +58,19 @@ struct Rmsnorm2dFwd
     static constexpr bool kSaveInvRms  = Problem::Traits::kSaveInvRms;
     static constexpr bool kSaveUnquant = Problem::Traits::kSaveUnquant;
 
-    static constexpr index_t Block_M  = Problem::BlockShape::Block_M;
-    static constexpr index_t Block_N  = Problem::BlockShape::Block_N;
-    static constexpr bool kPadM       = false; // always no need to pad along M
-    static constexpr bool kPadN       = Problem::Traits::kPadN;
-    static constexpr bool kTwoPass    = Problem::Traits::kTwoPass;
-    static constexpr auto kFusedAdd   = Problem::Traits::kFusedAdd;
-    static constexpr auto kFusedQuant = Problem::Traits::kFusedQuant;
+    static constexpr index_t Block_M                = Problem::BlockShape::Block_M;
+    static constexpr index_t Block_N                = Problem::BlockShape::Block_N;
+    static constexpr bool kPadM                     = false; // always no need to pad along M
+    static constexpr bool kPadN                     = Problem::Traits::kPadN;
+    static constexpr bool kTwoPass                  = Problem::Traits::kTwoPass;
+    static constexpr auto kFusedAdd                 = Problem::Traits::kFusedAdd;
+    static constexpr auto kFusedQuant               = Problem::Traits::kFusedQuant;
+    static constexpr auto kUseModelSensitiveRMSNorm = Problem::Traits::kUseModelSensitiveRMSNorm;
 
     static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
     static constexpr index_t Repeat_N        = Problem::BlockShape::Repeat_N;
+    static constexpr index_t kBlockSize      = Problem::BlockShape::BlockSize;
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -122,7 +124,11 @@ struct Rmsnorm2dFwd
         return dim3(integer_divide_ceil(hargs.m, Block_M));
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? Problem::BlockShape::template GetBlockSize<true>()
+                           : Problem::BlockShape::template GetBlockSize<false>();
+    }
 
     // clang-format off
     template <typename T> struct t2s;
@@ -150,6 +156,8 @@ struct Rmsnorm2dFwd
             if (kPadN) n += "_pn";
             if (kSaveInvRms) n += "_rms";
             if (kTwoPass) n += "_2p";
+            if (kUseModelSensitiveRMSNorm == Rmsnorm2dSensitiveEnum::NO_SPECIFIC_MODEL) n += "_nsm";
+            else if (kUseModelSensitiveRMSNorm == Rmsnorm2dSensitiveEnum::T5_MODEL_LIKE) n += "_t5ml";
             return n; }();
 
         auto prec_str = [&] () {

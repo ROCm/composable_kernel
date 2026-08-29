@@ -1,10 +1,14 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "statically_indexed_array.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 // static buffer for scalar
@@ -104,7 +108,7 @@ struct StaticBufferTupleOfVector
     // Set S
     // i is offset of S
     template <index_t I>
-    __host__ __device__ constexpr S& operator()(Number<I> i)
+    __host__ __device__ constexpr S& operator()(Number<I> i) [[clang::lifetimebound]]
     {
         constexpr auto i_v = i / s_per_v;
         constexpr auto i_s = i % s_per_v;
@@ -195,3 +199,6 @@ __host__ __device__ constexpr auto make_static_buffer(LongNumber<N>)
 }
 
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

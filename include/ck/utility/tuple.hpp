@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -9,6 +9,11 @@
 #include "ck/utility/enable_if.hpp"
 #include <tuple>
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#pragma clang diagnostic ignored "-Wlifetime-safety-lifetimebound-violation"
+#endif
 namespace ck {
 
 namespace detail {
@@ -43,7 +48,7 @@ struct TupleElementKeyData
 // for read access of tuple element
 template <typename Key, typename Data>
 __host__ __device__ constexpr const Data&
-get_tuple_element_data_reference(const TupleElementKeyData<Key, Data>& x)
+get_tuple_element_data_reference([[clang::lifetimebound]] const TupleElementKeyData<Key, Data>& x)
 {
     return static_cast<const Data&>(x.mData);
 }
@@ -51,7 +56,7 @@ get_tuple_element_data_reference(const TupleElementKeyData<Key, Data>& x)
 // for write access of tuple element
 template <typename Key, typename Data>
 __host__ __device__ constexpr Data&
-get_tuple_element_data_reference(TupleElementKeyData<Key, Data>& x)
+get_tuple_element_data_reference([[clang::lifetimebound]] TupleElementKeyData<Key, Data>& x)
 {
     return x.mData;
 }
@@ -100,12 +105,14 @@ struct TupleImpl<Sequence<Is...>, Xs...> : TupleElementKeyData<TupleElementKey<I
 
     template <index_t I>
     __host__ __device__ constexpr const auto& GetElementDataByKey(TupleElementKey<I>) const
+        [[clang::lifetimebound]]
     {
         return get_tuple_element_data_reference<TupleElementKey<I>>(*this);
     }
 
     template <index_t I>
     __host__ __device__ constexpr auto& GetElementDataByKey(TupleElementKey<I>)
+        [[clang::lifetimebound]]
     {
         return get_tuple_element_data_reference<TupleElementKey<I>>(*this);
     }
@@ -147,7 +154,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
     // write access
     template <index_t I>
-    __host__ __device__ constexpr auto& At(Number<I>)
+    __host__ __device__ constexpr auto& At(Number<I>) [[clang::lifetimebound]]
     {
         static_assert(I < base::Size(), "wrong! out of range");
         return base::GetElementDataByKey(detail::TupleElementKey<I>{});
@@ -162,7 +169,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
     // write access
     template <index_t I>
-    __host__ __device__ constexpr auto& operator()(Number<I> i)
+    __host__ __device__ constexpr auto& operator()(Number<I> i) [[clang::lifetimebound]]
     {
         return At(i);
     }
@@ -205,13 +212,6 @@ struct tuple_element
     using type = decltype(detail::get_tuple_element_data<detail::TupleElementKey<I>>(TTuple{}));
 };
 
-// Specialization for std::tuple to allow ck::tuple_element_t to work with std::tuple<...>
-template <index_t I, typename... Xs>
-struct tuple_element<I, std::tuple<Xs...>>
-{
-    using type = typename std::tuple_element<I, std::tuple<Xs...>>::type;
-};
-
 template <index_t I, typename TTuple>
 using tuple_element_t = typename tuple_element<I, TTuple>::type;
 
@@ -228,4 +228,53 @@ constexpr Tuple<Args&...> tie(Args&... args) noexcept
     return {args...};
 }
 
+//
+// tuple_map: Map tuple with a different type
+// e.g. tuple_map<Wrapper, Tuple<T1, T2, T3>> becomes Tuple<Wrapper<T1>, Wrapper<T2>, Wrapper<T3>>
+//
+template <template <typename> class Wrapper, typename Tuple>
+struct tuple_map;
+
+template <template <typename> class Wrapper, typename... Ts>
+struct tuple_map<Wrapper, Tuple<Ts...>>
+{
+    using type = Tuple<Wrapper<Ts>...>;
+};
+
+template <template <typename> class Wrapper, typename Tuple>
+using tuple_map_t = typename tuple_map<Wrapper, Tuple>::type;
+
+//
+// tuple_element_or: helper to access type element of a tuple by index, with the option to default
+// to a type if the index is out of range of the tuple size
+//
+namespace detail {
+
+// Base template (will be specialized on the boolean)
+template <ck::index_t N, typename Tuple, typename Default, bool InRange = (N < Tuple::Size())>
+struct tuple_element_or_impl;
+
+// Specialization for the in-range case: use tuple_element_t
+template <ck::index_t N, typename Tuple, typename Default>
+struct tuple_element_or_impl<N, Tuple, Default, true>
+{
+    using type = tuple_element_t<N, Tuple>;
+};
+
+// Specialization for the out-of-range case: use Default
+template <ck::index_t N, typename Tuple, typename Default>
+struct tuple_element_or_impl<N, Tuple, Default, false>
+{
+    using type = Default;
+};
+} // namespace detail
+
+// User-facing alias
+template <ck::index_t N, typename Tuple, typename Default>
+using tuple_element_or_t = typename detail::tuple_element_or_impl<N, Tuple, Default>::type;
+
 } // namespace ck
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

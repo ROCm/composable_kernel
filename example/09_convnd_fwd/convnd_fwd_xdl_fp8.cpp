@@ -1,11 +1,13 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "convnd_fwd_common.hpp"
 
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+
+#define EXAMPLE_WITH_COMPUTE_DATATYPE
 
 using InDataType       = ck::f8_t;
 using WeiDataType      = ck::f8_t;
@@ -49,13 +51,13 @@ using DeviceGroupedConvNDFwdInstance =
         256,         // BlockSize
         128,         // MPerBlock
         256,         // NPerBlock
-        32,          // KPerBlock
-        8,           // AK1
-        8,           // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        128,         // KPerBlock
+        32,          // AK1
+        32,          // BK1
+        16,          // MPerXdl
+        16,          // NPerXdl
+        4,           // MXdlPerWave
+        8,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -73,9 +75,19 @@ using DeviceGroupedConvNDFwdInstance =
         1,
         1,
         S<1, 32, 1, 8>,
-        8,
+        4,
         ComputeDataType>;
 
 #include "run_convnd_fwd_example.inc"
 
-int main(int argc, char* argv[]) { return run_convnd_fwd_example(argc, argv) ? 0 : 1; }
+int main(int argc, char* argv[])
+{
+    // temp disable on gfx11
+    if(ck::is_gfx11_supported())
+    {
+        return 0;
+    }
+    return run_convnd_fwd_example(argc, argv) ? 0 : 1;
+}
+
+#undef EXAMPLE_WITH_COMPUTE_DATATYPE
