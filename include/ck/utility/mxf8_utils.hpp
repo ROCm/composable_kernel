@@ -174,7 +174,7 @@ static __device__ fp8_storage_t cast_to_f8_from_f32_scaled(float v, unsigned int
     union
     {
         uint32_t ival;
-        vector_type<int16_t, 2>::type v2i16;
+        int16x2_t v2i16;
         fp8_storage_t v4i8[4];
     } ret{};
 
@@ -227,7 +227,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f32_scaled(float2_t v,
     union
     {
         uint32_t ival;
-        vector_type<int16_t, 2>::type v2i16;
+        int16x2_t v2i16;
         StaticallyIndexedArray<fp8x2_storage_t, 2> v2f8x2;
     } ret{};
 

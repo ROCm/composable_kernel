@@ -274,8 +274,13 @@ struct intrin_mfma_f32_32x32x16bf16<32, 32>
     __device__ static void Run(const bhalf8_t& reg_a, const bhalf8_t& reg_b, FloatC& reg_c)
     {
 #if defined(__gfx950__)
-        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
-            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_f32_32x32x16_bf16(bit_cast<llvm_bf16x8_t>(reg_a),
+                                                    bit_cast<llvm_bf16x8_t>(reg_b),
+                                                    reg_c.template AsType<float16_t>()[Number<0>{}],
+                                                    0,
+                                                    0,
+                                                    0);
 #else
         ignore = reg_a;
         ignore = reg_b;
@@ -294,8 +299,13 @@ struct intrin_mfma_f32_16x16x32bf16<16, 16>
     __device__ static void Run(const bhalf8_t& reg_a, const bhalf8_t& reg_b, FloatC& reg_c)
     {
 #if defined(__gfx950__)
-        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
-            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_f32_16x16x32_bf16(bit_cast<llvm_bf16x8_t>(reg_a),
+                                                    bit_cast<llvm_bf16x8_t>(reg_b),
+                                                    reg_c.template AsType<float4_t>()[Number<0>{}],
+                                                    0,
+                                                    0,
+                                                    0);
 #else
         ignore = reg_a;
         ignore = reg_b;
@@ -314,7 +324,12 @@ struct intrin_mfma_f32_32x32x8bf16_1k<32, 32>
     __device__ static void Run(const bhalf4_t& reg_a, const bhalf4_t& reg_b, FloatC& reg_c)
     {
         reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
-            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+            bit_cast<int16x4_t>(reg_a),
+            bit_cast<int16x4_t>(reg_b),
+            reg_c.template AsType<float16_t>()[Number<0>{}],
+            0,
+            0,
+            0);
     }
 };
 
@@ -328,7 +343,12 @@ struct intrin_mfma_f32_16x16x16bf16_1k<16, 16>
     __device__ static void Run(const bhalf4_t& reg_a, const bhalf4_t& reg_b, FloatC& reg_c)
     {
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
-            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+            bit_cast<int16x4_t>(reg_a),
+            bit_cast<int16x4_t>(reg_b),
+            reg_c.template AsType<float4_t>()[Number<0>{}],
+            0,
+            0,
+            0);
     }
 };
 
@@ -341,8 +361,13 @@ struct intrin_mfma_f32_32x32x4bf16<32, 32>
     template <class FloatC>
     __device__ static void Run(const bhalf2_t& reg_a, const bhalf2_t& reg_b, FloatC& reg_c)
     {
-        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x4bf16(
-            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_f32_32x32x4bf16(bit_cast<int16x2_t>(reg_a),
+                                                  bit_cast<int16x2_t>(reg_b),
+                                                  reg_c.template AsType<float16_t>()[Number<0>{}],
+                                                  0,
+                                                  0,
+                                                  0);
     }
 };
 
@@ -355,8 +380,13 @@ struct intrin_mfma_f32_16x16x8bf16<16, 16>
     template <class FloatC>
     __device__ static void Run(const bhalf2_t& reg_a, const bhalf2_t& reg_b, FloatC& reg_c)
     {
-        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x8bf16(
-            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_f32_16x16x8bf16(bit_cast<int16x2_t>(reg_a),
+                                                  bit_cast<int16x2_t>(reg_b),
+                                                  reg_c.template AsType<float4_t>()[Number<0>{}],
+                                                  0,
+                                                  0,
+                                                  0);
     }
 };
 
@@ -408,8 +438,13 @@ struct intrin_mfma_i32_32x32x32i8<32, 32>
     __device__ static void Run(const int8x16_t& reg_a, const int8x16_t& reg_b, FloatC& reg_c)
     {
 #if defined(__gfx950__)
-        reg_c.template AsType<int32x16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_i32_32x32x32_i8(
-            reg_a, reg_b, reg_c.template AsType<int32x16_t>()[Number<0>{}], 0, 0, 0);
+        reg_c.template AsType<int32x16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_i32_32x32x32_i8(bit_cast<int32x4_t>(reg_a),
+                                                  bit_cast<int32x4_t>(reg_b),
+                                                  reg_c.template AsType<int32x16_t>()[Number<0>{}],
+                                                  0,
+                                                  0,
+                                                  0);
 #else
         ignore = reg_a;
         ignore = reg_b;
@@ -428,8 +463,13 @@ struct intrin_mfma_i32_16x16x64i8<16, 16>
     __device__ static void Run(const int8x16_t& reg_a, const int8x16_t& reg_b, FloatC& reg_c)
     {
 #if defined(__gfx950__)
-        reg_c.template AsType<int32x4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_i32_16x16x64_i8(
-            reg_a, reg_b, reg_c.template AsType<int32x4_t>()[Number<0>{}], 0, 0, 0);
+        reg_c.template AsType<int32x4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_i32_16x16x64_i8(bit_cast<int32x4_t>(reg_a),
+                                                  bit_cast<int32x4_t>(reg_b),
+                                                  reg_c.template AsType<int32x4_t>()[Number<0>{}],
+                                                  0,
+                                                  0,
+                                                  0);
 #else
         ignore = reg_a;
         ignore = reg_b;
@@ -514,8 +554,8 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
 #if defined(__gfx950__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
@@ -536,8 +576,8 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
 #if defined(__gfx950__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 1, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 1, // blgp
@@ -558,8 +598,8 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
 #if defined(__gfx950__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 1, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
@@ -580,8 +620,8 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
 #if defined(__gfx950__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 1, // blgp
@@ -698,8 +738,8 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32, OpselA, OpselB>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0,      // blgp
@@ -735,8 +775,8 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32, OpselA, OpselB>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 1,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 1,      // blgp
@@ -772,8 +812,8 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32, OpselA, OpselB>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 1,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0,      // blgp
@@ -918,8 +958,8 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 0,      // cbsz   {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0,      // blgp
@@ -947,8 +987,8 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 1,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 1,      // blgp
@@ -976,8 +1016,8 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 0,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 1,      // blgp
@@ -1005,8 +1045,8 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 1,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0,      // blgp
@@ -1236,8 +1276,8 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 0, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
@@ -1259,8 +1299,8 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 1, // blgp
@@ -1282,8 +1322,8 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
@@ -1305,8 +1345,8 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                reg_a,
-                reg_b,
+                bit_cast<int32x8_t>(reg_a),
+                bit_cast<int32x8_t>(reg_b),
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 0, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 1, // blgp

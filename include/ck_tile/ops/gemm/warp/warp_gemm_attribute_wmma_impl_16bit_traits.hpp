@@ -41,7 +41,8 @@ struct WmmaTraits<gfx11_t, bf16_t, bf16_t, float, 16, 16, 16>
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
     {
 #ifdef __gfx11__
-        return __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32(a_vec, b_vec, c_vec);
+        return __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32(
+            bit_cast<int16x16_t>(a_vec), bit_cast<int16x16_t>(b_vec), c_vec);
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
@@ -85,7 +86,8 @@ struct WmmaTraits<gfx120_t, bf16_t, bf16_t, float, 16, 16, 16>
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
     {
 #ifdef __gfx120__
-        return __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32_gfx12(a_vec, b_vec, c_vec);
+        return __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32_gfx12(
+            bit_cast<int16x8_t>(a_vec), bit_cast<int16x8_t>(b_vec), c_vec);
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
@@ -132,8 +134,14 @@ struct WmmaTraits<gfx125_t, bf16_t, bf16_t, float, 16, 16, 32>
     {
 #ifdef __gfx125__
         using P = WarpGemmParamsParser<Params...>;
-        return __builtin_amdgcn_wmma_f32_16x16x32_bf16(
-            0, a_vec, 0, b_vec, 0, c_vec, P::reuse_a, P::reuse_b);
+        return __builtin_amdgcn_wmma_f32_16x16x32_bf16(0,
+                                                       bit_cast<llvm_bf16x16_t>(a_vec),
+                                                       0,
+                                                       bit_cast<llvm_bf16x16_t>(b_vec),
+                                                       0,
+                                                       c_vec,
+                                                       P::reuse_a,
+                                                       P::reuse_b);
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
@@ -153,8 +161,14 @@ struct WmmaTraits<gfx125_t, bf16_t, bf16_t, float, 16, 16, 32>
     {
 #ifdef __gfx125__
         using P = WarpGemmParamsParser<Params...>;
-        return __builtin_amdgcn_wmma_bf16f32_16x16x32_bf16(
-            0, a_vec, 0, b_vec, 0, c_vec, P::reuse_a, P::reuse_b);
+        return __builtin_amdgcn_wmma_bf16f32_16x16x32_bf16(0,
+                                                           bit_cast<llvm_bf16x16_t>(a_vec),
+                                                           0,
+                                                           bit_cast<llvm_bf16x16_t>(b_vec),
+                                                           0,
+                                                           c_vec,
+                                                           P::reuse_a,
+                                                           P::reuse_b);
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
@@ -177,8 +191,14 @@ struct WmmaTraits<gfx125_t, bf16_t, bf16_t, bf16_t, 16, 16, 32>
     {
 #ifdef __gfx125__
         using P = WarpGemmParamsParser<Params...>;
-        return __builtin_amdgcn_wmma_bf16_16x16x32_bf16(
-            0, a_vec, 0, b_vec, 0, c_vec, P::reuse_a, P::reuse_b);
+        return __builtin_amdgcn_wmma_bf16_16x16x32_bf16(0,
+                                                        bit_cast<llvm_bf16x16_t>(a_vec),
+                                                        0,
+                                                        bit_cast<llvm_bf16x16_t>(b_vec),
+                                                        0,
+                                                        c_vec,
+                                                        P::reuse_a,
+                                                        P::reuse_b);
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;

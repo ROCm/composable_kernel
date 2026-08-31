@@ -44,13 +44,13 @@ __device__ T cluster_multicast_load(const T* global_ptr, int mask)
     }
     else if constexpr(sizeof(T) == 8)
     {
-        using vec2i_t = __attribute__((vector_size(8))) int;
+        using vec2i_t = int __attribute__((ext_vector_type(2)));
         return bit_cast<T>(__builtin_amdgcn_cluster_load_b64(
             detail::to_global<vec2i_t>(reinterpret_cast<const vec2i_t*>(global_ptr)), 0, mask));
     }
     else if constexpr(sizeof(T) == 16)
     {
-        using vec4i_t = __attribute__((vector_size(16))) int;
+        using vec4i_t = int __attribute__((ext_vector_type(4)));
         return bit_cast<T>(__builtin_amdgcn_cluster_load_b128(
             detail::to_global<vec4i_t>(reinterpret_cast<const vec4i_t*>(global_ptr)), 0, mask));
     }
