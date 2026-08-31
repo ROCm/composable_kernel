@@ -407,5 +407,36 @@ class TestBatchedRepeatGate(unittest.TestCase):
         self.assertTrue(_repeat_ok(192, 192, 4, 4, 32, 32))
 
 
+# --- gfx1250 (MI400 / RDNA4-WMMA) enablement -------------------------------
+# The batched-GEMM bridge historically allow-listed only CDNA (gfx90a/942/950,
+# MFMA). gfx1250 uses WMMA, so it needs an arch-tuple entry and a WMMA CI config
+# (warp_tile 16x16x32 -- the CDNA MFMA 32x32x16 tile does not run on gfx1250).
+# These CPU-only tests lock that surface in.
+from batched_gemm_utils import _SUPPORTED_ARCHES  # noqa: E402
+
+
+class TestGfx1250Enablement(unittest.TestCase):
+    def test_gfx1250_in_supported_arches(self):
+        self.assertIn("gfx1250", _SUPPORTED_ARCHES)
+
+    def test_resolve_arch_accepts_gfx1250(self):
+        # An explicit, supported arch must not touch rocminfo at all.
+        with mock.patch("subprocess.check_output", side_effect=AssertionError("called")):
+            self.assertEqual(_resolve_arch("gfx1250"), "gfx1250")
+
+    def test_get_arch_detects_gfx1250(self):
+        with mock.patch("subprocess.check_output", return_value="  Name:  gfx1250\n"):
+            self.assertEqual(_get_arch(), "gfx1250")
+
+    def test_gfx1250_ci_config_present_and_wmma(self):
+        cfg_path = _CONFIG_DIR / "default_ci_config_gfx1250.json"
+        self.assertTrue(cfg_path.is_file(), cfg_path)
+        tc = json.loads(cfg_path.read_text())["tile_config"]
+        # WMMA warp tile for fp16/bf16 on gfx1250 is 16x16x32.
+        self.assertEqual(tc["warp_tile_m"]["values"], [16])
+        self.assertEqual(tc["warp_tile_n"]["values"], [16])
+        self.assertEqual(tc["warp_tile_k"]["values"], [32])
+
+
 if __name__ == "__main__":
     unittest.main()

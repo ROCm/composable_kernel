@@ -1,0 +1,29 @@
+{
+    "_comment": "CI bridge sweep for batched_contraction on gfx1250 (MI400, RDNA4/WMMA): one small validated fp16 point. WMMA warp_tile 16x16x32 (the CDNA MFMA 32x32x16 does not run on gfx1250).",
+    "tile_config": {
+        "tile_m": {"values": [128]},
+        "tile_n": {"values": [128]},
+        "tile_k": {"values": [64]},
+        "warp_m": {"values": [2]},
+        "warp_n": {"values": [2]},
+        "warp_k": {"values": [1]},
+        "warp_tile_m": {"values": [16]},
+        "warp_tile_n": {"values": [16]},
+        "warp_tile_k": {"values": [32]}
+    },
+    "trait_config": {
+        "pipeline": {"values": ["compv3"]},
+        "scheduler": {"values": ["intrawave"]},
+        "epilogue": {"values": ["cshuffle"]},
+        "pad_m": {"values": [false]},
+        "pad_n": {"values": [false]},
+        "pad_k": {"values": [false]},
+        "persistent": {"values": [false]}
+    },
+    "k_block_per_cu": 1,
+    "num_dim_g": 1,
+    "num_dim_m": 1,
+    "num_dim_n": 1,
+    "num_dim_k": 1,
+    "num_d_tensors": 0
+}

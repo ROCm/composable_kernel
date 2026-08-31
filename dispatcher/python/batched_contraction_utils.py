@@ -105,7 +105,7 @@ def _tile_engine_codegen_flags() -> Tuple[str, ...]:
     return tuple(flags)
 
 
-_SUPPORTED_ARCHS = ("gfx90a", "gfx942", "gfx950")
+_SUPPORTED_ARCHS = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 
 _NP_DTYPE = {"fp16": np.float16, "bf16": None, "fp32": np.float32}  # bf16 filled lazily
 

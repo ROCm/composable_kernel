@@ -9,9 +9,11 @@ Lock the byte-exact name contract between codegen and utils, the codegen-JSON
 projection, problem flop counting, and sweep expansion. No GPU required.
 """
 
+import json
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _DISP = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_DISP / "python"))
@@ -20,8 +22,13 @@ sys.path.insert(0, str(_DISP / "codegen"))
 from batched_contraction_utils import (  # noqa: E402
     BatchedContractionKernelConfig,
     BatchedContractionProblem,
+    _SUPPORTED_ARCHS,
+    _get_arch,
+    _validate_arch,
     expand_sweep,
 )
+
+_CONFIG_DIR = _DISP.parent / "tile_engine" / "ops" / "gemm" / "batched_contraction" / "configs"
 from unified_batched_contraction_codegen import (  # noqa: E402
     make_batched_contraction_kernel_name,
     _spec_from_config,
@@ -205,6 +212,44 @@ class TestSweep(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)))  # deduped
         self.assertTrue(all(c.is_valid() for c in cfgs))
         self.assertEqual(len(cfgs), 2 * 2)  # (tile_m 2) x (pipeline 2)
+
+
+# --- gfx1250 (MI400 / RDNA4-WMMA) enablement -------------------------------
+# The batched-contraction bridge historically allow-listed only CDNA
+# (gfx90a/942/950, MFMA). gfx1250 uses WMMA, so it needs an arch-tuple entry and
+# WMMA CI configs (warp_tile 16x16x32 -- the CDNA MFMA 32x32x64/32x32x16 tiles do
+# not run on gfx1250). These CPU-only tests lock that surface in.
+class TestGfx1250Enablement(unittest.TestCase):
+    def test_gfx1250_in_supported_archs(self):
+        self.assertIn("gfx1250", _SUPPORTED_ARCHS)
+
+    def test_validate_arch_accepts_gfx1250(self):
+        self.assertEqual(_validate_arch("gfx1250"), "gfx1250")
+
+    def test_get_arch_detects_gfx1250(self):
+        with mock.patch("subprocess.check_output", return_value="  Name:  gfx1250\n"):
+            self.assertEqual(_get_arch(), "gfx1250")
+
+    def _assert_wmma_tile(self, name):
+        cfg_path = _CONFIG_DIR / name
+        self.assertTrue(cfg_path.is_file(), cfg_path)
+        tc = json.loads(cfg_path.read_text())["tile_config"]
+        self.assertEqual(tc["warp_tile_m"]["values"], [16])
+        self.assertEqual(tc["warp_tile_n"]["values"], [16])
+        self.assertEqual(tc["warp_tile_k"]["values"], [32])
+
+    def test_gfx1250_ci_config_present_and_wmma(self):
+        self._assert_wmma_tile("default_ci_config_gfx1250.json")
+
+    def test_gfx1250_bridge_ci_config_present_and_wmma(self):
+        self._assert_wmma_tile("bridge_default_ci_config_gfx1250.json")
+
+    def test_gfx1250_config_expands_to_valid_wmma_kernels(self):
+        cfg = json.loads((_CONFIG_DIR / "default_ci_config_gfx1250.json").read_text())
+        cfgs = expand_sweep(cfg)
+        self.assertTrue(cfgs)
+        self.assertTrue(all(c.is_valid() for c in cfgs))
+        self.assertTrue(all(c.warp_tile_m == 16 and c.warp_tile_k == 32 for c in cfgs))
 
 
 if __name__ == "__main__":

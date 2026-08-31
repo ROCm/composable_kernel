@@ -2422,6 +2422,14 @@ def expand_sweep(
         # (WARP_SUPPORTED_COMBINATIONS[arch]); see _warp_config_supported.
         if not _warp_config_supported(wm, wn, wk, arch):
             continue
+        # gfx1250 correctness gate (ROCm/rocm-libraries#11161): the compv3
+        # intrawave pipeline is hand-scheduled for MFMA/CDNA (wave64) and
+        # miscompiles for 8-warp blocks (2x4x1 / 4x2x1) on gfx1250 (WMMA/wave32),
+        # producing wrong results (on-device max_rel 0.14-0.87 vs an fp32 CPU
+        # reference; <=4-warp compv3 and all compv4/mem/interwave kernels are
+        # bit-accurate). Gate it off until the pipeline is ported to wave32.
+        if arch == "gfx1250" and pipe == "compv3" and sched == "intrawave" and wm * wn == 8:
+            continue
         if epi == "cshuffle" and not _cshuffle_store_ok(
             tm // m_div, tn // n_div, wtm, wtn
         ):

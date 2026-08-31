@@ -258,5 +258,56 @@ class TestMultiAbdAbiMarshalling(unittest.TestCase):
         self.assertEqual(status, -3)
 
 
+class TestMultiAbdGfx1250Config(unittest.TestCase):
+    """The gfx1250 (MI400) multi_abd sweep config must be WMMA-shaped.
+
+    gfx1250 runs WMMA, not MFMA: the fp16/bf16 warp tile is 16x16x32, and the
+    32x32x16 MFMA tile shipped in ``default_ci_config.json`` never instantiates
+    a runnable kernel there. ``default_ci_config_gfx1250.json`` is the arch
+    variant that swaps in the WMMA warp tile while keeping every other sweep
+    axis identical, so the bridge codegens kernels that actually launch on MI400.
+    """
+
+    _GFX1250_CONFIG = _CONFIG_DIR / "default_ci_config_gfx1250.json"
+
+    def test_gfx1250_config_exists(self):
+        self.assertTrue(
+            self._GFX1250_CONFIG.is_file(),
+            f"missing gfx1250 multi_abd config: {self._GFX1250_CONFIG}",
+        )
+
+    def test_gfx1250_config_uses_wmma_warp_tile(self):
+        with open(self._GFX1250_CONFIG) as f:
+            tc = json.load(f)["tile_config"]
+        # gfx1250 fp16/bf16 WMMA warp tile is 16x16x32 (NOT the 32x32x16 MFMA
+        # tile the CDNA CI config ships); a stale MFMA tile here would silently
+        # produce zero runnable kernels on MI400.
+        self.assertEqual(tc["warp_tile_m"]["values"], [16])
+        self.assertEqual(tc["warp_tile_n"]["values"], [16])
+        self.assertEqual(tc["warp_tile_k"]["values"], [32])
+
+    def test_gfx1250_config_wave_triple_is_supported(self):
+        # The swept warps-per-block triple must be one gfx1250 actually supports,
+        # or expand_sweep gates the whole sweep away to an empty kernel set.
+        sys.path.insert(
+            0, str(REPO_ROOT / "tile_engine" / "ops" / "gemm")
+        )
+        from gemm_validation_utils import (  # noqa: E402
+            WARP_SUPPORTED_COMBINATIONS,
+        )
+
+        self.assertIn("gfx1250", WARP_SUPPORTED_COMBINATIONS)
+        with open(self._GFX1250_CONFIG) as f:
+            tc = json.load(f)["tile_config"]
+        for wm in tc["warp_m"]["values"]:
+            for wn in tc["warp_n"]["values"]:
+                for wk in tc["warp_k"]["values"]:
+                    self.assertIn(
+                        [wm, wn, wk],
+                        WARP_SUPPORTED_COMBINATIONS["gfx1250"],
+                        f"wave triple [{wm},{wn},{wk}] not supported on gfx1250",
+                    )
+
+
 if __name__ == "__main__":
     unittest.main()

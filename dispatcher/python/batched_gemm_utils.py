@@ -95,7 +95,7 @@ def _repeat_ok(
 # GPU architecture resolution (never default to gfx942)
 # ============================================================================
 
-_SUPPORTED_ARCHES: Tuple[str, ...] = ("gfx90a", "gfx942", "gfx950")
+_SUPPORTED_ARCHES: Tuple[str, ...] = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 
 # Byte size of each C output dtype as the compiled kernel writes it
 # (sizeof(CDataType)). The host numpy buffer is memcpy'd verbatim to/from the
