@@ -50,7 +50,7 @@ _LAYOUT_WORD = {"r": "row", "c": "col"}
 
 # --- Bridge shared helpers (canonical superset; byte-identical across bridges) ---
 # Supported GPU architectures for the bridge (single source of truth).
-_SUPPORTED_ARCHES = ("gfx90a", "gfx942", "gfx950")
+_SUPPORTED_ARCHES = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 
 # Single source of truth for the preshuffle B-shuffle permutation used by the
 # bridge. The bridge codegen only emits the NON-permuteN preshuffle pipeline
@@ -968,6 +968,33 @@ def _bf8_u8_to_fp32(u8: np.ndarray) -> np.ndarray:
     return _fnuz_decode_table(5, 2)[u8.astype(np.intp)]
 
 
+def _fp32_to_fp8_ocp_u8(x):
+    """Encode fp32 -> fp8 E4M3 **OCP** (gfx950/gfx12xx) bit pattern (uint8)."""
+    import ml_dtypes
+    return np.ascontiguousarray(x, dtype=np.float32).astype(ml_dtypes.float8_e4m3fn).view(np.uint8)
+
+
+def _fp32_to_bf8_ocp_u8(x):
+    """Encode fp32 -> bf8 E5M2 **OCP** (gfx950/gfx12xx) bit pattern (uint8)."""
+    import ml_dtypes
+    return np.ascontiguousarray(x, dtype=np.float32).astype(ml_dtypes.float8_e5m2).view(np.uint8)
+
+
+_OCP_FP8_CACHE = {}
+
+
+def _use_ocp_fp8():
+    """True on archs whose device fp8_t is OCP (gfx950/MI350, gfx12xx/RDNA) rather
+    than the FNUZ encoding used by gfx942/MI300. Detected once via rocminfo."""
+    if "v" not in _OCP_FP8_CACHE:
+        try:
+            a = _get_arch()
+        except Exception:
+            a = ""
+        _OCP_FP8_CACHE["v"] = a.startswith("gfx12") or a == "gfx950"
+    return _OCP_FP8_CACHE["v"]
+
+
 # Output (C) element dtype for an A/B element dtype, mirroring the codegen's
 # CommonTypeMappings.get_output_dtype: fp8/bf8 accumulate into fp16, int8 into
 # int32, everything else stores in its own dtype.
@@ -1047,11 +1074,13 @@ class GpuGemmRunner:
             A_h = _fp32_to_bf16_u16(A_lay)
             B_h = _fp32_to_bf16_u16(B_lay)
         elif dtype == "fp8":
-            A_h = _fp32_to_fp8_u8(A_lay)
-            B_h = _fp32_to_fp8_u8(B_lay)
+            _enc = _fp32_to_fp8_ocp_u8 if _use_ocp_fp8() else _fp32_to_fp8_u8
+            A_h = _enc(A_lay)
+            B_h = _enc(B_lay)
         elif dtype == "bf8":
-            A_h = _fp32_to_bf8_u8(A_lay)
-            B_h = _fp32_to_bf8_u8(B_lay)
+            _enc = _fp32_to_bf8_ocp_u8 if _use_ocp_fp8() else _fp32_to_bf8_u8
+            A_h = _enc(A_lay)
+            B_h = _enc(B_lay)
         elif dtype == "int8":
             A_h = np.ascontiguousarray(A_lay, dtype=np.int8)
             B_h = np.ascontiguousarray(B_lay, dtype=np.int8)
@@ -2130,6 +2159,7 @@ _WARP_SUPPORTED_COMBINATIONS_FALLBACK = {
     "gfx90a": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx950": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+    "gfx1250": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1], [2, 1, 1], [1, 2, 2], [4, 1, 1], [1, 4, 1], [2, 2, 1]],
     "gfx1201": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
 }
 

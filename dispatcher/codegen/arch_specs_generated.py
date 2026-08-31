@@ -109,6 +109,8 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
     "gfx1250": {
         "fp16_fp16_fp32": [[16, 16, 32]],
         "bf16_bf16_fp32": [[16, 16, 32]],
+        "fp8_fp8_fp32": [[16, 16, 64]],
+        "bf8_bf8_fp32": [[16, 16, 64]],
     },
 }
 

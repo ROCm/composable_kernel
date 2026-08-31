@@ -45,6 +45,7 @@ def get_warp_size_for_gpu(gpu_target: str) -> int:
 
 
 WARP_SUPPORTED_COMBINATIONS = {
+    "gfx1250": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1], [2, 1, 1], [1, 2, 2], [4, 1, 1], [1, 4, 1], [2, 2, 1]],
     "gfx90a": [
         [1, 4, 1],
         [2, 2, 1],

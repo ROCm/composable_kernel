@@ -285,3 +285,85 @@ class TestModuleImportsAndRunnerShape(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --- gfx1250 (MI400 / RDNA4-WMMA) enablement -------------------------------
+# The regular-GEMM bridge historically allow-listed only CDNA (gfx90a/942/950)
+# and carried FNUZ-only fp8 codecs. gfx1250 uses WMMA + OCP fp8, so it needs an
+# arch entry and an OCP codec path. These CPU-only tests lock that surface in.
+from gemm_utils import (  # noqa: E402
+    _SUPPORTED_ARCHES,
+    _fp32_to_fp8_ocp_u8,
+    _fp32_to_bf8_ocp_u8,
+    _use_ocp_fp8,
+)
+
+
+class TestGfx1250Fp8Ocp(unittest.TestCase):
+    def test_gfx1250_in_supported_arches(self):
+        self.assertIn("gfx1250", _SUPPORTED_ARCHES)
+
+    def test_ocp_fp8_shape_and_dtype(self):
+        x = (np.random.RandomState(0).randn(8, 16) * 0.1).astype(np.float32)
+        u8 = _fp32_to_fp8_ocp_u8(x)
+        self.assertEqual(u8.dtype, np.uint8)
+        self.assertEqual(u8.shape, x.shape)
+
+    def test_ocp_fp8_roundtrip_exact_values(self):
+        # 1.0, 0.5, 2.0, -1.0 are exactly representable in fp8 E4M3 (OCP).
+        import ml_dtypes
+
+        x = np.array([[1.0, 0.5, 2.0, -1.0]], dtype=np.float32)
+        u8 = _fp32_to_fp8_ocp_u8(x)
+        back = u8.view(ml_dtypes.float8_e4m3fn).astype(np.float32)
+        np.testing.assert_array_equal(back, x)
+
+    def test_ocp_differs_from_fnuz(self):
+        # OCP and FNUZ are distinct encodings; the byte patterns must not match
+        # for a generic value (guards against silently reusing the FNUZ codec).
+        x = np.array([[0.1, 0.3, 1.5]], dtype=np.float32)
+        self.assertFalse(
+            np.array_equal(_fp32_to_fp8_ocp_u8(x), _fp32_to_fp8_u8(x))
+        )
+
+    def test_ocp_bf8_shape(self):
+        x = (np.random.RandomState(1).randn(4, 4) * 0.1).astype(np.float32)
+        self.assertEqual(_fp32_to_bf8_ocp_u8(x).shape, x.shape)
+
+    def test_use_ocp_fp8_is_callable(self):
+        # Returns a bool; on a CPU-only box arch detection may fail -> False.
+        self.assertIsInstance(_use_ocp_fp8(), bool)
+
+
+# --- grouped GEMM on gfx1250 (MI400) ---------------------------------------
+# The grouped bridge (#9000) shares the arch gate + WMMA warp tiles with the
+# regular bridge, so it runs on gfx1250 once gfx1250 is enabled. Its CI config
+# already uses the gfx1250-valid WMMA warp tile 16x16x32. These CPU-only checks
+# lock that in (multi-problem plumbing + gfx1250 arch acceptance).
+from gemm_utils import GroupedGemmProblem, _resolve_arch  # noqa: E402
+
+
+class TestGroupedGfx1250(unittest.TestCase):
+    def test_grouped_problem_roundtrip_and_flops(self):
+        groups = [(1024, 1024, 1024), (512, 2048, 256)]
+        p = GroupedGemmProblem(groups=groups)
+        self.assertEqual(p.group_count, 2)
+        self.assertEqual(GroupedGemmProblem.from_dict(p.to_dict()).groups, groups)
+        self.assertEqual(p.flops, sum(2.0 * m * n * k for (m, n, k) in groups))
+
+    def test_gfx1250_arch_accepted(self):
+        self.assertEqual(_resolve_arch("gfx1250"), "gfx1250")
+
+    def test_grouped_gfx1250_ci_config_uses_wmma_warp_tile(self):
+        import json as _json
+        from pathlib import Path as _Path
+
+        cfg = (
+            _Path(__file__).parent.parent.parent
+            / "tile_engine/ops/gemm/grouped_gemm/configs/default_ci_config_gfx1250.json"
+        )
+        tc = _json.load(open(cfg))["tile_config"]
+        # gfx1250 fp16/bf16 WMMA is 16x16x32 (not the CDNA MFMA 32x32x16).
+        self.assertEqual(tc["warp_tile_m"]["values"], [16])
+        self.assertEqual(tc["warp_tile_n"]["values"], [16])
+        self.assertEqual(tc["warp_tile_k"]["values"], [32])

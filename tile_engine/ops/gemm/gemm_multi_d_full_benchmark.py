@@ -245,8 +245,9 @@ def main():
     parser.add_argument(
         "--arch",
         default=None,
-        help="GPU arch (gfx90a/gfx942/gfx950); default: auto-detect via rocminfo "
-        "(no silent gfx942 default). Flows into expand_sweep, which resolves None.",
+        help="GPU arch (gfx90a/gfx942/gfx950/gfx1250); default: auto-detect via "
+        "rocminfo (no silent gfx942 default). Flows into expand_sweep, which "
+        "resolves None.",
     )
     parser.add_argument(
         "--dtype",

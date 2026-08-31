@@ -171,5 +171,40 @@ class TestMultiDShippedConfigs(unittest.TestCase):
                     self.assertIn(key, tr, f"{path.name} missing {key}")
 
 
+class TestMultiDGfx1250Config(unittest.TestCase):
+    """The gfx1250 (MI400) CI config must use WMMA warp tiles.
+
+    gfx1250 has no MFMA units: it runs the RDNA4 WMMA path whose fp16/bf16 warp
+    tile is 16x16x32 (see arch_specs_generated.py). The merged multi_d bridge
+    (#9308) shipped only an MFMA CI config (32x32x16, valid on gfx942/gfx950),
+    which the kernel reports as unsupported (status -2/-1) on gfx1250. The
+    gfx1250 CI config therefore pins the WMMA warp tile so the sweep produces
+    kernels that actually run on MI400.
+    """
+
+    _GFX1250_CONFIG = _CONFIG_DIR / "default_ci_config_gfx1250.json"
+
+    def test_gfx1250_config_exists(self):
+        self.assertTrue(self._GFX1250_CONFIG.is_file(), self._GFX1250_CONFIG)
+
+    def test_gfx1250_config_uses_wmma_warp_tile(self):
+        with open(self._GFX1250_CONFIG) as f:
+            tc = json.load(f)["tile_config"]
+        # WMMA (RDNA4) fp16/bf16 warp tile, not MFMA (CDNA) 32x32x16.
+        self.assertEqual(tc["warp_tile_m"]["values"], [16])
+        self.assertEqual(tc["warp_tile_n"]["values"], [16])
+        self.assertEqual(tc["warp_tile_k"]["values"], [32])
+
+    def test_gfx1250_config_keeps_multi_d_block(self):
+        # gfx1250 enablement must not drop the D-fusion knobs that make this a
+        # multi_d config rather than a plain GEMM config.
+        with open(self._GFX1250_CONFIG) as f:
+            data = json.load(f)
+        self.assertIn("multi_d_config", data)
+        md = data["multi_d_config"]
+        self.assertIn("elementwise_ops", md)
+        self.assertIn("num_d_tensors", md)
+
+
 if __name__ == "__main__":
     unittest.main()
