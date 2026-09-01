@@ -562,12 +562,6 @@ def _build_specs(config: dict) -> List[ABQuantKernelSpec]:
 
     return specs
 
-
-# =============================================================================
-# Generation entry point
-# =============================================================================
-
-
 def generate_kernels(
     output_dir: Path,
     config: Optional[dict] = None,

@@ -42,6 +42,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "python"))
 
 from grouped_gemm_aquant_utils import (
+    _detect_gpu_arch,
     AQuantKernelConfig,
     AQuantGemmProblem,
     AQuantGpuGemmRunner,
@@ -206,8 +207,10 @@ def main():
     parser.add_argument("--quant-group-m", type=int, default=1)
     parser.add_argument("--no-verify", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=None)
-    parser.add_argument("--gfx-arch", type=str, default="gfx950")
+    parser.add_argument("--gfx-arch", type=str, default=None,
+                        help="GPU arch (default: auto-detect via rocm_agent_enumerator)")
     args = parser.parse_args()
+    args.gfx_arch = args.gfx_arch or _detect_gpu_arch()
 
     M, N, K = args.M, args.N, args.K
     gK = args.quant_group_k

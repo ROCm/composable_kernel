@@ -395,21 +395,21 @@ class TestPhase3Configs:
     def test_fp8_preshufflequant_name(self):
         cfg = default_fp8_preshufflequant_config()
         assert cfg.name == (
-            "grouped_gemm_bquant_fp8_rcr_compv3_permute_n_intrawave_"
+            "grouped_gemm_bquant_fp8_rcr_compv3_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x128_qg1x1x128_preshufflebq"
         )
 
     def test_bf8_preshufflequant_name(self):
         cfg = default_bf8_preshufflequant_config()
         assert cfg.name == (
-            "grouped_gemm_bquant_bf8_rcr_compv3_permute_n_intrawave_"
+            "grouped_gemm_bquant_bf8_rcr_compv3_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x128_qg1x1x128_preshufflebq"
         )
 
     def test_fp8i4_preshufflequant_name(self):
         cfg = default_fp8i4_preshufflequant_config()
         assert cfg.name == (
-            "grouped_gemm_bquant_fp8i4_rcr_compv3_permute_n_intrawave_"
+            "grouped_gemm_bquant_fp8i4_rcr_compv3_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x32_qg1x1x128_preshufflebq"
         )
 
@@ -479,21 +479,21 @@ class TestPhase4MXConfigs:
     def test_mx_bf16bf16_name(self):
         cfg = default_mx_bf16bf16_config(quant_group_k=32)
         assert cfg.name == (
-            "grouped_gemm_bquant_mx_bf16bf16_rcr_microscale_permute_n_intrawave_"
+            "grouped_gemm_bquant_mx_bf16bf16_rcr_microscale_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x32_qg1x1x32"
         )
 
     def test_mx_bf16bf8_name(self):
         cfg = default_mx_bf16bf8_config(quant_group_k=128)
         assert cfg.name == (
-            "grouped_gemm_bquant_mx_bf16bf8_rcr_microscale_permute_n_intrawave_"
+            "grouped_gemm_bquant_mx_bf16bf8_rcr_microscale_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x64_qg1x1x128"
         )
 
     def test_mx_bf16fp4_name(self):
         cfg = default_mx_bf16fp4_config(quant_group_k=32)
         assert cfg.name == (
-            "grouped_gemm_bquant_mx_bf16fp4_rcr_microscale_permute_n_intrawave_"
+            "grouped_gemm_bquant_mx_bf16fp4_rcr_microscale_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x32_qg1x1x32"
         )
 

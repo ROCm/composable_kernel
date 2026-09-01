@@ -30,7 +30,7 @@ import argparse
 import itertools
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -526,12 +526,6 @@ def _build_specs(config: dict) -> List[AQuantKernelSpec]:
         ))
 
     return specs
-
-
-# =============================================================================
-# Generation entry point
-# =============================================================================
-
 
 def generate_kernels(
     output_dir: Path,

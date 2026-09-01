@@ -31,56 +31,20 @@
 
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 
+#include "quant_bridge_common.hpp"
+
 // Kernel header force-included via -include compiler flag.
 // Defines: ADataType, BDataType, CDataType, QDataType, AccDataType,
 //          QuantGroupSize, SelectedKernel, KERNEL_NAME
-
-// Compute the byte count for N logical elements of type T.
-// For packed types (pk_int4_t, pk_fp4_t) PackedSize=2, so N logical values
-// occupy N/2 bytes even though sizeof(T)==1.  For all other types PackedSize=1.
-template <typename T>
-static constexpr std::size_t elements_to_bytes(std::size_t n)
-{
-    return n * sizeof(T) / ck_tile::numeric_traits<T>::PackedSize;
-}
-
-// GPU architecture is derived from the running device at launch time (see the
-// runtime check in dispatcher_run_bquant_gemm) rather than assumed at compile
-// time -- do not hardcode a default architecture here.
-
-static bool g_initialized = false;
-
-#define HIP_CHECK(call)                                                                        \
-    {                                                                                          \
-        hipError_t _err = (call);                                                              \
-        if(_err != hipSuccess)                                                                 \
-        {                                                                                      \
-            std::cerr << "HIP error: " << hipGetErrorString(_err) << " at " << __FILE__ << ":" \
-                      << __LINE__ << "\n";                                                     \
-            return -1;                                                                         \
-        }                                                                                      \
-    }
+//
+// Shared infrastructure (elements_to_bytes, DeviceBuffer, validate_supported_arch,
+// make_stream_config, launch<>, BRIDGE_HIP_CHECK, QUANT_BRIDGE_C_API) lives in
+// quant_bridge_common.hpp. GPU architecture is derived from the running device at
+// launch time (see validate_supported_arch) rather than assumed at compile time.
 
 extern "C" {
 
-/**
- * Initialize the ctypes lib. Must be called before dispatcher_run_bquant_gemm.
- *
- * This library uses a single-kernel-per-.so model: SelectedKernel is
- * force-included at compile time and invoked directly via SelectedKernel::launch().
- * No dispatcher registry is involved -- BQuant kernels require QuantGemmHostArgs
- * which is incompatible with the GeneratedTileKernelInstance::run() signature that
- * the dispatcher's registry backend uses.
- *
- * Returns 0 on success.
- */
-int dispatcher_initialize()
-{
-    if(g_initialized)
-        return 0;
-    g_initialized = true;
-    return 0;
-}
+QUANT_BRIDGE_C_API()
 
 /**
  * Run BQuantGrouped GEMM: C[M,N] = A[M,K] @ dequant(B[K,N], BQ[ceil(K/gK), ceil(N/gN)])
@@ -117,41 +81,28 @@ int dispatcher_run_bquant_gemm(const void* A,
                                int k_batch,
                                float* time_ms)
 {
+    using namespace quant_bridge;
+    const char* kFn = "dispatcher_run_bquant_gemm";
+
     if(!g_initialized)
     {
-        std::cerr << "dispatcher_run_bquant_gemm: not initialized\n";
+        std::cerr << kFn << ": not initialized\n";
         return -1;
     }
     if(!A || !B || !BQ || !C)
     {
-        std::cerr << "dispatcher_run_bquant_gemm: null pointer argument\n";
+        std::cerr << kFn << ": null pointer argument\n";
         return -1;
     }
     if(M <= 0 || N <= 0 || K <= 0 || QK_B <= 0 || QN_B <= 0)
     {
-        std::cerr << "dispatcher_run_bquant_gemm: invalid dimensions\n";
+        std::cerr << kFn << ": invalid dimensions\n";
         return -1;
     }
-
     // Derive the GPU architecture from the running device (do not assume one at
     // compile time) and reject unsupported archs, per review feedback.
-    {
-        int dev = 0;
-        hipDeviceProp_t props{};
-        if(hipGetDevice(&dev) != hipSuccess || hipGetDeviceProperties(&props, dev) != hipSuccess)
-        {
-            std::cerr << "dispatcher_run_bquant_gemm: could not query device architecture\n";
-            return -1;
-        }
-        const std::string arch(props.gcnArchName);
-        if(arch.rfind("gfx950", 0) != 0 && arch.rfind("gfx942", 0) != 0 &&
-           arch.rfind("gfx90a", 0) != 0)
-        {
-            std::cerr << "dispatcher_run_bquant_gemm: unsupported GPU architecture '" << arch
-                      << "' (supported: gfx90a, gfx942, gfx950)\n";
-            return -1;
-        }
-    }
+    if(!validate_supported_arch(kFn, /*allow_gfx90a=*/true))
+        return -1;
 
     // Validate that the caller's QK_B/QN_B match the compile-time quant group sizes
     // baked into this .so.  A mismatch means the BQ device buffer would be allocated
@@ -185,64 +136,27 @@ int dispatcher_run_bquant_gemm(const void* A,
         return -1;
     }
 
-    const ADataType* A_host  = static_cast<const ADataType*>(A);
     const BDataType* B_host  = static_cast<const BDataType*>(B);
     const QDataType* BQ_host = static_cast<const QDataType*>(BQ);
-    CDataType* C_host        = static_cast<CDataType*>(C);
 
-    ADataType* A_dev  = nullptr;
-    BDataType* B_dev  = nullptr;
-    QDataType* BQ_dev = nullptr;
-    CDataType* C_dev  = nullptr;
-
-    auto cleanup = [&]() {
-        if(A_dev)
-            (void)hipFree(A_dev);
-        if(B_dev)
-            (void)hipFree(B_dev);
-        if(BQ_dev)
-            (void)hipFree(BQ_dev);
-        if(C_dev)
-            (void)hipFree(C_dev);
-    };
-
-    // Allocate device buffers.
+    // RAII device buffers: any early return (including from BRIDGE_HIP_CHECK) frees
+    // every allocation automatically -- no hand-written cleanup lambda needed.
     // B may be a packed type (pk_int4_t, pk_fp4_t): 2 logical values per byte.
     // elements_to_bytes<T>(n) handles the packed case via numeric_traits::PackedSize.
-    if(hipMalloc(&A_dev, elements_to_bytes<ADataType>(M * K)) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
-    if(hipMalloc(&B_dev, elements_to_bytes<BDataType>(K * N)) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
-    if(hipMalloc(&BQ_dev, elements_to_bytes<QDataType>(QK_B * QN_B)) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
-    if(hipMalloc(&C_dev, elements_to_bytes<CDataType>(M * N)) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
+    DeviceBuffer<ADataType> A_dev;
+    DeviceBuffer<BDataType> B_dev;
+    DeviceBuffer<QDataType> BQ_dev;
+    DeviceBuffer<CDataType> C_dev;
+    BRIDGE_HIP_CHECK(kFn, A_dev.allocate(elements_to_bytes<ADataType>(M * K)));
+    BRIDGE_HIP_CHECK(kFn, B_dev.allocate(elements_to_bytes<BDataType>(K * N)));
+    BRIDGE_HIP_CHECK(kFn, BQ_dev.allocate(elements_to_bytes<QDataType>(QK_B * QN_B)));
+    BRIDGE_HIP_CHECK(kFn, C_dev.allocate(elements_to_bytes<CDataType>(M * N)));
 
     // Copy inputs to device
-    if(hipMemcpy(A_dev, A_host, elements_to_bytes<ADataType>(M * K), hipMemcpyHostToDevice) !=
-       hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
-    if(hipMemcpy(B_dev, B_host, elements_to_bytes<BDataType>(K * N), hipMemcpyHostToDevice) !=
-       hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
+    BRIDGE_HIP_CHECK(
+        kFn, hipMemcpy(A_dev, A, elements_to_bytes<ADataType>(M * K), hipMemcpyHostToDevice));
+    BRIDGE_HIP_CHECK(
+        kFn, hipMemcpy(B_dev, B, elements_to_bytes<BDataType>(K * N), hipMemcpyHostToDevice));
     // Apply BQ preshuffle when required -- mirrors gemm_bquant_profiler.hpp:118-121.
     // BPreshuffleQuant reorders BQ in host memory before the device copy so the kernel
     // finds the scale values in the interleaved layout it expects.
@@ -257,30 +171,20 @@ int dispatcher_run_bquant_gemm(const void* A,
                                             ck_tile::bool_constant<true>{} /*row-major*/));
         std::copy(BQ_host, BQ_host + QK_B * QN_B, bq_h.begin());
         auto bq_shuffled = ck_tile::shuffle_bq(&bq_h, block_bq_k);
-        if(hipMemcpy(BQ_dev,
-                     bq_shuffled.data(),
-                     elements_to_bytes<QDataType>(QK_B * QN_B),
-                     hipMemcpyHostToDevice) != hipSuccess)
-        {
-            cleanup();
-            return -1;
-        }
+        BRIDGE_HIP_CHECK(kFn,
+                         hipMemcpy(BQ_dev,
+                                   bq_shuffled.data(),
+                                   elements_to_bytes<QDataType>(QK_B * QN_B),
+                                   hipMemcpyHostToDevice));
     }
     else
     {
-        if(hipMemcpy(
-               BQ_dev, BQ_host, elements_to_bytes<QDataType>(QK_B * QN_B), hipMemcpyHostToDevice) !=
-           hipSuccess)
-        {
-            cleanup();
-            return -1;
-        }
+        BRIDGE_HIP_CHECK(
+            kFn,
+            hipMemcpy(
+                BQ_dev, BQ, elements_to_bytes<QDataType>(QK_B * QN_B), hipMemcpyHostToDevice));
     }
-    if(hipMemset(C_dev, 0, elements_to_bytes<CDataType>(M * N)) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
+    BRIDGE_HIP_CHECK(kFn, hipMemset(C_dev, 0, elements_to_bytes<CDataType>(M * N)));
 
     // Build QuantGemmHostArgs (aq_ptr = nullptr, QK_A = 0, stride_AQ = 0 for BQuant-only)
     ck_tile::QuantGemmHostArgs args;
@@ -301,62 +205,22 @@ int dispatcher_run_bquant_gemm(const void* A,
     args.stride_AQ = 0;
     args.stride_BQ = static_cast<ck_tile::index_t>(stride_BQ);
 
-    const bool do_time = (time_ms != nullptr);
-    // When timing is requested use GPU timer with warmup (cold_niters=3, nrepeat=10).
-    // Otherwise run once with no overhead.
-    ck_tile::stream_config stream_cfg{
-        nullptr,          // stream_id_
-        do_time,          // time_kernel_
-        0,                // log_level_
-        do_time ? 3 : 0,  // cold_niters_
-        do_time ? 10 : 1, // nrepeat_
-        do_time,          // is_gpu_timer_
-        false,            // flush_cache_
-        1,                // rotating_count_
-    };
-
-    float exec_time = SelectedKernel::launch(args, stream_cfg);
-
+    // When timing is requested use GPU timer with warmup (cold_niters=3, nrepeat=10);
+    // otherwise run once with no overhead (make_stream_config handles both).
+    const float exec_time = launch<SelectedKernel>(args, time_ms != nullptr);
     if(exec_time < 0.0f)
     {
-        std::cerr << "dispatcher_run_bquant_gemm: kernel reported unsupported args\n";
-        cleanup();
+        std::cerr << kFn << ": kernel reported unsupported args\n";
         return -2;
     }
 
     // Copy result back
-    if(hipMemcpy(C_host, C_dev, elements_to_bytes<CDataType>(M * N), hipMemcpyDeviceToHost) !=
-       hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
+    BRIDGE_HIP_CHECK(
+        kFn, hipMemcpy(C, C_dev, elements_to_bytes<CDataType>(M * N), hipMemcpyDeviceToHost));
 
     if(time_ms)
         *time_ms = exec_time;
-
-    cleanup();
     return 0;
 }
-
-/**
- * Return the compile-time KERNEL_NAME of the force-included kernel.
- */
-const char* dispatcher_get_kernel_name() { return KERNEL_NAME; }
-
-/**
- * Initialize dispatcher (alias kept for consistency with gemm_ctypes_lib).
- */
-int dispatcher_init() { return dispatcher_initialize(); }
-
-/**
- * Number of kernels in this .so (always 1: the force-included SelectedKernel).
- */
-int dispatcher_get_kernel_count() { return 1; }
-
-/**
- * Release resources.
- */
-void dispatcher_cleanup() { g_initialized = false; }
 
 } // extern "C"
