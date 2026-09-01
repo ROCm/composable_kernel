@@ -521,6 +521,80 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CompilerTarget, MmaOpF
     }
 };
 
+// --------------------------------------------------------------------------------------------
+// TEMPORARY gfx908/gfx90a int8 ASM-PARITY SHIMS -- throwaway, revisit and remove.
+//
+// gfx908/gfx90a only have native i8 MFMA at 32x32x8 / 16x16x16 (the two specializations above),
+// which accumulate natively in i32. The LEGACY warp-gemm path instead dispatches i8 through the
+// gfx942-shaped 32x32x16 / 16x16x32 warp gemms, whose gfx90a fallbacks are a DIFFERENT compute:
+//   * 32x32x16 -> upcast i8->f32 and issue 8x v_mfma_f32_32x32x2f32 (f32 accumulation), and
+//   * 16x16x32 -> no native intrinsic, i.e. a no-op that produces zeros.
+// (See WarpGemmAttributeMfmaImpl_i32_32x32x16_i8 / _i32_16x16x32_i8 in
+//  ops/gemm/warp/warp_gemm_attribute_mfma_impl.hpp.)
+//
+// These two shims reproduce the legacy shapes+compute so the new framework's gfx90a i8 GPU asm
+// matches the legacy (USE_NEW_UNIFIED_FRAMEWORK=0) build. Because MmaKSearchSelector picks the
+// largest intrinsic K that fits WaveTileK, adding 32x32x16 / 16x16x32 makes the selector prefer
+// them over the native 32x32x8 / 16x16x16, reproducing the legacy codegen.
+//
+// WARNING: this is a DELIBERATE DEGRADATION for asm-parity validation only. It changes gfx90a i8
+// numerics (native i32 accumulation -> f32 upcast) and reintroduces the 16x16x32 no-op. It is
+// confined to the USE_NEW_UNIFIED_FRAMEWORK=1 path and does not touch the legacy build. REMOVE
+// once the native-i8 divergence has been triaged (see TODO in the change summary).
+// --------------------------------------------------------------------------------------------
+template <typename CompilerTarget>
+// clang-format off
+//               |A B C DataTypes        |MNK           |
+struct amdgcn_mma<int8_t, int8_t, int32_t, 32u, 32u, 16u, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_id_t<CompilerTarget, amdgcn_target_id::GFX908, amdgcn_target_id::GFX90A>>
+//                                                      |WS  |AParams |BPar |CPar  |
+: amdgcn_mma_base<int8_t, int8_t, int32_t, 32u, 32u, 16u, 64u, 8, 1, 1, 1, 1, 16, 4, MfmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    static constexpr const char* instruction_name =
+        "i8 32x32x16 gfx90a legacy-parity shim (f32 upcast, 8x v_mfma_f32_32x32x2f32)";
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
+    {
+        // Mirror WarpGemmAttributeMfmaImpl_i32_32x32x16_i8's gfx908/gfx90a fallback exactly so the
+        // emitted f32 MFMA sequence matches the legacy build.
+        CVecType c = cVec;
+        static_for<0, 8, 1>{}([&](auto k) {
+            float a_f32 =
+                type_convert<float>(reinterpret_cast<const thread_buffer<ADataType, 8>&>(aVec)
+                                        .template get_as<ADataType>()[number<k>{}]);
+            float b_f32 =
+                type_convert<float>(reinterpret_cast<const thread_buffer<BDataType, 8>&>(bVec)
+                                        .template get_as<BDataType>()[number<k>{}]);
+            c = __builtin_amdgcn_mfma_f32_32x32x2f32(a_f32, b_f32, c, 0, 0, 0);
+        });
+        return c;
+    }
+};
+
+template <typename CompilerTarget>
+// clang-format off
+//               |A B C DataTypes        |MNK           |
+struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 32u, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_id_t<CompilerTarget, amdgcn_target_id::GFX908, amdgcn_target_id::GFX90A>>
+//                                                      |WS  |AParams |BPar |CPar |
+: amdgcn_mma_base<int8_t, int8_t, int32_t, 16u, 16u, 32u, 64u, 8, 1, 1, 1, 1, 4, 1, MfmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    static constexpr const char* instruction_name = "i8 16x16x32 gfx90a legacy-parity shim (no-op)";
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
+    {
+        // Mirror WarpGemmAttributeMfmaImpl_i32_16x16x32_i8: no native gfx90a intrinsic, so the
+        // legacy build emits nothing for the multiply -- reproduce that no-op here.
+        ck_tile::ignore = aVec;
+        ck_tile::ignore = bVec;
+        return cVec;
+    }
+};
+
 template <typename CompilerTarget>
 // clang-format off
 //               |A B C DataTypes       |MNK          |
