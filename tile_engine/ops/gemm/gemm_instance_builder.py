@@ -780,20 +780,6 @@ struct SelectedKernel {{
                 instance_code += """
     static constexpr bool Preshuffle = false;"""
 
-        if self.kernel_name_prefix == "gemm_aquant":
-            instance_code += f"""
-    static constexpr bool APreshuffleQuant = {"true" if persistent_or_preshuffle_quant in [True, "true"] else "false"};
-    static constexpr bool BPreshuffleQuant = false;
-    static constexpr bool PreshuffleB = false;
-    static constexpr ck_tile::index_t GroupSizeK = {self.group_size_k};"""
-
-        elif self.kernel_name_prefix == "gemm_bquant":
-            instance_code += f"""
-    static constexpr bool APreshuffleQuant = false;
-    static constexpr bool BPreshuffleQuant = {"true" if persistent_or_preshuffle_quant in [True, "true"] else "false"};
-    static constexpr bool PreshuffleB = false;
-    static constexpr ck_tile::index_t GroupSizeK = {self.group_size_k};"""
-
         return instance_code
 
     def populate_initialization(self, base_pipeline_map, pipeline):
@@ -1797,96 +1783,6 @@ struct SelectedKernel {{
                 TransposeC>;  // isCTransposed_
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
-        return instance_code
-
-    def _populate_launch_bquant(
-        self,
-        scheduler_type_map,
-        scheduler,
-        pipeline_impl_map,
-        pipeline,
-        epilogue,
-        k_block_per_cu,
-    ):
-        instance_code = """
-
-    // Launch function
-    static float launch(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& stream) {
-
-        // Hot loop detection
-        const ck_tile::index_t K_split = ck_tile::integer_least_multiple(args.K, TileShape::kK);
-        const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);"""
-
-        instance_code += f"""
-
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {{
-            constexpr bool has_hot_loop_v = has_hot_loop_.value;
-            constexpr auto tail_number_v = tail_number_.value;
-
-            // Full pipeline problem with hot loop and tail number
-            using PipelineProblem = ck_tile::GemmBQuantPipelineProblem<
-                ADataType,
-                BDataType,
-                BQDataType,
-                AccDataType,
-                TileShape,
-                Traits,
-                QuantGroupSize,
-                TransposeC,
-                BDataType,
-                {scheduler_type_map.get(scheduler)},
-                has_hot_loop_v,
-                tail_number_v>;
-
-            using GemmPipeline = {pipeline_impl_map.get(pipeline)}<PipelineProblem>;"""
-
-        instance_code += """
-
-            // Epilogue"""
-        if epilogue == "cshuffle":
-            instance_code += self.populate_cshuffle_gemm_bquant()
-        else:
-            instance_code += self.populate_default_gemm_bquant()
-
-        instance_code += f"""
-
-            // Kernel type
-            using Kernel = ck_tile::QuantGemmKernel<
-                TilePartitioner, GemmPipeline, GemmEpilogue,
-                ck_tile::QuantType::BQuantGrouped>;
-
-            // Kernel arguments
-            auto kargs = Kernel::MakeKernelArgs(args);
-
-            if (!Kernel::IsSupportedArgument(kargs)) {{
-                throw std::runtime_error("Unsupported kernel arguments; skipping GEMM launch.");
-            }}
-
-            // Get grid and block sizes
-            const dim3 grids = Kernel::GridSize(args.M, args.N, args.k_batch);
-            const dim3 blocks = Kernel::BlockSize();
-
-            if(stream.log_level_ > 0) {{
-                std::cout << "Launching kernel: " << Kernel::GetName() << '\\n'
-                          << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
-                          << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
-                          << std::endl;
-            }}
-
-            // Launch kernel
-            constexpr int kBlockPerCu = {k_block_per_cu};
-            float ave_time = ck_tile::launch_kernel(
-                stream,
-                ck_tile::make_kernel<kBlockPerCu>(Kernel{{}}, grids, blocks, 0, kargs));
-
-            return ave_time;
-        }};
-        return BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
-    }}
-}};
-"""
         return instance_code
 
     def populate_default_gemm_bquant(self):

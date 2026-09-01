@@ -785,3 +785,81 @@ def default_bf8_preshuffleaq_config(
         preshuffle_aq=True,
         gfx_arch=gfx_arch,
     )
+
+
+# =============================================================================
+# gfx1250 (MI400) default configs
+# =============================================================================
+# Empirically (on-GPU, MI400/gfx1250, HIP_VISIBLE_DEVICES=0, fp32-dequant
+# reference), the AQuant fp8/bf8 kernels are correct on gfx1250 only with
+# warp_tile_k=128 (the FlatMM path, same tile the gfx9 fp8/bf8 FlatMM decode
+# uses). The gfx9 stock AQuant default uses warp_tile_k=32 (plain MFMA), which
+# produces a WRONG result on gfx1250 (max_rel_err=1.0); warp_tile_k=16 (gfx12
+# WMMA) returns all-zeros. So the only correct gfx1250 override is 16x16x128.
+#
+#   fp8: warp_tile 16x16x128 -> nonzero, max_rel_err ~3e-4  (PASS)
+#   bf8: warp_tile 16x16x128 -> nonzero, max_rel_err ~1e-4  (PASS)
+#
+# The compile path injects -DCK_USE_OCP_FP8 / -DCK_TILE_USE_OCP_FP8 for gfx12
+# archs, so fp8/bf8 use the OCP encoding on gfx1250.
+#
+# fp8i4 / bf8i4 (pk_int4 weights) do NOT compile on gfx1250 at any warp_tile_k
+# (no gfx12 WMMA/FlatMM instruction for the packed-int4 quant path). Those
+# variants are therefore not enabled on gfx1250: the C++ ctypes arch-gate is
+# opened, but on-GPU correctness is deferred pending kernel work. No gfx1250
+# config helper is provided for i4 because it would emit a non-buildable kernel.
+
+_GFX1250_ARCH = "gfx1250"
+
+
+def default_fp8_config_gfx1250(
+    quant_group_k: int = 128,
+    quant_group_m: int = 1,
+    gfx_arch: str = _GFX1250_ARCH,
+) -> AQuantKernelConfig:
+    """fp8 AQuant decode config for gfx1250 (FlatMM, warp_tile_k=128).
+
+    GPU-verified on MI400/gfx1250: max_rel_err ~3e-4 vs. fp32 dequant reference.
+    warp_tile_k=32 (gfx9 stock) is WRONG on gfx1250; warp_tile_k=16 zeros out.
+    """
+    return AQuantKernelConfig(
+        variant_key="fp8",
+        layout="rcr",
+        pipeline="mem",
+        epilogue="cshuffle",
+        scheduler="intrawave",
+        tile_m=16, tile_n=64, tile_k=256,
+        warp_m=1, warp_n=4, warp_k=1,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        quant_group_m=quant_group_m,
+        quant_group_n=1,
+        quant_group_k=quant_group_k,
+        preshuffle_aq=False,
+        gfx_arch=gfx_arch,
+    )
+
+
+def default_bf8_config_gfx1250(
+    quant_group_k: int = 128,
+    quant_group_m: int = 1,
+    gfx_arch: str = _GFX1250_ARCH,
+) -> AQuantKernelConfig:
+    """bf8 AQuant decode config for gfx1250 (FlatMM, warp_tile_k=128).
+
+    GPU-verified on MI400/gfx1250: max_rel_err ~1e-4 vs. fp32 dequant reference.
+    """
+    return AQuantKernelConfig(
+        variant_key="bf8",
+        layout="rcr",
+        pipeline="mem",
+        epilogue="cshuffle",
+        scheduler="intrawave",
+        tile_m=16, tile_n=64, tile_k=256,
+        warp_m=1, warp_n=4, warp_k=1,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        quant_group_m=quant_group_m,
+        quant_group_n=1,
+        quant_group_k=quant_group_k,
+        preshuffle_aq=False,
+        gfx_arch=gfx_arch,
+    )

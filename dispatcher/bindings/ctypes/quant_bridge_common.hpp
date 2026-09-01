@@ -124,11 +124,12 @@ inline bool validate_supported_arch(const char* fn, bool allow_gfx90a = false)
     }
     const std::string arch(props.gcnArchName);
     const bool ok = arch.rfind("gfx950", 0) == 0 || arch.rfind("gfx942", 0) == 0 ||
-                    (allow_gfx90a && arch.rfind("gfx90a", 0) == 0);
+                    arch.rfind("gfx1250", 0) == 0 || (allow_gfx90a && arch.rfind("gfx90a", 0) == 0);
     if(!ok)
     {
         std::cerr << fn << ": unsupported GPU architecture '" << arch
-                  << "' (supported: " << (allow_gfx90a ? "gfx90a, " : "") << "gfx942, gfx950)\n";
+                  << "' (supported: " << (allow_gfx90a ? "gfx90a, " : "")
+                  << "gfx942, gfx950, gfx1250)\n";
         return false;
     }
     return true;

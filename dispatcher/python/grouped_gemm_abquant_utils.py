@@ -857,3 +857,78 @@ def default_bf8_preshuffleb_config(
         k_block_per_cu=2,
         gfx_arch=gfx_arch,
     )
+
+
+# =============================================================================
+# gfx1250 (MI400) default configs
+# =============================================================================
+# gfx1250 uses the standard CompV3 pipeline (NOT the gfx950-native eightwaves /
+# preshuffleb paths, which require CK_GFX950_SUPPORT and TransposeC=True).
+#
+# Empirically (on-GPU, MI400/gfx1250, HIP_VISIBLE_DEVICES=0, fp32-dequant
+# reference), the ABQuant CompV3 fp8/bf8 kernels are correct on gfx1250 only
+# with warp_tile_k=128 (the FlatMM tile). The gfx9 stock CompV3 default uses
+# warp_tile_k=32 (plain MFMA) which returns all-zeros on gfx1250; warp_tile_k=16
+# (gfx12 WMMA) also returns all-zeros. So the only correct gfx1250 override for
+# the CompV3 pipeline is 16x16x128 with transpose_c=False.
+#
+#   fp8: warp_tile 16x16x128 -> nonzero, max_rel_err ~3e-4  (PASS)
+#   bf8: warp_tile 16x16x128 -> nonzero, max_rel_err ~3e-4  (PASS)
+#
+# The compile path injects -DCK_USE_OCP_FP8 / -DCK_TILE_USE_OCP_FP8 for gfx12
+# archs, so fp8/bf8 use the OCP encoding on gfx1250.
+
+_GFX1250_ARCH = "gfx1250"
+
+
+def default_fp8_compv3_config_gfx1250(
+    quant_group_k: int = 128,
+    bquant_group_n: int = 1,
+    gfx_arch: str = _GFX1250_ARCH,
+) -> ABQuantKernelConfig:
+    """fp8 ABQuant CompV3 config for gfx1250 (FlatMM warp_tile_k=128, TransposeC=False).
+
+    GPU-verified on MI400/gfx1250: max_rel_err ~3e-4 vs. fp32 dequant reference.
+    warp_tile_k=32 (gfx9 stock) and warp_tile_k=16 (gfx12 WMMA) both zero out.
+    """
+    return ABQuantKernelConfig(
+        variant_key="fp8",
+        layout="rcr",
+        pipeline="compv3",
+        epilogue="cshuffle",
+        scheduler="intrawave",
+        tile_m=128, tile_n=128, tile_k=128,
+        warp_m=1, warp_n=4, warp_k=1,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        aquant_group_m=1, aquant_group_n=1, aquant_group_k=quant_group_k,
+        bquant_group_m=1, bquant_group_n=bquant_group_n, bquant_group_k=quant_group_k,
+        preshuffle_b=False, preshuffle_aq=False, preshuffle_bq=False,
+        transpose_c=False,
+        gfx_arch=gfx_arch,
+    )
+
+
+def default_bf8_compv3_config_gfx1250(
+    quant_group_k: int = 128,
+    bquant_group_n: int = 1,
+    gfx_arch: str = _GFX1250_ARCH,
+) -> ABQuantKernelConfig:
+    """bf8 ABQuant CompV3 config for gfx1250 (FlatMM warp_tile_k=128, TransposeC=False).
+
+    GPU-verified on MI400/gfx1250: max_rel_err ~3e-4 vs. fp32 dequant reference.
+    """
+    return ABQuantKernelConfig(
+        variant_key="bf8",
+        layout="rcr",
+        pipeline="compv3",
+        epilogue="cshuffle",
+        scheduler="intrawave",
+        tile_m=128, tile_n=128, tile_k=128,
+        warp_m=1, warp_n=4, warp_k=1,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        aquant_group_m=1, aquant_group_n=1, aquant_group_k=quant_group_k,
+        bquant_group_m=1, bquant_group_n=bquant_group_n, bquant_group_k=quant_group_k,
+        preshuffle_b=False, preshuffle_aq=False, preshuffle_bq=False,
+        transpose_c=False,
+        gfx_arch=gfx_arch,
+    )
