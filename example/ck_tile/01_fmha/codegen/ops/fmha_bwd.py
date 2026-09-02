@@ -977,7 +977,7 @@ class FmhaBwdApiPool:
         check_duplicates_and_paddings(ts, trait)
         ts.append(copy.copy(trait))
 
-    def _api_inners(self, traits: List[FmhaBwdApiTrait]) -> tuple[str, str]:
+    def _api_inners(self, traits: List[FmhaBwdApiTrait]) -> Tuple[str, str]:
         inners = ""
         inners_launcher = ""
         for i_trait, trait in enumerate(traits):

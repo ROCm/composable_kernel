@@ -30,6 +30,10 @@ Variant selection (--variant):
   all               Both WMMA and non-WMMA kernel types (default)
 """
 
+# Keep annotations lazy so PEP 585 builtin generics (list[str], dict[...]) below
+# parse on the Python 3.8 interpreter used by the ROCm 7.0.2.1 release CI.
+from __future__ import annotations
+
 import argparse
 import os
 import re
