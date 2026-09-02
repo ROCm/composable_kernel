@@ -154,7 +154,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
 
         // Number of kKPack groups the kN row is scattered into (bank-group span).
-#ifdef __gfx950__
+#if defined(__gfx950__) || defined(__gfx1250__)
         constexpr index_t BankSpanBytes = 64 * 4;
 #else
         constexpr index_t BankSpanBytes = 32 * 4;
@@ -275,7 +275,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             return k_lds_block_desc;
         }
-        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() == GetSmemKPackK<Problem>())
+        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= GetAlignmentK<Problem>())
         { // This path can only be reached if WarpGemm is 16x16x32 or 32x32x16
 
             constexpr auto desc_native =
@@ -558,7 +558,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<2>{});
 
-#ifdef __gfx950__
+#if defined(__gfx1250__)
+                static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
+#elif defined(__gfx950__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -699,7 +701,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{});
 
-#ifdef __gfx950__
+#if defined(__gfx1250__)
+                static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
+#elif defined(__gfx950__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
