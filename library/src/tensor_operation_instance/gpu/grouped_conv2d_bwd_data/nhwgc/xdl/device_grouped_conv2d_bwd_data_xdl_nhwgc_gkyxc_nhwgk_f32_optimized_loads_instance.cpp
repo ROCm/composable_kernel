@@ -3,6 +3,7 @@
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -23,6 +24,16 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_optimized_load
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
 {
+    // These instances are not code-generated for gfx908: they crash the "SI Form memory
+    // clauses" pass in the ROCm 7.0.2.x backend, so gfx908 is excluded from this
+    // translation unit in library/src/tensor_operation_instance/gpu/CMakeLists.txt.
+    // Skip registration there as well, otherwise a heuristic could pick an instance that
+    // has no device image and the launch would fail with hipErrorNoBinaryForGpu.
+    if(ck::get_device_name() == "gfx908")
+    {
+        return;
+    }
+
     // 1. Default
     add_device_operation_instances(
         instances,

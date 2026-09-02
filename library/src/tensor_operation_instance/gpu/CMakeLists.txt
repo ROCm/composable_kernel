@@ -168,6 +168,29 @@ function(add_instance_library INSTANCE_NAME)
                 list(REMOVE_ITEM INST_TARGETS ${NON_MX_TARGETS})
             endif()
 
+            # ROCm 7.0.2.x toolchain workaround.
+            # The 2D grouped conv bwd-data f32 / f32_tf32 "optimized_loads" instances
+            # segfault clang's "SI Form memory clauses" pass when code is generated for
+            # gfx908. Reproduced with roc-7.0.2 (clang 20) at -O3 and -O2; -O1 avoids it
+            # but would degrade gfx942/gfx950, and -mllvm -amdgpu-max-memory-clause does
+            # not help. A full gfx908 build of every device instance shows these are the
+            # only two affected translation units.
+            # Drop gfx908 from these two TUs only; every other architecture keeps -O3.
+            # The matching registration functions self-reject on gfx908 at runtime, so no
+            # kernel without a device image can be launched. Remove once the backend is
+            # fixed.
+            if(source_name MATCHES "conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32.*optimized_loads")
+                list(REMOVE_ITEM INST_TARGETS gfx908 "gfx908:xnack-" "gfx908:xnack+")
+                if(NOT INST_TARGETS)
+                    # gfx908-only build: there is no other architecture to fall back on,
+                    # so keep gfx908 and compile this TU at -O1, the one setting verified
+                    # to survive the backend bug. Costs codegen quality only here, and
+                    # never on a build that also targets gfx942/gfx950.
+                    set(INST_TARGETS gfx908)
+                    set_source_files_properties(${source} PROPERTIES COMPILE_OPTIONS -O1)
+                endif()
+            endif()
+
             #only build the fp8 gemm instances for gfx90a if the build argument is set, otherwise only build for gfx942/gfx950 and gfx1200/gfx1201
             if(NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
                 if(source_name MATCHES "gemm_xdl_universal|gemm_multiply_multiply|gemm_universal_preshuffle|gemm_blockscale" AND source_name MATCHES "_f8_")
@@ -185,6 +208,16 @@ function(add_instance_library INSTANCE_NAME)
             foreach(target IN LISTS INST_TARGETS)
                 string(APPEND offload_targets "--offload-arch=${target} ")
             endforeach()
+            # Dropping gfx908 from INST_TARGETS above is not sufficient on its own: the
+            # global CXX flags already carry a --offload-arch for every GPU target and
+            # clang unions them all. --no-offload-arch is emitted here, after those, and
+            # removes gfx908 from the final set for these two TUs only. Skipped in the
+            # gfx908-only fallback, where gfx908 is still in INST_TARGETS and the TU is
+            # compiled at -O1 instead.
+            if(source_name MATCHES "conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32.*optimized_loads"
+               AND NOT "gfx908" IN_LIST INST_TARGETS)
+                string(APPEND offload_targets "--no-offload-arch=gfx908 ")
+            endif()
             set_source_files_properties(${source} PROPERTIES COMPILE_FLAGS ${offload_targets})
             list(APPEND INST_OBJ ${source})
         endforeach()
