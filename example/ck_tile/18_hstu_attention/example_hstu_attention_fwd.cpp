@@ -180,10 +180,10 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
     if(is_jagged)
     {
         // supplement seq_lengths_q using the last input value if user-provided lengths not enough
-        supplement_array_by_last_element(seq_lengths_q, num_batch);
+        seq_lengths_q = supplement_array_by_last_element(seq_lengths_q, num_batch);
 
         // supplement seq_lengths_kv using the last input value if user-provided lengths not enough
-        supplement_array_by_last_element(seq_lengths_kv, num_batch);
+        seq_lengths_kv = supplement_array_by_last_element(seq_lengths_kv, num_batch);
 
         for(int i = 0; i < num_batch; i++)
         {
@@ -202,7 +202,7 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
     if(!num_targets.empty())
     {
         // supplement num_targets using the last input value if user-provided lengths not enough
-        supplement_array_by_last_element(num_targets, num_batch);
+        num_targets = supplement_array_by_last_element(num_targets, num_batch);
 
         // only consider num_batch values even if more values are provided by the user
         for(int i = 0; i < num_batch; i++)
@@ -676,33 +676,37 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     HSTU_CHECK(!group_attn_scales.empty(), "group attn_scales shoud be defined!");
 
     // supplement seq_lengths using the last input value if user-provided lengths not enough
-    supplement_array_by_last_element(seq_lengths_q, num_batch);
-    supplement_array_by_last_element(seq_lengths_kv, num_batch);
+    seq_lengths_q  = supplement_array_by_last_element(seq_lengths_q, num_batch);
+    seq_lengths_kv = supplement_array_by_last_element(seq_lengths_kv, num_batch);
 
     if(!num_targets.empty())
     {
         // supplement num_targets using the last input value if user-provided lengths not enough
-        supplement_array_by_last_element(num_targets, num_batch);
+        num_targets = supplement_array_by_last_element(num_targets, num_batch);
     };
 
     // supplement group_input_max_uih_seqlens using the last input value if user-provided lengths
     // not enough
-    supplement_array_by_last_element(group_input_max_uih_seqlens_q, num_group);
-    supplement_array_by_last_element(group_input_max_uih_seqlens_kv, num_group);
+    group_input_max_uih_seqlens_q =
+        supplement_array_by_last_element(group_input_max_uih_seqlens_q, num_group);
+    group_input_max_uih_seqlens_kv =
+        supplement_array_by_last_element(group_input_max_uih_seqlens_kv, num_group);
 
     // supplement group_contextual_seqlens using the last input value if user-provided lengths not
     // enough
-    supplement_array_by_last_element(group_contextual_seqlens, num_group);
+    group_contextual_seqlens =
+        supplement_array_by_last_element(group_contextual_seqlens, num_group);
 
     // supplement group_window_sizes using the last input value if user-provided lengths not enough
-    supplement_array_by_last_element(group_window_sizes, num_group);
+    group_window_sizes = supplement_array_by_last_element(group_window_sizes, num_group);
 
     // supplement group_min_full_attn_seqlens using the last input value if user-provided lengths
     // not enough
-    supplement_array_by_last_element(group_min_full_attn_seqlens, num_group);
+    group_min_full_attn_seqlens =
+        supplement_array_by_last_element(group_min_full_attn_seqlens, num_group);
 
     // supplement group_attn_scales using the last input value if user-provided values not enough
-    supplement_array_by_last_element(group_attn_scales, num_group);
+    group_attn_scales = supplement_array_by_last_element(group_attn_scales, num_group);
 
     int phy_seqlen_q      = 0;
     int phy_seqlen_kv     = 0;
