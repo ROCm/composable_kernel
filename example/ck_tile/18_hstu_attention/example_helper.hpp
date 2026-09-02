@@ -108,13 +108,17 @@ static std::vector<float> get_floats_from_string(std::string srcStr)
 };
 
 template <typename T>
-static void supplement_array_by_last_element(std::vector<T>& arr, int target_num_elements)
+static std::vector<T> supplement_array_by_last_element(std::vector<T>& arr, int target_num_elements)
 {
+    auto arr_new = arr;
+
     if(static_cast<int>(arr.size()) < target_num_elements)
     {
         T last_val = arr.back();
 
         for(int i = arr.size(); i < target_num_elements; i++)
-            arr.push_back(last_val);
+            arr_new.push_back(last_val);
     };
+
+    return arr_new;
 };
