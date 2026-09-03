@@ -21,6 +21,8 @@
 
 namespace ck_tile::core::arch::mma {
 
+#if defined(__gfx125__)
+
 namespace scale::detail {
 
 template <typename ValueT, typename T>
@@ -131,10 +133,10 @@ WMMA_SCALE32_IMPL(pk_fp4_t,    pk_fp4_t,    1, 1)
 
 #undef WMMA_SCALE32_IMPL
 
-// Some type combinations already have a DENSE specialisation with a dedicated builtin. 
+// Some type combinations already have a DENSE specialisation with a dedicated builtin.
 // Here, we provide remaining no-scale specialisations because for gfx1250 WMMA,
 // the caller wants to use an actual no-scale instruction.
-// Contrast this with MFMA: the LLVM backend selects the plain v_mfma_f32_16x16x128_f8f6f4 instruction 
+// Contrast this with MFMA: the LLVM backend selects the plain v_mfma_f32_16x16x128_f8f6f4 instruction
 // instead of v_mfma_scale_f32_16x16x128_f8f6f4 whenever the scale args passed to the intrinsic are literal 0.
 // See: https://github.com/ROCm/llvm-project/blob/therock-7.13/llvm/lib/Target/AMDGPU/SIInstrInfo.td#L317-L327
 #define WMMA_UNSCALED_IMPL(A_TYPE, B_TYPE, NUM_ACC_A, NUM_ACC_B)                                                                              \
@@ -206,5 +208,7 @@ WMMA_SCALE16_IMPL(pk_fp4_t,    pk_fp4_t,    1, 1)
 #undef WMMA_SCALE16_IMPL
 #undef WMMA_SCALE_IMPL
 // clang-format on
+
+#endif // __gfx125__
 
 } // namespace ck_tile::core::arch::mma

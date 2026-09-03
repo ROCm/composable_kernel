@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ck_tile/ops/batched_contraction/kernel/batched_contraction_kernel.hpp"
+#include "ck_tile/ops/batched_contraction/kernel/batched_contraction_multi_abd_kernel.hpp"
 #include "ck_tile/ops/batched_contraction/pipeline/batched_contraction_problem.hpp"
 #include "ck_tile/ops/batched_contraction/utils/tensor_descriptor_utils.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"

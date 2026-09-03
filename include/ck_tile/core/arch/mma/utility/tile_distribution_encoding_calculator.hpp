@@ -147,17 +147,38 @@ struct TileDistrEncCalc
         sequence<1, 2, 2>,
         sequence<0, 0, 2>>;
 
+    // Preserve the legacy gfx11 WMMA tree, including the non-trivial repeat dimension in P and
+    // the size-1 block dimension in H0. This is map-equivalent to ABWarpDstrEncStridedK, but its
+    // exact merge/unmerge structure is needed to reproduce the legacy address arithmetic.
+    template <index_t MajorDimSize, index_t Repeat, index_t NumAccess, index_t CompressionRatio = 1>
+    using ABWarpDstrEncGfx11WmmaLegacy = tile_distribution_encoding<
+        sequence<Repeat>,
+        tuple<sequence<1, MajorDimSize>,
+              sequence<NumAccess,
+                       MmaOp::kK / MmaOp::kABKPerLane,
+                       MmaOp::kABKPerLane / NumAccess / CompressionRatio * kIter>>,
+        tuple<sequence<0, 2, 1>>,
+        tuple<sequence<0, 1, 1>>,
+        sequence<1, 2, 2>,
+        sequence<0, 0, 2>>;
+
     // Select a legacy-matching layout only for the cases where the general strided-K encoding
-    // diverges from legacy purely by trivial-dimension placement. WMMA keeps its own <block, lane>
-    // legacy tree (ABWarpDstrEncStridedKLegacy); every other Repeat == 1 && NumAccess == 1 case
-    // uses the simpler no-trivial-dims form (ABWarpDstrEncStridedKLegacy2). Both are provably
-    // identical maps to ABWarpDstrEncStridedK (they only relocate/drop size-1 dimensions); all
-    // remaining cases (packed, multi-block, Repeat > 1, sub-access) keep the general encoding.
+    // diverges from legacy purely by trivial-dimension placement. For gfx11 WMMA with Repeat == 2,
+    // use the specialized gfx11 legacy tree (ABWarpDstrEncGfx11WmmaLegacy). For other WMMA with
+    // Repeat == 1 && NumAccess == 1, use the <block, lane> legacy tree
+    // (ABWarpDstrEncStridedKLegacy). Every other Repeat == 1 && NumAccess == 1 case uses the
+    // simpler no-trivial-dims form (ABWarpDstrEncStridedKLegacy2). Both are provably identical maps
+    // to ABWarpDstrEncStridedK (they only relocate/drop size-1 dimensions); all remaining cases
+    // (packed, multi-block, Repeat > 1, sub-access) keep the general encoding.
     // kUseLegacyStridedKMfma additionally gates the matching legacy C encoding in
     // get_cwarp_dstr_encoding() below (dense / single-block / uncompressed MFMA only).
     static constexpr bool kUseLegacyStridedKWmma =
         (is_mma_op_wmma_v<MmaOp> && MmaOp::kCMBlocks == 1 && MmaOp::kCNBlocks == 1 &&
          MmaOp::kCompressionRatio == 1);
+
+    static constexpr bool kUseLegacyGfx11Wmma =
+        kUseLegacyStridedKWmma &&
+        is_target_family_gfx11<typename MmaOpTraits<MmaOp>::CompilerTarget>();
 
     static constexpr bool kUseLegacyStridedKMfma =
         (is_mma_op_mfma_v<MmaOp> && MmaOp::kCMBlocks == 1 && MmaOp::kCNBlocks == 1 &&
@@ -168,15 +189,21 @@ struct TileDistrEncCalc
         (UsePackedNumAccess && NumAccess > 1),
         ABWarpDstrEncContiguousK<MajorDimSize, Repeat, NumAccess, CompressionRatio>,
         std::conditional_t<
-            (kUseLegacyStridedKWmma && Repeat == 1 && NumAccess == 1 && CompressionRatio == 1),
-            ABWarpDstrEncStridedKLegacy<MajorDimSize, Repeat, NumAccess, CompressionRatio>,
+            (kUseLegacyGfx11Wmma && Repeat == 2 && CompressionRatio == 1),
+            ABWarpDstrEncGfx11WmmaLegacy<MajorDimSize, Repeat, NumAccess, CompressionRatio>,
             std::conditional_t<
-                Repeat == 1 && NumAccess == 1,
-                ABWarpDstrEncStridedKLegacy2<MajorDimSize, CompressionRatio>,
+                (kUseLegacyStridedKWmma && Repeat == 1 && NumAccess == 1 && CompressionRatio == 1),
+                ABWarpDstrEncStridedKLegacy<MajorDimSize, Repeat, NumAccess, CompressionRatio>,
                 std::conditional_t<
-                    Repeat == 1,
-                    ABWarpDstrEncStridedKLegacy1<MajorDimSize, NumAccess, CompressionRatio>,
-                    ABWarpDstrEncStridedK<MajorDimSize, Repeat, NumAccess, CompressionRatio>>>>>;
+                    Repeat == 1 && NumAccess == 1,
+                    ABWarpDstrEncStridedKLegacy2<MajorDimSize, CompressionRatio>,
+                    std::conditional_t<
+                        Repeat == 1,
+                        ABWarpDstrEncStridedKLegacy1<MajorDimSize, NumAccess, CompressionRatio>,
+                        ABWarpDstrEncStridedK<MajorDimSize,
+                                              Repeat,
+                                              NumAccess,
+                                              CompressionRatio>>>>>>;
 
     // Special A Warp distribution encoding just for swizzle case. This was split out since it
     // specifically deals with the M dimension which would make not sense for B.
@@ -197,11 +224,31 @@ struct TileDistrEncCalc
 
     static constexpr auto get_cwarp_dstr_encoding()
     {
+        if constexpr(kUseLegacyGfx11Wmma && SFactor == 1)
+        {
+            using MSubDims = sequence<MmaOp::kCMBlocks,
+                                      MmaOp::kCMNumAccess,
+                                      MmaOp::kM / MmaOp::kCMBlocks / MmaOp::kCMPerLane,
+                                      MmaOp::kCMPerLane / MmaOp::kCMNumAccess>;
+            using NSubDims = sequence<MmaOp::kCNBlocks, MmaOp::kN / MmaOp::kCNBlocks>;
+
+            using MatDims = std::
+                conditional_t<CTranspose, tuple<NSubDims, MSubDims>, tuple<MSubDims, NSubDims>>;
+            constexpr int MInx = CTranspose ? 2 : 1;
+            constexpr int NInx = CTranspose ? 1 : 2;
+
+            return tile_distribution_encoding<sequence<>,
+                                              MatDims,
+                                              tuple<sequence<MInx, NInx>>,
+                                              tuple<sequence<2, 1>>,
+                                              sequence<MInx, MInx>,
+                                              sequence<1, 3>>{};
+        }
         // TODO: Big kludge: some higher level code can not deal with extra trivial dimensions in
         // the C distribution encoding. In theory this should be fixed there, but in practice the
         // best way to deal with this for now is to provide a simplified C distribution for the
         // cases without blocks.
-        if constexpr(MmaOp::kCMBlocks == 1 && MmaOp::kCNBlocks == 1)
+        else if constexpr(MmaOp::kCMBlocks == 1 && MmaOp::kCNBlocks == 1)
         {
             using MSubDims = sequence<MmaOp::kCMNumAccess / SFactor,
                                       MmaOp::kM / MmaOp::kCMPerLane,
