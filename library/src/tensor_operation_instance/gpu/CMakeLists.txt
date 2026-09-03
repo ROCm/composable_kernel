@@ -169,17 +169,17 @@ function(add_instance_library INSTANCE_NAME)
             endif()
 
             # ROCm 7.0.2.x toolchain workaround.
-            # The 2D grouped conv bwd-data f32 / f32_tf32 "optimized_loads" instances
+            # The 2D and 3D grouped conv bwd-data f32 / f32_tf32 "optimized_loads" instances
             # segfault clang's "SI Form memory clauses" pass when code is generated for
             # gfx908. Reproduced with roc-7.0.2 (clang 20) at -O3 and -O2; -O1 avoids it
             # but would degrade gfx942/gfx950, and -mllvm -amdgpu-max-memory-clause does
             # not help. A full gfx908 build of every device instance shows these are the
             # only two affected translation units.
-            # Drop gfx908 from these two TUs only; every other architecture keeps -O3.
+            # Drop gfx908 from these four TUs only; every other architecture keeps -O3.
             # The matching registration functions self-reject on gfx908 at runtime, so no
             # kernel without a device image can be launched. Remove once the backend is
             # fixed.
-            if(source_name MATCHES "conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32.*optimized_loads")
+            if(source_name MATCHES "conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32.*optimized_loads|conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32.*optimized_loads")
                 list(REMOVE_ITEM INST_TARGETS gfx908 "gfx908:xnack-" "gfx908:xnack+")
                 if(NOT INST_TARGETS)
                     # gfx908-only build: there is no other architecture to fall back on,
@@ -211,10 +211,10 @@ function(add_instance_library INSTANCE_NAME)
             # Dropping gfx908 from INST_TARGETS above is not sufficient on its own: the
             # global CXX flags already carry a --offload-arch for every GPU target and
             # clang unions them all. --no-offload-arch is emitted here, after those, and
-            # removes gfx908 from the final set for these two TUs only. Skipped in the
+            # removes gfx908 from the final set for these four TUs only. Skipped in the
             # gfx908-only fallback, where gfx908 is still in INST_TARGETS and the TU is
             # compiled at -O1 instead.
-            if(source_name MATCHES "conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32.*optimized_loads"
+            if(source_name MATCHES "conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32.*optimized_loads|conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32.*optimized_loads"
                AND NOT "gfx908" IN_LIST INST_TARGETS)
                 string(APPEND offload_targets "--no-offload-arch=gfx908 ")
             endif()
