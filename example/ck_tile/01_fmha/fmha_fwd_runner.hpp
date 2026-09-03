@@ -256,9 +256,13 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         int init_sink_value,
                         int pack_gqa,
                         const ck_tile::stream_config& stream_config,
-                        std::optional<std::string> json = std::nullopt)
+                        std::optional<std::string> json   = std::nullopt,
+                        std::string* selected_kernel_name = nullptr)
 {
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
+
+    if(selected_kernel_name != nullptr)
+        selected_kernel_name->clear();
 
     constexpr bool is_mx = ck_tile::is_any_of<DataTypeConfig, FmhaFwdMxFp8, FmhaFwdMxFp4>::value;
 
@@ -1309,8 +1313,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
         args.nhead_k  = nhead_k;
         if constexpr(std::is_same_v<fmha_fwd_args, std::decay_t<decltype(args)>>)
         {
-            args.num_head_q_total = pack_gqa_nhead_;
-            args.head_start       = 0;
+            args.num_head_q_total     = pack_gqa_nhead_;
+            args.head_start           = 0;
+            args.selected_kernel_name = selected_kernel_name;
         }
 
         args.stride_q       = stride_q;

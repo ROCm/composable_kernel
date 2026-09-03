@@ -147,6 +147,8 @@ template<>
 float fmha_fwd_<trait, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 {{
     using k_ = fmha_kernel;
+    if(a.selected_kernel_name != nullptr)
+        *a.selected_kernel_name = "{F_kname}";
     if(s.log_level_ > 0)
         std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids] = {F_kargs_creator}<k_>(a);

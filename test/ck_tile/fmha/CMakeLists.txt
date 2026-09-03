@@ -87,11 +87,21 @@ add_gtest_fwd(${TEST_NAME}_fwd)
 add_gtest_bwd(${TEST_NAME}_bwd)
 add_custom_target(${TEST_NAME} DEPENDS ${TEST_NAME}_fwd ${TEST_NAME}_bwd)
 
+set(FMHA_QR_TDM_PADDING_TEST_TARGET)
+if(GPU_TARGETS MATCHES "gfx125")
+    add_gtest_executable(test_ck_tile_fmha_qr_tdm_lds_padding
+        test_qr_tdm_lds_padding.cpp)
+    target_link_libraries(test_ck_tile_fmha_qr_tdm_lds_padding PRIVATE utility)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_lds_padding PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+    set(FMHA_QR_TDM_PADDING_TEST_TARGET test_ck_tile_fmha_qr_tdm_lds_padding)
+endif()
+
 # Umbrella target to build and run all ck_tile fmha tests
 # Usage: ninja ck_tile_fmha_tests
 add_custom_target(ck_tile_fmha_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_FMHA_TESTS"
-    DEPENDS ${TEST_NAME}
+    DEPENDS ${TEST_NAME} ${FMHA_QR_TDM_PADDING_TEST_TARGET}
     USES_TERMINAL
     COMMENT "Running all ck_tile fmha tests..."
 )

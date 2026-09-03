@@ -34,6 +34,20 @@ namespace ck_tile {
 
 namespace detail {
 
+template <typename Pipeline, typename = void>
+struct uses_qr_tdm_lds_arena : std::false_type
+{
+};
+
+template <typename Pipeline>
+struct uses_qr_tdm_lds_arena<Pipeline, std::void_t<decltype(Pipeline::kUsesLdsArena)>>
+    : std::bool_constant<Pipeline::kUsesLdsArena>
+{
+};
+
+template <typename Pipeline>
+inline constexpr bool uses_qr_tdm_lds_arena_v = uses_qr_tdm_lds_arena<Pipeline>::value;
+
 // A helper struct for detecting n0loop
 template <typename T, typename = void>
 struct has_n0loop_flag : std::false_type
@@ -1498,7 +1512,17 @@ struct FmhaFwdKernel
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return ck_tile::max(FmhaPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
+        if constexpr(detail::uses_qr_tdm_lds_arena_v<FmhaPipeline>)
+        {
+            using Layout = typename FmhaPipeline::Policy::template LdsArenaLayout<
+                typename FmhaPipeline::Problem>;
+            static_assert(FmhaPipeline::GetSmemSize() == Layout::kArenaBytes);
+            return ck_tile::max(Layout::kArenaBytes, EpiloguePipeline::GetSmemSize());
+        }
+        else
+        {
+            return ck_tile::max(FmhaPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
+        }
     }
 
     CK_TILE_DEVICE static constexpr float GetSoftmaxScale(const Kargs& kargs)
@@ -3066,46 +3090,85 @@ struct FmhaFwdKernel
             auto o_acc_tile = [&]() {
                 if constexpr(PrefillCase)
                 {
-                    // allocate double lds
-                    // add __restrict__ here to avoid aliasing
-                    __shared__ char smem_ptrk0
-                        [FmhaPipeline::Policy::template GetSmemSizeK<typename FmhaPipeline::Problem,
-                                                                     true>()];
-                    __shared__ char smem_ptrk1
-                        [FmhaPipeline::Policy::template GetSmemSizeK<typename FmhaPipeline::Problem,
-                                                                     true>()];
-                    __shared__ char smem_ptrv0[FmhaPipeline::Policy::template GetSmemSizeV<
-                        typename FmhaPipeline::Problem>()];
-                    __shared__ char smem_ptrv1[FmhaPipeline::Policy::template GetSmemSizeV<
-                        typename FmhaPipeline::Problem>()];
+                    if constexpr(detail::uses_qr_tdm_lds_arena_v<FmhaPipeline>)
+                    {
+                        using Layout = typename FmhaPipeline::Policy::template LdsArenaLayout<
+                            typename FmhaPipeline::Problem>;
+                        alignas(256) __shared__ char smem_arena[Layout::kArenaBytes];
 
-                    return FmhaPipeline{}(q_dram_window,
-                                          k_dram_window,
-                                          v_dram_window,
-                                          bias_dram_window,
-                                          lse_dram_window,
-                                          mask,
-                                          position_encoding,
-                                          kargs.scale_s,
-                                          sink_value,
-                                          smem_ptrk0,
-                                          smem_ptrk1,
-                                          smem_ptrv0,
-                                          smem_ptrv1);
+                        return FmhaPipeline{}(q_dram_window,
+                                              k_dram_window,
+                                              v_dram_window,
+                                              bias_dram_window,
+                                              lse_dram_window,
+                                              mask,
+                                              position_encoding,
+                                              kargs.scale_s,
+                                              sink_value,
+                                              smem_arena);
+                    }
+                    else
+                    {
+                        // allocate double lds
+                        // add __restrict__ here to avoid aliasing
+                        __shared__ char smem_ptrk0[FmhaPipeline::Policy::template GetSmemSizeK<
+                            typename FmhaPipeline::Problem,
+                            true>()];
+                        __shared__ char smem_ptrk1[FmhaPipeline::Policy::template GetSmemSizeK<
+                            typename FmhaPipeline::Problem,
+                            true>()];
+                        __shared__ char smem_ptrv0[FmhaPipeline::Policy::template GetSmemSizeV<
+                            typename FmhaPipeline::Problem>()];
+                        __shared__ char smem_ptrv1[FmhaPipeline::Policy::template GetSmemSizeV<
+                            typename FmhaPipeline::Problem>()];
+
+                        return FmhaPipeline{}(q_dram_window,
+                                              k_dram_window,
+                                              v_dram_window,
+                                              bias_dram_window,
+                                              lse_dram_window,
+                                              mask,
+                                              position_encoding,
+                                              kargs.scale_s,
+                                              sink_value,
+                                              smem_ptrk0,
+                                              smem_ptrk1,
+                                              smem_ptrv0,
+                                              smem_ptrv1);
+                    }
                 }
                 else
                 {
-                    __shared__ char smem_ptr[GetSmemSize()];
-                    return FmhaPipeline{}(q_dram_window,
-                                          k_dram_window,
-                                          v_dram_window,
-                                          bias_dram_window,
-                                          lse_dram_window,
-                                          mask,
-                                          position_encoding,
-                                          kargs.scale_s,
-                                          smem_ptr,
-                                          sink_value);
+                    if constexpr(detail::uses_qr_tdm_lds_arena_v<FmhaPipeline>)
+                    {
+                        using Layout = typename FmhaPipeline::Policy::template LdsArenaLayout<
+                            typename FmhaPipeline::Problem>;
+                        alignas(256) __shared__ char smem_arena[Layout::kArenaBytes];
+                        return FmhaPipeline{}(q_dram_window,
+                                              k_dram_window,
+                                              v_dram_window,
+                                              bias_dram_window,
+                                              lse_dram_window,
+                                              mask,
+                                              position_encoding,
+                                              kargs.scale_s,
+                                              smem_arena,
+                                              sink_value);
+                    }
+                    else
+                    {
+                        __shared__ char smem_ptr[GetSmemSize()];
+                        return FmhaPipeline{}(q_dram_window,
+                                              k_dram_window,
+                                              v_dram_window,
+                                              bias_dram_window,
+                                              lse_dram_window,
+                                              mask,
+                                              position_encoding,
+                                              kargs.scale_s,
+                                              smem_ptr,
+                                              sink_value);
+                    }
                 }
             }();
 

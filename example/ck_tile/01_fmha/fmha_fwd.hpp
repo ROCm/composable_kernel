@@ -233,6 +233,8 @@ struct FmhaMasks
 // runtime args, some will passed to karg, some will used to compute grids/blocks
 struct fmha_fwd_args
 {
+    std::string* selected_kernel_name = nullptr;
+
     const void* q_ptr;
     const void* k_ptr;
     const void* v_ptr;
