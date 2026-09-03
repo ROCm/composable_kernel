@@ -59,6 +59,32 @@ struct PermuteNEpilogueProblem
                   "The size of DsDataType and DsLayout should be the same");
 };
 
+// ---------------------------------------------------------------------------
+// [kernel_tune pilot 2026-09] Lane -> (m, n) store mapping of this epilogue.
+//
+// The store distribution (IntrThreadShuffleEncode below) decomposes the block
+// tile as
+//   M: (kM0, kM1, kM2) = (MWave, MPerXdl/RowsPerLane, RowsPerLane)
+//   N: (kN0, kN1, kN2) = (NWave, NPerXdl,            NRepeat)
+// with P0 = (m0, n0) = wave id and P1 = (m1, n1) = lane id (lane = m1*NPerXdl
+// + n1), Y0 = m2, Y1 = n2. For a lane `l` of wave (wave_m, wave_n), thread
+// buffer element dst = n2 + m2*NRepeat is stored at the CANONICAL global
+// coordinate
+//   m = block_m + mIter*MWave*MPerXdl + wave_m*MPerXdl
+//       + (l / NPerXdl)*RowsPerLane + m2
+//   n = block_n + wave_n*NPerXdl*NRepeat + (l % NPerXdl)*NRepeat + n2
+// i.e. each lane owns NRepeat *consecutive* N elements. This matches the
+// canonical-N decomposition used by the paired host-side B shuffle
+// (shuffle_b_v1 / shuffle_b_permuteN in host/tensor_shuffle_utils.hpp:249-269:
+// view [n/N_Tile][N_Warp][N_Warp_Tile][NRepeat][k/IPA][IPA], permute
+// {0,3,1,4,2,5}), which hands the weight column n = nBlock*N_Tile +
+// wave_n*NPerXdl*NRepeat + lane_n*NRepeat + n2 to exactly this lane/repeat
+// slot. Stores therefore land at canonical global N coordinates, so any
+// N-indexed side input (per-channel scale / D tensor) gathered through the
+// SAME distribution reads the matching canonical n, and any M-indexed side
+// input reads the matching canonical m PROVIDED its window is advanced by
+// MWave*MPerXdl per mIter like the output window (see the scale_m fix below).
+// ---------------------------------------------------------------------------
 template <typename Problem_, typename Policy_ = void>
 struct PermuteNEpilogue
 {
@@ -344,8 +370,22 @@ struct PermuteNEpilogue
                     }
                     else if constexpr(has_scales && !has_scalar_scales)
                     {
-                        const auto sm = static_cast<float>(sm_tile.get_thread_buffer()[dst]);
-                        const auto sn = static_cast<float>(sn_tile.get_thread_buffer()[dst]);
+                        // [kernel_tune pilot fix] Indexing both scale tiles at
+                        // [dst] applies WRONG per-token scales: the tiles are
+                        // loaded through the same distribution as the store,
+                        // but stepping the n2 Y-coordinate across scale_m's
+                        // length-1 N dimension carries into its M coordinate.
+                        // Measured on gfx950 (see ATTEMPTS.md, probe a2probe2):
+                        //   sm delivered at (y0=m2, y1=n2) = scale_m[m + n2]
+                        //   (wrapped within the current MWave*MPerXdl window),
+                        //   sn delivered at (y0=m2, y1=n2) = scale_n[n].
+                        // scale_m does not depend on n and its n2=0 slot is
+                        // always correct, so gather sm at (m2, n2=0). scale_n
+                        // does not depend on m; gather it at (m2=0, n2) for the
+                        // same robustness.
+                        const auto sm =
+                            static_cast<float>(sm_tile.get_thread_buffer()[m_lane * NRepeat]);
+                        const auto sn = static_cast<float>(sn_tile.get_thread_buffer()[n_idx]);
                         v             = static_cast<AccDataType>(v * sm * sn);
                     }
 
@@ -369,6 +409,16 @@ struct PermuteNEpilogue
             static_for<0, NumDTensor, 1>{}([&](auto idx) {
                 move_tile_window(d_dram_windows[idx], {number<MPerXdl * MWave>{}, number<0>{}});
             });
+            // [kernel_tune pilot fix] scale_m is M-indexed (per-token); its
+            // window must track the output rows across MRepeat iterations,
+            // otherwise every iteration re-reads rows [0, MPerXdl*MWave) and
+            // MTile > MWave*MPerXdl silently applies wrong per-token scales.
+            // scale_n's view has M-stride 0 (it is N-indexed), so it does not
+            // need to move.
+            if constexpr(has_scales && !has_scalar_scales)
+            {
+                move_tile_window(scale_m_window, {number<MPerXdl * MWave>{}, number<0>{}});
+            }
         });
     }
 };
