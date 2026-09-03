@@ -18,7 +18,9 @@ struct HstuRandUniformKernel
     static constexpr ck_tile::index_t kNPerBlock = 64;
 
     using BlockTile = ck_tile::sequence<kMPerBlock, kNPerBlock, 32>;
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx1250__)
+    using WarpTile = ck_tile::sequence<16, 16, 32>;
+#elif defined(__gfx11__) || defined(__gfx12__)
     using WarpTile = ck_tile::sequence<16, 16, 16>;
 #else
     // either 32x32 or 16x16 warp-gemm is ok for wave64

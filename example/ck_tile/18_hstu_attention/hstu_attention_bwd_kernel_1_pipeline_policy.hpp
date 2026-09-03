@@ -478,10 +478,8 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
-        else if constexpr(GetOGradVWarpGemmKPerThreadSize<Problem>() == GetSmemKPackV<Problem>())
+        else if constexpr(GetOGradVWarpGemmKPerThreadSize<Problem>() >= GetAlignmentV<Problem>())
         {
-            static_assert(kKVector == kKPack);
-
             // XOR-swizzled physical layout [NumBuffers, kNPerBlock, kKPerBlock] -- shared
             // with the transposed staging buffers (see MakeSwizzledNativeDesc).
             constexpr auto desc_native =
@@ -574,7 +572,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
 
         // Number of kKPack groups the kN row is scattered into (bank-group span).
-#ifdef __gfx950__
+#if defined(__gfx950__) || defined(__gfx1250__)
         constexpr index_t BankSpanBytes = 64 * 4;
 #else
         constexpr index_t BankSpanBytes = 32 * 4;
@@ -674,7 +672,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
 
         // Number of kKPack groups the kN row is scattered into (bank-group span).
-#ifdef __gfx950__
+#if defined(__gfx950__) || defined(__gfx1250__)
         constexpr index_t MaxNLdsLayer =
             (64 * 4 / kK / ElementBytes) < 1 ? 1 : (64 * 4 / kK / ElementBytes);
 #else
@@ -886,7 +884,9 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{});
 
-#ifdef __gfx950__
+#if defined(__gfx1250__)
+                static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
+#elif defined(__gfx950__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -905,7 +905,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                     true,
                     false,
                     false,
-                    WGAttrNumAccessEnum::Single>{};
+                    WGAttrNumAccessEnum::Default>{};
             }
             else
             {
@@ -951,7 +951,9 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{});
 
-#ifdef __gfx950__
+#if defined(__gfx1250__)
+                static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
+#elif defined(__gfx950__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -970,7 +972,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                     true,
                     false,
                     false,
-                    WGAttrNumAccessEnum::Single>{};
+                    WGAttrNumAccessEnum::Default>{};
             }
             else
             {
@@ -1014,7 +1016,9 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{});
 
-#ifdef __gfx950__
+#if defined(__gfx1250__)
+                static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
+#elif defined(__gfx950__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -1033,7 +1037,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                     true,
                     false,
                     false,
-                    WGAttrNumAccessEnum::Single>{};
+                    WGAttrNumAccessEnum::Default>{};
             }
             else
             {
@@ -1085,7 +1089,9 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<2>{});
 
-#ifdef __gfx950__
+#if defined(__gfx1250__)
+                static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
+#elif defined(__gfx950__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -1107,7 +1113,12 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                         true,
                         false,
                         false,
-                        WGAttrNumAccessEnum::Double>{};
+#if defined(__gfx950__)
+                        WGAttrNumAccessEnum::Double
+#else
+                        WGAttrNumAccessEnum::Default
+#endif
+                        >{};
                 else
                     return WarpGemmDispatcher<
                         typename Problem::QKVDataType,
@@ -1119,7 +1130,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                         true,
                         false,
                         false,
-                        WGAttrNumAccessEnum::Single>{};
+                        WGAttrNumAccessEnum::Default>{};
             }
             else
             {

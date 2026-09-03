@@ -5,3 +5,4 @@
 
 #include "hstu_attention_bwd_setting_gfx94.hpp"
 #include "hstu_attention_bwd_setting_gfx95.hpp"
+#include "hstu_attention_bwd_setting_gfx125.hpp"
