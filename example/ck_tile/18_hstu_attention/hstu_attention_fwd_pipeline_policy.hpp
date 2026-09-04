@@ -580,7 +580,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                     true,
                     false,
                     false,
-                    WGAttrNumAccessEnum::Single>{};
+                    WGAttrNumAccessEnum::Default>{};
             }
             else
             {
@@ -649,7 +649,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                     true,
                     false,
                     false,
-                    WGAttrNumAccessEnum::Single>{};
+                    WGAttrNumAccessEnum::Default>{};
             }
             else
             {
@@ -725,7 +725,12 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                         true,
                         false,
                         false,
-                        WGAttrNumAccessEnum::Double>{};
+#if defined(__gfx950__)
+                        WGAttrNumAccessEnum::Double
+#else
+                        WGAttrNumAccessEnum::Default
+#endif
+                        >{};
                 else
                     return WarpGemmDispatcher<
                         typename Problem::QKVDataType,
@@ -737,7 +742,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                         true,
                         false,
                         false,
-                        WGAttrNumAccessEnum::Single>{};
+                        WGAttrNumAccessEnum::Default>{};
             }
             else
             {
