@@ -580,6 +580,18 @@ struct UniversalGemmKernel
             using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
             if(std::is_same_v<DiLayout, CLayout> == false)
             {
+                // Every other rejection in this function reports itself under
+                // CK_TILE_LOGGING; this one used to fail silently, so a kernel
+                // simply never ran and the reason had to be found by reading
+                // the source. A broadcast scale D (an M-vector with a column
+                // layout, paired with a row-major C) hits exactly this path.
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("D tensor layout must match the C layout: D",
+                                  index.value,
+                                  " differs, so this kernel cannot run. Give D the C layout, "
+                                  "or use a kernel/epilogue that supports a transposed D.");
+                }
                 DTensorIsValid = false;
             }
             if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
