@@ -999,12 +999,11 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     if((QuantMode == ck_tile::QuantType::AQuantGrouped ||
-        QuantMode == ck_tile::QuantType::RowColQuant ||
         std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_t>) &&
        GemmConfig::PreshuffleB)
     {
         throw std::runtime_error(
-            "Preshuffling weight matrix is not supported for AQuant, RowColQuant or bf16_fp4_gemm");
+            "Preshuffling weight matrix is not supported for AQuant or bf16_fp4_gemm");
     }
 
     if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
