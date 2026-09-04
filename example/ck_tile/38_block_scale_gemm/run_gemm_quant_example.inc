@@ -195,10 +195,18 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
                                ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
 
+        // RowCol/Tensor scales are applied by the epilogue, so the quant mode
+        // and the B layout are independent axes: a preshuffled B just needs the
+        // weight-preshuffle pipeline underneath.
+        using RowColPipeline =
+            std::conditional_t<GemmConfig::PreshuffleB,
+                               ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>,
+                               ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>>;
+
         using GemmPipeline = std::conditional_t<
             QuantMode == ck_tile::QuantType::RowColQuant ||
                 QuantMode == ck_tile::QuantType::TensorQuant,
-            ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
+            RowColPipeline,
             std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
                                AQuantPipeline,
                                std::conditional_t<QuantMode == ck_tile::QuantType::ABQuantGrouped,
@@ -999,12 +1007,11 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     if((QuantMode == ck_tile::QuantType::AQuantGrouped ||
-        QuantMode == ck_tile::QuantType::RowColQuant ||
         std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_t>) &&
        GemmConfig::PreshuffleB)
     {
         throw std::runtime_error(
-            "Preshuffling weight matrix is not supported for AQuant, RowColQuant or bf16_fp4_gemm");
+            "Preshuffling weight matrix is not supported for AQuant or bf16_fp4_gemm");
     }
 
     if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
