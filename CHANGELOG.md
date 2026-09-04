@@ -2,6 +2,52 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## Composable Kernel 1.3.0 for ROCm 10.1.0
+
+### Added
+
+* Added support for building Composable Kernel for the target-agnostic SPIR-V target (`amdgcnspirv`), which is compiled to native code at run time.
+* Added grouped convolution forward, backward data, and backward weight instances for gfx1250.
+* Added a wavelet GEMM pipeline for convolution forward that specializes waves into separate load and math roles to reduce VALU contention.
+* Added a batched contraction kernel with multiple ABD support to CK Tile.
+* Added CK Tile dispatcher support for more GEMM operators, including weight preshuffle GEMM, batched GEMM, batched contraction, grouped A-quantized and AB-quantized GEMM, grouped row-column and tensor quantized GEMM, and block scale quantized GEMM.
+* Added gfx1250 support to the CK Tile dispatcher GEMM operators, covering universal, grouped, multiple D, multiple ABD, batched, batched contraction, and grouped quantized GEMM.
+* Added gfx1250 WMMA instance support to the CK backend for PyTorch Inductor, covering universal GEMM, batched GEMM, and grouped convolution forward.
+* Added the tanh approximation of GELU to the XDL two-stage MoE GEMM epilogue.
+* Added double-precision buffer atomic add support on gfx1250.
+
+### Optimized
+
+* Improved FMHA forward performance for head dimension 128 on gfx11 and gfx12 targets by retuning tile selection.
+* Improved FMHA forward performance on gfx1250 for bf16 and fp16 head dimension 128 by padding the LDS layout in the qr_tdm pipeline.
+* Improved memory coalescing of microscaling (MX) scale loads on gfx1250 by unifying the scale16 layout with scale32.
+
+### Changed
+
+* Disabled the large tensor XDL grouped convolution backward weight instances on gfx1250, where they could produce intermittent memory access faults.
+* Changed the ck4inductor instance enumerators to emit a deduplicated, deterministically ordered instance list.
+
+### Fixed
+
+* Fixed a 32-bit integer overflow in the tensor descriptor element space size that caused undersized workspace allocation and out-of-bounds writes in grouped convolution backward weight for large tensors.
+* Fixed grouped convolution forward rejecting valid problem sizes because the implicit GEMM view was subject to the 2 GB logical GEMM size limit.
+* Fixed incorrect results in grouped convolution backward data and XDL GEMM kernels caused by an invalid `__restrict__` qualifier on LDS pointers.
+* Fixed incorrect accumulation in atomic and split-K kernels on gfx1250 by issuing buffer atomic adds with device scope coherence.
+* Fixed memory faults in FMHA batch prefill with a paged KV cache when the page size is a single token.
+* Fixed the softmax sink gradient shape in the FMHA backward kernel and corrected sliding window progression when the attention sink is enabled.
+* Fixed incorrect results in microscaling (MX) XDL GEMM and B preshuffle kernels when the B operand is more densely packed than A, such as FP8 by FP4.
+* Fixed intermittent incorrect results in microscaling (MX) GEMM on gfx1250 caused by missing LDS read ordering in the double-buffered pipeline.
+* Fixed incorrect results in FP8 block scale weight preshuffle GEMM and MoE GEMM on gfx1250 caused by an invalid preshuffle layout and a hardcoded wave size.
+* Fixed incorrect results in FP4 weight preshuffle quantized GEMM caused by mismatched packed element granularity between the host B preshuffle and the device B tile distribution.
+* Fixed incorrect results in the B preshuffle dequantized GEMM pipeline caused by the C transpose setting being ignored.
+* Fixed incorrect results from the CK Tile compute v3 intrawave GEMM pipeline with eight-warp block arrangements on gfx1250.
+* Fixed out-of-bounds asynchronous loads in the CK Tile compute async WMMA GEMM pipeline caused by a missing element validity check.
+* Fixed accuracy loss in the bf16 fast GELU element-wise operation on gfx1250 by using the non-native implementation.
+* Fixed a build failure caused by the compiler change from vector to ext_vector types.
+* Fixed a CMake failure when building instance libraries for multiple offload targets.
+* Fixed an unspecified minimum blocks per compute unit value being passed to the compiler.
+* Fixed the CK Tile dispatcher code generator and its ctypes bindings failing to build.
+
 ## Composable Kernel 1.2.0 for ROCm 10.0
 
 ### Added

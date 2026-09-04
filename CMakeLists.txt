@@ -41,7 +41,7 @@ if(THEROCK_SANITIZER STREQUAL "ASAN" OR THEROCK_SANITIZER STREQUAL "HOST_ASAN")
   message(STATUS "Enabling ASAN for Composable Kernel (THEROCK_SANITIZER=${THEROCK_SANITIZER})")
 endif()
 
-set(version 1.2.0)
+set(version 1.3.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
 include(CTest)
 
