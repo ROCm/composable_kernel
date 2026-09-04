@@ -494,11 +494,18 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             K, BQuantGroupSize::kK); // Group quantization: BQK = K / GroupSize
         BQN = ck_tile::integer_divide_ceil(N, BQuantGroupSize::kN);
     }
-    else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
-                      QuantMode == ck_tile::QuantType::TensorQuant)
+    else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
     {
-        AQK = 1; // Row quantization: tensor shape [M, 1] or [1]
-        BQK = 1; // Column quantization: tensor shape [1, N] or [1]
+        AQK = 1; // Row quantization: AQ tensor shape [M, 1]
+        BQK = 1; // Column quantization: BQ tensor shape [1, N] -- one scale per
+        BQN = N; // output column, so the extent is N, not 1. stride_BQ below is
+                 // already computed for (1, N); allocating (1, 1) here left the
+                 // kernel reading N scales out of a single-element buffer.
+    }
+    else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
+    {
+        AQK = 1; // Tensor quantization: AQ tensor shape [1]
+        BQK = 1; // Tensor quantization: BQ tensor shape [1]
         BQN = 1;
     }
     else
