@@ -864,7 +864,15 @@ endif()
 option(DISABLE_OFFLOAD_COMPRESS "Disable offload compress compiler flag when building instances" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 option(BUILD_CK_DEVICE_INSTANCES "Build device operation instances in library/" ON)
-option(BUILD_CK_PROFILER "Build the CK profiler in profiler/" ON)
+# WORKAROUND (ROCm 7.0.2.1 delivery): default OFF on this branch. ckProfiler
+# links every device instance library, each carrying embedded device images for
+# all 12 release GPU targets. After the CK develop import the binary outgrew the
+# 2 GB reach of x86-64 PC-relative relocations and ld.lld fails the final link
+# with 20 x "relocation R_X86_64_PC32 out of range" (~2.17 GB). Nothing links
+# ckProfiler and MIOpen never references it, so not building it costs nothing at
+# runtime; it only drops the separate ckprofiler package from the release.
+# Set -DBUILD_CK_PROFILER=ON to restore it once the binary fits again.
+option(BUILD_CK_PROFILER "Build the CK profiler in profiler/" OFF)
 option(BUILD_CK_TILE_ENGINE_TESTS "Build tile engine tests" ON)
 option(BUILD_CK_TILE_FMHA_TESTS "Build FMHA tests" ON)
 option(BUILD_CK_TILE_CSHUFFLE_LDS_BENCHMARKS "Build CShuffleLds microbenchmarks (requires BUILD_CK_EXAMPLES=ON)" OFF)
