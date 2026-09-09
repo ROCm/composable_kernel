@@ -149,6 +149,7 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 32u, CompilerTarget, MmaOpF
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
+#if defined(__GFX12__)
         using P = WarpGemmParamsParser<Params...>;
         return {__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32(true, // A signedness
                                                              aVec,
@@ -157,6 +158,18 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 32u, CompilerTarget, MmaOpF
                                                              cVec,
                                                              idx,
                                                              P::clamp)};
+#else
+        // Not a gfx12 device pass: this specialization can be instantiated in a
+        // multi-target build (e.g. GPU_TARGETS="gfx942;gfx1201"), where the
+        // builtin is unavailable. Unreachable as long as dispatch only calls
+        // this on a gfx12 device; a mis-dispatch traps rather than miscomputes.
+        (void)aVec;
+        (void)bVec;
+        (void)cVec;
+        (void)idx;
+        __builtin_trap();
+        __builtin_unreachable();
+#endif
     }
 };
 
@@ -283,6 +296,7 @@ struct amdgcn_mma<pk_int4_t, pk_int4_t, int32_t, 16u, 16u, 32u, CompilerTarget, 
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
+#if defined(__GFX12__)
         using P = WarpGemmParamsParser<Params...>;
         return {__builtin_amdgcn_swmmac_i32_16x16x32_iu4_w32(true, // A signedness
                                                              bit_cast<int32_t>(aVec),
@@ -291,6 +305,18 @@ struct amdgcn_mma<pk_int4_t, pk_int4_t, int32_t, 16u, 16u, 32u, CompilerTarget, 
                                                              cVec,
                                                              idx,
                                                              P::clamp)};
+#else
+        // Not a gfx12 device pass: this specialization can be instantiated in a
+        // multi-target build (e.g. GPU_TARGETS="gfx942;gfx1201"), where the
+        // builtin is unavailable. Unreachable as long as dispatch only calls
+        // this on a gfx12 device; a mis-dispatch traps rather than miscomputes.
+        (void)aVec;
+        (void)bVec;
+        (void)cVec;
+        (void)idx;
+        __builtin_trap();
+        __builtin_unreachable();
+#endif
     }
 };
 
@@ -309,6 +335,7 @@ struct amdgcn_mma<pk_int4_t, pk_int4_t, int32_t, 16u, 16u, 64u, CompilerTarget, 
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
+#if defined(__GFX12__)
         using P = WarpGemmParamsParser<Params...>;
         return {__builtin_amdgcn_swmmac_i32_16x16x64_iu4_w32(true, // A signedness
                                                              bit_cast<int32x2_t>(aVec),
@@ -317,6 +344,18 @@ struct amdgcn_mma<pk_int4_t, pk_int4_t, int32_t, 16u, 16u, 64u, CompilerTarget, 
                                                              cVec,
                                                              idx,
                                                              P::clamp)};
+#else
+        // Not a gfx12 device pass: this specialization can be instantiated in a
+        // multi-target build (e.g. GPU_TARGETS="gfx942;gfx1201"), where the
+        // builtin is unavailable. Unreachable as long as dispatch only calls
+        // this on a gfx12 device; a mis-dispatch traps rather than miscomputes.
+        (void)aVec;
+        (void)bVec;
+        (void)cVec;
+        (void)idx;
+        __builtin_trap();
+        __builtin_unreachable();
+#endif
     }
 };
 
