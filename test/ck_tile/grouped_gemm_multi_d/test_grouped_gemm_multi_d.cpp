@@ -8,6 +8,89 @@
 #include "ck_tile/host.hpp"
 #include "test_grouped_gemm_multi_d_util.hpp"
 
+namespace {
+
+using MultiDAddressShape = ck_tile::TileGemmShape<ck_tile::sequence<128, 128, 64>,
+                                                  ck_tile::sequence<2, 2, 1>,
+                                                  ck_tile::sequence<32, 32, 16>>;
+using MultiDAddressPartitioner =
+    ck_tile::GemmSpatiallyLocalTilePartitioner<MultiDAddressShape, 8, 4>;
+using MultiDAddressTraits =
+    ck_tile::TileGemmUniversalTraits<false,
+                                     false,
+                                     false,
+                                     false,
+                                     ck_tile::tensor_layout::gemm::RowMajor,
+                                     ck_tile::tensor_layout::gemm::ColumnMajor,
+                                     ck_tile::tensor_layout::gemm::RowMajor,
+                                     false>;
+using MultiDAddressProblem =
+    ck_tile::UniversalGemmPipelineProblem<ck_tile::half_t,
+                                          ck_tile::half_t,
+                                          float,
+                                          MultiDAddressShape,
+                                          MultiDAddressTraits,
+                                          ck_tile::GemmPipelineScheduler::Intrawave>;
+using MultiDAddressPipeline = ck_tile::GemmPipelineAgBgCrCompV3<MultiDAddressProblem>;
+using MultiDLayouts =
+    ck_tile::tuple<ck_tile::tensor_layout::gemm::RowMajor, ck_tile::tensor_layout::gemm::RowMajor>;
+using MultiDTypes           = ck_tile::tuple<ck_tile::half_t, ck_tile::half_t>;
+using MultiDAddressEpilogue = ck_tile::CShuffleEpilogue<
+    ck_tile::CShuffleEpilogueProblem<ck_tile::half_t,
+                                     ck_tile::half_t,
+                                     MultiDTypes,
+                                     float,
+                                     ck_tile::half_t,
+                                     MultiDLayouts,
+                                     ck_tile::tensor_layout::gemm::RowMajor,
+                                     MultiplyMultiply,
+                                     128,
+                                     128,
+                                     2,
+                                     2,
+                                     32,
+                                     32,
+                                     16,
+                                     false>>;
+using MultiDAddressKernel = ck_tile::
+    GroupedGemmKernel<MultiDAddressPartitioner, MultiDAddressPipeline, MultiDAddressEpilogue>;
+
+TEST(TestCkTileGroupedGemmMultiDAddressability, RebasedDAndEViewsAreAccepted)
+{
+    ck_tile::UniversalGemmKernelArgs<1, 1, 2> args{{nullptr},
+                                                   {nullptr},
+                                                   {nullptr, nullptr},
+                                                   nullptr,
+                                                   524288,
+                                                   4096,
+                                                   64,
+                                                   {64},
+                                                   {64},
+                                                   {4096, 4096},
+                                                   4096,
+                                                   1};
+    EXPECT_TRUE(MultiDAddressKernel::IsGroupedGemmAddressable(args));
+}
+
+TEST(TestCkTileGroupedGemmMultiDAddressability, RebasedBroadcastDViewsAreAccepted)
+{
+    ck_tile::UniversalGemmKernelArgs<1, 1, 2> args{{nullptr},
+                                                   {nullptr},
+                                                   {nullptr, nullptr},
+                                                   nullptr,
+                                                   524288,
+                                                   4096,
+                                                   64,
+                                                   {64},
+                                                   {64},
+                                                   {0, 0},
+                                                   4096,
+                                                   1};
+    EXPECT_TRUE(MultiDAddressKernel::IsGroupedGemmAddressable(args));
+}
+
+} // namespace
+
 using F16  = ck_tile::half_t;
 using BF16 = ck_tile::bf16_t;
 using F8   = ck_tile::fp8_t;
