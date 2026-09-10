@@ -1202,6 +1202,16 @@ struct Tensor
 };
 
 } // namespace ck
+
+// Compatibility shim for the ROCm 7.0.2.1 delivery branch.
+// This header sat entirely in the global namespace in release/rocm-rel-7.0.2.1;
+// CK develop moved it into namespace ck. hipTensor is pinned at the 7.0.2.1
+// revision and still calls these unqualified, so re-export them at global scope
+// to keep it compiling against this CK. Only the names hipTensor actually uses
+// are exported, verified by scanning its sources for unqualified references.
+// Remove once hipTensor qualifies these with ck:: .
+using ck::joinable_thread;
+using ck::make_ParallelTensorFunctor;
 #if __clang_major__ >= 23
 #pragma clang diagnostic pop
 #endif

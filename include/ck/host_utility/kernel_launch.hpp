@@ -401,4 +401,13 @@ float launch_and_time_kernel_flush_cache(const StreamConfig& stream_config,
 
 } // namespace ck
 
+// Compatibility shim for the ROCm 7.0.2.1 delivery branch.
+// This header sat entirely in the global namespace in release/rocm-rel-7.0.2.1;
+// CK develop moved it into namespace ck. hipTensor is pinned at the 7.0.2.1
+// revision and still calls this unqualified, so re-export it at global scope to
+// keep it compiling against this CK. Kept inside the __HIPCC_RTC__ guard, since
+// the declarations themselves only exist there.
+// Remove once hipTensor qualifies this with ck:: .
+using ck::launch_and_time_kernel;
+
 #endif
