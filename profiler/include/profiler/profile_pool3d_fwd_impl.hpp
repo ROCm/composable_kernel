@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -46,7 +46,9 @@ template <typename InDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool OutputIndex>
-bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams& kernel_params)
+bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params,
+                             PoolFwdKernelParams& kernel_params,
+                             index_t instance_index = -1)
 {
     constexpr index_t InOutRank  = 5;
     constexpr index_t WindowRank = 3;
@@ -91,7 +93,8 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
             using namespace ck::literals;
 
             return HostTensorDescriptor({N_, C_, D, H, W},
-                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
+                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_},
+                                        ck::tensor_layout::convolution::NDHWC{});
         };
 
     Tensor<InDataType> in_n_c_di_hi_wi(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
@@ -177,8 +180,14 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
 
     int num_kernel = 0;
 
-    for(auto& inst_ptr : instance_ptrs)
+    for(size_t j = 0; j < instance_ptrs.size(); j++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(j)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instance_ptrs[j];
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
             static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
@@ -322,7 +331,7 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
                   << best_instance_name << std::endl;
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;

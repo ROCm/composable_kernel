@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -193,7 +193,7 @@ struct Layernorm2dFwdPipelineOnePass
             Epilogue{}(y_window_, sm_scale_window_, y_scale_window, ln, smem);
         }
         else
-            Epilogue{}(y_window_, ln);
+            Epilogue{}(y_window_, ln, nullptr);
     }
 };
 } // namespace ck_tile

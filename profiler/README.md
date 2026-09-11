@@ -1,5 +1,23 @@
 [Back to the main page](../README.md)
 # Composable Kernel profiler
+
+## Building Specific Profilers
+To reduce build time, filter which operations to compile using CMake options:
+
+```bash
+# Build all grouped_gemm variants (grouped_gemm, grouped_gemm_fastgelu, grouped_gemm_tile_loop, etc.)
+cmake -DCK_PROFILER_OP_FILTER="grouped_gemm" <other options> ..
+
+# Build ONLY base grouped_gemm (excludes variants - use exact regex match with ^ and $)
+cmake -DCK_PROFILER_OP_FILTER="^grouped_gemm$" <other options> ..
+```
+
+Both `CK_PROFILER_OP_FILTER` and `CK_PROFILER_INSTANCE_FILTER` accept regex patterns. Default builds all operations.
+
+To find the complete list of operations, run the following command:
+```bash
+find profiler/src -name "profile_*.cpp" | sed 's|profiler/src/profile_||' | sed 's|.cpp||' | sort
+```
 ## Profiler GEMM UNIVERSAL kernels
 ```bash
 # arg1: tensor operation (gemm_universal: Universal GEMM)
@@ -148,7 +166,7 @@
 #  <dilations>, (ie Dy, Dx for 2D)
 #  <left padding>, (ie LeftPy, LeftPx for 2D)
 #  <right padding>, (ie RightPy, RightPx for 2D)
-# SplitK
+# SplitK (-1 for internally computed split-K value, positive value to set k batches explicitly, or 'all' to test all internal split-K values)
 
  ################                   op   datatype  layout  verify  init  log  time  Ndims  G   N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx  SplitK
 ./bin/ckProfiler grouped_conv_bwd_weight         1       1      0     1    0     1      2 32 256 256 512  3  3  28  28   1   1   1   1       1       0        0        0       1
@@ -216,3 +234,108 @@ python3 ../script/convert_miopen_driver_to_profiler.py
 ```
 
 Only convolution driver is supported.
+
+
+## Profiling CK Tile convolution kernels
+
+CK Tile convolution kernels can be profiled with the same API as the old CK kernels, only the profiler op is different
+
+| CK op | CK Tile op | 
+|---|---|
+| grouped_conv_fwd | grouped_conv_fwd_tile | 
+| grouped_conv_bwd_data | grouped_conv_bwd_data_tile | 
+| grouped_conv_bwd_weight | grouped_conv_bwd_weight_tile | 
+
+The CK Tile kernel instances for profiling are generated from configuration files via python codegen scripts.
+There are currently two ways of running the code generation
+
+- [CK Dispatcher based codegen](../dispatcher/codegen/README.md)
+
+Both mechanism generate identical sets of instances. However, the CK Builder based codegen will be depracated 
+and the CK Dispatcher codegen will be the only codegen solution for CK Tile convolutions.
+One can choose between the two codegen schemes using the CMake configuration flag `CK_TILE_DISPATCHER`. 
+Currently the CK Builder based codegen is the default and dropping `CK_TILE_DISPATCHER` means CK Builder codegen will be used.
+Setting `-D CK_TILE_DISPATCHER=OFF` has the same effect. To use the Dispacther codegen, use `-D CK_TILE_DISPATCHER=ON`.
+
+CK Builder gives the kernel instance a unique name via an instance string. The Dispatcher has a similar mechanism 
+for generating a unique string for each kernel instance. One can instruct the Dispatcher based CK Profiler to use the CK Builder instance string 
+by specifying CMake configuration flag `-D CK_EXPERIMENTAL_BUILDER=ON`. Hence, we have three relevant combinations for the CMake configure step.
+
+CK Builder codgen with CK Builder instance string as kernel ID
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
+  -D CK_TILE_DISPATCHER=OFF                                                                       \
+  -D CMAKE_CXX_STANDARD=20                                                                        \                                                                \
+  -G Ninja                                                                                        \
+  ..
+```
+
+CK Dispatcher codegen with CK Builder instance string as kernel ID
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
+  -D CK_TILE_DISPATCHER=ON                                                                        \
+  -D CMAKE_CXX_STANDARD=20                                                                        \
+  -G Ninja                                                                                        \
+  ..
+```
+
+CK Dispatcher codegen with CK Dispatcher instance string as kernel ID
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_TILE_DISPATCHER=ON                                                                        \
+  -D CMAKE_CXX_STANDARD=20                                                                        \
+  -G Ninja                                                                                        \
+  ..
+```
+
+The Dispatcher codegen selects which kernel instances to generate via the rule set chosen with the CMake
+flag `-D DISPATCHER_RULE_SET=<rule-set>` at the configuration step. The following rule sets are available:
+
+| Rule set | Description |
+|---|---|
+| `profiler` (default) | The CK Builder profiler instance set, generated in memory based on instance factory (no JSON conversion, nothing committed). This is the exact reference instance set. |
+| `tests` | The CK Builder tests instance set, generated in memory from the `tests` subset of the `.conf` configurations. |
+| `full` | The full rule-derived set (all per-(variant, ndim, datatype) instances), generated from the curated rule tables. |
+| `full-tests` | A smaller, stratified ~20% subset of the `full` rule set, for faster builds. |
+| `tiny` | A minimal subset of the `full-tests` rule set (at least 10 configs, with every feature category represented for both 2D and 3D), for quick development/iteration builds. |
+| `default` | The original heuristic rules (datatype-agnostic). |
+
+For example, to generate the full `profiler` set of kernels:
+```bash
+cmake -D DISPATCHER_RULE_SET=profiler <other options> ..
+```
+
+To build only the CK Tile profiler, one can use an additional flag `-DCK_PROFILER_OP_FILTER="_tile"`.
+
+All together, we have a CMake configure command
+
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
+  -D CK_TILE_DISPATCHER=ON                                                                        \
+  -D CMAKE_CXX_STANDARD=20                                                                        \
+  -D DISPATCHER_RULE_SET=full                                                                 \
+  -D CK_PROFILER_OP_FILTER="_tile"                                                                \
+  -G Ninja                                                                                        \
+  ..
+```
+
+to generate a full set of kernel instances for comprehensive benchmarking. Changing the the rule set allows increase/decrease the number of instances available for the profiler.

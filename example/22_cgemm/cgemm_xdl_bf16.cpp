@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 
@@ -48,10 +48,10 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      32,                         // index_t KPerBlock
      8,                          // index_t AK1
      8,                          // index_t BK1
-     32,                         // index_t MPerXDL
-     32,                         // index_t NPerXDL
-     4,                          // index_t MXdlPerWave
-     2,                          // index_t NXdlPerWave
+     16,                         // index_t MPerXDL
+     16,                         // index_t NPerXDL
+     8,                          // index_t MXdlPerWave
+     4,                          // index_t NXdlPerWave
      S<4, 64, 1>,                // typename ABlockTransferThreadClusterLengths_AK0_M_AK1
      S<1, 0, 2>,                 // typename ABlockTransferThreadClusterArrangeOrder
      S<1, 0, 2>,                 // typename ABlockTransferSrcAccessOrder
@@ -69,7 +69,7 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      1,                          // index_t CShuffleMXdlPerWavePerShuffle
      1,                          // index_t CShuffleNXdlPerWavePerShuffle
      S<1, 32, 1, 8>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-     8>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
+     4>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
 // clang-format on
 
 int main(int argc, char* argv[])

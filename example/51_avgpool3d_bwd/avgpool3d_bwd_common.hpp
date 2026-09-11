@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 
@@ -11,6 +11,11 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_avgpool_bwd.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <typename TensorLayout>
 std::vector<ck::index_t> f_tensor_strides_ncdhw(ck::index_t N_,
@@ -42,15 +47,16 @@ HostTensorDescriptor f_host_tensor_descriptor(std::size_t N_,
 
     if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCDHW>::value)
     {
-        return HostTensorDescriptor({N_, C_, D, H, W}, {C_ * D * H * W, D * H * W, H * W, W, 1_uz});
+        return HostTensorDescriptor(
+            {N_, C_, D, H, W}, {C_ * D * H * W, D * H * W, H * W, W, 1_uz}, layout);
     }
     else if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NDHWC>::value)
     {
-        return HostTensorDescriptor({N_, C_, D, H, W},
-                                    {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
+        return HostTensorDescriptor(
+            {N_, C_, D, H, W}, {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_}, layout);
     }
     throw std::runtime_error("Avgpool3d_bwd: problem with layout. ");
-    return HostTensorDescriptor({0, 0, 0, 0, 0}, {0, 0, 0, 0, 0});
+    return HostTensorDescriptor({0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, layout);
 };
 
 template <typename DevicePoolBwdInstance,

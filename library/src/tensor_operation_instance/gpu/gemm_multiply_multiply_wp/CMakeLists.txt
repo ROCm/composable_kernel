@@ -1,4 +1,7 @@
-# ONLY XDL_KERNELS
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# ONLY XDL_AND_WMMA_KERNELS
 set(GEMM_MULTIPLY_MULTIPLY_WEIGHT_PRESHUFFLE_INSTANCES)
 
 list(APPEND GEMM_MULTIPLY_MULTIPLY_WEIGHT_PRESHUFFLE_INSTANCES 
@@ -39,6 +42,15 @@ list(APPEND GEMM_MULTIPLY_MULTIPLY_WEIGHT_PRESHUFFLE_INSTANCES
         f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p4.cpp
         f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p5.cpp
         f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p6.cpp
+
+        device_gemm_multiply_multiply_wp_wmma_f8_f8_bf16_mk_wmma_mn_default_instance_p1.cpp
+        device_gemm_multiply_multiply_wp_wmma_f8_f8_bf16_mk_wmma_mn_default_instance_p2.cpp
+        device_gemm_multiply_multiply_wp_wmma_f8_f8_bf16_mk_wmma_mn_default_instance_p3.cpp
+        device_gemm_multiply_multiply_wp_wmma_f8_f8_bf16_mk_wmma_mn_default_instance_p4.cpp
+        device_gemm_multiply_multiply_wp_wmma_f8_f8_f16_mk_wmma_mn_default_instance_p1.cpp
+        device_gemm_multiply_multiply_wp_wmma_f8_f8_f16_mk_wmma_mn_default_instance_p2.cpp
+        device_gemm_multiply_multiply_wp_wmma_f8_f8_f16_mk_wmma_mn_default_instance_p3.cpp
+        device_gemm_multiply_multiply_wp_wmma_f8_f8_f16_mk_wmma_mn_default_instance_p4.cpp
         )
 
 set_source_files_properties(f8_f8_bf16/device_gemm_multiply_multiply_wp_xdl_f8_f8_bf16_mk_mfma_mn_p1_default_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")

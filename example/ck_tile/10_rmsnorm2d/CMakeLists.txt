@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(RMSNORM2D_FWD_KNOWN_APIS "fwd;bwd")
 set(RMSNORM2D_FWD_ENABLE_APIS  "fwd" CACHE STRING
     "semicolon-separated list of APIs to generate (${RMSNORM2D_FWD_KNOWN_APIS}) & link, or \"all\".")
@@ -26,7 +29,7 @@ add_custom_command(
 set(TILE_RMSNORM2D_FWD "tile_rmsnorm2d_fwd")
 
 message(DEBUG "adding ${TILE_RMSNORM2D_FWD}")
-add_executable(${TILE_RMSNORM2D_FWD} EXCLUDE_FROM_ALL rmsnorm2d_fwd.cpp)
+add_executable(${TILE_RMSNORM2D_FWD} rmsnorm2d_fwd.cpp)
 target_include_directories(${TILE_RMSNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${TILE_RMSNORM2D_FWD} PRIVATE ${RMSNORM2D_FWD_GEN_BLOBS})
 
@@ -38,7 +41,7 @@ list(APPEND TILE_RMSNORM2D_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -Wno
 target_compile_options(${TILE_RMSNORM2D_FWD} PRIVATE ${TILE_RMSNORM2D_FWD_COMPILE_OPTIONS})
 
 set(EXAMPLE_RMSNORM2D_FWD "tile_example_rmsnorm2d_fwd")
-add_executable(${EXAMPLE_RMSNORM2D_FWD} EXCLUDE_FROM_ALL example_rmsnorm2d_fwd.cpp)
+add_executable(${EXAMPLE_RMSNORM2D_FWD} example_rmsnorm2d_fwd.cpp)
 target_compile_options(${EXAMPLE_RMSNORM2D_FWD} PRIVATE ${TILE_RMSNORM2D_FWD_COMPILE_OPTIONS})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated

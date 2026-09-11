@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -56,10 +56,10 @@ struct FusedMoeGemmShape
     using WarpTile_1     = remove_cvref_t<WarpTile_1_>;
 
     static constexpr index_t NumWarps =
-        reduce_on_sequence(WarpPerBlock_0{}, multiplies{}, number<1>{});
+        reduce_on_sequence(WarpPerBlock_0{}, multiplies<>{}, number<1>{});
 
     // TODO: we don't support half warps aound to 1 warp here
-    static_assert(NumWarps == reduce_on_sequence(WarpPerBlock_1{}, multiplies{}, number<1>{}));
+    static_assert(NumWarps == reduce_on_sequence(WarpPerBlock_1{}, multiplies<>{}, number<1>{}));
 
     static constexpr index_t Block_M0        = BlockTile_0::at(number<0>{});
     static constexpr index_t Block_N0        = BlockTile_0::at(number<1>{});

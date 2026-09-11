@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,7 +14,7 @@ namespace ck {
 template <typename F, index_t... ids>
 __host__ __device__ constexpr auto generate_tuple_for(F&& f, Sequence<ids...>)
 {
-    return make_tuple(f(Number<ids>{})...);
+    return ck::make_tuple(f(Number<ids>{})...);
 }
 
 template <typename F, index_t N>
@@ -37,6 +37,27 @@ __host__ __device__ constexpr auto generate_tie(F&& f, Number<N>)
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 
+// Creates Tuple<Sequence<0>, Sequence<1>, ..., Sequence<N-1>>
+namespace detail {
+template <index_t... Is>
+__host__ __device__ constexpr auto make_identity_sequences_impl(Sequence<Is...>)
+{
+    return make_tuple(Sequence<Is>{}...);
+}
+} // namespace detail
+
+template <index_t N>
+__host__ __device__ constexpr auto generate_identity_sequences()
+{
+    return detail::make_identity_sequences_impl(make_index_sequence<N>{});
+}
+
+template <index_t N>
+__host__ __device__ constexpr auto generate_identity_sequences(Number<N>)
+{
+    return generate_identity_sequences<N>();
+}
+
 // tx and ty are tuple of references, return type of will tuple of referennce (not rvalue)
 template <typename... X, typename... Y>
 __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>& tx,
@@ -44,6 +65,15 @@ __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>&
 {
     return unpack2(
         [&](auto&&... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
+        tx,
+        ty);
+}
+
+template <typename... X, typename... Y>
+auto concat_tuple_of_reference(ck::Tuple<X&...>& tx, ck::Tuple<Y&...>& ty)
+{
+    return ck::unpack2(
+        [&](auto&&... zs) { return ck::Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
 }

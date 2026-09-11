@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -15,9 +15,15 @@
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_wmma_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_size_check.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_weight_wmma_cshuffle.hpp"
+#endif
+#include "ck/tensor_operation/gpu/device/tensor_size_check.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -451,7 +457,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     using Block2CTileMap = decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(
         CGridDesc_M_N{}, I1 /* M01 */, I1 /* N01 */));
 
-    struct Argument : public BaseArgument
+    struct Argument : public BaseArgument, public ArgumentSplitK
     {
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
@@ -492,8 +498,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
               output_spatial_lengths_{},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
-              input_right_pads_{input_right_pads},
-              k_batch_{split_k}
+              input_right_pads_{input_right_pads}
         {
             stride_overflow                  = stride_overflow_in;
             constexpr index_t spatial_offset = 3;
@@ -506,6 +511,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
             std::copy(begin(e_g_n_k_wos_lengths) + spatial_offset,
                       end(e_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
+
+            k_batch_ = split_k;
 
             const auto descs =
                 DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -579,7 +586,6 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         const std::array<index_t, NDimSpatial>& conv_filter_strides_;
         const std::array<index_t, NDimSpatial>& input_left_pads_;
         const std::array<index_t, NDimSpatial>& input_right_pads_;
-        const index_t k_batch_;
         bool stride_overflow;
     };
 
@@ -710,7 +716,10 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         {
             return false;
         }
-
+        if(!is_xdl_wmma_k_supported<ADataType, KPerBlock>())
+        {
+            return false;
+        }
         // TODO: Add support for split_k > 1
         if(arg.k_batch_ != 1)
         {
@@ -1000,6 +1009,24 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
 
         return str.str();
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    std::string GetInstanceString() const override
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_device_grouped_conv_bwd_weight_wmma_cshuffle.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
+    }
+#endif
 };
 
 } // namespace device

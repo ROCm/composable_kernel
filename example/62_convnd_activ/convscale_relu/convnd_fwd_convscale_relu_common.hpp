@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -14,6 +14,10 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 using ConvScaleRelu = ck::tensor_operation::element_wise::ConvScaleRelu;

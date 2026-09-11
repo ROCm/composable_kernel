@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,7 +32,8 @@ bool profile_batchnorm_infer_impl(int do_verification,
                                   bool time_kernel,
                                   const std::vector<size_t> inOutLengths,
                                   const std::vector<int> reduceDims,
-                                  double epsilon)
+                                  double epsilon,
+                                  index_t instance_index = -1)
 {
     if(inOutLengths.size() != Rank || reduceDims.size() != NumBatchNormReduceDim)
     {
@@ -233,8 +234,14 @@ bool profile_batchnorm_infer_impl(int do_verification,
     int num_kernel = 0;
     bool pass      = true;
 
-    for(auto& inst_ptr : instance_ptrs)
+    for(size_t j = 0; j < instance_ptrs.size(); j++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(j)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instance_ptrs[j];
         auto argument_ptr = inst_ptr->MakeArgumentPointer(arrInOutLengths,
                                                           {arrInOutStrides,
                                                            aligned_scaleBiasMeanVarStrides,
@@ -322,12 +329,11 @@ bool profile_batchnorm_infer_impl(int do_verification,
                   << best_instance_name << std::endl;
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
-
     return pass;
 }
 

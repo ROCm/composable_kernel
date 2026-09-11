@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -17,4 +17,23 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermuteImpl
 
 #include "run_permute_element_example.inc"
 
-int main() { return !run_permute_element_example({121, 768, 80}, {0, 2, 1}); }
+int main(int argc, char* argv[])
+{
+    bool time_kernel = false;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 2)
+    {
+        time_kernel = std::stoi(argv[1]);
+    }
+    else
+    {
+        printf("arg1: time kernel (0=no, 1=yes, default=0)\n");
+        exit(0);
+    }
+
+    return !run_permute_element_example({121, 768, 80}, {0, 2, 1}, time_kernel);
+}

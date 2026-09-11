@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -76,6 +76,7 @@ set_slice_tile(static_distributed_tensor<DstDataType_, DstStaticTileDistribution
                sequence<SliceEnds...> slice_ends)
 {
     using DstDistribution = remove_cvref_t<DstStaticTileDistribution_>;
+    using SrcDistribution = remove_cvref_t<SrcStaticTileDistribution_>;
 
     constexpr auto sliced_dstr_yidx_ylen =
         detail::slice_distribution_from_x(DstDistribution{}, slice_begins, slice_ends);
@@ -84,9 +85,10 @@ set_slice_tile(static_distributed_tensor<DstDataType_, DstStaticTileDistribution
     constexpr auto sliced_y_origins = sliced_dstr_yidx_ylen.template at<1>();
     constexpr auto sliced_y_lengths = sliced_dstr_yidx_ylen.template at<2>();
 
-    static_assert(std::is_same_v<decltype(sliced_dstr), DstDistribution>, "wrong!");
+    static_assert(std::is_same_v<remove_cvref_t<decltype(sliced_dstr)>, SrcDistribution>, "wrong!");
 
-    dst_tile.SetSlicedThreadData(sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
+    dst_tile.set_y_sliced_thread_data(
+        sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
 }
 
 } // namespace ck_tile

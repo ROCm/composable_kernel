@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # ONLY XDL_KERNELS
 add_instance_library(device_conv3d_bwd_data_instance
    device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instance.cpp

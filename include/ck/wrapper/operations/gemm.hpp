@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -259,8 +259,7 @@ make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
     const auto partition_desc = BlockwiseGemmXdlops::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(
         layout(c_local_tile_tensor).GetUnrolledDescriptor());
 
-    const auto lower_upper_dims =
-        generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<8>{});
+    const auto lower_upper_dims = generate_identity_sequences<8>();
 
     auto sliced_desc = transform_tensor_descriptor(
         partition_desc,

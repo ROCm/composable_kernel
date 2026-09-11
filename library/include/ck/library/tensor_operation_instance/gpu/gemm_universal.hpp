@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -485,6 +485,13 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
                 add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_kpadding_instances(
                     op_ptrs);
+
+#ifdef CK_USE_GFX1250
+                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_v3_prefetch_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_v3_no_prefetch_instances(
+                    op_ptrs);
+#endif
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
                               is_same_v<CLayout, Row>)

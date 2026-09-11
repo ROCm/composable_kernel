@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(example_batched_gemm_xdl)
 
 add_example_executable(example_batched_gemm_xdl_fp32 batched_gemm_xdl_fp32.cpp)

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,6 +57,21 @@ CK_TILE_DEVICE T warp_shuffle_down(const T& v_local, uint32_t lane_delta)
 
     return bit_cast<T>(v_remote_tmp);
 #endif
+}
+
+template <typename T>
+CK_TILE_DEVICE auto warp_shuffle_down_pair(const T& v_local)
+{
+    static_assert(sizeof(T) == sizeof(int32_t), "wrong!");
+
+    const int32x2_t x = __builtin_amdgcn_permlane32_swap(
+        bit_cast<int32_t>(v_local), bit_cast<int32_t>(v_local), false, false);
+
+    thread_buffer<T, 2> v;
+    v(0) = bit_cast<T>(x[0]);
+    v(1) = bit_cast<T>(x[1]);
+
+    return v;
 }
 
 template <typename T>

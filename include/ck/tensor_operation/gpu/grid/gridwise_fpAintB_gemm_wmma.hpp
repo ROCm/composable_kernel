@@ -1,8 +1,9 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -34,23 +35,23 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_fpAintB_gemm_wmma(const ADataType* __restrict__ p_a_grid,
-                                 const BDataType* __restrict__ p_b_grid,
-                                 const ScaleDataType* __restrict__ p_scale_grid,
-                                 CDataType* __restrict__ p_c_grid,
-                                 const AGridDesc a_grid_desc,
-                                 const BGridDesc b_grid_desc,
-                                 const ScaleGridDesc scale_grid_desc,
-                                 const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                     c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                 const AElementwiseOperation a_element_op,
-                                 const BElementwiseOperation b_element_op,
-                                 const CElementwiseOperation c_element_op,
-                                 const Block2CTileMap block_2_ctile_map)
+    kernel_fpAintB_gemm_wmma(const ADataType* __restrict__ p_a_grid,
+                             const BDataType* __restrict__ p_b_grid,
+                             const ScaleDataType* __restrict__ p_scale_grid,
+                             CDataType* __restrict__ p_c_grid,
+                             const AGridDesc a_grid_desc,
+                             const BGridDesc b_grid_desc,
+                             const ScaleGridDesc scale_grid_desc,
+                             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                 c_grid_desc_mblock_mperblock_nblock_nperblock,
+                             const AElementwiseOperation a_element_op,
+                             const BElementwiseOperation b_element_op,
+                             const CElementwiseOperation c_element_op,
+                             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__))
     __shared__ char p_shared[GridwiseGemm::SharedMemTrait::lds_size];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -147,7 +148,11 @@ struct GridwiseFpAintBGemm_Wmma
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WmmaK  = K1 == 16 ? 32 : 16;
+#ifdef __gfx125__
+    static constexpr auto WmmaK = 32;
+#else
+    static constexpr auto WmmaK = K1 == 16 ? 32 : 16;
+#endif
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -321,36 +326,44 @@ struct GridwiseFpAintBGemm_Wmma
             else
             {
                 // KWmma_MRepeat_MWave_K0PerWmma_KRow_MPerWmma_K1 -> K0_MRepeat_Mwaves_MPerWmma_K1
-                constexpr auto KWmma     = ABlockDesc_{}.GetLength(I0);
-                constexpr auto K0PerWmma = ABlockDesc_{}.GetLength(I3);
-                constexpr auto A_KRow    = ABlockDesc_{}.GetLength(I4);
-                constexpr auto A_K1      = ABlockDesc_{}.GetLength(I6);
+                constexpr auto KWmmaPerblock = ABlockDesc_{}.GetLength(I0);
+                constexpr auto K0PerWmma     = ABlockDesc_{}.GetLength(I3);
+                constexpr auto A_K1          = ABlockDesc_{}.GetLength(I6);
 
-                // Err: merge transform cause non-constexpr issue
-
-                // return transform_tensor_descriptor(
-                //     ABlockDesc_{},
-                //     make_tuple(make_merge_transform(make_tuple(Number<KWmma>{}, I1)),
-                //                make_pass_through_transform(Number<MRepeat>{}),
-                //                make_pass_through_transform(I1),
-                //                make_pass_through_transform(I1),
-                //                make_pass_through_transform(Number<A_K1>{})),
-                //     make_tuple(Sequence<0, 3>{},
-                //                Sequence<1>{},
-                //                Sequence<2>{},
-                //                Sequence<4>{},
-                //                Sequence<5>{}),
-                //     make_tuple(
-                //         Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{},
-                //         Sequence<4>{}));
+                static_assert(ABlockDesc_{}.GetLength(I2) == 1);
+                static_assert(ABlockDesc_{}.GetLength(I4) == 1);
+                static_assert(ABlockDesc_{}.GetLength(I5) == 1);
 
                 // Workaround, Freeze transform
-                return make_naive_tensor_descriptor_packed(make_tuple(Number<KWmma * K0PerWmma>{},
-                                                                      Number<MRepeat>{},
-                                                                      I1,
-                                                                      Number<A_KRow>{},
-                                                                      I1,
-                                                                      Number<A_K1>{}));
+                if constexpr(K0PerWmma == 1)
+                {
+                    return make_naive_tensor_descriptor_packed(make_tuple(
+                        Number<KWmmaPerblock>{}, Number<MRepeat>{}, I1, I1, I1, Number<A_K1>{}));
+                }
+                else
+                {
+                    return transform_tensor_descriptor(
+                        ABlockDesc_{},
+                        make_tuple(make_merge_transform_v3_division_mod(
+                                       make_tuple(Number<KWmmaPerblock>{}, Number<K0PerWmma>{})),
+                                   make_pass_through_transform(Number<MRepeat>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<A_K1>{})),
+                        make_tuple(Sequence<0, 3>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{},
+                                   Sequence<6>{}),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<3>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{}));
+                }
             }
         }();
 
@@ -383,18 +396,44 @@ struct GridwiseFpAintBGemm_Wmma
             else
             {
                 // KWmma_MRepeat_MWave_K0PerWmma_KRow_MPerWmma_K1 -> K0_MRepeat_Mwaves_MPerWmma_K1
-                constexpr auto KWmma     = BBlockDesc_{}.GetLength(I0);
-                constexpr auto K0PerWmma = BBlockDesc_{}.GetLength(I3);
-                constexpr auto B_KRow    = BBlockDesc_{}.GetLength(I4);
-                constexpr auto B_K1      = BBlockDesc_{}.GetLength(I6);
+                constexpr auto KWmmaPerblock = BBlockDesc_{}.GetLength(I0);
+                constexpr auto K0PerWmma     = BBlockDesc_{}.GetLength(I3);
+                constexpr auto B_K1          = BBlockDesc_{}.GetLength(I6);
+
+                static_assert(BBlockDesc_{}.GetLength(I2) == 1);
+                static_assert(BBlockDesc_{}.GetLength(I4) == 1);
+                static_assert(BBlockDesc_{}.GetLength(I5) == 1);
 
                 // Workaround, Freeze transform
-                return make_naive_tensor_descriptor_packed(make_tuple(Number<KWmma * K0PerWmma>{},
-                                                                      Number<NRepeat>{},
-                                                                      I1,
-                                                                      Number<B_KRow>{},
-                                                                      I1,
-                                                                      Number<B_K1>{}));
+                if constexpr(K0PerWmma == 1)
+                {
+                    return make_naive_tensor_descriptor_packed(make_tuple(
+                        Number<KWmmaPerblock>{}, Number<NRepeat>{}, I1, I1, I1, Number<B_K1>{}));
+                }
+                else
+                {
+                    return transform_tensor_descriptor(
+                        BBlockDesc_{},
+                        make_tuple(make_merge_transform_v3_division_mod(
+                                       make_tuple(Number<KWmmaPerblock>{}, Number<K0PerWmma>{})),
+                                   make_pass_through_transform(Number<NRepeat>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<B_K1>{})),
+                        make_tuple(Sequence<0, 3>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{},
+                                   Sequence<6>{}),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<3>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{}));
+                }
             }
         }();
 
@@ -466,20 +505,26 @@ struct GridwiseFpAintBGemm_Wmma
         if(!(M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1) &&
              K == GetBProblemsizeNK()[I1]))
         {
-            printf("A: MxK = %d x %d, B: NxK = %d x %d, C: MxN = %d x %d\n",
-                   GetAProblemsizeMK()[I0],
-                   GetAProblemsizeMK()[I1],
-                   GetBProblemsizeNK()[I0],
-                   GetBProblemsizeNK()[I1],
-                   c_grid_desc_m_n.GetLength(I0),
-                   c_grid_desc_m_n.GetLength(I1));
-            printf("GridwiseOp err: ProblemSize check");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("A: MxK = %d x %d, B: NxK = %d x %d, C: MxN = %d x %d\n",
+                       GetAProblemsizeMK()[I0],
+                       GetAProblemsizeMK()[I1],
+                       GetBProblemsizeNK()[I0],
+                       GetBProblemsizeNK()[I1],
+                       c_grid_desc_m_n.GetLength(I0),
+                       c_grid_desc_m_n.GetLength(I1));
+                printf("GridwiseOp err: ProblemSize check");
+            }
             return false;
         }
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
         {
-            printf("GridwiseOp err: ProblemSize division");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp err: ProblemSize division");
+            }
             return false;
         }
 
@@ -488,7 +533,10 @@ struct GridwiseFpAintBGemm_Wmma
 
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
-            printf("GridwiseOp err: Pipeline not support this k_loop");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp err: Pipeline not support this k_loop");
+            }
             return false;
         }
 

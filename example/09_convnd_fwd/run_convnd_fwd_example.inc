@@ -1,15 +1,20 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
+// use macro to minimize code change
+#ifndef EXAMPLE_WITH_COMPUTE_DATATYPE
+using ComputeDataType = AccDataType;
+#endif
 
 bool run_convnd_fwd_example(int argc, char* argv[])
 {
     print_helper_msg();
 
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
+    int do_verification = 2; // 0=no, 1=CPU, 2=GPU
+    int init_method     = 1;
+    bool time_kernel    = false;
 
     ck::utils::conv::ConvParam conv_param{
         2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
@@ -65,17 +70,20 @@ bool run_convnd_fwd_example(int argc, char* argv[])
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceGroupedConvNDFwdInstance<ndim_spatial_value, InLayout, WeiLayout, OutLayout>>(
-            do_verification,
-            init_method,
-            time_kernel,
-            conv_param,
-            in_g_n_c_wis_desc,
-            wei_g_k_c_xs_desc,
-            out_g_n_k_wos_desc,
-            in_element_op,
-            wei_element_op,
-            out_element_op);
+            DeviceGroupedConvNDFwdInstance<ndim_spatial_value, InLayout, WeiLayout, OutLayout>,
+            InLayout,
+            WeiLayout,
+            OutLayout,
+            ComputeDataType>(do_verification,
+                             init_method,
+                             time_kernel,
+                             conv_param,
+                             in_g_n_c_wis_desc,
+                             wei_g_k_c_xs_desc,
+                             out_g_n_k_wos_desc,
+                             in_element_op,
+                             wei_element_op,
+                             out_element_op);
     };
 
     namespace ctc = ck::tensor_layout::convolution;

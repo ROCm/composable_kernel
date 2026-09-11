@@ -1,10 +1,14 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/wrapper/utils/layout_utils.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 // Disable from doxygen docs generation
 /// @cond INTERNAL
 namespace ck {
@@ -242,8 +246,7 @@ struct Layout
         const auto lower_dims =
             generate_tuple([&](auto i) { return GenerateLowerDim<Number<i>>(shape); },
                            Number<Tuple<ShapeDims...>::Size()>{});
-        const auto upper_dims = generate_tuple([&](auto i) { return Sequence<i.value>{}; },
-                                               Number<Tuple<ShapeDims...>::Size()>{});
+        const auto upper_dims = generate_identity_sequences<Tuple<ShapeDims...>::Size()>();
 
         return transform_tensor_descriptor(desc, transforms, lower_dims, upper_dims);
     }
@@ -482,3 +485,6 @@ struct Layout
 
 } // namespace wrapper
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

@@ -1,16 +1,60 @@
-
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <string>
+#include <tuple>
+#include <vector>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "conv_configs.hpp"
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
+#endif
+struct GemmWarpConfig_Mfma
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
+struct GemmWarpConfig_Wmma
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<ck_tile::fp16_t, M_Warp_Tile>();
+};
+
+template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
+auto calculate_rtol_atol(const ck_tile::index_t GemmK,
+                         const ck_tile::index_t kbatch,
+                         const float max_accumulated_value)
+{
+    using ComputeType =
+        std::conditional_t<sizeof(InDataType) < sizeof(WeiDataType), InDataType, WeiDataType>;
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, OutDataType, AccDataType>(
+        ck_tile::integer_divide_ceil(GemmK, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, OutDataType, AccDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(GemmK, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<OutDataType, OutDataType, OutDataType>(kbatch);
+    const auto atol_split_k =
+        ck_tile::get_absolute_threshold<OutDataType, OutDataType, OutDataType>(
+            max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
 
 ck_tile::index_t fill_spatial_dimensions(std::vector<ck_tile::index_t>& filter_spatial_lengths,
                                          std::vector<ck_tile::index_t>& image_spatial_lengths,
@@ -57,7 +101,10 @@ ck_tile::index_t fill_spatial_dimensions(std::vector<ck_tile::index_t>& filter_s
     return n_dim_sp;
 }
 
-auto create_args(int argc, char* argv[])
+auto create_args(
+    int argc,
+    char* argv[],
+    const std::vector<std::tuple<std::string, std::string, std::string>>& extra_args = {})
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("g", "2", "group dimension")
@@ -90,7 +137,7 @@ auto create_args(int argc, char* argv[])
         .insert("rpad_w", "0", "right pad for w dimension")
 
         .insert("in_layout", "NHWGC", "Input image layout - NHWGC by default")
-        .insert("weight_layout", "GKYXC", "Weight layout - GKYXC by default")
+        .insert("wei_layout", "GKYXC", "Weight layout - GKYXC by default")
         .insert("out_layout", "NHWGK", "Output image layout - NHWGK by default")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
@@ -98,11 +145,24 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)");
+        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
+
+    // Allow per-binary CLI customization (e.g., StreamK adds --streamk_reduction).
+    for(const auto& [key, default_val, help] : extra_args)
+    {
+        arg_parser.insert(key, default_val, help);
+    }
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-// host API
-float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::stream_config& s);
+struct InvokerResult
+{
+    float ave_time;
+    ck_tile::index_t split_k;
+};
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

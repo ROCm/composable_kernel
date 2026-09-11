@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <numeric>
 #include <cstdlib>
@@ -15,6 +15,8 @@
 #include "ck/wrapper/layout.hpp"
 #include "ck/wrapper/tensor.hpp"
 #include "ck/wrapper/operations/copy.hpp"
+
+using ::ck::DeviceMem;
 
 // Test copy from Global to Global through LDS and VGPR
 template <typename InputTensor,

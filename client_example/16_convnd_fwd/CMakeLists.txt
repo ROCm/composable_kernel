@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 if((DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
     add_executable(client_conv3d_fwd_fp16 conv3d_fwd_fp16.cpp)
     target_link_libraries(client_conv3d_fwd_fp16 PRIVATE composable_kernel::device_conv_operations)

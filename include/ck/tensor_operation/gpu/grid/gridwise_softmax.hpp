@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -26,7 +26,7 @@ __global__ void kernel_softmax(const GridDesc_M_K in_grid_desc_m_k,
                                AccDataType alpha,
                                const InDataType* const __restrict__ p_in_value_global,
                                AccDataType beta,
-                               OutDataType* const __restrict__ p_out_value_global)
+                               OutDataType* p_out_value_global)
 {
     GridwiseReduction::Run(in_grid_desc_m_k,
                            out_grid_desc_m_k,
@@ -91,7 +91,7 @@ struct GridwiseSoftmax_mk_to_mk
                                AccDataType alpha,
                                const InDataType* const __restrict__ p_in_value_global,
                                AccDataType beta,
-                               OutDataType* const __restrict__ p_out_value_global)
+                               OutDataType* p_out_value_global)
     {
         if constexpr(SweepOnce)
         {
@@ -290,12 +290,12 @@ struct GridwiseSoftmax_mk_to_mk
             }
 
             // do element-wise pre-reduction operation
-            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
-                    constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
-                    out_thread_buf(Number<offset>{}) =
-                        math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM));
-                });
+            static_ford<Sequence<MThreadSliceSize, KThreadSliceSize>>{}([&](auto ii) {
+                constexpr auto iM     = Number<ii[Number<0>{}]>{};
+                constexpr auto iK     = Number<ii[Number<1>{}]>{};
+                constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                out_thread_buf(Number<offset>{}) =
+                    math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM));
             });
 
             ThreadwiseSumReduce::Reduce(out_thread_buf, accu_value_buf);
@@ -330,15 +330,13 @@ struct GridwiseSoftmax_mk_to_mk
                                             in_thread_buf);
                 }
 
-                static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                    // out = alpha * exp(x - max(x)) / sum(exp(x - max(x)))
-                    static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
-                        constexpr auto offset =
-                            thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
-                        out_thread_buf(Number<offset>{}) =
-                            alpha * math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
-                            accu_value_buf(iM);
-                    });
+                static_ford<Sequence<MThreadSliceSize, KThreadSliceSize>>{}([&](auto ii) {
+                    constexpr auto iM     = Number<ii[Number<0>{}]>{};
+                    constexpr auto iK     = Number<ii[Number<1>{}]>{};
+                    constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                    out_thread_buf(Number<offset>{}) =
+                        alpha * math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                        accu_value_buf(iM);
                 });
 
                 threadwise_dst_store.Run(thread_buffer_desc,
@@ -376,16 +374,14 @@ struct GridwiseSoftmax_mk_to_mk
                                         make_tuple(I0, I0),
                                         in_prior_dst_buf);
 
-                static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                    // out = alpha * exp(x - max(x)) / sum(exp(x - max(x))) + beta * prior_out
-                    static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
-                        constexpr auto offset =
-                            thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
-                        out_thread_buf(Number<offset>{}) =
-                            alpha * math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
-                                accu_value_buf(iM) +
-                            beta * in_prior_dst_buf(Number<offset>{});
-                    });
+                static_ford<Sequence<MThreadSliceSize, KThreadSliceSize>>{}([&](auto ii) {
+                    constexpr auto iM     = Number<ii[Number<0>{}]>{};
+                    constexpr auto iK     = Number<ii[Number<1>{}]>{};
+                    constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                    out_thread_buf(Number<offset>{}) =
+                        alpha * math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                            accu_value_buf(iM) +
+                        beta * in_prior_dst_buf(Number<offset>{});
                 });
 
                 threadwise_dst_store.Run(thread_buffer_desc,

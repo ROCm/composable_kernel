@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,6 +11,10 @@
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace host {
@@ -87,7 +91,8 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            static_assert(ActivationType < 2, "Not supported activation type");
+            static_assert(ActivationType == 0 || ActivationType == 1 || ActivationType == 4,
+                          "Not supported activation type");
             const int full_n = arg.c_t_k_n_.mDesc.GetLengths()[2];
             arg.c_t_k_n_.SetZero();
             auto f_mk_kn_mn = [&](auto m, auto n) {
@@ -114,7 +119,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                         {
 
                             f4_t f4 = 0;
-                            if(k % 2 == 1)
+                            if(k % 2 == 0)
                                 f4 = (a_f4x2 >> 0) & 0xf;
                             else
                                 f4 = (a_f4x2 >> 4) & 0xf;
@@ -123,7 +128,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                         }
                         else
                         {
-                            v_a = type_convert<ComputeTypeA>(a_f4x2) *
+                            v_a = type_convert<ComputeTypeA>(bit_cast<ADataType>(a_f4x2)) *
                                   type_convert<ComputeTypeA>(a_scale);
                             arg.a_element_op_(v_a, v_a);
                         }
@@ -136,7 +141,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
 
                             f4_t f4    = 0;
                             f4_t f4_up = 0;
-                            if(k % 2 == 1)
+                            if(k % 2 == 0)
                             {
                                 f4    = (b_f4x2 >> 0) & 0xf;
                                 f4_up = (b_f4x2_up >> 0) & 0xf;
@@ -153,9 +158,9 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                         }
                         else
                         {
-                            v_b = type_convert<ComputeTypeB>(b_f4x2) *
+                            v_b = type_convert<ComputeTypeB>(bit_cast<BDataType>(b_f4x2)) *
                                   type_convert<ComputeTypeB>(b_scale);
-                            v_b_up = type_convert<ComputeTypeB>(b_f4x2_up) *
+                            v_b_up = type_convert<ComputeTypeB>(bit_cast<BDataType>(b_f4x2_up)) *
                                      type_convert<ComputeTypeB>(b_scale_up);
                             arg.b_element_op_(v_b, v_b);
                             arg.b_element_op_(v_b_up, v_b_up);
@@ -183,6 +188,11 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                     else if constexpr(ActivationType == 0)
                     {
                         tensor_operation::element_wise::Gelu{}(v_c, v_c);
+                        arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
+                    }
+                    else if constexpr(ActivationType == 4)
+                    {
+                        tensor_operation::element_wise::FastGelu{}(v_c, v_c);
                         arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
                     }
                 }
@@ -262,3 +272,6 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

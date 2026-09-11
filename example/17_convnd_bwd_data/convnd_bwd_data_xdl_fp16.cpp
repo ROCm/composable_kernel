@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "convnd_bwd_data_common.hpp"
 
@@ -63,9 +63,9 @@ int main(int argc, char* argv[])
 
     print_helper_msg();
 
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
+    int do_verification = 1; // 0=no, 1=CPU, 2=GPU
+    int init_method     = 1;
+    bool time_kernel    = false;
 
     ck::utils::conv::ConvParam conv_param{
         2, 1, 128, 256, 256, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
@@ -119,16 +119,19 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNdBwdDataInstance<1>>(do_verification,
-                                                                 init_method,
-                                                                 time_kernel,
-                                                                 conv_param,
-                                                                 in_g_n_c_wis_desc,
-                                                                 wei_g_k_c_xs_desc,
-                                                                 out_g_n_k_wos_desc,
-                                                                 in_element_op,
-                                                                 wei_element_op,
-                                                                 out_element_op);
+                                 DeviceConvNdBwdDataInstance<1>,
+                                 InLayout,
+                                 WeiLayout,
+                                 OutLayout>(do_verification,
+                                            init_method,
+                                            time_kernel,
+                                            conv_param,
+                                            in_g_n_c_wis_desc,
+                                            wei_g_k_c_xs_desc,
+                                            out_g_n_k_wos_desc,
+                                            in_element_op,
+                                            wei_element_op,
+                                            out_element_op);
     }
     else if(conv_param.num_dim_spatial_ == 2)
     {
@@ -155,16 +158,19 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNdBwdDataInstance<2>>(do_verification,
-                                                                 init_method,
-                                                                 time_kernel,
-                                                                 conv_param,
-                                                                 in_g_n_c_wis_desc,
-                                                                 wei_g_k_c_xs_desc,
-                                                                 out_g_n_k_wos_desc,
-                                                                 in_element_op,
-                                                                 wei_element_op,
-                                                                 out_element_op);
+                                 DeviceConvNdBwdDataInstance<2>,
+                                 InLayout,
+                                 WeiLayout,
+                                 OutLayout>(do_verification,
+                                            init_method,
+                                            time_kernel,
+                                            conv_param,
+                                            in_g_n_c_wis_desc,
+                                            wei_g_k_c_xs_desc,
+                                            out_g_n_k_wos_desc,
+                                            in_element_op,
+                                            wei_element_op,
+                                            out_element_op);
     }
     else if(conv_param.num_dim_spatial_ == 3)
     {
@@ -191,16 +197,19 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNdBwdDataInstance<3>>(do_verification,
-                                                                 init_method,
-                                                                 time_kernel,
-                                                                 conv_param,
-                                                                 in_g_n_c_wis_desc,
-                                                                 wei_g_k_c_xs_desc,
-                                                                 out_g_n_k_wos_desc,
-                                                                 in_element_op,
-                                                                 wei_element_op,
-                                                                 out_element_op);
+                                 DeviceConvNdBwdDataInstance<3>,
+                                 InLayout,
+                                 WeiLayout,
+                                 OutLayout>(do_verification,
+                                            init_method,
+                                            time_kernel,
+                                            conv_param,
+                                            in_g_n_c_wis_desc,
+                                            wei_g_k_c_xs_desc,
+                                            out_g_n_k_wos_desc,
+                                            in_element_op,
+                                            wei_element_op,
+                                            out_element_op);
     }
 
     return 0;

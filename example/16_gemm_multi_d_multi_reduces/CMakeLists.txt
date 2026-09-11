@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(example_gemm_reduce_xdl)
 add_custom_target(example_gemm_reduce_xdl_max)
 add_custom_target(example_gemm_reduce_xdl_mean_meansquare)

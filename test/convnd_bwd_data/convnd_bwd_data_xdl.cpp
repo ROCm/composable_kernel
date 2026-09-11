@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -9,21 +9,31 @@
 #include <gtest/gtest.h>
 
 #include "profiler/profile_conv_bwd_data_impl.hpp"
-
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <typename Tuple>
 class TestConvndBwdData : public ::testing::Test
 {
     protected:
     using DataType = std::tuple_element_t<0, Tuple>;
     std::vector<ck::utils::conv::ConvParam> conv_params;
-
+#if defined(CK_TEST_DISABLE_GPU_VALIDATION)
+    static constexpr int verify_ = 1; // CPU reference
+#else
+    static constexpr int verify_ = 2; // GPU reference
+#endif
     template <ck::index_t NDimSpatial>
     void Run()
     {
-        for(auto& param : conv_params)
+        EXPECT_FALSE(conv_params.empty());
+        for(size_t i = 0; i < conv_params.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& param = conv_params[i];
             bool pass;
-            EXPECT_FALSE(conv_params.empty());
             pass = ck::profiler::profile_conv_bwd_data_impl<
                 NDimSpatial,
                 ck::tuple_element_t<NDimSpatial - 1,
@@ -40,11 +50,12 @@ class TestConvndBwdData : public ::testing::Test
                                               ck::tensor_layout::convolution::NDHWK>>,
                 DataType,
                 DataType,
-                DataType>(true,  // do_verification
-                          1,     // init_method integer value
-                          false, // do_log
-                          false, // time_kernel
-                          param);
+                DataType>(verify_, // do_verification: 2 = GPU reference
+                          1,       // init_method integer value
+                          false,   // do_log
+                          false,   // time_kernel
+                          param,
+                          instance_index);
             EXPECT_TRUE(pass);
         }
     }
@@ -90,4 +101,20 @@ TYPED_TEST(TestConvndBwdData, Conv3dBwdData)
     this->conv_params.push_back(
         {3, 1, 128, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->template Run<3>();
+}
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

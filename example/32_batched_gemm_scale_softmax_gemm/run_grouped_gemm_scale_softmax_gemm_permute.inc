@@ -1,5 +1,9 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 int run(int argc, char* argv[])
 {
@@ -63,6 +67,19 @@ int run(int argc, char* argv[])
 
     std::size_t flop = 0, num_byte = 0;
 
+    auto f_host_tensor_descriptor = [](std::vector<ck::index_t> lens,
+                                       std::vector<ck::index_t> strides,
+                                       bool permute,
+                                       auto layout) {
+        if(permute)
+        {
+            return HostTensorDescriptor(lens, strides, Bypass{});
+        }
+        else
+        {
+            return HostTensorDescriptor(lens, strides, layout);
+        }
+    };
     std::cout << "group count " << group_count << ". printing first 4 groups\n";
     for(std::size_t i = 0; i < group_count; i++)
     {
@@ -113,10 +130,14 @@ int run(int argc, char* argv[])
                                  {}}); // acc1_biases_gs_ms_os_strides
 
         // C_m_o = A_m_k * B0_k_n * B1_n_o
-        Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
-        Tensor<B0DataType> b0_gs_ns_ks(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
-        Tensor<B1DataType> b1_gs_os_ns(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
-        Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+        Tensor<ADataType> a_gs_ms_ks(
+            f_host_tensor_descriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides, input_permute, Row{}));
+        Tensor<B0DataType> b0_gs_ns_ks(f_host_tensor_descriptor(
+            b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides, input_permute, Row{}));
+        Tensor<B1DataType> b1_gs_os_ns(f_host_tensor_descriptor(
+            b1_gs_os_ns_lengths, b1_gs_os_ns_strides, input_permute, Col{}));
+        Tensor<CDataType> c_gs_ms_os_device_result(f_host_tensor_descriptor(
+            c_gs_ms_os_lengths, c_gs_ms_os_strides, output_permute, Row{}));
 
         int Batch = G0 * G1;
         flop += (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * Batch;
@@ -126,10 +147,10 @@ int run(int argc, char* argv[])
 
         if(i < 4)
         {
-            std::cout << "a_gs_ms_ks[" << i << "]: " << a_gs_ms_ks.mDesc << ", "
-                      << "b0_gs_ns_ks[" << i << "]: " << b0_gs_ns_ks.mDesc << ", "
-                      << "b1_gs_os_ns[" << i << "]: " << b1_gs_os_ns.mDesc << ", "
-                      << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << std::endl;
+            std::cout << "a_gs_ms_ks[" << i << "]: " << a_gs_ms_ks.mDesc << ", " << "b0_gs_ns_ks["
+                      << i << "]: " << b0_gs_ns_ks.mDesc << ", " << "b1_gs_os_ns[" << i
+                      << "]: " << b1_gs_os_ns.mDesc << ", " << "c_gs_ms_os[" << i
+                      << "]: " << c_gs_ms_os_device_result.mDesc << std::endl;
         }
 
         switch(init_method)
@@ -252,7 +273,8 @@ int run(int argc, char* argv[])
             Tensor<AccDataType> acc0_g_m_n({G0 * G1, M, N});        // scratch object after gemm0
             Tensor<ADataType> a1_g_m_n({G0 * G1, M, N});            // scratch object after softmax
             Tensor<CDataType> c_g_m_o_host_result({G0 * G1, M, O}); // scratch object after gemm1
-            Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+            Tensor<CDataType> c_gs_ms_os_host_result(f_host_tensor_descriptor(
+                c_gs_ms_os_lengths, c_gs_ms_os_strides, output_permute, Row{}));
 
             // permute
             a_gs_ms_ks.ForEach([&](auto& self, auto idx) {

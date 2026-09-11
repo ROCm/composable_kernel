@@ -1,9 +1,20 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+
+#if defined(__gfx950__) && __HIP_DEVICE_COMPILE__
+#define CK_MX_ARCH_950 1
+#else
+#define CK_MX_ARCH_950 0
+#endif
+#if defined(__gfx125__) && __HIP_DEVICE_COMPILE__
+#define CK_MX_ARCH_125 1
+#else
+#define CK_MX_ARCH_125 0
+#endif
 
 #ifdef CK_CODE_GEN_RTC
 #define UINT_MAX 4294967295

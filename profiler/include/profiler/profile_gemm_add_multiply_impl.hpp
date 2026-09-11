@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,7 +35,7 @@ template <typename ADataType,
           typename ELayout>
 bool profile_gemm_add_multiply_impl(int do_verification,
                                     int init_method,
-                                    bool /*do_log*/,
+                                    bool do_log,
                                     bool time_kernel,
                                     int M,
                                     int N,
@@ -44,7 +44,8 @@ bool profile_gemm_add_multiply_impl(int do_verification,
                                     int StrideB,
                                     int StrideD0,
                                     int StrideD1,
-                                    int StrideE)
+                                    int StrideE,
+                                    int instance_index = -1)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -168,8 +169,14 @@ bool profile_gemm_add_multiply_impl(int do_verification,
     bool pass = true;
 
     // profile device operation instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             a_device_buf.GetDeviceBuffer(),
             b_device_buf.GetDeviceBuffer(),
@@ -222,6 +229,17 @@ bool profile_gemm_add_multiply_impl(int do_verification,
             if(do_verification)
             {
                 e_device_buf.FromDevice(e_m_n_device_result.mData.data());
+
+                if(do_log)
+                {
+                    LogRangeAsType<float>(
+                        std::cout << "e_m_n_device_result: ", e_m_n_device_result.mData, ",")
+                        << std::endl;
+
+                    LogRangeAsType<float>(
+                        std::cout << "e_m_n_host_result: ", e_m_n_host_result.mData, ",")
+                        << std::endl;
+                }
 
                 pass = pass && ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
             }

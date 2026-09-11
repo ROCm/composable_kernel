@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -49,6 +49,10 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
+
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
     static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
     static constexpr index_t KPerBlock =
@@ -63,10 +67,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         SparseXdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
-
-    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
-    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               FloatAcc,
@@ -109,7 +109,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
         const auto waveId_m = wave_idx[I0];
@@ -137,7 +137,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
         const auto waveId_m = wave_idx[I0];
@@ -157,6 +157,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1()
     {
+#if defined(__HIP_DEVICE_COMPILE__)
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
                           BK0NK1BlockDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
@@ -172,6 +173,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         static_assert(
             KPack % (16 * sizeof(ComputeTypeA)) == 0,
             "KPack must be divisbile by number of elements processed in single smfmac instruction");
+#endif
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -378,16 +380,29 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                     vector_type<ComputeTypeB, KPack> b_thread_vec;
                     vector_type<int32_t, KPack / elems_per_idx> idx_vec;
 
-                    static_for<0, KPack / 2, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<ComputeTypeA>()(i) =
-                            a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                make_tuple(0, 0, 0, k / 2 + i))>{}];
-                    });
+                    auto loadA = thread_buf_to_vec_loader<
+                        decltype(a_thread_vec),
+                        decltype(a_thread_buf),
+                        decltype(a_thread_desc_),
+                        FloatAB,
+                        Number<0>,
+                        Number<0>,
+                        Number<0>,
+                        index_expression::Add<index_expression::Ik, decltype(k / Number<2>{})>>{
+                        a_thread_vec, a_thread_buf};
+                    auto loadB = thread_buf_to_vec_loader<
+                        decltype(b_thread_vec),
+                        decltype(b_thread_buf),
+                        decltype(b_thread_desc_),
+                        FloatAB,
+                        Number<0>,
+                        Number<0>,
+                        Number<0>,
+                        index_expression::Add<index_expression::Ik, decltype(k)>>{b_thread_vec,
+                                                                                  b_thread_buf};
 
-                    static_for<0, KPack, 1>{}([&](auto i) {
-                        b_thread_vec.template AsType<ComputeTypeB>()(2 * i) = b_thread_buf
-                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                    });
+                    static_for<0, KPack / 2, 1>{}(loadA);
+                    static_for<0, KPack, 1>{}(loadB);
 
                     static_for<0, KPack / elems_per_idx, 1>{}([&](auto i) {
                         idx_vec.template AsType<int32_t>()(i) = idx_buf[k / elems_per_idx + i];

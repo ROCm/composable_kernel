@@ -1,10 +1,11 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
 #include <numeric>
+#include <inttypes.h>
 
 #include "profiler/profile_batched_gemm_b_scale_impl.hpp"
 #include "profiler_operation_registry.hpp"
@@ -56,7 +57,7 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
         printf("arg6: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg7: print tensor value (0: no; 1: yes)\n");
         printf("arg8: time kernel (0=no, 1=yes)\n");
-        printf("arg9 to 15: M, N, K, StrideA, StrideB, StrideC, BatachCount\n");
+        printf("arg9 to 15: M, N, K, StrideA, StrideB, StrideC, BatchCount\n");
         printf("arg16: split k into mulitiple batch\n");
         printf("optional:\n");
         printf("arg17: number of warm-up cycles (default 1)\n");
@@ -114,7 +115,7 @@ int profile_batched_gemm_b_scale(int argc, char* argv[])
         n_iter   = std::stoi(argv[18]);
         rotating = std::stoull(argv[19]) * 1024 * 1024;
 
-        printf("n_warmup:%d, n_iter:%d, rotating:%lu\n", n_warmup, n_iter, rotating);
+        printf("n_warmup:%d, n_iter:%d, rotating:%" PRIu64 "\n", n_warmup, n_iter, rotating);
     }
 
     using F32 = float;

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,46 +34,23 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
     constexpr auto y_in_desc  = InTensor::get_tile_distribution().get_ys_to_d_descriptor();
     constexpr auto y_out_desc = OutTensor::get_tile_distribution().get_ys_to_d_descriptor();
 
-    // y_dim_out_to_in
-    // For swapped Hs tile case I need only get_rh_minor_to_y
-    // since rh_major are already swapped due to swapped Hs.
-    constexpr auto get_rh_minor_to_y = [](auto dstr_tensor) {
-        using DstrEncode = typename decltype(dstr_tensor.get_tile_distribution())::DstrEncode;
-
-        map<index_t, index_t> rh_minor_to_y_;
-
-        static_for<0, DstrEncode::NDimY, 1>{}([&](auto i) {
-            constexpr index_t rh_minor = DstrEncode::ys_to_rhs_minor_[i];
-
-            rh_minor_to_y_(rh_minor) = i;
-        });
-
-        return rh_minor_to_y_;
-    };
-
     // In swapped Hs case <Y,X> -> <X,Y> tile
     // we have same rh_major, but reversed rh_minor!
-    constexpr auto rh_minor_to_y_in  = get_rh_minor_to_y(InTensor{});
-    constexpr auto rh_minor_to_y_out = get_rh_minor_to_y(OutTensor{});
+    constexpr index_t NDimY = InTensor::get_tile_distribution().get_num_of_dimension_y();
 
-    // Is this really needed?? Should we have simple reverse here??
     constexpr auto y_dim_out_to_in = [&] {
         map<index_t, index_t> y_dim_out_to_in_;
 
-        for(const auto& [rh_minor, y_out] : rh_minor_to_y_out)
-        {
-            y_dim_out_to_in_(y_out) = rh_minor_to_y_in[rh_minor];
-        }
+        static_for<0, NDimY, 1>{}([&](auto i) { y_dim_out_to_in_(i) = NDimY - 1 - i; });
 
         return y_dim_out_to_in_;
     }();
 
-    constexpr index_t NDimY  = InTensor::get_tile_distribution().get_num_of_dimension_y();
     constexpr auto y_lengths = to_sequence(y_in_desc.get_lengths());
 
     // input and output vector dim in the order of input Y dims
     constexpr index_t y_dim_vec_in  = NDimY - 1;
-    constexpr index_t y_dim_vec_out = y_dim_out_to_in[NDimY - 1];
+    constexpr index_t y_dim_vec_out = 0;
 
     // vector lengths
     constexpr index_t vec_length_in  = y_lengths[y_dim_vec_in];
@@ -222,21 +199,30 @@ CK_TILE_DEVICE void transpose_tile2d(OutTensor& out, const InTensor& in)
         }
     }();
 
-    // Scenario where we switch from tile <Y, X> -> <X, Y> - only 2D tiles!
-    // we preserve Ps but swap Ys: <Y1, Y0> -> <Y0, Y1>
+    // 2D tile transpose <Y, X> -> <X, Y>: we preserve Ps but swap Ys, requiring the
+    // two encodings to be reverse-symmetric in Hs and in their Ys/thread-desc lengths.
+    //
+    // NDimY == 2 covers `<Y_iter, X_vec>`         <-> `<X_vec, Y_iter>` (the original case).
+    // NDimY == 3 covers `<Y_iter, X_iter, X_vec>` <-> `<X_vec, X_iter, Y_iter>`,
+    //                   added to support the X-iteration dim (X2) introduced by the
+    //                   `tile_distribution_encoding_pattern_2d` raked patterns
+    //                   when `XPerTile > X0 * X1`.
+    // The impl is NDimY-generic (it iterates `static_for<0, NDimY, 1>` and `number<NDimY>{}`),
+    // so both NDimY values dispatch to the same routine.
     if constexpr(InDstrEncode::rs_lengths_ == OutDstrEncode::rs_lengths_ &&
                  InDstrEncode::hs_lengthss_ == tuple_reverse(OutDstrEncode::hs_lengthss_) &&
-                 InDstrEncode::NDimY == OutDstrEncode::NDimY && InDstrEncode::NDimY == 2 &&
+                 InDstrEncode::NDimY == OutDstrEncode::NDimY &&
+                 (InDstrEncode::NDimY == 2 || InDstrEncode::NDimY == 3) &&
                  in_thread_desc_lengths == tuple_reverse(out_thread_desc_lengths))
-    // Any condition on Ps ??
-    //  InDstrEncode::ps_to_rhss_major_ == OutDstrEncode::ps_to_rhss_major_ &&
-    //  InDstrEncode::ps_to_rhss_minor_ == OutDstrEncode::ps_to_rhss_minor_ &&
     {
         detail::transpose_tile2d_impl_in_thread(out, in_tmp);
     }
     else
     {
-        static_assert(false, "Provided tensors could not be transposed!");
+        static_assert(false,
+                      "Provided tensors could not be transposed! "
+                      "Expected matching Rs, reverse-symmetric Hs and Ys/thread-desc "
+                      "lengths, and NDimY in {2, 3}.");
     }
 }
 

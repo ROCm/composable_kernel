@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef GUARD_TEST_HOST_RTC_FILESYSTEM_HPP
 #define GUARD_TEST_HOST_RTC_FILESYSTEM_HPP

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -86,7 +86,7 @@ struct GridwisePermute
         ~Block2TileMap() = default;
 
         Block2TileMap& operator=(const Block2TileMap&) = delete;
-        Block2TileMap& operator=(Block2TileMap&&) = delete;
+        Block2TileMap& operator=(Block2TileMap&&)      = delete;
 
         explicit Block2TileMap(const InGridDesc& desc) : desc_(desc) {}
 

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,6 +14,10 @@
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck_tile {
 
 template <typename DataType_, typename StaticTileDistribution_>
@@ -75,7 +79,8 @@ struct static_distributed_tensor
         constexpr auto sliced_thread_tensor_desc =
             make_naive_tensor_descriptor_packed(make_tuple(YSliceLengths...));
 
-        thread_buffer<DataType, sliced_thread_tensor_desc.get_element_space_size()>
+        // divide element number by PackedSize to get the correct thread buffer size
+        thread_buffer<DataType, sliced_thread_tensor_desc.get_element_space_size() / PackedSize>
             sliced_thread_data;
 
         static_ford<sequence<YSliceLengths...>>{}([&](auto idx) {
@@ -155,11 +160,11 @@ CK_TILE_HOST_DEVICE constexpr auto make_static_distributed_tensor(const StaticTi
 
 // get X indices from tuple of tile_distributed_index<>
 template <typename StaticTileDistribution, typename DistributedIndices>
-CK_TILE_HOST_DEVICE constexpr auto
-get_x_indices_from_distributed_indices(StaticTileDistribution tile_distribution,
-                                       DistributedIndices distributed_indices)
+CK_TILE_HOST_DEVICE constexpr auto get_x_indices_from_distributed_indices(
+    StaticTileDistribution tile_distribution,
+    DistributedIndices distributed_indices,
+    decltype(get_partition_index(tile_distribution)) partition_index)
 {
-    const auto partition_index = detail::get_partition_index(tile_distribution);
     constexpr auto y_indices =
         tile_distribution.get_y_indices_from_distributed_indices(distributed_indices);
 
@@ -168,6 +173,16 @@ get_x_indices_from_distributed_indices(StaticTileDistribution tile_distribution,
         container_concat(partition_index, to_array<ck_tile::index_t, y_indices.size()>(y_indices)));
 
     return x_coord.get_bottom_index();
+}
+
+// get X indices from tuple of tile_distributed_index<>
+template <typename StaticTileDistribution, typename DistributedIndices>
+CK_TILE_HOST_DEVICE constexpr auto
+get_x_indices_from_distributed_indices(StaticTileDistribution tile_distribution,
+                                       DistributedIndices distributed_indices)
+{
+    return get_x_indices_from_distributed_indices(
+        tile_distribution, distributed_indices, get_partition_index(tile_distribution));
 }
 
 template <typename DataType, typename StaticTileDistribution, typename XIndicesPredicate>
@@ -192,11 +207,34 @@ set_tile_if(static_distributed_tensor<DataType, StaticTileDistribution>& out_ten
     });
 }
 
+template <typename DataType, typename StaticTileDistribution, typename XIndicesPredicate>
+CK_TILE_HOST_DEVICE void
+set_tile_if(static_distributed_tensor<DataType, StaticTileDistribution>& out_tensor,
+            DataType value,
+            XIndicesPredicate predicate,
+            decltype(get_partition_index(std::declval<StaticTileDistribution>())) partition_index)
+{
+    constexpr auto out_spans =
+        static_distributed_tensor<DataType, StaticTileDistribution>::get_distributed_spans();
+    sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
+        sweep_tile_span(out_spans[number<1>{}], [&](auto idx1) {
+            constexpr auto distributed_indices = make_tuple(idx0, idx1);
+            const auto x_indices               = get_x_indices_from_distributed_indices(
+                StaticTileDistribution{}, distributed_indices, partition_index);
+
+            if(predicate(x_indices))
+            {
+                out_tensor(distributed_indices) = value;
+            }
+        });
+    });
+}
+
 // this function used inside span loop over
 template <typename YLengths, index_t XUnpacks>
 CK_TILE_HOST_DEVICE constexpr auto get_y_unpacks_from_x_unpacks(YLengths, number<XUnpacks>)
 {
-    constexpr auto y_size  = reduce_on_sequence(YLengths{}, multiplies{}, number<1>{});
+    constexpr auto y_size  = reduce_on_sequence(YLengths{}, multiplies<>{}, number<1>{});
     constexpr auto y_packs = number<XUnpacks>{};
     static_assert(y_size % y_packs == 0);
     constexpr auto y_slice_size = y_size / y_packs;
@@ -233,3 +271,6 @@ inline constexpr bool is_similiar_distributed_tensor_v =
 } // namespace detail
 
 } // namespace ck_tile
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

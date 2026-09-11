@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
@@ -277,12 +277,5 @@ int profile_softmax(int argc, char* argv[])
 
     return 0;
 }
-
-// hijack main() for quick debugging
-// int main(int argc, char* argv[])
-// {
-//     profile_normalization(argc, argv);
-//     return 0;
-// }
 
 REGISTER_PROFILER_OPERATION("softmax", "Softmax", profile_softmax);

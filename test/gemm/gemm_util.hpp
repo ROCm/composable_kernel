@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -260,6 +260,44 @@ struct TestGemm
         {
             return true;
         }
+    }
+
+    template <template <class...> class DeviceGemmPtr_,
+              typename ALayout,
+              typename BLayout,
+              typename CLayout,
+              typename ADataType,
+              typename BDataType,
+              typename CDataType,
+              typename AElementwiseOperation,
+              typename BElementwiseOperation,
+              typename CElementwiseOperation>
+    bool IsSupportedArgument(DeviceGemmPtr_<ALayout,
+                                            BLayout,
+                                            CLayout,
+                                            ADataType,
+                                            BDataType,
+                                            CDataType,
+                                            AElementwiseOperation,
+                                            BElementwiseOperation,
+                                            CElementwiseOperation>* gemmPtr,
+                             const GemmParams& params = GemmParams{})
+    {
+        auto invoker_ptr  = gemmPtr->MakeInvokerPointer();
+        auto argument_ptr = gemmPtr->MakeArgumentPointer(static_cast<ADataType*>(nullptr),
+                                                         static_cast<BDataType*>(nullptr),
+                                                         static_cast<CDataType*>(nullptr),
+                                                         params.M,
+                                                         params.N,
+                                                         params.K,
+                                                         params.StrideA,
+                                                         params.StrideB,
+                                                         params.StrideC,
+                                                         AElementwiseOperation{},
+                                                         BElementwiseOperation{},
+                                                         CElementwiseOperation{});
+
+        return gemmPtr->IsSupportedArgument(argument_ptr.get());
     }
 };
 

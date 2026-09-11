@@ -1,7 +1,14 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
 #include <hip/hip_runtime.h>
 #include <stdint.h>
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 struct workgroup_barrier
 {
@@ -9,20 +16,6 @@ struct workgroup_barrier
 
     __device__ uint32_t ld(uint32_t offset)
     {
-#if 0
-        float d = llvm_amdgcn_raw_buffer_load_fp32(
-                        amdgcn_make_buffer_resource(base_ptr),
-                        0,
-                        offset,
-                        AMDGCN_BUFFER_GLC);
-        union cvt {
-            float f32;
-            uint32_t u32;
-        };
-        cvt x;
-        x.f32 = d;
-        return x.u32;
-#endif
         return __atomic_load_n(base_ptr + offset, __ATOMIC_RELAXED);
     }
 
@@ -71,3 +64,7 @@ struct workgroup_barrier
     uint32_t* base_ptr;
 };
 } // namespace ck
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

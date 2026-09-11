@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,7 +28,8 @@ bool profile_layernorm_impl(int do_verification,
                             int init_method,
                             bool do_log,
                             bool time_kernel,
-                            std::vector<index_t> length)
+                            std::vector<index_t> length,
+                            index_t instance_index = -1)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -181,8 +182,14 @@ bool profile_layernorm_impl(int do_verification,
                                                  PassThrough{});
     };
 
-    for(auto& inst_ptr : instance_ptrs)
+    for(size_t i = 0; i < instance_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instance_ptrs[i];
         auto argument_ptr = f_get_argument(inst_ptr);
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
@@ -280,7 +287,7 @@ bool profile_layernorm_impl(int do_verification,
                   << best_instance_name << std::endl;
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;

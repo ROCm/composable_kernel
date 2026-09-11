@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -198,10 +198,10 @@ struct ComputePtrOffsetOfStridedBatch<NumATensor,
         return static_cast<long_index_t>(g_idx) * BatchStrideE_;
     }
 
-    Array<long_index_t, NumATensor> BatchStrideA_;
-    Array<long_index_t, NumBTensor> BatchStrideB_;
-    Array<long_index_t, NumDTensor> BatchStrideDs_;
-    long_index_t BatchStrideE_;
+    Array<long_index_t, NumATensor> BatchStrideA_{};
+    Array<long_index_t, NumBTensor> BatchStrideB_{};
+    Array<long_index_t, NumDTensor> BatchStrideDs_{};
+    long_index_t BatchStrideE_{};
     long_index_t& BatchStrideC_ = BatchStrideE_; // alias for kernels without multiple D
 };
 
@@ -253,10 +253,10 @@ struct ComputePtrOffsetOfStridedBatch<NumATensor,
         return static_cast<long_index_t>(g_idx) * BatchStrideE_;
     }
 
-    long_index_t BatchStrideA_;
-    long_index_t BatchStrideB_;
-    Array<long_index_t, NumDTensor> BatchStrideDs_;
-    long_index_t BatchStrideE_;
+    long_index_t BatchStrideA_{};
+    long_index_t BatchStrideB_{};
+    Array<long_index_t, NumDTensor> BatchStrideDs_{};
+    long_index_t BatchStrideE_{};
     long_index_t& BatchStrideC_ = BatchStrideE_; // alias for kernels without multiple D
 };
 

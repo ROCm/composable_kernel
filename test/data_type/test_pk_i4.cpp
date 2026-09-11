@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <bitset>
 #include <cinttypes>
@@ -16,6 +16,8 @@
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
+using ::ck::DeviceMem;
+
 using ck::bhalf2_t;
 using ck::bhalf_t;
 using ck::float2_t;
@@ -31,8 +33,8 @@ TEST(PackedInt4, ConvertToFloat)
     constexpr float first_input_val  = 7.f;
     constexpr float second_input_val = -1.f;
 #else
-    constexpr float first_input_val   = -1.f;
-    constexpr float second_input_val  = 7.f;
+    constexpr float first_input_val  = -1.f;
+    constexpr float second_input_val = 7.f;
 #endif
     uint8_t data = 0b11110111; // {-1, 7}
     pk_i4_t in   = ck::bit_cast<int8_t>(data);
@@ -65,8 +67,8 @@ TEST(PackedInt4, ConvertToBHalf)
     const bhalf_t first_input_val  = ck::type_convert<bhalf_t>(7.f);
     const bhalf_t second_input_val = ck::type_convert<bhalf_t>(-1.f);
 #else
-    const bhalf_t first_input_val     = ck::type_convert<bhalf_t>(-1.f);
-    const bhalf_t second_input_val    = ck::type_convert<bhalf_t>(7.f);
+    const bhalf_t first_input_val  = ck::type_convert<bhalf_t>(-1.f);
+    const bhalf_t second_input_val = ck::type_convert<bhalf_t>(7.f);
 #endif
     uint8_t data = 0b11110111; // {-1, 7}
     pk_i4_t in   = ck::bit_cast<int8_t>(data);

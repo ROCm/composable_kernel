@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -568,7 +568,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
                      std::is_same_v<typename Problem::GDataType, ck_tile::bf16_t> &&
                      S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16)
         {
-            return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+            return WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,
                 2>>{};
         }
@@ -576,7 +576,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
                           std::is_same_v<typename Problem::GDataType, ck_tile::int8_t> &&
                           S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 32)
         {
-            return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+            return WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImpl_i32_32x32x16_i8<wg_ctrl>,
                 2>>{};
         }
@@ -695,7 +695,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
                      std::is_same_v<typename Problem::DDataType, ck_tile::bf16_t> &&
                      S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 16)
         {
-            return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+            return WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<wg_ctrl>,
                 2>>{};
         }
@@ -703,7 +703,7 @@ struct FusedMoeGemmPipelineFlatmmPolicy
                           std::is_same_v<typename Problem::DDataType, ck_tile::int8_t> &&
                           S_::Warp_M0 == 32 && S_::Warp_N0 == 32 && S_::Warp_K0 == 32)
         {
-            return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+            return WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                 WarpGemmAttributeMfmaImpl_i32_32x32x16_i8<wg_ctrl>,
                 2>>{};
         }

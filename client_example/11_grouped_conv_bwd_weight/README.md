@@ -1,4 +1,4 @@
-[Back to supported operations](../../../include/ck/README.md)
+[Back to supported operations](../../include/ck/README.md)
 # Composable Kernel Grouped Convolution
 
 ## Grouped Convolution Backward Weight
@@ -60,3 +60,63 @@ Table of supported cases by instance factory with fused elementwise operation:
 
 * **Bilinear** - 3D, NHWGC, bf16(fp32 for weight)/fp16/fp32
 * **Scale** - 3D, NHWGC, bf16(fp32 for weight)/fp16/fp32
+
+---
+
+## Theory
+
+**Grouped convolution backward weight** computes the gradient of the weights with respect to the loss, given the input and output gradients, for each group independently. This is essential for training CNNs and grouped/expert models.
+
+**Mathematical Formulation:**
+For each group $g$:
+$$
+\text{WeightGrad}^g = \text{ConvBwdWeight}(\text{Input}^g, \text{OutputGrad}^g)
+$$
+
+- Supports 1D, 2D, and 3D grouped convolutions.
+- Utilizes implicit GEMM for efficient computation.
+- Supports fused elementwise operations (e.g., bilinear, scale).
+- Uses splitK for large GEMM K dimensions.
+
+## How to Run
+
+### Prerequisites
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
+
+### Build and run
+```bash
+cd composable_kernel/client_example/11_grouped_conv_bwd_weight
+mkdir build && cd build
+cmake -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ..
+make -j
+
+# Example run (2D grouped convolution backward weight, FP16)
+./grouped_conv2d_bwd_weight_fp16
+
+# Example run (3D grouped convolution backward weight, FP32)
+./grouped_conv3d_bwd_weight_fp32
+```
+
+## Source Code Structure
+
+### Directory Layout
+```
+client_example/11_grouped_conv_bwd_weight/
+├── grouped_conv1d_bwd_weight_fp16.cpp         # 1D grouped convolution backward weight (FP16)
+├── grouped_conv2d_bwd_weight_fp16.cpp         # 2D grouped convolution backward weight (FP16)
+├── grouped_conv3d_bwd_weight_fp16.cpp         # 3D grouped convolution backward weight (FP16)
+├── grouped_conv3d_bwd_weight_fp32.cpp         # 3D grouped convolution backward weight (FP32)
+├── grouped_conv3d_bwd_weight_fp16_comp_bf8_fp8.cpp # 3D grouped convolution backward weight (FP16, BF8/FP8 mixed)
+├── common.hpp                                 # Common utilities for grouped convolution
+├── CMakeLists.txt                             # Build configuration for the example
+```
+
+### Key Functions
+
+- **main()** (in each `.cpp`):  
+  Sets up input/output tensors, configures grouped convolution parameters, launches the backward weight kernel, and verifies the result.
+- **Grouped convolution backward weight kernel invocation**:  
+  Uses the Composable Kernel device API to launch grouped convolution backward weight for different dimensions and data types.
+
+This client example provides a comprehensive demonstration of grouped convolution backward weight for efficient CNN and vision transformer training.

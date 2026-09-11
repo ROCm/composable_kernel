@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -102,7 +102,7 @@ __device__ void intrinsic_fdot2_impl(const half2_t& a, const half2_t& b, float& 
     constexpr int sel_mask = get_dpp_sel_mask_broadcast<SrcLaneIdx>();
     const half2_t val_from_other_lane =
         bit_cast<half2_t>(__builtin_amdgcn_mov_dpp8(bit_cast<int>(a), sel_mask));
-    c = __builtin_amdgcn_fdot2(val_from_other_lane, b, c, false);
+    inner_product(val_from_other_lane, b, c);
 }
 
 /**

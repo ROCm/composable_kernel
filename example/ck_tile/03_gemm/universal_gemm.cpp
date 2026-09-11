@@ -1,320 +1,278 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
 #include <cstring>
 #include <iostream>
-#include <sstream>
 #include <string>
-#include <tuple>
 
-#include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
+#include "run_gemm_example_common.hpp"
+#include "universal_gemm_invoker.hpp"
 
+// Universal GEMM-specific wrapper that handles test_async flag
 template <typename GemmConfig,
           typename ADataType,
-          typename BDataType,
-          typename DsDataType,
-          typename AccDataType,
-          typename CDataType,
+          typename BDataType = ADataType,
+          typename CDataType = ADataType,
           typename ALayout,
           typename BLayout,
-          typename DsLayout,
-          typename ELayout,
-          bool Persistent,
-          typename CDEElementWise>
-float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s)
-
+          typename CLayout>
+int run_gemm_example_with_layouts_universal(ck_tile::ArgParser& arg_parser,
+                                            const ALayout a_layout = ALayout{},
+                                            const BLayout b_layout = BLayout{},
+                                            const CLayout c_layout = CLayout{})
 {
-    using GemmShape = ck_tile::TileGemmShape<
-        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
-        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
-        ck_tile::
-            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
-        GemmConfig::PermuteA,
-        GemmConfig::PermuteB>;
+    using Invoker     = UniversalInvoker;
+    using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
-    using TilePartitioner =
-        ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                   GemmConfig::TileParitionerGroupNum,
-                                                   GemmConfig::TileParitionerM01>;
+    // Check for async input scheduler test mode
+    bool test_async = arg_parser.get_int("test_async");
+    if(test_async)
+    {
+        // Extract parameters for async test (same as shared implementation)
+        const ck_tile::index_t M      = arg_parser.get_int("m");
+        const ck_tile::index_t N      = arg_parser.get_int("n");
+        const ck_tile::index_t K      = arg_parser.get_int("k");
+        const ck_tile::index_t kbatch = arg_parser.get_int("split_k");
 
-    using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
-                                           GemmConfig::kPadN,
-                                           GemmConfig::kPadK,
-                                           ALayout,
-                                           BLayout,
-                                           ELayout,
-                                           GemmConfig::NumWaveGroups>;
+        using Row                     = ck_tile::tensor_layout::gemm::RowMajor;
+        constexpr bool is_a_row_major = std::is_same_v<ALayout, Row>;
+        constexpr bool is_b_row_major = std::is_same_v<BLayout, Row>;
+        constexpr bool is_c_row_major = std::is_same_v<CLayout, Row>;
 
-    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
-                                                                 GemmConfig::kPadN,
-                                                                 GemmConfig::kPadK,
-                                                                 GemmConfig::DoubleSmemBuffer,
-                                                                 ALayout,
-                                                                 BLayout,
-                                                                 ELayout,
-                                                                 GemmConfig::TransposeC,
-                                                                 GemmConfig::UseStructuredSparsity,
-                                                                 Persistent,
-                                                                 GemmConfig::NumWaveGroups>;
-    using GemmPipelineProblem =
-        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+        const ck_tile::index_t stride_A = is_a_row_major ? K : M;
+        const ck_tile::index_t stride_B = is_b_row_major ? N : K;
+        const ck_tile::index_t stride_C = is_c_row_major ? N : M;
 
-    using BaseGemmPipeline = typename PipelineTypeTraits<
-        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
+        // Allocate and initialize tensors
+        ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
+            M, K, stride_A, ck_tile::bool_constant<is_a_row_major>{}));
+        ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
+            K, N, stride_B, ck_tile::bool_constant<is_b_row_major>{}));
+        ck_tile::HostTensor<CDataType> c_m_n_dev_result(ck_tile::host_tensor_descriptor(
+            M, N, stride_C, ck_tile::bool_constant<is_c_row_major>{}));
 
-    const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
-    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5}(a_m_k);
+        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5}(b_k_n);
 
-    float ave_time{0};
+        ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-    const auto Run =
-        [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = GemmConfig::Scheduler;
-            constexpr auto memory_operation = memory_operation_.value;
+        a_m_k_dev_buf.ToDevice(a_m_k.data());
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+        c_m_n_dev_buf.SetZero();
+        c_m_n_dev_result.SetZero();
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               scheduler,
-                                                                               has_hot_loop_v,
-                                                                               tail_number_v>;
+        ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                      b_k_n_dev_buf.GetDeviceBuffer(),
+                                      c_m_n_dev_buf.GetDeviceBuffer(),
+                                      kbatch,
+                                      M,
+                                      N,
+                                      K,
+                                      stride_A,
+                                      stride_B,
+                                      stride_C};
 
-            using GemmPipeline = typename PipelineTypeTraits<
-                GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 DsLayout,
-                                                 ELayout,
-                                                 CDEElementWise,
-                                                 GemmPipelineProblem::kBlockSize,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 GemmConfig::M_Warp,
-                                                 GemmConfig::N_Warp,
-                                                 GemmConfig::M_Warp_Tile,
-                                                 GemmConfig::N_Warp_Tile,
-                                                 GemmConfig::K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation,
-                                                 GemmConfig::NumWaveGroups>>;
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+        Invoker::template test_async_input_scheduler<GemmConfig,
+                                                     ADataType,
+                                                     BDataType,
+                                                     ck_tile::tuple<>,
+                                                     AccDataType,
+                                                     CDataType,
+                                                     ALayout,
+                                                     BLayout,
+                                                     ck_tile::tuple<>,
+                                                     CLayout,
+                                                     ck_tile::element_wise::PassThrough>(
+            args, ck_tile::stream_config{nullptr, false, 1});
 
-            dim3 grids;
-            if constexpr(Persistent)
-            {
-                grids = Kernel::MaxOccupancyGridSize(s);
-            }
-            else
-            {
-                grids = Kernel::GridSize(args.M, args.N, args.k_batch);
-            }
-            constexpr dim3 blocks = Kernel::BlockSize();
+        // Copy result from device for verification
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
-            }
+        // Compute CPU reference
+        ck_tile::HostTensor<CDataType> c_m_n_ref(ck_tile::host_tensor_descriptor(
+            M, N, stride_C, ck_tile::bool_constant<is_c_row_major>{}));
+        c_m_n_ref.SetZero();
+        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            a_m_k, b_k_n, c_m_n_ref);
 
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                          << "shape: " << GemmShape::GetName() << '\n'
-                          << "problem: " << GemmPipelineProblem::GetName() << '\n'
-                          << "pipeline: " << GemmPipeline::GetName() << '\n'
-                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << std::endl;
-            }
-            if(s.flush_cache_)
-            {
-                std::cout << "Flushing cache..." << std::endl;
-                static constexpr ck_tile::index_t APackedSize =
-                    std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-                static constexpr ck_tile::index_t BPackedSize =
-                    std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+        // Verify results
+        const float max_accumulated_value =
+            *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        bool pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "CPU");
 
-                ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-                    args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-                ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-                    args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+        std::cout << "Async input scheduler test: " << (pass ? "PASS" : "FAIL") << std::endl;
+        return pass;
+    }
 
-                auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
-                auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
-
-                ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                    kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
-                rotating_mem.Print();
-
-                auto run_flush_cache = [&]() {
-                    // flush icache
-                    ck_tile::flush_icache();
-                    // rotating mem
-                    rotating_mem.Next();
-                    // clear c mem
-                    if(args.k_batch > 1)
-                        hipGetErrorString(hipMemsetAsync(
-                            args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
-                };
-                ave_time = ck_tile::launch_kernel_preprocess(
-                    s,
-                    run_flush_cache,
-                    ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                        Kernel{}, grids, blocks, 0, kargs));
-            }
-            else
-            {
-                ave_time =
-                    ck_tile::launch_kernel(s,
-                                           ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                                               Kernel{}, grids, blocks, 0, kargs));
-            }
-            return ave_time;
-        };
-
-    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-        if(args.k_batch == 1)
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
-        }
-    };
-
-    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-    return ave_time;
+    // Normal path - delegate to shared implementation
+    return run_gemm_example_with_layouts<GemmConfig, Invoker, ADataType, BDataType, CDataType>(
+        arg_parser, a_layout, b_layout, c_layout);
 }
 
+// Universal GEMM-specific prec_type dispatcher that uses the wrapper
 template <typename GemmConfig,
           typename APrecType,
           typename BPrecType = APrecType,
           typename CPrecType = APrecType>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+int run_gemm_example_prec_type_universal(std::string a_layout,
+                                         std::string b_layout,
+                                         ck_tile::ArgParser& arg_parser)
 {
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Row       = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
+    bool preshuffle = GemmConfig::Preshuffle;
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    if(preshuffle && std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
     {
-        if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices when "
-                                     "BPrecType is ck_tile::pk_int4_t!");
-        }
+        throw std::runtime_error("Preshuffle is not supported for this int4 datatype!");
     }
-    else
+
+    if(preshuffle && a_layout != "R" && b_layout != "C")
     {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
+        throw std::runtime_error(
+            "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
     }
+
+    using LayoutVariant = std::variant<Row, Col>;
+
+    auto string_to_layout = [](const std::string& layout) -> LayoutVariant {
+        if(layout == "R")
+            return Row{};
+        if(layout == "C")
+            return Col{};
+        throw std::runtime_error("Unsupported layout: " + layout);
+    };
+
+    auto a_layout_variant = string_to_layout(a_layout);
+    auto b_layout_variant = string_to_layout(b_layout);
+
+    return std::visit(
+        [&](auto a_layout_type, auto b_layout_type) -> int {
+            if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t> &&
+                         std::is_same_v<decltype(b_layout_type), Row>)
+            {
+                throw std::runtime_error("Unsupported memory layout for the input matrices when "
+                                         "BPrecType is ck_tile::pk_int4_t!");
+            }
+            else
+            {
+                return run_gemm_example_with_layouts_universal<GemmConfig,
+                                                               APrecType,
+                                                               BPrecType,
+                                                               CPrecType>(
+                    arg_parser, a_layout_type, b_layout_type, Row{});
+            }
+        },
+        a_layout_variant,
+        b_layout_variant);
 }
 
-template <template <typename PreType> typename GemmConfig>
-int run_gemm_example(int argc, char* argv[])
+template <template <typename PrecType> typename GemmConfig>
+int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
     if(data_type == "fp16")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+        return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf16")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(
-            a_layout, b_layout, argc, argv);
+        return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "fp8")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                          ck_tile::fp8_t,
-                                          ck_tile::fp8_t,
-                                          ck_tile::half_t>(a_layout, b_layout, argc, argv);
+        return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::fp8_t>,
+                                                    ck_tile::fp8_t,
+                                                    ck_tile::fp8_t,
+                                                    ck_tile::half_t>(
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "bf8")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                          ck_tile::bf8_t,
-                                          ck_tile::bf8_t,
-                                          ck_tile::half_t>(a_layout, b_layout, argc, argv);
+        return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::bf8_t>,
+                                                    ck_tile::bf8_t,
+                                                    ck_tile::bf8_t,
+                                                    ck_tile::half_t>(
+            a_layout, b_layout, arg_parser);
     }
     else if(data_type == "int8")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::int8_t>,
-                                          ck_tile::int8_t,
-                                          ck_tile::int8_t,
-                                          ck_tile::int32_t>(a_layout, b_layout, argc, argv);
+        return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::int8_t>,
+                                                    ck_tile::int8_t,
+                                                    ck_tile::int8_t,
+                                                    ck_tile::int32_t>(
+            a_layout, b_layout, arg_parser);
     }
-    else if(data_type == "pk_int4_t")
+    else if(data_type == "fp16i4")
     {
         // TODO: Add support for bhalf_t ADataType
-        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
         {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>,
-                                              ck_tile::half_t,
-                                              ck_tile::pk_int4_t,
-                                              ck_tile::half_t>(a_layout, b_layout, argc, argv);
+            return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::half_t>,
+                                                        ck_tile::half_t,
+                                                        ck_tile::pk_int4_t,
+                                                        ck_tile::half_t>(
+                a_layout, b_layout, arg_parser);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported pipeline for this operation !!!");
+        }
+    }
+    else if(data_type == "fp8i4")
+    {
+        if constexpr(GemmConfig<ck_tile::fp8_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
+        {
+            return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::fp8_t>,
+                                                        ck_tile::fp8_t,
+                                                        ck_tile::pk_int4_t,
+                                                        ck_tile::half_t>(
+                a_layout, b_layout, arg_parser);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported pipeline for this operation !!!");
+        }
+    }
+    else if(data_type == "bf8i4")
+    {
+        if constexpr(GemmConfig<ck_tile::bf8_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
+        {
+            return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::bf8_t>,
+                                                        ck_tile::bf8_t,
+                                                        ck_tile::pk_int4_t,
+                                                        ck_tile::half_t>(
+                a_layout, b_layout, arg_parser);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported pipeline for this operation !!!");
+        }
+    }
+    if(data_type == "fp4")
+    {
+        if constexpr(GemmConfig<ck_tile::pk_fp4_t>::Pipeline ==
+                         ck_tile::GemmPipeline::COMPUTE_ASYNC &&
+                     GemmConfig<ck_tile::pk_fp4_t>::K_Warp_Tile == 128)
+        {
+            return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::pk_fp4_t>,
+                                                        ck_tile::pk_fp4_t,
+                                                        ck_tile::pk_fp4_t,
+                                                        ck_tile::half_t>(
+                a_layout, b_layout, arg_parser);
         }
         else
         {
@@ -329,9 +287,23 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    auto arg_parser = create_args();
+    auto result     = arg_parser.parse(argc, argv);
+
+    if(!result)
+        return -1;
+
     try
     {
-        return !run_gemm_example<GemmConfigComputeV3>(argc, argv);
+#if CK_TILE_USE_WMMA
+#ifdef CLUSTER_LAUNCH_ENABLED
+        return !run_gemm_example<GemmConfigComputeV3_WMMA_ClusterLaunch>(arg_parser);
+#else
+        return !run_gemm_example<GemmConfigComputeV3_WMMA>(arg_parser);
+#endif
+#else
+        return !run_gemm_example<GemmConfigComputeV3_2>(arg_parser);
+#endif
     }
     catch(const std::runtime_error& e)
     {
@@ -339,5 +311,4 @@ int main(int argc, char* argv[])
         // Return a non-zero code to indicate failure
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }

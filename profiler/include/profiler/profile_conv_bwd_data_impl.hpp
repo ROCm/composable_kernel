@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -17,6 +17,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
 
 namespace ck {
 namespace profiler {
@@ -58,7 +59,8 @@ bool profile_conv_bwd_data_impl(int do_verification,
                                 int init_method,
                                 bool do_log,
                                 bool time_kernel,
-                                const ck::utils::conv::ConvParam& conv_param)
+                                const ck::utils::conv::ConvParam& conv_param,
+                                int instance_index = -1)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -109,6 +111,23 @@ bool profile_conv_bwd_data_impl(int do_verification,
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
 
+    using DeviceOp = ck::tensor_operation::device::DeviceConvBwdData<NDimSpatial,
+                                                                     InLayout,
+                                                                     WeiLayout,
+                                                                     OutLayout,
+                                                                     InDataType,
+                                                                     WeiDataType,
+                                                                     OutDataType,
+                                                                     InElementOp,
+                                                                     WeiElementOp,
+                                                                     OutElementOp>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     switch(init_method)
     {
     case 0: break;
@@ -128,7 +147,10 @@ bool profile_conv_bwd_data_impl(int do_verification,
     out_device_buf.ToDevice(output.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
 
-    if(do_verification)
+    // profile device Conv instances
+    bool pass = true;
+
+    if(do_verification == 1)
     {
         auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
                                                                          InDataType,
@@ -153,33 +175,41 @@ bool profile_conv_bwd_data_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    using DeviceOp = ck::tensor_operation::device::DeviceConvBwdData<NDimSpatial,
-                                                                     InLayout,
-                                                                     WeiLayout,
-                                                                     OutLayout,
-                                                                     InDataType,
-                                                                     WeiDataType,
-                                                                     OutDataType,
-                                                                     InElementOp,
-                                                                     WeiElementOp,
-                                                                     OutElementOp>;
+    // GPU reference (compute once, compare in kernel loop)
+    Tensor<InDataType> gpu_ref_input(in_g_n_c_wis_desc);
+    if(do_verification == 2)
+    {
+        DeviceMem gpu_ref_in_dev(sizeof(InDataType) *
+                                 input_device_result.mDesc.GetElementSpaceSize());
+        gpu_ref_in_dev.SetZero(); // bwd data needs zero initialization
 
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
+        ck::ref::naive_conv_bwd_data<InLayout, WeiLayout, OutLayout>(
+            static_cast<InDataType*>(gpu_ref_in_dev.GetDeviceBuffer()),
+            static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+            conv_param,
+            in_element_op,
+            wei_element_op,
+            out_element_op);
 
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+        hip_check_error(hipDeviceSynchronize());
+        gpu_ref_in_dev.FromDevice(gpu_ref_input.mData.data());
+    }
 
     std::string best_op_name;
-    float best_avg_time   = 0;
-    float best_tflops     = 0;
-    float best_gb_per_sec = 0;
+    float best_avg_time     = 0;
+    float best_tflops       = 0;
+    float best_gb_per_sec   = 0;
+    bool dummy_run_executed = false;
 
-    // profile device Conv instances
-    bool pass = true;
-
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                         static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
@@ -208,8 +238,25 @@ bool profile_conv_bwd_data_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            // Run first instance twice to get proper time
+            if(time_kernel && !dummy_run_executed)
+            {
+                invoker_ptr->Run(argument_ptr.get(),
+                                 StreamConfig{nullptr,
+                                              time_kernel,
+                                              0 /*log_level*/,
+                                              5 /*cold_iters*/,
+                                              50 /*nrepeat_*/,
+                                              time_kernel /*flush_cache*/});
+                dummy_run_executed = true;
+            }
+            float avg_time = invoker_ptr->Run(argument_ptr.get(),
+                                              StreamConfig{nullptr,
+                                                           time_kernel,
+                                                           0 /*log_level*/,
+                                                           5 /*cold_iters*/,
+                                                           50 /*nrepeat_*/,
+                                                           time_kernel /*flush_cache*/});
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
@@ -228,7 +275,7 @@ bool profile_conv_bwd_data_impl(int do_verification,
                 best_gb_per_sec = gb_per_sec;
             }
 
-            if(do_verification)
+            if(do_verification == 1)
             {
                 in_device_buf.FromDevice(input_device_result.mData.data());
 
@@ -253,6 +300,31 @@ bool profile_conv_bwd_data_impl(int do_verification,
                     std::cout << std::endl;
                 }
             }
+            else if(do_verification == 2)
+            {
+                in_device_buf.FromDevice(input_device_result.mData.data());
+
+                pass = pass & ck::utils::check_err(input_device_result, gpu_ref_input);
+
+                if(do_log)
+                {
+                    std::cout << "in : ";
+                    show_data_nhwc_layout(output);
+                    std::cout << std::endl;
+
+                    std::cout << "wei: ";
+                    show_data_nhwc_layout(weight);
+                    std::cout << std::endl;
+
+                    std::cout << "out_gpu_ref  : ";
+                    show_data_nhwc_layout(gpu_ref_input);
+                    std::cout << std::endl;
+
+                    std::cout << "out_device: ";
+                    show_data_nhwc_layout(input_device_result);
+                    std::cout << std::endl;
+                }
+            }
         }
         else
         {
@@ -260,9 +332,9 @@ bool profile_conv_bwd_data_impl(int do_verification,
         }
     }
 
-    std::cout << "Best configuration parameters:"
-              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
+              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
+              << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     return pass;
 }

@@ -1,0 +1,113 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Clean - Clean build artifacts in Docker container
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Clean - Clean build artifacts in Docker container
+
+Usage: ck-clean [options]
+
+Options:
+  -h, --help              Show this help message
+  --name <name>           Specify container name
+  --all                   Remove entire build directory
+  -f, --force             Force without confirmation
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name
+
+Examples:
+  ck-clean                    # Clean build artifacts (ninja clean)
+  ck-clean --all              # Remove entire build directory
+  ck-clean --force --all      # Remove build directory without confirmation
+
+EOF
+}
+
+# Parse arguments
+remove_all=false
+force=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --name)
+            CONTAINER_NAME="$2"
+            shift 2
+            ;;
+        --all)
+            remove_all=true
+            shift
+            ;;
+        -f|--force)
+            force=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# Check if container is running
+if ! container_is_running "${CONTAINER_NAME}"; then
+    echo "Container '${CONTAINER_NAME}' not running"
+    echo "Start with: ck-start"
+    exit 1
+fi
+
+# Check if build directory exists
+if ! docker exec "${CONTAINER_NAME}" test -d /workspace/build 2>/dev/null; then
+    echo "Build directory does not exist"
+    exit 0
+fi
+
+if [ "$remove_all" = true ]; then
+    # Remove entire build directory
+    if [ "$force" = false ]; then
+        read -p "Remove entire build directory? (y/N) " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Cancelled"
+            exit 0
+        fi
+    fi
+
+    echo "Removing build directory..."
+    docker exec "${CONTAINER_NAME}" bash -c "rm -rf /workspace/build"
+    echo "Build directory removed ✓"
+else
+    # Clean with ninja
+    if ! docker exec "${CONTAINER_NAME}" test -f /workspace/build/build.ninja 2>/dev/null; then
+        echo "Build not configured (build.ninja not found)"
+        echo "Use --all to remove build directory"
+        exit 1
+    fi
+
+    echo "Cleaning build artifacts..."
+    docker exec "${CONTAINER_NAME}" bash -c "
+        cd /workspace/build || exit 1
+        ninja clean
+    "
+    echo "Build artifacts cleaned ✓"
+fi

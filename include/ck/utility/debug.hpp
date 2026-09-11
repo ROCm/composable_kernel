@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef UTILITY_DEBUG_HPP
 #define UTILITY_DEBUG_HPP
@@ -13,7 +13,7 @@ template <typename T, typename Enable = void>
 struct PrintAsType;
 
 template <typename T>
-struct PrintAsType<T, typename std::enable_if<std::is_floating_point<T>::value>::type>
+struct PrintAsType<T, typename enable_if<is_floating_point<T>::value>::type>
 {
     using type = float;
     __host__ __device__ static void Print(const T& p) { printf("%.3f ", static_cast<type>(p)); }
@@ -30,7 +30,7 @@ struct PrintAsType<ck::half_t, void>
 };
 
 template <typename T>
-struct PrintAsType<T, typename std::enable_if<std::is_integral<T>::value>::type>
+struct PrintAsType<T, typename enable_if<is_integral<T>::value>::type>
 {
     using type = int;
     __host__ __device__ static void Print(const T& p) { printf("%d ", static_cast<type>(p)); }

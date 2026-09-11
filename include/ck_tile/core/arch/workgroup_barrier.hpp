@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,7 +10,7 @@ namespace ck_tile {
 
 struct workgroup_barrier
 {
-    CK_TILE_DEVICE workgroup_barrier(uint32_t* ptr) : base_ptr(ptr) {}
+    CK_TILE_DEVICE workgroup_barrier([[clang::lifetimebound]] uint32_t* ptr) : base_ptr(ptr) {}
 
     CK_TILE_DEVICE uint32_t ld(uint32_t offset = 0)
     {
@@ -22,6 +22,36 @@ struct workgroup_barrier
         if(threadIdx.x == 0)
         {
             while(ld(offset) != value) {}
+        }
+        __syncthreads();
+    }
+
+    // Reduces power consumption during polling by leveraging wave-level sleep instructions
+    CK_TILE_DEVICE void wait_eq_wave(uint32_t value, uint32_t offset = 0)
+    {
+        // Limit active polling to first wave to reduce memory traffic and power
+        const uint32_t wave_size = static_cast<uint32_t>(warpSize);
+        if(threadIdx.x < wave_size)
+        {
+            uint32_t loaded_value = 0;
+            if(threadIdx.x == 0)
+            {
+                loaded_value = ld(offset);
+            }
+            loaded_value = __shfl(loaded_value, 0 /*src_lane*/);
+
+            while(loaded_value != value)
+            {
+                // s_sleep reduces power draw while waiting, as scalar sleep is cheaper than
+                // busy-wait
+                __builtin_amdgcn_s_sleep(1);
+
+                if(threadIdx.x == 0)
+                {
+                    loaded_value = ld(offset);
+                }
+                loaded_value = __shfl(loaded_value, 0 /*src_lane*/);
+            }
         }
         __syncthreads();
     }

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -64,6 +64,8 @@ struct rmsnorm2d_fwd_traits
     bool save_unquant;
     int fused_add;   // 0:no-add, 1:pre-add-store, 2:pre-add
     int fused_quant; // 0:no-sweep, 1:smooth-dynamic-quant, 2:dynamic-quant
+
+    int use_model_sensitive_rmsnorm = 0; // 0: Use default RMSNorm; 1: Use T5-like implementation
 };
 
 float rmsnorm2d_fwd(rmsnorm2d_fwd_traits, rmsnorm2d_fwd_args, const ck_tile::stream_config&);

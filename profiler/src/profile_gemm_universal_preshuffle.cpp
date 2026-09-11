@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <initializer_list>
@@ -104,7 +104,8 @@ int profile_gemm_universal_preshuffle(int argc, char* argv[])
     using F32  = float;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94) || defined(CK_USE_WMMA_FP8)
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || defined(CK_USE_GFX94) || \
+    defined(CK_USE_WMMA_FP8)
     using F8 = ck::f8_t;
 #endif
 
@@ -163,7 +164,8 @@ int profile_gemm_universal_preshuffle(int argc, char* argv[])
     {
         return profile(F8{}, F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
-#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94) || defined(CK_USE_WMMA_FP8)
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || defined(CK_USE_GFX94) || \
+    defined(CK_USE_WMMA_FP8)
     if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(F8{}, F8{}, F8{}, F32{}, BF16{}, Row{}, Col{}, Row{});

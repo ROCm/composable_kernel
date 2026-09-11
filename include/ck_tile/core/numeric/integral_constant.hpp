@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,14 +19,18 @@ struct constant
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return true; }
 };
 
+template <auto v>
+CK_TILE_HOST_DEVICE static void print(const constant<v>&)
+{
+    printf("%ld", static_cast<long>(v));
+}
+
 template <typename T, T v>
 struct integral_constant : constant<v>
 {
     using value_type         = T;
     using type               = integral_constant; // using injected-class-name
     static constexpr T value = v;
-    // constexpr CK_TILE_HOST_DEVICE operator   value_type() const noexcept { return value; }
-    // constexpr CK_TILE_HOST_DEVICE value_type operator()() const noexcept { return value; } //
 };
 
 template <index_t v>
@@ -37,6 +41,8 @@ using long_number = constant<v>;
 
 template <bool b>
 using bool_constant = constant<b>;
+using true_type     = bool_constant<true>;
+using false_type    = bool_constant<false>;
 
 #define CK_TILE_LEFT_UNARY_OP(OP)                               \
     template <auto x>                                           \
@@ -79,4 +85,14 @@ CK_TILE_BINARY_OP(<=)
 #undef CK_TILE_LEFT_UNARY_OP
 #undef CK_TILE_BINARY_OP
 
+template <typename T>
+struct is_constant : std::false_type
+{
+};
+template <auto v>
+struct is_constant<constant<v>> : std::true_type
+{
+};
+template <typename T>
+inline constexpr bool is_constant_v = is_constant<T>::value;
 } // namespace ck_tile

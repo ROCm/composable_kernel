@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,6 +11,10 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace host {
@@ -19,21 +23,22 @@ template <typename ADataType,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
-          typename ScaleDataType,
+          typename AScaleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename ComputeTypeA = CDataType,
-          typename ComputeTypeB = ComputeTypeA>
+          typename ComputeTypeA   = CDataType,
+          typename ComputeTypeB   = ComputeTypeA,
+          typename BScaleDataType = AScaleDataType>
 struct ReferenceMXGemm : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
     {
         Argument(const Tensor<ADataType>& a_m_k,
-                 const Tensor<ScaleDataType>& a_m_kblock_scales,
+                 const Tensor<AScaleDataType>& a_m_kblock_scales,
                  const Tensor<BDataType>& b_k_n,
-                 const Tensor<ScaleDataType>& b_kblock_n_scales,
+                 const Tensor<BScaleDataType>& b_kblock_n_scales,
                  Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -50,9 +55,9 @@ struct ReferenceMXGemm : public device::BaseOperator
         }
 
         const Tensor<ADataType>& a_m_k_;
-        const Tensor<ScaleDataType>& a_m_kblock_scales_;
+        const Tensor<AScaleDataType>& a_m_kblock_scales_;
         const Tensor<BDataType>& b_k_n_;
-        const Tensor<ScaleDataType>& b_kblock_n_scales_;
+        const Tensor<BScaleDataType>& b_kblock_n_scales_;
         Tensor<CDataType>& c_m_n_;
 
         AElementwiseOperation a_element_op_;
@@ -193,9 +198,9 @@ struct ReferenceMXGemm : public device::BaseOperator
     bool IsSupportedArgument(const device::BaseArgument*) override { return true; }
 
     static auto MakeArgument(const Tensor<ADataType>& a_m_k,
-                             const Tensor<ScaleDataType>& a_m_kblock_scales,
+                             const Tensor<AScaleDataType>& a_m_kblock_scales,
                              const Tensor<BDataType>& b_k_n,
-                             const Tensor<ScaleDataType>& b_kblock_n_scales,
+                             const Tensor<BScaleDataType>& b_kblock_n_scales,
                              Tensor<CDataType>& c_m_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -234,3 +239,6 @@ struct ReferenceMXGemm : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

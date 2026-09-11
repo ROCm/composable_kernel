@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 add_subdirectory(rtc)
 file(GLOB TEST_SRCS CONFIGURE_DEPENDS *.cpp)
