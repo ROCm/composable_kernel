@@ -45,23 +45,37 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetQKWarpGemmKPerThreadSize()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetQKWarpGemmBScalarPerVector()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
-        return WG::WarpGemmAttribute::kKPerThread;
+        using BEncoding = typename WG::BWarpDstrEncoding;
+        return BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
     };
 
     template <typename Problem, bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetPVTWarpGemmKPerThreadSize()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetPVTWarpGemmBScalarPerVector()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, kUseTrLoad>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
-        return WG::WarpGemmAttribute::kKPerThread;
+        using BEncoding = typename WG::BWarpDstrEncoding;
+
+        if constexpr(kUseTrLoad)
+        {
+            using BEncodingForTrLoad =
+                typename InputTileDistributionTraits<BEncoding, typename BlockGemm::BDataType>::
+                    TransposedDstrEncode;
+
+            return BEncodingForTrLoad::detail::ys_lengths_[BEncoding::NDimY - 1];
+        }
+        else
+        {
+            return BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
+        }
     };
 
     template <typename Problem>
@@ -102,7 +116,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
     {
-        return max(GetQKWarpGemmKPerThreadSize<Problem>(), GetAlignmentK<Problem>());
+        return max(GetQKWarpGemmBScalarPerVector<Problem>(), GetAlignmentK<Problem>());
     }
 
     template <typename Problem>
@@ -114,7 +128,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
-        return max(GetPVTWarpGemmKPerThreadSize<Problem, kUseTrLoad>(),
+        return max(GetPVTWarpGemmBScalarPerVector<Problem, kUseTrLoad>(),
                    GetAlignmentV<Problem, kUseTrLoad>());
     }
 
@@ -275,7 +289,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             return k_lds_block_desc;
         }
-        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() >= GetAlignmentK<Problem>())
+        else if constexpr(GetQKWarpGemmBScalarPerVector<Problem>() >= GetAlignmentK<Problem>())
         { // This path can only be reached if WarpGemm is 16x16x32 or 32x32x16
 
             constexpr auto desc_native =
@@ -291,7 +305,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else
         {
-            constexpr index_t kDsReadVector = GetQKWarpGemmKPerThreadSize<Problem>();
+            constexpr index_t kDsReadVector = GetQKWarpGemmBScalarPerVector<Problem>();
 
             constexpr index_t SingleBufferSize =
                 kKPerBlock * kNPerBlock + kKPerBlock * kDsReadVector / kKVector;
@@ -395,7 +409,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             // K2 is the vector size for storing shuffled tile to LDS
             constexpr index_t K2 = ElemPerThread / N1;
 
-            constexpr index_t kDsReadVector = GetPVTWarpGemmKPerThreadSize<Problem, kUseTrLoad>();
+            constexpr index_t kDsReadVector = GetPVTWarpGemmBScalarPerVector<Problem, kUseTrLoad>();
 
             static_assert(kDsReadVector >= K2, "Check failed!");
 
