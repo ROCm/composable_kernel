@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
@@ -333,63 +332,37 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // -------------------------------------------------------------------------
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetQKWarpGemmKPerThreadSize()
+    CK_TILE_HOST_DEVICE static constexpr auto GetQKWarpGemmAScalarPerVector()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        return WG::WarpGemmAttribute::kKPerThread;
+
+        using AEncoding = typename WG::AWarpDstrEncoding;
+        return AEncoding::detail::ys_lengths_[AEncoding::NDimY - 1];
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQ()
     {
-        return max(GetQKWarpGemmKPerThreadSize<Problem>(), GetAlignmentQ<Problem>());
+        return max(GetQKWarpGemmAScalarPerVector<Problem>(), GetAlignmentQ<Problem>());
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetOGradVWarpGemmKPerThreadSize()
+    CK_TILE_HOST_DEVICE static constexpr auto GetOGradVWarpGemmAScalarPerVector()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        return WG::WarpGemmAttribute::kKPerThread;
+
+        using AEncoding = typename WG::AWarpDstrEncoding;
+        return AEncoding::detail::ys_lengths_[AEncoding::NDimY - 1];
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackOGrad()
     {
-        return max(GetOGradVWarpGemmKPerThreadSize<Problem>(), GetAlignmentOGrad<Problem>());
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetPTOGradTWarpGemmKPerThreadSize()
-    {
-        using BlockGemm       = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        return WG::WarpGemmAttribute::kKPerThread;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackOGradT()
-    {
-        return max(GetPTOGradTWarpGemmKPerThreadSize<Problem>(), GetAlignmentOGrad<Problem>());
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSGradTQTWarpGemmKPerThreadSize()
-    {
-        using BlockGemm       = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        return WG::WarpGemmAttribute::kKPerThread;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQT()
-    {
-        return max(GetSGradTQTWarpGemmKPerThreadSize<Problem>(), GetAlignmentQ<Problem>());
+        return max(GetOGradVWarpGemmAScalarPerVector<Problem>(), GetAlignmentOGrad<Problem>());
     }
 
     // -------------------------------------------------------------------------
@@ -522,7 +495,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
               index_t kKPerBlock,
               index_t kKPack,
               index_t kKVector,
-              index_t WarpGemmKPerThread,
+              index_t WarpGemmScalarPerVector,
               bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQOGradLdsBlockDescriptor()
     {
@@ -543,7 +516,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
-        else if constexpr(WarpGemmKPerThread >= kKVector)
+        else if constexpr(WarpGemmScalarPerVector >= kKVector)
         {
             // In the trload pipeline this q_lds/do_lds buffer is read BOTH normally
             // (Gemm0/Gemm2 A operand) and transposed (Gemm3/Gemm1 via ds_read_b64_tr).
@@ -637,11 +610,11 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
-        constexpr index_t kNPerBlock         = Problem::HstuAttentionTileSetting::kM0Sub;
-        constexpr index_t kKPerBlock         = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t kKPack             = GetSmemKPackQ<Problem>();
-        constexpr index_t kKVector           = GetAlignmentQ<Problem>();
-        constexpr index_t WarpGemmKPerThread = GetQKWarpGemmKPerThreadSize<Problem>();
+        constexpr index_t kNPerBlock              = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock              = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kKPack                  = GetSmemKPackQ<Problem>();
+        constexpr index_t kKVector                = GetAlignmentQ<Problem>();
+        constexpr index_t WarpGemmScalarPerVector = GetQKWarpGemmAScalarPerVector<Problem>();
 
         if constexpr(kUseTrLoad)
         {
@@ -652,7 +625,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                                 kKPerBlock,
                                                 kKPack,
                                                 kKVector,
-                                                WarpGemmKPerThread,
+                                                WarpGemmScalarPerVector,
                                                 true /*kUseTrLoad*/>();
         }
         else
@@ -664,7 +637,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                                 kKPerBlock,
                                                 kKPack,
                                                 kKVector,
-                                                WarpGemmKPerThread>();
+                                                WarpGemmScalarPerVector>();
         }
     }
 
@@ -672,11 +645,11 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradLdsBlockDescriptor()
     {
-        constexpr index_t kNPerBlock         = Problem::HstuAttentionTileSetting::kM0Sub;
-        constexpr index_t kKPerBlock         = Problem::HstuAttentionTileSetting::kVHeaddim;
-        constexpr index_t kKPack             = GetSmemKPackOGrad<Problem>();
-        constexpr index_t kKVector           = GetAlignmentOGrad<Problem>();
-        constexpr index_t WarpGemmKPerThread = GetOGradVWarpGemmKPerThreadSize<Problem>();
+        constexpr index_t kNPerBlock              = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock              = Problem::HstuAttentionTileSetting::kVHeaddim;
+        constexpr index_t kKPack                  = GetSmemKPackOGrad<Problem>();
+        constexpr index_t kKVector                = GetAlignmentOGrad<Problem>();
+        constexpr index_t WarpGemmScalarPerVector = GetOGradVWarpGemmAScalarPerVector<Problem>();
 
         if constexpr(kUseTrLoad)
         {
@@ -687,7 +660,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                                 kKPerBlock,
                                                 kKPack,
                                                 kKVector,
-                                                WarpGemmKPerThread,
+                                                WarpGemmScalarPerVector,
                                                 true /*kUseTrLoad*/>();
         }
         else
@@ -699,7 +672,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                                 kKPerBlock,
                                                 kKPack,
                                                 kKVector,
-                                                WarpGemmKPerThread>();
+                                                WarpGemmScalarPerVector>();
         }
     }
 

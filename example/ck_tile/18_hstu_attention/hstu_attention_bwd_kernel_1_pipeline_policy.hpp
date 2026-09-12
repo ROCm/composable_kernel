@@ -289,33 +289,37 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     // -------------------------------------------------------------------------
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetQKWarpGemmKPerThreadSize()
+    CK_TILE_HOST_DEVICE static constexpr auto GetQKWarpGemmBScalarPerVector()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        return WG::WarpGemmAttribute::kKPerThread;
+
+        using BEncoding = typename WG::BWarpDstrEncoding;
+        return BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetOGradVWarpGemmKPerThreadSize()
+    CK_TILE_HOST_DEVICE static constexpr auto GetOGradVWarpGemmBScalarPerVector()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
-        return WG::WarpGemmAttribute::kKPerThread;
+
+        using BEncoding = typename WG::BWarpDstrEncoding;
+        return BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
     {
-        return max(GetQKWarpGemmKPerThreadSize<Problem>(), GetAlignmentK<Problem>());
+        return max(GetQKWarpGemmBScalarPerVector<Problem>(), GetAlignmentK<Problem>());
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
-        return max(GetOGradVWarpGemmKPerThreadSize<Problem>(), GetAlignmentV<Problem>());
+        return max(GetOGradVWarpGemmBScalarPerVector<Problem>(), GetAlignmentV<Problem>());
     }
 
     // K LDS descriptor: NumKVLdsBuffers * [kN0Sub, kQKHeaddim]
@@ -346,7 +350,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
-        else if constexpr(GetQKWarpGemmKPerThreadSize<Problem>() == GetSmemKPackK<Problem>())
+        else if constexpr(GetQKWarpGemmBScalarPerVector<Problem>() == GetSmemKPackK<Problem>())
         {
             // In the trload pipeline this k_lds is read BOTH normally (Gemm0 A operand) and
             // transposed (Gemm4 via ds_read_b64_tr). Profiling shows the transpose read is the
@@ -420,7 +424,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         }
         else
         {
-            constexpr index_t kDsReadVector = GetQKWarpGemmKPerThreadSize<Problem>();
+            constexpr index_t kDsReadVector = GetQKWarpGemmBScalarPerVector<Problem>();
 
             constexpr index_t SingleBufferSize =
                 kKPerBlock * kNPerBlock + kKPerBlock * kDsReadVector / kKVector;
@@ -478,7 +482,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
-        else if constexpr(GetOGradVWarpGemmKPerThreadSize<Problem>() >= GetAlignmentV<Problem>())
+        else if constexpr(GetOGradVWarpGemmBScalarPerVector<Problem>() >= GetAlignmentV<Problem>())
         {
             // XOR-swizzled physical layout [NumBuffers, kNPerBlock, kKPerBlock] -- shared
             // with the transposed staging buffers (see MakeSwizzledNativeDesc).
@@ -497,7 +501,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         }
         else
         {
-            constexpr index_t kDsReadVector = GetOGradVWarpGemmKPerThreadSize<Problem>();
+            constexpr index_t kDsReadVector = GetOGradVWarpGemmBScalarPerVector<Problem>();
 
             constexpr index_t SingleBufferSize =
                 kKPerBlock * kNPerBlock + kKPerBlock * kDsReadVector / kKVector;
