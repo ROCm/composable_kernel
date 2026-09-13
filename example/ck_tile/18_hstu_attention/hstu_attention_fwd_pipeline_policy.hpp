@@ -35,7 +35,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeQRegTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
 
@@ -79,7 +79,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     };
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasDramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeBiasDramTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
 
@@ -92,7 +92,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentBias()
+    CK_TILE_DEVICE static constexpr auto GetAlignmentBias()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -102,7 +102,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentQ()
+    CK_TILE_DEVICE static constexpr auto GetAlignmentQ()
     {
         constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QKVDataType);
 
@@ -167,8 +167,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     {
         constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
 
-        // Number of kKPack groups the kN row is scattered into (bank-group span).
-#if defined(__gfx950__) || defined(__gfx1250__)
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
         constexpr index_t BankSpanBytes = 64 * 4;
 #else
         constexpr index_t BankSpanBytes = 32 * 4;
@@ -339,7 +338,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeKDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
@@ -515,7 +514,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
 #if !HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledVRegTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeShuffledVRegTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
@@ -542,7 +541,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #endif
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetQKBlockGemmSingleRepM()
+    CK_TILE_DEVICE static constexpr index_t GetQKBlockGemmSingleRepM()
     {
         return Problem::HstuAttentionTileSetting::Gemm0BlockWarps::at(number<0>{}) *
                Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<0>{});
@@ -572,9 +571,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<2>{});
 
-#if defined(__gfx1250__)
+#if defined(__hstu_gfx125__)
                 static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
-#elif defined(__gfx950__)
+#elif defined(__hstu_gfx95__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -685,7 +684,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetPVTBlockGemmSingleRepN()
+    CK_TILE_DEVICE static constexpr auto GetPVTBlockGemmSingleRepN()
     {
         return Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{}) *
                Problem::HstuAttentionTileSetting::Gemm1BlockWarps::at(number<1>{});
@@ -715,9 +714,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{});
 
-#if defined(__gfx1250__)
+#if defined(__hstu_gfx125__)
                 static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
-#elif defined(__gfx950__)
+#elif defined(__hstu_gfx95__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -739,7 +738,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                         true,
                         false,
                         false,
-#if defined(__gfx950__)
+#if defined(__hstu_gfx95__)
                         WGAttrNumAccessEnum::Double
 #else
                         WGAttrNumAccessEnum::Default
@@ -784,7 +783,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem, bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentO()
+    CK_TILE_DEVICE static constexpr auto GetAlignmentO()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, kUseTrLoad>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
