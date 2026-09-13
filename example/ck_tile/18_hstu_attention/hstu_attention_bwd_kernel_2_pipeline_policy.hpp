@@ -15,6 +15,7 @@
 #include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
 #include "block_gemm_asmem_breg_creg_v1_hack.hpp"
 
+#include "hstu_attention_config.hpp"
 #include "hstu_attention_kernel_util.hpp"
 
 namespace ck_tile {
@@ -54,7 +55,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // K alignment -- based on [kN0, kQKHeaddim] tile
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentK()
+    CK_TILE_DEVICE static constexpr auto GetAlignmentK()
     {
         constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QKVDataType);
         using BlockGemm                 = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
@@ -72,7 +73,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // V alignment -- same tile shape as K
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
+    CK_TILE_DEVICE static constexpr auto GetAlignmentV()
     {
         return GetAlignmentK<Problem>();
     }
@@ -86,14 +87,14 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // dK alignment -- same tile shape as K (output [kN0, kQKHeaddim])
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentKGrad()
+    CK_TILE_DEVICE static constexpr auto GetAlignmentKGrad()
     {
         return GetAlignmentK<Problem>();
     }
 
     // dV alignment -- same tile shape as V (output [kN0, kVHeaddim])
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentVGrad()
+    CK_TILE_DEVICE static constexpr auto GetAlignmentVGrad()
     {
         return GetAlignmentV<Problem>();
     }
@@ -104,7 +105,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // Q DRAM distribution -- [kM0Sub, kQKHeaddim], loaded sub-tile by sub-tile
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0Sub;
@@ -157,7 +158,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // dO DRAM distribution -- [kM0Sub, kQKHeaddim], loaded sub-tile by sub-tile
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOGradDramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeOGradDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0Sub;
@@ -210,7 +211,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // K : [kN0, kQKHeaddim], register-resident B operand
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeKRegTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeKRegTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         return BlockGemm::template MakeBBlockTileDistribution<
@@ -220,7 +221,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // V : [kN0, kVHeaddim], register-resident B operand
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeVRegTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeVRegTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
         return BlockGemm::template MakeBBlockTileDistribution<
@@ -230,7 +231,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // PT register tile distribution
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakePTRegTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakePTRegTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
         return BlockGemm::template MakeABlockTileDistribution<
@@ -240,7 +241,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // SGradT register tile distribution
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeSGradTRegTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeSGradTRegTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
         return BlockGemm::template MakeABlockTileDistribution<
@@ -250,7 +251,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // Bias -- [kM0Sub, kN0], use the C-tile distribution of Gemm0
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasDramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeBiasDramTileDistribution()
     {
         using BlockGemm                       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto bias_block_dstr_encode = BlockGemm::template MakeCBlockDistributionEncode<
@@ -261,7 +262,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // LSE -- [kM0], 1-D row scalar derived by reducing Gemm0 C-tile along N
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLSETileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeLSETileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         auto sacc_tile =
@@ -275,7 +276,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 
     // Delta (D[sq]) -- same 1-D distribution as LSE
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeDeltaTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeDeltaTileDistribution()
     {
         return MakeLSETileDistribution<Problem>();
     }
@@ -393,7 +394,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
 
         // Number of kKPack groups the kN row is scattered into (bank-group span).
-#if defined(__gfx950__) || defined(__gfx1250__)
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
         constexpr index_t BankSpanBytes = 64 * 4;
 #else
         constexpr index_t BankSpanBytes = 32 * 4;
@@ -685,7 +686,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
 
         // Number of kKPack groups the kN row is scattered into (bank-group span).
-#if defined(__gfx950__) || defined(__gfx1250__)
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
         constexpr index_t MaxNLdsLayer =
             (64 * 4 / kK / ElementBytes) < 1 ? 1 : (64 * 4 / kK / ElementBytes);
 #else
@@ -886,9 +887,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{});
 
-#if defined(__gfx1250__)
+#if defined(__hstu_gfx125__)
                 static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
-#elif defined(__gfx950__)
+#elif defined(__hstu_gfx95__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -953,9 +954,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{});
 
-#if defined(__gfx1250__)
+#if defined(__hstu_gfx125__)
                 static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
-#elif defined(__gfx950__)
+#elif defined(__hstu_gfx95__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -1018,9 +1019,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile::at(number<2>{});
 
-#if defined(__gfx1250__)
+#if defined(__hstu_gfx125__)
                 static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
-#elif defined(__gfx950__)
+#elif defined(__hstu_gfx95__)
                 static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
                                   (WarpGemmM == 32 && WarpGemmK == 16),
                               "Not supported WarpGemm sizes!");
@@ -1254,7 +1255,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // Gemm1 single-rep N (used by the epilogue to stride over dV output)
     // -------------------------------------------------------------------------
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetPTOGradTBlockGemmSingleRepN()
+    CK_TILE_DEVICE static constexpr index_t GetPTOGradTBlockGemmSingleRepN()
     {
         return Problem::HstuAttentionTileSetting::Gemm1BlockWarps::at(number<1>{}) *
                Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{});
@@ -1284,9 +1285,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                     Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<0>{});
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{});
-#if defined(__gfx1250__)
+#if defined(__hstu_gfx125__)
                 static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
-#elif defined(__gfx950__)
+#elif defined(__hstu_gfx95__)
                 // Gemm1 (dV = P^T @ dO^T) reuses Gemm0's C output as its A input via the
                 // transpose-free register copy in PTFromGemm0CToGemm1A, which requires the mfma
                 // A- and C-operand per-lane sizes to coincide (i.e. WarpGemmK == 16). gfx950
@@ -1312,7 +1313,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                         true,
                         false,
                         false,
-#if defined(__gfx950__)
+#if defined(__hstu_gfx95__)
                         WGAttrNumAccessEnum::Double
 #else
                         WGAttrNumAccessEnum::Default
@@ -1358,7 +1359,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // Gemm3 single-rep N (used by the epilogue to stride over dK output)
     // -------------------------------------------------------------------------
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSGradTQTBlockGemmSingleRepN()
+    CK_TILE_DEVICE static constexpr index_t GetSGradTQTBlockGemmSingleRepN()
     {
         return Problem::HstuAttentionTileSetting::Gemm3BlockWarps::at(number<1>{}) *
                Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<1>{});
@@ -1390,9 +1391,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                 constexpr index_t WarpGemmK =
                     Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<2>{});
 
-#if defined(__gfx1250__)
+#if defined(__hstu_gfx125__)
                 static_assert(WarpGemmM == 16 && WarpGemmK == 32, "Not supported WarpGemm sizes!");
-#elif defined(__gfx950__)
+#elif defined(__hstu_gfx95__)
                 // Gemm3 (dK = dS^T @ Q^T) reuses Gemm2's C output as its A input via the
                 // transpose-free register copy in SGradTFromGemm2CToGemm3A, which requires the
                 // mfma A- and C-operand per-lane sizes to coincide (i.e. WarpGemmK == 16).
@@ -1418,7 +1419,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                         true,
                         false,
                         false,
-#if defined(__gfx950__)
+#if defined(__hstu_gfx95__)
                         WGAttrNumAccessEnum::Double
 #else
                         WGAttrNumAccessEnum::Default
