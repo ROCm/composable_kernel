@@ -449,125 +449,6 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     }
 
     // -------------------------------------------------------------------------
-    // Conflict-free physical layout for the transposed staging buffers
-    // (qt_lds / dot_lds).
-    //
-    // The plain physical layout is [NumBuffers, kN(=headdim), kK1] with the kK1
-    // leading dim contiguous. kK1 = 16 bf16 = 32 B = 8 LDS banks and the kN row
-    // stride is also 16 elems = 8 banks, so a warp's ds_read gathering a column
-    // across the kN rows re-hits the same 8 banks every 4 rows (~4-way conflict).
-    //
-    // Padding the row stride removes the conflict but grows LDS, and kernel-2 is
-    // pinned to 2 blocks/CU (__launch_bounds__(kBlockSize,2)); any effective pad
-    // pushes 2*SmemSize over the 64 KB/CU budget and drops occupancy to 1 block/CU,
-    // which costs more than the conflict saves. Instead we apply an XOR swizzle
-    // (exactly like MakeQLdsBlockDescriptor's NLdsLayer swizzle for q_lds/do_lds):
-    // element_space_size is UNCHANGED (NumBuffers*kN*kK1) so GetSmemSize and the
-    // pipeline byte offsets are byte-identical to baseline -- ZERO extra LDS, no
-    // occupancy change -- while successive rows are scattered across bank groups.
-    //
-    // The swizzle is baked into the shared 3D physical descriptor BELOW, before the
-    // write/read transform chains diverge, so the write ([kM0,kK0]) and read
-    // ([kN,kK]) views are automatically consistent (both compose over the same
-    // swizzled physical descriptor).
-    template <typename Problem, index_t NumBuffers, index_t kN, index_t kK, index_t kKPack>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeSwizzledNativeDesc()
-    {
-        constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
-
-        // Number of kKPack groups the kN row is scattered into (bank-group span).
-#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
-        constexpr index_t BankSpanBytes = 64 * 4;
-#else
-        constexpr index_t BankSpanBytes = 32 * 4;
-#endif
-
-        constexpr index_t SingleBufferSize = kN * kK;
-
-        if constexpr(kK * ElementBytes < BankSpanBytes)
-        {
-            constexpr index_t NLdsLayer = BankSpanBytes / (kK * ElementBytes);
-
-            // 4D packed physical layout [NumBuffers, kN/NLdsLayer, (kK/kKPack)*NLdsLayer, kKPack].
-            constexpr auto desc_0 =
-                make_naive_tensor_descriptor(make_tuple(number<NumBuffers>{},
-                                                        number<kN / NLdsLayer>{},
-                                                        number<kK / kKPack * NLdsLayer>{},
-                                                        number<kKPack>{}),
-                                             make_tuple(number<SingleBufferSize>{},
-                                                        number<kK * NLdsLayer>{},
-                                                        number<kKPack>{},
-                                                        number<1>{}),
-                                             number<kKPack>{},
-                                             number<1>{});
-
-            // XOR-swizzle the (kN/NLdsLayer, kK-group*NLdsLayer) dims -> scatter banks.
-            constexpr auto desc_permuted = transform_tensor_descriptor(
-                desc_0,
-                make_tuple(make_pass_through_transform(number<NumBuffers>{}),
-                           make_xor_transform(make_tuple(number<kN / NLdsLayer>{},
-                                                         number<kK / kKPack * NLdsLayer>{})),
-                           make_pass_through_transform(number<kKPack>{})),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
-
-            // Split the kK-group dim back into [kK/kKPack, NLdsLayer].
-            constexpr auto desc_split = transform_tensor_descriptor(
-                desc_permuted,
-                make_tuple(
-                    make_pass_through_transform(number<NumBuffers>{}),
-                    make_pass_through_transform(number<kN / NLdsLayer>{}),
-                    make_unmerge_transform(make_tuple(number<kK / kKPack>{}, number<NLdsLayer>{})),
-                    make_pass_through_transform(number<kKPack>{})),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
-
-            // Re-merge to the logical 3D physical view [NumBuffers, kN, kK]:
-            //   kN = (kN/NLdsLayer) * NLdsLayer
-            //   kK = (kK/kKPack) * kKPack
-            return transform_tensor_descriptor(
-                desc_split,
-                make_tuple(make_pass_through_transform(number<NumBuffers>{}),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<kN / NLdsLayer>{}, number<NLdsLayer>{})),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
-                make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2, 4>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-        }
-        else
-        {
-            // 4D packed physical layout [NumBuffers, kN, kK/kKPack, kKPack].
-            constexpr auto desc_0 = make_naive_tensor_descriptor(
-                make_tuple(
-                    number<NumBuffers>{}, number<kN>{}, number<kK / kKPack>{}, number<kKPack>{}),
-                make_tuple(number<SingleBufferSize>{}, number<kK>{}, number<kKPack>{}, number<1>{}),
-                number<kKPack>{},
-                number<1>{});
-
-            // XOR-swizzle the (kN, kK-group) dims -> scatter banks.
-            constexpr auto desc_permuted = transform_tensor_descriptor(
-                desc_0,
-                make_tuple(make_pass_through_transform(number<NumBuffers>{}),
-                           make_xor_transform(make_tuple(number<kN>{}, number<kK / kKPack>{})),
-                           make_pass_through_transform(number<kKPack>{})),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
-
-            // Re-merge to the logical 3D physical view [NumBuffers, kN, kK]:
-            //   kK = (kK/kKPack) * kKPack
-            return transform_tensor_descriptor(
-                desc_permuted,
-                make_tuple(make_pass_through_transform(number<NumBuffers>{}),
-                           make_pass_through_transform(number<kN>{}),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // LDS block descriptors
     // -------------------------------------------------------------------------
 
@@ -655,11 +536,11 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                     }
                 }
                 else
-                    return MakeSwizzledNativeDesc<Problem,
-                                                  NumBuffers,
-                                                  kNPerBlock,
-                                                  kKPerBlock,
-                                                  kKPack>();
+                    return detail::MakeSwizzledNativeDesc<Problem,
+                                                          NumBuffers,
+                                                          kNPerBlock,
+                                                          kKPerBlock,
+                                                          kKPack>();
             }();
 
             // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
@@ -674,7 +555,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         }
         else
         {
-            constexpr auto desc_native =
+            constexpr auto desc_native = detail::
                 MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
 
             // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
