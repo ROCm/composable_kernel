@@ -203,7 +203,7 @@ struct tile_window_linear
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
 
-        auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
+        auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate<Base::kBottomLargeTensor>(
             this->bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
 
         // future load/store() calls (might allocate more registers)
@@ -901,7 +901,7 @@ struct tile_window_linear
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
 
-        auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
+        auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate<Base::kBottomLargeTensor>(
             this->bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
 
         // future load/store() calls (might allocate more registers)

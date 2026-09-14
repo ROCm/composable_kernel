@@ -20,14 +20,23 @@
 #endif
 namespace ck_tile {
 
-template <index_t NDimHidden, typename BottomDimensionHiddenIds, typename TopDimensionHiddenIds>
+template <index_t NDimHidden,
+          typename BottomDimensionHiddenIds,
+          typename TopDimensionHiddenIds,
+          bool LargeOffset = false>
 struct tensor_adaptor_coordinate
 {
     static constexpr index_t ndim_bottom_ = BottomDimensionHiddenIds::size();
     static constexpr index_t ndim_top_    = TopDimensionHiddenIds::size();
 
-    using HiddenIndex = multi_index<NDimHidden>;
-    using BottomIndex = multi_index<ndim_bottom_>;
+    // On the large-tensor path (a single tensor dimension exceeding the 2^31 element
+    // range) the hidden index carries the linear offset in long_index_t so that the
+    // per-tile offset arithmetic does not overflow. The default path stays index_t and
+    // is byte-for-byte unchanged.
+    using HiddenIndexType = std::conditional_t<LargeOffset, long_index_t, index_t>;
+
+    using HiddenIndex = array<HiddenIndexType, NDimHidden>;
+    using BottomIndex = array<HiddenIndexType, ndim_bottom_>;
     using TopIndex    = multi_index<ndim_top_>;
 
     public:
@@ -56,7 +65,7 @@ struct tensor_adaptor_coordinate
     HiddenIndex idx_hidden_;
 };
 
-template <typename Adaptor, typename TopIndex>
+template <bool LargeOffset = false, typename Adaptor, typename TopIndex>
 CK_TILE_HOST_DEVICE constexpr auto make_tensor_adaptor_coordinate(const Adaptor& adaptor,
                                                                   const TopIndex& idx_top)
 {
@@ -68,7 +77,9 @@ CK_TILE_HOST_DEVICE constexpr auto make_tensor_adaptor_coordinate(const Adaptor&
     constexpr auto bottom_dim_ids = Adaptor::get_bottom_dimension_hidden_ids();
     constexpr auto top_dim_ids    = Adaptor::get_top_dimension_hidden_ids();
 
-    multi_index<ndim_hidden> idx_hidden;
+    using idx_elem_t = std::conditional_t<LargeOffset, long_index_t, index_t>;
+
+    array<idx_elem_t, ndim_hidden> idx_hidden;
 
     // initialize visible index
     set_container_subset(idx_hidden, top_dim_ids, idx_top);
@@ -82,7 +93,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_tensor_adaptor_coordinate(const Adaptor&
 
         const auto idx_up = get_container_subset(idx_hidden, dims_up);
 
-        multi_index<dims_low.size()> idx_low;
+        array<idx_elem_t, dims_low.size()> idx_low;
 
         tran.calculate_lower_index(idx_low, idx_up);
 
@@ -91,7 +102,8 @@ CK_TILE_HOST_DEVICE constexpr auto make_tensor_adaptor_coordinate(const Adaptor&
 
     return tensor_adaptor_coordinate<ndim_hidden,
                                      remove_cvref_t<decltype(bottom_dim_ids)>,
-                                     remove_cvref_t<decltype(top_dim_ids)>>{idx_hidden};
+                                     remove_cvref_t<decltype(top_dim_ids)>,
+                                     LargeOffset>{idx_hidden};
 }
 
 template <bool JudgeDoTransforms = true,
@@ -108,6 +120,11 @@ CK_TILE_HOST_DEVICE constexpr void move_tensor_adaptor_coordinate(const Adaptor&
     constexpr index_t ndim_top    = Adaptor::get_num_of_top_dimension();
     //  constexpr index_t ndim_bottom = Adaptor::get_num_of_bottom_dimension();
     constexpr index_t ntransform = Adaptor::get_num_of_transform();
+
+    // Element type of the hidden index (index_t normally, long_index_t on the
+    // large-tensor path). The offset diffs below must use the same width to avoid
+    // truncating the per-tile offset step (KPerBlock * stride).
+    using hidden_elem_t = typename AdaptorCoord::HiddenIndex::value_type;
 
     //  static_assert(TopIndex::size() == ndim_top && BottomIndex::size() == ndim_bottom, "");
 
@@ -157,7 +174,7 @@ CK_TILE_HOST_DEVICE constexpr void move_tensor_adaptor_coordinate(const Adaptor&
     }
 
     // this is what needs to be calculated
-    auto idx_diff_hidden = make_zero_multi_index<ndim_hidden>();
+    array<hidden_elem_t, ndim_hidden> idx_diff_hidden{};
 
     // initialize top index diff
     set_container_subset(idx_diff_hidden, Adaptor::get_top_dimension_hidden_ids(), idx_diff_top);
@@ -185,7 +202,7 @@ CK_TILE_HOST_DEVICE constexpr void move_tensor_adaptor_coordinate(const Adaptor&
             auto idx_low           = get_container_subset(idx_hidden, dims_low);
             const auto idx_diff_up = get_container_subset(idx_diff_hidden, dims_up);
 
-            multi_index<dims_low.size()> idx_diff_low;
+            array<hidden_elem_t, dims_low.size()> idx_diff_low;
 
             tran.update_lower_index(idx_diff_low, idx_diff_up, idx_low, idx_up_new);
 
@@ -206,7 +223,10 @@ CK_TILE_HOST_DEVICE constexpr void move_tensor_adaptor_coordinate(const Adaptor&
 {
     constexpr index_t ndim_bottom = Adaptor::get_num_of_bottom_dimension();
 
-    multi_index<ndim_bottom> tmp;
+    // Match the coordinate's index width so the discarded bottom diff does not
+    // truncate on the large-tensor path.
+    using hidden_elem_t = typename AdaptorCoord::HiddenIndex::value_type;
+    array<hidden_elem_t, ndim_bottom> tmp;
 
     move_tensor_adaptor_coordinate<JudgeDoTransforms>(adaptor, coord, idx_diff_top, tmp);
 }

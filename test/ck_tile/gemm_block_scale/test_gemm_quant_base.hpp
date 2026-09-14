@@ -178,7 +178,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                GemmConfig::TransposeC,
                                                                DoubleSmemBuffer,
                                                                false,
-                                                               VectorSize>;
+                                                               VectorSize,
+                                                               GemmConfig::LargeTensors>;
 
         // Let the derived class create the appropriate pipeline and epilogue
         auto* derived = static_cast<Derived*>(this);

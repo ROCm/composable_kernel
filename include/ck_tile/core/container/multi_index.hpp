@@ -97,4 +97,57 @@ CK_TILE_HOST_DEVICE constexpr auto operator*(const multi_index<NSize>& x, index_
     return a * x;
 }
 
+// -----------------------------------------------------------------------------
+// 64-bit (long_index_t) index helpers.
+//
+// These mirror the multi_index (array<index_t>) helpers above but keep every
+// intermediate in long_index_t. They are used only on the large-tensor
+// (>2GB single dimension) code path, where a tile coordinate offset can exceed
+// the 2^31 element range that index_t can represent. Keeping these as a
+// separate, additive overload set means the default index_t path is completely
+// unchanged.
+// -----------------------------------------------------------------------------
+template <index_t N>
+using long_multi_index = array<long_index_t, N>;
+
+template <typename... Xs>
+CK_TILE_HOST_DEVICE constexpr auto make_long_multi_index(Xs&&... xs)
+{
+    return make_array<long_index_t>(long_index_t{xs}...);
+}
+
+template <index_t NSize, typename X>
+CK_TILE_HOST_DEVICE constexpr auto operator+=(long_multi_index<NSize>& y, const X& x)
+{
+    static_assert(X::size() == NSize, "wrong! size not the same");
+    static_for<0, NSize, 1>{}([&](auto i) { y[i] += x[i]; });
+    return y;
+}
+
+template <index_t NSize, typename X>
+CK_TILE_HOST_DEVICE constexpr auto operator-=(long_multi_index<NSize>& y, const X& x)
+{
+    static_assert(X::size() == NSize, "wrong! size not the same");
+    static_for<0, NSize, 1>{}([&](auto i) { y[i] -= x[i]; });
+    return y;
+}
+
+template <index_t NSize, typename T>
+CK_TILE_HOST_DEVICE constexpr auto operator+(const long_multi_index<NSize>& a, const T& b)
+{
+    static_assert(T::size() == NSize, "wrong! size not the same");
+    long_multi_index<NSize> r;
+    static_for<0, NSize, 1>{}([&](auto i) { r[i] = a[i] + b[i]; });
+    return r;
+}
+
+template <index_t NSize, typename T>
+CK_TILE_HOST_DEVICE constexpr auto operator-(const long_multi_index<NSize>& a, const T& b)
+{
+    static_assert(T::size() == NSize, "wrong! size not the same");
+    long_multi_index<NSize> r;
+    static_for<0, NSize, 1>{}([&](auto i) { r[i] = a[i] - b[i]; });
+    return r;
+}
+
 } // namespace ck_tile

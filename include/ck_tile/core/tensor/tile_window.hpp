@@ -127,8 +127,9 @@ struct tile_window_with_static_distribution
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
 
-        const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
-            bottom_tensor_view.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
+        const auto bottom_tensor_thread_coord_tmp =
+            make_tensor_coordinate<Base::kBottomLargeTensor>(
+                bottom_tensor_view.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
 
         // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
         // future load/store() calls (might allocate more registers)

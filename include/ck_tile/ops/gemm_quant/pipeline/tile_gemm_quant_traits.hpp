@@ -45,7 +45,8 @@ template <bool kPadM_,
           bool TransposeC_          = false,
           bool DoubleSmemBuffer_    = false,
           bool UsePersistentKernel_ = false,
-          int VectorSize_           = 16>
+          int VectorSize_           = 16,
+          bool LargeTensors_        = false>
 struct TileGemmQuantTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -75,6 +76,8 @@ struct TileGemmQuantTraits
     static constexpr bool APreshuffleQuant = APreshuffleQuant_;
     static constexpr bool BPreshuffleQuant = BPreshuffleQuant_;
     static constexpr bool PreshuffleB      = PreshuffleB_;
+
+    static constexpr bool LargeTensors = LargeTensors_;
 };
 
 } // namespace ck_tile
