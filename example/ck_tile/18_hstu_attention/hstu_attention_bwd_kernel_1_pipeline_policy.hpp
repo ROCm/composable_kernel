@@ -16,6 +16,7 @@
 
 #include "hstu_attention_config.hpp"
 #include "hstu_attention_kernel_util.hpp"
+#include "hstu_attention_pipeline_policy_helper.hpp"
 
 namespace ck_tile {
 
@@ -136,6 +137,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         return MakeQRegTileDistribution<Problem>();
     }
 
+#if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // K : [kN0Sub, kQKHeaddim], B operand loaded from DRAM into registers then stored to LDS
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeKDramTileDistribution()
@@ -187,7 +189,35 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                                            sequence<0, 0, 2>>{});
         }
     }
+#else
+    // K : [kN0Sub, kQKHeaddim], B operand loaded from DRAM into LDS through TDM
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeKDramTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
+        constexpr index_t NumWarps = kBlockSize / get_warp_size();
+
+        static_assert(
+            kNPerBlock % NumWarps == 0,
+            "kNPerBlock must be divisible by NumWarps for trivial tile-major distribution");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,                                      // R: empty
+                tuple<sequence<NumWarps, kNPerBlock / NumWarps>, // X[0]: N-axis, warp split
+                      sequence<kKPerBlock>>, // X[1]: K-axis, single full vector per thread
+                tuple<sequence<1>>,          // PsToRH (warp dim mapping)
+                tuple<sequence<0>>,          // PsToRH_lid
+                sequence<1, 2>,              // YsToD Major
+                sequence<1, 0>>{},           // YsToD Minor
+            bool_constant<true>{});          // IsWarpLevelParallelOnly
+    }
+#endif
+
+#if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // V : [kN0Sub, kVHeaddim], B operand loaded from DRAM into registers then stored to LDS
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
@@ -239,6 +269,33 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                                            sequence<0, 0, 2>>{});
         }
     }
+#else
+    // V : [kN0Sub, kVHeaddim], B operand loaded from DRAM into LDS through TDM
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
+
+        constexpr index_t NumWarps = kBlockSize / get_warp_size();
+
+        static_assert(
+            kNPerBlock % NumWarps == 0,
+            "kNPerBlock must be divisible by NumWarps for trivial tile-major distribution");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,                                      // R: empty
+                tuple<sequence<NumWarps, kNPerBlock / NumWarps>, // X[0]: N-axis, warp split
+                      sequence<kKPerBlock>>, // X[1]: K-axis, single full vector per thread
+                tuple<sequence<1>>,          // PsToRH (warp dim mapping)
+                tuple<sequence<0>>,          // PsToRH_lid
+                sequence<1, 2>,              // YsToD Major
+                sequence<1, 0>>{},           // YsToD Minor
+            bool_constant<true>{});          // IsWarpLevelParallelOnly
+    }
+#endif
 
     // Bias : [kM0, kN0] -- use Gemm0 C-tile distribution
     template <typename Problem>
@@ -323,6 +380,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         return max(GetOGradVWarpGemmBScalarPerVector<Problem>(), GetAlignmentV<Problem>());
     }
 
+#if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // K LDS descriptor: NumKVLdsBuffers * [kN0Sub, kQKHeaddim]
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
@@ -455,7 +513,68 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
     }
+#else
+    // K LDS descriptor: NumKVLdsBuffers * [kN0Sub, kQKHeaddim]
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
+    {
+        constexpr index_t NumBuffers = GetNumN0Loops<Problem>();
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
+        // K-Lds is used for both normal read and trload read, we take trload read as higher
+        // priority when considering bank-conflicts
+        using BlockGemm =
+            remove_cvref_t<decltype(GetSGradKTBlockGemm<Problem, true /*kUseTrLoad */>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto TdmPaddingCfg =
+            detail::GetTdmLdsPaddingConfigForTrLoadRead<WG, false /*inputB */, kKPerBlock>();
+
+        constexpr auto PadIntervalBytes = TdmPaddingCfg[number<0>{}];
+        constexpr auto PadLengthBytes   = TdmPaddingCfg[number<1>{}];
+
+        static_assert(detail::IsTdmPaddingValid<PadIntervalBytes, PadLengthBytes>(),
+                      "Check Failed!");
+
+        return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename WG::BDataType,
+                                                            NumBuffers,
+                                                            kNPerBlock,
+                                                            kKPerBlock,
+                                                            PadIntervalBytes,
+                                                            PadLengthBytes>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetKLdsPaddingConfig()
+    {
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        // K-Lds is used for both normal read and trload read, we take trload read as higher
+        // priority when considering bank-conflicts
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradKTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto TdmPaddingCfg =
+            detail::GetTdmLdsPaddingConfigForTrLoadRead<WG, false /* inputB */, kKPerBlock>();
+
+        constexpr auto PadIntervalBytes = TdmPaddingCfg[number<0>{}];
+        constexpr auto PadLengthBytes   = TdmPaddingCfg[number<1>{}];
+
+        static_assert(detail::IsTdmPaddingValid<PadIntervalBytes, PadLengthBytes>(),
+                      "Check Failed!");
+
+        constexpr auto TdmRawPaddingCfg =
+            detail::GetTdmRawPaddingConfig<PadIntervalBytes, PadLengthBytes>();
+
+        return make_tuple(
+            number<true>{}, TdmRawPaddingCfg[number<1>{}], TdmRawPaddingCfg[number<0>{}]);
+    }
+#endif
+
+#if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // V LDS descriptor: NumKVLdsBuffers * [kN0Sub, kVHeaddim]
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
@@ -532,6 +651,61 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
     }
+#else
+    // V LDS descriptor: NumKVLdsBuffers * [kN0Sub, kVHeaddim]
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
+    {
+        constexpr index_t NumBuffers = GetNumKVLdsBuffers<Problem>();
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
+
+        using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto TdmPaddingCfg =
+            detail::GetTdmLdsPaddingConfigForNormalRead<WG, false /*inputB */, kKPerBlock>();
+
+        constexpr auto PadIntervalBytes = TdmPaddingCfg[number<0>{}];
+        constexpr auto PadLengthBytes   = TdmPaddingCfg[number<1>{}];
+
+        static_assert(detail::IsTdmPaddingValid<PadIntervalBytes, PadLengthBytes>(),
+                      "Check Failed!");
+
+        return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename WG::BDataType,
+                                                            NumBuffers,
+                                                            kNPerBlock,
+                                                            kKPerBlock,
+                                                            PadIntervalBytes,
+                                                            PadLengthBytes>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVLdsPaddingConfig()
+    {
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
+
+        using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto TdmPaddingCfg =
+            detail::GetTdmLdsPaddingConfigForNormalRead<WG, false /* inputB */, kKPerBlock>();
+
+        constexpr auto PadIntervalBytes = TdmPaddingCfg[number<0>{}];
+        constexpr auto PadLengthBytes   = TdmPaddingCfg[number<1>{}];
+
+        static_assert(detail::IsTdmPaddingValid<PadIntervalBytes, PadLengthBytes>(),
+                      "Check Failed!");
+
+        constexpr auto TdmRawPaddingCfg =
+            detail::GetTdmRawPaddingConfig<PadIntervalBytes, PadLengthBytes>();
+
+        return make_tuple(
+            number<true>{}, TdmRawPaddingCfg[number<1>{}], TdmRawPaddingCfg[number<0>{}]);
+    }
+#endif
 
     // -------------------------------------------------------------------------
     // Conflict-free physical layout for the transposed staging buffer (kt_lds).
@@ -775,12 +949,21 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     // Shared memory sizing
     // K and V use separate LDS regions (Gemm0 and Gemm2 run in separate loops).
     // -------------------------------------------------------------------------
+#if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeK()
     {
         return MakeKLdsBlockDescriptor<Problem, kUseTrLoad>().get_element_space_size() *
                sizeof(typename Problem::QKVDataType);
     }
+#else
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeK()
+    {
+        return MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
+               sizeof(typename Problem::QKVDataType);
+    }
+#endif
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeV()
@@ -821,6 +1004,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         }
     };
 
+#if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // Total smem: k_lds + v_lds + kt_lds
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -838,6 +1022,15 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                    GetSmemSizeDropout<Problem>();
         }
     }
+#else
+    // Total smem: k_lds * 2 + v_lds
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        return GetSmemSizeK<Problem>() * 2 + GetSmemSizeV<Problem>() +
+               GetSmemSizeDropout<Problem>();
+    }
+#endif
 
     // -------------------------------------------------------------------------
     // Block GEMM objects
@@ -1041,7 +1234,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
 
     // Gemm4 single-rep N (used by the epilogue to stride over dQ output)
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSGradKTBlockGemmSingleRepN()
+    CK_TILE_DEVICE static constexpr index_t GetSGradKTBlockGemmSingleRepN()
     {
         return Problem::HstuAttentionTileSetting::Gemm4BlockWarps::at(number<1>{}) *
                Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<1>{});
