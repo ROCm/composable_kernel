@@ -169,7 +169,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
 
         // for hdim96 and hdim160, use simplest layout
@@ -195,9 +194,18 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else if constexpr(GetQKWarpGemmBScalarPerVector<Problem>() >= GetAlignmentK<Problem>())
         { // This path can only be reached if WarpGemm is 16x16x32 or 32x32x16
+            using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+            constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
-            constexpr auto desc_native = detail::
-                MakeSwizzledNativeDesc<Problem, NumKLdsBuffers, kNPerBlock, kKPerBlock, kKPack>();
+            constexpr auto kSwizzleUnit =
+                detail::GetSwizzleUnitForNormalRead<WG, false /*inputB*/>();
+
+            constexpr auto desc_native = detail::MakeSwizzledNativeDesc<Problem,
+                                                                        NumKLdsBuffers,
+                                                                        kNPerBlock,
+                                                                        kKPerBlock,
+                                                                        kSwizzleUnit>();
 
             return transform_tensor_descriptor(
                 desc_native,
@@ -345,17 +353,21 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             // With trload read,  16 threads per cycle access the [4Tl, 4Tm*4E] block and cross-bar
             // transpose it to [4E, 4Tm*4Tl] layout suitable for mfma. For hdim128, kK1=32, [32,
             // 128] = [2R*4Th*4Tl, 8R*4Tm*4E],  8R columns swizzled by 32 rows, for each value of
-            // 8R, the 4Tl rows is mapped to separate bigger bank-groups (each has BankGroupSize
+            // 8R, the 4Tl rows is mapped to separate bigger bank-groups (each has kSwizzleUnit
             // elements), able to guarantee 16 threads (4Tl*4Tm) in one cycle hitting to separate
             // smaller bank-groups (each has 4 elements, two dwords)
-            constexpr auto BankGroupSize =
-                Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{});
+            using BlockGemm       = remove_cvref_t<decltype(GetPVTBlockGemm<Problem>())>;
+            constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+            constexpr auto kSwizzleUnit =
+                detail::GetSwizzleUnitForTrLoadRead<WG, false /*inputB*/>();
 
             constexpr auto desc_native = detail::MakeSwizzledNativeDesc<Problem,
                                                                         NumVLdsBuffers,
                                                                         kKPerBlock, // kN
                                                                         kNPerBlock, // kK
-                                                                        BankGroupSize>();
+                                                                        kSwizzleUnit>();
 
             // merge: NumVLdsBuffers * [kK1, kVHeaddim] -> [kN0, kVHeaddim]
             return transform_tensor_descriptor(

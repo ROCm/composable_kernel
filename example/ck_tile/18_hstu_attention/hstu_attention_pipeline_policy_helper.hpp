@@ -203,6 +203,62 @@ CK_TILE_HOST_DEVICE constexpr auto MakeRowMajorLdsPlainBlockDescriptor()
         make_tuple(sequence<0>{}, sequence<1>{}));
 }
 
+template <typename WarpGemm, bool IsGemmInputA>
+CK_TILE_HOST_DEVICE constexpr index_t GetSwizzleUnitForNormalRead()
+{
+    if constexpr(IsGemmInputA)
+    { // access gemm inputA from LDS
+        using AEncoding = typename WarpGemm::AWarpDstrEncoding;
+
+        constexpr index_t ScalarPerVector = AEncoding::detail::ys_lengths_[AEncoding::NDimY - 1];
+
+        return ScalarPerVector;
+    }
+    else
+    { // acccess gemm inputB from LDS
+        using BEncoding = typename WarpGemm::BWarpDstrEncoding;
+
+        constexpr index_t ScalarPerVector = BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
+
+        return ScalarPerVector;
+    }
+}
+
+template <typename WarpGemm, bool IsGemmInputA>
+CK_TILE_HOST_DEVICE constexpr index_t GetSwizzleUnitForTrLoadRead()
+{
+    if constexpr(IsGemmInputA)
+    { // access gemm inputA from LDS
+        using ADataType = typename WarpGemm::ADataType;
+        using AEncoding = typename WarpGemm::AWarpDstrEncoding;
+        using AEncodingForTrLoad =
+            typename InputTileDistributionTraits<AEncoding, ADataType>::TransposedDstrEncode;
+
+        constexpr index_t ScalarPerVector =
+            AEncodingForTrLoad::detail::ys_lengths_[AEncoding::NDimY - 1];
+
+        // kABKLane is same as kCMLane
+        constexpr index_t kAKLane = WarpGemm::kCMLane;
+
+        return kAKLane * ScalarPerVector;
+    }
+    else
+    { // acccess gemm inputB from LDS
+        using BDataType = typename WarpGemm::BDataType;
+        using BEncoding = typename WarpGemm::BWarpDstrEncoding;
+        using BEncodingForTrLoad =
+            typename InputTileDistributionTraits<BEncoding, BDataType>::TransposedDstrEncode;
+
+        constexpr index_t ScalarPerVector =
+            BEncodingForTrLoad::detail::ys_lengths_[BEncoding::NDimY - 1];
+
+        // kABKLane is same as kCMLane
+        constexpr index_t kBKLane = WarpGemm::kCMLane;
+
+        return kBKLane * ScalarPerVector;
+    }
+}
+
 template <typename Problem, index_t NumBuffers, index_t kN, index_t kK, index_t kKPack>
 CK_TILE_HOST_DEVICE static constexpr auto MakeSwizzledNativeDesc()
 {
