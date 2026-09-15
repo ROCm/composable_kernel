@@ -110,6 +110,27 @@ if(GPU_TARGETS MATCHES "gfx125")
     set(FMHA_QR_TDM_PADDING_TEST_TARGET test_ck_tile_fmha_qr_tdm_lds_padding)
 endif()
 
+# Python integration test for the fmha_fwd codegen path.
+#
+# Drives the real `generate.py` with a JSON tune-config
+# (CK_TILE_FMHA_FWD_CUSTOM_TUNE_CONFIG_FILE) that declares two tiles
+# identical in every field except F_occupancy, and asserts that codegen
+# emits two distinct .cpp blobs (one with `_o2` suffix, one without).
+# This covers both:
+#   1. CK_TILE_FMHA_FWD_CUSTOM_TUNE_CONFIG_FILE JSON loading & dynamic
+#      factory subclassing.
+#   2. Per-occupancy kernel instantiation (kOccupancy_ template parameter)
+#      exposed via FmhaFwdTileSize.name symbol suffix.
+# Pure Python, no GPU required.
+set(FMHA_FWD_TUNE_CONFIG_PY_TEST test_ck_tile_fmha_fwd_tune_config)
+add_test(
+    NAME ${FMHA_FWD_TUNE_CONFIG_PY_TEST}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_fmha_fwd_tune_config.py -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+set_tests_properties(${FMHA_FWD_TUNE_CONFIG_PY_TEST}
+    PROPERTIES LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
 # Umbrella target to build and run all ck_tile fmha tests
 # Usage: ninja ck_tile_fmha_tests
 add_custom_target(ck_tile_fmha_tests

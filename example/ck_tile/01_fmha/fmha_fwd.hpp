@@ -1474,7 +1474,8 @@ template <ck_tile::index_t HDim_,
           bool kPadDv_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_ = false,
-          bool kHasSink_        = false>
+          bool kHasSink_        = false,
+          int kOccupancy_       = -1>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1501,6 +1502,12 @@ struct fmha_fwd_traits_
     static constexpr bool kUseTrLoad                 = kUseTrLoad_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
     static constexpr bool kHasSink                   = kHasSink_;
+    // Purely a policy hint (currently maps to make_kernel<kBlockPerCu>). Kept
+    // as a non-defaulted-away metadata field so tiles sharing all other
+    // traits but different occupancy still produce DISTINCT instantiations of
+    // `fmha_fwd_<traits, arch>`, avoiding `ld: multiple definition` when
+    // multiple such tiles are linked into a single shared object.
+    static constexpr int kOccupancy = kOccupancy_;
 };
 
 template <ck_tile::index_t HDim_,
@@ -1527,6 +1534,7 @@ template <ck_tile::index_t HDim_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_            = false,
           bool kHasSink_                   = false,
+          int kOccupancy_                  = -1,
           ck_tile::index_t kPageBlockSize_ = 1,
           ck_tile::BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout_ =
               ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT,
@@ -1557,7 +1565,8 @@ struct fmha_fwd_batch_prefill_traits_ : public fmha_fwd_traits_<HDim_,
                                                                 kPadDv_,
                                                                 kUseTrLoad_,
                                                                 kSkipMinSeqlenQ_,
-                                                                kHasSink_>
+                                                                kHasSink_,
+                                                                kOccupancy_>
 {
     static constexpr auto kKVMemoryLayout            = kKVMemoryLayout_;
     static constexpr auto kKVLookupTable             = kKVLookupTable_;
@@ -1594,7 +1603,8 @@ template <ck_tile::index_t HDim_,
           bool kPadD_,
           bool kPadDv_,
           bool kSkipMinSeqlenQ_ = false,
-          bool kHasSink_        = false>
+          bool kHasSink_        = false,
+          int kOccupancy_       = -1>
 struct fmha_fwd_pagedkv_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1620,6 +1630,9 @@ struct fmha_fwd_pagedkv_traits_
     static constexpr bool kPadDv                     = kPadDv_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
     static constexpr bool kHasSink                   = kHasSink_;
+    // See fmha_fwd_traits_::kOccupancy for rationale (per-tile symbol split
+    // to keep occupancy-only variants from colliding at link time).
+    static constexpr int kOccupancy = kOccupancy_;
 };
 
 template <typename Traits_, typename Arch = void>
@@ -1646,7 +1659,8 @@ template <ck_tile::index_t HDim_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
-          bool kPadDv_>
+          bool kPadDv_,
+          int kOccupancy_ = -1>
 struct fmha_fwd_splitkv_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1671,6 +1685,9 @@ struct fmha_fwd_splitkv_traits_
     static constexpr bool kPadDv                     = kPadDv_;
     static constexpr bool kIsPagedKV                 = kIsPagedKV_;
     static constexpr bool kHasSink                   = kHasSink_;
+    // See fmha_fwd_traits_::kOccupancy for rationale (per-tile symbol split
+    // to keep occupancy-only variants from colliding at link time).
+    static constexpr int kOccupancy = kOccupancy_;
 };
 
 template <typename Traits_, typename Arch = void>

@@ -119,7 +119,7 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 
 using trait_{F_idx} = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_squant}, {F_pagedkv}, {F_sink}, {F_spad}, {F_skpad}, {F_dpad},
-                        {F_dvpad}>;
+                        {F_dvpad}, {F_occupancy}>;
 
 #ifdef __clang__
 #pragma clang diagnostic push
@@ -284,7 +284,7 @@ float fmha_fwd_splitkv(fmha_fwd_splitkv_traits t, fmha_fwd_splitkv_args a, const
 
 FMHA_FWD_SPLITKV_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.do_fp8_static_quant == {F_squant}) &&
         ((a.block_table_ptr != nullptr) == {F_pagedkv}) && (t.has_sink == {F_sink}) && ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
-    using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv},{F_sink}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+    using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv},{F_sink}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_occupancy}>;
 
     // get combine kernel tile sizes
     using OaccDataType = typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType;
@@ -338,6 +338,9 @@ class FmhaFwdSplitKVApiTrait:
     pagedkv: str
     sink: str  # sink or not
     bn1comb: int  # tile size along v head_dim of combine kernel
+    # Metadata-only hint (occupancy of the splitkv kernel), see
+    # fmha_fwd_traits_::kOccupancy for rationale.
+    occupancy: int = -1
 
     @property
     def name(self) -> str:
@@ -602,6 +605,7 @@ class FmhaFwdSplitKVApiPool:
                             F_bn1=trait.bn1,
                             F_bk1=trait.bk1,
                             F_bk0max=trait.bk0max,
+                            F_occupancy=trait.occupancy,
                             F_hdim=hdim,
                             F_dtype=FWD_DTYPE_MAP[dtype],
                             F_bn1comb=trait.bn1comb,
@@ -1171,6 +1175,7 @@ def write_blobs(
                 dpad=kernel.F_pipeline.F_dpad,
                 dvpad=kernel.F_pipeline.F_dvpad,
                 bn1comb=combine_kernel.F_tile.F_bn1,
+                occupancy=int(kernel.F_tile.F_occupancy),
             )
         )
     write_fwd_splitkv_api(api_pool, output_dir)

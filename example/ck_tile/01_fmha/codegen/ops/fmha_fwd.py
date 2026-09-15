@@ -4,11 +4,12 @@
 import copy
 import fnmatch
 import itertools
+import json
 import os
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, ClassVar, Iterable, List, Optional, Tuple
+from typing import Callable, ClassVar, Dict, Iterable, List, Optional, Tuple
 
 from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
@@ -141,7 +142,7 @@ using fmha_kernel = {F_kernel}<fmha_pipeline, fmha_epilogue>;
 
 
 using trait = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}>;
+                        {F_pipeline_enum}, {F_logits}, fmha_mask, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}, {F_occupancy}>;
 
 template<>
 float fmha_fwd_<trait, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_args a)
@@ -266,7 +267,7 @@ FMHA_FWD_API_PER_HDIM_CASE = """{F_if}(t.hdim_q <= {F_hdim} && t.hdim_v <= {F_hd
 }}
 """
 
-FMHA_FWD_TRAIT_TYPE = """fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}>"""
+FMHA_FWD_TRAIT_TYPE = """fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}, {F_occupancy}>"""
 
 FMHA_FWD_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.qscale_type == {F_qscale_check}) && (t.skip_min_seqlen_q == {F_skip}) &&(t.has_sink == {F_sink}) &&
         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
@@ -338,7 +339,12 @@ class FmhaFwdApiTrait:
     skip: str
     tr_load: str
     sink: str
-    constraint: CppConstraint
+    # Metadata-only hint mapped onto fmha_fwd_traits_::kOccupancy. Its sole
+    # purpose here is to make otherwise-identical traits produce DISTINCT
+    # template instantiations of `fmha_fwd_<traits, arch>`, so multiple
+    # occupancy variants for the same tile can coexist in one shared object.
+    occupancy: int = -1
+    constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
 
     @property
     def name(self) -> str:
@@ -571,6 +577,7 @@ def api_trait_fmt_args(arch, dtype, hdim, trait: FmhaFwdApiTrait, max_bm0: int) 
         F_bn1=trait.bn1,
         F_bk1=trait.bk1,
         F_bk0max=trait.bk0max,
+        F_occupancy=trait.occupancy,
         F_hdim=hdim,
         F_dtype=FWD_DTYPE_MAP[dtype],
     )
@@ -869,6 +876,7 @@ class FmhaFwdKernel:
             skip=self.F_pipeline.F_skip,
             tr_load=self.F_pipeline.F_trload,
             sink=self.F_pipeline.F_sink,
+            occupancy=int(self.F_tile.F_occupancy),
             constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint,
         )
 
@@ -1565,7 +1573,216 @@ class CustomFactory(KernelComponentFactoryGfx9, CompatibilityRuleFactoryGfx9):
         return result
 
 
+# ---------------------------------------------------------------------------
+# Custom tune-config driven factory
+#
+# When the env var CK_TILE_FMHA_FWD_CUSTOM_TUNE_CONFIG_FILE points to a JSON
+# file, `get_factory` will build a dynamic factory that:
+#   * inherits everything (arch, supported_dtypes, get_pipelines) from an
+#     arch base factory (selected via the JSON "target" field);
+#   * replaces `get_hdim_tile_size_dict` with the JSON-declared tile table,
+#     so that codegen ONLY emits kernels for the (hdim, hdim_v) keys the
+#     tuner asked for;
+#   * optionally drops `check_hdim_tile` rule (needed for arbitrary padded
+#     hdim combos such as (80, 96));
+#   * appends a "filters" compatibility rule that narrows pipelines to a
+#     concrete combo (mode / mask / bias / lse / dropout / logits / qscale /
+#     vlayout / skip / sink / trload / spad / skpad / dpad / dvpad).
+#
+# JSON schema (v1):
+# {
+#   "schema_version": 1,
+#   "target": "gfx942",
+#   "dtypes": ["bf16"],
+#   "tiles": {
+#     "bf16": {
+#       "80,96": [
+#         {"F_bm0":64,"F_bn0":64,"F_bk0":32,"F_bn1":96,"F_bk1":32,
+#          "F_bk0max":128,"F_rm0":4,"F_rn0":1,"F_rk0":1,
+#          "F_rm1":4,"F_rn1":1,"F_rk1":1,
+#          "F_wm0":16,"F_wn0":16,"F_wk0":32,
+#          "F_wm1":16,"F_wn1":16,"F_wk1":32,"F_occupancy":-1}
+#       ]
+#     }
+#   },
+#   "filters": {
+#     "mode": ["group"], "mask": ["mask_bottom_right"],
+#     "bias": ["no"], "lse": ["f"], "dropout": ["f"],
+#     "logits": ["f"], "qscale": ["no"], "vlayout": ["row"]
+#   },
+#   "relax_rules": {"disable_check_hdim_tile": false}
+# }
+# ---------------------------------------------------------------------------
+
+
+def _load_custom_tune_config() -> Optional[dict]:
+    path = os.environ.get("CK_TILE_FMHA_FWD_CUSTOM_TUNE_CONFIG_FILE", "").strip()
+    if not path:
+        return None
+    with open(path, "r") as f:
+        cfg = json.load(f)
+    return cfg
+
+
+def _tune_config_pick_base(target: str):
+    # Same dispatch as the tail of `get_factory` below, but consulted only
+    # to select the base class for a dynamic factory.
+    if target.startswith("gfx950"):
+        return KernelComponentFactoryGfx950
+    if target.startswith("gfx9"):
+        return KernelComponentFactoryGfx9
+    if target.startswith("gfx115"):
+        return KernelComponentFactoryGfx115
+    if target.startswith("gfx11"):
+        return KernelComponentFactoryGfx11
+    if target.startswith("gfx125"):
+        return KernelComponentFactoryGfx125
+    if target.startswith("gfx12"):
+        return KernelComponentFactoryGfx12
+    raise Exception(f"Unsupported device target {target} in tune config")
+
+
+def _parse_tune_config_tiles(tiles_by_dtype_json: dict) -> Dict[str, Dict[Tuple[int, int], List[FmhaFwdTileSize]]]:
+    result: Dict[str, Dict[Tuple[int, int], List[FmhaFwdTileSize]]] = {}
+    for dtype, hkey_map in tiles_by_dtype_json.items():
+        by_hkey: Dict[Tuple[int, int], List[FmhaFwdTileSize]] = {}
+        for hkey, tile_dicts in hkey_map.items():
+            parts = [p.strip() for p in str(hkey).split(",")]
+            if len(parts) != 2:
+                raise ValueError(
+                    f"[CustomTuneFactory] tile key '{hkey}' must be 'HDIM,HDIMV'"
+                )
+            hdim, hdim_v = int(parts[0]), int(parts[1])
+            tiles: List[FmhaFwdTileSize] = []
+            for td in tile_dicts:
+                # Optional runtime dispatch constraint (custom-tune JSON only).
+                # Kept purely as a string so it can carry arbitrary C++
+                # boolean expressions referring to fmha_fwd_args `a` and
+                # fmha_fwd_traits `t` (e.g. "a.max_seqlen_q < 704" or
+                # "(a.max_seqlen_q >= 704 && a.max_seqlen_q < 1344) || ...").
+                # Missing/empty -> keep default CppConstraint (== "true").
+                _cc = td.get("cpp_constraint")
+                _cc_str = str(_cc).strip() if _cc is not None else ""
+                _constraint = (CppConstraint(bool_expr=_cc_str) if _cc_str
+                               else CppConstraint())
+                tiles.append(FmhaFwdTileSize(
+                    F_bm0=int(td["F_bm0"]),
+                    F_bn0=int(td["F_bn0"]),
+                    F_bk0=int(td["F_bk0"]),
+                    F_bn1=int(td["F_bn1"]),
+                    F_bk1=int(td["F_bk1"]),
+                    F_bk0max=int(td["F_bk0max"]),
+                    F_rm0=int(td["F_rm0"]),
+                    F_rn0=int(td["F_rn0"]),
+                    F_rk0=int(td["F_rk0"]),
+                    F_rm1=int(td["F_rm1"]),
+                    F_rn1=int(td["F_rn1"]),
+                    F_rk1=int(td["F_rk1"]),
+                    F_wm0=int(td["F_wm0"]),
+                    F_wn0=int(td["F_wn0"]),
+                    F_wk0=int(td["F_wk0"]),
+                    F_wm1=int(td["F_wm1"]),
+                    F_wn1=int(td["F_wn1"]),
+                    F_wk1=int(td["F_wk1"]),
+                    F_occupancy=int(td["F_occupancy"]),
+                    F_constraint=_constraint,
+                ))
+            by_hkey[(hdim, hdim_v)] = tiles
+        result[dtype] = by_hkey
+    return result
+
+
+def _make_tune_filter_rule(filters: dict):
+    if not filters:
+        return None
+
+    allowed_mode    = set(filters.get("mode", []))    or None
+    allowed_mask    = set(filters.get("mask", []))    or None
+    allowed_bias    = set(filters.get("bias", []))    or None
+    allowed_lse     = set(filters.get("lse", []))     or None
+    allowed_dropout = set(filters.get("dropout", [])) or None
+    allowed_logits  = set(filters.get("logits", []))  or None
+    allowed_qscale  = set(filters.get("qscale", []))  or None
+    allowed_vlayout = set(filters.get("vlayout", [])) or None
+    allowed_skip    = set(filters.get("skip", []))    or None
+    allowed_sink    = set(filters.get("sink", []))    or None
+    allowed_trload  = set(filters.get("trload", []))  or None
+    allowed_spad    = set(filters.get("spad", []))    or None
+    allowed_skpad   = set(filters.get("skpad", []))   or None
+    allowed_dpad    = set(filters.get("dpad", []))    or None
+    allowed_dvpad   = set(filters.get("dvpad", []))   or None
+
+    def tune_filter(problem_ctx: "ProblemContext", kernel_ctx: "KernelContext") -> bool:
+        p = kernel_ctx.pipeline
+        if allowed_mode    is not None and problem_ctx.mode not in allowed_mode:    return False
+        if allowed_mask    is not None and p.F_mask     not in allowed_mask:    return False
+        if allowed_bias    is not None and p.F_bias     not in allowed_bias:    return False
+        if allowed_lse     is not None and p.F_lse      not in allowed_lse:     return False
+        if allowed_dropout is not None and p.F_dropout  not in allowed_dropout: return False
+        if allowed_logits  is not None and p.F_logits   not in allowed_logits:  return False
+        if allowed_qscale  is not None and p.F_qscale   not in allowed_qscale:  return False
+        if allowed_vlayout is not None and p.F_vlayout  not in allowed_vlayout: return False
+        if allowed_skip    is not None and p.F_skip     not in allowed_skip:    return False
+        if allowed_sink    is not None and p.F_sink     not in allowed_sink:    return False
+        if allowed_trload  is not None and p.F_trload   not in allowed_trload:  return False
+        if allowed_spad    is not None and p.F_spad     not in allowed_spad:    return False
+        if allowed_skpad   is not None and p.F_skpad    not in allowed_skpad:   return False
+        if allowed_dpad    is not None and p.F_dpad     not in allowed_dpad:    return False
+        if allowed_dvpad   is not None and p.F_dvpad    not in allowed_dvpad:   return False
+        return True
+
+    return tune_filter
+
+
+def _build_custom_tune_factory(cfg: dict):
+    target = cfg.get("target", "")
+    if not target:
+        raise ValueError("[CustomTuneFactory] JSON 'target' field is required")
+    base = _tune_config_pick_base(target)
+
+    tiles_by_dtype = _parse_tune_config_tiles(cfg.get("tiles", {}))
+    dtypes_whitelist = tuple(cfg.get("dtypes", ()))
+    extra_rule = _make_tune_filter_rule(cfg.get("filters", {}))
+    disable_hdim_rule = bool(
+        cfg.get("relax_rules", {}).get("disable_check_hdim_tile", False)
+    )
+
+    class CustomTuneFactory(base):
+        # arch inherited from base
+
+        @classmethod
+        def supported_dtypes(cls) -> Tuple[str]:
+            base_dt = base.supported_dtypes()
+            if dtypes_whitelist:
+                return tuple(d for d in base_dt if d in dtypes_whitelist)
+            # If not explicitly listed, restrict to dtypes appearing in tiles.
+            return tuple(d for d in base_dt if d in tiles_by_dtype)
+
+        @classmethod
+        def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
+            return tiles_by_dtype.get(dtype, None)
+
+        @classmethod
+        def get_rules(cls) -> List[CompatibilityRule]:
+            rules = list(base.get_rules())
+            if disable_hdim_rule:
+                rules = [
+                    r for r in rules if getattr(r, "__name__", "") != "check_hdim_tile"
+                ]
+            if extra_rule is not None:
+                rules.append(extra_rule)
+            return rules
+
+    CustomTuneFactory.__name__ = f"CustomTuneFactory_{base.__name__}"
+    return CustomTuneFactory
+
+
 def get_factory(target: str):
+    # Highest priority: JSON-driven tune-config factory.
+    tune_cfg = _load_custom_tune_config()
+    if tune_cfg is not None:
+        return _build_custom_tune_factory(tune_cfg)
+
     if os.environ.get("CK_TILE_FMHA_FWD_CUSTOM_FACTORY", "0") == "1":
         return CustomFactory
 
@@ -1741,6 +1958,9 @@ def get_fwd_blobs(
 
     for factory, dtype in ((f, t) for f in factories for t in f.supported_dtypes()):
         d = factory.get_hdim_tile_size_dict(dtype)
+        # CustomTuneFactory might return None
+        if not d:
+            continue
         # for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for ((hdim, hdim_v), tiles), mode in itertools.product(
             d.items(), MODE_MAP.keys()
