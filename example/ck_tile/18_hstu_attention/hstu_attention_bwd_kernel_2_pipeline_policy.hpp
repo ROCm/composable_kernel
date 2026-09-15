@@ -451,18 +451,20 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     // -------------------------------------------------------------------------
     // LDS block descriptors
     // -------------------------------------------------------------------------
-
-    // q_lds write/read descriptor: NumBuffers * [kM0Sub, kQKHeaddim]
-    template <typename Problem,
-              index_t NumBuffers,
-              index_t kNPerBlock,
-              index_t kKPerBlock,
-              index_t kKPack,
-              index_t kKVector,
-              index_t WarpGemmScalarPerVector,
-              bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQOGradLdsBlockDescriptor()
+#if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+    // q_lds write/read descriptor
+    template <typename Problem, bool kUseTrLoad = false>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
+        constexpr index_t kNPerBlock              = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock              = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kKPack                  = GetSmemKPackQ<Problem>();
+        constexpr index_t kKVector                = GetAlignmentQ<Problem>();
+        constexpr index_t WarpGemmScalarPerVector = GetQKWarpGemmAScalarPerVector<Problem>();
+
+        constexpr index_t NumBuffers =
+            kUseTrLoad ? GetNumM0Loops<Problem>() : GetNumQOGradLdsBuffers<Problem>();
+
         if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
             constexpr index_t SingleBufferSize = kNPerBlock * kKPerBlock;
@@ -482,76 +484,45 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         }
         else if constexpr(WarpGemmScalarPerVector >= kKVector)
         {
-            // In the trload pipeline this q_lds/do_lds buffer is read BOTH normally
-            // (Gemm0/Gemm2 A operand) and transposed (Gemm3/Gemm1 via ds_read_b64_tr).
-            // Profiling shows the transpose read is the dominant LDS-conflict source (it is 2x
-            // the normal-read count in kernel 2) and it prefers a plain (contiguous) layout.
-            // Use a plain physical layout for the shared trload buffer (same element space ->
-            // GetSmemSize/byte offsets unchanged), and keep the XOR swizzle for the non-trload
-            // buffer whose read is normal-only.
-            constexpr auto desc_native = [] {
-                if constexpr(kUseTrLoad)
-                {
-                    if constexpr(kKPerBlock <= 16)
-                    {
-                        return make_naive_tensor_descriptor(
-                            make_tuple(
-                                number<NumBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
-                            make_tuple(number<kNPerBlock * kKPerBlock>{},
-                                       number<kKPerBlock>{},
-                                       number<1>{}),
-                            number<kKPack>{},
-                            number<1>{});
-                    }
-                    else
-                    {
-                        // With trload read,  16 threads per cycle access the [4Tl, 4Tm*4E]
-                        // block and cross-bar transpose it to [4E, 4Tm*4Tl] layout suitable for
-                        // mfma, we want to ensure 16T * 2 dwords to exactly hit 32 banks (for
-                        // KPerBlock = 16, 4 * 16 * sizeof(bf16) = 32 banks mapped by 4 rows;
-                        // and actual hit 16 Threads * 2 banks/per-inst is also 32 banks )
-                        static_assert(kKPerBlock % 16 == 0,
-                                      "kKPerBlock should be a multiplier of 16!");
+            if constexpr(kUseTrLoad)
+            {
+                // q_trload_lds reuse q_lds, but we take q_trload_lds as higher priority
+                using BlockGemm = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
+                constexpr auto config =
+                    BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+                using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
-                        constexpr auto desc_native_0 = make_naive_tensor_descriptor(
-                            make_tuple(number<NumBuffers>{},
-                                       number<kKPerBlock / 16>{},
-                                       number<kNPerBlock>{},
-                                       number<16>{}),
-                            make_tuple(number<kNPerBlock * kKPerBlock>{},
-                                       number<kNPerBlock * 16>{},
-                                       number<16>{},
-                                       number<1>{}),
-                            number<kKPack>{},
-                            number<1>{});
+                constexpr auto PaddingCfg =
+                    detail::GetLdsPaddingConfigForTrLoadRead<WG, false /*inputB */, kKPerBlock>();
 
-                        return transform_tensor_descriptor(
-                            desc_native_0,
-                            make_tuple(make_pass_through_transform(number<NumBuffers>{}),
-                                       make_pass_through_transform(number<kNPerBlock>{}),
-                                       make_merge_transform(
-                                           make_tuple(number<kKPerBlock / 16>{}, number<16>{}))),
-                            make_tuple(sequence<0>{}, sequence<2>{}, sequence<1, 3>{}),
-                            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
-                    }
-                }
-                else
-                    return detail::MakeSwizzledNativeDesc<Problem,
-                                                          NumBuffers,
-                                                          kNPerBlock,
-                                                          kKPerBlock,
-                                                          kKPack>();
-            }();
+                constexpr auto PadInterval = PaddingCfg[number<0>{}];
+                constexpr auto PadLength   = PaddingCfg[number<1>{}];
 
-            // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
-            // dim0, matching the other branches and the per-buffer caller slicing.
-            return transform_tensor_descriptor(
-                desc_native,
-                make_tuple(
-                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
-                    make_pass_through_transform(number<kKPerBlock>{})),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+                return detail::MakeRowMajorLdsPaddedBlockDescriptor<NumBuffers,
+                                                                    kNPerBlock,
+                                                                    kKPerBlock,
+                                                                    PadInterval,
+                                                                    PadLength>();
+            }
+            else
+            {
+                using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+                constexpr auto config =
+                    BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+                using WG = remove_cvref_t<decltype(config.template at<0>())>;
+
+                constexpr auto PaddingCfg =
+                    detail::GetLdsPaddingConfigForNormalRead<WG, true /*inputA */, kKPerBlock>();
+
+                constexpr auto PadInterval = PaddingCfg[number<0>{}];
+                constexpr auto PadLength   = PaddingCfg[number<1>{}];
+
+                return detail::MakeRowMajorLdsPaddedBlockDescriptor<NumBuffers,
+                                                                    kNPerBlock,
+                                                                    kKPerBlock,
+                                                                    PadInterval,
+                                                                    PadLength>();
+            }
         }
         else
         {
@@ -567,42 +538,6 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                     make_pass_through_transform(number<kKPerBlock>{})),
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
-        }
-    }
-
-#if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-    // q_lds write/read descriptor
-    template <typename Problem, bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
-    {
-        constexpr index_t kNPerBlock              = Problem::HstuAttentionTileSetting::kM0Sub;
-        constexpr index_t kKPerBlock              = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t kKPack                  = GetSmemKPackQ<Problem>();
-        constexpr index_t kKVector                = GetAlignmentQ<Problem>();
-        constexpr index_t WarpGemmScalarPerVector = GetQKWarpGemmAScalarPerVector<Problem>();
-
-        if constexpr(kUseTrLoad)
-        {
-            constexpr index_t NumBuffers = GetNumM0Loops<Problem>();
-            return MakeQOGradLdsBlockDescriptor<Problem,
-                                                NumBuffers,
-                                                kNPerBlock,
-                                                kKPerBlock,
-                                                kKPack,
-                                                kKVector,
-                                                WarpGemmScalarPerVector,
-                                                true /*kUseTrLoad*/>();
-        }
-        else
-        {
-            constexpr index_t NumBuffers = GetNumQOGradLdsBuffers<Problem>();
-            return MakeQOGradLdsBlockDescriptor<Problem,
-                                                NumBuffers,
-                                                kNPerBlock,
-                                                kKPerBlock,
-                                                kKPack,
-                                                kKVector,
-                                                WarpGemmScalarPerVector>();
         }
     }
 #else
@@ -678,28 +613,82 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t kKVector                = GetAlignmentOGrad<Problem>();
         constexpr index_t WarpGemmScalarPerVector = GetOGradVWarpGemmAScalarPerVector<Problem>();
 
-        if constexpr(kUseTrLoad)
+        constexpr index_t NumBuffers =
+            kUseTrLoad ? GetNumM0Loops<Problem>() : GetNumQOGradLdsBuffers<Problem>();
+
+        if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
-            constexpr index_t NumBuffers = GetNumM0Loops<Problem>();
-            return MakeQOGradLdsBlockDescriptor<Problem,
-                                                NumBuffers,
-                                                kNPerBlock,
-                                                kKPerBlock,
-                                                kKPack,
-                                                kKVector,
-                                                WarpGemmScalarPerVector,
-                                                true /*kUseTrLoad*/>();
+            constexpr index_t SingleBufferSize = kNPerBlock * kKPerBlock;
+
+            constexpr auto desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<NumBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
+                make_tuple(number<SingleBufferSize>{}, number<kKPerBlock>{}, number<1>{}),
+                number<kKVector>{},
+                number<1>{});
+            return transform_tensor_descriptor(
+                desc_0,
+                make_tuple(
+                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
+                    make_pass_through_transform(number<kKPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+        }
+        else if constexpr(WarpGemmScalarPerVector >= kKVector)
+        {
+            if constexpr(kUseTrLoad)
+            {
+                // q_trload_lds reuse q_lds, but we take q_trload_lds as higher priority
+                using BlockGemm = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
+                constexpr auto config =
+                    BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+                using WG = remove_cvref_t<decltype(config.template at<0>())>;
+
+                constexpr auto PaddingCfg =
+                    detail::GetLdsPaddingConfigForTrLoadRead<WG, false /*inputB */, kKPerBlock>();
+
+                constexpr auto PadInterval = PaddingCfg[number<0>{}];
+                constexpr auto PadLength   = PaddingCfg[number<1>{}];
+
+                return detail::MakeRowMajorLdsPaddedBlockDescriptor<NumBuffers,
+                                                                    kNPerBlock,
+                                                                    kKPerBlock,
+                                                                    PadInterval,
+                                                                    PadLength>();
+            }
+            else
+            {
+                using BlockGemm = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+                constexpr auto config =
+                    BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+                using WG = remove_cvref_t<decltype(config.template at<0>())>;
+
+                constexpr auto PaddingCfg =
+                    detail::GetLdsPaddingConfigForNormalRead<WG, true /*inputA */, kKPerBlock>();
+
+                constexpr auto PadInterval = PaddingCfg[number<0>{}];
+                constexpr auto PadLength   = PaddingCfg[number<1>{}];
+
+                return detail::MakeRowMajorLdsPaddedBlockDescriptor<NumBuffers,
+                                                                    kNPerBlock,
+                                                                    kKPerBlock,
+                                                                    PadInterval,
+                                                                    PadLength>();
+            }
         }
         else
         {
-            constexpr index_t NumBuffers = GetNumQOGradLdsBuffers<Problem>();
-            return MakeQOGradLdsBlockDescriptor<Problem,
-                                                NumBuffers,
-                                                kNPerBlock,
-                                                kKPerBlock,
-                                                kKPack,
-                                                kKVector,
-                                                WarpGemmScalarPerVector>();
+            constexpr auto desc_native = detail::
+                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
+
+            // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
+            // dim0, matching the other branches and the per-buffer caller slicing.
+            return transform_tensor_descriptor(
+                desc_native,
+                make_tuple(
+                    make_merge_transform(make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
+                    make_pass_through_transform(number<kKPerBlock>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
         }
     }
 #else
