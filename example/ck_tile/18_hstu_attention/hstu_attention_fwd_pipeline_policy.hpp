@@ -314,39 +314,31 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         if constexpr(!kUseTrLoad)
         {
             constexpr index_t N1 = GetAlignmentV<Problem>();
-            constexpr index_t N0 = kNPerBlock / N1;
 
             constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
 
             // K2 is the vector size for storing shuffled tile to LDS
             constexpr index_t K2 = ElemPerThread / N1;
 
-            constexpr index_t kDsReadVector = GetPVTWarpGemmBScalarPerVector<Problem, kUseTrLoad>();
+            constexpr index_t kDsReadVector = GetPVTWarpGemmBScalarPerVector<Problem>();
 
             static_assert(kDsReadVector >= K2, "Check failed!");
 
-            constexpr index_t SingleBufferSize = N0 * (N1 * kKPerBlock + kDsReadVector);
+            using BlockGemm       = remove_cvref_t<decltype(GetPVTBlockGemm<Problem>())>;
+            constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
-            // the naive Lds is laid-out comforting the reading of V^t by gemm_1()
-            constexpr auto v_lds_block_desc_0 = make_naive_tensor_descriptor(
-                make_tuple(
-                    number<NumVLdsBuffers>{}, number<N0>{}, number<N1>{}, number<kKPerBlock>{}),
-                make_tuple(number<SingleBufferSize>{},
-                           number<N1 * kKPerBlock + kDsReadVector>{},
-                           number<kKPerBlock>{},
-                           number<1>{}),
-                number<kDsReadVector>{},
-                number<1>{});
+            constexpr auto PaddingCfg =
+                detail::GetLdsPaddingConfigForNormalRead<WG, false /*inputB */, kKPerBlock>();
 
-            constexpr auto v_lds_block_desc = transform_tensor_descriptor(
-                v_lds_block_desc_0,
-                make_tuple(make_merge_transform(
-                               make_tuple(number<NumVLdsBuffers>{}, number<N0>{}, number<N1>{})),
-                           make_pass_through_transform(number<kKPerBlock>{})),
-                make_tuple(sequence<0, 1, 2>{}, sequence<3>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+            constexpr auto PadInterval = PaddingCfg[number<0>{}];
+            constexpr auto PadLength   = PaddingCfg[number<1>{}];
 
-            return v_lds_block_desc;
+            return detail::MakeRowMajorLdsPaddedBlockDescriptor<NumVLdsBuffers,
+                                                                kNPerBlock,
+                                                                kKPerBlock,
+                                                                PadInterval,
+                                                                PadLength>();
         }
         else
         {
