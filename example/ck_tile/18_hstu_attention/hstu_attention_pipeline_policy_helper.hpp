@@ -131,6 +131,92 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForTrLoadRead()
 }
 #endif
 
+template <typename WarpGemm, bool IsGemmInputA, index_t kKPerBlock>
+CK_TILE_HOST_DEVICE constexpr auto GetLdsPaddingConfigForNormalRead()
+{
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
+    constexpr index_t BankSpanBytes = 64 * 4;
+#else
+    constexpr index_t BankSpanBytes = 32 * 4;
+#endif
+
+    if constexpr(IsGemmInputA)
+    { // access gemm inputA from LDS
+        using AEncoding = typename WarpGemm::AWarpDstrEncoding;
+        using ADataType = typename WarpGemm::ADataType;
+
+        constexpr index_t ScalarPerVector = AEncoding::detail::ys_lengths_[AEncoding::NDimY - 1];
+
+        constexpr index_t BankSpanElements = BankSpanBytes / sizeof(ADataType);
+        constexpr index_t PadInterval      = max(kKPerBlock, BankSpanElements);
+        constexpr index_t PadLength        = ScalarPerVector;
+
+        return make_tuple(number<PadInterval>{}, number<PadLength>{});
+    }
+    else
+    { // acccess gemm inputB from LDS
+        using BEncoding = typename WarpGemm::BWarpDstrEncoding;
+        using BDataType = typename WarpGemm::BDataType;
+
+        constexpr index_t ScalarPerVector = BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
+
+        constexpr index_t BankSpanElements = BankSpanBytes / sizeof(BDataType);
+        constexpr index_t PadInterval      = max(kKPerBlock, BankSpanElements);
+        constexpr index_t PadLength        = ScalarPerVector;
+
+        return make_tuple(number<PadInterval>{}, number<PadLength>{});
+    }
+}
+
+template <typename WarpGemm, bool IsGemmInputA, index_t kKPerBlock>
+CK_TILE_HOST_DEVICE constexpr auto GetLdsPaddingConfigForTrLoadRead()
+{
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
+    constexpr index_t BankSpanBytes = 64 * 4;
+#else
+    constexpr index_t BankSpanBytes = 32 * 4;
+#endif
+
+    if constexpr(IsGemmInputA)
+    { // access gemm inputA from LDS
+        using ADataType = typename WarpGemm::ADataType;
+        using AEncoding = typename WarpGemm::AWarpDstrEncoding;
+        using AEncodingForTrLoad =
+            typename InputTileDistributionTraits<AEncoding, ADataType>::TransposedDstrEncode;
+
+        constexpr index_t ScalarPerVector =
+            AEncodingForTrLoad::detail::ys_lengths_[AEncoding::NDimY - 1];
+
+        // kABKLane is same as kCMLane
+        constexpr index_t kAKLane = WarpGemm::kCMLane;
+
+        constexpr index_t BankSpanElements = BankSpanBytes / sizeof(ADataType);
+        constexpr index_t PadInterval      = max(kKPerBlock, BankSpanElements);
+        constexpr index_t PadLength        = kAKLane * ScalarPerVector;
+
+        return make_tuple(number<PadInterval>{}, number<PadLength>{});
+    }
+    else
+    { // acccess gemm inputB from LDS
+        using BDataType = typename WarpGemm::BDataType;
+        using BEncoding = typename WarpGemm::BWarpDstrEncoding;
+        using BEncodingForTrLoad =
+            typename InputTileDistributionTraits<BEncoding, BDataType>::TransposedDstrEncode;
+
+        constexpr index_t ScalarPerVector =
+            BEncodingForTrLoad::detail::ys_lengths_[BEncoding::NDimY - 1];
+
+        // kABKLane is same as kCMLane
+        constexpr index_t kBKLane = WarpGemm::kCMLane;
+
+        constexpr index_t BankSpanElements = BankSpanBytes / sizeof(BDataType);
+        constexpr index_t PadInterval      = max(kKPerBlock, BankSpanElements);
+        constexpr index_t PadLength        = kBKLane * ScalarPerVector;
+
+        return make_tuple(number<PadInterval>{}, number<PadLength>{});
+    }
+}
+
 template <index_t NumBuffers, index_t Rows, index_t Cols, index_t PadInterval, index_t PadLength>
 CK_TILE_HOST_DEVICE constexpr auto MakeRowMajorLdsPaddedBlockDescriptor()
 {
