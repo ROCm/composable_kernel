@@ -20,7 +20,7 @@ namespace ck_tile {
 #if USE_NEW_UNIFIED_FRAMEWORK
 // fp16 named WarpGemms (no WMMA or StructuredSparsity)
 // clang-format off
-// NOTE: The dispatcher params are:                                       TypeA, TypeB, TypeC, M, N, K, TransposeC, SwizzleFactor, UseStructuredSparsity, AttrNumAccessA, AttrNumAccessB, IsScale16.                                                                                          
+// NOTE: The dispatcher params are:                                       TypeA, TypeB, TypeC, M, N, K, TransposeC, SwizzleFactor, UseStructuredSparsity, AttrNumAccessA, AttrNumAccessB, IsScale16.
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfmaF16F16F32M32N32K16                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, false, 1, false, NumAccess>::Type;
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
@@ -98,6 +98,18 @@ using WarpGemmMfmaF32F32F32M16N16K16TransposedCDistribution =
         WarpGemmAttributeMfmaImplF32F32F32M16N16K4<WGAttrCtlEnum::Default_>,
         4,
         AttrNumAccess>>;
+
+// fp64
+#if defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+using WarpGemmMfmaF64F64F64M16N16K4 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImplF64F64F64M16N16K4<WGAttrCtlEnum::Default_>>>;
+
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF64F64F64M16N16K16 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
+    WarpGemmAttributeMfmaImplF64F64F64M16N16K4<WGAttrCtlEnum::Default_>,
+    4,
+    AttrNumAccess>>;
+#endif
 
 // tf32
 // On gfx950: uses 3x bf16 MFMA emulation (no native xf32 support)

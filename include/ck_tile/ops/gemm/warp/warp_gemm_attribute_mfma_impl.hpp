@@ -129,6 +129,73 @@ struct WarpGemmAttributeMfmaImplF32F32F32M16N16K4
     }
 };
 
+// F64
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImplF64F64F64M16N16K4
+{
+    static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
+
+    using ADataType = fp64_t;
+    using BDataType = fp64_t;
+    using CDataType = fp64_t;
+
+    using AVecType = ext_vector_t<ADataType, 1>;
+    using BVecType = ext_vector_t<BDataType, 1>;
+    using CVecType = ext_vector_t<CDataType, 4>;
+
+    static constexpr index_t kM = 16;
+    static constexpr index_t kN = 16;
+    static constexpr index_t kK = 4;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
+    static constexpr index_t kAMLane     = 16;
+    static constexpr index_t kBNLane     = 16;
+    static constexpr index_t kABKLane    = 4;
+    static constexpr index_t kABKPerLane = 1;
+
+    // Unlike other MFMA instructions, f64 output does not use the 4-contiguous-row-per-lane
+    // block layout: MI300 ISA sec. 7.1.4.2 gives H=1 for f64, so row i lands in register
+    // i/4 of lane (i%4)*16+j, i.e. M = kCM0PerLane*4 + lane_m (not lane_m*4 + kCM1PerLane).
+    static constexpr index_t kCMLane     = 4;
+    static constexpr index_t kCNLane     = 16;
+    static constexpr index_t kCM0PerLane = 4;
+    static constexpr index_t kCM1PerLane = 1;
+
+    // c_vec += a_vec * b_vec
+    template <typename... Params>
+    CK_TILE_DEVICE void
+    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        DISPATCH_MFMA_CTRL_("v_mfma_f64_16x16x4f64", Ctrl)
+        else
+        {
+#if defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+            c_vec = __builtin_amdgcn_mfma_f64_16x16x4f64(a_vec[0], b_vec[0], c_vec, 0, 0, 0);
+#else
+            ck_tile::ignore = c_vec;
+            ck_tile::ignore = a_vec;
+            ck_tile::ignore = b_vec;
+#endif
+        }
+    }
+
+    // c_vec = a_vec * b_vec
+    template <typename... Params>
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f64_16x16x4f64(a_vec[0], b_vec[0], CVecType{0.}, 0, 0, 0));
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        return CVecType{0.};
+#endif
+    }
+};
+
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 struct WarpGemmAttributeMfmaImplF32F32F32M32N32K2
 {
