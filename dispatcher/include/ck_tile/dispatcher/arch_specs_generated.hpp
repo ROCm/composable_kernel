@@ -5,7 +5,7 @@
  * AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
  *
  * Generated from: arch_specs.json
- * Generated at: 2026-06-01T10:50:15.322672
+ * Generated at: 2026-09-16T15:00:49.741464
  *
  * To update this file:
  * 1. Edit arch_specs.json
@@ -37,6 +37,7 @@ enum class GpuArch : std::uint8_t
     GFX_1100,
     GFX_1200,
     GFX_1201,
+    GFX_1250,
     UNKNOWN
 };
 
@@ -55,6 +56,7 @@ inline std::string arch_to_string(GpuArch arch)
     case GpuArch::GFX_1100: return "gfx1100";
     case GpuArch::GFX_1200: return "gfx1200";
     case GpuArch::GFX_1201: return "gfx1201";
+    case GpuArch::GFX_1250: return "gfx1250";
     default: return "unknown";
     }
 }
@@ -75,6 +77,8 @@ inline GpuArch string_to_arch(const std::string& arch_str)
         return GpuArch::GFX_1200;
     if(arch_str == "gfx1201")
         return GpuArch::GFX_1201;
+    if(arch_str == "gfx1250")
+        return GpuArch::GFX_1250;
     return GpuArch::UNKNOWN;
 }
 
@@ -126,6 +130,16 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch)
     case GpuArch::GFX_1100: return {{2, 4, 1}, {1, 8, 1}, {8, 1, 1}, {4, 2, 1}};
     case GpuArch::GFX_1200: return {{2, 4, 1}, {1, 8, 1}, {8, 1, 1}, {4, 2, 1}};
     case GpuArch::GFX_1201: return {{2, 4, 1}, {1, 8, 1}, {8, 1, 1}, {4, 2, 1}};
+    case GpuArch::GFX_1250:
+        return {{2, 4, 1},
+                {1, 8, 1},
+                {8, 1, 1},
+                {4, 2, 1},
+                {2, 1, 1},
+                {1, 2, 2},
+                {4, 1, 1},
+                {1, 4, 1},
+                {2, 2, 1}};
     default: return {};
     }
 }
@@ -134,27 +148,169 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch)
 // LDS Capacity Limits (Generated)
 // =============================================================================
 
-inline std::size_t get_lds_capacity(Pipeline pipeline)
+// LDS staging budget in bytes for the A+B tiles, per architecture and
+// pipeline. The budget depends on the target: a tile that overflows one
+// architecture's LDS may fit comfortably in another's.
+inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
 {
-    if(pipeline == Pipeline::Mem)
-        return 65536;
-    if(pipeline == Pipeline::CompV1)
-        return 65536;
-    if(pipeline == Pipeline::CompV2)
-        return 65536;
-    if(pipeline == Pipeline::CompV3)
-        return 65536;
-    if(pipeline == Pipeline::CompV4)
-        return 32768;
-    if(pipeline == Pipeline::CompV5)
-        return 65536;
-    if(pipeline == Pipeline::CompV6)
-        return 32768;
-    if(pipeline == Pipeline::PreShuffleV1)
-        return 32768;
-    if(pipeline == Pipeline::PreShuffleV2)
-        return 32768;
-    return 65536; // Default
+    switch(arch)
+    {
+    case GpuArch::GFX_908: // 64 KB of LDS
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 65536;
+        case Pipeline::CompV1: return 65536;
+        case Pipeline::CompV2: return 65536;
+        case Pipeline::CompV3: return 65536;
+        case Pipeline::CompV5: return 65536;
+        case Pipeline::CompV4: return 32768;
+        case Pipeline::PreShuffleV2: return 32768;
+        case Pipeline::Wavelet: return 65536;
+        case Pipeline::CompV6: return 32768;
+        case Pipeline::PreShuffleV1: return 32768;
+        default: return 65536;
+        }
+    case GpuArch::GFX_90A: // 64 KB of LDS
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 65536;
+        case Pipeline::CompV1: return 65536;
+        case Pipeline::CompV2: return 65536;
+        case Pipeline::CompV3: return 65536;
+        case Pipeline::CompV5: return 65536;
+        case Pipeline::CompV4: return 32768;
+        case Pipeline::PreShuffleV2: return 32768;
+        case Pipeline::Wavelet: return 65536;
+        case Pipeline::CompV6: return 32768;
+        case Pipeline::PreShuffleV1: return 32768;
+        default: return 65536;
+        }
+    case GpuArch::GFX_942: // 64 KB of LDS
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 65536;
+        case Pipeline::CompV1: return 65536;
+        case Pipeline::CompV2: return 65536;
+        case Pipeline::CompV3: return 65536;
+        case Pipeline::CompV5: return 65536;
+        case Pipeline::CompV4: return 32768;
+        case Pipeline::PreShuffleV2: return 32768;
+        case Pipeline::Wavelet: return 65536;
+        case Pipeline::CompV6: return 32768;
+        case Pipeline::PreShuffleV1: return 32768;
+        default: return 65536;
+        }
+    case GpuArch::GFX_950: // 160 KB of LDS
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 163840;
+        case Pipeline::CompV1: return 163840;
+        case Pipeline::CompV2: return 163840;
+        case Pipeline::CompV3: return 163840;
+        case Pipeline::CompV5: return 163840;
+        case Pipeline::CompV4: return 81920;
+        case Pipeline::PreShuffleV2: return 81920;
+        case Pipeline::Wavelet: return 163840;
+        case Pipeline::CompV6: return 81920;
+        case Pipeline::PreShuffleV1: return 81920;
+        default: return 163840;
+        }
+    case GpuArch::GFX_1100: // 64 KB of LDS
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 65536;
+        case Pipeline::CompV1: return 65536;
+        case Pipeline::CompV2: return 65536;
+        case Pipeline::CompV3: return 65536;
+        case Pipeline::CompV5: return 65536;
+        case Pipeline::CompV4: return 32768;
+        case Pipeline::PreShuffleV2: return 32768;
+        case Pipeline::Wavelet: return 65536;
+        case Pipeline::CompV6: return 32768;
+        case Pipeline::PreShuffleV1: return 32768;
+        default: return 65536;
+        }
+    case GpuArch::GFX_1200: // 64 KB of LDS
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 65536;
+        case Pipeline::CompV1: return 65536;
+        case Pipeline::CompV2: return 65536;
+        case Pipeline::CompV3: return 65536;
+        case Pipeline::CompV5: return 65536;
+        case Pipeline::CompV4: return 32768;
+        case Pipeline::PreShuffleV2: return 32768;
+        case Pipeline::Wavelet: return 65536;
+        case Pipeline::CompV6: return 32768;
+        case Pipeline::PreShuffleV1: return 32768;
+        default: return 65536;
+        }
+    case GpuArch::GFX_1201: // 64 KB of LDS
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 65536;
+        case Pipeline::CompV1: return 65536;
+        case Pipeline::CompV2: return 65536;
+        case Pipeline::CompV3: return 65536;
+        case Pipeline::CompV5: return 65536;
+        case Pipeline::CompV4: return 32768;
+        case Pipeline::PreShuffleV2: return 32768;
+        case Pipeline::Wavelet: return 65536;
+        case Pipeline::CompV6: return 32768;
+        case Pipeline::PreShuffleV1: return 32768;
+        default: return 65536;
+        }
+    case GpuArch::GFX_1250: // 320 KB of LDS
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 327680;
+        case Pipeline::CompV1: return 327680;
+        case Pipeline::CompV2: return 327680;
+        case Pipeline::CompV3: return 327680;
+        case Pipeline::CompV5: return 327680;
+        case Pipeline::CompV4: return 163840;
+        case Pipeline::PreShuffleV2: return 163840;
+        case Pipeline::Wavelet: return 327680;
+        case Pipeline::CompV6: return 163840;
+        case Pipeline::PreShuffleV1: return 163840;
+        default: return 327680;
+        }
+    case GpuArch::UNKNOWN:
+    default:
+        switch(pipeline)
+        {
+        case Pipeline::Mem: return 65536;
+        case Pipeline::CompV1: return 65536;
+        case Pipeline::CompV2: return 65536;
+        case Pipeline::CompV3: return 65536;
+        case Pipeline::CompV5: return 65536;
+        case Pipeline::CompV4: return 32768;
+        case Pipeline::PreShuffleV2: return 32768;
+        case Pipeline::Wavelet: return 65536;
+        case Pipeline::CompV6: return 32768;
+        case Pipeline::PreShuffleV1: return 32768;
+        default: return 65536;
+        }
+    }
+}
+
+// Total physical LDS per architecture, in bytes. Mirrors get_lds_size() in
+// include/ck_tile/core/arch/arch.hpp.
+inline std::size_t get_lds_total_capacity(GpuArch arch)
+{
+    switch(arch)
+    {
+    case GpuArch::GFX_908: return 65536;
+    case GpuArch::GFX_90A: return 65536;
+    case GpuArch::GFX_942: return 65536;
+    case GpuArch::GFX_950: return 163840;
+    case GpuArch::GFX_1100: return 65536;
+    case GpuArch::GFX_1200: return 65536;
+    case GpuArch::GFX_1201: return 65536;
+    case GpuArch::GFX_1250: return 327680;
+    case GpuArch::UNKNOWN:
+    default: return 65536;
+    }
 }
 
 // =============================================================================

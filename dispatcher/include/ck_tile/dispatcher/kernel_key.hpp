@@ -160,8 +160,11 @@ struct KernelKey
         Epilogue epilogue;
 
         // Block and memory configuration
-        std::uint16_t block_size;     // BlockSize in generated kernels (typically 256)
-        bool double_buffer;           // DoubleSmemBuffer (true for compv4)
+        std::uint16_t block_size; // BlockSize in generated kernels (typically 256)
+        // Ping-pong LDS staging. Defaulted because the LDS capacity check reads
+        // it: a key that reaches validation without assigning it would otherwise
+        // read an indeterminate value and pick a budget at random.
+        bool double_buffer = false;   // DoubleSmemBuffer (true for compv4)
         bool persistent;              // UsePersistentKernel
         bool preshuffle;              // Preshuffle (for weight preshuffle variants)
         bool transpose_c;             // TransposeC

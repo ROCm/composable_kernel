@@ -1995,6 +1995,10 @@ class UnifiedGroupedConvCodegen:
             pipeline=config.trait.pipeline,
             epilogue=config.trait.epilogue,
             scheduler=config.trait.scheduler,
+            # Ping-pong staging doubles the LDS allocation, so it has to reach
+            # the capacity check; the pipeline name alone does not imply it for
+            # mem/compv3/compv5/compv6.
+            double_smem_buffer=config.trait.double_smem_buffer,
             operator=operator,
         )
 

@@ -172,9 +172,57 @@
         "bf8_fp8_fp32": [[16, 16, 16]],
         "int8_int8_int32": [[16, 16, 16]]
       }
+    },
+
+    "gfx1250": {
+      "family": "cdna5",
+      "target_family": "gfx125",
+      "architecture": "rdna",
+      "_architecture_note": [
+        "architecture is the ISA lineage, not the product generation. arch.hpp",
+        "states that gfx1250 shares the RDNA architecture with the GFX12 family",
+        "while being its own standalone target family, because its MMA builtins",
+        "and data-type ABI differ. family records the product generation."
+      ],
+      "description": "AMD gfx1250 (wave32, WMMA rather than MFMA)",
+      "warp_size": 32,
+      "_lds_capacity_kb_source": "get_lds_size(gfx125_t) in include/ck_tile/core/arch/arch.hpp",
+      "lds_capacity_kb": 320,
+      "_warp_tables_provenance": [
+        "warp_configs and warp_tile_combos below are transplanted verbatim from",
+        "arch_specs_generated.py, where gfx1250 was already present and in use.",
+        "They are NOT newly authored here. The generated module had drifted ahead",
+        "of this file; without this entry, regenerating would delete them.",
+        "Any change to these lists belongs to gfx1250 enablement, not here."
+      ],
+      "warp_configs": [
+        [2, 4, 1],
+        [1, 8, 1],
+        [8, 1, 1],
+        [4, 2, 1],
+        [2, 1, 1],
+        [1, 2, 2],
+        [4, 1, 1],
+        [1, 4, 1],
+        [2, 2, 1]
+      ],
+      "_warp_tile_8bit_source": [
+        "The 8-bit shapes are the dense WmmaTraits<gfx125_t, ...> specialisations in",
+        "include/ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_8bit_traits.hpp:",
+        "fp8/fp8 and bf8/bf8 each have a 16x16x64 and a 16x16x128 form.",
+        "The mixed fp8/bf8 and bf8/fp8 pairs exist there too but are not listed",
+        "here; enabling them would newly generate kernels for combinations this",
+        "bridge has never exercised, which needs its own device validation."
+      ],
+      "warp_tile_combos": {
+        "fp16_fp16_fp32": [[16, 16, 32]],
+        "bf16_bf16_fp32": [[16, 16, 32]],
+        "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128]],
+        "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128]]
+      }
     }
   },
-  
+
   "element_sizes": {
     "fp16": 2,
     "bf16": 2,
@@ -221,18 +269,93 @@
     "c": "ck_tile::tensor_layout::gemm::ColumnMajor"
   },
   
-  "pipeline_lds_limits": {
-    "_comment": "LDS capacity limits in bytes for different pipeline types",
-    "mem": 65536,
-    "compv1": 65536,
-    "compv2": 65536,
-    "compv3": 65536,
-    "compv4": 32768,
-    "compv5": 65536,
-    "compv6": 32768,
-    "preshufflev1": 32768,
-    "preshufflev2": 32768,
-    "default": 65536
+  "pipeline_lds_budget": {
+    "_comment": [
+      "Per-pipeline budget for the A+B staging tiles, resolved at generation",
+      "time against each architecture's lds_capacity_kb.",
+      "",
+      "  basis 'fraction'    -> bytes = floor(lds_capacity_kb * 1024 * value)",
+      "  basis 'absolute_kb' -> bytes = value * 1024, identical on every arch",
+      "",
+      "Use 'absolute_kb' only for a limit that genuinely does not scale with",
+      "how much LDS the silicon has. Anything proportional to capacity must be",
+      "a 'fraction', otherwise a new architecture silently inherits the budget",
+      "of whichever one the constant was written for.",
+      "",
+      "The check models the A+B staging footprint only, matching the kernel's",
+      "own accounting; the epilogue reuses that space rather than adding to it."
+    ],
+
+    "mem": { "basis": "fraction", "value": 1.0 },
+    "compv1": { "basis": "fraction", "value": 1.0 },
+    "compv2": { "basis": "fraction", "value": 1.0 },
+    "compv3": { "basis": "fraction", "value": 1.0 },
+    "compv5": { "basis": "fraction", "value": 1.0 },
+
+    "compv4": {
+      "basis": "fraction",
+      "value": 0.5,
+      "_reason": [
+        "Double-buffered. GemmPipelineAgBgCrCompV4::GetSmemSize() returns",
+        "2 * Policy::GetSmemSize<Problem>(), so the kernel allocates two",
+        "staging buffers and only half the capacity is available to A+B.",
+        "Half-of-capacity is therefore the exact model, not a safety margin."
+      ]
+    },
+    "preshufflev2": {
+      "basis": "fraction",
+      "value": 0.5,
+      "_reason": [
+        "Double-buffered when DoubleSmemBuffer is set:",
+        "WeightPreshufflePipelineAGmemBGmemCRegV2::GetSmemSize() returns",
+        "DoubleSmemBuffer ? 2 * smem_size : smem_size. Budgeted for the",
+        "doubling case, which is the one that can overflow."
+      ]
+    },
+    "comp_async": {
+      "basis": "fraction",
+      "value": 0.5,
+      "_reason": [
+        "Mandatory double buffering, no configuration choice:",
+        "GemmPipelineAgBgCrCompAsync::GetSmemSize() returns",
+        "num_lds_buffers * smem_size with num_lds_buffers = 2.",
+        "Has no Pipeline enumerator on the C++ side, so this entry only",
+        "affects the Python validator; it is emitted to C++ only for",
+        "pipelines that exist in that enum."
+      ]
+    },
+    "wavelet": {
+      "basis": "fraction",
+      "value": 1.0,
+      "_reason": [
+        "Single-buffered. Listed explicitly so that every pipeline the",
+        "validators can see has a deliberate entry rather than silently",
+        "inheriting 'default'."
+      ]
+    },
+
+    "compv6": {
+      "basis": "fraction",
+      "value": 0.5,
+      "_reason": [
+        "NOT double-buffered: GemmPipelineAgBgCrCompV6::GetSmemSize() returns",
+        "the policy size unmultiplied. The historical halved cap is therefore",
+        "unexplained by buffering. Its ratio is preserved rather than widened,",
+        "because no evidence supports a larger budget; raising it needs a",
+        "measurement, not an assumption."
+      ]
+    },
+    "preshufflev1": {
+      "basis": "fraction",
+      "value": 0.5,
+      "_reason": [
+        "Vestigial. No WeightPreshufflePipelineAGmemBGmemCRegV1 exists and",
+        "preshuffle_pipelines.supported lists only preshufflev2, so nothing",
+        "generates this pipeline. Ratio preserved so the entry stays inert."
+      ]
+    },
+
+    "default": { "basis": "fraction", "value": 1.0 }
   },
   
   "unsupported_trait_combos": {

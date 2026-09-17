@@ -4,7 +4,7 @@
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2026-06-01T10:50:14.618422
+Generated at: 2026-09-16T15:00:49.738739
 
 To update this file:
 1. Edit arch_specs.json
@@ -28,7 +28,7 @@ ARCH_FAMILY_MAP: Dict[str, str] = {
     "gfx1100": "rdna3",
     "gfx1200": "rdna4",
     "gfx1201": "rdna4",
-    "gfx1250": "rdna4",
+    "gfx1250": "cdna5",
 }
 
 # Element size in bytes for each data type
@@ -109,8 +109,8 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
     "gfx1250": {
         "fp16_fp16_fp32": [[16, 16, 32]],
         "bf16_bf16_fp32": [[16, 16, 32]],
-        "fp8_fp8_fp32": [[16, 16, 64]],
-        "bf8_bf8_fp32": [[16, 16, 64]],
+        "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128]],
+        "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128]],
     },
 }
 
@@ -140,8 +140,150 @@ PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]
 # Preshuffle-supported pipelines
 PRESHUFFLE_PIPELINES: List[str] = ['preshufflev2']
 
-# LDS capacity limits per pipeline type (in bytes)
-LDS_CAPACITY_LIMITS: Dict[str, int] = {'mem': 65536, 'compv1': 65536, 'compv2': 65536, 'compv3': 65536, 'compv4': 32768, 'compv5': 65536, 'compv6': 32768, 'preshufflev1': 32768, 'preshufflev2': 32768, 'default': 65536}
+# LDS staging budget in bytes: arch -> pipeline -> bytes.
+# Resolved from each architecture's lds_capacity_kb in arch_specs.json.
+LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
+    # gfx908: 64 KB of LDS
+    "gfx908": {
+        "mem": 65536,
+        "compv1": 65536,
+        "compv2": 65536,
+        "compv3": 65536,
+        "compv5": 65536,
+        "compv4": 32768,
+        "preshufflev2": 32768,
+        "comp_async": 32768,
+        "wavelet": 65536,
+        "compv6": 32768,
+        "preshufflev1": 32768,
+        "default": 65536,
+    },
+    # gfx90a: 64 KB of LDS
+    "gfx90a": {
+        "mem": 65536,
+        "compv1": 65536,
+        "compv2": 65536,
+        "compv3": 65536,
+        "compv5": 65536,
+        "compv4": 32768,
+        "preshufflev2": 32768,
+        "comp_async": 32768,
+        "wavelet": 65536,
+        "compv6": 32768,
+        "preshufflev1": 32768,
+        "default": 65536,
+    },
+    # gfx942: 64 KB of LDS
+    "gfx942": {
+        "mem": 65536,
+        "compv1": 65536,
+        "compv2": 65536,
+        "compv3": 65536,
+        "compv5": 65536,
+        "compv4": 32768,
+        "preshufflev2": 32768,
+        "comp_async": 32768,
+        "wavelet": 65536,
+        "compv6": 32768,
+        "preshufflev1": 32768,
+        "default": 65536,
+    },
+    # gfx950: 160 KB of LDS
+    "gfx950": {
+        "mem": 163840,
+        "compv1": 163840,
+        "compv2": 163840,
+        "compv3": 163840,
+        "compv5": 163840,
+        "compv4": 81920,
+        "preshufflev2": 81920,
+        "comp_async": 81920,
+        "wavelet": 163840,
+        "compv6": 81920,
+        "preshufflev1": 81920,
+        "default": 163840,
+    },
+    # gfx1100: 64 KB of LDS
+    "gfx1100": {
+        "mem": 65536,
+        "compv1": 65536,
+        "compv2": 65536,
+        "compv3": 65536,
+        "compv5": 65536,
+        "compv4": 32768,
+        "preshufflev2": 32768,
+        "comp_async": 32768,
+        "wavelet": 65536,
+        "compv6": 32768,
+        "preshufflev1": 32768,
+        "default": 65536,
+    },
+    # gfx1200: 64 KB of LDS
+    "gfx1200": {
+        "mem": 65536,
+        "compv1": 65536,
+        "compv2": 65536,
+        "compv3": 65536,
+        "compv5": 65536,
+        "compv4": 32768,
+        "preshufflev2": 32768,
+        "comp_async": 32768,
+        "wavelet": 65536,
+        "compv6": 32768,
+        "preshufflev1": 32768,
+        "default": 65536,
+    },
+    # gfx1201: 64 KB of LDS
+    "gfx1201": {
+        "mem": 65536,
+        "compv1": 65536,
+        "compv2": 65536,
+        "compv3": 65536,
+        "compv5": 65536,
+        "compv4": 32768,
+        "preshufflev2": 32768,
+        "comp_async": 32768,
+        "wavelet": 65536,
+        "compv6": 32768,
+        "preshufflev1": 32768,
+        "default": 65536,
+    },
+    # gfx1250: 320 KB of LDS
+    "gfx1250": {
+        "mem": 327680,
+        "compv1": 327680,
+        "compv2": 327680,
+        "compv3": 327680,
+        "compv5": 327680,
+        "compv4": 163840,
+        "preshufflev2": 163840,
+        "comp_async": 163840,
+        "wavelet": 327680,
+        "compv6": 163840,
+        "preshufflev1": 163840,
+        "default": 327680,
+    },
+}
+
+# Total physical LDS per architecture, in bytes. Mirrors get_lds_size() in
+# include/ck_tile/core/arch/arch.hpp.
+LDS_TOTAL_CAPACITY_BY_ARCH: Dict[str, int] = {
+    "gfx908": 65536,
+    "gfx90a": 65536,
+    "gfx942": 65536,
+    "gfx950": 163840,
+    "gfx1100": 65536,
+    "gfx1200": 65536,
+    "gfx1201": 65536,
+    "gfx1250": 327680,
+}
+
+# Smallest budget shipped, handed to architectures we do not recognise.
+_SMALLEST_LDS_BUDGET: Dict[str, int] = LDS_CAPACITY_LIMITS_BY_ARCH[
+    min(LDS_CAPACITY_LIMITS_BY_ARCH,
+        key=lambda a: LDS_CAPACITY_LIMITS_BY_ARCH[a]["default"])
+]
+_SMALLEST_LDS_CAPACITY: int = min(LDS_TOTAL_CAPACITY_BY_ARCH.values())
 
 # Unsupported trait combinations: (pipeline, epilogue, scheduler)
 TRAIT_UNSUPPORTED_COMBINATIONS: Set[Tuple[str, str, str]] = {
@@ -200,9 +342,30 @@ def get_warp_tile_combos(gpu_arch: str, dtype_key: str) -> List[List[int]]:
     return gpu_combos.get(dtype_key.lower(), [])
 
 
-def get_lds_limit(pipeline: str) -> int:
-    """Get LDS capacity limit for a pipeline type."""
-    return LDS_CAPACITY_LIMITS.get(pipeline.lower(), LDS_CAPACITY_LIMITS["default"])
+def get_lds_limit(gpu_arch: str, pipeline: str, double_smem_buffer: bool = False) -> int:
+    """Get the LDS staging budget in bytes for an architecture and pipeline.
+
+    double_smem_buffer covers the pipelines that stage two LDS buffers by
+    configuration rather than by construction (mem, compv3, compv5, compv6).
+    Those allocate 2 * (A + B), so the A + B budget is halved. Pipelines that
+    always double already carry that in their per-pipeline budget, hence the
+    min(): the budget is never halved twice.
+    """
+    arch = gpu_arch.lower()
+    per_pipeline = LDS_CAPACITY_LIMITS_BY_ARCH.get(arch)
+    if per_pipeline is None:
+        # Unrecognised target: hand back the smallest budget we ship, never the
+        # largest. Too small only costs us kernels; too large produces kernels
+        # that cannot launch.
+        per_pipeline = _SMALLEST_LDS_BUDGET
+
+    budget = per_pipeline.get(pipeline.lower(), per_pipeline["default"])
+
+    if double_smem_buffer:
+        capacity = LDS_TOTAL_CAPACITY_BY_ARCH.get(arch, _SMALLEST_LDS_CAPACITY)
+        budget = min(budget, capacity // 2)
+
+    return budget
 
 
 def is_trait_combo_unsupported(pipeline: str, epilogue: str, scheduler: str) -> bool:

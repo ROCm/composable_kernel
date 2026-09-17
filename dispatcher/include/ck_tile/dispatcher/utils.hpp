@@ -673,7 +673,11 @@ struct KernelKeyBuilder
         key.algorithm.scheduler       = scheduler;
         key.algorithm.epilogue        = epilogue;
         key.algorithm.block_size      = block_size;
-        key.algorithm.double_buffer   = true;
+        // Only the pipelines that stage two LDS buffers. Mirrors the codegen
+        // (unified_gemm_codegen.py). Hardcoding true here would hand a
+        // single-buffered pipeline half the LDS budget it is entitled to.
+        key.algorithm.double_buffer =
+            (pipeline == Pipeline::CompV4 || pipeline == Pipeline::PreShuffleV2);
         key.algorithm.persistent      = false;
         key.algorithm.preshuffle      = preshuffle;
         key.algorithm.transpose_c     = false;
