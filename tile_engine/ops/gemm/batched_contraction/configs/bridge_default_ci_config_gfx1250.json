@@ -1,5 +1,5 @@
 {
-    "_comment": "CI bridge sweep for batched_contraction on gfx1250 (MI400, RDNA4/WMMA): one small validated fp16 point. WMMA warp_tile 16x16x32 (the CDNA MFMA 32x32x16 does not run on gfx1250).",
+    "_comment": "CI bridge sweep for batched_contraction on gfx1250 (CDNA5/WMMA): one small validated fp16 point. WMMA warp_tile 16x16x32 (the CDNA MFMA 32x32x16 does not run on gfx1250).",
     "tile_config": {
         "tile_m": {"values": [128]},
         "tile_n": {"values": [128]},

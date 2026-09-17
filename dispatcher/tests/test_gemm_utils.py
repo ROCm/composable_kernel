@@ -287,7 +287,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-# --- gfx1250 (MI400 / RDNA4-WMMA) enablement -------------------------------
+# --- gfx1250 (CDNA5, WMMA) enablement --------------------------------------
 # The regular-GEMM bridge historically allow-listed only CDNA (gfx90a/942/950)
 # and carried FNUZ-only fp8 codecs. gfx1250 uses WMMA + OCP fp8, so it needs an
 # arch entry and an OCP codec path. These CPU-only tests lock that surface in.
@@ -335,7 +335,7 @@ class TestGfx1250Fp8Ocp(unittest.TestCase):
         self.assertIsInstance(_use_ocp_fp8(), bool)
 
 
-# --- grouped GEMM on gfx1250 (MI400) ---------------------------------------
+# --- grouped GEMM on gfx1250 -----------------------------------------------
 # The grouped bridge (#9000) shares the arch gate + WMMA warp tiles with the
 # regular bridge, so it runs on gfx1250 once gfx1250 is enabled. Its CI config
 # already uses the gfx1250-valid WMMA warp tile 16x16x32. These CPU-only checks

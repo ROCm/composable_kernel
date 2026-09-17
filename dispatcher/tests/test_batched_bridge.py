@@ -407,7 +407,7 @@ class TestBatchedRepeatGate(unittest.TestCase):
         self.assertTrue(_repeat_ok(192, 192, 4, 4, 32, 32))
 
 
-# --- gfx1250 (MI400 / RDNA4-WMMA) enablement -------------------------------
+# --- gfx1250 (CDNA5, WMMA) enablement --------------------------------------
 # The batched-GEMM bridge historically allow-listed only CDNA (gfx90a/942/950,
 # MFMA). gfx1250 uses WMMA, so it needs an arch-tuple entry and a WMMA CI config
 # (warp_tile 16x16x32 -- the CDNA MFMA 32x32x16 tile does not run on gfx1250).

@@ -214,7 +214,7 @@ class TestSweep(unittest.TestCase):
         self.assertEqual(len(cfgs), 2 * 2)  # (tile_m 2) x (pipeline 2)
 
 
-# --- gfx1250 (MI400 / RDNA4-WMMA) enablement -------------------------------
+# --- gfx1250 (CDNA5, WMMA) enablement --------------------------------------
 # The batched-contraction bridge historically allow-listed only CDNA
 # (gfx90a/942/950, MFMA). gfx1250 uses WMMA, so it needs an arch-tuple entry and
 # WMMA CI configs (warp_tile 16x16x32 -- the CDNA MFMA 32x32x64/32x32x16 tiles do
