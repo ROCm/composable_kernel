@@ -36,6 +36,8 @@ class GemmBenchmark:
         self.verbose = verbose
         self.results = []
         self.name = name
+        self.launch_attempted = 0
+        self.launch_failed = 0
 
     def discover_kernels(self) -> List[Path]:
         """Find all benchmark_gemm_* executables in the build directory"""
@@ -244,6 +246,7 @@ class GemmBenchmark:
 
         for kernel_path in kernels:
             kernel_info = self.extract_kernel_info(kernel_path)
+            self.launch_attempted += 1
             result = benchmark_utils.run_kernel(
                 self.build_dir, kernel_path, params, verbose=self.verbose
             )
@@ -278,6 +281,8 @@ class GemmBenchmark:
                     print(
                         f"  {kernel_info['config_id']}: {structured_result['tflops']:.2f} TFLOPS, {structured_result['bandwidth_gb_s']:.2f} GB/s, {structured_result['time_ms']:.2f}ms"
                     )
+            else:
+                self.launch_failed += 1
 
         return results
 

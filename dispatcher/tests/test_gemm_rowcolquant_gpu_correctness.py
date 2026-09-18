@@ -34,11 +34,20 @@ Block-scale traps handled explicitly:
 Run:
     python3 -m pytest test_gemm_rowcolquant_gpu_correctness.py -v
     python3 test_gemm_rowcolquant_gpu_correctness.py          # standalone
+    python3 test_gemm_rowcolquant_gpu_correctness.py --gfx gfx942
+
+The standalone path is what ctest and the Jenkins lane drive; it exits 77 (see
+SKIP_EXIT) when the box cannot run the test at all, so an unrunnable runner is
+recorded as Skipped rather than as a vacuous Passed or a spurious Failed.
 """
 
+import argparse
+import logging
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pytest
@@ -80,9 +89,41 @@ from gemm_rowcolquant_utils import (  # noqa: E402
 )
 
 
+log = logging.getLogger(__name__)
+
+PASS = "PASS"
+FAIL = "FAIL"
+SKIP_EXIT = 77    # ctest SKIP_RETURN_CODE; see main()
+
+# RowColQuant is a block-scale fp8/bf8 op: it needs native fp8 MFMA. A GPU
+# outside this set clears conftest's gpu_available() probe and then fails at
+# hipcc, which reads as a correctness FAIL rather than "this box cannot run it".
+# Matches SUPPORTED_ARCHS in the grouped tensorquant/rowcolquant GPU tests.
+_SUPPORTED_ARCHS = ("gfx942", "gfx950")
+
+
 def _have_ml_dtypes() -> bool:
     # rowcolquant's fp8 encoders come from ml_dtypes via its own utils.
     return u.fp8_encoding_available()
+
+
+def _has_hipcc() -> bool:
+    try:
+        subprocess.run(["hipcc", "--version"], capture_output=True, timeout=10)
+        return True
+    except Exception:
+        return False
+
+
+def _safe_detect_arch() -> Optional[str]:
+    """_detect_gpu_arch() raises on absence/unsupported; the gates want None."""
+    try:
+        return _detect_gpu_arch()
+    except Exception:
+        return None
+
+
+_GFX_ARCH = _safe_detect_arch()
 
 
 # =============================================================================
@@ -102,8 +143,11 @@ def reference_rowcolquant_gemm(A_dec, B_dec, AQ, BQ) -> np.ndarray:
 # =============================================================================
 
 
-def _run_case(dtype: str, M: int, N: int, K: int, out_dir: Path):
-    arch = _detect_gpu_arch()
+def _run_case(dtype: str, M: int, N: int, K: int, out_dir: Path,
+              arch: Optional[str] = None):
+    # main() resolves the arch once (honouring --gfx) and passes it down; the
+    # pytest entry points leave it None and take the detected one.
+    arch = arch or _detect_gpu_arch()
     make_cfg = default_fp8_config if dtype == "fp8" else default_bf8_config
     config = make_cfg(gfx_arch=arch)
 
@@ -149,10 +193,19 @@ def _run_case(dtype: str, M: int, N: int, K: int, out_dir: Path):
 
 _SKIP_NO_GPU = pytest.mark.skipif(not _have_gpu(), reason="no ROCm GPU detected")
 _SKIP_NO_MLD = pytest.mark.skipif(not _have_ml_dtypes(), reason="ml_dtypes not installed")
+# gpu_available() only says "a ROCm GPU is present". Without this second gate a
+# gfx90a box runs the fp8 build and reports a red FAIL for hardware that was
+# never in scope.
+_SKIP_BAD_ARCH = pytest.mark.skipif(
+    _GFX_ARCH not in _SUPPORTED_ARCHS,
+    reason=f"RowColQuant needs native fp8 ({'/'.join(_SUPPORTED_ARCHS)}); "
+           f"detected {_GFX_ARCH}",
+)
 
 
 @_SKIP_NO_GPU
 @_SKIP_NO_MLD
+@_SKIP_BAD_ARCH
 @pytest.mark.parametrize("dtype", ["fp8", "bf8"])
 def test_rowcolquant_gpu_matches_reference(dtype, tmp_path):
     max_rel, _ = _run_case(dtype, M=256, N=256, K=512, out_dir=tmp_path)
@@ -161,22 +214,91 @@ def test_rowcolquant_gpu_matches_reference(dtype, tmp_path):
 
 @_SKIP_NO_GPU
 @_SKIP_NO_MLD
+@_SKIP_BAD_ARCH
 def test_rowcolquant_gpu_not_all_zeros(tmp_path):
     _run_case("fp8", M=256, N=256, K=512, out_dir=tmp_path)
 
 
-if __name__ == "__main__":
-    if not _have_gpu():
-        print("SKIP: no GPU"); raise SystemExit(0)
+# =============================================================================
+# Standalone entry point (the one ctest and Jenkins drive)
+# =============================================================================
+
+
+def _case(dtype: str):
+    """Build a never-raising case fn returning (status, detail).
+
+    The TESTS-loop convention is that a case reports its own verdict; main()'s
+    ``except Exception`` is a backstop for genuine bugs, not the normal path.
+    """
+    def run(out_dir: Path, arch: str):
+        max_rel, time_ms = _run_case(dtype, 256, 256, 512, out_dir, arch)
+        if max_rel > 0.05:
+            return FAIL, f"rowcolquant {dtype}: max_rel={max_rel:.4f} > tol=0.05"
+        return PASS, (f"rowcolquant {dtype}: max_rel={max_rel:.4f} "
+                      f"time_ms={time_ms:.3f}")
+    return run
+
+
+TESTS = [(f"rowcolquant_{dt}", _case(dt)) for dt in ("fp8", "bf8")]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="RowColQuant (non-grouped) GPU correctness tests")
+    # No hardcoded default: an explicit --gfx is an override the caller is
+    # trusted on, but falling back to a fixed arch would make a CPU-only or
+    # gfx90a box compile for gfx950 and crash instead of skipping.
+    parser.add_argument("--gfx", default=None,
+                        help=f"GPU arch override (default: auto-detect; "
+                             f"{'/'.join(_SUPPORTED_ARCHS)} only)")
+    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("--output-dir", type=Path, default=None)
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(levelname)s: %(message)s",
+    )
+
+    # The pytest path gates via the skipif marks above; this standalone path is
+    # what CI drives, so it needs the same gates spelled out. SKIP_EXIT keeps a
+    # clean skip distinguishable from a failure -- ctest maps it via
+    # SKIP_RETURN_CODE and the Jenkins lane via its run_ok helper.
+    gfx = args.gfx or _GFX_ARCH
+    if not gfx:
+        print("SKIP: no supported GPU detected (rocm_agent_enumerator)")
+        return SKIP_EXIT
+    if gfx not in _SUPPORTED_ARCHS:
+        print(f"SKIP: RowColQuant needs native fp8 "
+              f"({'/'.join(_SUPPORTED_ARCHS)}); detected {gfx}")
+        return SKIP_EXIT
+    if not _has_hipcc():
+        print("SKIP: hipcc not found in PATH; cannot JIT-compile kernels")
+        return SKIP_EXIT
     if not _have_ml_dtypes():
-        print("SKIP: ml_dtypes not installed"); raise SystemExit(0)
-    d = Path(tempfile.mkdtemp(prefix="rowcolquant_gputest_"))
-    ok = True
-    for dt in ("fp8", "bf8"):
+        print("SKIP: ml_dtypes not installed; fp8/bf8 encoding unavailable")
+        return SKIP_EXIT
+
+    out_dir = args.output_dir or Path(tempfile.mkdtemp(prefix="rowcolquant_gputest_"))
+    log.info("Kernel output dir: %s", out_dir)
+
+    results = []
+    for name, fn in TESTS:
+        log.info("--- Running %s ---", name)
         try:
-            mr, t = _run_case(dt, 256, 256, 512, d)
-            print(f"PASS rowcolquant {dt}: max_rel={mr:.4f} time_ms={t:.3f}")
-        except Exception as e:
-            ok = False
-            print(f"FAIL rowcolquant {dt}: {e}")
-    raise SystemExit(0 if ok else 1)
+            status, detail = fn(out_dir, gfx)
+        except Exception as exc:  # noqa: BLE001
+            status, detail = FAIL, f"{name}: exception: {exc}"
+        results.append((status, detail))
+        log.info("[%s] %s", status, detail)
+
+    print("\n=== Summary ===")
+    passed = sum(1 for s, _ in results if s == PASS)
+    for status, detail in results:
+        print(f"  [{status:4s}] {detail}")
+    print(f"\n{passed}/{len(results)} passed")
+    return 0 if passed == len(results) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

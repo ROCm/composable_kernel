@@ -39,6 +39,10 @@ from dispatcher_common import (  # noqa: E402
     print_error,
     print_info,
     cleanup_generated_kernels,
+    normalize_arch,
+    fp8_uses_ocp,
+    ocp_arch_defines,
+    arch_feature_defines,
 )
 
 
@@ -237,6 +241,144 @@ class TestCleanup(unittest.TestCase):
 
     def test_cleanup_nonexistent_dir_no_error(self):
         cleanup_generated_kernels(Path("/tmp/nonexistent_ck_test_dir_12345"))
+
+
+class TestNormalizeArch(unittest.TestCase):
+    """Tests for normalize_arch -- the front door for every arch predicate."""
+
+    def test_bare_names_pass_through(self):
+        for arch in ("gfx90a", "gfx942", "gfx950", "gfx1200", "gfx1250"):
+            with self.subTest(arch=arch):
+                self.assertEqual(normalize_arch(arch), arch)
+
+    def test_feature_suffix_is_stripped(self):
+        # What rocminfo and the HSA runtime actually hand back.
+        self.assertEqual(normalize_arch("gfx950:sramecc+:xnack-"), "gfx950")
+        self.assertEqual(normalize_arch("gfx942:sramecc+:xnack-"), "gfx942")
+        self.assertEqual(normalize_arch("gfx90a:xnack+"), "gfx90a")
+
+    def test_offload_target_prefix_is_stripped(self):
+        # What --offload-arch round-trips through in some toolchain paths. This
+        # is the form the old startswith() test missed outright.
+        self.assertEqual(normalize_arch("amdgcn-amd-amdhsa--gfx950"), "gfx950")
+        self.assertEqual(
+            normalize_arch("amdgcn-amd-amdhsa--gfx950:sramecc+:xnack-"), "gfx950"
+        )
+
+    def test_case_and_whitespace_are_normalized(self):
+        self.assertEqual(normalize_arch("  GFX950  "), "gfx950")
+
+    def test_none_and_empty_are_empty(self):
+        self.assertEqual(normalize_arch(None), "")
+        self.assertEqual(normalize_arch(""), "")
+
+
+class TestFp8ArchPredicates(unittest.TestCase):
+    """fp8_uses_ocp and the define lists derived from it.
+
+    A miss here is silent: the -DCK_USE_OCP_FP8 pair simply does not get passed,
+    the host pass of config.hpp falls back to FNUZ, and the kernel builds and
+    runs while disagreeing with its own reference on what the bytes mean.
+    """
+
+    _OCP = ("gfx950", "gfx1200", "gfx1201", "gfx1250")
+    _FNUZ = ("gfx90a", "gfx908", "gfx942", "gfx1100", "gfx1030")
+
+    def test_ocp_arches(self):
+        for arch in self._OCP:
+            with self.subTest(arch=arch):
+                self.assertTrue(fp8_uses_ocp(arch))
+
+    def test_fnuz_arches(self):
+        for arch in self._FNUZ:
+            with self.subTest(arch=arch):
+                self.assertFalse(fp8_uses_ocp(arch))
+
+    def test_full_target_triples_agree_with_bare_names(self):
+        for arch in self._OCP + self._FNUZ:
+            triple = f"{arch}:sramecc+:xnack-"
+            with self.subTest(arch=triple):
+                self.assertEqual(fp8_uses_ocp(triple), fp8_uses_ocp(arch))
+
+    def test_offload_target_form_agrees_with_bare_name(self):
+        for arch in self._OCP + self._FNUZ:
+            target = f"amdgcn-amd-amdhsa--{arch}"
+            with self.subTest(arch=target):
+                self.assertEqual(fp8_uses_ocp(target), fp8_uses_ocp(arch))
+
+    def test_unknown_and_none_default_to_fnuz(self):
+        # FNUZ is the compiler default for both passes, so it is also the safe
+        # answer for an arch we do not recognize.
+        for arch in (None, "", "not-a-gpu"):
+            with self.subTest(arch=arch):
+                self.assertFalse(fp8_uses_ocp(arch))
+
+    def test_ocp_defines_are_emitted_as_a_pair(self):
+        # Passing one without the other splits ck/ from ck_tile/.
+        self.assertEqual(
+            ocp_arch_defines("gfx950"),
+            ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"],
+        )
+        self.assertEqual(ocp_arch_defines("gfx942"), [])
+
+
+class TestArchFeatureDefines(unittest.TestCase):
+    """arch_feature_defines mirrors the top-level CMakeLists.txt arch block."""
+
+    def test_gfx942_gets_no_feature_defines(self):
+        self.assertEqual(arch_feature_defines("gfx942"), [])
+
+    def test_gfx950_gets_ocp_plus_mx(self):
+        self.assertEqual(
+            arch_feature_defines("gfx950"),
+            [
+                "-DCK_USE_OCP_FP8",
+                "-DCK_TILE_USE_OCP_FP8",
+                "-DCK_USE_NATIVE_MX_SUPPORT",
+                "-DCK_GFX950_SUPPORT",
+            ],
+        )
+
+    def test_gfx12_enables_wmma(self):
+        # CK_TILE_USE_WMMA must be passed explicitly: it selects the outermost
+        # branch of get_k_warp_tile(), and leaving it undefined reads as 0 --
+        # the MFMA branch, which no gfx12 part has.
+        defines = arch_feature_defines("gfx1200")
+        self.assertIn("-DCK_TILE_USE_WMMA=1", defines)
+        self.assertIn("-DCK_GFX12_SUPPORT", defines)
+        self.assertIn("-DCK_USE_OCP_FP8", defines)
+        self.assertNotIn("-DCK_GFX950_SUPPORT", defines)
+
+    def test_gfx1250_gets_its_own_defines_on_top_of_gfx12(self):
+        defines = arch_feature_defines("gfx1250")
+        for expected in (
+            "-DCK_TILE_USE_WMMA=1",
+            "-DCK_GFX12_SUPPORT",
+            "-DCK_USE_GFX1250",
+            "-DCK_USE_NATIVE_MX_SUPPORT",
+            "-DCK_GFX1250_SUPPORT",
+        ):
+            with self.subTest(define=expected):
+                self.assertIn(expected, defines)
+
+    def test_gfx950_and_gfx12_defines_are_mutually_exclusive(self):
+        # get_k_warp_tile() branches on these; both at once is not a state the
+        # header is written for.
+        for arch in ("gfx950", "gfx1250"):
+            with self.subTest(arch=arch):
+                defines = arch_feature_defines(arch)
+                self.assertNotEqual(
+                    "-DCK_GFX950_SUPPORT" in defines,
+                    "-DCK_TILE_USE_WMMA=1" in defines,
+                )
+
+    def test_target_triple_gets_the_same_defines_as_the_bare_name(self):
+        for arch in ("gfx942", "gfx950", "gfx1250"):
+            with self.subTest(arch=arch):
+                self.assertEqual(
+                    arch_feature_defines(f"{arch}:sramecc+:xnack-"),
+                    arch_feature_defines(arch),
+                )
 
 
 if __name__ == "__main__":

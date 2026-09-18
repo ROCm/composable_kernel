@@ -102,6 +102,120 @@ def detect_gpu_arch(fallback: str = "gfx942") -> str:
 
 
 # ============================================================================
+# fp8 / bf8 encoding format per architecture
+# ============================================================================
+#
+# CK has two incompatible 8-bit float encodings and picks between them per arch:
+#
+#   OCP  (gfx950, gfx12): e4m3fn   / e5m2    -- exponent bias 7 / 15
+#   FNUZ (everything else, notably gfx942): e4m3fnuz / e5m2fnuz -- bias 8 / 16
+#
+# include/ck_tile/core/config.hpp:361-371 resolves this at compile time, but only
+# the *device* pass sees __gfx950__; the host pass of the very same header falls
+# back to FNUZ. So a host-side reference encoder that guesses from the header ends
+# up disagreeing with the kernel it is validating. Every caller must therefore
+# decide from the target arch string, and pass -DCK_TILE_USE_OCP_FP8 explicitly so
+# both compiler passes agree. These helpers are the single source of truth for
+# both halves of that contract.
+
+
+def normalize_arch(arch: Optional[str]) -> str:
+    """Lowercase `arch` and strip the target-feature suffix, if any.
+
+    rocminfo, hipcc and the HSA runtime all hand back full target triples --
+    ``gfx950:sramecc+:xnack-`` -- while configs, CI parameters and these helpers
+    are written in terms of the bare name.  Every arch predicate below matches on
+    a prefix, so a triple happens to survive unnormalized, but anything carrying
+    a leading component (an ``amdgcn-amd-amdhsa--gfx950`` offload target, say)
+    silently falls through to the FNUZ default.  That miss drops
+    ``-DCK_USE_OCP_FP8``, and host and device then disagree on the fp8 encoding
+    with no diagnostic at all -- the kernel builds and returns wrong numbers.
+
+    Normalizing in one place, up front, is what keeps that from depending on
+    which spelling of the arch a given caller happened to be handed.
+    """
+    a = (arch or "").lower().strip()
+    # Feature suffix: gfx950:sramecc+:xnack- -> gfx950
+    a = a.split(":", 1)[0]
+    # Offload-target prefix: amdgcn-amd-amdhsa--gfx950 -> gfx950
+    idx = a.rfind("gfx")
+    return a[idx:] if idx > 0 else a
+
+
+def fp8_uses_ocp(arch: Optional[str]) -> bool:
+    """True iff `arch` uses the OCP fp8/bf8 encoding rather than FNUZ.
+
+    Mirrors the __gfx950__ / __gfx12__ test in include/ck_tile/core/config.hpp.
+    Use this to select the host-side codec (ml_dtypes.float8_e4m3fn vs
+    float8_e4m3fnuz) so it matches the bytes the kernel actually produces.
+
+    Accepts bare names and full target triples alike; see `normalize_arch`.
+    """
+    a = normalize_arch(arch)
+    return a.startswith("gfx950") or a.startswith("gfx12")
+
+
+def ocp_arch_defines(arch: Optional[str]) -> List[str]:
+    """hipcc defines that pin the fp8/bf8 encoding for `arch`.
+
+    Returned for OCP archs only; FNUZ is the default for both compiler passes and
+    needs no define. Passing these makes the host pass agree with the device pass
+    instead of silently falling back to FNUZ.
+    """
+    if not fp8_uses_ocp(arch):
+        return []
+    return ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"]
+
+
+def arch_feature_defines(arch: Optional[str]) -> List[str]:
+    """`ocp_arch_defines` plus the per-arch feature-enablement defines.
+
+    The top-level CMakeLists.txt (:456-512) sets these for a normal build; they
+    are absent in the standalone hipcc JIT path, so any bridge that compiles a
+    kernel out-of-tree has to re-supply them.  This mirrors that block for the
+    arches the dispatcher targets:
+
+        gfx950  -> CK_USE_NATIVE_MX_SUPPORT, CK_GFX950_SUPPORT
+        gfx1250 -> CK_USE_GFX1250, CK_USE_NATIVE_MX_SUPPORT, CK_GFX1250_SUPPORT
+        gfx11/gfx12 -> CK_TILE_USE_WMMA=1  (gfx12 also CK_GFX12_SUPPORT)
+
+    CK_TILE_USE_WMMA is the one that must be passed even when it is 0: CMake
+    always defines it (:480), and the JIT path leaving it undefined only happens
+    to work because the preprocessor reads an undefined identifier as 0, which is
+    the right answer on gfx942/gfx950 and the wrong one on every WMMA part.
+
+    CK_USE_GFX950 is deliberately *not* emitted -- CMake sets it, but it is read
+    only by the legacy ck/library conv instances, never by ck_tile, so it is
+    dead weight on this path.
+
+    On the warp tile: these defines do select the branch of
+    tile_gemm_shape.hpp get_k_warp_tile() (CK_TILE_USE_WMMA outermost, then
+    CK_USE_GFX1250 / CK_GFX950_SUPPORT), but the emitted kernels never *call*
+    that function -- codegen writes a literal warp_tile_k, mirroring it in Python
+    via codegen_common.fp8_warp_tile_k_for_arch.  The hazard is therefore a
+    mismatch between that literal and the warp-gemm the target arch actually has:
+    there is no 16x16x128 fp8 warp-gemm on gfx942, and asking for one compiles
+    cleanly and returns all zeros.  Keep warp_tile_k arch-aware alongside these
+    defines, and derive it from the one helper rather than a local copy.
+    """
+    a = normalize_arch(arch)
+    defines = ocp_arch_defines(arch)
+    if a.startswith("gfx950"):
+        defines = defines + ["-DCK_USE_NATIVE_MX_SUPPORT", "-DCK_GFX950_SUPPORT"]
+    elif a.startswith("gfx11") or a.startswith("gfx12"):
+        defines = defines + ["-DCK_TILE_USE_WMMA=1"]
+        if a.startswith("gfx12"):
+            defines = defines + ["-DCK_GFX12_SUPPORT"]
+        if a.startswith("gfx1250"):
+            defines = defines + [
+                "-DCK_USE_GFX1250",
+                "-DCK_USE_NATIVE_MX_SUPPORT",
+                "-DCK_GFX1250_SUPPORT",
+            ]
+    return defines
+
+
+# ============================================================================
 # Architecture Filter Data
 # ============================================================================
 

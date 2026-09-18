@@ -61,6 +61,10 @@ TOLERANCE = 1e-2
 PASS = "PASS"
 FAIL = "FAIL"
 
+# ctest SKIP_RETURN_CODE: main() returns this when the box cannot run the test
+# at all, so the lane reports Skipped rather than a vacuous Passed.
+SKIP_EXIT = 77
+
 # Must match the kernel's default tile (256x256x64) exactly: the default config
 # pads nothing, so M and N have to be whole multiples of the tile or
 # IsSupportedArguments rejects the launch.
@@ -189,7 +193,7 @@ def main() -> int:
     if not _has_gpu():
         print("SKIP: no supported GPU or hipcc detected; "
               "contraction_multi_abd GPU test skipped")
-        return 0
+        return SKIP_EXIT
 
     gfx = _validate_arch(args.gfx) if args.gfx else _detect_gpu_arch()
     log.info("Running contraction_multi_abd GPU correctness on %s", gfx)

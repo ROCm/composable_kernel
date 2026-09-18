@@ -45,6 +45,15 @@ DISPATCHER_SRC = DISPATCHER_DIR / "src" / "dispatcher.cpp"
 
 SKIP = 77  # ctest SKIP_RETURN_CODE
 
+# Arches the Stream-K dispatcher is validated on. The gate matters because the
+# arch can arrive from --arch (CMakeLists.txt passes the arch the build was
+# configured with) and so bypass detect_arch() entirely. Without it, a box whose
+# arch merely *has* a GPU -- gfx90a, say -- builds and runs the whole matrix and
+# reports failures: fp16/bf16/fp8 pass there, but every bf8 case aborts with
+# HSA_STATUS_ERROR_MEMORY_APERTURE_VIOLATION. That is an unsupported-arch result,
+# not a regression, and it belongs in the Skipped column.
+SUPPORTED_ARCHS = ("gfx942", "gfx950")
+
 # One tile config, all three reduction strategies.
 TILE = "128x128x64_2x2x1_32x32x16"
 TILE_CONFIG_JSON = json.dumps(
@@ -134,6 +143,12 @@ def main():
     arch = args.arch or detect_arch()
     if not arch:
         print("SKIP: no GPU / could not detect gfx arch")
+        return SKIP
+    # Strip the feature suffixes of a full target triple ("gfx950:sramecc+:xnack-")
+    # before matching, so a configured-target string is gated the same as a bare arch.
+    if arch.split(":", 1)[0] not in SUPPORTED_ARCHS:
+        print(f"SKIP: {arch} is not a supported Stream-K arch "
+              f"(supported: {', '.join(SUPPORTED_ARCHS)})")
         return SKIP
     print(f"Stream-K registry test on {arch} @ {args.m}x{args.n}x{args.k}")
 

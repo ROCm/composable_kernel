@@ -1404,113 +1404,505 @@ def runComprehensiveConvDatasetTests() {
     )
 }
 
-def runTileEngineBasicTests(String compiler) {
-    buildAndTest(
-        setup_args: "NO_CK_BUILD",
-        build_type: 'Release',
-        execute_cmd: """
+@NonCPS
+String _dispatcherPerfCmd(String compiler, String gpuTarget, String samplingTier,
+                          String gemmDatatype, String gemmLayout, String multiLayout,
+                          String quantDatatype, String quantLayout,
+                          String problemSizes, String problemConfigs, String perOpInstances) {
+    // All operators whose CMakeLists list both gfx942 and gfx950 in DESIRED_TARGETS
+    // run on both arches. Two sets remain gfx950-only:
+    //
+    //   gemm_aquant / gemm_bquant / gemm_abquant: SUPPORTED_ARCHS = ("gfx950",) in
+    //     their Python layers. The C++ side would compile on gfx942 (standard fp8
+    //     MFMA), but the Python guards have not been lifted yet. Widening is its own
+    //     change; the gate is conservative and likely to lift soon.
+    //
+    //   mx_gemm: CMakeLists filters with `target MATCHES "^gfx950"`, so
+    //     benchmark_mx_gemm_all is never created for gfx942 and ninja would fail on
+    //     an unknown target. Also has no fp16 path (MX_GEMM_DATATYPE defaults to
+    //     fp4;fp8), hence quantDatatype below.
+    //
+    // gemm_preshuffle and contraction_multi_abd are deferred: preshuffle has no
+    // dispatcher bridge on develop; contraction_multi_abd has no Python benchmark
+    // driver. Both get lanes in the next PR once those prerequisites land.
+    def cmd = """
             cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                 -D BUILD_CK_TILE_ENGINE="ON" \
                 -D CMAKE_CXX_COMPILER="${compiler}" \
                 -D CMAKE_BUILD_TYPE=Release \
-                -D GPU_TARGETS="gfx942" \
-                -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16" \
-                -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
-                -D GEMM_UNIVERSAL_CONFIG_FILE="default_ci_config.json" \
-                -D GEMM_MULTI_D_DATATYPE="fp16" \
-                -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                -D GEMM_MULTI_D_CONFIG_FILE="default_ci_config.json" \
-                -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
-                -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
-                -D GEMM_PRESHUFFLE_CONFIG_FILE="default_ci_config.json" .. && \
-            ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
-            python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_universal_results.json && \
-            python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_preshuffle_results.json && \
-            python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_multi_d_results.json"""
-    )
-}
-
-def runTileEngineGemmTests(String arch, String compiler) {
-    def execute_cmd
-    if (arch == "gfx942") {
-        execute_cmd = """
-            cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                -D BUILD_CK_TILE_ENGINE="ON" \
-                -D CMAKE_CXX_COMPILER="${compiler}" \
-                -D CMAKE_BUILD_TYPE=Release \
-                -D GPU_TARGETS="gfx942" \
-                -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16;bf8;bf16" \
-                -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
-                -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
-                -D GEMM_STREAMK_LAYOUT="rcr" \
-                -D GEMM_MULTI_D_DATATYPE="fp16" \
-                -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
-                -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
-                -D GROUPED_GEMM_DATATYPE="fp8;fp16" \
-                -D GROUPED_GEMM_LAYOUT="rcr;rrr;crr;ccr" \
-                -D GEMM_MULTI_ABD_DATATYPE="fp16" \
-                -D GEMM_MULTI_ABD_LAYOUT="rcrr" \
-                -D BATCHED_CONTRACTION_DATATYPE="fp16" \
-                -D BATCHED_CONTRACTION_LAYOUT="rcr" \
-                -D GEMM_ROWCOLQUANT_DATATYPE="fp8;bf8" \
-                -D GEMM_ROWCOLQUANT_LAYOUT="rcr" \
-                -D GEMM_TENSOR_QUANT_DATATYPE="fp8;bf8" \
-                -D GEMM_TENSOR_QUANT_LAYOUT="rcr" \
-                -D GROUPED_GEMM_ROWCOLQUANT_DATATYPE="fp8;bf8" \
-                -D GROUPED_GEMM_ROWCOLQUANT_LAYOUT="rcr" \
-                -D GROUPED_GEMM_TENSORQUANT_DATATYPE="fp8;bf8" \
-                -D GROUPED_GEMM_TENSORQUANT_LAYOUT="rcr" \
+                -D GPU_TARGETS="${gpuTarget}" \
+                -D GEMM_UNIVERSAL_DATATYPE="${gemmDatatype}" \
+                -D GEMM_UNIVERSAL_LAYOUT="${gemmLayout}" \
+                -D GEMM_UNIVERSAL_MAX_INSTANCES=${perOpInstances} \
                 -D BATCHED_GEMM_DATATYPE="fp16" \
                 -D BATCHED_GEMM_LAYOUT="rcr" \
-                -D TILE_ENGINE_SAMPLING_TIER=daily .. && \
-            ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all benchmark_grouped_gemm_all  benchmark_gemm_multi_abd_all benchmark_batched_contraction_all benchmark_gemm_rowcolquant_all benchmark_gemm_tensor_quant_all benchmark_grouped_gemm_rowcolquant_all benchmark_grouped_gemm_tensorquant_all benchmark_batched_gemm_all && \
-            python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_universal_results.json && \
-            python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_preshuffle_results.json && \
-            python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_multi_d_results.json && \
-            python3 ../tile_engine/ops/gemm/grouped_gemm/grouped_gemm_benchmark.py . --problem-sizes "1024,1024,1024" --group-counts 8 --warmup 5 --repeat 5 --verbose --json grouped_gemm_results.json && \
-            python3 ../tile_engine/ops/gemm/gemm_multi_abd/gemm_multi_abd_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_multi_abd_results.json && \
-            python3 ../tile_engine/ops/gemm/batched_contraction/batched_contraction_benchmark.py . --problem-configs "g=2;m=1024;n=1024;k=1024" --warmup 5 --repeat 5 --verbose --json batched_contraction_results.json && \
-            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_rowcolquant/gemm_rowcolquant_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_rowcolquant_results.json && \
-            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_tensor_quant/gemm_tensor_quant_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_tensor_quant_results.json && \
-            python3 ../tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_rowcolquant/grouped_gemm_rowcolquant_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json grouped_gemm_rowcolquant_results.json && \
-            python3 ../tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_tensorquant/grouped_gemm_tensorquant_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json grouped_gemm_tensorquant_results.json  && \
-            python3 ../tile_engine/ops/gemm/batched_gemm/batched_gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json batched_gemm_results.json """
-    } else if (arch == "gfx950") {
-        execute_cmd = """
-            cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                -D BUILD_CK_TILE_ENGINE="ON" \
-                -D CMAKE_CXX_COMPILER="${compiler}" \
-                -D CMAKE_BUILD_TYPE=Release \
-                -D GPU_TARGETS="gfx950" \
-                -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16" \
-                -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
-                -D GEMM_MULTI_D_DATATYPE="fp16" \
-                -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
-                -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
-                -D MX_GEMM_DATATYPE="fp4;fp8" \
-                -D MX_GEMM_LAYOUT="rcr" \
-                -D TILE_ENGINE_SAMPLING_TIER=daily .. && \
-            ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
-            python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_universal_results.json && \
-            python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_preshuffle_results.json && \
-            python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_multi_d_results.json && \
-            python3 ../tile_engine/ops/gemm/mx_gemm/mx_gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json mx_gemm_results.json """
-    } else if (arch == "gfx1201") {
-        execute_cmd = """
-            cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                -D BUILD_CK_TILE_ENGINE="ON" \
-                -D CMAKE_CXX_COMPILER="${compiler}" \
-                -D CMAKE_BUILD_TYPE=Release \
-                -D GPU_TARGETS="gfx1201" \
-                -D GEMM_UNIVERSAL_DATATYPE="fp16" \
-                -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
-                -D TILE_ENGINE_SAMPLING_TIER=daily .. && \
-            ninja -j${nthreads()} benchmark_gemm_universal_all && \
-            python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json gemm_universal_results.json"""
+                -D BATCHED_GEMM_MAX_INSTANCES=${perOpInstances} \
+                -D BATCHED_CONTRACTION_DATATYPE="fp16" \
+                -D BATCHED_CONTRACTION_LAYOUT="rcr" \
+                -D BATCHED_CONTRACTION_MAX_INSTANCES=${perOpInstances} \
+                -D GEMM_STREAMK_DATATYPE="${gemmDatatype}" \
+                -D GEMM_STREAMK_LAYOUT="${gemmLayout}" \
+                -D GEMM_STREAMK_MAX_INSTANCES=${perOpInstances} \
+                -D GROUPED_GEMM_DATATYPE="${gemmDatatype}" \
+                -D GROUPED_GEMM_LAYOUT="${gemmLayout}" \
+                -D GROUPED_GEMM_MAX_INSTANCES=${perOpInstances} \
+                -D GEMM_MULTI_D_DATATYPE="${gemmDatatype}" \
+                -D GEMM_MULTI_D_LAYOUT="${multiLayout}" \
+                -D GEMM_MULTI_D_MAX_INSTANCES=${perOpInstances} \
+                -D GEMM_MULTI_ABD_DATATYPE="${gemmDatatype}" \
+                -D GEMM_MULTI_ABD_LAYOUT="${multiLayout}" \
+                -D GEMM_MULTI_ABD_MAX_INSTANCES=${perOpInstances} \
+                -D GROUPED_GEMM_ROWCOLQUANT_DATATYPE="${quantDatatype}" \
+                -D GROUPED_GEMM_ROWCOLQUANT_LAYOUT="${quantLayout}" \
+                -D GROUPED_GEMM_ROWCOLQUANT_MAX_INSTANCES=${perOpInstances} \
+                -D GROUPED_GEMM_TENSORQUANT_DATATYPE="${quantDatatype}" \
+                -D GROUPED_GEMM_TENSORQUANT_LAYOUT="${quantLayout}" \
+                -D GROUPED_GEMM_TENSORQUANT_MAX_INSTANCES=${perOpInstances}"""
+    if (gpuTarget == "gfx950") {
+        cmd += """ \
+                -D GEMM_AQUANT_DATATYPE="${quantDatatype}" \
+                -D GEMM_AQUANT_LAYOUT="${quantLayout}" \
+                -D GEMM_AQUANT_MAX_INSTANCES=${perOpInstances} \
+                -D GEMM_BQUANT_DATATYPE="${quantDatatype}" \
+                -D GEMM_BQUANT_LAYOUT="${quantLayout}" \
+                -D GEMM_BQUANT_MAX_INSTANCES=${perOpInstances} \
+                -D GEMM_ABQUANT_DATATYPE="${quantDatatype}" \
+                -D GEMM_ABQUANT_LAYOUT="${quantLayout}" \
+                -D GEMM_ABQUANT_MAX_INSTANCES=${perOpInstances} \
+                -D MX_GEMM_DATATYPE="${quantDatatype}" \
+                -D MX_GEMM_LAYOUT="${quantLayout}" \
+                -D MX_GEMM_MAX_INSTANCES=${perOpInstances}"""
     }
-    buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)
+    cmd += """ \
+                -D TILE_ENGINE_SAMPLING_TIER=${samplingTier} .. && \
+            ninja -j\$(nproc) benchmark_gemm_universal_all benchmark_batched_gemm_all benchmark_batched_contraction_all benchmark_gemm_streamk_all benchmark_grouped_gemm_all benchmark_gemm_multi_d_all benchmark_gemm_multi_abd_all benchmark_grouped_gemm_rowcolquant_all benchmark_grouped_gemm_tensorquant_all"""
+    if (gpuTarget == "gfx950") {
+        cmd += " benchmark_gemm_aquant_all benchmark_gemm_bquant_all benchmark_gemm_abquant_all benchmark_mx_gemm_all"
+    }
+    cmd += """ && \
+            python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_universal_results.json && \
+            python3 ../tile_engine/ops/gemm/batched_gemm/batched_gemm_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json batched_gemm_results.json && \
+            python3 ../tile_engine/ops/gemm/batched_contraction/batched_contraction_benchmark.py . --problem-configs ${problemConfigs} --warmup 5 --repeat 5 --verbose --json batched_contraction_results.json && \
+            python3 ../tile_engine/ops/gemm_streamk/gemm_streamk_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_streamk_results.json && \
+            python3 ../tile_engine/ops/gemm/grouped_gemm/grouped_gemm_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json grouped_gemm_results.json && \
+            python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_multi_d_results.json && \
+            python3 ../tile_engine/ops/gemm/gemm_multi_abd/gemm_multi_abd_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_multi_abd_results.json && \
+            python3 ../tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_rowcolquant/grouped_gemm_rowcolquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json grouped_gemm_rowcolquant_results.json && \
+            python3 ../tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_tensorquant/grouped_gemm_tensorquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json grouped_gemm_tensorquant_results.json"""
+    if (gpuTarget == "gfx950") {
+        cmd += """ && \
+            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_aquant/gemm_aquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_aquant_results.json && \
+            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_bquant/gemm_bquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_bquant_results.json && \
+            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_abquant/gemm_abquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_abquant_results.json && \
+            python3 ../tile_engine/ops/gemm/mx_gemm/mx_gemm_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json mx_gemm_results.json"""
+    }
+    return cmd
+}
+
+// Benchmark ahead-of-time tile_engine instances at smoke coverage: one dtype,
+// one layout, one problem size, and a fixed per-op AOT instance cap. Sized to
+// catch codegen/build/launch breakage on demand without booking a GPU node for
+// the length of a full sweep.
+//
+// Covers every operator that has a dispatcher bridge, so the AOT instance path
+// gets the same operator coverage runDispatcherCorrectnessTests gives the JIT
+// path. The two are gated separately and neither substitutes for the other:
+// correctness JIT-builds each config with hipcc and checks it against a host
+// reference, while this lane exercises tile_engine's codegen, instance builder
+// and benchmark harness.
+def runDispatcherPerfTests(String compiler, String gpuTarget = "gfx942") {
+    def samplingTier   = "500"
+    def gemmDatatype   = "fp16"
+    def gemmLayout     = "rcr"
+    def problemSizes   = '"1024,1024,1024"'
+    def problemConfigs = '"g=2;m=1024;n=1024;k=1024"'
+    // gemm_multi_d and gemm_multi_abd take 4-character layouts (A, B, D, E),
+    // not the 3-character rcr the other ops use. Passing rcr here is not a
+    // narrower selection, it is a parse error in the instance builder.
+    def multiLayout    = "rcrr"
+    // Pin instances per op rather than letting TILE_ENGINE_SAMPLING_TIER divide
+    // itself up. That tier is a *total* budget split evenly across whichever ops
+    // have a non-empty <OP>_DATATYPE (tile_engine/ops/gemm/CMakeLists.txt:16-23),
+    // so every operator added below would silently shrink the coverage of the
+    // ones already here -- gfx942 alone would have gone 125 -> 55 instances per
+    // op. An explicit <OP>_MAX_INSTANCES wins over the allocated value (same
+    // file, :50-59), which keeps lane cost fixed and independent of how many ops
+    // the lane happens to build. The tier is still passed: each op also forwards
+    // it to the sampler as --tier, where it picks the sampling strategy.
+    //
+    // One dtype and one layout per op is also load-bearing, not just smoke
+    // sizing: the per-op budget is divided again across (dtype x layout) combos
+    // with integer truncation, so a multi-combo op can floor a combo to zero
+    // instances and build nothing.
+    def perOpInstances = "64"
+    // Operator distribution across arches -- see _dispatcherPerfCmd for the
+    // per-op rationale. Summary:
+    //
+    //   Both arches: gemm_universal, batched_gemm, batched_contraction,
+    //     gemm_streamk, grouped_gemm, gemm_multi_d, gemm_multi_abd,
+    //     grouped_gemm_rowcolquant, grouped_gemm_tensorquant.
+    //     All have gfx950 in their DESIRED_TARGETS and no Python-level arch gate.
+    //
+    //   gfx950 only: gemm_aquant, gemm_bquant, gemm_abquant, mx_gemm.
+    //     gemm_aquant/bquant/abquant: SUPPORTED_ARCHS = ("gfx950",) in the Python
+    //     layer. gfx942 has fp8 (FNUZ), but those guards haven't been lifted yet.
+    //     mx_gemm: CMakeLists filters with `target MATCHES "^gfx950"`, so the
+    //     benchmark_mx_gemm_all target is never created for gfx942; also has no
+    //     fp16 path, hence quantDatatype below.
+    //
+    //   Deferred (next PR): gemm_preshuffle (no bridge on develop), and
+    //     contraction_multi_abd (no Python benchmark driver yet).
+    def quantDatatype  = "fp8"
+    def quantLayout    = "rcr"
+    // Stream-K below is tile_engine/ops/gemm_streamk/ (top level), not
+    // tile_engine/ops/gemm/gemm_streamk/. Two paths exist and only the first is
+    // real: it holds the CMakeLists, the instance builder and the benchmark. The
+    // nested one contains a lone configs/default_config.json that nothing in the
+    // tree reads. Edit the top-level tree.
+    def execute_cmd = _dispatcherPerfCmd(compiler, gpuTarget, samplingTier, gemmDatatype, gemmLayout, multiLayout, quantDatatype, quantLayout, problemSizes, problemConfigs, perOpInstances)
+    try {
+        buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)
+    } finally {
+        // finally, not a trailing call: a red lane is exactly when the per-kernel
+        // JSON is worth having, and buildAndTest throws on failure. Same path
+        // reasoning as runDispatcherCorrectnessTests: execute_cmd runs from
+        // projects/composablekernel/build while archiveArtifacts resolves against
+        // the workspace root, so the build-relative path is spelled out in full.
+        //
+        // *_results.json, NOT dispatcher_*: this lane drives tile_engine's own
+        // benchmark drivers, and every file it produces is a tile_engine JSON
+        // (gemm_universal_results.json, gemm_aquant_results.json, ...). Nothing
+        // here is written with a dispatcher_ prefix -- only the correctness lane
+        // writes those -- so the narrower glob matched zero files and
+        // allowEmptyArchive turned that into a silent success.
+        //
+        // allowEmptyArchive stays true only because this is a finally block: on a
+        // cmake/ninja failure no JSON exists yet, and a throwing archive step
+        // would mask the real exception. The signal that the run actually
+        // produced results comes from the drivers, which now exit non-zero when
+        // no kernels were discovered or the result set is empty, and record
+        // launches_attempted/succeeded/failed in each JSON.
+        archiveArtifacts artifacts: "projects/composablekernel/build/*_results.json",
+                         allowEmptyArchive: true
+    }
+}
+
+// Which GEMM variants of test_gemm_search_space.py each arch can run.
+//
+// stream_k used to be gfx942-only here, attributed to the "TODO: add gfx950" in
+// tile_engine/ops/gemm_streamk/CMakeLists.txt. That was the wrong cause: this
+// path never touches those AOT targets -- test_gemm_search_space drives
+// gemm_utils, which JIT-builds each config with hipcc and --offload-arch, and
+// neither gemm_utils nor the sweep tables carry any stream_k arch guard. The
+// real blocker was the fp8/bf8 encoding mismatch on gfx950, which is fixed (see
+// dispatcherSweepDtypesFor below). The CMake TODO is still worth resolving, but
+// as AOT hygiene, not as a gate on this lane.
+//
+// gfx1201 is absent on purpose, and the Jenkinsfile has no gfx1201 dispatcher
+// stage for the same reason: gemm_utils._SUPPORTED_ARCHES is
+// (gfx90a, gfx942, gfx950), so test_gemm_search_space.py raises
+//   ValueError: Unsupported GPU architecture 'gfx1201'
+// before it ever reaches the GPU. Widening that guard does not help -- with it
+// widened, expand_sweep returns 0 configs for gfx1201 in all 16 dtype x layout
+// strata of default_ci_config.json, because RDNA4 is warp_size 32 and every
+// warp tile that config names is 64 wide, and the runner then exits 1 on "no
+// configs to run". Covering RDNA4 needs real gfx1201 tile coverage first.
+def dispatcherGemmVariantsFor(String arch) {
+    switch (arch) {
+        case "gfx942":
+        case "gfx950":  return ["grouped", "multi_d", "multi_abd", "stream_k"]
+        default:        return []
+    }
+}
+
+// Which dtypes the GEMM sweeps may ask for on each arch.
+//
+// gfx950 used to be fp16/bf16 only. Not because the hardware lacks fp8, but
+// because the dispatcher's fp8 path was gfx942-shaped on both ends: the JIT
+// handed hipcc only --offload-arch, so gfx950 kernels fell into the FNUZ #else
+// branch of ck_tile/core/numeric/float8.hpp on the host pass while the device
+// pass and the fp8 MFMA used OCP -- and the numpy reference in gemm_utils.py was
+// unconditionally FNUZ. Three encodings, one test; the strata passed only because
+// the parity gates are loose. Both halves are fixed now:
+//
+//   * Device: gemm_utils._build_compile_jobs appends ocp_arch_defines(gfx_arch)
+//     (-DCK_USE_OCP_FP8 -DCK_TILE_USE_OCP_FP8), matching what CMake does for a
+//     gfx950 build and what the quant bridges already did for their own JIT.
+//   * Host: the gemm_utils fp8/bf8 codec is arch-aware -- _fp8_decode_table
+//     carries both formats and is verified byte-for-byte against ml_dtypes, and
+//     numpy_dtype_for picks e4m3fn/e5m2 vs e4m3fnuz/e5m2fnuz from the arch.
+//
+// dispatcher_common.fp8_uses_ocp is the single predicate behind both, so they
+// cannot drift apart again.
+def dispatcherSweepDtypesFor(String arch) {
+    switch (arch) {
+        case "gfx942":
+        case "gfx950":  return "fp16,bf16,fp8,bf8"
+        default:        return "fp16,bf16"
+    }
+}
+
+// One test_gemm_search_space.py invocation for a non-standard GEMM variant.
+//
+// layouts are deliberately omitted: the runner picks per-variant defaults
+// (multi_d/multi_abd are fp16/rcrr-only, so naming the standard 4x4 matrix here
+// would enumerate configs that variant cannot build). --elementwise-op is
+// likewise omitted, so multi_d sweeps the MultiDAdd/MultiDMultiply x num_d
+// {1,2} matrix from gemm_multi_d/configs/default_ci_config.json. Passing
+// PassThrough here would make the lane vacuous: it discards the D tensors on
+// both the device and reference sides, so the fusion under test is never run.
+//
+// dtypes are omitted for the same reason -- except for "grouped", whose
+// _VARIANT_DEFAULTS entry in test_gemm_search_space.py is the full
+// fp16,bf16,fp8,bf8 list and would otherwise put fp8/bf8 back on gfx950 through
+// the side door. multi_d/multi_abd default to fp16 alone and must keep doing so,
+// which is why this is not applied to every variant. stream_k shares the full
+// list but is gfx942-only, so it is unaffected either way.
+//
+// The budget stays far under the standard sweep's 64 because each variant
+// JIT-compiles its own .so set and these run in addition to, not instead of,
+// that sweep -- 16 is enough to prove each variant still builds and matches its
+// reference.
+def dispatcherVariantCmd(String arch, String variant) {
+    def budget = 16
+    def dtypeArg = (variant == "grouped") ? " --dtypes ${dispatcherSweepDtypesFor(arch)}" : ""
+    return """python3 ../dispatcher/tests/test_gemm_search_space.py \
+                --variant ${variant} \
+                --arch ${arch}${dtypeArg} \
+                --budget ${budget} \
+                --warmup 5 \
+                --repeat 5 \
+                --size 1024 \
+                --json dispatcher_${variant}_results.json"""
+}
+
+// Verify JIT-compiled dispatcher kernels against a host reference.
+//
+// The lane runs the whole operator set for the arch -- every dispatcher operator
+// with a bridge on develop -- 13 of them. A developer touching the bridge needs
+// pre-merge signal on all of them, and a lane covering four cannot give that.
+// Cost is held down by the search budget instead: --budget 64 for the standard
+// sweep, --budget 16 for each variant sweep.
+//
+// The layout list stays at the full 4 on purpose, as does the dtype list on
+// gfx942: the sweep samples per stratum, so even 64 spreads ~4 configs across
+// all 16 dtype x layout combinations rather than testing one combination
+// deeply. gfx950 runs 2 dtypes x 4 layouts -- see dispatcherSweepDtypesFor.
+//
+// ---------------------------------------------------------------------------
+// Coverage against the 13 dispatcher operators with a bridge on develop.
+//
+// Operators covered by this lane (all grouped_gemm / dispatcher-bridge variants):
+//   gemm_universal, grouped_gemm, multi_d_gemm (4 layouts), multi_abd_gemm,
+//   batched_gemm, batched_contraction (fp16+bf16+fp32), stream_k,
+//   grouped_gemm_rowcolquant, grouped_gemm_tensorquant,
+//   grouped_gemm_aquant, grouped_gemm_abquant (both arches),
+//   grouped_gemm_bquant C4 (fp8/bf8) + C (fp8i4/bf8i4) + H3 (mx_*),
+//   mx_gemm.
+// The last two lines are gfx950 only -- mx_gemm and bquant H3 for an ISA
+// limitation (no scale-MFMA builtins on gfx942), bquant C4/C pending one
+// validating gfx942 run. See the gate comment further down.
+//
+// Operators NOT covered by this lane (no dispatcher bridge on develop yet):
+//   preshuffled_gemm, gemm_aquant, gemm_abquant, gemm_bquant,
+//   gemm_rowcolquant, gemm_tensorquant (block_scale_gemm tile_engine ops),
+//   batched_contraction_multi_abd.
+//
+// All 13 bridged ops are invoked. Twelve are fully covered; one
+// (grouped_gemm_bquant non-rcr layouts) runs but over a narrowed surface.
+//
+// One non-obvious detail: gemm_universal's int8 coverage comes from
+// test_gemm_parity.py's _INT_DTYPES, not from the sweep. test_gemm_search_space
+// has no int8 stratum, so dropping the parity call would drop int8 entirely.
+// That is why it is invoked here and why its skip path now exits 77 rather
+// than 0.
+//
+// Known gaps in the bridged ops, deliberately not closed here:
+//
+//   grouped_gemm_{a,ab,b}quant     All three config builders hardcode
+//   non-rcr layouts                layout="rcr", and the ctypes libs assert
+//                                  packed rcr strides, so a non-rcr kernel
+//                                  would build and then be rejected at every
+//                                  call. Fixing requires ctypes stride
+//                                  derivation from the compile-time layout
+//                                  types (see plan Step 7).
+// ---------------------------------------------------------------------------
+@NonCPS
+String _dispatcherCorrectnessBaseCmd(String arch, String compiler, String dtypes, int budget) {
+    return """
+        run_ok() { rc=0; "\$@" || rc=\$?; if [ \$rc -eq 77 ]; then echo "SKIP(77): \$*"; return 0; fi; return \$rc; } && \
+        cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+            -D CMAKE_CXX_COMPILER="${compiler}" \
+            -D CMAKE_BUILD_TYPE=Release \
+            -D GPU_TARGETS="${arch}" \
+            -D CK_TILE_DISPATCHER=ON \
+            -D BUILD_DISPATCHER_BINDINGS=ON \
+            -D DISPATCHER_RULE_SET=tests .. && \
+        ninja -j\$(nproc) ck_tile_dispatcher dispatcher_gemm_lib && \
+        python3 ../dispatcher/tests/test_gemm_search_space.py \
+            --arch ${arch} \
+            --dtypes ${dtypes} \
+            --layouts rcr,rrr,crr,ccr \
+            --budget ${budget} \
+            --warmup 5 \
+            --repeat 5 \
+            --size 1024 \
+            --json dispatcher_gemm_results.json && \
+        run_ok python3 ../dispatcher/tests/test_gemm_parity.py && \
+        run_ok python3 ../dispatcher/tests/test_batched_gemm_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_batched_contraction_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_grouped_gemm_gpu_correctness.py && \
+        run_ok python3 ../dispatcher/tests/test_multi_d_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_multi_abd_gpu_correctness.py && \
+        run_ok python3 ../dispatcher/tests/test_rowcolquant_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_tensorquant_gpu_correctness.py --gfx ${arch}"""
+}
+
+def runDispatcherCorrectnessTests(String arch, String compiler) {
+    def budget = 64
+    def execute_cmd = _dispatcherCorrectnessBaseCmd(arch, compiler, dispatcherSweepDtypesFor(arch), budget)
+    // The grouped/multi_d/multi_abd tests are the bridge-level companions to the
+    // --variant sweeps below: the sweep exercises the search space, they exercise
+    // the ctypes bridge. They were registered in ctest but never invoked from
+    // here. All three are wrapped with run_ok: multi_d is script-style and exits
+    // 77 on a clean skip (a bare 77 would break the && chain), and grouped_gemm /
+    // multi_abd are unittest-based but still need run_ok to guard against exit 1
+    // from environment failures (bad import, setUpClass error) that would kill the
+    // rest of the chain without running the quant operators.
+    //
+    // rowcolquant and tensorquant sit here rather than in the gfx950 block
+    // because, unlike the other quant ops, both support gfx942 as well --
+    // _SUPPORTED_ARCHES is ("gfx942", "gfx950") and their _fp8_uses_ocp mirrors
+    // the FNUZ/OCP split instead of assuming OCP. Their bridges landed in #10010.
+    dispatcherGemmVariantsFor(arch).each { variant ->
+        execute_cmd += " && \\\n        " + dispatcherVariantCmd(arch, variant)
+    }
+    // Stream-K has its own registry-level driver test; its defaults are the
+    // full 4x4 matrix (48 driver compiles / 96 GPU runs), so CI pins one
+    // dtype/layout. Note it takes --arch, not --gfx.
+    //
+    // test_streamk_gpu_correctness.py is the bridge-level companion: the
+    // shared sweep above only ever builds the atomic reduction strategy
+    // (default_ci_config.json has no streamk_config, so expand_sweep falls
+    // back to ["atomic"]), leaving linear/tree unverified through ctypes.
+    // It takes --gfx and self-gates via SUPPORTED_ARCHS, now (gfx942, gfx950).
+    //
+    // Both are keyed off the variant list rather than a hardcoded arch == "gfx942"
+    // branch, so the sweep and its companions can never disagree about which
+    // archs run Stream-K. test_streamk_registry.py has no arch allow-list of its
+    // own, which is precisely why it needs the gate here.
+    if (dispatcherGemmVariantsFor(arch).contains("stream_k")) {
+        execute_cmd += """ && \
+        run_ok python3 ../dispatcher/tests/test_streamk_registry.py --arch ${arch} --datatypes fp16 --layouts rcr && \
+        run_ok python3 ../dispatcher/tests/test_streamk_gpu_correctness.py --gfx ${arch}"""
+    }
+    // bquant stays gfx950-only, but no longer for the original reason: its config
+    // builders used to hardcode the gfx950 warp_tile_k (128), which on gfx942 took
+    // the other branch of CK_GFX950_SUPPORT and produced a kernel that built, ran,
+    // and returned zeros. grouped_gemm_bquant_utils is arch-aware now
+    // (_fp8_warp_tile_k / _preshuffleb_warp_tile_k), so the gate is held only
+    // pending one validating run on gfx942 -- not by a known defect. Flipping it
+    // means widening SUPPORTED_ARCHS in test_bquant_gpu_correctness.py in the same
+    // change; the two must not drift apart.
+    // This is why the lane fans out to a gfx950 node as well as gfx942 -- see the
+    // stage comment in the Jenkinsfile.
+    //
+    // mx_gemm is gfx950 for a harder reason: the scale-MFMA builtins
+    // (__builtin_amdgcn_mfma_scale_f32_*_f8f6f4) do not exist in the gfx942 ISA,
+    // so it fails at compile time rather than silently. It also has no
+    // expand_sweep -- mx_gemm_utils exposes only default_fp8_config() /
+    // default_fp4_config() -- so it cannot join the --variant sweep above and
+    // instead runs the two-config smoke test merged in #10132. That test is
+    // unittest-based and self-gates to gfx950, so it takes no --gfx. It is still
+    // wrapped with run_ok -- see the NOTE below for why every test in this chain is.
+    if (arch == "gfx950") {
+        execute_cmd += """ && \
+        run_ok python3 ../dispatcher/tests/test_bquant_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_mx_gemm_gpu_correctness.py"""
+    }
+    // aquant runs on both archs. Its non-preshuffleaq builders use standard fp8
+    // MFMA (warp_tile_k=32), present on gfx942. _preshuffleaq_warp_tile_k() is
+    // now arch-aware (128 gfx950, 64 gfx942), and the test's preshuffleaq cases
+    // are gated behind PRESHUFFLEAQ_SUPPORTED_ARCHS pending one CI run on gfx942.
+    execute_cmd += """ && \
+        run_ok python3 ../dispatcher/tests/test_aquant_gpu_correctness.py --gfx ${arch}"""
+    // abquant runs on both archs. Its Python layer was already arch-aware --
+    // _eightwaves_warp_tile_k / _preshuffleb_warp_tile_k carry correct gfx942
+    // branches -- and its compv3 pipeline uses standard fp8 MFMA that gfx942
+    // has; only the test's self-gate and its OCP-hardcoded host codec kept it
+    // off gfx942. Both are fixed, so this goes outside the arch block. The test
+    // still skips its eightwaves case on gfx942 (EIGHTWAVES_SUPPORTED_ARCHS)
+    // pending one green run, and reports that as a per-case SKIP, not a 77.
+    execute_cmd += """ && \
+        run_ok python3 ../dispatcher/tests/test_abquant_gpu_correctness.py --gfx ${arch}"""
+    // NOTE: run_ok is applied to every script-style test AND every unittest-based
+    // test above. Unittest-based tests exit 0 on an internal skipTest, but a bad
+    // import or setUpClass crash still exits 1, which would break the && chain and
+    // silently drop every subsequent operator. run_ok costs nothing and makes the
+    // chain resilient to environment failures regardless of test style.
+    try {
+        buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)
+    } finally {
+        // finally, not a trailing call: a red lane is exactly when the per-kernel
+        // JSON is worth having, and buildAndTest throws on failure.
+        //
+        // Path, not a bare glob: cmake_build runs execute_cmd from
+        // projects/composablekernel/build, while archiveArtifacts resolves
+        // against the workspace root. A bare "dispatcher_*_results.json" matches
+        // nothing there, and allowEmptyArchive hides that it matched nothing.
+        // Glob, not one name: each variant writes its own dispatcher_<v>_*.json.
+        archiveArtifacts artifacts: "projects/composablekernel/build/dispatcher_*_results.json",
+                         allowEmptyArchive: true
+    }
+}
+
+// Orchestrate correctness and perf dispatcher lanes in parallel.
+// Called from the Jenkinsfile as a scripted step to keep the declarative
+// pipeline method small enough to avoid the JVM 64KB method-size limit.
+//
+// rocmnode is passed in rather than called directly: it is defined in the
+// Jenkinsfile (`def rocmnode(name)`), and a vars/ script does not inherit
+// Jenkinsfile-local methods, so calling it here throws MissingMethodException
+// before runOnHealthyNode is ever reached. Same convention as
+// the caller
+// passes `this.&rocmnode`.
+def runDispatcherTests(def rocmnode, boolean runCorrectness, boolean runPerf, String compiler) {
+    def branches = [:]
+    if (runCorrectness) {
+        branches["DISPATCHER_CORRECTNESS gfx942"] = {
+            runOnHealthyNode(rocmnode("gfx942")) {
+                deleteDir()
+                runDispatcherCorrectnessTests("gfx942", compiler)
+                cleanWs()
+            }
+        }
+        branches["DISPATCHER_CORRECTNESS gfx950"] = {
+            runOnHealthyNode(rocmnode("gfx950")) {
+                deleteDir()
+                runDispatcherCorrectnessTests("gfx950", compiler)
+                cleanWs()
+            }
+        }
+    }
+    if (runPerf) {
+        branches["DISPATCHER_PERF gfx942"] = {
+            runOnHealthyNode(rocmnode("gfx942")) {
+                deleteDir()
+                runDispatcherPerfTests(compiler, "gfx942")
+                cleanWs()
+            }
+        }
+        branches["DISPATCHER_PERF gfx950"] = {
+            runOnHealthyNode(rocmnode("gfx950")) {
+                deleteDir()
+                runDispatcherPerfTests(compiler, "gfx950")
+                cleanWs()
+            }
+        }
+    }
+    if (branches) {
+        parallel branches
+    }
 }
 
 def runBuildCKAndTests(String arch) {
@@ -1564,3 +1956,4 @@ def runBuildInstancesOnly(String compiler) {
                 -D CMAKE_BUILD_TYPE=Release .. && ninja -j${nthreads()}"""
     )
 }
+

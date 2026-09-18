@@ -4,25 +4,39 @@
 # SPDX-License-Identifier: MIT
 
 """
-GPU correctness tests for BQuant GEMM dispatcher -- C4 and H3 coverage.
+GPU correctness tests for BQuant GEMM dispatcher — C4 and H3 coverage.
 
-Requires a gfx950 GPU (MI350X / MI355X) and hipcc in PATH.
+Requires a gfx950 (MI350X / MI355X) GPU and hipcc in PATH.  Skips cleanly
+(exit 77) when no GPU is visible, the detected arch is not gfx950, or
+ml_dtypes is missing.
+
+C4 (fp8/bf8 compv3) uses standard fp8 MFMA, which the gfx942 ISA also has, and
+the host fp8 codec now follows the target arch via dispatcher_common.fp8_uses_ocp
+rather than hardcoding OCP.  gfx942 is nevertheless not in SUPPORTED_ARCHS: CI
+gates the whole bquant lane to gfx950 (ck.groovy), so a gfx942 run here would
+exercise a path no lane covers.  Enabling it is a follow-up, not an oversight.
+H3 (mx_bf16*) cannot be enabled on gfx942 at all: the scale-MFMA builtins it
+needs (__builtin_amdgcn_mfma_scale_f32_*_f8f6f4) are absent from that ISA and
+fail at compile time rather than silently.
 
 Tests:
-  C4 -- fp8, bf8: GPU output is non-zero and within 5% max-relative-error
-       vs. a fp32 CPU reference.
-  H3 -- mx_bf16bf16, mx_bf16bf8, mx_bf16fp4: same non-zero / rel-error checks,
+  C4 — fp8, bf8: GPU output is non-zero, non-constant, and within 5%
+       max-relative-error vs. a fp32 CPU reference.
+  C  — fp8i4, bf8i4: pk_int4 B with an fp8/bf8-encoded BQ scale.
+  H3 — mx_bf16bf16, mx_bf16bf8, mx_bf16fp4: same non-zero / rel-error checks,
        plus verify QuantType::BQuantGrouped + e8m0 pipeline compiles and runs.
-  M2 -- timing: time_ms is non-zero when timing is requested.
+       gfx950 only (see MX_SUPPORTED_ARCHS).
+  M2 — timing: time_ms is non-zero when timing is requested.
+
+Every case sweeps N over _N_SWEEP to cover the per-N-tile de-permute.
 
 Run:
   python3 test_bquant_gpu_correctness.py
   python3 test_bquant_gpu_correctness.py -v          # verbose hipcc output
-  python3 test_bquant_gpu_correctness.py --gfx gfx950
+  python3 test_bquant_gpu_correctness.py --gfx gfx942
 """
 
 import argparse
-import pytest
 import logging
 import math
 import sys
@@ -31,29 +45,14 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # for conftest helpers
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
-# Canonical numeric codecs (single copies shared with the sibling quant GPU
-# tests): e8m0, OCP-fp4 LUT/unpack, bf16<->f32, and the global-max-floored
-# max-rel-error helper all live in conftest.py.
-from conftest import (
-    uses_ocp_fp8 as _uses_ocp_fp8,
-    ml_fp8_dtype as _ml_fp8_dtype,
-    encode_e8m0 as _encode_e8m0,
-    decode_e8m0 as _decode_e8m0,
-    decode_fp4 as _decode_fp4,
-    bf16_raw_to_f32 as _bf16_raw_to_f32,
-    max_rel_err as _conftest_max_rel_err,
-    FP4_E2M1_LUT as _FP4_E2M1_LUT,
-)
+from dispatcher_common import fp8_uses_ocp
 
-# Non-grouped gemm_bquant bridge (38_block_scale_gemm), the subject of PR #9982.
-from gemm_bquant_utils import (
+from grouped_gemm_bquant_utils import (
     BQuantGemmProblem,
     BQuantGpuGemmRunner,
     setup_multiple_bquant_dispatchers,
-    _detect_gpu_arch,
     default_fp8_config,
     default_bf8_config,
     default_fp8i4_config,
@@ -65,39 +64,94 @@ from gemm_bquant_utils import (
 
 log = logging.getLogger(__name__)
 
-TOLERANCE = 0.05  # 5% max relative error -- fp8/bf8 precision floor
+TOLERANCE = 0.05  # 5% max relative error — fp8/bf8 precision floor
 
 
 # ---------------------------------------------------------------------------
-# Dtype helpers.  _uses_ocp_fp8 / _ml_fp8_dtype and the e8m0 / fp4 / bf16
-# codecs come from conftest.py (single canonical copies).  The fp8/bf8
-# encode/decode wrappers below keep this test's ml_dtypes-missing fallback and
-# its direct (no float32-cast) ml_dtypes path, so the standalone script still
-# runs on a box without ml_dtypes.
+# Dtype helpers
 # ---------------------------------------------------------------------------
 
-def _encode_fp8(arr: np.ndarray, dtype: str, gfx_arch: str = "gfx950") -> np.ndarray:
-    """Encode float32 -> fp8 bytes (uint8 view), ARCH-AWARE (FNUZ on gfx942)."""
-    try:
-        ml_t = _ml_fp8_dtype(dtype, gfx_arch)
-        return arr.astype(ml_t).view(np.uint8)
-    except ImportError:
-        return (np.clip(arr, -2.0, 2.0) * 64).astype(np.int8).view(np.uint8)
+def _fp8_ml_dtype(dtype: str, gfx_arch: str):
+    """The ml_dtypes fp8/bf8 type matching what the kernel for `gfx_arch` produces."""
+    import ml_dtypes
+
+    if fp8_uses_ocp(gfx_arch):
+        return ml_dtypes.float8_e4m3fn if dtype == "fp8" else ml_dtypes.float8_e5m2
+    return ml_dtypes.float8_e4m3fnuz if dtype == "fp8" else ml_dtypes.float8_e5m2fnuz
 
 
-def _decode_fp8(arr: np.ndarray, dtype: str, gfx_arch: str = "gfx950") -> np.ndarray:
-    try:
-        ml_t = _ml_fp8_dtype(dtype, gfx_arch)
-        return arr.view(ml_t).astype(np.float32)
-    except ImportError:
-        return arr.view(np.int8).astype(np.float32) / 64.0
+def _encode_fp8(arr: np.ndarray, dtype: str, gfx_arch: str) -> np.ndarray:
+    """Encode float32 → fp8/bf8 bytes (uint8 view). Format follows target arch."""
+    return arr.astype(_fp8_ml_dtype(dtype, gfx_arch)).view(np.uint8)
 
 
-def _encode_bf8(arr: np.ndarray, gfx_arch: str = "gfx950") -> np.ndarray:
+def _decode_fp8(arr: np.ndarray, dtype: str, gfx_arch: str) -> np.ndarray:
+    """Decode fp8/bf8 bytes (uint8 view) → float32."""
+    return arr.view(_fp8_ml_dtype(dtype, gfx_arch)).astype(np.float32)
+
+
+def _encode_bf8(arr: np.ndarray, gfx_arch: str) -> np.ndarray:
     return _encode_fp8(arr, "bf8", gfx_arch)
 
-def _decode_bf8(arr: np.ndarray, gfx_arch: str = "gfx950") -> np.ndarray:
+
+def _decode_bf8(arr: np.ndarray, gfx_arch: str) -> np.ndarray:
     return _decode_fp8(arr, "bf8", gfx_arch)
+
+
+def _encode_e8m0(arr: np.ndarray) -> np.ndarray:
+    """Encode float32 scale values → e8m0 uint8 (MX block scale format).
+
+    e8m0 stores a power-of-two exponent: byte b represents 2^(b - 127).
+    Scales must be positive; zero maps to 0 (subnormal/zero in e8m0).
+    """
+    arr = np.asarray(arr, dtype=np.float32)
+    # Clamp to representable range: 2^-127 … 2^127
+    arr = np.clip(arr, 0.0, np.float32(2.0 ** 127))
+    nonzero = arr > 0.0
+    out = np.zeros(arr.shape, dtype=np.uint8)
+    # biased exponent = floor(log2(s)) + 127, clamped to [0, 254]
+    exp = np.floor(np.log2(arr[nonzero])).astype(np.int32) + 127
+    out[nonzero] = np.clip(exp, 0, 254).astype(np.uint8)
+    return out
+
+
+def _decode_e8m0(arr: np.ndarray) -> np.ndarray:
+    """Decode e8m0 uint8 → float32 scale values (2^(b - 127))."""
+    arr = np.asarray(arr, dtype=np.uint8)
+    return np.exp2(arr.astype(np.float32) - 127.0)
+
+
+# OCP FP4 E2M1 lookup table (from pk_fp4.hpp e2m1_to_fp32_table).
+# Index i (0-15) gives the float32 value for the 4-bit code i.
+_FP4_E2M1_LUT: np.ndarray = np.array([
+    0.0,  0.5,  1.0,  1.5,  2.0,  3.0,  4.0,  6.0,
+   -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0,
+], dtype=np.float32)
+
+
+def _decode_fp4(packed: np.ndarray, K: int, N: int) -> np.ndarray:
+    """Unpack K*N OCP FP4 E2M1 values from K*N/2 packed bytes.
+
+    pk_fp4_t packing (from pk_fp4.hpp _pack/_unpack):
+      byte = (element1 << 4) | (element0 & 0xF)
+    Low nibble = element at flat index 2i; high nibble = element at flat index 2i+1.
+    The flat layout is row-major [K, N], so each byte contains two consecutive N-elements.
+    """
+    flat = packed.flatten()
+    lo = (flat & 0x0F).astype(np.uint8)
+    hi = ((flat >> 4) & 0x0F).astype(np.uint8)
+    out = np.empty(K * N, dtype=np.float32)
+    out[0::2] = _FP4_E2M1_LUT[lo]
+    out[1::2] = _FP4_E2M1_LUT[hi]
+    return out.reshape(K, N)
+
+
+def _bf16_raw_to_f32(arr: np.ndarray) -> np.ndarray:
+    """Reinterpret a uint16 array of bf16 bit patterns as float32."""
+    u16 = arr.flatten().astype(np.uint16)
+    words = np.zeros(len(u16) * 2, dtype=np.uint16)
+    words[1::2] = u16  # bf16 occupies upper 2 bytes of float32 (little-endian)
+    return words.view(np.float32).reshape(arr.shape)
 
 
 # ---------------------------------------------------------------------------
@@ -119,11 +173,15 @@ def _reference_gemm(A_f32: np.ndarray, B_f32: np.ndarray,
 
 
 def _max_rel_err(C_gpu: np.ndarray, C_ref: np.ndarray) -> float:
-    # Canonical helper in conftest.py: max|gpu-ref| / (|ref| + max(1%*max|ref|,
-    # 1e-6)).  The 1%-of-global-max floor avoids inflating the relative error
-    # when individual elements are near zero (random GEMM inputs that partially
-    # cancel).
-    return _conftest_max_rel_err(C_gpu, C_ref, floor_frac=1e-2)
+    C_gpu_f = C_gpu.astype(np.float32)
+    C_ref_f = C_ref.astype(np.float32)
+    num = np.abs(C_gpu_f - C_ref_f)
+    # Use 1% of the global max magnitude as the denominator floor to avoid
+    # inflating the relative error when individual elements are near zero
+    # (a common occurrence with random inputs that partially cancel in GEMM).
+    ref_max = float(np.abs(C_ref_f).max())
+    den = np.abs(C_ref_f) + max(ref_max * 1e-2, 1e-6)
+    return float(np.max(num / den))
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +191,37 @@ def _max_rel_err(C_gpu: np.ndarray, C_ref: np.ndarray) -> float:
 PASS = "PASS"
 FAIL = "FAIL"
 SKIP = "SKIP"
+
+# ctest reports this as "skipped" rather than passed. Without it, a CPU-only or
+# non-supported runner would report every BQuant test as a hard FAIL for a reason
+# that has nothing to do with the code under test.
+SKIP_EXIT = 77
+
+# Kept in lockstep with the CI gate (`arch == "gfx950"` in ck.groovy): the two
+# must not disagree, or the test claims coverage no lane produces. The blockers
+# that made this gfx950-only -- the OCP-hardcoded host codec and the warp_tile_k
+# mismatches in the utils -- are fixed, so widening this to include "gfx942" is
+# a matter of flipping the lane and this tuple together, in that follow-up.
+SUPPORTED_ARCHS = ("gfx950",)
+
+# H3 (mx_*) is gfx950-only at the ISA level: __builtin_amdgcn_mfma_scale_f32_*
+# builtins do not exist on gfx942 and cause a compile error there, not a silent
+# zero. These cases are not merely deferred -- they cannot be enabled on gfx942.
+MX_SUPPORTED_ARCHS = ("gfx950",)
+
+
+def _detect_arch() -> str | None:
+    """Detected gfx arch, or None when no GPU is visible.
+
+    The empty fallback keeps absence detectable; detect_gpu_arch would otherwise
+    invent a default and turn "no GPU" into a confusing build failure.
+    """
+    try:
+        from dispatcher_common import detect_gpu_arch
+
+        return detect_gpu_arch(fallback="") or None
+    except Exception:
+        return None
 
 
 def _run_one(label: str, config, M: int, N: int, K: int,
@@ -181,9 +270,14 @@ def _run_one(label: str, config, M: int, N: int, K: int,
     # Convert raw output to float32 for validation (needed for bf16 output via uint16 buffer)
     C_gpu = c_decode_fn(C_gpu_raw) if c_decode_fn is not None else C_gpu_raw.astype(np.float32)
 
-    # Non-zero check (C4 / H3 smoke)
+    # Non-trivial check (C4 / H3 smoke). A wrong warp_tile_k (CK_GFX950_SUPPORT
+    # branch mismatch) produces all-zero or all-constant output on gfx942; catch
+    # it here before the tolerance gate, whose denominator near zero is unhelpful.
     if np.all(C_gpu == 0):
         return FAIL, f"{label}: GPU output is all-zero"
+    if float(C_gpu.std()) <= 0.0:
+        return FAIL, (f"{label}: GPU output is constant "
+                      f"(value={float(C_gpu.flat[0]):.6g}); kernel did not compute")
     nan_mask = ~np.isfinite(C_gpu.astype(np.float32))
     if np.any(nan_mask):
         nan_frac = nan_mask.mean()
@@ -212,7 +306,7 @@ def _run_one(label: str, config, M: int, N: int, K: int,
 # Individual test cases
 # ---------------------------------------------------------------------------
 
-def _make_fp8_inputs(M, N, K, gK, gN, dtype="fp8", seed=42, gfx_arch="gfx950"):
+def _make_fp8_inputs(M, N, K, gK, gN, dtype="fp8", gfx_arch="gfx950", seed=42):
     rng = np.random.default_rng(seed)
     QK_B = math.ceil(K / gK)
     QN_B = math.ceil(N / gN)
@@ -227,7 +321,7 @@ def _make_fp8_inputs(M, N, K, gK, gN, dtype="fp8", seed=42, gfx_arch="gfx950"):
 
 
 def _to_bf16_raw(x: np.ndarray) -> np.ndarray:
-    """Encode float32 array -> uint16 array of bfloat16 bit patterns."""
+    """Encode float32 array → uint16 array of bfloat16 bit patterns."""
     packed = np.frombuffer(x.astype(np.float32).tobytes(), dtype=np.uint16)
     # Little-endian: bf16 occupies the upper 2 bytes of each float32,
     # which are at odd indices (1, 3, 5, ...) in the uint16 view.
@@ -257,10 +351,13 @@ def _make_bf16_inputs(M, N, K, gK, gN, seed=42):
 # N-tile sweep: N=128 is a single N-tile; N=256/512 span 2 and 4 TileN blocks and
 # exercise the round-6 per-N-tile PermuteN de-permute (the round-5 global riffle
 # scrambled columns at N>=256).  gN must divide N; TileN is 64 (decode) / 128 (MX).
+#
+# A single pinned N under TileN would leave the de-permute entirely unexercised,
+# so this is coverage, not a knob: shrink it only with a replacement for that path.
 _N_SWEEP = (128, 256, 512)
 
 
-def _case_c4_fp8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
+def case_c4_fp8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
     # K=768 = 3*TileK(256): use num_loop=3 (TailNumber::Odd) for better coverage.
     # num_loop=2 works but exercises only the no-hot-loop/Even tail path; 3 gives
     # the no-hot-loop/Odd tail path and exercises the BQ scale prefetch more robustly.
@@ -277,8 +374,8 @@ def _case_c4_fp8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
     return PASS, f"C4/fp8: PASS for N in {_N_SWEEP}"
 
 
-def _case_c4_bf8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
-    # K=768 = 3*TileK(256): use num_loop=3 for the same reason as test_c4_fp8.
+def case_c4_bf8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
+    # K=768 = 3*TileK(256): use num_loop=3 for the same reason as case_c4_fp8.
     M, K, gK, gN = 16, 768, 128, 1
     cfg = default_bf8_config(quant_group_k=gK, quant_group_n=gN, gfx_arch=gfx_arch)
     for N in _N_SWEEP:
@@ -292,7 +389,10 @@ def _case_c4_bf8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
     return PASS, f"C4/bf8: PASS for N in {_N_SWEEP}"
 
 
-def _case_h3_mx_bf16bf16(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
+def case_h3_mx_bf16bf16(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
+    if gfx_arch not in MX_SUPPORTED_ARCHS:
+        return SKIP, (f"H3/mx_bf16bf16: not supported on {gfx_arch} "
+                      f"(requires {'/'.join(MX_SUPPORTED_ARCHS)})")
     # K=256 = 2*TileK(128): MicroscaleCompV3 needs num_loop>=2 to avoid OOB second prefetch
     M, K, gK, gN = 128, 256, 32, 1
     cfg = default_mx_bf16bf16_config(quant_group_k=gK, quant_group_n=gN, gfx_arch=gfx_arch)
@@ -308,7 +408,10 @@ def _case_h3_mx_bf16bf16(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
     return PASS, f"H3/mx_bf16bf16: PASS for N in {_N_SWEEP}"
 
 
-def _case_h3_mx_bf16bf8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
+def case_h3_mx_bf16bf8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
+    if gfx_arch not in MX_SUPPORTED_ARCHS:
+        return SKIP, (f"H3/mx_bf16bf8: not supported on {gfx_arch} "
+                      f"(requires {'/'.join(MX_SUPPORTED_ARCHS)})")
     # K=384 = 3*TileK(128): use num_loop=3 (TailNumber::Odd) for broader pipeline coverage.
     M, K, gK, gN = 128, 384, 128, 1
     cfg = default_mx_bf16bf8_config(quant_group_k=gK, quant_group_n=gN, gfx_arch=gfx_arch)
@@ -327,8 +430,11 @@ def _case_h3_mx_bf16bf8(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
     return PASS, f"H3/mx_bf16bf8: PASS for N in {_N_SWEEP}"
 
 
-def _case_h3_mx_bf16fp4(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
-    # pk_fp4: 2 fp4 values per byte -> B buffer is K*N/2 bytes.
+def case_h3_mx_bf16fp4(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
+    if gfx_arch not in MX_SUPPORTED_ARCHS:
+        return SKIP, (f"H3/mx_bf16fp4: not supported on {gfx_arch} "
+                      f"(requires {'/'.join(MX_SUPPORTED_ARCHS)})")
+    # pk_fp4: 2 fp4 values per byte → B buffer is K*N/2 bytes.
     # K=256 = 2*TileK(128): MicroscaleCompV3 needs num_loop>=2 to avoid OOB second prefetch.
     M, K, gK, gN = 128, 256, 32, 1
     cfg = default_mx_bf16fp4_config(quant_group_k=gK, quant_group_n=gN, gfx_arch=gfx_arch)
@@ -353,7 +459,7 @@ def _case_h3_mx_bf16fp4(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
     return PASS, f"H3/mx_bf16fp4: PASS for N in {_N_SWEEP}"
 
 
-def _case_c_i4(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
+def case_c_i4(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
     """Round-6: fp8i4 / bf8i4 must be exact once BQ is encoded to the kernel's
     QDataType (fp8/bf8, 1 byte).  The round-5 float32 BQ produced NaN.  Swept over
     N to also exercise the per-N-tile de-permute.  B is pk_int4 (2 per byte)."""
@@ -409,67 +515,46 @@ def _case_c_i4(out_dir: Path, gfx_arch: str) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 TESTS = [
-    ("C4/fp8",          _case_c4_fp8),
-    ("C4/bf8",          _case_c4_bf8),
-    ("C/i4",            _case_c_i4),
-    ("H3/mx_bf16bf16",  _case_h3_mx_bf16bf16),
-    ("H3/mx_bf16bf8",   _case_h3_mx_bf16bf8),
-    ("H3/mx_bf16fp4",   _case_h3_mx_bf16fp4),
+    ("C4/fp8",          case_c4_fp8),
+    ("C4/bf8",          case_c4_bf8),
+    ("C/i4",            case_c_i4),
+    ("H3/mx_bf16bf16",  case_h3_mx_bf16bf16),
+    ("H3/mx_bf16bf8",   case_h3_mx_bf16bf8),
+    ("H3/mx_bf16fp4",   case_h3_mx_bf16fp4),
 ]
-
-
-@pytest.mark.parametrize("case_name,case_fn", TESTS, ids=[t[0] for t in TESTS])
-def test_bquant_gpu_c4_h3(case_name, case_fn, gpu_arch, tmp_path):
-    """C4/H3 bquant GPU correctness -- one pytest case per TESTS entry.
-
-    Runs on a real GPU (the gpu_arch fixture skips cleanly on CPU-only boxes).
-    MX (H3) variants need gfx950 e8m0 hardware; on any other arch they skip.
-    """
-    try:
-        status, detail = case_fn(tmp_path, gpu_arch)
-    except Exception as exc:  # noqa: BLE001
-        if "requires gfx950" in str(exc):
-            pytest.skip(f"{case_name}: MX is gfx950-only (arch={gpu_arch})")
-        raise
-    if status == SKIP:
-        pytest.skip(detail)
-    assert status == PASS, detail
-
-
-def _gpu_and_hipcc_available() -> bool:
-    """True only if both hipcc and a ROCm GPU are present.
-
-    Lets the standalone test SKIP cleanly (exit 0) on CPU-only CI runners
-    instead of failing when the kernel build/run cannot proceed.  Delegates to
-    the canonical probe shared with the sibling quant GPU tests.
-    """
-    from conftest import gpu_available
-
-    return gpu_available()
 
 
 def main():
     parser = argparse.ArgumentParser(description="BQuant GPU correctness tests (C4 + H3)")
-    parser.add_argument(
-        "--gfx",
-        default=None,
-        help="GPU arch (default: auto-detect the running device via rocm_agent_enumerator)",
-    )
+    # No hardcoded default: it must stay possible to tell "user asked for
+    # gfx950" from "we are on an unrelated box", so the skip below can fire.
+    parser.add_argument("--gfx", default=None,
+                        help="GPU arch override (default: auto-detect)")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=None)
     args = parser.parse_args()
-
-    if not _gpu_and_hipcc_available():
-        print("SKIP: no GPU/hipcc detected; skipping bquant GPU correctness")
-        return 0
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s: %(message)s",
     )
 
-    gfx_arch = args.gfx or _detect_gpu_arch()
-    log.info("Target GPU arch: %s", gfx_arch)
+    gfx = args.gfx or _detect_arch()
+    if not gfx:
+        print("SKIP: no supported GPU detected (rocminfo); BQuant GPU tests skipped")
+        return SKIP_EXIT
+    if gfx not in SUPPORTED_ARCHS:
+        print(f"SKIP: BQuant is {'/'.join(SUPPORTED_ARCHS)}-only; detected {gfx}")
+        return SKIP_EXIT
+    try:
+        import ml_dtypes  # noqa: F401
+    except ImportError:
+        # Gate here rather than letting _encode_fp8 raise: an ImportError inside a
+        # test function is swallowed by the loop's `except Exception` below and
+        # reported as FAIL, blaming the kernel for a missing host dependency.
+        print("SKIP: ml_dtypes not installed; BQuant fp8/bf8 encoding unavailable")
+        return SKIP_EXIT
+
     out_dir = args.output_dir or Path(tempfile.mkdtemp(prefix="bquant_gpu_test_"))
     log.info("Kernel output dir: %s", out_dir)
 
@@ -477,25 +562,20 @@ def main():
     for name, fn in TESTS:
         log.info("--- Running %s ---", name)
         try:
-            status, detail = fn(out_dir, gfx_arch)
+            status, detail = fn(out_dir, gfx)
         except Exception as exc:
-            # MX (H3) variants need gfx950 e8m0 microscaling hardware; on any
-            # other arch (e.g. gfx1250/MI400) that is an expected skip, not a
-            # failure -- the fp8/bf8/i4 block-scale paths still run there.
-            if "requires gfx950" in str(exc):
-                status, detail = SKIP, f"{name}: skipped on {gfx_arch} (MX is gfx950-only)"
-            else:
-                status, detail = FAIL, f"{name}: exception: {exc}"
+            status, detail = FAIL, f"{name}: exception: {exc}"
         results.append((name, status, detail))
         log.info("[%s] %s", status, detail)
 
     print("\n=== Summary ===")
-    passed = sum(1 for _, s, _ in results if s == PASS)
-    skipped = sum(1 for _, s, _ in results if s == SKIP)
-    failed = sum(1 for _, s, _ in results if s == FAIL)
     for name, status, detail in results:
         print(f"  [{status:4s}] {detail}")
-    print(f"\n{passed}/{len(results)} passed, {skipped} skipped, {failed} failed")
+    passed = sum(1 for _, s, _ in results if s == PASS)
+    skipped = sum(1 for _, s, _ in results if s == SKIP)
+    failed = len(results) - passed - skipped
+    print(f"\n{passed}/{len(results) - skipped} passed"
+          + (f", {skipped} skipped" if skipped else ""))
 
     return 0 if failed == 0 else 1
 

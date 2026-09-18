@@ -54,6 +54,11 @@ if _codegen_dir not in sys.path:
     sys.path.insert(0, _codegen_dir)
 from codegen_common import make_aquant_kernel_name  # noqa: E402
 
+_python_dir = str(Path(__file__).parent)
+if _python_dir not in sys.path:
+    sys.path.insert(0, _python_dir)
+from dispatcher_common import arch_feature_defines  # noqa: E402
+
 _DEFAULT_HIPCC    = "hipcc"
 _DEFAULT_GFX_ARCH = "gfx950"
 
@@ -498,9 +503,15 @@ def _compile_aquant_kernel(
     """Compile a generated .hpp into a .so via hipcc. Returns True on success."""
     ck_include = _get_ck_include_dir()
 
+    # Arch-specific defines: gfx950 uses OCP fp8 (not FNUZ) and native MX support.
+    # These mirror the CMakeLists.txt definitions that are normally injected by CMake
+    # but are absent in the standalone hipcc build path.
+    arch_defines = arch_feature_defines(gfx_arch)
+
     cmd = [hipcc] + _HIPCC_BASE_FLAGS + [
         f"--offload-arch={gfx_arch}",
         f"-DGFX_ARCH=\"{gfx_arch}\"",
+        *arch_defines,
         "-include", str(hpp_path),
         str(_CTYPES_LIB_SRC),
         "-o", str(so_path),
@@ -552,6 +563,18 @@ def setup_multiple_aquant_dispatchers(
     """
     if not configs:
         return []
+
+    _AQUANT_SUPPORTED_LAYOUTS = ("rcr",)
+    bad = [c for c in configs if c.layout not in _AQUANT_SUPPORTED_LAYOUTS]
+    if bad:
+        raise ValueError(
+            f"grouped_gemm_aquant bridge only supports layouts "
+            f"{_AQUANT_SUPPORTED_LAYOUTS}; "
+            f"got unsupported layouts: "
+            f"{sorted({c.layout for c in bad})}. "
+            f"Non-rcr layout support requires changes to the ctypes stride "
+            f"derivation in grouped_gemm_aquant_ctypes_lib.cpp (plan Step 7)."
+        )
 
     arch = gfx_arch or _detect_gpu_arch()
     base_dir = output_dir or Path(tempfile.mkdtemp(prefix="aquant_dispatcher_"))
@@ -737,6 +760,18 @@ def default_bf8i4_config(
     )
 
 
+def _preshuffleaq_warp_tile_k(gfx_arch: str) -> int:
+    """warp_tile_k for preshuffleAQ (FlatMM): 128 on gfx950, 64 on gfx942.
+
+    get_k_warp_tile() in tile_gemm_shape.hpp branches on CK_GFX950_SUPPORT:
+    FlatMM selects 128 on gfx950 (the 16x16x128 f8f6f4 MFMA) and 64 on gfx942
+    (the 16x16x64 fp8 MFMA). A mismatched value compiles but silently produces
+    zeros rather than a build error, so this helper and arch_feature_defines
+    must stay in sync.
+    """
+    return 128 if gfx_arch.startswith("gfx950") else 64
+
+
 def default_fp8_preshuffleaq_config(
     quant_group_k: int = 128,
     quant_group_m: int = 1,
@@ -745,7 +780,7 @@ def default_fp8_preshuffleaq_config(
     """fp8 preshuffle-AQ config (GemmConfigPreshuffleQuantDecode<fp8_t>, CompV3 pipeline).
 
     APreshuffleQuant=true, BPreshuffleQuant=true — both scale tensors are preshuffled.
-    Tile: 16x64x256, warp_tile_k=128 (gfx950 FlatMM, 8-bit float).
+    Tile: 16x64x256. warp_tile_k is arch-aware: 128 on gfx950 (FlatMM), 64 on gfx942.
     """
     return AQuantKernelConfig(
         variant_key="fp8",
@@ -755,7 +790,7 @@ def default_fp8_preshuffleaq_config(
         scheduler="intrawave",
         tile_m=16, tile_n=64, tile_k=256,
         warp_m=1, warp_n=4, warp_k=1,
-        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=_preshuffleaq_warp_tile_k(gfx_arch),
         quant_group_m=quant_group_m,
         quant_group_n=1,
         quant_group_k=quant_group_k,
@@ -778,7 +813,7 @@ def default_bf8_preshuffleaq_config(
         scheduler="intrawave",
         tile_m=16, tile_n=64, tile_k=256,
         warp_m=1, warp_n=4, warp_k=1,
-        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=_preshuffleaq_warp_tile_k(gfx_arch),
         quant_group_m=quant_group_m,
         quant_group_n=1,
         quant_group_k=quant_group_k,

@@ -91,7 +91,7 @@ def showCompilerInfo(boolean deferBinaryInfo = false, String dockerImage = "") {
 
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
-                                              0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_BASIC_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_DISPATCHER_PERF_TESTS=true;RUN_DISPATCHER_CORRECTNESS_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=false;BUILD_GFX908=false;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=develop;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=therock;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
@@ -182,13 +182,13 @@ pipeline {
             defaultValue: false,
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
-            name: "RUN_TILE_ENGINE_BASIC_TESTS",
-            defaultValue: true,
-            description: "Run the tile_engine_basic tests (default: ON)")
-        booleanParam(
-            name: "RUN_TILE_ENGINE_GEMM_TESTS",
+            name: "RUN_DISPATCHER_CORRECTNESS_TESTS",
             defaultValue: false,
-            description: "Run the tile_engine_gemm tests (default: OFF)")
+            description: "Run Correctness Tier for Dispatcher")
+        booleanParam(
+            name: "RUN_DISPATCHER_PERF_TESTS",
+            defaultValue: false,
+            description: "Run Performance Tier for Dispatcher")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -383,92 +383,52 @@ pipeline {
                 beforeAgent true
                 expression { env.SHOULD_RUN_CI.toBoolean() }
             }
-            parallel
-            {
-                stage("Run Pytorch Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_PYTORCH_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                ck.run_downstream_tests(image: "${env.CK_PYTORCH_IMAGE}", timeoutHours: 2, execute_cmds: ck.getPytorchTestsCmds())
-                                cleanWs()
+            agent none
+            steps {
+                script {
+                    loadCk()
+                    parallel([
+                        "Run Pytorch Tests on gfx942": {
+                            if (params.RUN_PYTORCH_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx942")) {
+                                    ck.run_downstream_tests(image: "${env.CK_PYTORCH_IMAGE}", timeoutHours: 2, execute_cmds: ck.getPytorchTestsCmds())
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Run AITER Tests on gfx942": {
+                            if (params.RUN_AITER_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx942")) {
+                                    ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds())
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Run AITER Tests on gfx950": {
+                            if (params.RUN_AITER_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx950")) {
+                                    ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds())
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Run FA Tests on gfx942": {
+                            if (params.RUN_FA_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx942")) {
+                                    ck.run_downstream_tests(image: "${env.CK_FA_IMAGE}", timeoutHours: 5, execute_cmds: ck.getFaTestsCmds())
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Run FA Tests on gfx950": {
+                            if (params.RUN_FA_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx950")) {
+                                    ck.run_downstream_tests(image: "${env.CK_FA_IMAGE}", timeoutHours: 5, execute_cmds: ck.getFaTestsCmds())
+                                    cleanWs()
+                                }
                             }
                         }
-                    }
-                }
-                stage("Run AITER Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_AITER_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds())
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run AITER Tests on gfx950")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_AITER_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx950")) {
-                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds())
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run FA Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_FA_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                ck.run_downstream_tests(image: "${env.CK_FA_IMAGE}", timeoutHours: 5, execute_cmds: ck.getFaTestsCmds())
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run FA Tests on gfx950")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_FA_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx950")) {
-                                ck.run_downstream_tests(image: "${env.CK_FA_IMAGE}", timeoutHours: 5, execute_cmds: ck.getFaTestsCmds())
-                                cleanWs()
-                            }
-                        }
-                    }
+                    ])
                 }
             }
         }
@@ -562,364 +522,154 @@ pipeline {
                 beforeAgent true
                 expression { env.SHOULD_RUN_CI.toBoolean() }
             }
-            parallel
-            {
-                stage("Run CK_TILE_FMHA Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx90a")) {
-                                deleteDir()
-                                ck.buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: ck.build_and_run_fmha("gfx90a"))
-                                cleanWs()
+            agent none
+            steps {
+                script {
+                    loadCk()
+                    parallel([
+                        "Run CK_TILE_FMHA Tests on gfx90a": {
+                            if (params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx90a")) {
+                                    deleteDir()
+                                    ck.buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: ck.build_and_run_fmha("gfx90a"))
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Run CK_TILE_FMHA Tests on gfx942": {
+                            if (params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx942")) {
+                                    deleteDir()
+                                    ck.buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: ck.build_and_run_fmha("gfx942"))
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Run CK_TILE_FMHA Tests on gfx950": {
+                            if (params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx950")) {
+                                    deleteDir()
+                                    ck.buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: ck.build_and_run_fmha("gfx950"))
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Run CK_TILE_FMHA Tests on gfx1201": {
+                            if (params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx1201")) {
+                                    deleteDir()
+                                    ck.buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: ck.build_and_run_fmha("gfx1201"))
+                                    cleanWs()
+                                }
                             }
                         }
-                    }
-                }
-                stage("Run CK_TILE_FMHA Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                deleteDir()
-                                ck.buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: ck.build_and_run_fmha("gfx942"))
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run CK_TILE_FMHA Tests on gfx950")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx950")) {
-                                deleteDir()
-                                ck.buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: ck.build_and_run_fmha("gfx950"))
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run CK_TILE_FMHA Tests on gfx1201")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx1201")) {
-                                deleteDir()
-                                ck.buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: ck.build_and_run_fmha("gfx1201"))
-                                cleanWs()
-                            }
-                        }
-                    }
+                    ])
                 }
             }
         }
-        stage("Run TILE_ENGINE_BASIC Tests")
+        stage("Run DISPATCHER Tests")
         {
             when {
                 beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() }
+                expression { env.SHOULD_RUN_CI.toBoolean() && (params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean() || params.RUN_DISPATCHER_PERF_TESTS.toBoolean()) }
             }
-            parallel
-            {
-                stage("Run TILE_ENGINE_BASIC Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_BASIC_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                deleteDir()
-                                ck.runTileEngineBasicTests(params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        stage("Run TILE_ENGINE_GEMM Tests")
-        {
-            when {
-                beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() }
-            }
-            parallel
-            {
-                stage("Run TILE_ENGINE_GEMM Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                deleteDir()
-                                ck.runTileEngineGemmTests("gfx942", params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run TILE_ENGINE_GEMM Tests on gfx950")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx950")) {
-                                deleteDir()
-                                ck.runTileEngineGemmTests("gfx950", params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run TILE_ENGINE_GEMM Tests on gfx1201")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx1201")) {
-                                deleteDir()
-                                ck.runTileEngineGemmTests("gfx1201", params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
+            agent none
+            steps {
+                script {
+                    loadCk()
+                    ck.runDispatcherTests(
+                        this.&rocmnode,
+                        params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean(),
+                        params.RUN_DISPATCHER_PERF_TESTS.toBoolean(),
+                        params.BUILD_COMPILER)
                 }
             }
         }
 
-		stage("Build CK and run Tests")
+        stage("Build CK and run Tests")
         {
             when {
                 beforeAgent true
                 expression { env.SHOULD_RUN_CI.toBoolean() }
             }
-            parallel
-            {
-                stage("Build CK and run Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { (params.BUILD_GFX942.toBoolean() || params.RUN_FULL_QA.toBoolean()) && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                deleteDir()
-                                ck.runBuildCKAndTests("gfx942")
-                                cleanWs()
+            agent none
+            steps {
+                script {
+                    loadCk()
+                    parallel([
+                        "Build CK and run Tests on gfx942": {
+                            if ((params.BUILD_GFX942.toBoolean() || params.RUN_FULL_QA.toBoolean()) && !params.BUILD_INSTANCES_ONLY.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx942")) {
+                                    deleteDir()
+                                    ck.runBuildCKAndTests("gfx942")
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Build CK and run Tests on gfx950": {
+                            if (params.BUILD_GFX950.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx950")) {
+                                    deleteDir()
+                                    ck.runBuildCKAndTests("gfx950")
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Build CK and run Tests on gfx90a": {
+                            if (params.BUILD_GFX90A.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx90a")) {
+                                    deleteDir()
+                                    ck.runBuildCKAndTests("gfx90a")
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Build CK instances for all supported targets": {
+                            if (params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx942")) {
+                                    deleteDir()
+                                    ck.runBuildInstancesOnly(params.BUILD_COMPILER)
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Build CK and run Tests on gfx1030": {
+                            if (params.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx1030")) {
+                                    deleteDir()
+                                    ck.runBuildCKAndTests("gfx10-3-generic")
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Build CK and run Tests on gfx11": {
+                            if (params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean()) {
+                                ck.runOnHealthyNode('miopen && (gfx1101 || gfx1100)') {
+                                    deleteDir()
+                                    ck.runBuildCKAndTests("gfx11-generic")
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Build CK and run Tests on gfx1201": {
+                            if (params.BUILD_GFX12.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx1201")) {
+                                    deleteDir()
+                                    ck.runBuildCKAndTests("gfx12-generic")
+                                    cleanWs()
+                                }
+                            }
+                        },
+                        "Build CK for gfx1250": {
+                            if (params.BUILD_GFX1250.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean()) {
+                                ck.runOnHealthyNode(rocmnode("gfx90a")) {
+                                    deleteDir()
+                                    ck.runBuildCKAndTests("gfx1250")
+                                    cleanWs()
+                                }
                             }
                         }
-                    }
-                }
-                stage("Build CK and run Tests on gfx950")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX950.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx950")) {
-                                deleteDir()
-                                ck.runBuildCKAndTests("gfx950")
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                /*
-                stage("Build CK and run Tests on gfx908")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx908") }
-                    steps{
-                        deleteDir()
-                        script { loadCk(); ck.runBuildCKAndTests("gfx908") }
-                        cleanWs()
-                    }
-                }
-                */
-                stage("Build CK and run Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX90A.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx90a")) {
-                                deleteDir()
-                                ck.runBuildCKAndTests("gfx90a")
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Build CK instances for all supported targets")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() }
-                    }
-                    agent none
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                            -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
-                                            -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
-                                            -DGPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic" \
-                                            -D CMAKE_BUILD_TYPE=Release .. && ninja -j64 """
-                    }
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                deleteDir()
-                                ck.runBuildInstancesOnly(params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                /*
-                stage("Build CK and run Tests on gfx1010")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX101.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx1010") }
-                    steps{
-                        deleteDir()
-                        script { loadCk(); ck.runBuildCKAndTests("gfx10-1-generic") }
-                        cleanWs()
-                    }
-                }
-                */
-                stage("Build CK and run Tests on gfx1030")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx1030")) {
-                                deleteDir()
-                                ck.runBuildCKAndTests("gfx10-3-generic")
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Build CK and run Tests on gfx11")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode('miopen && (gfx1101 || gfx1100)') {
-                                deleteDir()
-                                ck.runBuildCKAndTests("gfx11-generic")
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Build CK and run Tests on gfx1201")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX12.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx1201")) {
-                                deleteDir()
-                                ck.runBuildCKAndTests("gfx12-generic")
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Build CK for gfx1250")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_GFX1250.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx90a")) {
-                                deleteDir()
-                                ck.runBuildCKAndTests("gfx1250")
-                                cleanWs()
-                            }
-                        }
-                    }
+                    ])
                 }
             }
             post {
@@ -927,7 +677,6 @@ pipeline {
                     node(rocmnode("nogpu")) {
                         script {
                             loadCk()
-                            // Simulate capture
                             ck.generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx11.json")
                             ck.generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx12.json")
                             ck.generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx90a.json")
@@ -941,7 +690,6 @@ pipeline {
                     script {
                         node(rocmnode("nogpu")) {
                             loadCk()
-                            // Report the parent stage build ck and run tests status
                             ck.setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
                             echo "Reporting success status for build ck and run tests"
                         }

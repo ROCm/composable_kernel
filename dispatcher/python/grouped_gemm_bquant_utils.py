@@ -52,6 +52,11 @@ if _codegen_dir not in sys.path:
     sys.path.insert(0, _codegen_dir)
 from codegen_common import make_bquant_kernel_name  # noqa: E402
 
+_python_dir = str(Path(__file__).parent)
+if _python_dir not in sys.path:
+    sys.path.insert(0, _python_dir)
+from dispatcher_common import arch_feature_defines  # noqa: E402
+
 _DEFAULT_HIPCC    = "hipcc"
 _DEFAULT_GFX_ARCH = "gfx950"
 
@@ -524,11 +529,7 @@ def _compile_bquant_kernel(
     # Arch-specific defines: gfx950 uses OCP fp8 (not FNUZ) and native MX support.
     # These mirror the CMakeLists.txt definitions that are normally injected by CMake
     # but are absent in the standalone hipcc build path.
-    arch_defines = []
-    if "gfx12" in gfx_arch or "gfx950" in gfx_arch:
-        arch_defines += ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"]
-    if "gfx950" in gfx_arch:
-        arch_defines += ["-DCK_USE_NATIVE_MX_SUPPORT", "-DCK_GFX950_SUPPORT"]
+    arch_defines = arch_feature_defines(gfx_arch)
 
     compile_cmd = [hipcc, "-c", "-fPIC", "-O3", "-std=c++17",
                    "-DCK_TILE_SINGLE_KERNEL_INCLUDE", "-w",
@@ -619,6 +620,21 @@ def setup_multiple_bquant_dispatchers(
     """
     if not configs:
         return []
+
+    # The bquant ctypes lib asserts packed rcr strides and will raise at runtime
+    # for any other layout. Fail loudly here, before any build work, so the
+    # caller knows which config is wrong rather than getting a ctypes error later.
+    _BQUANT_SUPPORTED_LAYOUTS = ("rcr",)
+    bad = [c for c in configs if c.layout not in _BQUANT_SUPPORTED_LAYOUTS]
+    if bad:
+        raise ValueError(
+            f"grouped_gemm_bquant bridge only supports layouts "
+            f"{_BQUANT_SUPPORTED_LAYOUTS}; "
+            f"got unsupported layouts: "
+            f"{sorted({c.layout for c in bad})}. "
+            f"Non-rcr layout support requires changes to the ctypes stride "
+            f"derivation in grouped_gemm_bquant_ctypes_lib.cpp (plan Step 7)."
+        )
 
     arch = gfx_arch or _detect_gpu_arch()
     base_dir = output_dir or Path(tempfile.mkdtemp(prefix="bquant_dispatcher_"))
@@ -791,6 +807,32 @@ def expand_bquant_sweep(
 # =============================================================================
 
 
+# NOTE: the gfx942 branch of both helpers below is correct but not yet exercised
+# by CI -- the bquant lane is gated to gfx950 (ck.groovy) and
+# test_bquant_gpu_correctness.SUPPORTED_ARCHS matches it. They are written
+# arch-aware now so that enabling gfx942 is a one-line change in those two
+# places; until that follow-up lands, treat the gfx942 values as unvalidated.
+
+
+def _fp8_warp_tile_k(gfx_arch: str) -> int:
+    """warp_tile_k for fp8/bf8 compv3 (non-FlatMM): 128 on gfx950, 32 on gfx942.
+
+    get_k_warp_tile<fp8_t, M_Warp_Tile=16>() in tile_gemm_shape.hpp returns 128
+    on gfx950 (CK_GFX950_SUPPORT set) and 32 on gfx942 (is_8bit_float, standard
+    MFMA, mfma_f32_16x16x32_fp8_fp8). A mismatched value compiles but silently
+    returns zeros rather than a build error.
+    """
+    return 128 if gfx_arch.startswith("gfx950") else 32
+
+
+def _preshuffleb_warp_tile_k(gfx_arch: str) -> int:
+    """warp_tile_k for preshuffleB FlatMM: 128 on gfx950, 64 on gfx942.
+
+    Mirrors abquant's _preshuffleb_warp_tile_k; same CK_GFX950_SUPPORT branch.
+    """
+    return 128 if gfx_arch.startswith("gfx950") else 64
+
+
 def default_fp8_config(
     quant_group_k: int = 128,
     quant_group_n: int = 1,
@@ -798,8 +840,9 @@ def default_fp8_config(
 ) -> BQuantKernelConfig:
     """Return the default fp8 BQuant config (tile = 16x64x256, warp = 1x4x1).
 
-    WarpTileK=128: on gfx950 get_k_warp_tile<fp8_t, M_Warp_Tile=16>() returns 128
-    (is_8bit_float=true, M_Warp_Tile!=32 → K_warp=128). Using 16 causes zero output.
+    warp_tile_k is arch-aware: 128 on gfx950 (get_k_warp_tile returns 128 for
+    CK_GFX950_SUPPORT + is_8bit_float + M_Warp_Tile=16), 32 on gfx942 (standard
+    mfma_f32_16x16x32_fp8_fp8). A mismatched value silently returns zeros.
     """
     return BQuantKernelConfig(
         variant_key="fp8",
@@ -809,7 +852,7 @@ def default_fp8_config(
         scheduler="intrawave",
         tile_m=16, tile_n=64, tile_k=256,
         warp_m=1, warp_n=4, warp_k=1,
-        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=_fp8_warp_tile_k(gfx_arch),
         quant_group_m=1,
         quant_group_n=quant_group_n,
         quant_group_k=quant_group_k,
@@ -824,7 +867,7 @@ def default_bf8_config(
 ) -> BQuantKernelConfig:
     """Return the default bf8 BQuant config (tile = 16x64x256, warp = 1x4x1).
 
-    WarpTileK=128: on gfx950 get_k_warp_tile<bf8_t, M_Warp_Tile=16>() returns 128.
+    warp_tile_k is arch-aware: 128 on gfx950, 32 on gfx942. See default_fp8_config.
     """
     return BQuantKernelConfig(
         variant_key="bf8",
@@ -834,7 +877,7 @@ def default_bf8_config(
         scheduler="intrawave",
         tile_m=16, tile_n=64, tile_k=256,
         warp_m=1, warp_n=4, warp_k=1,
-        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=_fp8_warp_tile_k(gfx_arch),
         quant_group_m=1,
         quant_group_n=quant_group_n,
         quant_group_k=quant_group_k,
@@ -931,8 +974,12 @@ def default_fp8_preshuffleb_config(
     quant_group_n: int = 1,
     gfx_arch: str = _DEFAULT_GFX_ARCH,
 ) -> BQuantKernelConfig:
-    """fp8 preshuffle_b prefill config (GemmConfigPreshuffleB_BQuant_Prefill<fp8_t>)."""
-    return _preshuffleb_config("fp8", warp_tile_k=128, quant_group_k=quant_group_k,
+    """fp8 preshuffle_b prefill config (GemmConfigPreshuffleB_BQuant_Prefill<fp8_t>).
+
+    warp_tile_k is arch-aware via _preshuffleb_warp_tile_k: 128 on gfx950, 64 on gfx942.
+    """
+    return _preshuffleb_config("fp8", warp_tile_k=_preshuffleb_warp_tile_k(gfx_arch),
+                               quant_group_k=quant_group_k,
                                quant_group_n=quant_group_n, gfx_arch=gfx_arch)
 
 
@@ -941,8 +988,12 @@ def default_bf8_preshuffleb_config(
     quant_group_n: int = 1,
     gfx_arch: str = _DEFAULT_GFX_ARCH,
 ) -> BQuantKernelConfig:
-    """bf8 preshuffle_b prefill config (GemmConfigPreshuffleB_BQuant_Prefill<bf8_t>)."""
-    return _preshuffleb_config("bf8", warp_tile_k=128, quant_group_k=quant_group_k,
+    """bf8 preshuffle_b prefill config (GemmConfigPreshuffleB_BQuant_Prefill<bf8_t>).
+
+    warp_tile_k is arch-aware via _preshuffleb_warp_tile_k: 128 on gfx950, 64 on gfx942.
+    """
+    return _preshuffleb_config("bf8", warp_tile_k=_preshuffleb_warp_tile_k(gfx_arch),
+                               quant_group_k=quant_group_k,
                                quant_group_n=quant_group_n, gfx_arch=gfx_arch)
 
 
@@ -1015,8 +1066,12 @@ def default_fp8_preshufflequant_config(
     quant_group_n: int = 1,
     gfx_arch: str = _DEFAULT_GFX_ARCH,
 ) -> BQuantKernelConfig:
-    """fp8 preshuffle_bquant prefill config (GemmConfigPreshuffleBQuantPrefill<fp8_t>)."""
-    return _preshufflequant_config("fp8", warp_tile_k=128, quant_group_k=quant_group_k,
+    """fp8 preshuffle_bquant prefill config (GemmConfigPreshuffleBQuantPrefill<fp8_t>).
+
+    warp_tile_k is arch-aware via _preshuffleb_warp_tile_k: 128 on gfx950, 64 on gfx942.
+    """
+    return _preshufflequant_config("fp8", warp_tile_k=_preshuffleb_warp_tile_k(gfx_arch),
+                                   quant_group_k=quant_group_k,
                                    quant_group_n=quant_group_n, gfx_arch=gfx_arch)
 
 
@@ -1025,8 +1080,12 @@ def default_bf8_preshufflequant_config(
     quant_group_n: int = 1,
     gfx_arch: str = _DEFAULT_GFX_ARCH,
 ) -> BQuantKernelConfig:
-    """bf8 preshuffle_bquant prefill config (GemmConfigPreshuffleBQuantPrefill<bf8_t>)."""
-    return _preshufflequant_config("bf8", warp_tile_k=128, quant_group_k=quant_group_k,
+    """bf8 preshuffle_bquant prefill config (GemmConfigPreshuffleBQuantPrefill<bf8_t>).
+
+    warp_tile_k is arch-aware via _preshuffleb_warp_tile_k: 128 on gfx950, 64 on gfx942.
+    """
+    return _preshufflequant_config("bf8", warp_tile_k=_preshuffleb_warp_tile_k(gfx_arch),
+                                   quant_group_k=quant_group_k,
                                    quant_group_n=quant_group_n, gfx_arch=gfx_arch)
 
 
@@ -1091,8 +1150,12 @@ def default_fp8_preshuffleb_bquant_config(
     quant_group_n: int = 1,
     gfx_arch: str = _DEFAULT_GFX_ARCH,
 ) -> BQuantKernelConfig:
-    """fp8 preshuffle_b+preshuffle_bquant config (GemmConfigPreshuffleB_PreshuffleBQuant_Prefill<fp8_t>)."""
-    return _preshuffleb_bquant_config("fp8", warp_tile_k=128, quant_group_k=quant_group_k,
+    """fp8 preshuffle_b+preshuffle_bquant config (GemmConfigPreshuffleB_PreshuffleBQuant_Prefill<fp8_t>).
+
+    warp_tile_k is arch-aware via _preshuffleb_warp_tile_k: 128 on gfx950, 64 on gfx942.
+    """
+    return _preshuffleb_bquant_config("fp8", warp_tile_k=_preshuffleb_warp_tile_k(gfx_arch),
+                                      quant_group_k=quant_group_k,
                                       quant_group_n=quant_group_n, gfx_arch=gfx_arch)
 
 
@@ -1101,8 +1164,12 @@ def default_bf8_preshuffleb_bquant_config(
     quant_group_n: int = 1,
     gfx_arch: str = _DEFAULT_GFX_ARCH,
 ) -> BQuantKernelConfig:
-    """bf8 preshuffle_b+preshuffle_bquant config."""
-    return _preshuffleb_bquant_config("bf8", warp_tile_k=128, quant_group_k=quant_group_k,
+    """bf8 preshuffle_b+preshuffle_bquant config.
+
+    warp_tile_k is arch-aware via _preshuffleb_warp_tile_k: 128 on gfx950, 64 on gfx942.
+    """
+    return _preshuffleb_bquant_config("bf8", warp_tile_k=_preshuffleb_warp_tile_k(gfx_arch),
+                                      quant_group_k=quant_group_k,
                                       quant_group_n=quant_group_n, gfx_arch=gfx_arch)
 
 

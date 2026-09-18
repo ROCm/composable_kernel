@@ -16,6 +16,8 @@ class AQuantGemmBenchmark:
         self.build_dir = Path(build_dir)
         self.verbose = verbose
         self.results = []
+        self.launch_attempted = 0
+        self.launch_failed = 0
 
     def discover_kernels(self) -> List[Path]:
         """Find all benchmark_gemm_aquant_* executables in the build directory."""
@@ -275,6 +277,7 @@ class AQuantGemmBenchmark:
 
         for kernel_path in kernels:
             kernel_info = self.extract_kernel_info(kernel_path)
+            self.launch_attempted += 1
             result = self.run_kernel(kernel_path, params)
 
             if result:
@@ -309,6 +312,8 @@ class AQuantGemmBenchmark:
                         f"{structured_result['bandwidth_gb_s']:.2f} GB/s, "
                         f"{structured_result['time_ms']:.2f}ms"
                     )
+            else:
+                self.launch_failed += 1
 
         return results
 
@@ -431,6 +436,9 @@ class AQuantGemmBenchmark:
                 "successful_runs": len(
                     [r for r in self.results if r.get("tflops", 0) > 0]
                 ),
+                "launches_attempted": self.launch_attempted,
+                "launches_succeeded": self.launch_attempted - self.launch_failed,
+                "launches_failed": self.launch_failed,
             },
             "kernel_results": self.results,
             "best_kernels_by_problem": best_kernels or {},
@@ -539,6 +547,29 @@ def main():
 
     if args.json:
         benchmark.export_json(args.json, best_kernels)
+
+    # Exiting 0 after every launch failed would leave the CI lane green with no signal
+    attempted = benchmark.launch_attempted
+    failed = benchmark.launch_failed
+    succeeded = attempted - failed
+    print(f"Launches: {attempted} attempted, {succeeded} succeeded, {failed} failed")
+
+    if attempted == 0:
+        print("No kernel launches were attempted - no kernels discovered")
+        return 1
+    if not benchmark.results:
+        print("No benchmark results were collected")
+        return 1
+    if failed > 0:
+        # A warning, not a failure: this sweep runs every generated config, and
+        # individual configs legitimately fail to launch (unsupported tile shape
+        # for the arch, workspace too large for the problem size). Making any
+        # single failure red would trade a permanently-green lane for a
+        # permanently-red one, which is no more informative. Total failure is
+        # already caught by the empty-result check above, and the per-run counts
+        # are in the JSON (launches_attempted/succeeded/failed) for anyone
+        # tracking the trend.
+        print(f"WARNING: {failed} of {attempted} kernel launch(es) failed")
 
     return 0
 

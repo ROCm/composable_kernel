@@ -89,9 +89,15 @@ _SHAPES = [
 
 # Global-relative-error gates. fp16 measured ~3-4e-4 and bf16 ~8e-3 on gfx942.
 # fp8/bf8 are far coarser (3- and 2-bit mantissa) so their gates are looser; int8
-# is an exact integer accumulation so it must match bit-for-bit. The fp8/bf8
-# gates are first-cut headroom values and may want tightening once measured on a
-# GPU.
+# is an exact integer accumulation so it must match bit-for-bit.
+#
+# The fp8/bf8 numbers are still first-cut headroom, and they are deliberately
+# unchanged by the OCP/FNUZ fix. That fix removed a real source of error on
+# gfx950 -- the reference used to be FNUZ while the kernel ran OCP, a factor-of-
+# two shift these gates were wide enough to swallow -- but it changed nothing on
+# gfx942, which was FNUZ-correct all along and still needs this much room purely
+# for 3-/2-bit quantization. Tightening is a measurement, not a deduction: run
+# the sweep on both archs and set each gate from the observed maximum.
 _TOL = {
     "fp16": 2e-3,
     "bf16": 1.5e-2,
@@ -101,6 +107,16 @@ _TOL = {
 }
 
 _LAYOUT_WORD = {"r": "row", "c": "col"}
+
+# Same convention as the sibling *_gpu_correctness.py tests and as
+# SKIP_RETURN_CODE in dispatcher/tests/CMakeLists.txt. This file is not
+# ctest-registered, so the exit code is the only signal a CI lane gets: returning
+# 0 from _main() on a CPU-only or hipcc-less runner would report a green PASS for
+# the 60-case matrix below -- the lane's only int8 coverage -- without a single
+# kernel having been built. The caller in groovy/vars/ck.groovy wraps this in
+# run_ok, which translates 77 into a logged skip and lets any other non-zero
+# exit fail the lane.
+SKIP_EXIT = 77
 
 
 def _emulate_input(x: np.ndarray, dtype: str) -> np.ndarray:
@@ -259,7 +275,7 @@ def _main() -> int:
     reason = _gpu_environment_reason()
     if reason:
         print(f"SKIP: {reason}")
-        return 0
+        return SKIP_EXIT
 
     arch = detect_gpu_arch()
     print("=" * 78)

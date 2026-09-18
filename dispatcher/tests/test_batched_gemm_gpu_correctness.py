@@ -9,7 +9,7 @@ GPU correctness test for the batched GEMM dispatcher bridge.
 Builds the batched GEMM dispatcher .so (fp16 / rcr — the only signature Old-TE's
 batched_gemm_instance_builder validates), runs a small batched problem on-device
 via GpuBatchedGemmRunner, and compares the GPU output to a per-batch fp32 numpy
-reference within an fp16-appropriate tolerance. Skips cleanly (exit 0) when no
+reference within an fp16-appropriate tolerance. Skips cleanly (exit 77) when no
 GPU / hipcc is available so it is safe in a CPU-only CI lane.
 
 The kernel computes, for each batch b:
@@ -51,6 +51,11 @@ TOLERANCE = 1e-2
 PASS = "PASS"
 FAIL = "FAIL"
 SKIP = "SKIP"
+
+# ctest reports this as "skipped" rather than passed; see SKIP_RETURN_CODE in
+# dispatcher/tests/CMakeLists.txt. Returning 0 here would make a CPU-only runner
+# report a green PASS for a test that never touched the GPU.
+SKIP_EXIT = 77
 
 
 def _has_gpu() -> bool:
@@ -159,7 +164,7 @@ def main() -> int:
 
     if not _has_gpu():
         print("SKIP: no supported GPU detected (rocminfo); batched GPU test skipped")
-        return 0
+        return SKIP_EXIT
 
     gfx = args.gfx or _resolve_arch(None)
     log.info("Running batched GEMM GPU correctness on %s", gfx)

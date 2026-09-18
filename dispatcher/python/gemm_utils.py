@@ -66,11 +66,23 @@ BRIDGE_PERMUTE_N = False
 
 
 try:
-    # Reuse the single canonical amd-smi bridge instead of re-implementing it.
+    # Reuse the single canonical amd-smi bridge instead of re-implementing it,
+    # and the single source of truth for the fp8/bf8 encoding format per arch.
     from dispatcher_common import _detect_gpu_arch_via_amd_smi
+    from dispatcher_common import fp8_uses_ocp as _fp8_uses_ocp
+    from dispatcher_common import ocp_arch_defines as _ocp_arch_defines
 except Exception:  # noqa: BLE001 - standalone use without dispatcher_common on path
     def _detect_gpu_arch_via_amd_smi() -> Optional[str]:
         return None
+
+    def _fp8_uses_ocp(arch: Optional[str]) -> bool:
+        a = (arch or "").lower()
+        return a.startswith("gfx950") or a.startswith("gfx12")
+
+    def _ocp_arch_defines(arch: Optional[str]) -> List[str]:
+        if not _fp8_uses_ocp(arch):
+            return []
+        return ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"]
 
 
 @functools.lru_cache(maxsize=1)
@@ -179,11 +191,13 @@ _DTYPE_ALIASES = {
 }
 
 
-def numpy_dtype_for(dtype: str):
+def numpy_dtype_for(dtype: str, use_ocp: Optional[bool] = None):
     """Return the numpy dtype object used for host operands of ``dtype``.
 
     fp16 -> np.float16; bf16/fp8/bf8 require the ``ml_dtypes`` package (imported
-    lazily) and use FNUZ fp8 encodings for gfx942 parity.
+    lazily). The fp8/bf8 encoding follows the target arch: OCP (e4m3fn/e5m2) on
+    gfx950/gfx12, FNUZ (e4m3fnuz/e5m2fnuz) everywhere else. ``use_ocp=None``
+    resolves from the local GPU; pass it explicitly when building for another arch.
     """
     token = _DTYPE_ALIASES.get(str(dtype).lower())
     if token is None:
@@ -198,10 +212,11 @@ def numpy_dtype_for(dtype: str):
         ) from exc
     if token == "bf16":
         return np.dtype(ml_dtypes.bfloat16)
+    ocp = _resolve_use_ocp(use_ocp)
     if token == "fp8":
-        return np.dtype(ml_dtypes.float8_e4m3fnuz)
+        return np.dtype(ml_dtypes.float8_e4m3fn if ocp else ml_dtypes.float8_e4m3fnuz)
     if token == "bf8":
-        return np.dtype(ml_dtypes.float8_e5m2fnuz)
+        return np.dtype(ml_dtypes.float8_e5m2 if ocp else ml_dtypes.float8_e5m2fnuz)
     raise ValueError(f"Unsupported grouped GEMM dtype: {dtype!r}")  # pragma: no cover
 
 
@@ -225,14 +240,16 @@ def output_dtype_for(dtype: str) -> str:
     return CommonTypeMappings.get_output_dtype(token)
 
 
-def output_numpy_dtype_for(dtype: str):
+def output_numpy_dtype_for(dtype: str, use_ocp: Optional[bool] = None):
     """Numpy dtype of a kernel's OUTPUT buffer for input ``dtype``.
 
     Composition of :func:`output_dtype_for` + :func:`numpy_dtype_for`. For
     fp8/bf8 this resolves to ``np.float16`` (2 bytes) because the kernel's
-    ``CDataType`` is fp16; for fp16/bf16 it equals the input dtype.
+    ``CDataType`` is fp16; for fp16/bf16 it equals the input dtype. ``use_ocp``
+    is therefore inert today, but is threaded through so an fp8-output kernel
+    would not silently pick the wrong encoding.
     """
-    return numpy_dtype_for(output_dtype_for(dtype))
+    return numpy_dtype_for(output_dtype_for(dtype), use_ocp=use_ocp)
 
 
 # ============================================================================
@@ -872,7 +889,7 @@ def _bf16_u16_to_fp32(u16: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# fp8 (E4M3) / bf8 (E5M2) -- FNUZ ("NANOO") encoding used by gfx942/MI300.
+# fp8 (E4M3) / bf8 (E5M2) -- both the FNUZ and the OCP encoding.
 #
 # numpy has no native 8-bit float, and the C ABI only cares about the 1-byte
 # memory layout (sizeof(fp8_t) == sizeof(bf8_t) == 1). We carry the value as a
@@ -881,32 +898,79 @@ def _bf16_u16_to_fp32(u16: np.ndarray) -> np.ndarray:
 # NumPy reference multiplies bit-for-bit what the GPU multiplies. The ENCODE only
 # needs to land on the nearest representable byte.
 #
-# FNUZ format (gfx942): bias = 2^(exp_bits-1); the all-1s exponent is a normal
-# number (no Inf), the sole NaN is the sign=1/exp=0/mant=0 byte (0x80), and there
-# is no negative zero. gfx950/MI350 uses the OCP fp8 format instead; this codec
-# targets the gfx942 default and the OCP path needs separate handling.
+# The two formats differ in exponent bias and in what the all-1s exponent means:
+#
+#   FNUZ ("NANOO", gfx942 and every non-gfx950/gfx12 arch)
+#     bias = 2^(exp_bits-1) (8 / 16); the all-1s exponent is an ordinary normal
+#     number (no Inf); the sole NaN is 0x80 (sign=1, exp=0, mant=0), so there is
+#     no negative zero. Max finite: 240 (e4m3fnuz) / 57344 (e5m2fnuz).
+#
+#   OCP (gfx950, gfx12)
+#     bias = 2^(exp_bits-1) - 1 (7 / 15); 0x80 is -0.0. e4m3fn has no Inf and
+#     reserves only exp=1111,mant=111 for NaN (max finite 448); e5m2 is IEEE-like,
+#     with Inf at exp=11111,mant=0 and NaN otherwise (max finite 57344).
+#
+# Which one applies is a property of the *target arch*, not of the header: the
+# host pass of config.hpp always resolves to FNUZ (see dispatcher_common), so the
+# selection must be made here, from the arch, and mirrored into the compile flags
+# via ocp_arch_defines(). Getting this wrong does not crash -- it silently shifts
+# every reference value by a factor of two.
 # ---------------------------------------------------------------------------
 
 
-@functools.lru_cache(maxsize=None)
-def _fnuz_decode_table(exp_bits: int, mant_bits: int) -> np.ndarray:
-    """Build the 256-entry byte -> fp32 value table for an 8-bit FNUZ float.
+@functools.lru_cache(maxsize=1)
+def _default_use_ocp() -> bool:
+    """Whether the host fp8/bf8 codec should emit OCP bytes for the local GPU.
 
-    The table is a pure function of (exp_bits, mant_bits), so it is cached; the
-    returned array is marked read-only because callers share the one instance.
+    Falls back to FNUZ when no arch can be detected -- that is CK's default for
+    every arch outside gfx950/gfx12, and matches what a header compiled without
+    an explicit -DCK_TILE_USE_OCP_FP8 would pick on the host pass.
     """
-    bias = (1 << (exp_bits - 1))
+    try:
+        return _fp8_uses_ocp(_get_arch())
+    except Exception:  # noqa: BLE001 - no GPU / unknown arch
+        return False
+
+
+def _resolve_use_ocp(use_ocp: Optional[bool]) -> bool:
+    return _default_use_ocp() if use_ocp is None else bool(use_ocp)
+
+
+@functools.lru_cache(maxsize=None)
+def _fp8_decode_table(exp_bits: int, mant_bits: int, use_ocp: bool) -> np.ndarray:
+    """Build the 256-entry byte -> fp32 value table for an 8-bit float format.
+
+    The table is a pure function of (exp_bits, mant_bits, use_ocp), so it is
+    cached; the returned array is marked read-only because callers share the one
+    instance.
+    """
+    bias = (1 << (exp_bits - 1)) - 1 if use_ocp else (1 << (exp_bits - 1))
     mant_max = 1 << mant_bits
     sign_shift = exp_bits + mant_bits
     exp_mask = (1 << exp_bits) - 1
+    # OCP e4m3fn has no Inf and steals only the all-1s mantissa for NaN; OCP e5m2
+    # is IEEE-like. FNUZ has neither -- its all-1s exponent is just a big normal.
+    ocp_has_inf = use_ocp and mant_bits == 2
     table = np.zeros(256, dtype=np.float32)
     for b in range(256):
         sign = (b >> sign_shift) & 1
         exp = (b >> mant_bits) & exp_mask
         mant = b & (mant_max - 1)
         if exp == 0 and mant == 0:
-            # +0 (0x00); the negative-zero slot (0x80) is the lone NaN.
-            table[b] = np.float32(np.nan) if sign else np.float32(0.0)
+            if use_ocp:
+                table[b] = np.float32(-0.0 if sign else 0.0)
+            else:
+                # +0 (0x00); the negative-zero slot (0x80) is the lone NaN.
+                table[b] = np.float32(np.nan) if sign else np.float32(0.0)
+            continue
+        if use_ocp and exp == exp_mask:
+            if ocp_has_inf:
+                val = np.inf if mant == 0 else np.nan
+            elif mant == mant_max - 1:
+                val = np.nan
+            else:
+                val = (1.0 + mant / mant_max) * (2.0 ** (exp - bias))
+            table[b] = np.float32(-val if (sign and val == val) else val)
             continue
         if exp == 0:
             val = (mant / mant_max) * (2.0 ** (1 - bias))  # subnormal
@@ -917,16 +981,35 @@ def _fnuz_decode_table(exp_bits: int, mant_bits: int) -> np.ndarray:
     return table
 
 
-def _fnuz_encode(x: np.ndarray, exp_bits: int, mant_bits: int) -> np.ndarray:
-    """Encode fp32 -> nearest 8-bit FNUZ float, returned as a uint8 bit pattern."""
-    table = _fnuz_decode_table(exp_bits, mant_bits)
+def _fnuz_decode_table(exp_bits: int, mant_bits: int) -> np.ndarray:
+    """FNUZ-only view of :func:`_fp8_decode_table` (kept for existing callers)."""
+    return _fp8_decode_table(exp_bits, mant_bits, False)
+
+
+def _fp8_encode(
+    x: np.ndarray, exp_bits: int, mant_bits: int, use_ocp: Optional[bool] = None
+) -> np.ndarray:
+    """Encode fp32 -> nearest 8-bit float, returned as a uint8 bit pattern.
+
+    Rounding is round-to-nearest, ties-to-even -- the hardware convert's rule and
+    ml_dtypes'.  Saturation on overflow is deliberate and is where this encoder
+    *does* diverge from ml_dtypes: CK's convert clamps to the max finite value
+    (1e30 -> 448.0 for e4m3), while ``np.astype(ml_dtypes.float8_e4m3fn)``
+    produces NaN.  Matching the kernel is the point, so the divergence stays;
+    ``test_gemm_utils.TestFp8EncodeMatchesMlDtypes`` pins both halves of that.
+    """
+    use_ocp = _resolve_use_ocp(use_ocp)
+    table = _fp8_decode_table(exp_bits, mant_bits, use_ocp)
     sign_byte = np.uint8(1 << (exp_bits + mant_bits))  # 0x80
 
-    # Positive half (bytes 0..127) holds every non-negative magnitude, sorted.
+    # Positive half (bytes 0..127) holds every non-negative magnitude. Drop the
+    # non-finite slots (OCP NaN/Inf) so out-of-range inputs saturate to the max
+    # finite value instead of rounding to Inf, matching CK's saturating convert.
     # Compare in float64: for very large inputs the gap between the two top
     # magnitudes is below fp32 resolution, which would tie and mis-saturate.
     pos_mag = table[: int(sign_byte)].astype(np.float64)
-    order = np.argsort(pos_mag)
+    finite = np.flatnonzero(np.isfinite(pos_mag))
+    order = finite[np.argsort(pos_mag[finite])]
     sorted_mag = pos_mag[order]
     sorted_byte = order.astype(np.uint8)
 
@@ -937,35 +1020,52 @@ def _fnuz_encode(x: np.ndarray, exp_bits: int, mant_bits: int) -> np.ndarray:
     raw = np.searchsorted(sorted_mag, ax)
     hi = np.clip(raw, 0, sorted_mag.size - 1)
     lo = np.clip(raw - 1, 0, sorted_mag.size - 1)
-    pick_lo = np.abs(sorted_mag[lo] - ax) <= np.abs(sorted_mag[hi] - ax)
+    d_lo = np.abs(sorted_mag[lo] - ax)
+    d_hi = np.abs(sorted_mag[hi] - ax)
+    # Ties-to-even, not ties-toward-zero. Adjacent entries in `sorted_mag` are
+    # adjacent byte values (the positive half of both encodings is monotonic in
+    # the byte, subnormals through normals), so the mantissa LSB is just bit 0 of
+    # the byte. Breaking ties toward `lo` instead -- as this did -- biases the
+    # host reference low on exactly the midpoints and disagrees with both the
+    # hardware convert and ml_dtypes on 63 of 256 e4m3 values.
+    #
+    # The degenerate ends are unaffected: raw==0 and raw==size both give lo==hi,
+    # so the tie branch picks the same index either way and saturation holds.
+    lo_is_even = (sorted_byte[lo] & np.uint8(1)) == 0
+    pick_lo = np.where(d_lo == d_hi, lo_is_even, d_lo < d_hi)
     chosen = np.where(pick_lo, lo, hi)
     out = sorted_byte[chosen]
 
-    # Apply sign, but never the 0x80 (-0 == NaN) slot: zeros stay +0.
+    # Apply sign. Under FNUZ 0x80 is the NaN slot rather than -0, so zeros must
+    # stay positive there; under OCP -0.0 is representable but +0 is equivalent
+    # for every consumer here, so keep the same rule for both.
     is_zero = sorted_mag[chosen] == 0
     out = np.where((xf < 0) & ~is_zero, out | sign_byte, out)
-    out = np.where(np.isnan(xf), sign_byte, out)  # NaN inputs -> NaN byte
+    # NaN byte: 0x80 under FNUZ, all-1s exponent and mantissa under OCP.
+    nan_byte = np.uint8(((1 << exp_bits) - 1) << mant_bits | ((1 << mant_bits) - 1)) \
+        if use_ocp else sign_byte
+    out = np.where(np.isnan(xf), nan_byte, out)
     return out.astype(np.uint8).reshape(np.shape(x))
 
 
-def _fp32_to_fp8_u8(x: np.ndarray) -> np.ndarray:
-    """Encode fp32 -> fp8 E4M3 (FNUZ) bit pattern in a uint8 array."""
-    return _fnuz_encode(x, exp_bits=4, mant_bits=3)
+def _fp32_to_fp8_u8(x: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Encode fp32 -> fp8 E4M3 bit pattern in a uint8 array (arch-selected format)."""
+    return _fp8_encode(x, exp_bits=4, mant_bits=3, use_ocp=use_ocp)
 
 
-def _fp8_u8_to_fp32(u8: np.ndarray) -> np.ndarray:
-    """Decode an fp8 E4M3 (FNUZ) bit pattern back to fp32."""
-    return _fnuz_decode_table(4, 3)[u8.astype(np.intp)]
+def _fp8_u8_to_fp32(u8: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Decode an fp8 E4M3 bit pattern back to fp32 (arch-selected format)."""
+    return _fp8_decode_table(4, 3, _resolve_use_ocp(use_ocp))[u8.astype(np.intp)]
 
 
-def _fp32_to_bf8_u8(x: np.ndarray) -> np.ndarray:
-    """Encode fp32 -> bf8 E5M2 (FNUZ) bit pattern in a uint8 array."""
-    return _fnuz_encode(x, exp_bits=5, mant_bits=2)
+def _fp32_to_bf8_u8(x: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Encode fp32 -> bf8 E5M2 bit pattern in a uint8 array (arch-selected format)."""
+    return _fp8_encode(x, exp_bits=5, mant_bits=2, use_ocp=use_ocp)
 
 
-def _bf8_u8_to_fp32(u8: np.ndarray) -> np.ndarray:
-    """Decode a bf8 E5M2 (FNUZ) bit pattern back to fp32."""
-    return _fnuz_decode_table(5, 2)[u8.astype(np.intp)]
+def _bf8_u8_to_fp32(u8: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Decode a bf8 E5M2 bit pattern back to fp32 (arch-selected format)."""
+    return _fp8_decode_table(5, 2, _resolve_use_ocp(use_ocp))[u8.astype(np.intp)]
 
 
 def _fp32_to_fp8_ocp_u8(x):
@@ -1031,12 +1131,16 @@ class GpuGemmRunner:
     numpy arrays straight to the .so.
     """
 
-    def __init__(self, lib_path: Path):
+    def __init__(self, lib_path: Path, arch: Optional[str] = None):
         self.lib = GemmDispatcherLib(lib_path)
         if not self.lib.initialize():
             raise RuntimeError(f"Failed to initialize dispatcher .so: {lib_path}")
         names = self.lib.kernel_names
         self._kernel_name = names[0] if names else "unknown"
+        # fp8/bf8 encoding must match the arch the .so was compiled for. Running
+        # a .so requires the matching GPU, so the local arch is the right default;
+        # `arch` is the explicit pin for callers that already know it.
+        self._use_ocp = _fp8_uses_ocp(arch) if arch else None
 
     @property
     def kernel_name(self) -> str:
@@ -1074,13 +1178,11 @@ class GpuGemmRunner:
             A_h = _fp32_to_bf16_u16(A_lay)
             B_h = _fp32_to_bf16_u16(B_lay)
         elif dtype == "fp8":
-            _enc = _fp32_to_fp8_ocp_u8 if _use_ocp_fp8() else _fp32_to_fp8_u8
-            A_h = _enc(A_lay)
-            B_h = _enc(B_lay)
+            A_h = _fp32_to_fp8_u8(A_lay, use_ocp=self._use_ocp)
+            B_h = _fp32_to_fp8_u8(B_lay, use_ocp=self._use_ocp)
         elif dtype == "bf8":
-            _enc = _fp32_to_bf8_ocp_u8 if _use_ocp_fp8() else _fp32_to_bf8_u8
-            A_h = _enc(A_lay)
-            B_h = _enc(B_lay)
+            A_h = _fp32_to_bf8_u8(A_lay, use_ocp=self._use_ocp)
+            B_h = _fp32_to_bf8_u8(B_lay, use_ocp=self._use_ocp)
         elif dtype == "int8":
             A_h = np.ascontiguousarray(A_lay, dtype=np.int8)
             B_h = np.ascontiguousarray(B_lay, dtype=np.int8)
@@ -1140,7 +1242,13 @@ class GpuGroupedGemmRunner:
     overrun the host buffer (heap corruption). See :func:`output_numpy_dtype_for`.
     """
 
-    def __init__(self, lib_path: Path, dtype: str = "fp16", layout: str = "rcr"):
+    def __init__(
+        self,
+        lib_path: Path,
+        dtype: str = "fp16",
+        layout: str = "rcr",
+        arch: Optional[str] = None,
+    ):
         self.lib = GemmDispatcherLib(lib_path)
         if not self.lib.initialize():
             raise RuntimeError(
@@ -1149,10 +1257,13 @@ class GpuGroupedGemmRunner:
         names = self.lib.kernel_names
         self._kernel_name = names[0] if names else "unknown"
         self._dtype = dtype
+        # fp8/bf8 encoding must match the arch the .so was compiled for; see
+        # GpuGemmRunner.__init__. None -> resolve from the local GPU.
+        self._use_ocp = _fp8_uses_ocp(arch) if arch else None
         # A/B (input) codec vs C (output) codec: they differ for fp8/bf8
         # (output is fp16), so keep them distinct to size the C buffer correctly.
-        self._np_dtype = numpy_dtype_for(dtype)
-        self._c_np_dtype = output_numpy_dtype_for(dtype)
+        self._np_dtype = numpy_dtype_for(dtype, use_ocp=self._use_ocp)
+        self._c_np_dtype = output_numpy_dtype_for(dtype, use_ocp=self._use_ocp)
         if len(layout) != 3 or any(ch not in ("r", "c") for ch in layout):
             raise ValueError(f"layout must be a 3-char r/c string, got {layout!r}")
         self._layout = layout
@@ -1891,6 +2002,12 @@ def _build_compile_jobs(
         "-D__HIP_PLATFORM_AMD__",
         f"--offload-arch={config.gfx_arch}",
         f'-DGFX_ARCH="{config.gfx_arch}"',
+        # Pin the fp8/bf8 encoding so BOTH compiler passes agree. Without this the
+        # device pass of config.hpp sees __gfx950__ and picks OCP while the host
+        # pass falls back to FNUZ -- and the numpy reference, which follows the
+        # arch (see numpy_dtype_for), then disagrees with the kernel by a factor
+        # of two. FNUZ archs need no define; the list is empty for them.
+        *_ocp_arch_defines(config.gfx_arch),
         # Match Tile Engine's AMDGPU codegen flags exactly (see variant_flags /
         # _tile_engine_codegen_flags). Without them the kernel is compiled with
         # different inlining/register allocation, which changes occupancy;
@@ -2433,6 +2550,12 @@ def expand_sweep(
         if epi == "cshuffle" and not _cshuffle_store_ok(
             tm // m_div, tn // n_div, wtm, wtn
         ):
+            continue
+        # Stream-K supports only the cshuffle epilogue, and the codegen skips
+        # anything else (unified_gemm_codegen.py, GemmVariant.STREAM_K branch).
+        # Without this gate expand_sweep hands back configs whose header is
+        # never emitted, which surfaces downstream as a spurious build failure.
+        if variant == "stream_k" and epi != "cshuffle":
             continue
 
         for (m_na, m_nb, m_nd, m_aop, m_bop, m_cdeop) in mabd_combos:
