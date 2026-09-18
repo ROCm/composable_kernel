@@ -630,6 +630,37 @@ def make_gemm_rowcolquant_kernel_name(
 
 
 # ============================================================================
+# Arch string normalization
+# ============================================================================
+
+
+def normalize_gfx_arch(arch: str) -> str:
+    """Strip feature suffixes from a gfx target string.
+
+    ``rocm_agent_enumerator`` and ``hipDeviceProp_t::gcnArchName`` may report the
+    target with trailing feature flags, e.g. ``"gfx942:sramecc+:xnack-"`` or
+    ``"gfx1250:xnack-"``. Every arch comparison in the codegen/runtime path (and
+    the ``--offload-arch`` we hand to hipcc) wants the bare target, so normalize
+    once at the boundary instead of scattering substring tests that happen to
+    tolerate the suffix.
+
+    Single source of truth *for the dispatcher tree*: everything under
+    ``dispatcher/`` must call this rather than open-coding ``split(":")``.
+
+    It is deliberately not claimed to be repo-wide, because it is not.
+    ``tile_engine/`` cannot import it: the dependency direction is
+    dispatcher -> tile_engine (``dispatcher/python/gemm_utils.py`` imports
+    ``gemm_validation_utils``), and tile_engine is on the deprecation path, so
+    moving the helper there to collapse the two copies would park new shared
+    infrastructure in the tree that is going away.
+    ``tile_engine/ops/gemm/gemm_validation_utils.py`` therefore keeps its own
+    ``_base_gfx_arch``; the two are pinned to identical behaviour by
+    ``dispatcher/tests/test_codegen_common.py::TestNormalizeGfxArch``.
+    """
+    return arch.split(":", 1)[0]
+
+
+# ============================================================================
 # Arch-derived warp tile K
 # ============================================================================
 
@@ -979,6 +1010,72 @@ ROWCOL_TENSOR_QUANT_DEFAULT_TILE = {
     "warp_m": 2, "warp_n": 2, "warp_k": 1,
     "warp_tile_m": 32, "warp_tile_n": 32, "warp_tile_k": 16,
 }
+
+# gfx1250 (RDNA-style WMMA, MI400) cannot use the tile above: it is sized
+# for the gfx9 MFMA 32x32x16 fragment, which does not exist on WMMA hardware, so the
+# kernel compiles but produces all-zero output. The 8-bit WMMA fragment is 16x16x128,
+# and the FlatMM 8-bit tile below is the shape validated against it.
+ROWCOL_TENSOR_QUANT_DEFAULT_TILE_GFX1250 = {
+    "tile_m": 16, "tile_n": 64, "tile_k": 256,
+    "warp_m": 1, "warp_n": 4, "warp_k": 1,
+    "warp_tile_m": 16, "warp_tile_n": 16, "warp_tile_k": 128,
+}
+
+
+def rowcol_tensor_quant_default_tile(gfx_arch: str = "") -> dict:
+    """Return the default RowColQuant/TensorQuant tile for `gfx_arch`.
+
+    Kept here, next to the tile dicts themselves, so the rowcolquant and tensorquant
+    runtime helpers select the arch-specific tile through one shared code path rather
+    than each carrying its own copy of the gfx1250 shape.
+
+    The gfx1250 test is EXACT, not a ``gfx12`` family test. gfx1200/gfx1201 are
+    also WMMA parts, but their 8-bit warp fragment is 16x16x16, not the 16x16x64 /
+    16x16x128 of gfx1250, so handing them the gfx1250 tile would compile cleanly
+    and return garbage. Contrast the OCP-FP8 define in the rowcolquant/tensorquant
+    runtime helpers, which *is* correctly family-wide.
+    """
+    if normalize_gfx_arch(gfx_arch) == "gfx1250":
+        return dict(ROWCOL_TENSOR_QUANT_DEFAULT_TILE_GFX1250)
+    return dict(ROWCOL_TENSOR_QUANT_DEFAULT_TILE)
+
+
+# Operator-specific support: both bridges require native FP8/BF8. gfx90a
+# belongs to generic GEMM support, but cannot initialize these quant bridges.
+ROWCOL_TENSOR_QUANT_SUPPORTED_ARCHES = ("gfx942", "gfx950", "gfx1250")
+
+
+def validate_rowcol_tensor_quant_gfx_arch(gfx_arch: str, *, require_explicit: bool = False) -> str:
+    """Normalize and check a caller-supplied gfx target; return the bare target.
+
+    Raises ``ValueError`` for anything outside
+    ``ROWCOL_TENSOR_QUANT_SUPPORTED_ARCHES``. Empty is allowed and means "not
+    specified", which selects the gfx9 MFMA tile -- the behaviour every invocation
+    without the flag had before the flag existed. Custom tile configurations must
+    set ``require_explicit=True`` so their target check cannot be bypassed.
+
+    This exists because ``--gfx-arch`` on the two codegen scripts is the one place a
+    typo is completely silent. Everywhere else a bad target eventually reaches
+    ``--offload-arch`` and hipcc rejects it; here the value only picks a tile, so
+    ``--gfx-arch gfx1205`` quietly generates the gfx9 MFMA tile and the result is a
+    kernel that compiles for gfx1250 and returns garbage -- which is the failure mode
+    this whole branch exists to close, arriving through the front door.
+    """
+    if not gfx_arch:
+        if require_explicit:
+            raise ValueError(
+                "Custom tile_configs require an explicit --gfx-arch (gfx_arch in Python) "
+                "so the generated header can reject a mismatched build target."
+            )
+        return ""
+    base = normalize_gfx_arch(gfx_arch)
+    if base not in ROWCOL_TENSOR_QUANT_SUPPORTED_ARCHES:
+        raise ValueError(
+            f"Unsupported GPU architecture {gfx_arch!r} (normalized to {base!r}); "
+            f"supported: {', '.join(ROWCOL_TENSOR_QUANT_SUPPORTED_ARCHES)}."
+        )
+    return base
+
 
 # Default traits, shared for the same reason as the tile above. pad_m is enabled
 # because these kernels are used with M values that are not tile-aligned.

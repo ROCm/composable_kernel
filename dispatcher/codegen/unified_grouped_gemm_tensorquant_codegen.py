@@ -33,12 +33,13 @@ from typing import Dict, List, Optional
 
 from codegen_common import (
     ROWCOL_TENSOR_QUANT_BASE_PIPELINE_MAP,
-    ROWCOL_TENSOR_QUANT_DEFAULT_TILE,
     ROWCOL_TENSOR_QUANT_DEFAULT_TRAITS,
     ROWCOL_TENSOR_QUANT_EPILOGUE_MAP,
     ROWCOL_TENSOR_QUANT_PIPELINE_MAP,
     ROWCOL_TENSOR_QUANT_SUPPORTED_LAYOUTS,
+    validate_rowcol_tensor_quant_gfx_arch,
     make_tensorquant_kernel_name,
+    rowcol_tensor_quant_default_tile,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -144,6 +145,7 @@ class TensorQuantKernelSpec:
     tile: TensorQuantTileConfig
     block_size: int = 256
     k_block_per_cu: int = 1
+    gfx_arch: str = ""
 
     @property
     def name(self) -> str:
@@ -252,6 +254,8 @@ struct {struct} {{
     using AQDataType  = {ns}::AQDataType;
     using BQDataType  = {ns}::BQDataType;
     using AccDataType = {ns}::AccDataType;
+
+    static constexpr const char* GfxArch = "{validate_rowcol_tensor_quant_gfx_arch(spec.gfx_arch)}";
 
     static constexpr ck_tile::index_t TileM          = {t.tile_m};
     static constexpr ck_tile::index_t TileN          = {t.tile_n};
@@ -429,14 +433,20 @@ using AccDataType = {ck_acc};
 # =============================================================================
 
 
-def _default_config() -> dict:
+def _default_config(gfx_arch: str = "") -> dict:
     # Traits and tile come from codegen_common so this default and the runtime
     # default_{fp8,bf8}_config() in grouped_gemm_tensorquant_utils.py cannot drift.
+    #
+    # gfx_arch selects the tile. It defaults to "" -- the gfx9 MFMA tile -- so an
+    # invocation with no --gfx-arch generates exactly what it generated before.
+    # Passing "gfx1250" yields the 16x16x128 WMMA tile instead; the gfx9 tile is
+    # sized for an MFMA fragment that does not exist on that part, and compiles
+    # there rather than erroring.
     return {
         "dtypes": ["fp8", "bf8"],
         "layouts": list(TENSORQUANT_SUPPORTED_LAYOUTS),
         **ROWCOL_TENSOR_QUANT_DEFAULT_TRAITS,
-        "tile_configs": [dict(ROWCOL_TENSOR_QUANT_DEFAULT_TILE)],
+        "tile_configs": [rowcol_tensor_quant_default_tile(gfx_arch)],
     }
 
 
@@ -535,11 +545,22 @@ def generate_kernels(
     output_dir: Path,
     config: Optional[dict] = None,
     parallel: bool = True,
+    gfx_arch: str = "",
 ) -> List[Path]:
-    """Generate all TensorQuant kernel headers into output_dir. Returns list of generated .hpp paths."""
+    """Generate all TensorQuant kernel headers into output_dir. Returns list of generated .hpp paths.
+
+    `gfx_arch` selects the default tile and is embedded in every header so the
+    bridge can reject a mismatched build target. Custom tile_configs require an
+    explicit target; their tile values remain unchanged.
+    """
+    gfx_arch = validate_rowcol_tensor_quant_gfx_arch(
+        gfx_arch, require_explicit=config is not None and "tile_configs" in config
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
-    cfg = config or _default_config()
+    cfg = config or _default_config(gfx_arch)
     specs = _build_specs(cfg)
+    for spec in specs:
+        spec.gfx_arch = gfx_arch
 
     if not specs:
         log.warning("No kernel specs produced from config — check dtypes and tile_configs")
@@ -596,7 +617,22 @@ def main() -> int:
                         help="Disable parallel generation")
     parser.add_argument("--list-names", action="store_true",
                         help="Print kernel names that would be generated and exit")
+    parser.add_argument("--gfx-arch", type=str, default="",
+                        help="GPU target the generated kernels will be compiled for, "
+                             "e.g. gfx1250. Embedded in generated headers; selects the default tile "
+                             "unless --config/--config-json supplies tile_configs. "
+                             "Required with custom tile_configs; otherwise defaults to the gfx9 MFMA tile.")
     args = parser.parse_args()
+
+    # Validate before anything uses it. This value never reaches a compiler -- it
+    # only picks a tile -- so an unrecognized target is not caught downstream the way
+    # a bad --offload-arch would be: it silently falls through to the gfx9 MFMA tile,
+    # which on WMMA hardware compiles and returns garbage. Refuse instead.
+    try:
+        gfx_arch = validate_rowcol_tensor_quant_gfx_arch(args.gfx_arch)
+    except ValueError as e:
+        log.error("%s", e)
+        return 1
 
     cfg: Optional[dict] = None
     if args.config_json:
@@ -609,8 +645,16 @@ def main() -> int:
         with open(args.config) as f:
             cfg = json.load(f)
 
+    try:
+        gfx_arch = validate_rowcol_tensor_quant_gfx_arch(
+            gfx_arch, require_explicit=cfg is not None and "tile_configs" in cfg
+        )
+    except ValueError as e:
+        log.error("%s", e)
+        return 1
+
     if args.list_names:
-        specs = _build_specs(cfg or _default_config())
+        specs = _build_specs(cfg or _default_config(gfx_arch))
         for s in specs:
             print(s.name)
         return 0
@@ -619,6 +663,7 @@ def main() -> int:
         output_dir=args.output_dir,
         config=cfg,
         parallel=not args.no_parallel,
+        gfx_arch=gfx_arch,
     )
     return 0 if paths else 1
 

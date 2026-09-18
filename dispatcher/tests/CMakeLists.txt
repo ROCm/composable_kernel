@@ -135,6 +135,53 @@ set_tests_properties(dispatcher_test_arch_filter_constraints PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# codegen_common shared-infrastructure regression test. Covers normalize_gfx_arch()
+# and the EXACT-gfx1250 RowColQuant/TensorQuant tile selector: a family-wide match
+# there would hand gfx1200/gfx1201 a tile that compiles cleanly and returns garbage,
+# which no downstream check catches.
+add_test(
+    NAME dispatcher_test_codegen_common
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_codegen_common.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_codegen_common PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# Arch-string handling in tile_engine's gemm_validation_utils, which seven GEMM
+# instance builders and the dispatcher's own warp gate all share. Registered on the
+# dispatcher side because the bridge/Old-TE instance-set parity that depends on it
+# is a dispatcher property; tile_engine has no CTest registration of its own.
+add_test(
+    NAME dispatcher_test_gemm_validation_arch_normalization
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_gemm_validation_arch_normalization.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_gemm_validation_arch_normalization PROPERTIES
+    LABELS "dispatcher;python;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# Arch-gate predicate used by the RowColQuant/TensorQuant GPU tests. CPU-only: it
+# exercises the string predicate, not a device. Worth its own registration because
+# the failure mode it guards is a SKIP -- CI stays green while covering nothing.
+add_test(
+    NAME dispatcher_test_gpu_test_arch_gate
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_gpu_test_arch_gate.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_gpu_test_arch_gate PROPERTIES
+    LABELS "dispatcher;python;validation"
+    TIMEOUT 60
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # dispatcher_common unit tests: path helpers, validators, and -- since this is
 # the only place they are covered -- the fp8-encoding arch predicates
 # (fp8_uses_ocp / ocp_arch_defines / arch_feature_defines). Those decide whether
@@ -301,7 +348,8 @@ set_tests_properties(dispatcher_test_search_space_sampling PROPERTIES
 # =============================================================================
 foreach(_quant_test
         test_grouped_gemm_rowcolquant_utils
-        test_grouped_gemm_tensorquant_utils)
+        test_grouped_gemm_tensorquant_utils
+        test_quant_review_regressions)
     add_test(
         NAME dispatcher_${_quant_test}
         COMMAND ${Python3_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/${_quant_test}.py -v

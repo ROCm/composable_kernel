@@ -560,3 +560,107 @@ class TestGroupedGfx1250(unittest.TestCase):
         self.assertEqual(tc["warp_tile_m"]["values"], [16])
         self.assertEqual(tc["warp_tile_n"]["values"], [16])
         self.assertEqual(tc["warp_tile_k"]["values"], [32])
+
+
+# --- feature-suffixed arch names -------------------------------------------
+# _resolve_arch() validated its input against _SUPPORTED_ARCHES *before*
+# normalizing it, so a target carrying feature flags was rejected outright:
+#
+#     gfx950:sramecc+:xnack-  -> ValueError
+#
+# Bare targets were unaffected -- gfx1250 is in _SUPPORTED_ARCHES and passed both
+# before and after (test_bare_supported_arches_are_unchanged below).
+#
+# The suffixed form is what hipDeviceProp_t::gcnArchName reports, the form rocminfo prints
+# for the ISA line, and the form this repository's own CMakeLists.txt uses for
+# GPU_TARGETS ("gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+;gfx950:xnack+"), so a
+# caller copying a target from any of those could not drive the bridge with it.
+# Normalization now runs first and the base name is validated.
+from gemm_utils import _validate_arch, normalize_gfx_arch  # noqa: E402
+
+
+class TestSuffixedArchNames(unittest.TestCase):
+    def test_supported_arch_with_feature_suffix_resolves_to_its_base(self):
+        for given, expected in [
+            ("gfx90a:xnack+", "gfx90a"),
+            ("gfx942:xnack+", "gfx942"),
+            ("gfx942:sramecc+:xnack-", "gfx942"),
+            ("gfx950:sramecc+:xnack-", "gfx950"),
+            ("gfx1250:xnack-", "gfx1250"),
+        ]:
+            with self.subTest(arch=given):
+                self.assertEqual(_resolve_arch(given), expected)
+
+    def test_bare_supported_arches_are_unchanged(self):
+        # The whole point of normalizing before validating is that it costs the
+        # existing paths nothing.
+        for arch in _SUPPORTED_ARCHES:
+            with self.subTest(arch=arch):
+                self.assertEqual(_resolve_arch(arch), arch)
+
+    def test_an_unsupported_arch_still_raises_with_or_without_a_suffix(self):
+        # Normalizing must not turn the gate off: gfx908 is a real target, it is
+        # simply not one this bridge supports, and neither form may pass.
+        for arch in ("gfx908", "gfx908:xnack+", "gfx1200", "gfx1201:xnack-"):
+            with self.subTest(arch=arch):
+                with self.assertRaises(ValueError):
+                    _resolve_arch(arch)
+
+    def test_a_typo_still_raises(self):
+        for arch in ("gfx942x", "gfx1205", "gfx", "gfx950x:xnack-"):
+            with self.subTest(arch=arch):
+                with self.assertRaises(ValueError):
+                    _resolve_arch(arch)
+
+    def test_the_error_shows_both_the_input_and_the_normalized_form(self):
+        with self.assertRaises(ValueError) as ctx:
+            _validate_arch("gfx908:xnack+")
+        message = str(ctx.exception)
+        self.assertIn("gfx908:xnack+", message)
+        self.assertIn("gfx908", message)
+
+
+class TestArchNormalizationMatchesCodegen(unittest.TestCase):
+    """gemm_utils cannot import codegen_common at module scope -- nothing has put
+    the codegen dir on sys.path by then -- so it carries a fallback. Pin the two
+    to identical behaviour, the same way this branch pins tile_engine's
+    _base_gfx_arch to codegen_common.normalize_gfx_arch."""
+
+    CASES = (
+        "gfx942",
+        "gfx942:sramecc+:xnack-",
+        "gfx1250:xnack-",
+        "gfx950:sramecc+",
+        "gfx908",
+        "",
+        "not-an-arch",
+    )
+
+    def test_delegates_to_codegen_common_when_importable(self):
+        sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
+        from codegen_common import normalize_gfx_arch as canonical
+
+        for arch in self.CASES:
+            with self.subTest(arch=arch):
+                self.assertEqual(normalize_gfx_arch(arch), canonical(arch))
+
+    def test_the_fallback_agrees_with_the_canonical_helper(self):
+        sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
+        from codegen_common import normalize_gfx_arch as canonical
+
+        import builtins
+
+        real_import = builtins.__import__
+
+        def no_codegen_common(name, *args, **kwargs):
+            if name == "codegen_common":
+                raise ImportError("simulated: codegen dir not on sys.path")
+            return real_import(name, *args, **kwargs)
+
+        builtins.__import__ = no_codegen_common
+        try:
+            for arch in self.CASES:
+                with self.subTest(arch=arch):
+                    self.assertEqual(normalize_gfx_arch(arch), canonical(arch))
+        finally:
+            builtins.__import__ = real_import

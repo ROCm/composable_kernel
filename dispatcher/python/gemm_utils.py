@@ -86,6 +86,26 @@ except Exception:  # noqa: BLE001 - standalone use without dispatcher_common on 
         return ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"]
 
 
+def normalize_gfx_arch(arch: str) -> str:
+    """Strip feature suffixes from a gfx target string.
+
+    ``"gfx950:sramecc+:xnack-"`` -> ``"gfx950"``. Empty input passes through.
+
+    Delegates to ``codegen_common.normalize_gfx_arch``, the dispatcher tree's
+    single source of truth, whenever it can be imported. It usually cannot be at
+    this point: nothing has put the ``codegen`` dir on ``sys.path`` yet -- only
+    ``ctypes_utils.get_arch_filter_data()`` does that, and it may never be called --
+    so this module has to be able to answer without it, the same way it already
+    falls back for ``_detect_gpu_arch_via_amd_smi``. The two are pinned to identical
+    behaviour by tests/test_gemm_utils.py::TestArchNormalizationMatchesCodegen.
+    """
+    try:
+        from codegen_common import normalize_gfx_arch as _canonical  # noqa: WPS433
+    except ImportError:
+        return arch.split(":", 1)[0]
+    return _canonical(arch)
+
+
 @functools.lru_cache(maxsize=1)
 def _get_arch() -> str:
     """Detect the GPU architecture from rocminfo and validate it.
@@ -118,29 +138,72 @@ def _get_arch() -> str:
             "gfx_arch (one of "
             f"{', '.join(_SUPPORTED_ARCHES)})."
         )
-    if detected not in _SUPPORTED_ARCHES:
+    return _validate_arch(detected)
+
+
+def _validate_arch(arch: str) -> str:
+    """Normalize a gfx target, then check it against ``_SUPPORTED_ARCHES``.
+
+    Normalization comes FIRST, and that ordering is the whole point -- but not
+    because autodetection produces suffixes. It does not. On a real device all
+    three autodetect sources report the BARE target: ``amd-smi``'s
+    ``TARGET_GRAPHICS_VERSION``, ``rocm_agent_enumerator``, and the agent
+    ``Name:`` line that ``_get_arch`` above parses all print ``gfx90a``
+    (measured on a gfx90a device). ``_get_arch`` could not return a suffixed
+    name even if rocminfo offered one: the only suffixed string in that output
+    is the ISA line, ``amdgcn-amd-amdhsa--gfx90a:sramecc+:xnack-``, which fails
+    the ``startswith("gfx")`` check after the split.
+
+    Suffixed names get here from CALLERS, not from detection, and they are real:
+
+      * this repository's own CMakeLists.txt sets, on the ASAN branch,
+        ``CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+;gfx950:xnack+"``;
+      * ``hipDeviceProp_t::gcnArchName`` returns ``gfx90a:sramecc+:xnack-``
+        (measured on the same device).
+
+    Either is a plausible thing to copy into ``--gfx-arch`` or an explicit
+    ``arch=``, and that value reaches this function unmodified. Validating it raw
+    rejected it:
+
+        gfx950:sramecc+:xnack-  -> ValueError
+
+    Bare targets were never the problem; they passed before this change and pass
+    now (tests/test_gemm_utils.py::test_bare_supported_arches_are_unchanged).
+    Normalizing first costs a supported bare name nothing and makes the suffixed
+    spellings above usable.
+
+    Every caller wants the bare target regardless. It is stamped onto
+    ``GemmKernelConfig.gfx_arch``, handed to ``--offload-arch``, and used as the key
+    into the warp tables, none of which know about suffixes.
+
+    The suffix is dropped, not carried through: ``--offload-arch=gfx90a`` rather
+    than ``gfx90a:xnack+``. That is not a regression -- it is the target string every
+    already-working path used, because a suffixed name could not get past this
+    function at all before. It does mean an xnack+ device is compiled for the bare
+    target; if a caller needs a specific xnack setting it has to pass the flag
+    itself, exactly as it had to before.
+    """
+    base = normalize_gfx_arch(arch)
+    if base not in _SUPPORTED_ARCHES:
         raise ValueError(
-            f"Unsupported GPU architecture {detected!r}; supported: "
-            f"{', '.join(_SUPPORTED_ARCHES)}."
+            f"Unsupported GPU architecture {arch!r}"
+            + (f" (normalized to {base!r})" if base != arch else "")
+            + f"; supported: {', '.join(_SUPPORTED_ARCHES)}."
         )
-    return detected
+    return base
 
 
 def _resolve_arch(arch: Optional[str]) -> str:
     """Resolve a possibly-``None`` arch to a validated, supported ``gfxNNN``.
 
-    ``None``/empty -> detect via :func:`_get_arch`. An explicit value is
-    validated against ``_SUPPORTED_ARCHES`` (raising ``ValueError`` if unknown)
-    so a typo can never silently reach the compiler.
+    ``None``/empty -> detect via :func:`_get_arch`. An explicit value is normalized
+    and then validated against ``_SUPPORTED_ARCHES`` (raising ``ValueError`` if
+    unknown) so a typo can never silently reach the compiler, while the suffixed
+    name a device actually reports resolves to its base.
     """
     if not arch:
         return _get_arch()
-    if arch not in _SUPPORTED_ARCHES:
-        raise ValueError(
-            f"Unsupported GPU architecture {arch!r}; supported: "
-            f"{', '.join(_SUPPORTED_ARCHES)}."
-        )
-    return arch
+    return _validate_arch(arch)
 
 
 def _cshuffle_store_ok(

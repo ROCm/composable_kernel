@@ -74,7 +74,7 @@ static std::atomic<int> g_ref_count{0};
 // Architectures this bridge is known to work on. These fp8/bf8 CompV3 kernels need
 // native FP8, so gfx90a is deliberately absent -- it compiles but produces NaN.
 // Enabling a new target is a one-line addition here plus a CMake arch entry.
-static constexpr const char* kSupportedArchs[] = {"gfx942", "gfx950"};
+static constexpr const char* kSupportedArchs[] = {"gfx942", "gfx950", "gfx1250"};
 
 // True if `arch` starts with any entry of kSupportedArchs. Prefix-matching, because
 // hipDeviceProp_t::gcnArchName carries feature suffixes (e.g. "gfx942:sramecc+:xnack-").
@@ -87,6 +87,60 @@ static bool is_supported_arch(const std::string& arch)
     }
     return false;
 }
+
+// ---------------------------------------------------------------------------
+// Generated-target and tile guards. Codegen records an explicit target in the
+// header; a build for another processor must fail before it can run that tile.
+// Headers generated without an explicit target retain the gfx9 default behavior.
+static constexpr bool ct_starts_with(const char* s, const char* prefix)
+{
+    return *prefix == '\0' ? true : (*s == *prefix && ct_starts_with(s + 1, prefix + 1));
+}
+
+static constexpr bool ct_equal(const char* a, const char* b)
+{
+    return *a == *b && (*a == '\0' || ct_equal(a + 1, b + 1));
+}
+
+static_assert(SelectedKernel::GfxArch[0] == '\0' || ct_equal(SelectedKernel::GfxArch, GFX_ARCH),
+              "Generated kernel architecture does not match GFX_ARCH. Regenerate the "
+              "header with --gfx-arch matching the build target.");
+
+static constexpr bool kCompiledForGfx1250 = ct_starts_with(GFX_ARCH, "gfx1250");
+
+// Family-wide companion for the M%4 guard below. That defect is an unpadded AQ view in
+// the shared quant kernel header rather than a gfx1250-specific silicon property, so
+// every gfx12xx part is subject to it. Compile-time, so on gfx9 the guard folds away
+// instead of constructing a std::string per call to test a constant.
+static constexpr bool kCompiledForGfx12 = ct_starts_with(GFX_ARCH, "gfx12");
+
+static_assert(!kCompiledForGfx1250 || SelectedKernel::WarpTileM == 16,
+              "gfx1250 has no 32x32 WMMA fragment: warp_tile_m must be 16. This kernel "
+              "would compile and then return wrong results on the device.");
+
+static_assert(!kCompiledForGfx1250 || SelectedKernel::WarpTileK == 64 ||
+                  SelectedKernel::WarpTileK == 128,
+              "gfx1250 8-bit WMMA fragments are 16x16x64 and 16x16x128 only: "
+              "warp_tile_k must be 64 or 128.");
+
+static_assert(!kCompiledForGfx1250 || SelectedKernel::WarpTileN == 16,
+              "gfx1250 8-bit WMMA fragments are 16x16xK: warp_tile_n must be 16.");
+
+// warp_k > 1 is rejected separately from the warps-per-block cap below. The [1,2,2]
+// map has a product of 4 and would pass that cap on its own, but it is measured to
+// compile and then return wrong results (max_rel 1.37). It is the corrupting case,
+// not merely an undependable one, so it gets its own rule.
+static_assert(!kCompiledForGfx1250 || SelectedKernel::WarpPerBlock_K == 1,
+              "gfx1250: warp_k must be 1. A warp_k of 2 (the [1,2,2] map) compiles "
+              "and then returns wrong results.");
+
+static_assert(!kCompiledForGfx1250 ||
+                  (SelectedKernel::WarpPerBlock_M * SelectedKernel::WarpPerBlock_N *
+                   SelectedKernel::WarpPerBlock_K) <= 4,
+              "gfx1250 is wave32: a block of more than four warps is not dependable "
+              "there. Paired with a legal tile in a 14,208-row sweep the 8-warp maps "
+              "aborted at launch 2,168 times and passed 192 times, with no wrong "
+              "answers -- unreliable rather than incorrect, so refused here.");
 
 extern "C" {
 
@@ -166,7 +220,21 @@ int dispatcher_init() { return dispatcher_initialize(); }
  *   k_batch          - split-K factor (1 = no split)
  *   time_ms          - output: kernel execution time in ms (may be NULL)
  *
- * Returns 0 on success, negative on error.
+ * Shape constraints (validated on gfx1250 with the default config; violations are
+ * rejected with an explanatory message and no output is written):
+ *   K % 16 == 0      - required even when the kernel was generated with pad_k=true.
+ *                      pad_k covers the K-loop tail, not the global-load vector width.
+ *   N % TileN == 0   - required whenever the kernel was generated with pad_n=false.
+ *                      TileN is 64 in the default config.
+ *   M % 4 == 0       - gfx12 targets only. The RowColQuant per-row A-scale tile window
+ *                      has an unpadded M tail that zeroes row M-1 of C. See the guard
+ *                      in the body for the full explanation; gfx942/gfx950 are not
+ *                      subject to this restriction.
+ *
+ * Returns 0 on success, negative on error:
+ *   -1  argument rejected by this bridge (including the constraints above)
+ *   -2  argument rejected by the kernel's own IsSupportedArgument()
+ *   -3  kernel launch threw
  */
 int dispatcher_run_gemm(const void* A,
                         const void* B,
@@ -221,6 +289,57 @@ int dispatcher_run_gemm(const void* A,
     {
         std::cerr << "dispatcher_run_gemm: QK_B must equal N (" << N
                   << ") for RowColQuant; got QK_B=" << QK_B << "\n";
+        return -1;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Documented shape constraints.
+    //
+    // These were established empirically on gfx1250 with the default config and are
+    // enforced here so a violation produces an explanation instead of either a bare
+    // "unsupported args" code or, worse, a wrong answer.
+    // ---------------------------------------------------------------------------
+
+    // N must be a whole number of N-tiles unless the kernel pads N. This is derived
+    // from the kernel's own constants rather than hardcoded, so it stays correct if
+    // the tile or the padding trait changes.
+    if(!SelectedKernel::kPadN && (N % SelectedKernel::TileN) != 0)
+    {
+        std::cerr << "dispatcher_run_gemm: N must be a multiple of " << SelectedKernel::TileN
+                  << " for this kernel (it was generated with pad_n=false, so N has to be a "
+                  << "whole number of N-tiles); got N=" << N << "\n";
+        return -1;
+    }
+
+    // gfx12 only: the RowColQuant per-row A-scale path drops the final row of C when
+    // M is not a multiple of 4, writing zeros into row M-1 while leaving every other
+    // row correct to ~3e-4. The kernel returns success, so without this check the
+    // caller gets a silent wrong answer -- at M=1 the entire output is zero.
+    //
+    // Cause: MakeAQBlockWindow() builds the AQ view with
+    //   make_naive_tensor_view(aq_ptr, {M, N}, {1, 0}, ...)
+    // and then, as its own comment says, creates the tile window with "no padding for
+    // AQ" -- unlike the A/B/C windows, which get right-pad transforms driven by
+    // kPadM/kPadN/kPadK. The M axis of that broadcast view therefore has an unguarded
+    // tail. The BQ view is the mirror image ({M, N} strided {0, 1}) and has the same
+    // unguarded tail on N; it is simply never exercised, because pad_n=false already
+    // forces N to a multiple of TileN (64) and hence of 4.
+    //
+    // The fix belongs in ck_tile's shared quant kernel header, not in this bridge:
+    // that header is common to gfx942/gfx950, where the behaviour has not been
+    // measured. Rejecting here is deliberately the narrow, reversible option -- it
+    // converts a silent wrong answer into a clean refusal without touching code paths
+    // that other architectures depend on. Remove this guard once the AQ tail is
+    // padded upstream.
+    if(kCompiledForGfx12 && (M % 4) != 0)
+    {
+        std::cerr << "dispatcher_run_gemm: M must be a multiple of 4 on " << GFX_ARCH
+                  << " for RowColQuant; got M=" << M << ". The per-row A-scale (AQ) tile "
+                  << "window is built without a padding transform, so row M-1 of C is "
+                  << "written as zero while the remaining rows are correct. Refusing rather "
+                  << "than returning a silently wrong result. Pad M up to a multiple of 4 "
+                  << "and slice the result, or use the TensorQuant bridge, which applies "
+                  << "scalar scales and is unaffected.\n";
         return -1;
     }
 
@@ -429,7 +548,17 @@ int dispatcher_run_gemm(const void* A,
 
     if(exec_time < 0.0f)
     {
-        std::cerr << "dispatcher_run_gemm: kernel reported unsupported args\n";
+        // IsSupportedArgument() is a boolean inside ck_tile and gives no reason, so
+        // enumerate the constraints a caller is realistically violating. Observed on
+        // gfx1250 with the default config: K must be a multiple of 16 (this holds even
+        // with pad_k=true -- padding covers the K-loop tail, not the global-load vector
+        // width), and N a multiple of the N-tile when pad_n is false.
+        std::cerr << "dispatcher_run_gemm: kernel reported unsupported args for M=" << M
+                  << " N=" << N << " K=" << K << " k_batch=" << k_batch
+                  << ". Known constraints for this kernel: K must be a multiple of 16 "
+                  << "(required even though pad_k=" << (SelectedKernel::kPadK ? "true" : "false")
+                  << "); N must be a multiple of " << SelectedKernel::TileN
+                  << " when pad_n is false. No output was written.\n";
         cleanup();
         return -2;
     }
@@ -448,6 +577,23 @@ int dispatcher_run_gemm(const void* A,
  * Return the compile-time KERNEL_NAME of the force-included kernel.
  */
 const char* dispatcher_get_kernel_name() { return KERNEL_NAME; }
+
+/**
+ * Return the N-tile of the force-included kernel.
+ *
+ * The shape checks in dispatcher_run_gemm derive their bound from SelectedKernel::TileN
+ * so they survive a tile change. Exporting it lets the Python runner report the same
+ * number instead of hardcoding the value of today's default config.
+ */
+int dispatcher_get_tile_n() { return static_cast<int>(SelectedKernel::TileN); }
+
+/**
+ * Return 1 when the force-included kernel was generated with pad_n=true.
+ *
+ * When padding is on the N % TileN constraint does not apply, so the Python
+ * runner needs this to phrase its diagnostics correctly.
+ */
+int dispatcher_get_pad_n() { return SelectedKernel::kPadN ? 1 : 0; }
 
 // This bridge is one-.so-per-kernel by construction: the build force-includes exactly
 // one generated header via `hipcc -include <kernel.hpp>`, giving one SelectedKernel.

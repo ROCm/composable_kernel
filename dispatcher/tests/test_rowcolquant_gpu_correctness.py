@@ -6,7 +6,7 @@
 """
 GPU correctness tests for RowColQuant GEMM dispatcher.
 
-Requires a gfx942 or gfx950 GPU and hipcc in PATH.  Skipped automatically when neither
+Requires a gfx942, gfx950 or gfx1250 GPU and hipcc in PATH.  Skipped automatically when neither
 is available (pytest.skip) so CI without a GPU still passes.
 
 Tests:
@@ -31,7 +31,11 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "codegen"))
 
+# normalize_gfx_arch lives in codegen_common: single source of truth shared by
+# the codegen tile selector, the runtime helpers and these tests.
+from codegen_common import normalize_gfx_arch  # noqa: E402
 from dispatcher_common import fp8_uses_ocp as _fp8_uses_ocp
 
 from grouped_gemm_rowcolquant_utils import (
@@ -56,14 +60,29 @@ def _has_hipcc() -> bool:
     return shutil.which("hipcc") is not None
 
 
+def arch_is_supported(arch: str, supported=None) -> bool:
+    """True if `arch` names a supported target, ignoring feature suffixes.
+
+    An exact ``arch in _SUPPORTED_ARCHES`` test returns False for
+    ``"gfx942:sramecc+:xnack-"``, so on a machine whose enumerator reports
+    suffixes these GPU tests would SKIP on a fully supported device. A skip reads
+    as a green run, so the regression would be invisible -- the bug is the silent
+    skip, not the missing coverage. The C++ bridge already prefix-matches in
+    ``is_supported_arch()``; this keeps the Python gate consistent with it.
+    """
+    if supported is None:
+        supported = _SUPPORTED_ARCHES
+    return normalize_gfx_arch(arch) in supported
+
+
 def _detect_gfx_arch() -> str:
     """Return the first usable GPU arch, or empty string if none found."""
     try:
         r = subprocess.run(["rocm_agent_enumerator"], capture_output=True, text=True, timeout=10)
         for line in r.stdout.splitlines():
             arch = line.strip()
-            if arch.startswith("gfx") and arch != "gfx000":
-                return arch
+            if arch.startswith("gfx") and normalize_gfx_arch(arch) != "gfx000":
+                return normalize_gfx_arch(arch)
     except Exception:
         pass
     return ""
@@ -72,11 +91,11 @@ def _detect_gfx_arch() -> str:
 _GFX_ARCH = _detect_gfx_arch()
 # RowColQuant fp8/bf8 kernels use CK CompV3 pipelines that require native fp8 hardware.
 # gfx90a (MI200 series) lacks native fp8 support and produces incorrect results.
-# Only gfx942 (MI300X) and gfx950 (MI350X) are validated.
-_SUPPORTED_ARCHES = ("gfx942", "gfx950")
+# Only gfx942 (MI300X), gfx950 (MI350X) and gfx1250 (MI400) are validated.
+_SUPPORTED_ARCHES = ("gfx942", "gfx950", "gfx1250")
 
 requires_gpu = pytest.mark.skipif(
-    not (_has_hipcc() and _GFX_ARCH in _SUPPORTED_ARCHES),
+    not (_has_hipcc() and arch_is_supported(_GFX_ARCH)),
     reason=(
         f"GPU test: requires hipcc and native fp8 GPU ({', '.join(_SUPPORTED_ARCHES)}); "
         f"detected arch='{_GFX_ARCH}'"
@@ -102,26 +121,33 @@ def _require_ml_dtypes():
         )
 
 
-def _fp8_ml_dtype(dtype: str):
-    """Return the ml_dtypes fp8 type matching the compiled kernel's arch."""
+def _fp8_ml_dtype(dtype: str, arch: str):
+    """Return the ml_dtypes fp8 type matching the compiled kernel's arch.
+
+    `arch` is the arch the kernel is being COMPILED for, which is not necessarily
+    the arch this host detects: main() takes --gfx. Reading the module-level
+    detected arch here would silently encode the host bytes in the other format,
+    and the kernel would decode them to NaN/Inf on device. So it is a parameter,
+    not a global.
+    """
     _require_ml_dtypes()
-    if _fp8_uses_ocp(_GFX_ARCH):
+    if _fp8_uses_ocp(arch):
         return _ml_dtypes.float8_e4m3fn if dtype == "fp8" else _ml_dtypes.float8_e5m2
     return _ml_dtypes.float8_e4m3fnuz if dtype == "fp8" else _ml_dtypes.float8_e5m2fnuz
 
 
-def _encode_fp8(arr: np.ndarray, dtype: str) -> np.ndarray:
+def _encode_fp8(arr: np.ndarray, dtype: str, arch: str) -> np.ndarray:
     """Encode float32 → fp8/bf8 bytes (uint8 view). Requires ml_dtypes.
 
     The fp8 format (OCP vs FNUZ) follows the compiled kernel's arch; see _fp8_uses_ocp.
     """
-    ml_t = _fp8_ml_dtype(dtype)
+    ml_t = _fp8_ml_dtype(dtype, arch)
     return arr.astype(ml_t).view(np.uint8)
 
 
-def _decode_fp8(arr: np.ndarray, dtype: str) -> np.ndarray:
+def _decode_fp8(arr: np.ndarray, dtype: str, arch: str) -> np.ndarray:
     """Decode fp8/bf8 bytes (uint8 view) → float32. Requires ml_dtypes."""
-    ml_t = _fp8_ml_dtype(dtype)
+    ml_t = _fp8_ml_dtype(dtype, arch)
     return arr.view(ml_t).astype(np.float32)
 
 
@@ -199,16 +225,22 @@ def _run_one(label: str, config, M: int, N: int, K: int,
 # Input factory
 # ---------------------------------------------------------------------------
 
-def _make_inputs(M, N, K, dtype="fp8", seed=42):
+def _make_inputs(M, N, K, dtype="fp8", seed=42, arch=None):
+    """Build host inputs. `arch` must be the arch the kernel is compiled for.
+
+    Defaults to the detected arch, which is right for the pytest cases (they
+    compile for _GFX_ARCH); main() passes its --gfx value explicitly.
+    """
+    arch = _GFX_ARCH if arch is None else arch
     rng = np.random.default_rng(seed)
     A_f32 = rng.uniform(-1.0, 1.0, (M, K)).astype(np.float32)
     B_f32 = rng.uniform(-1.0, 1.0, (K, N)).astype(np.float32)
     AQ    = rng.uniform(0.5, 2.0, (M,)).astype(np.float32)  # per-row A scale
     BQ    = rng.uniform(0.5, 2.0, (N,)).astype(np.float32)  # per-col B scale
-    A_raw = _encode_fp8(A_f32, dtype)
-    B_raw = _encode_fp8(B_f32, dtype)
-    A_dec = _decode_fp8(A_raw, dtype)
-    B_dec = _decode_fp8(B_raw, dtype)
+    A_raw = _encode_fp8(A_f32, dtype, arch)
+    B_raw = _encode_fp8(B_f32, dtype, arch)
+    A_dec = _decode_fp8(A_raw, dtype, arch)
+    B_dec = _decode_fp8(B_raw, dtype, arch)
     return A_raw, A_dec, B_raw, B_dec, AQ, BQ
 
 
@@ -284,16 +316,18 @@ def test_rowcolquant_timing_positive(tmp_path):
 # test_*_timing_positive has no entry of its own because _run_one already fails
 # the case when time_ms <= 0.
 TESTS = [
+    # arch=gfx, not the detected arch: with --gfx the host encoding must follow the
+    # arch the kernel is compiled for (see _fp8_ml_dtype).
     ("C4/fp8", lambda od, gfx: _run_one(
         "C4/fp8", default_fp8_config(gfx_arch=gfx), 128, 128, 192,
-        *_make_inputs(128, 128, 192, "fp8"), Path(od), gfx_arch=gfx)),
+        *_make_inputs(128, 128, 192, "fp8", arch=gfx), Path(od), gfx_arch=gfx)),
     ("C4/bf8", lambda od, gfx: _run_one(
         "C4/bf8", default_bf8_config(gfx_arch=gfx), 128, 128, 192,
-        *_make_inputs(128, 128, 192, "bf8"), Path(od), gfx_arch=gfx)),
+        *_make_inputs(128, 128, 192, "bf8", arch=gfx), Path(od), gfx_arch=gfx)),
     # Non-square M/N/K to stress stride math.
     ("rect/fp8", lambda od, gfx: _run_one(
         "rect/fp8", default_fp8_config(gfx_arch=gfx), 64, 256, 128,
-        *_make_inputs(64, 256, 128, "fp8"), Path(od), gfx_arch=gfx)),
+        *_make_inputs(64, 256, 128, "fp8", arch=gfx), Path(od), gfx_arch=gfx)),
 ]
 
 
@@ -319,7 +353,7 @@ def main():
     # what CI drives, so it needs the same gates spelled out. SKIP_EXIT keeps a
     # clean skip distinguishable from a failure -- ctest maps it via
     # SKIP_RETURN_CODE and the Jenkins lane via its run_ok helper.
-    gfx = args.gfx or _GFX_ARCH
+    gfx = normalize_gfx_arch(args.gfx or _GFX_ARCH)
     if not gfx:
         print("SKIP: no supported GPU detected (rocm_agent_enumerator)")
         return SKIP_EXIT

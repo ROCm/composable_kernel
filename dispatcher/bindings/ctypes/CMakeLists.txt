@@ -48,6 +48,37 @@ function(add_ctypes_library TARGET_NAME SOURCE_FILE)
     )
 endfunction()
 
+# Feature definitions for the two single-target grouped quant bridges below.
+# Keep these aligned with dispatcher_common.arch_feature_defines(). Parent CK
+# builds enable features directory-wide for the union of their GPU targets.
+# Clear those definitions for these bridges before applying the selected arch,
+# so host/device FP8 encoding and the backend match the standalone JIT path.
+function(set_grouped_quant_arch_features TARGET_NAME GFX_ARCH)
+    # Compile options follow directory/target definitions on the command line.
+    # Keep both the undefines and replacement defines here to preserve ordering
+    # without changing the inherited definitions of any sibling target.
+    foreach(_feature IN ITEMS
+            CK_USE_XDL CK_USE_GFX94 CK_USE_GFX950 CK_GFX1030_SUPPORT
+            CK_USE_WMMA CK_TILE_USE_WMMA CK_USE_WMMA_FP8
+            CK_USE_OCP_FP8 CK_TILE_USE_OCP_FP8 CK_USE_FNUZ_FP8
+            CK_USE_NATIVE_MX_SUPPORT CK_GFX950_SUPPORT
+            CK_USE_GFX1250 CK_GFX1250_SUPPORT CK_GFX12_SUPPORT
+            USE_NEW_UNIFIED_FRAMEWORK)
+        target_compile_options(${TARGET_NAME} PRIVATE "-U${_feature}")
+    endforeach()
+    if(GFX_ARCH STREQUAL "gfx950" OR GFX_ARCH STREQUAL "gfx1250")
+        target_compile_options(${TARGET_NAME} PRIVATE
+            -DCK_USE_OCP_FP8 -DCK_TILE_USE_OCP_FP8 -DCK_USE_NATIVE_MX_SUPPORT)
+    endif()
+    if(GFX_ARCH STREQUAL "gfx950")
+        target_compile_options(${TARGET_NAME} PRIVATE -DCK_GFX950_SUPPORT)
+    elseif(GFX_ARCH STREQUAL "gfx1250")
+        target_compile_options(${TARGET_NAME} PRIVATE
+            -DCK_TILE_USE_WMMA=1 -DCK_GFX12_SUPPORT -DCK_USE_GFX1250 -DCK_GFX1250_SUPPORT
+            -DUSE_NEW_UNIFIED_FRAMEWORK=0)
+    endif()
+endfunction()
+
 # Helper function for block-scale quant ctypes targets.
 #
 # Usage:
@@ -354,7 +385,17 @@ if(ROWCOLQUANT_GEMM_KERNEL_HEADERS)
         set(CK_TILE_ROWCOLQUANT_GFX_ARCH "${_rowcolquant_gfx_arch}" CACHE STRING
             "GFX arch for the CMake-built RowColQuant ctypes .so (default: first CMAKE_HIP_ARCHITECTURES or gfx942)")
     endif()
+    # Normalize both inferred and explicitly supplied cache values.
+    string(REGEX REPLACE ":.*$" "" CK_TILE_ROWCOLQUANT_GFX_ARCH "${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
     message(STATUS "RowColQuant ctypes lib GFX_ARCH: ${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
+
+    # Standalone dispatcher builds do not inherit the top-level CK definitions.
+    # Override the directory-wide ID for this single-target library.
+    string(REGEX REPLACE "^gfx" "0x" _rowcolquant_target_id "${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
+    target_compile_options(dispatcher_grouped_gemm_rowcolquant_lib PRIVATE
+        -UCK_CMAKE_GPU_TARGET_IDS "-DCK_CMAKE_GPU_TARGET_IDS=${_rowcolquant_target_id}")
+    set_grouped_quant_arch_features(dispatcher_grouped_gemm_rowcolquant_lib
+        "${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
 
     target_compile_definitions(dispatcher_grouped_gemm_rowcolquant_lib PRIVATE
         CK_TILE_SINGLE_KERNEL_INCLUDE
@@ -365,7 +406,10 @@ else()
         "No RowColQuant GEMM kernel header found in ${CMAKE_BINARY_DIR}/generated_kernels/. "
         "dispatcher_grouped_gemm_rowcolquant_lib will NOT be built. "
         "Run unified_grouped_gemm_rowcolquant_codegen.py --output-dir "
-        "${CMAKE_BINARY_DIR}/generated_kernels/ before configuring to enable this target.")
+        "${CMAKE_BINARY_DIR}/generated_kernels/ --gfx-arch <target> before configuring "
+        "to enable this target. --gfx-arch matters: the built-in default is the gfx9 "
+        "MFMA tile, and on gfx1250 the ctypes source static_asserts that tile away "
+        "rather than let it compile into a library that returns wrong results.")
     # Do not define the target: the source requires force-included symbols (SelectedKernel,
     # ADataType, KERNEL_NAME, etc.) that only exist in the generated header. Without it
     # the build fails at compile time, not load time, breaking any all-target build.
@@ -400,7 +444,17 @@ if(TENSORQUANT_GEMM_KERNEL_HEADERS)
         set(CK_TILE_TENSORQUANT_GFX_ARCH "${_tensorquant_gfx_arch}" CACHE STRING
             "GFX arch for the CMake-built TensorQuant ctypes .so (default: first CMAKE_HIP_ARCHITECTURES or gfx942)")
     endif()
+    # Normalize both inferred and explicitly supplied cache values.
+    string(REGEX REPLACE ":.*$" "" CK_TILE_TENSORQUANT_GFX_ARCH "${CK_TILE_TENSORQUANT_GFX_ARCH}")
     message(STATUS "TensorQuant ctypes lib GFX_ARCH: ${CK_TILE_TENSORQUANT_GFX_ARCH}")
+
+    # Standalone dispatcher builds do not inherit the top-level CK definitions.
+    # Override the directory-wide ID for this single-target library.
+    string(REGEX REPLACE "^gfx" "0x" _tensorquant_target_id "${CK_TILE_TENSORQUANT_GFX_ARCH}")
+    target_compile_options(dispatcher_grouped_gemm_tensorquant_lib PRIVATE
+        -UCK_CMAKE_GPU_TARGET_IDS "-DCK_CMAKE_GPU_TARGET_IDS=${_tensorquant_target_id}")
+    set_grouped_quant_arch_features(dispatcher_grouped_gemm_tensorquant_lib
+        "${CK_TILE_TENSORQUANT_GFX_ARCH}")
 
     target_compile_definitions(dispatcher_grouped_gemm_tensorquant_lib PRIVATE
         CK_TILE_SINGLE_KERNEL_INCLUDE
@@ -411,7 +465,10 @@ else()
         "No TensorQuant GEMM kernel header found in ${CMAKE_BINARY_DIR}/generated_kernels/. "
         "dispatcher_grouped_gemm_tensorquant_lib will NOT be built. "
         "Run unified_grouped_gemm_tensorquant_codegen.py --output-dir "
-        "${CMAKE_BINARY_DIR}/generated_kernels/ before configuring to enable this target.")
+        "${CMAKE_BINARY_DIR}/generated_kernels/ --gfx-arch <target> before configuring "
+        "to enable this target. --gfx-arch matters: the built-in default is the gfx9 "
+        "MFMA tile, and on gfx1250 the ctypes source static_asserts that tile away "
+        "rather than let it compile into a library that returns wrong results.")
     # Do not define the target: the source requires force-included symbols (SelectedKernel,
     # ADataType, KERNEL_NAME, etc.) that only exist in the generated header. Without it
     # the build fails at compile time, not load time, breaking any all-target build.
