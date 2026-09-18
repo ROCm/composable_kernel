@@ -49,6 +49,7 @@ from contraction_multi_abd_utils import (  # noqa: E402
     ContractionMultiABDProblem,
     ContractionMultiABDRunner,
     setup_multiple_contraction_multi_abd_dispatchers,
+    default_warp_tile_for_arch,
     _detect_gpu_arch,
     _validate_arch,
 )
@@ -107,6 +108,8 @@ def _reference(A: np.ndarray, B: np.ndarray, Ds: list) -> np.ndarray:
 
 
 def _build(gfx_arch: str):
+    # 32x32x16 is the gfx9 MFMA tile; gfx1250 is wave32/WMMA and needs 16x16x32.
+    wt_m, wt_n, wt_k = default_warp_tile_for_arch(gfx_arch)
     cfg = ContractionMultiABDKernelConfig(
         dtype="fp16",
         layout="rcr",
@@ -115,7 +118,7 @@ def _build(gfx_arch: str):
         scheduler="intrawave",
         tile_m=256, tile_n=256, tile_k=64,
         warp_m=2, warp_n=2, warp_k=1,
-        warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+        warp_tile_m=wt_m, warp_tile_n=wt_n, warp_tile_k=wt_k,
         num_a_tensor=1,
         num_b_tensor=1,
         num_d_tensor=NUM_D,
