@@ -154,7 +154,7 @@ CK_TILE_DEVICE fp8x2_storage_t cast_to_f8x2_scaled_rtn(VSrcT v, float scale)
 
     return ret.v8f8[0];
 }
-#elif defined(__gfx125__)
+#elif defined(__gfx1250__) && !defined(__gfx1250_strict__)
 // fp8 -> fp32 packed 8 vector instruction
 template <typename VDstT, fp8_interpretation interpret, int Opsel = 0>
 CK_TILE_DEVICE VDstT cast_from_f8x8_scaled(fp8x8_storage_t v, uint32_t scale)
@@ -285,7 +285,7 @@ CK_TILE_HOST_DEVICE VDstT from_float8x8(fp8x8_storage_t x, float scale)
             impl::cast_from_f8x2_scaled<V2DstT, interpret>(fp8x2_storage_t{x[6], x[7]}, scale);
 
     return res.v8;
-#elif defined(__gfx125__)
+#elif defined(__gfx1250__) && !defined(__gfx1250_strict__)
     // This serves the float-scale conversions;
     // Scale_sel 0 reads byte 0 of lanes 0-15 and Scale_sel 1 reads byte 0 of lanes 16-31.
     // Running each half under its own Scale_sel, with the other masked off, leaves
@@ -370,7 +370,7 @@ CK_TILE_HOST_DEVICE fp8x8_storage_t to_float8x8(VSrcT x, [[maybe_unused]] float 
             res.v2[3] = impl::cast_to_f8x2_scaled_rtn<V2SrcT, interpret>(in.v2[3], scale);
     }
     return res.v8;
-#elif defined(__gfx125__)
+#elif defined(__gfx1250__) && !defined(__gfx1250_strict__)
     return impl::cast_to_f8x8_scaled<interpret, stochastic_rounding>(x, scale);
 #else
     using SrcT         = typename vector_traits<VSrcT>::scalar_type;
@@ -609,8 +609,12 @@ struct pk4scaled_type_convert_impl<Y, fp8x8_t, Scale_sel>
 {
     CK_TILE_DEVICE static Y run(fp8x8_t x, Packed4Scale_E8M0 scale)
     {
+#if defined(__gfx1250_strict__)
+        return scaled_type_convert<Y>(x, strict_packed_scale<Scale_sel, true>(scale));
+#else
         return impl::cast_from_f8x8_scaled<Y, numeric_traits<fp8_t>::f8_interpret, Scale_sel>(
             bit_cast<impl::fp8x8_storage_t>(x), scale.data());
+#endif
     }
 };
 template <typename Y, int Scale_sel>
@@ -618,8 +622,12 @@ struct pk4scaled_type_convert_impl<Y, bf8x8_t, Scale_sel>
 {
     CK_TILE_DEVICE static Y run(bf8x8_t x, Packed4Scale_E8M0 scale)
     {
+#if defined(__gfx1250_strict__)
+        return scaled_type_convert<Y>(x, strict_packed_scale<Scale_sel, true>(scale));
+#else
         return impl::cast_from_f8x8_scaled<Y, numeric_traits<bf8_t>::f8_interpret, Scale_sel>(
             bit_cast<impl::fp8x8_storage_t>(x), scale.data());
+#endif
     }
 };
 #endif

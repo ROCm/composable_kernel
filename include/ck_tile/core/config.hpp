@@ -12,12 +12,11 @@
 #include <cstdint>
 #include <type_traits>
 
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
-    defined(__gfx9_4_generic__)
-#define __gfx9__
-#endif
 #if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
+#endif
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__)
+#define __gfx9__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__) || \
     defined(__gfx1013__) || defined(__gfx10_1_generic__)
@@ -28,22 +27,17 @@
     defined(__gfx1036__) || defined(__gfx10_3_generic__)
 #define __gfx103__
 #endif
-#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
-    defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
-    defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
-#define __gfx11__
-#endif
 #if defined(__gfx1150__) || defined(__gfx1151__) || defined(__gfx1152__) || defined(__gfx1153__)
 #define __gfx115__
 #endif
-#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__) || \
-    defined(__gfx1250__)
-#define __gfx12__
+#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
+    defined(__gfx1103__) || defined(__gfx115__) || defined(__gfx11_generic__)
+#define __gfx11__
 #endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
 #define __gfx120__
 #endif
-#if defined(__gfx1250__)
+#if defined(__gfx1250__) || defined(__gfx1250_strict__)
 #define __gfx125__
 #endif
 #if defined(__gfx120__) || defined(__gfx125__)
@@ -623,11 +617,11 @@ struct amdgcn_compiler_target_state
 #endif // __gfx12_generic__
 
     // GFX12.5
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
     static constexpr bool CK_TILE_ARCH_GFX1250 = true;
 #else
     static constexpr bool CK_TILE_ARCH_GFX1250 = false;
-#endif // __gfx1250__
+#endif // __gfx125__
 
     // SPIR-V (target-agnostic, JIT-compiled at runtime)
     // Guard with __HIP_DEVICE_COMPILE__ because __SPIRV__ is defined during

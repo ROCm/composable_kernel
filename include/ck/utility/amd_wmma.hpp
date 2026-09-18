@@ -20,7 +20,7 @@ namespace ck {
 #define __gfx120__
 #endif
 
-#if defined(__gfx1250__)
+#if defined(__gfx1250__) || defined(__gfx1250_strict__)
 #define __gfx125__
 #endif
 
@@ -1426,7 +1426,7 @@ struct intrin_wmma_scale_f32_32x16x128_f4<32, 16, ScaleOpselB, ScaleTypeA, Scale
                           is_same_v<ScaleTypeB, e5m3x4_scale_t> ||
                           is_same_v<ScaleTypeB, e4m3x4_scale_t>,
                       "ScaleTypeB must be e8m0x4_bexp_t, e5m3x4_scale_t, or e4m3x4_scale_t");
-#if defined(__gfx125__)
+#if defined(__gfx1250__)
         int32x16_t arg_a = bit_cast<int32x16_t>(reg_a);
         int32x8_t arg_b  = bit_cast<int32x8_t>(reg_b);
         reg_c.template AsType<float16_t>()(Number<0>{}) =
@@ -1480,7 +1480,7 @@ struct intrin_wmma_scale16_f32_32x16x128_f4<32, 16, ScaleOpselB, ScaleTypeA, Sca
                           is_same_v<ScaleTypeB, e5m3x8_scale_t> ||
                           is_same_v<ScaleTypeB, e4m3x8_scale_t>,
                       "ScaleTypeB must be e8m0x8_bexp_t, e5m3x8_scale_t, or e4m3x8_scale_t");
-#if defined(__gfx125__)
+#if defined(__gfx1250__)
         int32x16_t arg_a = bit_cast<int32x16_t>(reg_a);
         int32x8_t arg_b  = bit_cast<int32x8_t>(reg_b);
         reg_c.template AsType<float16_t>()(Number<0>{}) =

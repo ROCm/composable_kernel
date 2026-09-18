@@ -188,12 +188,11 @@ int run_mx_gemm_with_layouts(int argc, char* argv[], ALayout, BLayout, CLayout)
     {
         ck_tile::preShuffleScaleBufferPermuteN_gfx950<GemmConfig::N_Warp,
                                                       GemmConfig::N_Tile,
-                                                      XdlMNThread>(
-            scale_b_aligned.mData.data(),
-            scale_b_shuffled.mData.data(),
-            N_scale_aligned,
-            scale_k_size,
-            true);
+                                                      XdlMNThread>(scale_b_aligned.mData.data(),
+                                                                   scale_b_shuffled.mData.data(),
+                                                                   N_scale_aligned,
+                                                                   scale_k_size,
+                                                                   true);
     }
     else
     {

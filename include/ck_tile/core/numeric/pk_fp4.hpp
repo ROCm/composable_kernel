@@ -19,7 +19,7 @@
 
 #include <type_traits>
 
-#if defined(__gfx950__) || defined(__gfx125__)
+#if defined(__gfx950__) || defined(__gfx1250__) && !defined(__gfx1250_strict__)
 #define CK_TILE_FP4_CVT_DEVICE 1
 #else
 #define CK_TILE_FP4_CVT_DEVICE 0
@@ -571,7 +571,7 @@ CK_TILE_HOST_DEVICE constexpr bf16_t pk_fp4_to_bf16(const pk_fp4_t& x, float sca
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t fp32x8_to_pk_fp4(const fp32x8_t& x, float scale)
 {
-#if defined(__gfx125__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
     return bit_cast<pk_fp4x4_t>(impl::_to_f4(x, scale));
 #else
     // Pack 8 floats into 4 pk_fp4_t values using fp32x2_to_pk_fp4
@@ -585,7 +585,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t fp32x8_to_pk_fp4(const fp32x8_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t fp16x8_to_pk_fp4(const fp16x8_t& x, float scale)
 {
-#if defined(__gfx125__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
     return bit_cast<pk_fp4x4_t>(impl::_to_f4(x, scale));
 #else
     // Pack 8 fp16 values into 4 pk_fp4_t values using fp16x2_to_pk_fp4
@@ -598,7 +598,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t fp16x8_to_pk_fp4(const fp16x8_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t bf16x8_to_pk_fp4(const bf16x8_t& x, float scale)
 {
-#if defined(__gfx125__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
     return bit_cast<pk_fp4x4_t>(impl::_to_f4(x, scale));
 #else
     // Pack 8 bf16 values into 4 pk_fp4_t values using bf16x2_to_pk_fp4
@@ -611,7 +611,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t bf16x8_to_pk_fp4(const bf16x8_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr fp32x8_t pk_fp4_to_fp32x8(const pk_fp4x4_t& x, float scale)
 {
-#if defined(__gfx125__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
     return impl::_from_f4<fp32x8_t>(x, scale);
 #else
     auto v0 = pk_fp4_to_fp32x2(pk_fp4_t{x[0]}, scale);
@@ -623,7 +623,7 @@ CK_TILE_HOST_DEVICE constexpr fp32x8_t pk_fp4_to_fp32x8(const pk_fp4x4_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr fp16x8_t pk_fp4_to_fp16x8(const pk_fp4x4_t& x, float scale)
 {
-#if defined(__gfx125__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
     return impl::_from_f4<fp16x8_t>(x, scale);
 #else
     auto v0 = pk_fp4_to_fp16x2(pk_fp4_t{x[0]}, scale);
@@ -635,7 +635,7 @@ CK_TILE_HOST_DEVICE constexpr fp16x8_t pk_fp4_to_fp16x8(const pk_fp4x4_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr bf16x8_t pk_fp4_to_bf16x8(const pk_fp4x4_t& x, float scale)
 {
-#if defined(__gfx125__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
     return impl::_from_f4<bf16x8_t>(x, scale);
 #else
     auto v0 = pk_fp4_to_bf16x2(pk_fp4_t{x[0]}, scale);
@@ -821,7 +821,11 @@ struct pk4scaled_type_convert_impl<Y, pk_fp4x4_t, Scale_sel>
 {
     CK_TILE_DEVICE static Y run(pk_fp4x4_t x, Packed4Scale_E8M0 scale)
     {
+#if defined(__gfx1250_strict__)
+        return scaled_type_convert<Y>(x, strict_packed_scale<Scale_sel, false>(scale));
+#else
         return impl::_from_f4x8_pkscale<Y, Scale_sel>(bit_cast<uint32_t>(x), scale.data());
+#endif
     }
 };
 #endif

@@ -126,7 +126,6 @@ set(REGRESSION_TESTS
 set(KNOWN_FAILING_TESTS
     test_ck_tile_mx_scale
     test_ck_tile_mx_gemm_pipeline_tdm_wmma
-    test_gemm_blockscale_wp_fp8
     test_fp6
     test_bf6
     test_mx_fp4
@@ -207,7 +206,7 @@ function(add_test_executable TEST_NAME)
         elseif(source_name_list MATCHES "_wmma")
              list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950 amdgcnspirv)
         elseif(source_name_list MATCHES "_smfmac")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic gfx1250 amdgcnspirv)
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic gfx1250 gfx1250-strict amdgcnspirv)
         endif()
         set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
         add_executable(${TEST_NAME} ${ARGN})
@@ -311,7 +310,7 @@ function(add_gtest_executable TEST_NAME)
         elseif(source_name_list MATCHES "monitor_mwait" OR source_name_list MATCHES "async_lds_load_store") #only build sync tests for gfx1250+
              list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic amdgcnspirv)
         elseif(source_name_list MATCHES "_smfmac")
-             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic gfx1250 amdgcnspirv)
+             list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx908 gfx90a gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic gfx1250 gfx1250-strict amdgcnspirv)
         elseif(source_name_list MATCHES "_mx") #only build mx example for gfx950 and gfx125x
              list(REMOVE_ITEM TEST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic amdgcnspirv)
              if(ARGN MATCHES "_pk4scale") #only build pk4scale for gfx1250

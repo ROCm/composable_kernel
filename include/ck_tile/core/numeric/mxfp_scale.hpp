@@ -200,4 +200,20 @@ struct Packed8Scale
 using Packed4Scale_E8M0 = Packed4Scale<e8m0_t>;
 using Packed8Scale_E8M0 = Packed8Scale<e8m0_t>;
 
+#if defined(__gfx1250_strict__)
+// Preserve the packed-conversion lane/byte selection using scalar conversions
+// on targets without the block16 conversion instructions.
+template <int ScaleSel, bool FP8>
+CK_TILE_DEVICE float strict_packed_scale(Packed4Scale_E8M0 scale)
+{
+    static_assert(ScaleSel >= 0 && ScaleSel < (FP8 ? 12 : 8));
+    const unsigned lane        = __lane_id();
+    const unsigned source_lane = (lane & 15) + 16 * (ScaleSel & 1);
+    const auto packed          = __shfl(scale.data(), source_lane, 32);
+    const unsigned byte =
+        FP8 ? ((ScaleSel & 2) + (ScaleSel < 8 ? ((ScaleSel >> 2) & 1) : lane / 16))
+            : (ScaleSel < 4 ? (ScaleSel & 2) + lane / 16 : ((ScaleSel >> 1) & 1) + 2 * (lane / 16));
+    return Packed4Scale_E8M0(packed).unpack_to_float(byte);
+}
+#endif
 } // namespace ck_tile

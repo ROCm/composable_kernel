@@ -501,7 +501,7 @@ struct buffer_view<address_space_enum::global,
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
-#ifdef __gfx1250__
+#if defined(__gfx125__)
         auto p_uniform_ptr = amd_wave_read_first_lane(p_data_);
 
         const remove_cvref_t<X>* g_src =

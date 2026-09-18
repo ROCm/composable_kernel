@@ -81,7 +81,7 @@ struct numeric<e5m3_t>
 
 CK_TILE_HOST_DEVICE e5m3_bexp_t::operator float() const
 {
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
     union
     {
         unsigned int i32val;

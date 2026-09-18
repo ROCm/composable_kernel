@@ -1377,7 +1377,7 @@ inline __host__ __device__ half8_t scaled_type_convert<half8_t, f8x8_ocp_t>(e8m0
 inline __host__ half8_t scaled_type_convert<half8_t, f8x8_ocp_t>(e8m0_bexp_t scale, f8x8_ocp_t x)
 #endif
 {
-#if CK_MX_ARCH_125
+#if CK_MX_ARCH_1250
     return fp8_impl::cast_to_f16_from_f8_scaled<f8_ocp_t::default_interpret>(
         type_convert<float>(scale), x.AsType<fp8_impl::fp8x8_storage_t>()[Number<0>{}]);
 #else
@@ -1408,7 +1408,7 @@ inline __host__ __device__ half8_t scaled_type_convert<half8_t, bf8x8_ocp_t>(e8m
 inline __host__ half8_t scaled_type_convert<half8_t, bf8x8_ocp_t>(e8m0_bexp_t scale, bf8x8_ocp_t x)
 #endif
 {
-#if CK_MX_ARCH_125
+#if CK_MX_ARCH_1250
     return fp8_impl::cast_to_f16_from_f8_scaled<bf8_ocp_t::default_interpret>(
         type_convert<float>(scale), x.AsType<fp8_impl::fp8x8_storage_t>()[Number<0>{}]);
 #else
@@ -1627,7 +1627,7 @@ inline __host__ __device__ bhalf8_t scaled_type_convert<bhalf8_t, f8x8_ocp_t>(e8
 inline __host__ bhalf8_t scaled_type_convert<bhalf8_t, f8x8_ocp_t>(e8m0_bexp_t scale, f8x8_ocp_t x)
 #endif
 {
-#if CK_MX_ARCH_125
+#if CK_MX_ARCH_1250
     return fp8_impl::cast_to_bf16_from_f8_scaled<f8_ocp_t::default_interpret>(
         type_convert<float>(scale), x.AsType<fp8_impl::fp8x8_storage_t>()[Number<0>{}]);
 #else
@@ -1659,7 +1659,7 @@ inline __host__ bhalf8_t scaled_type_convert<bhalf8_t, bf8x8_ocp_t>(e8m0_bexp_t 
                                                                     bf8x8_ocp_t x)
 #endif
 {
-#if CK_MX_ARCH_125
+#if CK_MX_ARCH_1250
     return fp8_impl::cast_to_bf16_from_f8_scaled<bf8_ocp_t::default_interpret>(
         type_convert<float>(scale), x.AsType<fp8_impl::fp8x8_storage_t>()[Number<0>{}]);
 #else
@@ -1796,7 +1796,7 @@ inline __host__ __device__ bf8x8_ocp_t scaled_type_convert<bf8x8_ocp_t, bhalf8_t
 #endif
 }
 
-#if CK_MX_ARCH_125
+#if CK_MX_ARCH_1250
 // Declare a template function for wave-wise scaled conversion
 /* scale is packed 4 form, see details for FP8/BF8, FP4, FP6 */
 template <typename Y, typename X, int Scale_sel>
@@ -2149,6 +2149,6 @@ struct pk4scaled_type_convert_impl<bhalf16_t, bf6x16_t, Scale_sel>
         return cast_from_f6_scaled<bhalf16_t, uint32_t, Scale_sel>(x, scale);
     }
 };
-#endif // #if CK_MX_ARCH_125
+#endif // #if CK_MX_ARCH_1250
 
 } // namespace ck

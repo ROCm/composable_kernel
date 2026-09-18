@@ -10,7 +10,7 @@
 
 namespace ck_tile {
 
-#ifdef __gfx1250__
+#if defined(__gfx125__)
 template <typename T>
 CK_TILE_DEVICE __attribute__((address_space(1))) T* to_global(const T* ptr)
 {
@@ -37,7 +37,7 @@ CK_TILE_DEVICE __attribute__((address_space(3))) T* to_lds(T* ptr)
 #pragma clang diagnostic pop
 #endif
 }
-#endif // __gfx1250__
+#endif // __gfx125__
 
 // Struct specializations for CLUSTER_LOAD_B32/B64/B128.
 // Primary template intentionally undefined - compile error for unsupported sizes.
@@ -51,7 +51,7 @@ struct cluster_load<4>
     CK_TILE_DEVICE T operator()(const T* addr, int mask)
     {
         static_assert(sizeof(T) == 4, "cluster_load<4> requires a 4-byte type");
-#ifdef __gfx1250__
+#if defined(__gfx125__)
         return ck_tile::bit_cast<T>(__builtin_amdgcn_cluster_load_b32(
             to_global<int>(reinterpret_cast<const int*>(addr)), 0, mask));
 #else
@@ -70,7 +70,7 @@ struct cluster_load<8>
     CK_TILE_DEVICE T operator()(const T* addr, int mask)
     {
         static_assert(sizeof(T) == 8, "cluster_load<8> requires an 8-byte type");
-#ifdef __gfx1250__
+#if defined(__gfx125__)
         // Builtin requires LLVM native vector, not HIP int2.
         using vec2i_t = __attribute__((vector_size(8))) int;
         return ck_tile::bit_cast<T>(__builtin_amdgcn_cluster_load_b64(
@@ -91,7 +91,7 @@ struct cluster_load<16>
     CK_TILE_DEVICE T operator()(const T* addr, int mask)
     {
         static_assert(sizeof(T) == 16, "cluster_load<16> requires a 16-byte type");
-#ifdef __gfx1250__
+#if defined(__gfx125__)
         // Builtin requires LLVM native vector, not HIP int4.
         using vec4i_t = __attribute__((vector_size(16))) int;
         return ck_tile::bit_cast<T>(__builtin_amdgcn_cluster_load_b128(
@@ -138,7 +138,7 @@ struct cluster_load_async_to_lds<4, inst_offset>
     CK_TILE_DEVICE void
     operator()(const int* src, __attribute__((address_space(3))) int* lds_dst, int mask)
     {
-#ifdef __gfx1250__
+#if defined(__gfx125__)
         __attribute__((address_space(1))) int* g_src = to_global(src);
         __builtin_amdgcn_cluster_load_async_to_lds_b32(g_src, lds_dst, inst_offset, 0, mask);
 #else
@@ -155,7 +155,7 @@ struct cluster_load_async_to_lds<8, inst_offset>
     CK_TILE_DEVICE void
     operator()(const int* src, __attribute__((address_space(3))) int* lds_dst, int mask)
     {
-#ifdef __gfx1250__
+#if defined(__gfx125__)
         using vec2i_t = __attribute__((vector_size(8))) int;
         __attribute__((address_space(1))) vec2i_t* g_src =
             to_global(reinterpret_cast<const vec2i_t*>(src));
@@ -176,7 +176,7 @@ struct cluster_load_async_to_lds<16, inst_offset>
     CK_TILE_DEVICE void
     operator()(const int* src, __attribute__((address_space(3))) int* lds_dst, int mask)
     {
-#ifdef __gfx1250__
+#if defined(__gfx125__)
         using vec4i_t = __attribute__((vector_size(16))) int;
         __attribute__((address_space(1))) vec4i_t* g_src =
             to_global(reinterpret_cast<const vec4i_t*>(src));

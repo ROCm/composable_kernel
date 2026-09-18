@@ -245,7 +245,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
         {
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
             return make_static_tile_distribution(
                 tile_distribution_encoding<
                     sequence<NWarps>,
@@ -285,7 +285,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                     sequence<0, 2>>{});
         else if constexpr(std::is_same_v<ADataType, pk_fp6x16_t>)
         {
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
             // gfx1250: 4-element K-tuple <K_Lane, block-parity, sub-slot, DWORDx3>
             //          = <2, 2, 2, 12>.
             // Warp lane (P1) spans block-parity x MPerXdl = 2 x 16 = 32.
@@ -342,7 +342,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
         {
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
             return make_static_tile_distribution(
                 tile_distribution_encoding<
                     //           1
@@ -389,7 +389,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         }
         else if constexpr(std::is_same_v<ADataType, pk_fp6x16_t>)
         {
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
             // Use a 5-element K-tuple <2, 1, 32, 2, 12> so the warp lane (P1) can
             // span (K0=1) x (K1=32) = 32 cleanly, and per-thread Y dims cover the
             // three remaining K-tuple positions (0, 3, 4) sized <2, 2, 12> = 48 B.
