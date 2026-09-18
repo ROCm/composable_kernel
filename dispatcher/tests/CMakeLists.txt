@@ -148,6 +148,11 @@ add_test(
 )
 
 set_tests_properties(dispatcher_test_dispatcher_common PROPERTIES
+    LABELS "dispatcher;python;validation"
+    TIMEOUT 60
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # Architecture-aware LDS staging budget regression test
 add_test(
     NAME dispatcher_test_lds_capacity_arch_aware
@@ -383,6 +388,18 @@ add_test(
 
 set_tests_properties(dispatcher_test_arch_support PROPERTIES
     LABELS "dispatcher;python;arch"
+    TIMEOUT 60
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+add_test(
+    NAME dispatcher_test_fmha_utils
+    COMMAND ${Python3_EXECUTABLE} -m unittest test_fmha_utils -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_fmha_utils PROPERTIES
+    LABELS "dispatcher;python;fmha;validation"
     TIMEOUT 60
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )

@@ -26,6 +26,7 @@ how it is compiled into a ``.so``.
 """
 
 from __future__ import annotations
+from dispatcher_common import unified_framework_flags
 
 import ctypes
 import functools
@@ -2002,6 +2003,7 @@ def _build_compile_jobs(
         "-D__HIP_PLATFORM_AMD__",
         f"--offload-arch={config.gfx_arch}",
         f'-DGFX_ARCH="{config.gfx_arch}"',
+        *unified_framework_flags(config.gfx_arch),
         # Pin the fp8/bf8 encoding so BOTH compiler passes agree. Without this the
         # device pass of config.hpp sees __gfx950__ and picks OCP while the host
         # pass falls back to FNUZ -- and the numpy reference, which follows the

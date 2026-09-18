@@ -27,6 +27,7 @@ Data types (verified against ck_tile headers / example/ck_tile/42_mx_gemm):
   scale: ck_tile::e8m0_t (biased exponent, byte e decodes to 2^(e-127); 127 == 1.0)
 """
 
+from dispatcher_common import unified_framework_flags
 import concurrent.futures
 import ctypes
 import functools
@@ -728,7 +729,7 @@ def _compile_kernel(hpp: Path, so: Path, arch: str) -> bool:
         *_mx_codegen_flags(),
         *inc,
         "-DCK_TILE_SINGLE_KERNEL_INCLUDE", f"-include{hpp}",
-        "-D__HIP_PLATFORM_AMD__", f"--offload-arch={arch}", f'-DGFX_ARCH="{arch}"',
+        "-D__HIP_PLATFORM_AMD__", f"--offload-arch={arch}", f'-DGFX_ARCH="{arch}"', *unified_framework_flags(arch),
         "-Wno-undefined-func-template", "-Wno-float-equal",
         str(_CTYPES_LIB_SRC), "-o", str(so),
     ]

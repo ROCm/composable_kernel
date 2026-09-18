@@ -23,6 +23,7 @@ Usage (end-to-end):
   result = runner.run(A, B, BQ, BQuantGemmProblem(M=16, N=64, K=256))
 """
 
+from dispatcher_common import unified_framework_flags
 import ctypes
 import json
 import logging
@@ -535,6 +536,7 @@ def _compile_bquant_kernel(
                    "-DCK_TILE_SINGLE_KERNEL_INCLUDE", "-w",
                    f"--offload-arch={gfx_arch}",
                    f"-DGFX_ARCH=\"{gfx_arch}\"",
+                   *unified_framework_flags(gfx_arch),
                    *arch_defines,
                    "-include", str(hpp_path),
                    str(_CTYPES_LIB_SRC),

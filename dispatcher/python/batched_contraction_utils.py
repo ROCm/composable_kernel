@@ -22,6 +22,7 @@ v1 scope matches Old-TE gemm/batched_contraction argparse: dtype {fp16,bf16,fp32
 3-char a/b/e layout, num_dim_g/m/n/k, num_d_tensors == 0 (PassThrough).
 """
 
+from dispatcher_common import unified_framework_flags
 import concurrent.futures
 import ctypes
 import functools
@@ -557,7 +558,7 @@ def _compile_kernel(hpp: Path, so: Path, arch: str) -> bool:
         _HIPCC, "-c", "-fPIC", "-O3", "-std=c++17",
         f"-I{ck_root}/include", f"-I{ck_root}",
         "-DCK_TILE_SINGLE_KERNEL_INCLUDE", f"-include{hpp}",
-        "-D__HIP_PLATFORM_AMD__", f"--offload-arch={arch}", f'-DGFX_ARCH="{arch}"',
+        "-D__HIP_PLATFORM_AMD__", f"--offload-arch={arch}", f'-DGFX_ARCH="{arch}"', *unified_framework_flags(arch),
         # Match Tile Engine's AMDGPU codegen flags exactly so the bridge .so
         # produces the same machine code as Old-TE (inlining, register
         # allocation, occupancy).  Without these, persistent kernels size their

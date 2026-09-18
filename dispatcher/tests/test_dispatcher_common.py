@@ -43,7 +43,36 @@ from dispatcher_common import (  # noqa: E402
     fp8_uses_ocp,
     ocp_arch_defines,
     arch_feature_defines,
+    unified_framework_flags,
 )
+
+
+class TestUnifiedFrameworkFlags(unittest.TestCase):
+    """Only gfx1250 kernel builds should override the framework default."""
+
+    def test_gfx1250_disables_unified_framework(self):
+        for arch in (
+            "gfx1250",
+            "gfx1250:xnack-",
+            "gfx1250:sramecc+:xnack-",
+            " GFX1250 ",
+            "amdgcn-amd-amdhsa--gfx1250",
+        ):
+            with self.subTest(arch=arch):
+                self.assertEqual(
+                    unified_framework_flags(arch), ["-DUSE_NEW_UNIFIED_FRAMEWORK=0"]
+                )
+
+    def test_other_architectures_keep_framework_default(self):
+        for arch in ("gfx942", "gfx950", "gfx1200", "gfx1201", "gfx12500"):
+            for target in (arch, f"{arch}:xnack-"):
+                with self.subTest(arch=target):
+                    self.assertEqual(unified_framework_flags(target), [])
+
+    def test_unspecified_architecture_keeps_framework_default(self):
+        for arch in (None, ""):
+            with self.subTest(arch=arch):
+                self.assertEqual(unified_framework_flags(arch), [])
 
 
 class TestPathHelpers(unittest.TestCase):

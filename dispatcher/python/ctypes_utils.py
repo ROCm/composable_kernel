@@ -26,6 +26,7 @@ Usage:
     check = validator.check(result.C, C_reference)
 """
 
+from dispatcher_common import unified_framework_flags
 import ctypes
 import subprocess
 import numpy as np
@@ -2039,6 +2040,7 @@ class CodegenRunner:
             "-D__HIP_PLATFORM_AMD__",
             f"--offload-arch={config.gfx_arch}",
             f'-DGFX_ARCH="{config.gfx_arch}"',  # Pass arch as string for gemm_ctypes_lib.cpp
+            *unified_framework_flags(config.gfx_arch),
             "-mllvm",
             "-enable-noalias-to-md-conversion=0",
             "-Wno-undefined-func-template",
@@ -2131,6 +2133,7 @@ class CodegenRunner:
                 "-D__HIP_PLATFORM_AMD__",
                 f"--offload-arch={config.gfx_arch}",
                 f'-DGFX_ARCH="{config.gfx_arch}"',
+                *unified_framework_flags(config.gfx_arch),
                 "-mllvm",
                 "-enable-noalias-to-md-conversion=0",
                 "-Wno-undefined-func-template",
@@ -2891,6 +2894,7 @@ def setup_multiple_gemm_dispatchers(
             "-D__HIP_PLATFORM_AMD__",
             f"--offload-arch={c.gfx_arch}",
             f'-DGFX_ARCH="{c.gfx_arch}"',
+            *unified_framework_flags(c.gfx_arch),
             "-mllvm",
             "-enable-noalias-to-md-conversion=0",
             "-Wno-undefined-func-template",

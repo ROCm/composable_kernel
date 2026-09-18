@@ -27,6 +27,7 @@ Behavioral parity: Old-TE example/ck_tile/38_block_scale_gemm/gemm_quant_tensor.
   C[M,N] = (AQ * BQ) * (A[M,K] @ B[K,N]);  fp8/bf8, rcr layout only.
 """
 
+from dispatcher_common import unified_framework_flags
 import ctypes
 import json
 import logging
@@ -435,6 +436,7 @@ def _compile_tensor_quant_kernel(
                    "-DCK_TILE_SINGLE_KERNEL_INCLUDE", "-w",
                    f"--offload-arch={gfx_arch}",
                    f"-DGFX_ARCH=\"{gfx_arch}\"",
+                   *unified_framework_flags(gfx_arch),
                    *arch_defines,
                    *_te_perf_flags(hipcc),
                    "-include", str(hpp_path),

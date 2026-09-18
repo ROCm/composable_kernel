@@ -101,6 +101,21 @@ def detect_gpu_arch(fallback: str = "gfx942") -> str:
     return fallback
 
 
+def unified_framework_flags(arch: Optional[str]) -> List[str]:
+    """Extra defines a per-kernel hipcc line needs to match CK's CMake gate.
+
+    ``projects/composablekernel/CMakeLists.txt`` force-defines
+    ``USE_NEW_UNIFIED_FRAMEWORK=0`` for gfx1250 targets, because the unified
+    ck_tile framework does not support gfx1250 yet. That gate is an
+    ``add_compile_definitions`` call, so it only reaches targets of that CMake
+    project. The bridges build their own hipcc command lines outside it and
+    would otherwise pick up the header default of 1, which does not compile.
+    """
+    if normalize_arch(arch) == "gfx1250":
+        return ["-DUSE_NEW_UNIFIED_FRAMEWORK=0"]
+    return []
+
+
 # ============================================================================
 # fp8 / bf8 encoding format per architecture
 # ============================================================================

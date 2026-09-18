@@ -57,6 +57,7 @@ from dispatcher_common import (
     validate_trait_combo,
     validate_wave_config,
     validate_warp_tile_config,
+    unified_framework_flags,
 )
 
 
@@ -1688,6 +1689,7 @@ class GroupedConvCodegenRunner:
                 "-D__HIP_PLATFORM_AMD__",
                 f"--offload-arch={c.arch}",
                 f'-DGFX_ARCH="{c.arch}"',
+                *unified_framework_flags(c.arch),
                 "-mllvm",
                 "-enable-noalias-to-md-conversion=0",
                 "-Wno-undefined-func-template",
