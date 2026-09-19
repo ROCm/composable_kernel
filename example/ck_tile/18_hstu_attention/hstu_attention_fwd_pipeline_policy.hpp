@@ -155,6 +155,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                                              ? kMaxVecLoad
                                              : (ElemPerThread / kMinVecLoad);
 
+            if constexpr(kVecLoad == 4 * (ElemPerThread / kVecLoad))
+                return kVecLoad / 2;
+
             return kVecLoad;
         }
         else
