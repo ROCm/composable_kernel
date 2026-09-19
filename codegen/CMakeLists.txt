@@ -10,7 +10,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
-configure_file(${CK_ROOT}/include/ck/config.h.in ${CK_ROOT}/include/ck/config.h)
+configure_file(${CK_ROOT}/include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
 find_package(ROCM)
 include(ROCMInstallTargets)
