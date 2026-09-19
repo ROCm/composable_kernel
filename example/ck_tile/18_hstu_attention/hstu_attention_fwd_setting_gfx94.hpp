@@ -44,7 +44,7 @@ struct HstuAttentionNoSoftmaxFwdBlockTile<96, MTile>
 template <>
 struct HstuAttentionNoSoftmaxFwdBlockTile<128, 64>
 {
-    using type        = ck_tile::sequence<64, 32, 16, 128, 16, 128>;
+    using type        = ck_tile::sequence<64, 32, 16, 128, 32, 128>;
     using gemm0_warps = ck_tile::sequence<4, 1, 1>;
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
@@ -52,7 +52,7 @@ struct HstuAttentionNoSoftmaxFwdBlockTile<128, 64>
 template <>
 struct HstuAttentionNoSoftmaxFwdBlockTile<128, 128>
 {
-    using type        = ck_tile::sequence<128, 32, 16, 128, 16, 128>;
+    using type        = ck_tile::sequence<128, 32, 16, 128, 32, 128>;
     using gemm0_warps = ck_tile::sequence<4, 1, 1>;
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
