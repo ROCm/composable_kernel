@@ -5,6 +5,7 @@
 
 #include <ck_tile/core.hpp>
 
+#include "hstu_attention_config.hpp"
 #include "hstu_attention_fwd_tile_setting_define.hpp"
 
 #if defined(BUILD_HSTU_FOR_GFX94)
@@ -12,7 +13,9 @@ using WarpTile_16x16x16 = ck_tile::sequence<16, 16, 16>;
 using WarpTile_16x16x32 = ck_tile::sequence<16, 16, 32>;
 using WarpTile_32x32x16 = ck_tile::sequence<32, 32, 16>;
 
-template <ck_tile::index_t MaxK, ck_tile::index_t MTile = 0>
+template <ck_tile::index_t MaxK,
+          ck_tile::index_t MTile            = 0,
+          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
 struct HstuAttentionNoSoftmaxFwdBlockTile;
 
 // Tile-sizes: M N0 N0Sub N1 K1 MaxK (MaxK % N1 == 0, N0 % K1 == 0)
@@ -65,7 +68,9 @@ struct HstuAttentionNoSoftmaxFwdBlockTile<256, MTile>
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
 
-template <ck_tile::index_t MaxK, ck_tile::index_t MTile = 0>
+template <ck_tile::index_t MaxK,
+          ck_tile::index_t MTile            = 0,
+          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
 struct HstuAttentionWithSoftmaxFwdBlockTile;
 
 // Tile-sizes: M N0 N0Sub N1 K1 MaxK (MaxK % N1 == 0, N0 % K1 == 0)
@@ -118,7 +123,9 @@ struct HstuAttentionWithSoftmaxFwdBlockTile<256, MTile>
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
 
-template <ck_tile::index_t MaxK, ck_tile::index_t MTile = 0>
+template <ck_tile::index_t MaxK,
+          ck_tile::index_t MTile            = 0,
+          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
 struct HstuAttentionNoSoftmaxFwdTileSetting;
 
 template <>
@@ -193,7 +200,9 @@ struct HstuAttentionNoSoftmaxFwdTileSetting<256, MTile>
 template struct HstuAttentionNoSoftmaxFwdTileSetting<256, 64>;
 template struct HstuAttentionNoSoftmaxFwdTileSetting<256, 128>;
 
-template <ck_tile::index_t MaxK, ck_tile::index_t MTile = 0>
+template <ck_tile::index_t MaxK,
+          ck_tile::index_t MTile            = 0,
+          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
 struct HstuAttentionWithSoftmaxFwdTileSetting;
 
 template <>

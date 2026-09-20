@@ -47,6 +47,7 @@ enum class HstuFwdPipelineKind
     // ds_read_tr is a hard template error several headers down, not a fallback.
     Default, // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVS
     TrLoad,  // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTrLoad
+    Tdm,     // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTdm, gfx1250 only
 };
 
 // The choice depends only on the build arch and on values known before the tile setting is
