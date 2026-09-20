@@ -30,12 +30,35 @@ CK_TILE_HOST_DEVICE constexpr index_t f_integer_log2()
 template <index_t PadIntervalBytes, index_t PadLengthBytes>
 CK_TILE_HOST_DEVICE constexpr bool IsTdmPaddingValid()
 {
+    // What the descriptor field can encode.
     constexpr bool is_interval_valid = PadIntervalBytes >= 8 && PadIntervalBytes <= 1024 &&
                                        (PadIntervalBytes & (PadIntervalBytes - 1)) == 0;
     constexpr bool is_length_valid =
         PadLengthBytes >= 4 && PadLengthBytes <= 512 && PadLengthBytes % 4 == 0;
 
-    return is_interval_valid && is_length_valid;
+    // Two further conditions, both conservative and both inert for every value the callers
+    // in this header can produce. They are kept as a tripwire, not as a documented hardware
+    // requirement -- neither is derivable from anything in this tree, unlike the two above,
+    // which come straight from the descriptor's pad_interval:3 / pad_amount:7 bitfields.
+    //
+    // is_interval_copyable assumes the engine moves whole 128-byte chunks, so that a padded
+    // interval has to be a whole number of them. No source for the 128 was found in the
+    // descriptor header, the toolchain, or upstream ck_tile; treat it as unconfirmed. It
+    // cannot fire here regardless: GetTdmLdsPaddingConfigFor*Read() below all compute
+    // max(kKBytesPerBlock, BankSpanBytes) with BankSpanBytes = 256, so the interval is always
+    // a power of two >= 256.
+    //
+    // is_length_aligned restates a property the derivation already guarantees rather than
+    // establishing one: PadLengthBytes is ScalarPerVector * sizeof(T), i.e. exactly one Lds
+    // read vector, and the interval is a multiple of that, so a row start after a pad is
+    // aligned for the read that follows it whatever the vector width happens to be. The
+    // literal 16 holds for fp16/bf16 (the only types hstu instantiates); fp32 and
+    // non-mixed-precision fp8/bf8 would give 8 and be rejected. Widen or drop this if hstu
+    // ever gains those.
+    constexpr bool is_interval_copyable = PadIntervalBytes >= 128 && PadIntervalBytes % 128 == 0;
+    constexpr bool is_length_aligned    = PadLengthBytes % 16 == 0;
+
+    return is_interval_valid && is_length_valid && is_interval_copyable && is_length_aligned;
 };
 
 template <index_t PadIntervalBytes, index_t PadLengthBytes>
@@ -219,6 +242,10 @@ CK_TILE_HOST_DEVICE constexpr auto MakeRowMajorLdsPaddedBlockDescriptor()
     constexpr index_t LogicBufferSize = Rows * Cols;
 
     static_assert(LogicBufferSize >= PadInterval, "Check failed!");
+    // The unmerge below re-reads the padded buffer as Rows x Cols, so a partial trailing
+    // interval would silently drop its remainder and leave the last rows short.
+    static_assert(LogicBufferSize % PadInterval == 0,
+                  "Rows * Cols must be a whole number of pad intervals");
 
     constexpr index_t NumIntervals     = LogicBufferSize / PadInterval;
     constexpr index_t SingleBufferSize = NumIntervals * (PadInterval + PadLength);
