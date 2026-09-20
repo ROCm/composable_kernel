@@ -20,6 +20,8 @@
 #include "hstu_attention_no_softmax_fwd_pipeline.hpp"
 #include "hstu_attention_with_softmax_fwd_trload_pipeline.hpp"
 #include "hstu_attention_no_softmax_fwd_trload_pipeline.hpp"
+#include "hstu_attention_with_softmax_fwd_tdm_pipeline.hpp"
+#include "hstu_attention_no_softmax_fwd_tdm_pipeline.hpp"
 #include "hstu_attention_fwd_kernel.hpp"
 #include "hstu_attention_epilogue.hpp"
 
@@ -35,13 +37,15 @@ template <typename InOutDataType,
           ck_tile::index_t MTile>
 struct batched_forward_dispatch
 {
-    using HstuAttentionTileSetting =
-        typename std::conditional_t<kUseSoftmax,
-                                    HstuAttentionWithSoftmaxFwdTileSetting<MaxK, MTile>,
-                                    HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile>>::Type;
-
+    // The pipeline kind is resolved first: the tile setting depends on it, because the Tdm
+    // pipelines need a block tile the trload ones cannot use.
     static constexpr HstuFwdPipelineKind kPipelineKind =
         get_hstu_fwd_pipeline_kind<kUseSoftmax, MaxK>();
+
+    using HstuAttentionTileSetting = typename std::conditional_t<
+        kUseSoftmax,
+        HstuAttentionWithSoftmaxFwdTileSetting<MaxK, MTile, kPipelineKind>,
+        HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile, kPipelineKind>>::Type;
 
     template <bool kIsCrossAttention>
     using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
@@ -103,6 +107,21 @@ struct batched_forward_dispatch
                                                                                HstuTraits>,
                             ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
                                                                              HstuTraits>>;
+
+                        using HstuKernel =
+                            ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+
+                        RunWithKernel<HstuKernel>(param, stream);
+                    }
+                    else if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+                    {
+                        using HstuPipeline = std::conditional_t<
+                            kUseSoftmax,
+                            ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdm<
+                                HstuPipelineProblem,
+                                HstuTraits>,
+                            ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm<HstuPipelineProblem,
+                                                                                HstuTraits>>;
 
                         using HstuKernel =
                             ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
