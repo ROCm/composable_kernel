@@ -46,11 +46,8 @@ struct jagged_forward_splitkv_dispatch
                                     HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile>>::Type;
     using HstuAttentionCombineTileSetting = HstuAttentionFwdSplitKVCombineTileSetting<MaxK>::Type;
 
-#if HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
-    static constexpr bool use_trload_pipeline = true;
-#else
-    static constexpr bool use_trload_pipeline = false;
-#endif
+    static constexpr HstuFwdPipelineKind kPipelineKind =
+        get_hstu_fwd_pipeline_kind<kUseSoftmax, MaxK>();
 
     template <bool kIsCrossAttention>
     using HstuFwdPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
@@ -117,7 +114,7 @@ struct jagged_forward_splitkv_dispatch
                 BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
                     using HstuPipelineProblem = HstuFwdPipelineProblemTemp<kIsCrossAttention>;
 
-                    if constexpr(!use_trload_pipeline)
+                    if constexpr(kPipelineKind == HstuFwdPipelineKind::Default)
                     {
                         using HstuPipeline = std::conditional_t<
                             kUseSoftmax,
