@@ -55,6 +55,13 @@ struct HstuAttentionFwdKernel
     static constexpr bool kPadHeadDimV  = HstuAttentionPipeline::kPadHeadDimV;
 
     static constexpr bool kUseTrLoad = detail::is_using_trload_v<HstuAttentionPipeline>;
+    static constexpr bool kUseTdm    = detail::is_using_tdm_v<HstuAttentionPipeline>;
+
+    // The V view below branches on !kUseTrLoad before it ever looks at kUseTdm, so a Tdm
+    // pipeline that did not also set kUseTrLoad would silently be handed the padded,
+    // transposed view -- the very thing the Tdm arms exist to avoid. State the dependency
+    // rather than leave it to the branch order.
+    static_assert(!kUseTdm || kUseTrLoad, "a Tdm pipeline must set kUseTrLoad as well");
 
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg
@@ -887,10 +894,22 @@ struct HstuAttentionFwdKernel
                 number<HstuAttentionPipeline::kAlignmentK>{},
                 number<1>{});
 
-            return pad_tensor_view(k_dram_naive,
-                                   make_tuple(number<HstuAttentionPipeline::kN0>{},
-                                              number<HstuAttentionPipeline::kQKHeaddim>{}),
-                                   sequence<false, kPadHeadDimQK>{});
+            // K is moved by the Tdm engine, whose box clamp already zero-fills reads past
+            // the end of the view. Padding the head dim here would instead round the view
+            // length up past the end of the real K buffer, so leave it unpadded and let the
+            // clamp do the work. (Q keeps its pad: it is read with a plain load_tile, which
+            // gets no such zero-fill and would pick up the next row.)
+            if constexpr(kUseTdm && kPadHeadDimQK)
+            {
+                return k_dram_naive;
+            }
+            else
+            {
+                return pad_tensor_view(k_dram_naive,
+                                       make_tuple(number<HstuAttentionPipeline::kN0>{},
+                                                  number<HstuAttentionPipeline::kQKHeaddim>{}),
+                                       sequence<false, kPadHeadDimQK>{});
+            }
         }();
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -913,6 +932,11 @@ struct HstuAttentionFwdKernel
                                        make_tuple(number<HstuAttentionPipeline::kN1>{},
                                                   number<HstuAttentionPipeline::kK1>{}),
                                        sequence<kPadHeadDimV, false>{});
+            }
+            else if constexpr(kUseTdm && kPadHeadDimV)
+            {
+                // same reasoning as k_dram above: V is Tdm-moved as well
+                return v_dram_naive;
             }
             else
             {
