@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 
@@ -8,6 +8,9 @@
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_xdl_cshuffle.hpp"
 #include "profiler/profile_batched_gemm_softmax_gemm_impl.hpp"
 using ck::tensor_operation::device::GemmSpecialization;
+
+extern ck::index_t param_mask;
+extern ck::index_t instance_index;
 
 template <ck::index_t N>
 using I = ck::Number<N>;
@@ -57,15 +60,38 @@ struct TestBatchedGemmSoftmaxGemm : public ::testing::Test
                                                                          B1Layout,
                                                                          CLayout,
                                                                          MaskingType::value>(
-            verify_, 1, false, bench_, M, N, K, O, BatchCount);
+            verify_,
+            1,
+            false,
+            bench_,
+            M,
+            N,
+            K,
+            O,
+            BatchCount,
+            -1, //  StrideA
+            -1, // StrideB0
+            -1, // StrideB1
+            -1, // StrideC
+            -1, // BatchStrideA
+            -1, //  BatchStrideB0
+            -1, // BatchStrideB1
+            -1, // BatchStrideC
+            -1, // alpha
+            instance_index);
 
         EXPECT_TRUE(pass);
     }
 
     void Run()
     {
-        for(auto lengths : this->lengths_)
+        for(size_t i = 0; i < this->lengths_.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& lengths  = this->lengths_[i];
             int M          = lengths[0];
             int N          = lengths[1];
             int K          = lengths[2];
@@ -133,11 +159,11 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
             8,           // AK1
             8,           // BK1
             2,           // B1K1
-            32,          // MPerXDL
-            32,          // NPerXDL
-            1,           // MXdlPerWave
-            4,           // NXdlPerWave
-            4,           // Gemm1NXdlPerWave
+            16,          // MPerXDL
+            16,          // NPerXDL
+            2,           // MXdlPerWave
+            8,           // NXdlPerWave
+            8,           // Gemm1NXdlPerWave
             S<4, 64, 1>, // ABlockTransfer
             S<1, 0, 2>,
             S<1, 0, 2>,
@@ -162,7 +188,7 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
             1,              // CShuffleMXdlPerWavePerShuffle
             2,              // CShuffleNXdlPerWavePerShuffle
             S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-            8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+            4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
             false>;
 
     bool IsSupported(int M, int N, int K, int O)

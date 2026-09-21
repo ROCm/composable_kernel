@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,8 +41,6 @@ struct ThreadwiseTensorSliceTransfer_v4r1
     using Index = MultiIndex<nDim>;
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
-
-    using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v4r1(const Index& src_ref_idx)
         : src_ref_coord_(make_tensor_coordinate(SrcDesc{}, src_ref_idx))

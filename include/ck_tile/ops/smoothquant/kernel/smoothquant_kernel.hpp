@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -45,6 +45,7 @@ struct Smoothquant
     static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
     static constexpr index_t Repeat_N        = Problem::BlockShape::Repeat_N;
+    static constexpr index_t kBlockSize      = Problem::BlockShape::BlockSize;
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -81,7 +82,11 @@ struct Smoothquant
         return dim3(integer_divide_ceil(hargs.m, Block_M));
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::BlockSize; }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? Problem::BlockShape::template GetBlockSize<true>()
+                           : Problem::BlockShape::template GetBlockSize<false>();
+    }
 
     // clang-format off
     template <typename T> struct t2s;

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,6 +20,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "profiler/common.hpp"
 
 namespace ck {
 namespace profiler {
@@ -29,7 +30,7 @@ void preShuffleBuffer(const T* src, T* dst, int N, int K, int NXdl)
 {
     int KPack = 16;
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = get_warp_size() / NLane;
     int K0    = K / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
@@ -73,7 +74,8 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
                                             int KBatch,
                                             int n_warmup,
                                             int n_iter,
-                                            uint64_t rotating = 0)
+                                            uint64_t rotating  = 0,
+                                            int instance_index = -1)
 {
     bool pass = true;
 
@@ -83,11 +85,11 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
 
@@ -98,6 +100,26 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
         f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // for preshuffle
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+
+    // Update strides based on tensor properties if they are <= 0
+    auto get_stride = [](auto& tensor, auto layout, ck::index_t current_stride) -> ck::index_t {
+        if(current_stride <= 0)
+        {
+            if constexpr(std::is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
+            {
+                return tensor.GetStrides()[0];
+            }
+            else
+            {
+                return tensor.GetStrides()[1];
+            }
+        }
+        return current_stride;
+    };
+
+    StrideA = get_stride(a_m_k, ALayout{}, StrideA);
+    StrideB = get_stride(b_k_n, BLayout{}, StrideB);
+    StrideC = get_stride(c_m_n_host_result, CLayout{}, StrideC);
 
     std::size_t total_gemm_needed =
         a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes();
@@ -186,8 +208,15 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
     float best_kbatch     = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t op_idx = 0; op_idx < op_ptrs.size(); op_idx++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(op_idx)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[op_idx];
+
         const int KPerBlock = op_ptr->GetKPerBlock();
 
         if(op_ptr->GetPermuteB())
@@ -317,8 +346,8 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
                                  is_same_v<CDataType, f8_t>)
                     {
                         std::string msg = "Error: Incorrect results!";
-                        double rtol     = 1e-1;
-                        double atol     = 1e-1;
+                        double rtol     = get_rtol<CDataType>();
+                        double atol     = get_atol<CDataType>();
                         pass            = pass & ck::utils::check_err(
                                           c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
                     }

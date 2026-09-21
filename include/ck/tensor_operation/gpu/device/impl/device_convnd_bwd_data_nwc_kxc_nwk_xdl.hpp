@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,7 +16,12 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/library/utility/numeric.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -36,8 +41,8 @@ template <ck::index_t NDimSpatial,
           ck::index_t NPerBlock,
           ck::index_t K0PerBlock,
           ck::index_t K1,
-          ck::index_t MPerXdl,
-          ck::index_t NPerXdl,
+          ck::index_t MPerXDL,
+          ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -80,9 +85,29 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
 {
     using DeviceOp = DeviceConvNdBwdDataNwcKxcNwk_Xdl;
 
-    using ADataType = OutDataType;
-    using BDataType = WeiDataType;
-    using CDataType = InDataType;
+    static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               1,
+                                                               1,
+                                                               true>();
+    static constexpr auto WarpTileConfig32 = GetWarpTileConfig<BlockSize,
+                                                               MPerBlock,
+                                                               NPerBlock,
+                                                               MPerXDL,
+                                                               NPerXDL,
+                                                               MXdlPerWave,
+                                                               1,
+                                                               1,
+                                                               false>();
+    static constexpr auto NXdlPerWave64    = WarpTileConfig64.At(3);
+    static constexpr auto NXdlPerWave32    = WarpTileConfig32.At(3);
+    using ADataType                        = OutDataType;
+    using BDataType                        = WeiDataType;
+    using CDataType                        = InDataType;
 
     // TODO make A/B datatype different
     using ABDataType = InDataType;
@@ -975,7 +1000,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
+    template <typename WarpTileConfig>
+    using GridwiseGemmBase = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -987,11 +1013,11 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         MPerBlock,
         NPerBlock,
         K0PerBlock,
-        MPerXdl,
-        NPerXdl,
+        WarpTileConfig::At(0),
+        WarpTileConfig::At(1),
         K1,
-        MXdlPerWave,
-        NXdlPerWave,
+        WarpTileConfig::At(2),
+        WarpTileConfig::At(3),
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -1011,6 +1037,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
         7,                                // CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector>;
+    using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -1043,6 +1071,10 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
               input_right_pads_{input_right_pads}
         {
             CreateABCDesc<NDimSpatial>();
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    input_spatial_lengths.begin(), NDimSpatial, 1, std::multiplies<>()) *
+                Conv_N_ * Conv_C_ * sizeof(CDataType);
         }
 
         template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
@@ -1209,6 +1241,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         std::vector<ck::index_t> conv_filter_dilations_;
         std::vector<ck::index_t> input_left_pads_;
         std::vector<ck::index_t> input_right_pads_;
+
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -1216,7 +1250,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
@@ -1265,18 +1300,47 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
                                                 DeviceOp::BGridDesc_K0_N_K1,
                                                 DeviceOp::CGridDesc_M_N,
                                                 true>;
-
-                    ave_time += launch_and_time_kernel(stream_config,
-                                                       kernel,
-                                                       dim3(gdx, gdy, gdz),
-                                                       dim3(BlockSize),
-                                                       0,
-                                                       arg.p_a_grid_,
-                                                       arg.p_b_grid_,
-                                                       arg.p_c_grid_,
-                                                       arg.a_grid_desc_k0_m_k1_container_[i],
-                                                       arg.b_grid_desc_k0_n_k1_container_[i],
-                                                       arg.c_grid_desc_m_n_container_[i]);
+                    if(stream_config.flush_cache)
+                    {
+                        // Clear input only for perf measurement.
+                        // For non-grouped solver user has to clear input on his own.
+                        const auto clear_input = [&]() {
+                            if(i == 0)
+                            {
+                                hip_check_error(hipMemsetAsync(arg.p_c_grid_,
+                                                               0,
+                                                               arg.c_space_size_bytes,
+                                                               stream_config.stream_id_));
+                            }
+                        };
+                        ave_time += launch_and_time_kernel_with_preprocess_flush_cache(
+                            stream_config,
+                            clear_input,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            arg.p_a_grid_,
+                            arg.p_b_grid_,
+                            arg.p_c_grid_,
+                            arg.a_grid_desc_k0_m_k1_container_[i],
+                            arg.b_grid_desc_k0_n_k1_container_[i],
+                            arg.c_grid_desc_m_n_container_[i]);
+                    }
+                    else
+                    {
+                        ave_time += launch_and_time_kernel(stream_config,
+                                                           kernel,
+                                                           dim3(gdx, gdy, gdz),
+                                                           dim3(BlockSize),
+                                                           0,
+                                                           arg.p_a_grid_,
+                                                           arg.p_b_grid_,
+                                                           arg.p_c_grid_,
+                                                           arg.a_grid_desc_k0_m_k1_container_[i],
+                                                           arg.b_grid_desc_k0_n_k1_container_[i],
+                                                           arg.c_grid_desc_m_n_container_[i]);
+                    }
                 }
                 else
                 {
@@ -1288,22 +1352,53 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
                                                 DeviceOp::BGridDesc_K0_N_K1,
                                                 DeviceOp::CGridDesc_M_N,
                                                 false>;
-
-                    ave_time += launch_and_time_kernel(stream_config,
-                                                       kernel,
-                                                       dim3(gdx, gdy, gdz),
-                                                       dim3(BlockSize),
-                                                       0,
-                                                       arg.p_a_grid_,
-                                                       arg.p_b_grid_,
-                                                       arg.p_c_grid_,
-                                                       arg.a_grid_desc_k0_m_k1_container_[i],
-                                                       arg.b_grid_desc_k0_n_k1_container_[i],
-                                                       arg.c_grid_desc_m_n_container_[i]);
+                    if(stream_config.flush_cache)
+                    {
+                        // Clear input only for perf measurement.
+                        // For non-grouped solver user has to clear input on his own.
+                        const auto clear_input = [&]() {
+                            if(i == 0)
+                            {
+                                hip_check_error(hipMemsetAsync(arg.p_c_grid_,
+                                                               0,
+                                                               arg.c_space_size_bytes,
+                                                               stream_config.stream_id_));
+                            }
+                        };
+                        ave_time += launch_and_time_kernel_with_preprocess_flush_cache(
+                            stream_config,
+                            clear_input,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            arg.p_a_grid_,
+                            arg.p_b_grid_,
+                            arg.p_c_grid_,
+                            arg.a_grid_desc_k0_m_k1_container_[i],
+                            arg.b_grid_desc_k0_n_k1_container_[i],
+                            arg.c_grid_desc_m_n_container_[i]);
+                    }
+                    else
+                    {
+                        ave_time += launch_and_time_kernel(stream_config,
+                                                           kernel,
+                                                           dim3(gdx, gdy, gdz),
+                                                           dim3(BlockSize),
+                                                           0,
+                                                           arg.p_a_grid_,
+                                                           arg.p_b_grid_,
+                                                           arg.p_c_grid_,
+                                                           arg.a_grid_desc_k0_m_k1_container_[i],
+                                                           arg.b_grid_desc_k0_n_k1_container_[i],
+                                                           arg.c_grid_desc_m_n_container_[i]);
+                    }
                 }
             }
             return ave_time;
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -1320,11 +1415,15 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ADataType,
+                                      BDataType,
+                                      MPerXDL,
+                                      NPerXDL,
+                                      WarpTileConfig32.At(0),
+                                      WarpTileConfig32.At(1)>())
         {
             return false;
         }
-
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
@@ -1354,14 +1453,30 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         }
 
         // Gridwise GEMM size
+        bool isWave64 = get_warp_size() == 64;
         for(std::size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
         {
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
-                                            arg.b_grid_desc_k0_n_k1_container_[i],
-                                            arg.c_grid_desc_m_n_container_[i]))
+            bool valid = false;
+            if(isWave64)
             {
-                return false;
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    valid = GridwiseGemm64::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
+                                                          arg.b_grid_desc_k0_n_k1_container_[i],
+                                                          arg.c_grid_desc_m_n_container_[i]);
+                }
             }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    valid = GridwiseGemm32::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
+                                                          arg.b_grid_desc_k0_n_k1_container_[i],
+                                                          arg.c_grid_desc_m_n_container_[i]);
+                }
+            }
+            if(!valid)
+                return false;
         }
         return true;
     }
@@ -1473,3 +1588,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif
+

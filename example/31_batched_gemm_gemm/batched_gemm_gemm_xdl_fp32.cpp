@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
 Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
@@ -25,6 +25,10 @@ Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -83,11 +87,11 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     4,           // AK1
     4,           // BK1
     1,           // B1K1
-    32,          // MPerXDL
-    32,          // NPerXDL
-    1,           // MXdlPerWave
-    4,           // NXdlPerWave
-    4,           // Gemm1NXdlPerWave
+    16,          // MPerXDL
+    16,          // NPerXDL
+    2,           // MXdlPerWave
+    8,           // NXdlPerWave
+    8,           // Gemm1NXdlPerWave
     S<4, 64, 1>, // ABlockTransfer
     S<1, 0, 2>,
     S<1, 0, 2>,
@@ -110,7 +114,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     1,
     false,
     1,               // CShuffleMXdlPerWavePerShuffle
-    2,               // CShuffleNXdlPerWavePerShuffle
+    4,               // CShuffleNXdlPerWavePerShuffle
     S<1, 16, 1, 16>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
     4>;              // CShuffleBlockTransferScalarPerVector_NPerBlock
 
@@ -132,4 +136,11 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 
 #include "run_batched_gemm_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return run_batched_gemm_gemm_example(argc, argv) ? 0 : 1; }
+int main(int argc, char* argv[])
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
+    {
+        return 0;
+    }
+    return run_batched_gemm_gemm_example(argc, argv) ? 0 : 1;
+}

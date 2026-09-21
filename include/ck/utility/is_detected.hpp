@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,8 +25,8 @@ struct detector<Default, ck::void_t<Op<Args...>>, Op, Args...>
 
 struct nonesuch
 {
-    ~nonesuch()               = delete;
-    nonesuch(nonesuch const&) = delete;
+    ~nonesuch()                     = delete;
+    nonesuch(nonesuch const&)       = delete;
     void operator=(nonesuch const&) = delete;
 };
 

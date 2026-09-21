@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -40,19 +40,19 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                             int N,
                                             int K,
                                             int O,
-                                            int BatchCount    = 1,
-                                            int StrideA       = -1,
-                                            int StrideB0      = -1,
-                                            int StrideB1      = -1,
-                                            int StrideC       = -1,
-                                            int BatchStrideA  = -1,
-                                            int BatchStrideB0 = -1,
-                                            int BatchStrideB1 = -1,
-                                            int BatchStrideC  = -1,
-                                            float alpha       = -1.f)
+                                            int BatchCount     = 1,
+                                            int StrideA        = -1,
+                                            int StrideB0       = -1,
+                                            int StrideB1       = -1,
+                                            int StrideC        = -1,
+                                            int BatchStrideA   = -1,
+                                            int BatchStrideB0  = -1,
+                                            int BatchStrideB1  = -1,
+                                            int BatchStrideC   = -1,
+                                            float alpha        = -1.f,
+                                            int instance_index = -1)
 
 {
-
     using Row           = tensor_layout::gemm::RowMajor;
     using Col           = tensor_layout::gemm::ColumnMajor;
     using PassThrough   = tensor_operation::element_wise::PassThrough;
@@ -118,11 +118,13 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
 
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 
@@ -251,10 +253,15 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-
     // profile device op instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
             static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
@@ -339,7 +346,6 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
     return pass;
 }
 

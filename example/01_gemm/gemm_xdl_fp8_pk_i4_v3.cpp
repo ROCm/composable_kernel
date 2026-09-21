@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -38,14 +38,14 @@ using DeviceGemmV2Instance =
         AElementOp, BElementOp, CElementOp, GemmDefault, 
         256,
         128, 128,
-        KPerBlock, 16, 32,
-        32,   32,
-        2,    2,
+        KPerBlock, 16, 16,
+        16,   16,
+        4,    4,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 16, 16, 0,
         S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 32, 32, 0,
-        1, 1, S<1, 32, 1, 8>, 8,
+        2, 16, 16, 0,
+        1, 1, S<1, 32, 1, 8>, 4,
         ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2, ADataType, ADataType, PermuteA, PermuteB>;
 
 // clang-format on
@@ -247,9 +247,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
-    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
+         ck::is_gfx12_supported()))
     {
-        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+        std::cout << "This kernel support gfx942, gfx950 and gfx12 only" << std::endl;
 
         return true;
     }

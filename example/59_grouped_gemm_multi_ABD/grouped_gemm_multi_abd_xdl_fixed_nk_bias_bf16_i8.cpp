@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -20,6 +20,13 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
+#include "ck/host_utility/hip_check_error.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -27,8 +34,9 @@ using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using F32  = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Add         = ck::tensor_operation::element_wise::Add;
@@ -110,11 +118,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 
@@ -214,33 +222,24 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     for(int i = 0; i < group_count; i++)
     {
-        a0_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(A0DataType) * sum_of_m * problem_size.Ks[i]));
+        a0_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(A0DataType) * problem_size.Ms[i] * problem_size.Ks[i]));
 
         b0_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(B0DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
 
-        b1_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(B1DataType) * problem_size.Ns[i]));
+        b1_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(B1DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
 
         d0_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(D0DataType) * problem_size.Ns[i]));
 
-        c_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(EDataType) * sum_of_m * problem_size.Ns[i]));
+        c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(EDataType) * problem_size.Ms[i] * problem_size.Ns[i]));
 
-        a0_tensors_device[i]->ToDevice(a0_tensors[i].mData.data(),
-                                       a0_tensors[i].mDesc.GetElementSpaceSize() *
-                                           sizeof(A0DataType));
-
-        b0_tensors_device[i]->ToDevice(b0_tensors[i].mData.data(),
-                                       b0_tensors[i].mDesc.GetElementSpaceSize() *
-                                           sizeof(B0DataType));
-
-        b1_tensors_device[i]->ToDevice(b1_tensors[i].mData.data(),
-                                       b1_tensors[i].mDesc.GetElementSpaceSize() *
-                                           sizeof(B1DataType));
-
+        a0_tensors_device[i]->ToDevice(a0_tensors[i].mData.data());
+        b0_tensors_device[i]->ToDevice(b0_tensors[i].mData.data());
+        b1_tensors_device[i]->ToDevice(b1_tensors[i].mData.data());
         d0_tensors_device[i]->ToDevice(d0_tensors[i].mData.data());
         c_tensors_device[i]->SetZero();
 
@@ -392,7 +391,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4: k_batch (>0)\n");
         exit(0);
     }

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,7 +32,8 @@ bool profile_permute_scale_impl(int do_verification,
                                 bool time_kernel,
                                 std::vector<index_t> lengths_vector,
                                 std::vector<index_t> input_strides_vector,
-                                std::vector<index_t> output_strides_vector)
+                                std::vector<index_t> output_strides_vector,
+                                index_t instance_index = -1)
 {
     bool pass           = true;
     bool instance_found = false;
@@ -40,10 +41,13 @@ bool profile_permute_scale_impl(int do_verification,
     using ElementOp = ck::tensor_operation::element_wise::Scale;
     float scale     = 2.f;
 
-    std::array<Tensor<ADataType>, 1> as = {Tensor<ADataType>(lengths_vector, input_strides_vector)};
-    Tensor<ADataType>& a                = as[0];
-    Tensor<BDataType> b(lengths_vector, output_strides_vector);
-    Tensor<BDataType> host_b(lengths_vector, output_strides_vector);
+    using ALayout                       = ck::tensor_layout::BypassLayoutVerification;
+    using BLayout                       = ck::tensor_layout::BypassLayoutVerification;
+    std::array<Tensor<ADataType>, 1> as = {
+        Tensor<ADataType>(lengths_vector, input_strides_vector, ALayout{})};
+    Tensor<ADataType>& a = as[0];
+    Tensor<BDataType> b(lengths_vector, output_strides_vector, BLayout{});
+    Tensor<BDataType> host_b(lengths_vector, output_strides_vector, BLayout{});
 
     std::cout << "A: " << a.mDesc << std::endl;
     std::cout << "B: " << b.mDesc << std::endl;
@@ -96,8 +100,14 @@ bool profile_permute_scale_impl(int do_verification,
     copy(input_strides_vector, input_strides);
     copy(output_strides_vector, output_strides);
 
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             lengths, {input_strides}, {output_strides}, input, output, ElementOp{scale});
 
@@ -160,8 +170,12 @@ bool profile_permute_scale_impl(int do_verification,
         std::cout << "Best perf = " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
                   << best_instance_name << std::endl;
     }
-
-    return pass && instance_found;
+    if(!instance_found && instance_index == -1)
+    {
+        std::cout << "Error: No kernel is applicable" << std::endl;
+        return false;
+    }
+    return pass;
 }
 
 } // namespace profiler

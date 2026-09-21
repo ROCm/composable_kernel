@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -51,6 +51,77 @@ inline std::string get_device_name()
     default: return name;
     }
 }
+
+inline int get_device_revision()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return -1; // Error: cannot get device
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return -1; // Error: cannot get device properties
+    }
+    return props.asicRevision;
+}
+
+inline bool is_gfx11_supported()
+{
+    return get_device_name() == "gfx1100" || get_device_name() == "gfx1101" ||
+           get_device_name() == "gfx1102" || get_device_name() == "gfx1103" ||
+           get_device_name() == "gfx1150" || get_device_name() == "gfx1151" ||
+           get_device_name() == "gfx1152" || get_device_name() == "gfx1153";
+}
+
+inline bool is_gfx120_supported()
+{
+    return get_device_name() == "gfx1200" || get_device_name() == "gfx1201";
+}
+
+inline bool is_gfx95_supported() { return get_device_name() == "gfx950"; }
+
+inline bool is_gfx125_supported() { return get_device_name() == "gfx1250"; }
+
+inline bool is_gfx12_supported() { return is_gfx120_supported() || is_gfx125_supported(); }
+
+inline size_t get_num_cus()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return 0;
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return 0;
+    }
+    return static_cast<size_t>(props.multiProcessorCount);
+}
+
+inline size_t get_num_xccs()
+{
+    int device   = 0;
+    int num_xccs = 1;
+    auto status  = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return 0;
+    }
+    status = hipDeviceGetAttribute(&num_xccs, hipDeviceAttributeNumberOfXccs, device);
+    if(status == hipSuccess)
+    {
+        return num_xccs;
+    }
+    return 1;
+}
+
 } // namespace ck_tile
 
 #endif

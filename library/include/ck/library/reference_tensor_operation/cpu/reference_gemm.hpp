@@ -1,15 +1,20 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
 #include <sstream>
 
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace host {
@@ -25,6 +30,12 @@ template <typename ADataType,
           typename ComputeTypeB = ComputeTypeA>
 struct ReferenceGemm : public device::BaseOperator
 {
+
+    using ElementDataTypeA =
+        ck::conditional_t<is_same_v<ComputeTypeA, ck::tf32_t>, float, ComputeTypeA>;
+    using ElementDataTypeB =
+        ck::conditional_t<is_same_v<ComputeTypeB, ck::tf32_t>, float, ComputeTypeB>;
+
     // Argument
     struct Argument : public device::BaseArgument
     {
@@ -39,7 +50,8 @@ struct ReferenceGemm : public device::BaseOperator
               c_m_n_{c_m_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              device_name_{ck::get_device_name()}
         {
         }
 
@@ -50,6 +62,7 @@ struct ReferenceGemm : public device::BaseOperator
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        ::std::string device_name_; // the device which this gemm is compared with
     };
 
     // Invoker
@@ -63,8 +76,8 @@ struct ReferenceGemm : public device::BaseOperator
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
                 AccDataType v_acc{0};
-                ComputeTypeA v_a{0};
-                ComputeTypeB v_b{0};
+                ElementDataTypeA v_a{0};
+                ElementDataTypeB v_b{0};
 
                 for(int k = 0; k < K; ++k)
                 {
@@ -77,16 +90,16 @@ struct ReferenceGemm : public device::BaseOperator
                         else
                             i4 = (i4x2 >> 4) & 0xf;
                         i4  = i4 - 8;
-                        v_a = type_convert<ComputeTypeA>(i4);
+                        v_a = type_convert<ElementDataTypeA>(i4);
                     }
                     else if constexpr(is_same_v<ADataType, f4x2_pk_t>)
                     {
                         // TODO: add support for ColMajor layout as well
                         if(k % 2 == 1)
-                            v_a = type_convert<ComputeTypeA>(
+                            v_a = type_convert<ElementDataTypeA>(
                                 f4_t(arg.a_m_k_(m, k).template unpack<>(Number<1>{})));
                         else
-                            v_a = type_convert<ComputeTypeA>(
+                            v_a = type_convert<ElementDataTypeA>(
                                 f4_t(arg.a_m_k_(m, k).template unpack<>(Number<0>{})));
                     }
                     else if constexpr(is_same_v<ADataType, f6x16_pk_t> ||
@@ -94,7 +107,7 @@ struct ReferenceGemm : public device::BaseOperator
                                       is_same_v<ADataType, f6x32_pk_t> ||
                                       is_same_v<ADataType, bf6x32_pk_t>)
                     {
-                        v_a = type_convert<ComputeTypeA>(
+                        v_a = type_convert<ElementDataTypeA>(
                             arg.a_m_k_(m, k).unpack(k % ADataType::packed_size));
                     }
                     else
@@ -111,16 +124,16 @@ struct ReferenceGemm : public device::BaseOperator
                         else
                             i4 = (i4x2 >> 4) & 0xf;
                         i4  = i4 - 8;
-                        v_b = type_convert<ComputeTypeB>(i4);
+                        v_b = type_convert<ElementDataTypeB>(i4);
                     }
                     else if constexpr(is_same_v<BDataType, f4x2_pk_t>)
                     {
                         // TODO: add support for RowMajor layout as well
                         if(k % 2 == 1)
-                            v_b = type_convert<ComputeTypeB>(
+                            v_b = type_convert<ElementDataTypeB>(
                                 f4_t(arg.b_k_n_(k, n).template unpack<>(Number<1>{})));
                         else
-                            v_b = type_convert<ComputeTypeB>(
+                            v_b = type_convert<ElementDataTypeB>(
                                 f4_t(arg.b_k_n_(k, n).template unpack<>(Number<0>{})));
                     }
                     else if constexpr(is_same_v<BDataType, f6x16_pk_t> ||
@@ -128,7 +141,7 @@ struct ReferenceGemm : public device::BaseOperator
                                       is_same_v<BDataType, f6x32_pk_t> ||
                                       is_same_v<BDataType, bf6x32_pk_t>)
                     {
-                        v_b = type_convert<ComputeTypeB>(
+                        v_b = type_convert<ElementDataTypeB>(
                             arg.b_k_n_(k, n).unpack(k % BDataType::packed_size));
                     }
                     else
@@ -136,8 +149,43 @@ struct ReferenceGemm : public device::BaseOperator
                         arg.b_element_op_(v_b, arg.b_k_n_(k, n));
                     }
 
-                    v_acc +=
-                        ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                    if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
+                                 is_same_v<CDataType, float> && is_same_v<AccDataType, float> &&
+                                 is_same_v<ComputeTypeA, ck::tf32_t> &&
+                                 is_same_v<ComputeTypeB, ck::tf32_t>)
+                    {
+                        if(arg.device_name_ == "gfx942")
+                        {
+                            v_acc +=
+                                ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_a)) *
+                                ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_b));
+                        }
+                        else if(arg.device_name_ == "gfx950")
+                        {
+                            ck::bhalf_t v_a_bf16_big   = ck::type_convert<ck::bhalf_t>(v_a);
+                            ck::bhalf_t v_a_bf16_small = ck::type_convert<ck::bhalf_t>(
+                                v_a - type_convert<float>(v_a_bf16_big));
+                            ck::bhalf_t v_b_bf16_big   = ck::type_convert<ck::bhalf_t>(v_b);
+                            ck::bhalf_t v_b_bf16_small = ck::type_convert<ck::bhalf_t>(
+                                v_b - type_convert<float>(v_b_bf16_big));
+
+                            v_acc += ck::type_convert<AccDataType>(v_a_bf16_big) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_small) +
+                                     ck::type_convert<AccDataType>(v_a_bf16_small) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_big) +
+                                     ck::type_convert<AccDataType>(v_a_bf16_big) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_big);
+                        }
+                        else
+                        {
+                            throw std::runtime_error("Unsupported device: " + arg.device_name_);
+                        }
+                    }
+                    else
+                    {
+                        v_acc +=
+                            ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                    }
                 }
 
                 CDataType v_c{0};
@@ -202,3 +250,7 @@ struct ReferenceGemm : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

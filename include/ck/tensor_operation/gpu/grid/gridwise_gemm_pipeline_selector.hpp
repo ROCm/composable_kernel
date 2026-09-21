@@ -1,27 +1,19 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <iostream>
-#include <ostream>
 #endif
 
+#include "ck/utility/pipeline_enum.hpp"
+#include "ck/utility/loop_scheduler.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v4_direct_load.hpp"
 
 namespace ck {
-
-enum struct PipelineVersion
-{
-    v1,
-    v2,
-    // v3 is only used in the Stream-K implementation.
-    v4,
-    weight_only,
-};
 
 template <PipelineVersion PipelineVer,
           index_t NumPrefetch     = 1,
@@ -62,18 +54,3 @@ constexpr auto GridwiseGemmPipeline_Selector()
 }
 
 } // namespace ck
-
-#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
-inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
-{
-    switch(p)
-    {
-    case ck::PipelineVersion::v1: os << "PipelineVersion::v1"; break;
-    case ck::PipelineVersion::v2: os << "PipelineVersion::v2"; break;
-    case ck::PipelineVersion::v4: os << "PipelineVersion::v4"; break;
-    case ck::PipelineVersion::weight_only: os << "PipelineVersion::weight_only"; break;
-    default: os << "";
-    }
-    return os;
-}
-#endif

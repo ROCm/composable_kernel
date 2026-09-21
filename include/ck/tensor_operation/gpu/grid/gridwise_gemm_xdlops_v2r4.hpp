@@ -1,9 +1,10 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -29,37 +30,40 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r4(const FloatAB* __restrict__ p_a_grid,
-                                const FloatAB* __restrict__ p_b_grid,
-                                FloatC* __restrict__ p_c_grid,
-                                const ABK0MK1GridDesc a_b_k0_m_k1_grid_desc,
-                                const BBK0NK1GridDesc b_b_k0_n_k1_grid_desc,
-                                const CM0N0M1N1M2M3M4N2GridDesc c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                const AElementwiseOperation a_element_op,
-                                const BElementwiseOperation b_element_op,
-                                const CElementwiseOperation c_element_op,
-                                const CBlockClusterAdaptor c_block_cluster_adaptor)
+    kernel_gemm_xdlops_v2r4(const FloatAB* __restrict__ p_a_grid,
+                            const FloatAB* __restrict__ p_b_grid,
+                            FloatC* __restrict__ p_c_grid,
+                            const ABK0MK1GridDesc a_b_k0_m_k1_grid_desc,
+                            const BBK0NK1GridDesc b_b_k0_n_k1_grid_desc,
+                            const CM0N0M1N1M2M3M4N2GridDesc c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                            const AElementwiseOperation a_element_op,
+                            const BElementwiseOperation b_element_op,
+                            const CElementwiseOperation c_element_op,
+                            const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
-    constexpr index_t shared_block_size =
-        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+#ifdefined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
+    {
+        constexpr index_t shared_block_size =
+            GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 
-    __shared__ FloatAB p_shared_block[shared_block_size];
+        __shared__ FloatAB p_shared_block[shared_block_size];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  p_shared_block,
-                                                  a_b_k0_m_k1_grid_desc,
-                                                  b_b_k0_n_k1_grid_desc,
-                                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  c_block_cluster_adaptor);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
+                                                      p_b_grid,
+                                                      p_c_grid,
+                                                      p_shared_block,
+                                                      a_b_k0_m_k1_grid_desc,
+                                                      b_b_k0_n_k1_grid_desc,
+                                                      c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                                                      a_element_op,
+                                                      b_element_op,
+                                                      c_element_op,
+                                                      c_block_cluster_adaptor);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -172,13 +176,40 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         return (a_block_space_size + b_block_space_size) * sizeof(FloatAB);
     }
 
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        constexpr bool valid = tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MRepeat,
+            NRepeat,
+            FloatC,
+            CGlobalMemoryDataOperation_>();
+        if constexpr(!valid)
+        {
+            return false;
+        }
+
+        if constexpr(K1Value % MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, true>::selected_mfma
+                                   .k_per_blk !=
+                     0)
+        {
+            return false;
+        }
+        return true;
+    }
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const ABK0MK1GridDesc& a_b_k0_m_k1_grid_desc,
-                  const BBK0NK1GridDesc& b_b_k0_n_k1_grid_desc,
-                  const CMNGridDesc& c_m_n_grid_desc,
-                  const Block2CTileMap& block_2_ctile_map)
+    __host__ static bool CheckValidity(const ABK0MK1GridDesc& a_b_k0_m_k1_grid_desc,
+                                       const BBK0NK1GridDesc& b_b_k0_n_k1_grid_desc,
+                                       const CMNGridDesc& c_m_n_grid_desc,
+                                       const Block2CTileMap& block_2_ctile_map)
     {
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
@@ -186,6 +217,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         static_assert((MPerBlock % (MPerXDL * MRepeat) == 0) &&
                           (NPerBlock % (NRepeat * NPerXDL)) == 0,
                       "Invalid tuning param!");
+
+        if(!is_xdl_wmma_k_supported<FloatAB, K0PerBlock * K1Value, K1Value>())
+        {
+            return false;
+        }
 
         const auto M      = a_b_k0_m_k1_grid_desc.GetLength(I2);
         const auto N      = b_b_k0_n_k1_grid_desc.GetLength(I2);

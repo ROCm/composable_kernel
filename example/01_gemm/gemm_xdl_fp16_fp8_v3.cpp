@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -28,10 +28,10 @@ using DeviceGemmV2Instance =
         ADataType, BDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
         64,
-        16, 16, 
+        32, 32, 
         256, 8, 16,
         16,   16,
-        1,    1, 
+        2,    2, 
         S<32, 2, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 8, 8, 0,
         S<16, 4, 1>,  S<1, 0, 2>,  S<1, 0, 2>,

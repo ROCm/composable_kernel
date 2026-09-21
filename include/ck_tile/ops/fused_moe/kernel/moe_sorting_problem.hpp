@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -71,6 +71,14 @@ struct MoeSortingProblemMp
     static constexpr bool SkipExpertsWithZeroTokens = SkipExpertsWithZeroTokens_;
     static_assert(SubTokenTile == 1 || SubTokenTile == 2 || SubTokenTile == 4 ||
                   SubTokenTile == 8 || SubTokenTile == 16);
+};
+
+template <bool LocalToken_, index_t BlockSize_ = 1024, index_t Occu_ = 1>
+struct MoeSortingClearWorkspaceProblem
+{
+    static constexpr bool LocalToken   = LocalToken_;
+    static constexpr index_t BlockSize = BlockSize_;
+    static constexpr index_t Occu      = Occu_;
 };
 
 } // namespace ck_tile

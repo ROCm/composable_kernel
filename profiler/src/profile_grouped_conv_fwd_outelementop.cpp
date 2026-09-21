@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "profiler/profile_grouped_conv_fwd_outelementop_impl.hpp"
 
@@ -14,16 +17,24 @@ enum struct ConvLayout
 
 enum struct OutElementOp
 {
-    ConvScale    = 0,
-    ConvInvScale = 1
+    ConvScale         = 0,
+    ConvInvScale      = 1,
+    CombConvScale     = 2,
+    ConvScaleRelu     = 3,
+    Scale             = 4,
+    CombConvScaleRelu = 5
 };
 
 enum struct ConvDataType
 {
-    F8_F8_F8   = 0,
-    BF8_BF8_F8 = 1,
-    F8_BF8_F8  = 2,
-    BF8_F8_F8  = 3
+    F8_F8_F8       = 0,
+    BF8_BF8_F8     = 1,
+    F8_BF8_F8      = 2,
+    BF8_F8_F8      = 3,
+    F16_F16_F16    = 4,
+    BF16_BF16_BF16 = 5,
+    I8_I8_I8       = 6,
+    F8_F8_F32      = 7
 };
 
 #define OP_NAME "grouped_conv_fwd_outelementop"
@@ -38,8 +49,16 @@ static void print_helper_msg()
         << "                 1: Input bf8, Weight bf8, Output fp8\n"
         << "                 2: Input fp8, Weight bf8, Output fp8\n"
         << "                 3: Input bf8, Weight fp8, Output fp8)\n"
+        << "                 4: Input f16, Weight f16, Output f16)\n"
+        << "                 5: Input bf16, Weight bf16, Output bf16)\n"
+        << "                 6: Input i8, Weight i8, Output i8)\n"
+        << "                 7: Input f8, Weight f8, Output f32)\n"
         << "arg3: element-wise operation (0: ConvScale\n"
-        << "                              1: ConvInvScale)\n"
+        << "                              1: ConvInvScale\n"
+        << "                              2: CombConvScale\n"
+        << "                              3: ConvScaleRelu\n"
+        << "                              4: Scale\n"
+        << "                              5: CombConvScaleRelu)\n"
         << "arg4: tensor layout (0: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]\n"
         << "                     1: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, Ho, Wo, G, K])\n"
         << "arg5: verification (0: no, 1: yes)\n"
@@ -78,15 +97,23 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
 
     const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 10, argv);
 
-    using F8  = ck::f8_t;
-    using BF8 = ck::bf8_t;
+    using F8   = ck::f8_t;
+    using F16  = ck::half_t;
+    using F32  = float;
+    using BF8  = ck::bf8_t;
+    using BF16 = ck::bhalf_t;
+    using I8   = int8_t;
 
     using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
     using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
     using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
-    using ConvScale    = ck::tensor_operation::element_wise::ConvScale;
-    using ConvInvScale = ck::tensor_operation::element_wise::ConvInvscale;
+    using ConvScale         = ck::tensor_operation::element_wise::ConvScale;
+    using ConvInvScale      = ck::tensor_operation::element_wise::ConvInvscale;
+    using CombConvScale     = ck::tensor_operation::element_wise::ScaleScalePass;
+    using ConvScaleRelu     = ck::tensor_operation::element_wise::ConvScaleRelu;
+    using Scale             = ck::tensor_operation::element_wise::Scale;
+    using CombConvScaleRelu = ck::tensor_operation::element_wise::ScaleScaleRelu;
 
     constexpr auto I3 = ck::Number<3>{};
 
@@ -170,6 +197,22 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
                 return profile(
                     I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F8{}, F8{}, F8{}, ConvInvScale{}, F8{}, F8{});
             }
+        }
+        else if(op == OutElementOp::CombConvScale)
+        {
+            if(data_type == ConvDataType::F8_F8_F8)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               F8{},
+                               F8{},
+                               F8{},
+                               CombConvScale{},
+                               F8{},
+                               F8{});
+            }
             else if(data_type == ConvDataType::BF8_BF8_F8)
             {
                 return profile(I3,
@@ -179,7 +222,7 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
                                BF8{},
                                BF8{},
                                F8{},
-                               ConvInvScale{},
+                               CombConvScale{},
                                BF8{},
                                BF8{});
             }
@@ -192,7 +235,7 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
                                F8{},
                                BF8{},
                                F8{},
-                               ConvInvScale{},
+                               CombConvScale{},
                                F8{},
                                BF8{});
             }
@@ -205,8 +248,66 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
                                BF8{},
                                F8{},
                                F8{},
-                               ConvInvScale{},
+                               CombConvScale{},
                                BF8{},
+                               F8{});
+            }
+        }
+        else if(op == OutElementOp::ConvScaleRelu)
+        {
+            if(data_type == ConvDataType::F8_F8_F8)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               F8{},
+                               F8{},
+                               F8{},
+                               ConvScaleRelu{},
+                               F8{},
+                               F8{});
+            }
+        }
+        else if(op == OutElementOp::Scale)
+        {
+            if(data_type == ConvDataType::F16_F16_F16)
+            {
+                return profile(
+                    I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, Scale{}, F16{}, F16{});
+            }
+            else if(data_type == ConvDataType::BF16_BF16_BF16)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               BF16{},
+                               BF16{},
+                               BF16{},
+                               Scale{},
+                               BF16{},
+                               BF16{});
+            }
+            else if(data_type == ConvDataType::I8_I8_I8)
+            {
+                return profile(
+                    I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, I8{}, I8{}, I8{}, Scale{}, I8{}, I8{});
+            }
+        }
+        else if(op == OutElementOp::CombConvScaleRelu)
+        {
+            if(data_type == ConvDataType::F8_F8_F32)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               F8{},
+                               F8{},
+                               F32{},
+                               CombConvScaleRelu{},
+                               F8{},
                                F8{});
             }
         }

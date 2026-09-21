@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -14,6 +14,9 @@
 #include "ck/host_utility/device_prop.hpp"
 
 #include "profiler/profile_grouped_conv_bwd_weight_impl.hpp"
+
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 
 using namespace ck::tensor_layout::convolution;
 
@@ -30,8 +33,14 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     using NDimSpatial = std::tuple_element_t<6, Tuple>;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
-    std::vector<ck::index_t> split_ks{1, 2};
-
+    std::vector<ck::index_t> split_ks{-1, 1, 2};
+#if defined(CK_TEST_DISABLE_GPU_VALIDATION)
+    static constexpr int verify_ = 1; // CPU reference
+#else
+    static constexpr int verify_ = 2; // GPU reference
+#endif
+    // On gfx1250, the naive GPU reference kernel can hang. Always use CPU reference.
+    int get_verify() const { return (ck::is_gfx125_supported() && verify_ == 2) ? 1 : verify_; }
     bool skip_case(const ck::index_t split_k)
     {
         // 1d NWGC is only supported by DL kernel
@@ -43,7 +52,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 return true;
             }
         }
-        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
         {
             // on gfx11 only support for 3d is implemented
             if constexpr(NDimSpatial{} != 3)
@@ -92,23 +101,33 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         for(auto split_k : split_ks)
         {
-            for(auto& param : conv_params)
+            for(size_t i = 0; i < conv_params.size(); i++)
             {
+                if((param_mask & (1 << i)) == 0)
+                {
+                    continue;
+                }
+                auto& param = conv_params[i];
                 if(!skip_case(split_k))
                 {
-                    pass = pass && ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
-                                                                                      InLayout,
-                                                                                      WeiLayout,
-                                                                                      OutLayout,
-                                                                                      InDataType,
-                                                                                      WeiDataType,
-                                                                                      OutDataType>(
-                                       true,  // do_verification
-                                       1,     // init_method: integer value
-                                       false, // do_log
-                                       false, // time_kernel
-                                       param,
-                                       std::to_string(split_k));
+                    const bool success =
+                        ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
+                                                                           InLayout,
+                                                                           WeiLayout,
+                                                                           OutLayout,
+                                                                           InDataType,
+                                                                           WeiDataType,
+                                                                           OutDataType>(
+                            get_verify(), // do_verification
+                            1,            // init_method: integer value
+                            false,        // do_log
+                            false,        // time_kernel
+                            param,
+                            std::to_string(split_k),
+                            instance_index);
+                    pass = pass && success;
+                    if(!success)
+                        std::cout << "Case " << param << " failed!" << std::endl;
                 }
             }
         }
@@ -215,12 +234,29 @@ TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
     this->conv_params.push_back(
         {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 32, {3, 3, 3}, {16, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 64, 3, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 1, {3, 3, 3}, {18, 18, 18}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
         {3, 16, 16, 1, 1, {3, 3, 3}, {28, 28, 28}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

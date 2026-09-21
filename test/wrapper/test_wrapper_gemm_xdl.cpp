@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <numeric>
 #include <cstdlib>
@@ -24,6 +24,10 @@
 #include "ck/wrapper/operations/copy.hpp"
 #include "ck/wrapper/operations/gemm.hpp"
 #include "ck/wrapper/utils/kernel_utils.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <typename DataType>
 void CheckResult(const std::vector<DataType>& a_data,
@@ -81,6 +85,7 @@ __global__ void __CK_WRAPPER_LAUNCH_BOUNDS__ DeviceGemm(const void* p_a,
                                                         const BlockShape tile_shape,
                                                         const ThreadLayout thread_layout)
 {
+#if defined(__gfx9__)
     constexpr auto MPerBlock  = ck::wrapper::size<0>(tile_shape);
     constexpr auto NPerBlock  = ck::wrapper::size<1>(tile_shape);
     constexpr auto KPerBlock  = ck::wrapper::size<2>(tile_shape);
@@ -256,6 +261,16 @@ __global__ void __CK_WRAPPER_LAUNCH_BOUNDS__ DeviceGemm(const void* p_a,
         a_lds_tensor, b_lds_tensor, c_vgpr_reg);
 
     ck::wrapper::copy(c_vgpr_reg, c_global_local_partition);
+#else
+    ck::ignore = p_a;
+    ck::ignore = p_b;
+    ck::ignore = p_c;
+    ck::ignore = M;
+    ck::ignore = N;
+    ck::ignore = K;
+    ck::ignore = tile_shape;
+    ck::ignore = thread_layout;
+#endif
 }
 
 template <typename DataType,
@@ -291,7 +306,7 @@ void PerformGemm(const ck::index_t M,
 
     const auto kernel =
         DeviceGemm<DataType, GemmTraits, scalar_per_vector, BlockShape, ThreadLayout, DoPadding>;
-    const float avg_time = launch_and_time_kernel(StreamConfig{nullptr, true},
+    const float avg_time = launch_and_time_kernel(StreamConfig{nullptr, false},
                                                   kernel,
                                                   dim3(grid_size_x, grid_size_y, 1),
                                                   dim3(ck::wrapper::size(thread_layout)),
@@ -373,4 +388,15 @@ TEST(TestGemm, Float_2x4_4x2_XdlPerWave)
     const auto tile_shape = ck::make_tuple(ck::Number<256>{}, ck::Number<128>{}, ck::Number<16>{});
     PerformGemm<DataType, ck::wrapper::BlockwisGemmXdlTraits_32x32Xdl_4x2XdlPerWave_4K1, 4, false>(
         512, 512, 128, tile_shape, thread_layout);
+}
+
+int main(int argc, char** argv)
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        std::cout << "This test support gfx9 only" << std::endl;
+        return 0;
+    }
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

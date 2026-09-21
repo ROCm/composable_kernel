@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,6 +12,10 @@
 #include "device_base.hpp"
 #include "ck/utility/ignore.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -70,15 +74,9 @@ struct GroupedGemmKernelArgument
         for(auto sd : StrideDs)
             str << sd << ",";
 
-        std::cout << "arg {"
-                  << "M:" << M << ", "
-                  << "N:" << N << ", "
-                  << "K:" << K << ", "
-                  << "SA:" << StrideA << ", "
-                  << "SB:" << StrideB << ", "
-                  << "SE:" << StrideE << ", "
-                  << "SDs: {" << str.str() << "}"
-                  << "}" << std::endl;
+        std::cout << "arg {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                  << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SE:" << StrideE
+                  << ", " << "SDs: {" << str.str() << "}" << "}" << std::endl;
     }
 };
 
@@ -100,7 +98,8 @@ template <typename ALayout,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
+          typename CElementwiseOperation,
+          typename ComputeDataType = ADataType>
 struct DeviceGroupedGemm : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -183,3 +182,7 @@ struct DeviceGroupedGemm : public BaseOperator
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

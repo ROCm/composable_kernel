@@ -1,0 +1,14 @@
+{
+  "variant": "fwd",
+  "trait_config": {
+    "data_type": {"values": ["fp16"]},
+    "pipeline": {"values": ["qr_async"]},
+    "mask": {"values": ["no"]},
+    "bias": {"values": ["no"]},
+    "mode": {"values": ["batch"]},
+    "lse": {"values": [false]},
+    "dropout": {"values": [false]},
+    "logits": {"values": [false]},
+    "sink": {"values": [false]}
+  }
+}

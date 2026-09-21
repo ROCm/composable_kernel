@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -60,32 +60,6 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             NRepeat,
             KPack>{};
     }
-#if 0
-    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
-    {
-        return BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v2<
-            BlkGemmPipeSche,
-            BlockSize,
-            ADataType,
-            BDataType,
-            ComputeDataType,
-            AccDataType,
-            ATileDesc,
-            BTileDesc,
-            AMmaTileDesc,
-            BMmaTileDesc,
-            ABlockTransferSrcScalarPerVector,
-            BBlockTransferSrcScalarPerVector,
-            MPerBlock,
-            NPerBlock,
-            KPerBlock,
-            MPerXDL,
-            NPerXDL,
-            MRepeat,
-            NRepeat,
-            KPack>{};
-    }
-#endif
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
         static_assert(MRepeat >= 4, "MRepeat should at least be 4 in BlockGemmPipelineVersion::v3");

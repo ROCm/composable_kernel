@@ -10,7 +10,6 @@
 
 #include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
-#include "ck/utility/amd_arch.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -32,7 +31,8 @@ enum Activation
     gelu_and_mul       = 0,
     silu_and_mul       = 1,
     swiglustep_and_mul = 2,
-    swiglu_oai_and_mul = 3
+    swiglu_oai_and_mul = 3,
+    gelu_tanh_and_mul  = 4
 };
 
 // OAI / gpt-oss SwiGLU activation: gate * sigmoid(alpha * gate) * (up + 1), with a

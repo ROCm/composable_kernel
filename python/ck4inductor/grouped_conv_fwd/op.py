@@ -1,5 +1,5 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 from dataclasses import asdict, dataclass
 from typing import Optional, Tuple
@@ -65,6 +65,9 @@ class CKGroupedConvFwdOp:
 
     a_compute_dtype: Optional[str] = None
     b_compute_dtype: Optional[str] = None
+
+    direct_load: Optional[bool] = None
+    num_groups_to_merge: Optional[int] = None
     large_tensor: Optional[bool] = None
 
     def name(self):

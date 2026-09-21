@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <cstdlib>
@@ -23,6 +23,8 @@
 #include "ck/library/tensor_operation_instance/gpu/permute_scale.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/reduce.hpp"
 #include "ck/library/utility/host_tensor.hpp"
+
+using ::ck::HostTensorDescriptor;
 
 using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 using ConvScaleRelu = ck::tensor_operation::element_wise::ScaleScaleRelu;
@@ -222,13 +224,13 @@ bool run_grouped_conv_fwd_convscale_reduce(
                                         ck::tensor_operation::element_wise::Scale{scale_wei},
                                         {}};
     auto conv_ok        = ConvolutionScale<InDataType,
-                                    WeiDataType,
-                                    ConvOutDataType,
-                                    ConvElementOp,
-                                    InLayout,
-                                    WeiLayout,
-                                    OutLayout,
-                                    NumDimSpatial>(in,
+                                           WeiDataType,
+                                           ConvOutDataType,
+                                           ConvElementOp,
+                                           InLayout,
+                                           WeiLayout,
+                                           OutLayout,
+                                           NumDimSpatial>(in,
                                                    wei,
                                                    conv_out,
                                                    elementwise_op,
@@ -717,15 +719,15 @@ bool TensorFullReduction(SimpleDeviceMem& tensor,
     {
         std::cout << "\nReduction of spatial dimensions:" << std::endl;
         using DeviceOp     = ck::tensor_operation::device::DeviceReduce<OutDataType,
-                                                                    OutDataType,
-                                                                    OutDataType,
-                                                                    NumDimSpatial,
-                                                                    NumDimSpatial,
-                                                                    ReduceOperation,
-                                                                    PassThrough,
-                                                                    AccElementwiseOperation,
-                                                                    true,   // PropagateNan
-                                                                    false>; // OutputIndex
+                                                                        OutDataType,
+                                                                        OutDataType,
+                                                                        NumDimSpatial,
+                                                                        NumDimSpatial,
+                                                                        ReduceOperation,
+                                                                        PassThrough,
+                                                                        AccElementwiseOperation,
+                                                                        true,   // PropagateNan
+                                                                        false>; // OutputIndex
         const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
             DeviceOp>::GetInstances();
 

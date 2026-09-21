@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 
@@ -39,7 +39,7 @@ using ReduceMemOp = ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperat
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
-// c[g, m, n] = a[g, m, k] * b[g, n, k]
+// c[g, m, n] = a[g, k, m] * b[g, n, k]
 using device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_instances =
     std::tuple<
         // clang-format off

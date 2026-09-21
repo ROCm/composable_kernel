@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,6 +57,22 @@ struct GNCHW : public BaseTensorLayout
 struct GNCDHW : public BaseTensorLayout
 {
     static constexpr const char* name = "GNCDHW";
+};
+
+// packed NGCW/NGCHW/NGCDHW
+struct NGCW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCW";
+};
+
+struct NGCHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCHW";
+};
+
+struct NGCDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCDHW";
 };
 
 // input tensor
@@ -273,6 +289,22 @@ struct GNKHW : public BaseTensorLayout
 struct GNKDHW : public BaseTensorLayout
 {
     static constexpr const char* name = "GNKDHW";
+};
+
+// packed NGKW/NGKHW/NGKDHW
+struct NGKW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKW";
+};
+
+struct NGKHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKHW";
+};
+
+struct NGKDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKDHW";
 };
 
 // output tensor

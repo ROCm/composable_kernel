@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 int run(int argc, char* argv[])
 {
@@ -111,12 +111,14 @@ int run(int argc, char* argv[])
         if(std::is_same<decltype(layout), Row>::value)
         {
             return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+                                        std::vector<std::size_t>({batch_stride, stride, 1}),
+                                        layout);
         }
         else
         {
             return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+                                        std::vector<std::size_t>({batch_stride, 1, stride}),
+                                        layout);
         }
     };
 

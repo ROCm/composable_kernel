@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,6 +11,10 @@ enum class BlockFmhaPipelineEnum
     QRKSVS = 0,
     QRKSVS_ASYNC,
     QSKSVS,
+    QRKSVS_ASYNC_TRLOAD,
+    QRKSVS_ASYNC_TRLOAD_V3,
+    QRKSVS_HPAD,
+    QRKSVS_TDM,
 };
 
 template <BlockFmhaPipelineEnum>
@@ -30,6 +34,24 @@ template <>
 struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QSKSVS>
 {
     static constexpr const char* name = "qs";
+};
+
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_ASYNC_TRLOAD>
+{
+    static constexpr const char* name = "qr_async_trload";
+};
+
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_HPAD>
+{
+    static constexpr const char* name = "qr_hpad";
+};
+
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_TDM>
+{
+    static constexpr const char* name = "qr_tdm";
 };
 
 } // namespace ck_tile

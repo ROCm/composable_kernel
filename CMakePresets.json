@@ -1,0 +1,107 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "use-gfx908",
+            "hidden": true,
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx908"
+            }
+        },
+        {
+            "name": "use-gfx90a",
+            "hidden": true,
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx90a"
+            }
+        },
+        {
+            "name": "use-gfx942",
+            "hidden": true,
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx942"
+            }
+        },
+        {
+            "name": "use-gfx950",
+            "hidden": true,
+            "cacheVariables": {
+                "GPU_TARGETS": "gfx950"
+            }
+        },
+        {
+            "name": "dev",
+            "binaryDir": "${sourceDir}/build",
+            "displayName": "CK Dev",
+            "environment": {},
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "/opt/rocm/",
+                "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
+                "CMAKE_HIP_COMPILER": "/opt/rocm/llvm/bin/clang++",
+                "CMAKE_CXX_FLAGS": "-ftemplate-backtrace-limit=0 -fPIE -Wno-gnu-line-marker -fbracket-depth=1024",
+                "CMAKE_BUILD_TYPE": "Release",
+                "BUILD_DEV": "ON",
+                "CMAKE_VERBOSE_MAKEFILE": "ON",
+                "USE_BITINT_EXTENSION_INT4": "OFF",
+                "GPU_TARGETS": "gfx908;gfx90a;gfx942"
+            }
+        },
+        {
+            "name": "dev-minimal",
+            "binaryDir": "${sourceDir}/build",
+            "displayName": "CK Dev - Minimal Build",
+            "description": "Fast iteration build with minimal components (configure ~5s vs ~150s)",
+            "inherits": ["dev"],
+            "cacheVariables": {
+                "BUILD_CK_DEVICE_INSTANCES": "OFF",
+                "BUILD_CK_PROFILER": "OFF",
+                "BUILD_CK_EXAMPLES": "OFF",
+                "BUILD_CK_TUTORIALS": "OFF",
+                "BUILD_CK_TILE_ENGINE": "OFF",
+                "BUILD_CK_TILE_ENGINE_TESTS": "OFF",
+                "BUILD_CK_TILE_FMHA_TESTS": "OFF"
+            }
+        },
+        {
+            "name": "dev-gfx908",
+            "displayName": "CK Dev - gfx908",
+            "description": "Development build for AMD GPU gfx908",
+            "inherits": [
+                "use-gfx908",
+                "dev"
+            ]
+        },
+        {
+            "name": "dev-gfx90a",
+            "displayName": "CK Dev - gfx90a",
+            "description": "Development build for AMD GPU gfx90a",
+            "inherits": [
+                "use-gfx90a",
+                "dev"
+            ]
+        },
+        {
+            "name": "dev-gfx942",
+            "displayName": "CK Dev - gfx942",
+            "description": "Development build for AMD GPU gfx942",
+            "inherits": [
+                "use-gfx942",
+                "dev"
+            ]
+        },
+        {
+            "name": "dev-gfx950",
+            "displayName": "CK Dev - gfx950",
+            "description": "Development build for AMD GPU gfx950",
+            "inherits": [
+                "use-gfx950",
+                "dev"
+            ]
+        }
+    ]
+}

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host/headers.hpp"
 #include "ck_headers.hpp"
@@ -7,10 +7,14 @@
 namespace ck {
 namespace host {
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
 const std::string config_header = "";
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif
 
 std::unordered_map<std::string_view, std::string_view> GetHeaders()
 {

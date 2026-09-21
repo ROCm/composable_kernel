@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -44,10 +44,10 @@ using DeviceConvBwdWeightInstance =
         128,                  // NPerBlock
         4,                    // K0PerBlock
         8,                    // K1
-        32,                   // MPerXdl
-        32,                   // NPerXdl
-        2,                    // MXdlPerWave
-        2,                    // NXdlPerWave
+        16,                   // MPerXdl
+        16,                   // NPerXdl
+        4,                    // MXdlPerWave
+        4,                    // NXdlPerWave
         S<1, 4, 16, 4>,       // ABlockTransferThreadClusterLengths_K0_M_K1
         S<0, 3, 1, 2>,        // ABlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,        // ABlockTransferSrcAccessOrder
@@ -80,6 +80,11 @@ using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWe
 
 int main(int argc, char* argv[])
 {
+    if(ck::is_gfx11_supported())
+    {
+        return 0;
+    }
+
     ExecutionConfig config;
     ck::utils::conv::ConvParam conv_param = DefaultConvParam;
 

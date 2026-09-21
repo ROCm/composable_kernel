@@ -1,72 +1,81 @@
 .. meta::
-  :description: Composable Kernel build and install
-  :keywords: composable kernel, CK, ROCm, API, documentation, install
+   :description: Installation instructions for Composable Kernel
+   :keywords: ck, lib, composable, kernel, algorithm, install, sdk, rocm
 
-******************************************************
-Building and installing Composable Kernel with CMake
-******************************************************
+.. _installation:
 
-Before you begin, clone the `Composable Kernel GitHub repository <https://github.com/ROCm/composable_kernel.git>`_ and create a ``build`` directory in its root:
+**************************
+Install Composable Kernel
+**************************
 
-.. code:: shell
+Before you begin, verify that your system is supported. For more information, see :ref:`ROCm Core SDK components <rocm:release-components>`.
 
-  git clone https://github.com/ROCm/composable_kernel.git
-  cd composable_kernel
-  mkdir build
+For advanced workflows, source builds, or custom configurations, see :doc:`./Composable-Kernel-build`.
 
-Change directory to the ``build`` directory and generate the makefile using the ``cmake`` command. Two build options are required:
+.. _install-rocm:
 
-* ``CMAKE_PREFIX_PATH``: The ROCm installation path. ROCm is installed in ``/opt/rocm`` by default.
-* ``CMAKE_CXX_COMPILER``: The path to the Clang compiler. Clang is found at ``/opt/rocm/llvm/bin/clang++`` by default.
+Install the ROCm Core SDK
+=========================
 
+Composable Kernel (CK) is included with the ROCm Core SDK on Linux and Windows. For the complete Core SDK installation, use the
+``amdrocm-core-sdk`` package. See :doc:`Install AMD ROCm <rocm:install/rocm>` for more information.
 
-.. code:: shell
+.. _install-base:
 
-  cd build
-  cmake ../. -D CMAKE_PREFIX_PATH="/opt/rocm" -D CMAKE_CXX_COMPILER="/opt/rocm/llvm/bin/clang++" [-D<OPTION1=VALUE1> [-D<OPTION2=VALUE2>] ...]
+Install the Composable Kernel package on Linux
+================================================
 
+Alternatively, you can use the ``amdrocm-ck`` package to install Composable Kernel without the full ROCm Core SDK.
 
-Other build options are:
+1. Complete the :doc:`ROCm installation prerequisites <rocm:install/rocm>` to
+   install dependencies and configure GPU access permissions.
 
-* ``DISABLE_DL_KERNELS``: Set this to "ON" to not build deep learning (DL) and data parallel primitive (DPP) instances. 
+2. Install the Composable Kernel package that matches your desired ROCm version. Package
+   names use the following format:
 
-  .. note::
+   .. code-block:: shell-session
 
-      DL and DPP instances are useful on architectures that don't support XDL or WMMA.
+      amdrocm-ck<rocm_version>-<llvm_target>
 
-* ``CK_USE_FP8_ON_UNSUPPORTED_ARCH``: Set to ``ON`` to build FP8 data type instances on gfx90a without native FP8 support.
-* ``GPU_TARGETS``: Target architectures. Target architectures in this list must all be different versions of the same architectures. Enclose the list of targets in quotation marks. Separate multiple targets with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx90a"``. This option is required to build tests and examples.
-* ``GPU_ARCHS``: Target architectures. Target architectures in this list are not limited to different versions of the same architectures. Enclose the list of targets in quotation marks. Separate multiple targets with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx1100"``.
-* ``CMAKE_BUILD_TYPE``: The build type. Can be ``None``, ``Release``, ``Debug``, ``RelWithDebInfo``, or ``MinSizeRel``. CMake will use ``Release`` by default.
+   Where:
 
-.. Note::
+   * ``<rocm_version>`` is the ROCm Core SDK version to install. Omit this
+     suffix to install the latest available version.
 
-  If neither ``GPU_TARGETS`` nor ``GPU_ARCHS`` is specified, Composable Kernel will be built for all targets supported by the compiler.
+   * ``<llvm_target>`` (starting with ``gfx``) is used if you are installing
+     for a single AMD GPU architecture. Omit this suffix to install for all
+     architectures at the cost of disk space.
 
-Build Composable Kernel using the generated makefile. This will build the library, the examples, and the tests, and save them to ``bin``.
+   For example, to install the latest Composable Kernel development package release for
+   supported GPU architectures:
 
-.. code:: shell
+   .. tab-set::
 
-    make -j20
+      .. tab-item:: Debian-based distros
 
-The ``-j`` option speeds up the build by using multiple threads in parallel. For example, ``-j20`` uses twenty threads in parallel. On average, each thread will use 2GB of memory. Make sure that the number of threads you use doesn't exceed the available memory in your system.
+         .. code-block:: bash
 
-Using ``-j`` alone will launch an unlimited number of threads and is not recommended.
+            sudo apt install amdrocm-ck<rocm_version>-<llvm_target>
 
-Install the Composable Kernel library:
+      .. tab-item:: RHEL-based distros
 
-.. code:: shell
-  
-  make install
+         .. code-block:: bash
 
-After running ``make install``, the Composable Kernel files will be saved to the following locations:
+            sudo dnf install amdrocm-ck<rocm_version>-<llvm_target>
 
-* Library files: ``/opt/rocm/lib/``
-* Header files: ``/opt/rocm/include/ck/`` and ``/opt/rocm/include/ck_tile/``
-* Examples, tests, and ckProfiler: ``/opt/rocm/bin/``
+      .. tab-item:: SLES
 
-For information about ckProfiler, see `the ckProfiler readme file <https://github.com/ROCm/composable_kernel/blob/develop/profiler/README.md>`_.
+         .. code-block:: bash
 
-For information about running the examples and tests, see :doc:`Composable Kernel examples and tests <../tutorial/Composable-Kernel-examples>`.
+            sudo zypper install amdrocm-ck<rocm_version>-<llvm_target>
 
+.. _install-nightly:
 
+Install a nightly build
+=======================
+
+The `TheRock <https://github.com/ROCm/TheRock>`__ build system also publishes nightly builds for the ROCm Core SDK and its components, including Composable Kernel. See `Nightly release status <https://github.com/ROCm/TheRock#nightly-release-status>`__ for details.
+
+.. note::
+
+   If you choose to install from a nightly build artifact, you'll need to set ``HIP_PLATFORM=amd`` and ``LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib`` after installation.

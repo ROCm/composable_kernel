@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,6 +25,14 @@
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -249,8 +257,8 @@ inline auto to_array(Range& range) noexcept
 }
 
 template <typename Axes>
-inline auto is_valid_axes(const Axes& axes)
-    -> std::enable_if_t<detail::is_random_access_range_v<Axes>, bool>
+inline auto
+is_valid_axes(const Axes& axes) -> std::enable_if_t<detail::is_random_access_range_v<Axes>, bool>
 {
     using std::empty;
     if(empty(axes))
@@ -357,10 +365,11 @@ auto extend_axes(const Problem::Axes& axes)
 }
 
 template <typename Shape, typename Indices>
-auto advance_indices(const Shape& shape, Indices& indices) -> std::enable_if_t<
-    detail::is_bidirectional_range_v<Shape> && detail::is_sized_range_v<Shape> &&
-        detail::is_bidirectional_range_v<Indices> && detail::is_sized_range_v<Indices>,
-    bool>
+auto advance_indices(const Shape& shape, Indices& indices)
+    -> std::enable_if_t<
+        detail::is_bidirectional_range_v<Shape> && detail::is_sized_range_v<Shape> &&
+            detail::is_bidirectional_range_v<Indices> && detail::is_sized_range_v<Indices>,
+        bool>
 {
     using std::size;
     if(!(is_valid_shape(shape) && is_valid_indices(shape, indices) && size(shape) == size(indices)))
@@ -454,3 +463,6 @@ auto host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Ten
 
     return true;
 }
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -23,7 +23,10 @@ struct TensorAdaptor
 {
     __host__ __device__ static constexpr index_t GetNumOfTransform() { return Transforms::Size(); }
 
-    __host__ __device__ constexpr const auto& GetTransforms() const { return transforms_; }
+    __host__ __device__ constexpr const auto& GetTransforms() const [[clang::lifetimebound]]
+    {
+        return transforms_;
+    }
 
     __host__ __device__ static constexpr auto GetLowerDimensionHiddenIdss()
     {
@@ -45,28 +48,29 @@ struct TensorAdaptor
         return BottomDimensionHiddenIds{};
     }
 
+    // Helper to get length of a top dimension from transforms
+    template <index_t I>
+    __host__ __device__ static constexpr auto
+    GetTopDimLengthFromTransforms(const Transforms& transforms)
+    {
+        constexpr auto result = find_in_tuple_of_sequences<TopDimensionHiddenIds::At(Number<I>{})>(
+            UpperDimensionHiddenIdss{});
+        static_assert(result.found, "wrong! not found matching transformation and upper-dimension");
+        return transforms[Number<result.itran>{}].GetUpperLengths()[Number<result.idim_up>{}];
+    }
+
+    // Compute element size using pack expansion instead of generate_tuple with lambda
+    template <index_t... Is>
+    __host__ __device__ static constexpr auto ComputeElementSizeImpl(const Transforms& transforms,
+                                                                     Sequence<Is...>)
+    {
+        return (GetTopDimLengthFromTransforms<Is>(transforms) * ...);
+    }
+
     __host__ __device__ static constexpr auto InitializeElementSize(const Transforms& transforms)
     {
-        const auto lengths = generate_tuple(
-            [&](auto idim_top) {
-                constexpr auto tmp = GetTransformAndItsUpperDimension(idim_top);
-
-                constexpr index_t itran   = tmp[Number<0>{}];
-                constexpr index_t idim_up = tmp[Number<1>{}];
-                constexpr bool found      = tmp[Number<2>{}];
-
-                static_assert(found == true,
-                              "wrong! not found matching transformation and upper-dimension");
-
-                const auto length =
-                    transforms[Number<itran>{}].GetUpperLengths()[Number<idim_up>{}];
-
-                return length;
-            },
-            Number<ndim_top_>{});
-
-        // TODO: make container_reduce support tuple of Number and index_t
-        return container_reduce(lengths, math::multiplies{}, Number<1>{});
+        return ComputeElementSizeImpl(transforms,
+                                      typename arithmetic_sequence_gen<0, ndim_top_, 1>::type{});
     }
 
     template <index_t IDim>
@@ -76,24 +80,10 @@ struct TensorAdaptor
 
         constexpr index_t idim_hidden = TopDimensionHiddenIds::At(idim_top);
 
-        index_t itran_found   = 0;
-        index_t idim_up_found = 0;
-        bool found            = false;
+        // Use compile-time search helper instead of nested static_for with lambdas.
+        constexpr auto result = find_in_tuple_of_sequences<idim_hidden>(UpperDimensionHiddenIdss{});
 
-        static_for<0, ntransform_, 1>{}([&](auto itran) {
-            constexpr auto up_dim_ids = UpperDimensionHiddenIdss{}[itran];
-
-            static_for<0, up_dim_ids.Size(), 1>{}([&](auto idim_up) {
-                if constexpr(up_dim_ids[idim_up] == idim_hidden)
-                {
-                    itran_found   = itran;
-                    idim_up_found = idim_up;
-                    found         = true;
-                }
-            });
-        });
-
-        return make_tuple(itran_found, idim_up_found, found);
+        return make_tuple(result.itran, result.idim_up, result.found);
     }
 
     __host__ __device__ static constexpr index_t GetNumOfBottomDimension()
@@ -108,13 +98,13 @@ struct TensorAdaptor
 
     __host__ __device__ static constexpr index_t GetNumOfHiddenDimension()
     {
-        constexpr auto all_low_dim_ids = unpack(
-            [](auto&&... xs) constexpr { return merge_sequences(xs...); },
-            LowerDimensionHiddenIdss{});
+        constexpr auto all_low_dim_ids =
+            unpack([](auto&&... xs) constexpr { return merge_sequences(xs...); },
+                   LowerDimensionHiddenIdss{});
 
-        constexpr auto all_up_dim_ids = unpack(
-            [](auto&&... xs) constexpr { return merge_sequences(xs...); },
-            UpperDimensionHiddenIdss{});
+        constexpr auto all_up_dim_ids =
+            unpack([](auto&&... xs) constexpr { return merge_sequences(xs...); },
+                   UpperDimensionHiddenIdss{});
 
         constexpr auto all_dim_ids = merge_sequences(all_low_dim_ids, all_up_dim_ids);
 
@@ -338,8 +328,7 @@ __host__ __device__ constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 TensorAdaptor1::GetLowerDimensionHiddenIdss()[itran];
 
             // sequence in, sequence out
-            constexpr auto low_dim_hidden_ids_1_mod = [&]() constexpr
-            {
+            constexpr auto low_dim_hidden_ids_1_mod = [&]() constexpr {
                 auto low_dim_hidden_ids_1_mod_ = to_multi_index(low_dim_hidden_ids_1);
 
                 // shift hidden id so every dim id is unique
@@ -348,21 +337,20 @@ __host__ __device__ constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 });
 
                 // match hidden id
-                static_for<0, ndim_low_1, 1>{}([&](auto idim_low_1) {
-                    static_for<0, ndim_bottom_1, 1>{}([&](auto idim_bottom_1) {
-                        // if this low dim is bottom dim, then do id matching
-                        if constexpr(low_dim_hidden_ids_1[idim_low_1] ==
-                                     TensorAdaptor1::GetBottomDimensionHiddenIds()[idim_bottom_1])
-                        {
-                            low_dim_hidden_ids_1_mod_(idim_low_1) =
-                                TensorAdaptor0::GetTopDimensionHiddenIds()[idim_bottom_1];
-                        }
-                    });
+                static_ford<Sequence<ndim_low_1, ndim_bottom_1>>{}([&](auto ii) {
+                    constexpr auto idim_low_1    = Number<ii[Number<0>{}]>{};
+                    constexpr auto idim_bottom_1 = Number<ii[Number<1>{}]>{};
+                    // if this low dim is bottom dim, then do id matching
+                    if constexpr(low_dim_hidden_ids_1[idim_low_1] ==
+                                 TensorAdaptor1::GetBottomDimensionHiddenIds()[idim_bottom_1])
+                    {
+                        low_dim_hidden_ids_1_mod_(idim_low_1) =
+                            TensorAdaptor0::GetTopDimensionHiddenIds()[idim_bottom_1];
+                    }
                 });
 
                 return low_dim_hidden_ids_1_mod_;
-            }
-            ();
+            }();
 
             return generate_sequence_v2(
                 [&](auto i) constexpr { return Number<low_dim_hidden_ids_1_mod[i]>{}; },
@@ -384,8 +372,7 @@ __host__ __device__ constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 TensorAdaptor1::GetUpperDimensionHiddenIdss()[itran];
 
             // sequence in, constexpr tuple out
-            constexpr auto up_dim_hidden_ids_1_mod = [&]() constexpr
-            {
+            constexpr auto up_dim_hidden_ids_1_mod = [&]() constexpr {
                 auto up_dim_hidden_ids_1_mod_ = to_multi_index(up_dim_hidden_ids_1);
 
                 // shift hidden id
@@ -394,8 +381,7 @@ __host__ __device__ constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 });
 
                 return up_dim_hidden_ids_1_mod_;
-            }
-            ();
+            }();
 
             // constexpr tuple to sequence
             return generate_sequence_v2(

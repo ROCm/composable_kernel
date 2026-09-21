@@ -1,32 +1,53 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+#include "hip/hip_version.h"
+#ifndef CK_TILE_DONT_USE_HIP_RUNTIME_HEADERS
+#include "hip/hip_fp16.h"
+#include "hip/hip_runtime.h"
+#endif
+
+#include <cstdint>
+#include <type_traits>
+
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
+    defined(__gfx9_4_generic__)
 #define __gfx9__
 #endif
-#if defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
 #endif
+#if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__) || \
+    defined(__gfx1013__) || defined(__gfx10_1_generic__)
+#define __gfx101__
+#endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
-    defined(__gfx1034__) || defined(__gfx1035__) || defined(__gfx1036__) || \
-    defined(__gfx10_3_generic__)
+    defined(__gfx1033__) || defined(__gfx1034__) || defined(__gfx1035__) || \
+    defined(__gfx1036__) || defined(__gfx10_3_generic__)
 #define __gfx103__
 #endif
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
     defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
-    defined(__gfx1152__) || defined(__gfx11_generic__)
+    defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
-#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
+#if defined(__gfx1150__) || defined(__gfx1151__) || defined(__gfx1152__) || defined(__gfx1153__)
+#define __gfx115__
+#endif
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__) || \
+    defined(__gfx1250__)
 #define __gfx12__
 #endif
-
-#include "hip/hip_version.h"
-#ifndef CK_TILE_DONT_USE_HIP_RUNTIME_HEADERS
-#include "hip/hip_runtime.h"
-#include "hip/hip_fp16.h"
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
+#define __gfx120__
+#endif
+#if defined(__gfx1250__)
+#define __gfx125__
+#endif
+#if defined(__gfx120__) || defined(__gfx125__)
+#define __gfx12__
 #endif
 
 #ifdef __HIPCC__
@@ -61,11 +82,19 @@
 #define CK_TILE_USE_CUSTOM_DATA_TYPE 0 // custom data type will generate extra move/bfi code
 #endif
 
+#define CK_TILE_FLOAT_TO_TF32_TRUNC 0
+#define CK_TILE_FLOAT_TO_TF32_RNE 1
+
+#ifndef CK_TILE_FLOAT_TO_TF32_DEFAULT
+#define CK_TILE_FLOAT_TO_TF32_DEFAULT CK_TILE_FLOAT_TO_TF32_TRUNC
+#endif
+
 #define CK_TILE_FLOAT_TO_BFLOAT16_STANDARD 0
 #define CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE_WITH_NAN 1
 #define CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE 2
 #define CK_TILE_FLOAT_TO_BFLOAT16_STANDARD_ASM 3
 #define CK_TILE_FLOAT_TO_BFLOAT16_RTA_ASM 4
+#define CK_TILE_FLOAT_TO_BFLOAT16_STANDARD_CNAN 5
 
 #ifndef CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT
 #define CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE
@@ -130,7 +159,11 @@
 #endif
 
 #ifndef CK_TILE_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
+#if defined(__gfx125__)
 #define CK_TILE_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 1
+#else
+#define CK_TILE_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 1
+#endif
 #endif
 
 #ifndef CK_TILE_USE_AMD_BUFFER_LOAD
@@ -150,12 +183,14 @@
 #endif
 
 // buffer atomic add: floating point
+#ifndef CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx9__) // for GPU code
+#elif defined(__gfx9__) || defined(__gfx12__) // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
+#endif
 #endif
 
 #if(defined(__gfx90a__) || defined(__gfx94__)) // for GPU code
@@ -172,6 +207,9 @@
 #define CK_TILE_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 #endif
 
+// workaround: gfx1250 does not support a negative offset (emulator issue)
+#define CK_TILE_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE 1
+
 #ifndef CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
 #if HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 1 && HIP_VERSION_PATCH >= 40091
 #define CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE 1
@@ -179,6 +217,28 @@
 #define CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE 0
 #endif
 #endif
+
+#if(defined(__gfx125__))
+#define CK_TILE_ENABLE_TDM_FEATURE 1
+#else
+#define CK_TILE_ENABLE_TDM_FEATURE 0
+#endif
+
+#ifndef CK_TILE_ENABLE_CLUSTER_LAUNCH
+#ifdef __HIP_DEVICE_COMPILE__ // for device code
+#if defined(__gfx125__)
+#define CK_TILE_ENABLE_CLUSTER_LAUNCH 1
+#else
+#define CK_TILE_ENABLE_CLUSTER_LAUNCH 0
+#endif
+#else // for host code
+#if defined(CK_USE_GFX1250)
+#define CK_TILE_ENABLE_CLUSTER_LAUNCH 1
+#else
+#define CK_TILE_ENABLE_CLUSTER_LAUNCH 0
+#endif
+#endif
+#endif // CK_TILE_ENABLE_CLUSTER_LAUNCH
 
 // workaround for ROCm 6.2 and later
 #ifndef CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE
@@ -191,6 +251,36 @@
 #endif
 #endif
 
+// use llvm builtin bf16 data type after ROCm 6.5
+#ifndef CK_TILE_USE_LLVM_BUILTIN_BF16
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 5 && HIP_VERSION_PATCH >= 50421) || \
+    (HIP_VERSION_MAJOR >= 7)
+#define CK_TILE_USE_LLVM_BUILTIN_BF16 1
+#else
+#define CK_TILE_USE_LLVM_BUILTIN_BF16 0
+#endif
+#endif
+
+// SPIR-V constexpr handling: variables that depend on compile-time architecture
+// detection cannot be constexpr under SPIR-V since the target is resolved at runtime.
+// Following rocPRIM's ROCPRIM_AMDGCN_CONSTEXPR pattern.
+#if defined(__SPIRV__)
+#define CK_TILE_AMDGCN_CONSTEXPR
+#else
+#define CK_TILE_AMDGCN_CONSTEXPR constexpr
+#endif
+
+// workaround for AMDGPU compiler VGPR aliasing bug in dropout codegen (ROCm >= 7.12)
+// Philox RNG VGPR parameters get aliased under high register pressure (d256 tile).
+// fp16 is affected; bf16 is not (different type conversion codegen path).
+#ifndef CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE
+#if(HIP_VERSION_MAJOR == 7 && HIP_VERSION_MINOR >= 12) || (HIP_VERSION_MAJOR > 7)
+#define CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE 1
+#else
+#define CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE 0
+#endif
+#endif
+
 #ifndef CK_TILE_DEBUG_LOG
 #define CK_TILE_DEBUG_LOG 0
 #endif
@@ -200,10 +290,29 @@
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || \
     defined(__gfx9__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-#elif defined(__gfx103__) // for GPU code
+#elif defined(__gfx101__) || defined(__gfx103__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__) || defined(__gfx12__) // for GPU code
+#elif defined(__gfx11__) || defined(__gfx120__)
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31004000
+#elif defined(__gfx125__)
+#define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x0
+#elif defined(__SPIRV__) // SPIR-V: dynamically select via ZCFS at runtime
+#define CK_TILE_BUFFER_RESOURCE_3RD_DWORD                                                          \
+    ((__builtin_amdgcn_processor_is("gfx1100") || __builtin_amdgcn_processor_is("gfx1101") ||      \
+      __builtin_amdgcn_processor_is("gfx1102") || __builtin_amdgcn_processor_is("gfx1103") ||      \
+      __builtin_amdgcn_processor_is("gfx1150") || __builtin_amdgcn_processor_is("gfx1151") ||      \
+      __builtin_amdgcn_processor_is("gfx1152") || __builtin_amdgcn_processor_is("gfx1153") ||      \
+      __builtin_amdgcn_processor_is("gfx1200") || __builtin_amdgcn_processor_is("gfx1201"))        \
+         ? 0x31004000u                                                                             \
+         : ((__builtin_amdgcn_processor_is("gfx1030") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1031") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1032") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1034") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1035") || __builtin_amdgcn_processor_is("gfx1036")) \
+                ? 0x31014000u                                                                      \
+                : 0x00020000u))
+#else
+#define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0xffffffff // Unknown device
 #endif
 
 #ifndef CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
@@ -240,6 +349,15 @@
 #define CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID 1
 #endif
 
+// Workaround for host CPU without AVX-512F support e.g. for fp32x16 (512-bits)
+#ifndef CK_TILE_AVX512F_WA
+#if defined(__HIP_DEVICE_COMPILE__) || defined(CK_TILE_HOST_HAS_AVX512F)
+#define CK_TILE_AVX512F_WA 0
+#else
+#define CK_TILE_AVX512F_WA 1
+#endif
+#endif
+
 #ifndef CK_TILE_USE_OCP_FP8
 #if defined(__HIP_DEVICE_COMPILE__)
 #if defined(__gfx950__) || defined(__gfx12__)
@@ -253,7 +371,7 @@
 #endif
 
 #ifndef CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
-#if __clang_major__ == 20
+#if __clang_major__ >= 20
 #define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 1
 #else
 #define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 0
@@ -269,3 +387,314 @@
 #ifndef CK_TILE_ENC_SUPPORT_Y_TO_R
 #define CK_TILE_ENC_SUPPORT_Y_TO_R 0
 #endif
+
+#if defined(_MSC_VER)
+#define CK_TILE_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#else
+#define CK_TILE_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#endif
+
+// Mark unsupported features with a deprecation warning in debug builds
+#if defined(NDEBUG)
+#define CK_TILE_UNSUPPORTED_IMPL(MSG)
+#else
+#define CK_TILE_UNSUPPORTED_IMPL(MSG) __attribute__((deprecated(MSG)))
+#endif
+
+namespace ck_tile::core {
+/**
+ * @struct amdgcn_compiler_target_state
+ * @brief Defines compiler states for supported AMDGCN devices.
+ * @var CK_TILE_HOST_COMPILE Indicates if the compilation is for the host.
+ * @var CK_TILE_DEVICE_COMPILE Indicates if the compilation is for AMDGCN device.
+ * @var CK_TILE_ARCH_GFX908 Indicates if the compiler target architecture is GFX908.
+ * @var CK_TILE_ARCH_GFX90A Indicates if the compiler target architecture is GFX90A.
+ * @var CK_TILE_ARCH_GFX942 Indicates if the compiler target architecture is GFX942.
+ * @var CK_TILE_ARCH_GFX950 Indicates if the compiler target architecture is GFX950.
+ * @var CK_TILE_ARCH_GFX1030 Indicates if the compiler target architecture is GFX1030.
+ * @var CK_TILE_ARCH_GFX1031 Indicates if the compiler target architecture is GFX1031.
+ * @var CK_TILE_ARCH_GFX1032 Indicates if the compiler target architecture is GFX1032.
+ * @var CK_TILE_ARCH_GFX1034 Indicates if the compiler target architecture is GFX1034.
+ * @var CK_TILE_ARCH_GFX1035 Indicates if the compiler target architecture is GFX1035.
+ * @var CK_TILE_ARCH_GFX1036 Indicates if the compiler target architecture is GFX1036.
+ * @var CK_TILE_ARCH_GFX10_3_GENERIC Indicates if the compiler target architecture is GFX10.3
+ * generic.
+ * @var CK_TILE_ARCH_GFX1100 Indicates if the compiler target architecture is GFX1100.
+ * @var CK_TILE_ARCH_GFX1101 Indicates if the compiler target architecture is GFX1101.
+ * @var CK_TILE_ARCH_GFX1102 Indicates if the compiler target architecture is GFX1102.
+ * @var CK_TILE_ARCH_GFX1151 Indicates if the compiler target architecture is GFX1151.
+ * @var CK_TILE_ARCH_GFX1152 Indicates if the compiler target architecture is GFX1152.
+ * @var CK_TILE_ARCH_GFX1153 Indicates if the compiler target architecture is GFX1153.
+ * @var CK_TILE_ARCH_GFX11_GENERIC Indicates if the compiler target architecture is GFX11 generic.
+ * @var CK_TILE_ARCH_GFX1200 Indicates if the compiler target architecture is GFX1200.
+ * @var CK_TILE_ARCH_GFX1201 Indicates if the compiler target architecture is GFX1201.
+ * @var CK_TILE_ARCH_GFX12_GENERIC Indicates if the compiler target architecture is GFX12 generic.
+ * @var CK_TILE_ARCH_GFX1250 Indicates if the compiler target architecture is GFX1250.
+ */
+struct amdgcn_compiler_target_state
+{
+    // Determine if we are compiling for device or host
+#if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
+    static constexpr bool CK_TILE_DEVICE_COMPILE = true;
+    static constexpr bool CK_TILE_HOST_COMPILE   = false;
+#else
+    static constexpr bool CK_TILE_DEVICE_COMPILE = false;
+    static constexpr bool CK_TILE_HOST_COMPILE   = true;
+#endif // __HIP_DEVICE_COMPILE__ && __HIP_DEVICE_COMPILE__
+
+    // GFX9
+#if defined(__gfx908__)
+    static constexpr bool CK_TILE_ARCH_GFX908 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX908 = false;
+#endif // __gfx908__
+
+#if defined(__gfx90a__)
+    static constexpr bool CK_TILE_ARCH_GFX90A = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX90A = false;
+#endif // __gfx90a__
+
+#if defined(__gfx942__)
+    static constexpr bool CK_TILE_ARCH_GFX942 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX942 = false;
+#endif // __gfx942__
+
+#if defined(__gfx950__)
+    static constexpr bool CK_TILE_ARCH_GFX950 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX950 = false;
+#endif // __gfx950__
+
+    // GFX10
+#if defined(__gfx1010__)
+    static constexpr bool CK_TILE_ARCH_GFX1010 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1010 = false;
+#endif
+#if defined(__gfx1011__)
+    static constexpr bool CK_TILE_ARCH_GFX1011 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1011 = false;
+#endif
+#if defined(__gfx1012__)
+    static constexpr bool CK_TILE_ARCH_GFX1012 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1012 = false;
+#endif
+#if defined(__gfx1013__)
+    static constexpr bool CK_TILE_ARCH_GFX1013 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1013 = false;
+#endif
+#if defined(__gfx10_1_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX10_1_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX10_1_GENERIC = false;
+#endif // __gfx10_1_generic__
+
+#if defined(__gfx1030__)
+    static constexpr bool CK_TILE_ARCH_GFX1030 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1030 = false;
+#endif // __gfx1030__
+
+#if defined(__gfx1031__)
+    static constexpr bool CK_TILE_ARCH_GFX1031 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1031 = false;
+#endif // __gfx1031__
+
+#if defined(__gfx1032__)
+    static constexpr bool CK_TILE_ARCH_GFX1032 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1032 = false;
+#endif // __gfx1032__
+
+#if defined(__gfx1033__)
+    static constexpr bool CK_TILE_ARCH_GFX1033 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1033 = false;
+#endif // __gfx1033__
+
+#if defined(__gfx1034__)
+    static constexpr bool CK_TILE_ARCH_GFX1034 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1034 = false;
+#endif // __gfx1034__
+
+#if defined(__gfx1035__)
+    static constexpr bool CK_TILE_ARCH_GFX1035 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1035 = false;
+#endif // __gfx1035__
+
+#if defined(__gfx1036__)
+    static constexpr bool CK_TILE_ARCH_GFX1036 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1036 = false;
+#endif // __gfx1036__
+
+#if defined(__gfx10_3_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX10_3_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX10_3_GENERIC = false;
+#endif // __gfx10_3_generic__
+
+    // GFX11
+#if defined(__gfx1100__)
+    static constexpr bool CK_TILE_ARCH_GFX1100 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1100 = false;
+#endif // __gfx1100__
+
+#if defined(__gfx1101__)
+    static constexpr bool CK_TILE_ARCH_GFX1101 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1101 = false;
+#endif // __gfx1101__
+
+#if defined(__gfx1102__)
+    static constexpr bool CK_TILE_ARCH_GFX1102 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1102 = false;
+#endif // __gfx1102__
+
+#if defined(__gfx1103__)
+    static constexpr bool CK_TILE_ARCH_GFX1103 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1103 = false;
+#endif // __gfx1103__
+
+#if defined(__gfx1150__)
+    static constexpr bool CK_TILE_ARCH_GFX1150 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1150 = false;
+#endif // __gfx1150__
+
+#if defined(__gfx1151__)
+    static constexpr bool CK_TILE_ARCH_GFX1151 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1151 = false;
+#endif // __gfx1151__
+
+#if defined(__gfx1152__)
+    static constexpr bool CK_TILE_ARCH_GFX1152 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1152 = false;
+#endif // __gfx1152__
+
+#if defined(__gfx1153__)
+    static constexpr bool CK_TILE_ARCH_GFX1153 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1153 = false;
+#endif // __gfx1153__
+
+#if defined(__gfx11_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX11_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX11_GENERIC = false;
+#endif // __gfx11_generic__
+
+    // GFX12
+#if defined(__gfx1200__)
+    static constexpr bool CK_TILE_ARCH_GFX1200 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1200 = false;
+#endif // __gfx1200__
+
+#if defined(__gfx1201__)
+    static constexpr bool CK_TILE_ARCH_GFX1201 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1201 = false;
+#endif // __gfx1201__
+
+#if defined(__gfx12_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX12_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX12_GENERIC = false;
+#endif // __gfx12_generic__
+
+    // GFX12.5
+#if defined(__gfx1250__)
+    static constexpr bool CK_TILE_ARCH_GFX1250 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1250 = false;
+#endif // __gfx1250__
+
+    // SPIR-V (target-agnostic, JIT-compiled at runtime)
+    // Guard with __HIP_DEVICE_COMPILE__ because __SPIRV__ is defined during
+    // both host and device passes when compiling for amdgcnspirv.
+#if defined(__SPIRV__) && defined(__HIP_DEVICE_COMPILE__)
+    static constexpr bool CK_TILE_ARCH_SPIRV = true;
+#else
+    static constexpr bool CK_TILE_ARCH_SPIRV = false;
+#endif // __SPIRV__
+};
+
+/**
+ * @brief Helper to count the number of times an item is contained within a list of values
+ * @tparam T The type of the search value
+ * @tparam Ts The types of the search list values
+ * @param search The value to search for
+ * @param searchList The list of values to search in
+ * @return true if the search value is in the search list, false otherwise
+ */
+template <typename T, typename... Ts>
+// TODO: c++20 concept    requires((std::is_convertible<Ts, T>::value && ...) && (sizeof...(Ts) >=
+// 1))
+CK_TILE_HOST_DEVICE static constexpr std::uint32_t count_values_of(T search, Ts... searchList)
+{
+    static_assert((std::is_convertible<Ts, T>::value && ...),
+                  "All search list values must be convertible to the search value type");
+    static_assert(sizeof...(Ts) >= 1, "At least one value must be provided to search in");
+
+    return (static_cast<std::uint32_t>(search == static_cast<T>(searchList)) + ...);
+}
+
+#define CK_TILE_COMPILER_TARGETS_LIST                               \
+    amdgcn_compiler_target_state::CK_TILE_ARCH_GFX908,              \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX90A,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX942,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX950,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1010,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1011,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1012,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1013,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX10_1_GENERIC, \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1030,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1031,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1032,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1033,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1034,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1035,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1036,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX10_3_GENERIC, \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1100,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1101,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1102,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1103,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1150,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1151,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1152,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1153,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX11_GENERIC,   \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1200,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1201,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX12_GENERIC,   \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1250
+
+// Sanity check: make sure only one target architecture is defined during device compile
+// SPIR-V is target-agnostic, so none of the specific arch flags will be set
+static_assert(!amdgcn_compiler_target_state::CK_TILE_DEVICE_COMPILE ||
+                  amdgcn_compiler_target_state::CK_TILE_ARCH_SPIRV ||
+                  count_values_of(true, CK_TILE_COMPILER_TARGETS_LIST) == 1u,
+              "Only one target architecture can be defined during device compile");
+
+// Sanity check: make sure no device target architecture is defined during host compile
+static_assert(!amdgcn_compiler_target_state::CK_TILE_HOST_COMPILE ||
+                  count_values_of(true, CK_TILE_COMPILER_TARGETS_LIST) == 0u,
+              "No device target architecture can be defined during host compile");
+
+} // namespace ck_tile::core

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -51,7 +51,8 @@ bool profile_gemm_universal_batched_impl(int do_verification,
                                          int KBatch,
                                          int n_warmup,
                                          int n_iter,
-                                         uint64_t rotating = 0)
+                                         uint64_t rotating  = 0,
+                                         int instance_index = -1)
 {
     bool pass = true;
 
@@ -65,11 +66,13 @@ bool profile_gemm_universal_batched_impl(int do_verification,
 
         if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 
@@ -151,8 +154,14 @@ bool profile_gemm_universal_batched_impl(int do_verification,
     float best_kbatch     = 0;
 
     // profile device op instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t j = 0; j < op_ptrs.size(); j++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(j)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr                 = op_ptrs[j];
         std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
 
         if(KBatch > 0)

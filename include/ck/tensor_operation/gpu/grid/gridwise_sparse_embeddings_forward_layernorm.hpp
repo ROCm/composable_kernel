@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -175,36 +175,36 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
         };
 
         auto accumulate_current_sub_row = [&](auto i_dim_sub_, auto i_row_sub_) {
-            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec_) {
-                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_) {
-                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(
-                        make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
-                    auto in_data_refs = generate_tie(
-                        [&](auto i_embedding_) -> const auto& {
-                            return in_thread_bufs(i_embedding_)(Number<register_offset>{});
-                        },
-                        Number<NumEmbeddings>{});
-                    auto out_data_refs = generate_tie(
-                        [&](auto) -> auto& { return acc_thread_buf(Number<register_offset>{}); },
-                        Number<1>{});
-                    unpack2(emb_elementwise_op, out_data_refs, in_data_refs);
-                });
+            static_ford<Sequence<DimThreadSize, RowVectorSize>>{}([&](auto ii) {
+                constexpr auto i_dim_vec_      = Number<ii[Number<0>{}]>{};
+                constexpr auto i_row_vec_      = Number<ii[Number<1>{}]>{};
+                constexpr auto register_offset = thread_buf_desc.CalculateOffset(
+                    make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
+                auto in_data_refs = generate_tie(
+                    [&](auto i_embedding_) -> const auto& {
+                        return in_thread_bufs(i_embedding_)(Number<register_offset>{});
+                    },
+                    Number<NumEmbeddings>{});
+                auto out_data_refs = generate_tie(
+                    [&](auto) -> auto& { return acc_thread_buf(Number<register_offset>{}); },
+                    Number<1>{});
+                unpack2(emb_elementwise_op, out_data_refs, in_data_refs);
             });
         };
 
         auto threadwise_welford_sub_row = [&](auto i_dim_sub_, auto i_row_sub_) {
-            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec_) {
-                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_) {
-                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(
-                        make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
-                    constexpr auto mean_var_offset =
-                        mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_));
+            static_ford<Sequence<DimThreadSize, RowVectorSize>>{}([&](auto ii) {
+                constexpr auto i_dim_vec_      = Number<ii[Number<0>{}]>{};
+                constexpr auto i_row_vec_      = Number<ii[Number<1>{}]>{};
+                constexpr auto register_offset = thread_buf_desc.CalculateOffset(
+                    make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
+                constexpr auto mean_var_offset =
+                    mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_));
 
-                    threadwise_welford.cur_count_++;
-                    threadwise_welford.Update(mean_thread_buf(Number<mean_var_offset>{}),
-                                              var_thread_buf(Number<mean_var_offset>{}),
-                                              acc_thread_buf(Number<register_offset>{}));
-                });
+                threadwise_welford.cur_count_++;
+                threadwise_welford.Update(mean_thread_buf(Number<mean_var_offset>{}),
+                                          var_thread_buf(Number<mean_var_offset>{}),
+                                          acc_thread_buf(Number<register_offset>{}));
             });
         };
 
@@ -246,12 +246,11 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
         };
 
         // first load index
-        ck::static_for<0, DimPerBlock, 1>{}([&](auto i_idx_) {
+        ck::static_ford<Sequence<DimPerBlock, NumEmbeddings>>{}([&](auto ie) {
+            constexpr auto i_idx_       = Number<ie[Number<0>{}]>{};
+            constexpr auto i_embedding_ = Number<ie[Number<1>{}]>{};
             // prefer use s_load
-            ck::static_for<0, NumEmbeddings, 1>{}([&](auto i_embedding_) {
-                index_bufs(i_embedding_)(i_idx_) =
-                    p_indexes[i_embedding_][index_start + i_idx_.value];
-            });
+            index_bufs(i_embedding_)(i_idx_) = p_indexes[i_embedding_][index_start + i_idx_.value];
         });
 
         // load gamma/beta

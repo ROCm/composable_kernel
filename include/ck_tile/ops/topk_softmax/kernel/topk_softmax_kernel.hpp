@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,7 +21,7 @@ struct TopkSoftmaxHostArgs
     index_t num_experts;
     index_t topk;
     index_t stride_input;  // row stride for input, at least experts
-    index_t stride_output; // row stride for output/indices, at least tpok
+    index_t stride_output; // row stride for output/indices, at least topk
 };
 
 template <typename Pipeline_>
@@ -34,6 +34,8 @@ struct TopkSoftmaxKernel
     using WeightType = typename Problem::WeightType;
     using IndexType  = typename Problem::IndexType;
 
+    static constexpr index_t kBlockSize = Problem::BlockSize;
+
     struct TopkSoftmaxKargs
     {
         const void* p_input;
@@ -43,7 +45,7 @@ struct TopkSoftmaxKernel
         index_t num_experts;
         index_t topk;
         index_t stride_input;  // row stride for input, at least experts
-        index_t stride_output; // row stride for output/indices, at least tpok
+        index_t stride_output; // row stride for output/indices, at least topk
     };
 
     using Kargs = TopkSoftmaxKargs;
@@ -94,9 +96,9 @@ struct TopkSoftmaxKernel
         if(block_row_id > kargs.num_rows)
             return;
 
-        index_t block_os_inp = __builtin_amdgcn_readfirstlane(block_row_id * kargs.stride_input);
-        index_t block_os_out = __builtin_amdgcn_readfirstlane(block_row_id * kargs.stride_output);
-        index_t num_rows_rem = __builtin_amdgcn_readfirstlane(kargs.num_rows - block_row_id);
+        index_t block_os_inp = amd_wave_read_first_lane(block_row_id * kargs.stride_input);
+        index_t block_os_out = amd_wave_read_first_lane(block_row_id * kargs.stride_output);
+        index_t num_rows_rem = amd_wave_read_first_lane(kargs.num_rows - block_row_id);
 
         const auto input_window = [&]() {
             const InputType* p_input =

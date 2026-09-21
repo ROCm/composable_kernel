@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -21,6 +21,10 @@
 #include "ck/library/utility/check_err.hpp"
 
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -97,11 +101,12 @@ struct MultiplyMultiply
     }
 };
 
+static constexpr int KPack = 8;
+
 void preShuffleBuffer(const F16* src, F16* dst, int N, int K, int NXdl)
 {
-    int KPack = 16 / sizeof(F16);
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = ck::get_warp_size() / NLane;
 
     int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack
@@ -147,12 +152,12 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,
                32,   128,    128,
-               8,   8,
-               32,   32,
-               1,    1,
+               KPack,   KPack,
+               16,   16,
+               2,    2,
                S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
                S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
-               1,    1,   S<1, 16, 1, 16>, S<8, 8, 1>,
+               1,    1,   S<1, 16, 1, 16>, S<4, 4, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, F16>;
 // clang-format on
 
@@ -211,6 +216,12 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    // temp disable on gfx11
+    if(ck::is_gfx11_supported())
+    {
+        return 0;
+    }
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             using namespace ck::literals;
@@ -233,6 +244,28 @@ int main(int argc, char* argv[])
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+
+    // Update strides based on tensor properties if they are <= 0
+    auto get_stride = [](auto& tensor, auto layout, ck::index_t current_stride) -> ck::index_t {
+        if(current_stride <= 0)
+        {
+            if constexpr(std::is_same_v<decltype(layout), Row>)
+            {
+                return tensor.GetStrides()[0];
+            }
+            else
+            {
+                return tensor.GetStrides()[1];
+            }
+        }
+        return current_stride;
+    };
+
+    StrideA              = get_stride(a0_m_k, A0Layout{}, StrideA);
+    StrideB              = get_stride(b0_k_n, B0Layout{}, StrideB);
+    ck::index_t StrideD0 = get_stride(d0_m_n, D0Layout{}, StrideD);
+    ck::index_t StrideD1 = get_stride(d1_m_n, D1Layout{}, StrideD);
+    StrideE              = get_stride(e_m_n_host_result, ELayout{}, StrideE);
 
     std::cout << "a0_m_k: " << a0_m_k.mDesc << std::endl;
     std::cout << "b0_k_n: " << b0_k_n.mDesc << std::endl;
@@ -278,8 +311,6 @@ int main(int argc, char* argv[])
 
     constexpr ck::index_t NumDTensor = DsDataType::Size();
 
-    constexpr auto I0 = ck::Number<0>{};
-
     // do GEMM
     auto device_op = DeviceOpInstance{};
 
@@ -301,7 +332,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, NumDTensor>{I0, I0},
+                               std::array<ck::index_t, NumDTensor>{StrideD0, StrideD1},
                                StrideE,
                                KBatch,
                                a_element_op,

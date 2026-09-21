@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -480,19 +480,17 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                    make_tuple(I0, I0),
                                    dy_thread_buf);
 
-            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
-                    constexpr auto offset =
-                        thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
+            static_ford<Sequence<MThreadSliceSize, KThreadSliceSize>>{}([&](auto ii) {
+                constexpr auto iM     = Number<ii[Number<0>{}]>{};
+                constexpr auto iK     = Number<ii[Number<1>{}]>{};
+                constexpr auto offset = thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
-                    dy_elementwise_op(dy_thread_buf(Number<offset>{}),
-                                      dy_thread_buf[Number<offset>{}]);
+                dy_elementwise_op(dy_thread_buf(Number<offset>{}), dy_thread_buf[Number<offset>{}]);
 
-                    AccDataType norm_x = (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) *
-                                         inv_var_thread_buf[iM];
+                AccDataType norm_x =
+                    (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) * inv_var_thread_buf[iM];
 
-                    tmp1_thread_buf(Number<offset>{}) = norm_x * dy_thread_buf[Number<offset>{}];
-                });
+                tmp1_thread_buf(Number<offset>{}) = norm_x * dy_thread_buf[Number<offset>{}];
             });
 
             ThreadwiseReduce::Reduce(tmp1_thread_buf, reduce_dscale_thread_buf);

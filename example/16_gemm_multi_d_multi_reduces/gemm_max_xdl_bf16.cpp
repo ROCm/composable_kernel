@@ -1,11 +1,15 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gemm_reduce_xdl_common.hpp"
 
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 // DataType
 using ADataType         = BF16;
@@ -65,10 +69,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
          32,                        // KPerBlock
          8,                         // AK1
          8,                         // BK1
-         32,                        // MPerXdl
-         32,                        // NPerXdl
-         4,                         // MXdlPerWave
-         2,                         // NXdlPerWave
+         16,                        // MPerXdl
+         16,                        // NPerXdl
+         8,                         // MXdlPerWave
+         4,                         // NXdlPerWave
          S<4, 64, 1>,               // ABlockTransfer ThreadCluster Lengths_K0_M_K1
          S<1, 0, 2>,                // ABlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // ABlockTransfer SrcAccessOrder
@@ -85,7 +89,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
          1,                         // BBlockLdsExtraN
          1,                         // CShuffleMXdlPerWavePerShuffle
          1,                         // CShuffleNXdlPerWavePerShuffle
-         S<64, 4>,                  // CD Reduce Thread Transfer ClusterLengths _MPerBlock_NPerBlock
+         S<32, 8>,                  // CD Reduce Thread Transfer ClusterLengths _MPerBlock_NPerBlock
          4,                         // CDE ReduceThreadTransfer ScalarPerVector _NPerBlock
          1>;                        // RThread DstScalarPerVector _MPerBlock
 // clang-format on
@@ -102,7 +106,7 @@ int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t M = 1024;

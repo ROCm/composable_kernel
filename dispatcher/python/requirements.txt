@@ -1,0 +1,27 @@
+# Core dependencies
+numpy>=1.19.0
+
+# ML Heuristic dependencies (OPTIONAL - large dependencies)
+# For ML-based kernel selection, install separately:
+#   pip install -r ../requirements-ml.txt
+# This avoids mandatory large dependencies (pyarrow, lightgbm) for users who don't need ML features
+
+# Optional dependencies (install with pip install -e ".[torch]")
+# torch>=2.0.0
+
+# Development dependencies (install with pip install -e ".[dev]")
+pytest>=6.0.0
+# pytest-cov>=2.0.0
+# black>=21.0
+# flake8>=3.9.0
+# mypy>=0.910
+# isort>=5.0.0
+
+# Visualization dependencies (install with pip install -e ".[viz]")
+# matplotlib>=3.3.0
+# seaborn>=0.11.0
+
+# Documentation dependencies
+# sphinx>=4.0.0
+# sphinx-rtd-theme>=1.0.0
+

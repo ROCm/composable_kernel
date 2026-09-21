@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_AMD_INLINE_ASM_HPP
 #define CK_AMD_INLINE_ASM_HPP
@@ -86,7 +86,7 @@ inline __device__ f8x8_t amd_assembly_i4_to_fp8x8(int a)
 
     return bit_cast<f8x8_t>(((static_cast<uint64_t>(fp8x4_1) << 32) | fp8x4_0));
 }
-
+#ifdef DL_KERNELS
 // c0 += inner_product(a, b0)
 // c1 += inner_product(a, b1)
 __device__ void amd_assembly_outer_product_1x2(float a, float b0, float b1, float& c0, float& c1)
@@ -430,6 +430,7 @@ __device__ void amd_assembly_outer_product_1x4(int8x16_t a,
                                    c2,
                                    c3);
 }
+#endif
 
 } // namespace ck
 #endif

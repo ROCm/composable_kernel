@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,10 @@
 #include "utils/tensor_partition.hpp"
 #include "utils/layout_utils.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 // Disable from doxygen docs generation
 /// @cond INTERNAL
 namespace ck {
@@ -187,8 +191,7 @@ __host__ __device__ constexpr auto GenerateSlicedDescriptor(const Tuple<Ts...>& 
     const auto transforms     = GenerateSliceTransforms(idx, shape);
     using TransformsTupleType = decltype(transforms);
 
-    const auto lower_dims =
-        generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<old_shape_dims>{});
+    const auto lower_dims = generate_identity_sequences<old_shape_dims>();
     const auto upper_dims = decltype(GenerateUpperDims<0>(TransformsTupleType{})){};
     return transform_tensor_descriptor(flatten_desc, transforms, lower_dims, upper_dims);
 }
@@ -407,17 +410,17 @@ struct Tensor
                                             ElementSpaceSize,
                                             true /*InvalidElementUseNumericalZeroValue*/>;
     using StaticBufferType  = std::conditional_t<
-        is_scalar_type<ElementType>::value,
-        StaticBuffer<BufferAddressSpace,
-                     ElementType,
-                     size(Shape{}),
-                     true /*InvalidElementUseNumericalZeroValue*/>,
-        StaticBufferTupleOfVector<BufferAddressSpace,
-                                  TensorElementType,
-                                  size(Shape{}) /
-                                      scalar_type<std::remove_const_t<ElementType>>::vector_size,
-                                  scalar_type<std::remove_const_t<ElementType>>::vector_size,
-                                  true /*InvalidElementUseNumericalZeroValue*/>>;
+         is_scalar_type<ElementType>::value,
+         StaticBuffer<BufferAddressSpace,
+                      ElementType,
+                      size(Shape{}),
+                      true /*InvalidElementUseNumericalZeroValue*/>,
+         StaticBufferTupleOfVector<BufferAddressSpace,
+                                   TensorElementType,
+                                   size(Shape{}) /
+                                       scalar_type<std::remove_const_t<ElementType>>::vector_size,
+                                   scalar_type<std::remove_const_t<ElementType>>::vector_size,
+                                   true /*InvalidElementUseNumericalZeroValue*/>>;
     // If register use static buffer, else use dynamic buffer
     using Buffer = std::conditional_t<IsDynamicBuffer, DynamicBufferType, StaticBufferType>;
 
@@ -441,3 +444,6 @@ struct Tensor
 
 } // namespace wrapper
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif

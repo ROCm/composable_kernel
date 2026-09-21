@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -25,6 +25,10 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/literals.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -60,7 +64,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShu
 //######|      Type|      Type|      Type|        Type|        |        |        | Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |  XDL|  XDL|  Per|  Per|          ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar| AddExtraM|          ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
 //######|          |          |          |            |        |        |        |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |     |     | Wave| Wave| Lengths_KBatch_K0_M_K1|               |               |      PerVector|          | Lengths_KBatch_K0_N_K1|               |              |      PerVector|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
 //######|          |          |          |            |        |        |        |            |            |            |               |         |      |      |      |      |    |     |     |     |     |                       |               |               |               |          |                       |               |              |               |          |            |            |                                 |                |
-        < ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        2,   128,    32,    16,     4,   8,   16,   16,    1,    1,         S<1, 4, 8, 4>,  S<0, 2, 1, 3>,              3,              2,      0,         S<1, 4, 8, 4>,  S<0, 2, 1, 3>,             3,              2,      0,           1,           1,                   S<1, 32, 1, 4>,               4>;
+        < ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        2,   128,    32,    32,     4,   8,   16,   16,    1,    2,         S<1, 4, 8, 4>,  S<0, 2, 1, 3>,              3,              2,      0,         S<1, 4, 8, 4>,  S<0, 2, 1, 3>,             3,              2,      0,           1,           1,                   S<1, 32, 1, 4>,               4>;
 // clang-format on
 
 #else
@@ -79,4 +83,11 @@ using DeviceGemmInstance          = ck::tensor_operation::device::DeviceGemmXdlS
 
 #include "run_splitK_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_splitK_gemm_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
+    {
+        return 0;
+    }
+    return !run_splitK_gemm_example(argc, argv);
+}

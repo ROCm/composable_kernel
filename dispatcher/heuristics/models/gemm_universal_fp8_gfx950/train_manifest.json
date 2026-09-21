@@ -1,0 +1,10 @@
+{
+  "warm_start_from": null,
+  "prev_n_estimators": 0,
+  "new_n_estimators": 2000,
+  "total_n_estimators": 2000,
+  "data_rows": 1296528,
+  "valid_rows": 1253076,
+  "unique_shapes": 168,
+  "timestamp": "2026-03-19T06:10:29"
+}

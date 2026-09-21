@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -267,6 +267,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             e_grid_desc_m_n);
     }
 
+    IS_VALID_COMPILATION_PARAMETER_IMPL(CShuffleDataType)
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
@@ -521,17 +523,21 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
               lcm_AK1_BK1 <= 4) ||
              (is_same<ABDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
              ((is_same<ABDataType, f8_t>::value || is_same<ABDataType, bf8_t>::value) &&
+#if defined(__gfx125__)
+              lcm_AK1_BK1 < 128))
+#else
               lcm_AK1_BK1 < 32))
+#endif
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;
         constexpr index_t KPack      = math::max(lcm_AK1_BK1,
                                             MfmaSelector<ABDataType,
-                                                         MPerXdl,
-                                                         NPerXdl,
-                                                         ABDataType,
-                                                         is_single_rate_mfma,
-                                                         is_scale_mfma>::selected_mfma.k_per_blk);
+                                                              MPerXdl,
+                                                              NPerXdl,
+                                                              ABDataType,
+                                                              is_single_rate_mfma,
+                                                              is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
@@ -997,9 +1003,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                 static_for<0, post_shuffle_thread_desc_m_n.GetElementSize(), 1>{}([&](auto i) {
                     const auto c_ds_src_data_refs = concat_tuple_of_reference(
                         tie(e_thread_buf[i]),
-                        generate_tie(
-                            [&](auto Id) -> const auto& { return ds_thread_buf[Id][i]; },
-                            Number<NumDTensor>{}));
+                        generate_tie([&](auto Id) -> const auto& { return ds_thread_buf[Id][i]; },
+                                     Number<NumDTensor>{}));
                     auto e_dst_data_refs = tie(e_thread_buf(i));
                     unpack2(cde_element_op, e_dst_data_refs, c_ds_src_data_refs);
                 });
@@ -1124,7 +1129,7 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             });
 
         } // shuffle C + Ds + welford + write out
-    }     // run
+    } // run
 };
 
 } // namespace ck

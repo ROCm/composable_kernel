@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "ck/utility/data_type.hpp"
@@ -7,6 +7,8 @@
 #include "ck/utility/env.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
 #include "ck/library/utility/device_memory.hpp"
+
+using ::ck::DeviceMem;
 
 using ck::e8m0_bexp_t;
 using ck::f6_convert_rne;

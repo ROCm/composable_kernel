@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef GUARD_HOST_TEST_RTC_INCLUDE_RTC_TMP_DIR
 #define GUARD_HOST_TEST_RTC_INCLUDE_RTC_TMP_DIR
@@ -16,7 +16,7 @@ struct tmp_dir
 
     void execute(const std::string& cmd) const;
 
-    tmp_dir(tmp_dir const&) = delete;
+    tmp_dir(tmp_dir const&)            = delete;
     tmp_dir& operator=(tmp_dir const&) = delete;
 
     ~tmp_dir();

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
@@ -60,11 +60,11 @@ TEST_CASE(test_problem_kernel)
         std::cout << "Testing solution " << std::to_string(i + 1) << std::endl;
         auto&& solution = solutions[i];
         auto src        = ck::host::InterpolateString(gemm_compile_check,
-                                               {{"include", prob.GetIncludeHeader()},
-                                                {"template", solution.ToTemplateString()},
-                                                {"m", std::to_string(prob.M)},
-                                                {"n", std::to_string(prob.N)},
-                                                {"k", std::to_string(prob.K)}});
+                                                      {{"include", prob.GetIncludeHeader()},
+                                                       {"template", solution.ToTemplateString()},
+                                                       {"m", std::to_string(prob.M)},
+                                                       {"n", std::to_string(prob.N)},
+                                                       {"k", std::to_string(prob.K)}});
         auto srcs       = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;

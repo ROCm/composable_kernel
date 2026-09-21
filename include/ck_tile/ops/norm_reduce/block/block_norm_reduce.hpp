@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -119,10 +119,6 @@ struct BlockNormReduceSync
         constexpr index_t NDimR = Dstr::get_num_of_dimension_r();
 
         constexpr index_t idim_p_lane = NDimP - 1;
-
-        // const auto ps_idx = make_array<index_t>(get_warp_id(), get_lane_id());
-        // const auto rs_idx =
-        //     mean_tensor.get_tile_distribution().calculate_rs_index_from_ps_index(ps_idx);
 
         constexpr index_t thread_buf_size = MeanDistributedTensor_::get_thread_buffer_size();
         static_assert(thread_buf_size == VarDistributedTensor_::get_thread_buffer_size());
@@ -303,11 +299,11 @@ struct BlockNormReduceCrossWarpSync
         index_t local_warp_id = warp_id / num_reduce_warps;
         index_t local_smem_os = local_warp_id * num_reduce_warps;
         smem_dtype all_scratch[thread_buf_size * num_reduce_warps];
-        static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
-            static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
-                all_scratch[i_0 * num_reduce_warps + i_1] =
-                    smem_ptr[i_0 * num_warps + local_smem_os + i_1];
-            });
+        static_ford<sequence<thread_buf_size, num_reduce_warps>>{}([&](auto ii) {
+            constexpr auto i_0 = number<ii[number<0>{}]>{};
+            constexpr auto i_1 = number<ii[number<1>{}]>{};
+            all_scratch[i_0 * num_reduce_warps + i_1] =
+                smem_ptr[i_0 * num_warps + local_smem_os + i_1];
         });
         block_sync_lds(); // TODO: we don't need sync here
 
@@ -360,17 +356,6 @@ struct BlockNormReduceCrossWarpSync
 template <typename BlockShape>
 CK_TILE_DEVICE constexpr index_t block_tile_welford_calculate_max_count(int row_size)
 {
-#if 0
-    using S                   = BlockShape;
-    index_t LastloopN         = row_size % S::Block_N == 0 ? S::Block_N : row_size % S::Block_N;
-    constexpr index_t NThread = S::WarpPerBlock_N * S::ThreadPerWarp_N;
-    index_t iNLane            = get_thread_id() % NThread;
-    index_t iN0               = LastloopN / (S::Vector_N * S::ThreadPerWarp_N);
-    index_t iN1               = (LastloopN % (S::Vector_N * S::ThreadPerWarp_N)) / S::Vector_N;
-    index_t N2                = (LastloopN % (S::Vector_N * S::ThreadPerWarp_N)) % S::Vector_N;
-    index_t iN3               = iNLane < iN1 ? S::Vector_N : iNLane == iN1 ? N2 : 0;
-    return iN0 * S::Vector_N + iN3;
-#endif
     using S_                            = BlockShape;
     constexpr index_t ThreadsPerBlock_N = S_::WarpPerBlock_N * S_::ThreadPerWarp_N;
 

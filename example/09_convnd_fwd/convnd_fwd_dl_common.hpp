@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -19,9 +19,13 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 void print_helper_msg()
 {
-    std::cout << "arg1: verification (0=no, 1=yes)\n"
+    std::cout << "arg1: verification (0=no, 1=CPU)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
               << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
@@ -158,6 +162,7 @@ bool run_grouped_conv_fwd_dl(bool do_verification,
 
     if(do_verification)
     {
+        // CPU verification only (DL variants are fused operations)
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
             NDimSpatial,
             InDataType,

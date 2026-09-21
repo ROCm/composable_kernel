@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -467,12 +467,12 @@ struct DeviceColumnToImageImpl
 
             float elapsed_time = 0.f;
             const auto kernel  = kernel_tensor_rearrange<InputGridDesc,
-                                                        InputDataType,
-                                                        OutputGridDesc,
-                                                        OutputDataType,
-                                                        Block2ETileMap,
-                                                        ComputePtrOffsetOfStridedBatch<>,
-                                                        GridwiseTensorRearrangeKernel>;
+                                                         InputDataType,
+                                                         OutputGridDesc,
+                                                         OutputDataType,
+                                                         Block2ETileMap,
+                                                         ComputePtrOffsetOfStridedBatch<>,
+                                                         GridwiseTensorRearrangeKernel>;
 
             // Execute each set of independent filters
             for(std::size_t i = 0; i < arg.in_grid_desc_m_k_container_.size(); i++)

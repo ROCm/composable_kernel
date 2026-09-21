@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -108,27 +108,31 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     if(do_verification)
     {
+        Tensor<AccDataType> c_host(out_g_n_k_wos_desc);
+
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,
-                                                                     OutDataType,
+                                                                     AccDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
-                                                                     OutElementOp>();
+                                                                     PassThrough>();
 
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
                                                   wei,
-                                                  out_host,
+                                                  c_host,
                                                   conv_param.conv_filter_strides_,
                                                   conv_param.conv_filter_dilations_,
                                                   conv_param.input_left_pads_,
                                                   conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  out_element_op);
+                                                  PassThrough{});
 
         ref_invoker.Run(ref_argument);
+
+        out_host.ForEach([&](auto&, auto idx) { out_element_op(out_host(idx), c_host(idx)); });
 
         out_device_buf.FromDevice(out_device.mData.data());
 
@@ -139,10 +143,10 @@ bool run_grouped_conv_fwd(bool do_verification,
     return (pass ? 0 : 1);
 }
 
-int run_conv2d_fwd_perlayer_quantization_example(const OutElementOp& out_element_op)
+int run_conv2d_fwd_perlayer_quantization_example(const OutElementOp& out_element_op,
+                                                 bool do_verification,
+                                                 bool time_kernel)
 {
-    bool do_verification           = true;
-    bool time_kernel               = false;
     const ck::index_t ndim_spatial = 2;
 
     ck::utils::conv::ConvParam conv_param{
