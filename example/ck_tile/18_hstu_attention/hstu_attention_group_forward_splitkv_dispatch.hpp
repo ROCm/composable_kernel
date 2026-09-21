@@ -246,8 +246,13 @@ struct group_forward_splitkv_dispatch
                                         SplitkvWorkspace& ws,
                                         hipStream_t stream)
     {
-        ws.num_splits = get_suggested_num_splits(
-            param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv);
+        bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
+
+        ws.num_splits = get_suggested_num_splits(almost_invariant_seqlen,
+                                                 param.num_batch,
+                                                 param.num_head,
+                                                 param.max_seqlen_q,
+                                                 param.max_seqlen_kv);
 
         // assume the workspace for o_acc is in compact shape of [num_batch, max_seqlen, num_head,
         // num_splits, hdim]
@@ -266,8 +271,6 @@ struct group_forward_splitkv_dispatch
 
             HIP_CHECK_ERROR(hipMallocAsync(&ws.lse_acc_ptr, workspace_bytes, stream));
         }
-
-        bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
 
         const auto kargs = [&] {
             return HstuKernel::MakeKargs(param.q_ptr,

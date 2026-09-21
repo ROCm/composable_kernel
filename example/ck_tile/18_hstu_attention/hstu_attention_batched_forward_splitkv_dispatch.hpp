@@ -253,8 +253,11 @@ struct batched_forward_splitkv_dispatch
                                         SplitkvWorkspace& ws,
                                         hipStream_t stream)
     {
-        ws.num_splits = get_suggested_num_splits(
-            param.num_batch, param.num_head, param.seqlen_q, param.seqlen_kv);
+        ws.num_splits = get_suggested_num_splits(true, /* almost_invariant_seqlen*/
+                                                 param.num_batch,
+                                                 param.num_head,
+                                                 param.seqlen_q,
+                                                 param.seqlen_kv);
 
         // assume the workspace for o_acc is in compact shape of [num_batch, seqlen_q, num_head,
         // num_splits, hdim]
