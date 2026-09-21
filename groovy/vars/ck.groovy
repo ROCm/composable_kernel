@@ -1408,23 +1408,32 @@ def runComprehensiveConvDatasetTests() {
 String _dispatcherPerfCmd(String compiler, String gpuTarget, String samplingTier,
                           String gemmDatatype, String gemmLayout, String multiLayout,
                           String quantDatatype, String quantLayout,
-                          String problemSizes, String problemConfigs, String perOpInstances) {
+                          String problemSizes, String problemConfigs,
+                          String multiAbdConfigs, String perOpInstances) {
     // All operators whose CMakeLists list both gfx942 and gfx950 in DESIRED_TARGETS
-    // run on both arches. Two sets remain gfx950-only:
+    // run on both arches. Two ops remain gfx950-only:
     //
-    //   gemm_aquant / gemm_bquant / gemm_abquant: SUPPORTED_ARCHS = ("gfx950",) in
-    //     their Python layers. The C++ side would compile on gfx942 (standard fp8
-    //     MFMA), but the Python guards have not been lifted yet. Widening is its own
-    //     change; the gate is conservative and likely to lift soon.
+    //   gemm_bquant: gemm_bquant_utils pins _NAME_ONLY_GFX_ARCH = "gfx950" and its
+    //     _MX_VARIANTS hard-require gfx950. gemm_aquant and gemm_abquant used to
+    //     sit here on the claim that all three had SUPPORTED_ARCHS = ("gfx950",);
+    //     that was never true of those two (gemm_aquant_utils allows
+    //     gfx90a/gfx942/gfx950, gemm_abquant_utils gfx942/gfx950), so they now run
+    //     on both arches alongside the correctness lane.
     //
     //   mx_gemm: CMakeLists filters with `target MATCHES "^gfx950"`, so
     //     benchmark_mx_gemm_all is never created for gfx942 and ninja would fail on
     //     an unknown target. Also has no fp16 path (MX_GEMM_DATATYPE defaults to
     //     fp4;fp8), hence quantDatatype below.
     //
-    // gemm_preshuffle and contraction_multi_abd are deferred: preshuffle has no
-    // dispatcher bridge on develop; contraction_multi_abd has no Python benchmark
-    // driver. Both get lanes in the next PR once those prerequisites land.
+    // gemm_preshuffle, gemm_rowcolquant, gemm_tensor_quant and contraction_multi_abd
+    // are no longer deferred: the bridges landed on develop (#10439), preshuffle
+    // rides gemm_utils.py via variant="preshuffle" rather than needing its own
+    // bridge, and contraction_multi_abd_benchmark.py is now written.
+    //
+    // Every op below MUST carry an explicit <OP>_MAX_INSTANCES -- see the budget
+    // comment in runDispatcherPerfTests. Omitting it on one op re-divides the
+    // shared TILE_ENGINE_SAMPLING_TIER pool and silently shrinks coverage for
+    // every other op in the lane.
     def cmd = """
             cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                 -D BUILD_CK_TILE_ENGINE="ON" \
@@ -1457,27 +1466,40 @@ String _dispatcherPerfCmd(String compiler, String gpuTarget, String samplingTier
                 -D GROUPED_GEMM_ROWCOLQUANT_MAX_INSTANCES=${perOpInstances} \
                 -D GROUPED_GEMM_TENSORQUANT_DATATYPE="${quantDatatype}" \
                 -D GROUPED_GEMM_TENSORQUANT_LAYOUT="${quantLayout}" \
-                -D GROUPED_GEMM_TENSORQUANT_MAX_INSTANCES=${perOpInstances}"""
-    if (gpuTarget == "gfx950") {
-        cmd += """ \
+                -D GROUPED_GEMM_TENSORQUANT_MAX_INSTANCES=${perOpInstances} \
+                -D GEMM_ROWCOLQUANT_DATATYPE="${quantDatatype}" \
+                -D GEMM_ROWCOLQUANT_LAYOUT="${quantLayout}" \
+                -D GEMM_ROWCOLQUANT_MAX_INSTANCES=${perOpInstances} \
+                -D GEMM_TENSOR_QUANT_DATATYPE="${quantDatatype}" \
+                -D GEMM_TENSOR_QUANT_LAYOUT="${quantLayout}" \
+                -D GEMM_TENSOR_QUANT_MAX_INSTANCES=${perOpInstances} \
+                -D GEMM_PRESHUFFLE_DATATYPE="${gemmDatatype}" \
+                -D GEMM_PRESHUFFLE_LAYOUT="${gemmLayout}" \
+                -D GEMM_PRESHUFFLE_MAX_INSTANCES=${perOpInstances} \
                 -D GEMM_AQUANT_DATATYPE="${quantDatatype}" \
                 -D GEMM_AQUANT_LAYOUT="${quantLayout}" \
                 -D GEMM_AQUANT_MAX_INSTANCES=${perOpInstances} \
-                -D GEMM_BQUANT_DATATYPE="${quantDatatype}" \
-                -D GEMM_BQUANT_LAYOUT="${quantLayout}" \
-                -D GEMM_BQUANT_MAX_INSTANCES=${perOpInstances} \
                 -D GEMM_ABQUANT_DATATYPE="${quantDatatype}" \
                 -D GEMM_ABQUANT_LAYOUT="${quantLayout}" \
                 -D GEMM_ABQUANT_MAX_INSTANCES=${perOpInstances} \
+                -D CONTRACTION_MULTI_ABD_DATATYPE="fp16" \
+                -D CONTRACTION_MULTI_ABD_LAYOUT="rcr" \
+                -D CONTRACTION_MULTI_ABD_MAX_INSTANCES=${perOpInstances} \
+                -D CONTRACTION_MULTI_ABD_CONFIG_FILE=smoke_ci_config.json"""
+    if (gpuTarget == "gfx950") {
+        cmd += """ \
+                -D GEMM_BQUANT_DATATYPE="${quantDatatype}" \
+                -D GEMM_BQUANT_LAYOUT="${quantLayout}" \
+                -D GEMM_BQUANT_MAX_INSTANCES=${perOpInstances} \
                 -D MX_GEMM_DATATYPE="${quantDatatype}" \
                 -D MX_GEMM_LAYOUT="${quantLayout}" \
                 -D MX_GEMM_MAX_INSTANCES=${perOpInstances}"""
     }
     cmd += """ \
                 -D TILE_ENGINE_SAMPLING_TIER=${samplingTier} .. && \
-            ninja -j\$(nproc) benchmark_gemm_universal_all benchmark_batched_gemm_all benchmark_batched_contraction_all benchmark_gemm_streamk_all benchmark_grouped_gemm_all benchmark_gemm_multi_d_all benchmark_gemm_multi_abd_all benchmark_grouped_gemm_rowcolquant_all benchmark_grouped_gemm_tensorquant_all"""
+            ninja -j\$(nproc) benchmark_gemm_universal_all benchmark_batched_gemm_all benchmark_batched_contraction_all benchmark_gemm_streamk_all benchmark_grouped_gemm_all benchmark_gemm_multi_d_all benchmark_gemm_multi_abd_all benchmark_grouped_gemm_rowcolquant_all benchmark_grouped_gemm_tensorquant_all benchmark_gemm_rowcolquant_all benchmark_gemm_tensor_quant_all benchmark_gemm_preshuffle_all benchmark_gemm_aquant_all benchmark_gemm_abquant_all benchmark_contraction_multi_abd_all"""
     if (gpuTarget == "gfx950") {
-        cmd += " benchmark_gemm_aquant_all benchmark_gemm_bquant_all benchmark_gemm_abquant_all benchmark_mx_gemm_all"
+        cmd += " benchmark_gemm_bquant_all benchmark_mx_gemm_all"
     }
     cmd += """ && \
             python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_universal_results.json && \
@@ -1488,12 +1510,16 @@ String _dispatcherPerfCmd(String compiler, String gpuTarget, String samplingTier
             python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_multi_d_results.json && \
             python3 ../tile_engine/ops/gemm/gemm_multi_abd/gemm_multi_abd_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_multi_abd_results.json && \
             python3 ../tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_rowcolquant/grouped_gemm_rowcolquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json grouped_gemm_rowcolquant_results.json && \
-            python3 ../tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_tensorquant/grouped_gemm_tensorquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json grouped_gemm_tensorquant_results.json"""
+            python3 ../tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_tensorquant/grouped_gemm_tensorquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json grouped_gemm_tensorquant_results.json && \
+            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_rowcolquant/gemm_rowcolquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_rowcolquant_results.json && \
+            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_tensor_quant/gemm_tensor_quant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_tensor_quant_results.json && \
+            python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_preshuffle_results.json && \
+            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_aquant/gemm_aquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_aquant_results.json && \
+            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_abquant/gemm_abquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_abquant_results.json && \
+            python3 ../tile_engine/ops/gemm/contraction_multi_abd/contraction_multi_abd_benchmark.py . --problem-configs ${multiAbdConfigs} --warmup 5 --repeat 5 --verbose --json contraction_multi_abd_results.json"""
     if (gpuTarget == "gfx950") {
         cmd += """ && \
-            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_aquant/gemm_aquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_aquant_results.json && \
             python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_bquant/gemm_bquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_bquant_results.json && \
-            python3 ../tile_engine/ops/gemm/block_scale_gemm/gemm_abquant/gemm_abquant_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json gemm_abquant_results.json && \
             python3 ../tile_engine/ops/gemm/mx_gemm/mx_gemm_benchmark.py . --problem-sizes ${problemSizes} --warmup 5 --repeat 5 --verbose --json mx_gemm_results.json"""
     }
     return cmd
@@ -1516,6 +1542,16 @@ def runDispatcherPerfTests(String compiler, String gpuTarget = "gfx942") {
     def gemmLayout     = "rcr"
     def problemSizes   = '"1024,1024,1024"'
     def problemConfigs = '"g=2;m=1024;n=1024;k=1024"'
+    // contraction_multi_abd cannot share problemConfigs above. Its kernels are
+    // compiled with CONTRACTION_MULTI_ABD_NUM_DIM_M/N = 2 (CMakeLists defaults,
+    // baked into the kernel name as g1_m2_n2_k1), and the executable rejects a
+    // dim list whose LENGTH differs from the compiled count -- "m=1024" is one M
+    // dimension where the kernel wants two, which is EXIT_FAILURE for every
+    // kernel, not a smaller problem. Extents are the product of each list, so
+    // m=4,256 is M=1024: same 1024^2 x 64 problem, expressed at the right arity.
+    // 1024 is also a multiple of the smoke config's 256x256x64 tile, which has
+    // pad_m/n/k all false.
+    def multiAbdConfigs = '"g=2;m=4,256;n=4,256;k=64"'
     // gemm_multi_d and gemm_multi_abd take 4-character layouts (A, B, D, E),
     // not the 3-character rcr the other ops use. Passing rcr here is not a
     // narrower selection, it is a parse error in the instance builder.
@@ -1540,18 +1576,24 @@ def runDispatcherPerfTests(String compiler, String gpuTarget = "gfx942") {
     //
     //   Both arches: gemm_universal, batched_gemm, batched_contraction,
     //     gemm_streamk, grouped_gemm, gemm_multi_d, gemm_multi_abd,
-    //     grouped_gemm_rowcolquant, grouped_gemm_tensorquant.
-    //     All have gfx950 in their DESIRED_TARGETS and no Python-level arch gate.
+    //     grouped_gemm_rowcolquant, grouped_gemm_tensorquant, gemm_rowcolquant,
+    //     gemm_tensor_quant, gemm_preshuffle, gemm_aquant, gemm_abquant,
+    //     contraction_multi_abd.
+    //     All have gfx950 in their DESIRED_TARGETS and no Python-level arch gate
+    //     that excludes gfx942.
     //
-    //   gfx950 only: gemm_aquant, gemm_bquant, gemm_abquant, mx_gemm.
-    //     gemm_aquant/bquant/abquant: SUPPORTED_ARCHS = ("gfx950",) in the Python
-    //     layer. gfx942 has fp8 (FNUZ), but those guards haven't been lifted yet.
+    //   gfx950 only: gemm_bquant, mx_gemm.
+    //     gemm_bquant: gemm_bquant_utils pins _NAME_ONLY_GFX_ARCH = "gfx950" and
+    //     its _MX_VARIANTS hard-require gfx950.
     //     mx_gemm: CMakeLists filters with `target MATCHES "^gfx950"`, so the
     //     benchmark_mx_gemm_all target is never created for gfx942; also has no
     //     fp16 path, hence quantDatatype below.
     //
-    //   Deferred (next PR): gemm_preshuffle (no bridge on develop), and
-    //     contraction_multi_abd (no Python benchmark driver yet).
+    // contraction_multi_abd is the one op whose CI config is named
+    // smoke_ci_config.json rather than default_ci_config.json, so it is selected
+    // explicitly via CONTRACTION_MULTI_ABD_CONFIG_FILE. It also takes
+    // --problem-configs (g/m/n/k), not --problem-sizes, like batched_contraction
+    // -- but with its own multiAbdConfigs, for the dim-arity reason noted above.
     def quantDatatype  = "fp8"
     def quantLayout    = "rcr"
     // Stream-K below is tile_engine/ops/gemm_streamk/ (top level), not
@@ -1559,7 +1601,7 @@ def runDispatcherPerfTests(String compiler, String gpuTarget = "gfx942") {
     // real: it holds the CMakeLists, the instance builder and the benchmark. The
     // nested one contains a lone configs/default_config.json that nothing in the
     // tree reads. Edit the top-level tree.
-    def execute_cmd = _dispatcherPerfCmd(compiler, gpuTarget, samplingTier, gemmDatatype, gemmLayout, multiLayout, quantDatatype, quantLayout, problemSizes, problemConfigs, perOpInstances)
+    def execute_cmd = _dispatcherPerfCmd(compiler, gpuTarget, samplingTier, gemmDatatype, gemmLayout, multiLayout, quantDatatype, quantLayout, problemSizes, problemConfigs, multiAbdConfigs, perOpInstances)
     try {
         buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)
     } finally {
@@ -1690,7 +1732,7 @@ def dispatcherVariantCmd(String arch, String variant) {
 // deeply. gfx950 runs 2 dtypes x 4 layouts -- see dispatcherSweepDtypesFor.
 //
 // ---------------------------------------------------------------------------
-// Coverage against the 13 dispatcher operators with a bridge on develop.
+// Coverage against the 20 dispatcher operators with a bridge on develop.
 //
 // Operators covered by this lane (all grouped_gemm / dispatcher-bridge variants):
 //   gemm_universal, grouped_gemm, multi_d_gemm (4 layouts), multi_abd_gemm,
@@ -1703,12 +1745,21 @@ def dispatcherVariantCmd(String arch, String variant) {
 // limitation (no scale-MFMA builtins on gfx942), bquant C4/C pending one
 // validating gfx942 run. See the gate comment further down.
 //
-// Operators NOT covered by this lane (no dispatcher bridge on develop yet):
-//   preshuffled_gemm, gemm_aquant, gemm_abquant, gemm_bquant,
-//   gemm_rowcolquant, gemm_tensorquant (block_scale_gemm tile_engine ops),
+// Also covered, added once their bridges landed on develop (#10439):
+//   gemm_rowcolquant, gemm_tensorquant, gemm_aquant, gemm_abquant (both
+//   arches), gemm_bquant (gfx950 only), preshuffled_gemm,
 //   batched_contraction_multi_abd.
 //
-// All 13 bridged ops are invoked. Twelve are fully covered; one
+// NAMING TRAP -- the single-GEMM and grouped ops differ by one token and sit on
+// adjacent lines in the chain below. They are different tests against different
+// bridges, and neither substitutes for the other:
+//   test_rowcolquant_*      / test_tensorquant_*   -> GROUPED  (grouped_gemm_*_utils)
+//   test_gemm_rowcolquant_* / test_tensor_quant_*  -> single GEMM (gemm_*_utils)
+//   test_{a,ab,b}quant_*      -> GROUPED  (grouped_gemm_{a,ab,b}quant_utils)
+//   test_gemm_{a,ab,b}quant_* -> single GEMM (gemm_{a,ab,b}quant_utils)
+// Deleting a "duplicate-looking" line here silently drops a whole operator.
+//
+// All 20 bridged ops are invoked. Nineteen are fully covered; one
 // (grouped_gemm_bquant non-rcr layouts) runs but over a narrowed surface.
 //
 // One non-obvious detail: gemm_universal's int8 coverage comes from
@@ -1755,7 +1806,11 @@ String _dispatcherCorrectnessBaseCmd(String arch, String compiler, String dtypes
         run_ok python3 ../dispatcher/tests/test_multi_d_gpu_correctness.py --gfx ${arch} && \
         run_ok python3 ../dispatcher/tests/test_multi_abd_gpu_correctness.py && \
         run_ok python3 ../dispatcher/tests/test_rowcolquant_gpu_correctness.py --gfx ${arch} && \
-        run_ok python3 ../dispatcher/tests/test_tensorquant_gpu_correctness.py --gfx ${arch}"""
+        run_ok python3 ../dispatcher/tests/test_tensorquant_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_gemm_rowcolquant_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_tensor_quant_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_preshuffle_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_contraction_multi_abd_gpu_correctness.py --gfx ${arch}"""
 }
 
 def runDispatcherCorrectnessTests(String arch, String compiler) {
@@ -1815,9 +1870,15 @@ def runDispatcherCorrectnessTests(String arch, String compiler) {
     // instead runs the two-config smoke test merged in #10132. That test is
     // unittest-based and self-gates to gfx950, so it takes no --gfx. It is still
     // wrapped with run_ok -- see the NOTE below for why every test in this chain is.
+    //
+    // test_gemm_bquant_gpu_correctness.py (single GEMM, gemm_bquant_utils) is
+    // gated here for the same reason as its grouped counterpart on the line
+    // above: gemm_bquant_utils pins _NAME_ONLY_GFX_ARCH = "gfx950" and its
+    // _MX_VARIANTS hard-require gfx950. The two gates must move together.
     if (arch == "gfx950") {
         execute_cmd += """ && \
         run_ok python3 ../dispatcher/tests/test_bquant_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_gemm_bquant_gpu_correctness.py --gfx ${arch} && \
         run_ok python3 ../dispatcher/tests/test_mx_gemm_gpu_correctness.py"""
     }
     // aquant runs on both archs. Its non-preshuffleaq builders use standard fp8
@@ -1835,6 +1896,14 @@ def runDispatcherCorrectnessTests(String arch, String compiler) {
     // pending one green run, and reports that as a per-case SKIP, not a 77.
     execute_cmd += """ && \
         run_ok python3 ../dispatcher/tests/test_abquant_gpu_correctness.py --gfx ${arch}"""
+    // The single-GEMM aquant/abquant bridges (gemm_aquant_utils,
+    // gemm_abquant_utils -- distinct from the grouped_gemm_* ones above) both
+    // list gfx942 in _SUPPORTED_ARCHS, so they run on both arches too. Their
+    // fp8 host codec goes through dispatcher_common.fp8_uses_ocp rather than a
+    // local copy, so the FNUZ/OCP split follows the compiled arch.
+    execute_cmd += """ && \
+        run_ok python3 ../dispatcher/tests/test_gemm_aquant_gpu_correctness.py --gfx ${arch} && \
+        run_ok python3 ../dispatcher/tests/test_gemm_abquant_gpu_correctness.py --gfx ${arch}"""
     // NOTE: run_ok is applied to every script-style test AND every unittest-based
     // test above. Unittest-based tests exit 0 on an internal skipTest, but a bad
     // import or setUpClass crash still exits 1, which would break the && chain and

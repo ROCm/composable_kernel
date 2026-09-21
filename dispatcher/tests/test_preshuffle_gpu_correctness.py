@@ -59,6 +59,13 @@ FAIL = "FAIL"
 # at all, so the lane reports Skipped rather than a vacuous Passed or a Failed.
 SKIP_EXIT = 77
 
+# Mirrors gemm_utils._SUPPORTED_ARCHES, which is what actually builds the
+# kernel. Spelled out here because --gfx bypasses autodetection: without this
+# check a typo'd or unsupported arch is passed straight through to
+# --offload-arch, and the test reports a build FAIL instead of a clean skip.
+# Keep in sync with gemm_utils; the two must not drift.
+_SUPPORTED_ARCHS = ("gfx90a", "gfx942", "gfx950", "gfx1250")
+
 
 def _has_gpu() -> bool:
     try:
@@ -192,6 +199,10 @@ def main() -> int:
         return SKIP_EXIT
 
     gfx = args.gfx or _resolve_arch(None)
+    if gfx not in _SUPPORTED_ARCHS:
+        print(f"SKIP: preshuffle GEMM needs one of "
+              f"{'/'.join(_SUPPORTED_ARCHS)}; got {gfx}")
+        return SKIP_EXIT
     log.info("Running preshuffle GEMM GPU correctness on %s", gfx)
 
     try:

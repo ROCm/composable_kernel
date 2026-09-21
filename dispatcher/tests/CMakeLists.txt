@@ -877,6 +877,37 @@ set_tests_properties(dispatcher_test_gemm_rowcolquant_gpu_correctness PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# Same shape, for the NON-GROUPED gemm_{a,ab,b}quant bridges. The GROUPED
+# counterparts are registered above in the _quant_gpu_test foreach as
+# dispatcher_test_{a,ab,b}quant_gpu_correctness -- distinct tests, distinct
+# files, distinct bridges. The names differ by one token; deleting a
+# "duplicate-looking" entry here silently drops a whole operator.
+#
+# No --gfx argument, deliberately: ctest must autodetect via rocminfo so the
+# JIT build matches the physical GPU (see the note above the C++ GPU tests).
+# --gfx is for the Jenkins lane only, where the arch is known from the node
+# label. Each script self-skips with 77 on an unsupported arch -- gfx942/gfx950
+# for aquant and abquant, gfx950 only for bquant.
+foreach(_gemm_quant_gpu_test
+        test_gemm_aquant_gpu_correctness
+        test_gemm_abquant_gpu_correctness
+        test_gemm_bquant_gpu_correctness)
+    add_test(
+        NAME dispatcher_${_gemm_quant_gpu_test}
+        # Run the script directly rather than under pytest: pytest exits 0 when
+        # every test skips, so a CPU-only or non-fp8 runner would report a green
+        # PASS for work that never reached the GPU. main() exits 77 instead.
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${_gemm_quant_gpu_test}.py
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    set_tests_properties(dispatcher_${_gemm_quant_gpu_test} PROPERTIES
+        LABELS "dispatcher;python;bridge;gpu"
+        TIMEOUT 600
+        SKIP_RETURN_CODE 77
+        ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+    )
+endforeach()
+
 # =============================================================================
 # Block-scale quant bridge tests (per-op unit tests + self-tests)
 #
