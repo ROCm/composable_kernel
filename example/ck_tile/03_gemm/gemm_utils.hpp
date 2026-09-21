@@ -12,6 +12,14 @@
 #include <string>
 #include <variant>
 
+// Max. vectorized global memory access in bytes.
+static constexpr ck_tile::index_t kMaxVectorBytes = 16;
+
+// Number of elements of type T in 1 max-width access.
+template <typename T>
+static constexpr ck_tile::index_t kMaxVectorElems =
+    static_cast<ck_tile::index_t>(kMaxVectorBytes / sizeof(T));
+
 struct GemmConfigBase
 {
     static constexpr bool kPadM = false;
@@ -41,6 +49,36 @@ struct GemmConfigBase
     static constexpr ck_tile::DataCachePrefetchKind DataCachePrefetchB =
         ck_tile::DataCachePrefetchKind::None;
     static constexpr bool Async = false;
+
+    static constexpr bool FixedVectorSize = false;
+    // If FixedVectorSize==true: use these vector sizes for A/B loads and C store
+    static constexpr ck_tile::index_t VectorSizeA = 1;
+    static constexpr ck_tile::index_t VectorSizeB = 1;
+    static constexpr ck_tile::index_t VectorSizeC = 1;
+
+    // Enable for RCR
+    static constexpr bool EnableKPadFallback = false;
+};
+
+// A,B vector sizes must divide K_Warp_Tile.
+template <typename GemmConfig,
+          ck_tile::index_t VectorSizeA_,
+          ck_tile::index_t VectorSizeB_,
+          ck_tile::index_t VectorSizeC_>
+struct GemmConfigFixedVectorSize : public GemmConfig
+{
+    // Split-K partitions are aligned to K_Warp_Tile: preserve split-K remainder
+    static_assert(GemmConfig::K_Warp_Tile % VectorSizeA_ == 0 &&
+                      GemmConfig::K_Warp_Tile % VectorSizeB_ == 0,
+                  "A/B vector width must divide K_Warp_Tile");
+
+    // Enable K padding
+    static constexpr bool kPadK = true;
+
+    static constexpr bool FixedVectorSize         = true;
+    static constexpr ck_tile::index_t VectorSizeA = VectorSizeA_;
+    static constexpr ck_tile::index_t VectorSizeB = VectorSizeB_;
+    static constexpr ck_tile::index_t VectorSizeC = VectorSizeC_;
 };
 
 template <typename PrecType>
@@ -197,6 +235,8 @@ struct GemmConfigComputeV3_WMMA : public GemmConfigBase
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
 
     static constexpr int kBlockPerCu = 2;
+
+    static constexpr bool EnableKPadFallback = true;
 };
 
 template <typename PrecType>
@@ -204,6 +244,9 @@ struct GemmConfigComputeV3_WMMA_ClusterLaunch : public GemmConfigComputeV3_WMMA<
 {
     static constexpr ck_tile::index_t kClusterSizeM = 2;
     static constexpr ck_tile::index_t kClusterSizeN = 2;
+
+    // KPad fallback not validated on the cluster-launch path yet, disable for now.
+    static constexpr bool EnableKPadFallback = false;
 };
 
 template <typename PrecType>

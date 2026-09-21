@@ -14,6 +14,8 @@ template <typename PrecType_, typename WorkspaceType_>
 struct GemmConfigTwoStage_Wmma : public GemmConfigComputeV3_WMMA<PrecType_>
 {
     using WorkspaceType = ck_tile::remove_cvref_t<WorkspaceType_>;
+
+    static constexpr bool EnableKPadFallback = false; // TODO invoker not supported yet
 };
 
 struct SplitKTwoStageInvoker
@@ -79,12 +81,19 @@ struct SplitKTwoStageInvoker
                                                   ck_tile::element_wise::PassThrough,
                                                   ck_tile::element_wise::PassThrough,
                                                   AComputeDataType,
-                                                  BComputeDataType>;
+                                                  BComputeDataType,
+                                                  GemmConfig::FixedVectorSize,
+                                                  GemmConfig::VectorSizeA,
+                                                  GemmConfig::VectorSizeB>;
         using WorkspaceType = ck_tile::remove_cvref_t<typename GemmConfig::WorkspaceType>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
+        // The first kernel writes an intermediate WorkspaceType buffer rather than the final C
+        // tensor. A second elementwise kernel converts that buffer to CDataType and writes C.
+        // Because VectorSizeC controls stores to C, it is not passed to
+        // this intermediate-output epilogue, which selects its own store width.
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
