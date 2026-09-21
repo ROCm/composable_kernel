@@ -58,19 +58,41 @@ static bool shall_use_splitkv(int num_batches, int num_heads, int max_seqlen_q, 
     return false;
 };
 
-static int
-get_suggested_num_splits(int num_batches, int num_heads, int max_seqlen_q, int max_seqlen_kv)
+static int get_suggested_num_splits(bool almost_invariant_seqlen,
+                                    int num_batches,
+                                    int num_heads,
+                                    int max_seqlen_q,
+                                    int max_seqlen_kv)
 {
-    int i = 2;
+    if(almost_invariant_seqlen)
+    {
+        int i = 2;
 
-    // Please tune the threshold here
-    const float threshold = 3.0f;
-    while(get_estimated_cu_coverage_ratio(num_batches, num_heads, max_seqlen_q, max_seqlen_kv) * i <
-          threshold)
-        i++;
+        // Please tune the threshold here
+        const float threshold = 3.0f;
+        while(get_estimated_cu_coverage_ratio(num_batches, num_heads, max_seqlen_q, max_seqlen_kv) *
+                  i <
+              threshold)
+            i += 1;
 
-    // the num_splits shall not be bigger than 64
-    return ck_tile::min(i, 64);
+        // the num_splits shall not be bigger than 64
+        return ck_tile::min(i, 64);
+    }
+    else
+    { // for this path, we want to use num_splits as the x dim of the dispatched work-group grid, so
+      // that work-groups of same i_split are allocated on the same xcd
+        int i = 8;
+
+        // Please tune the threshold here
+        const float threshold = 3.0f;
+        while(get_estimated_cu_coverage_ratio(num_batches, num_heads, max_seqlen_q, max_seqlen_kv) *
+                  i <
+              threshold)
+            i += 8;
+
+        // the num_splits shall not be bigger than 64
+        return ck_tile::min(i, 64);
+    }
 };
 
 struct SplitkvWorkspace

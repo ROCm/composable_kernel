@@ -577,14 +577,14 @@ struct HstuAttentionFwdSplitKVKernel
         {
             if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim)
             {
-                return dim3(num_tile_in_seqlen * num_splits *
+                return dim3(num_splits,
+                            num_tile_in_seqlen *
                                 ck_tile::integer_divide_ceil(hdim_v_, HstuAttentionPipeline::kN1),
-                            nhead_,
-                            batch_size_);
+                            batch_size_ * nhead_);
             }
             else
             {
-                return dim3(num_tile_in_seqlen * num_splits, nhead_, batch_size_);
+                return dim3(num_splits, num_tile_in_seqlen, batch_size_ * nhead_);
             }
         }
     }
@@ -617,12 +617,14 @@ struct HstuAttentionFwdSplitKVKernel
             }
             else
             {
-                const index_t i_block = blockIdx.x;
-                const index_t i_nhead = blockIdx.y;
-                const index_t i_batch = blockIdx.z;
+                const index_t i_split         = blockIdx.x;
+                const index_t i_block         = blockIdx.y;
+                const index_t i_batch_i_nhead = blockIdx.z;
 
-                auto [i_tile_m_i_split, i_tile_n] = f(i_block, num_tile_n1);
-                auto [i_tile_m, i_split]          = f(i_tile_m_i_split, kargs.num_splits);
+                auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
+                auto [i_batch, i_nhead]   = f(i_batch_i_nhead, kargs.num_head);
+
+                i_tile_m = gridDim.y / num_tile_n1 - 1 - i_tile_m;
 
                 return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch, i_split);
             }
@@ -644,13 +646,14 @@ struct HstuAttentionFwdSplitKVKernel
             }
             else
             {
-                const index_t i_block = blockIdx.x;
-                const index_t i_nhead = blockIdx.y;
-                const index_t i_batch = blockIdx.z;
+                const index_t i_split         = blockIdx.x;
+                const index_t i_block         = blockIdx.y;
+                const index_t i_batch_i_nhead = blockIdx.z;
 
-                index_t i_tile_m_i_split = i_block;
-                auto [i_tile_m, i_split] = f(i_tile_m_i_split, kargs.num_splits);
-                const index_t i_tile_n   = 0;
+                index_t i_tile_m        = i_block;
+                auto [i_batch, i_nhead] = f(i_batch_i_nhead, kargs.num_head);
+                i_tile_m                = gridDim.y - 1 - i_tile_m;
+                const index_t i_tile_n  = 0;
 
                 return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch, i_split);
             }
