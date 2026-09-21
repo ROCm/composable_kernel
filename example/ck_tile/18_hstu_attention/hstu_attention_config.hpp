@@ -56,7 +56,14 @@ enum class HstuFwdPipelineKind
 template <bool kUseSoftmax, ck_tile::index_t MaxK>
 constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
 {
-#if HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+    // Tdm covers hdim128 only: those are the tile shapes the Tdm pipelines have
+    // (kN0 == kN0Sub == kK1). Everything else keeps using trload.
+    if constexpr(MaxK == 128)
+        return HstuFwdPipelineKind::Tdm;
+    else
+        return HstuFwdPipelineKind::TrLoad;
+#elif HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     return HstuFwdPipelineKind::TrLoad;
 #else
     return HstuFwdPipelineKind::Default;
