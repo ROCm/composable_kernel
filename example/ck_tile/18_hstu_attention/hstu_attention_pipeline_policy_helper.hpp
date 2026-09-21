@@ -100,8 +100,7 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForTrLoadRead()
         constexpr index_t ScalarPerVector =
             AEncodingForTrLoad::detail::ys_lengths_[AEncoding::NDimY - 1];
 
-        // kABKLane is same as kCMLane
-        constexpr index_t kAKLane = WarpGemm::kCMLane;
+        constexpr index_t kAKLane = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
         constexpr index_t kKBytesPerBlock  = kKPerBlock * sizeof(ADataType);
         constexpr index_t PadIntervalBytes = max(kKBytesPerBlock, BankSpanBytes);
@@ -119,8 +118,7 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForTrLoadRead()
         constexpr index_t ScalarPerVector =
             BEncodingForTrLoad::detail::ys_lengths_[BEncoding::NDimY - 1];
 
-        // kABKLane is same as kCMLane
-        constexpr index_t kBKLane = WarpGemm::kCMLane;
+        constexpr index_t kBKLane = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
         constexpr index_t kKBytesPerBlock  = kKPerBlock * sizeof(BDataType);
         constexpr index_t PadIntervalBytes = max(kKBytesPerBlock, BankSpanBytes);
@@ -187,8 +185,7 @@ CK_TILE_HOST_DEVICE constexpr auto GetLdsPaddingConfigForTrLoadRead()
         constexpr index_t ScalarPerVector =
             AEncodingForTrLoad::detail::ys_lengths_[AEncoding::NDimY - 1];
 
-        // kABKLane is same as kCMLane
-        constexpr index_t kAKLane = WarpGemm::kCMLane;
+        constexpr index_t kAKLane = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
         constexpr index_t BankSpanElements = BankSpanBytes / sizeof(ADataType);
         constexpr index_t PadInterval      = max(kKPerBlock, BankSpanElements);
@@ -206,8 +203,7 @@ CK_TILE_HOST_DEVICE constexpr auto GetLdsPaddingConfigForTrLoadRead()
         constexpr index_t ScalarPerVector =
             BEncodingForTrLoad::detail::ys_lengths_[BEncoding::NDimY - 1];
 
-        // kABKLane is same as kCMLane
-        constexpr index_t kBKLane = WarpGemm::kCMLane;
+        constexpr index_t kBKLane = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
         constexpr index_t BankSpanElements = BankSpanBytes / sizeof(BDataType);
         constexpr index_t PadInterval      = max(kKPerBlock, BankSpanElements);
@@ -323,8 +319,7 @@ CK_TILE_HOST_DEVICE constexpr index_t GetSwizzleUnitForTrLoadRead()
         constexpr index_t ScalarPerVector =
             AEncodingForTrLoad::detail::ys_lengths_[AEncoding::NDimY - 1];
 
-        // kABKLane is same as kCMLane
-        constexpr index_t kAKLane = WarpGemm::kCMLane;
+        constexpr index_t kAKLane = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
         return kAKLane * ScalarPerVector;
     }
@@ -338,8 +333,7 @@ CK_TILE_HOST_DEVICE constexpr index_t GetSwizzleUnitForTrLoadRead()
         constexpr index_t ScalarPerVector =
             BEncodingForTrLoad::detail::ys_lengths_[BEncoding::NDimY - 1];
 
-        // kABKLane is same as kCMLane
-        constexpr index_t kBKLane = WarpGemm::kCMLane;
+        constexpr index_t kBKLane = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
         return kBKLane * ScalarPerVector;
     }
