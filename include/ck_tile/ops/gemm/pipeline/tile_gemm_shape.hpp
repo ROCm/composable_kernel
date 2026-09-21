@@ -106,7 +106,11 @@ constexpr index_t get_k_warp_tile()
 {
 #if CK_TILE_USE_WMMA
 #if defined(CK_USE_GFX1250)
-    if constexpr(M_Warp_Tile == 32)
+    if constexpr(std::is_same_v<PrecType, fp32_t>)
+    {
+        return 4;
+    }
+    else if constexpr(M_Warp_Tile == 32)
     {
         return 128;
     }

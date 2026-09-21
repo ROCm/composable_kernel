@@ -407,6 +407,15 @@ struct GemmTypeConfig<ck_tile::tf32_t, ck_tile::tf32_t, float>
 };
 
 template <>
+struct GemmTypeConfig<ck_tile::fp32_t>
+{
+    using ADataType   = ck_tile::fp32_t;
+    using BDataType   = ck_tile::fp32_t;
+    using AccDataType = ck_tile::fp32_t;
+    using CDataType   = ck_tile::fp32_t;
+};
+
+template <>
 struct GemmTypeConfig<ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
