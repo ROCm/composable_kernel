@@ -381,6 +381,72 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
+    // load_tile_tdm() does not take the hardware box shape as an argument: it recovers it from
+    // the Dram window, by reading back the ys_to_d lengths of the window's tile distribution.
+    // A Tdm load therefore needs a distribution whose Y dims describe one contiguous rectangle
+    // per wave. The general-purpose MakeK/VDramTileDistribution() do not: they scatter lanes
+    // across the head dim, which is what a register-staged buffer_load wants but is read back
+    // by Tdm as a scattered box that the Lds side cannot interpret. These two give Tdm the
+    // layout it needs instead -- the seqlen dim is split across waves and the head dim is left
+    // whole, so the Y lengths come out (rows-per-wave, head dim).
+    //
+    // Both pass IsWarpLevelParallelOnly = true, so the single P dim indexes the warp rather
+    // than the lane: every lane of a wave shares one P and the rectangle is owned by the wave
+    // as a whole. That is also why these must only ever be fed to load_tile_tdm() -- under a
+    // plain load_tile() every lane would materialise the entire rectangle.
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeKDramTdmTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        constexpr index_t warpNum = kBlockSize / get_warp_size();
+
+        static_assert(kNPerBlock % warpNum == 0,
+                      "kN0Sub must be divisible by the number of warps for the Tdm K "
+                      "distribution");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,                                    // RsLengths: no replication
+                tuple<sequence<warpNum, kNPerBlock / warpNum>, // HsLengthss[0]: seqlen, by wave
+                      sequence<kKPerBlock>>,                   // HsLengthss[1]: hdim, whole
+                tuple<sequence<1>>,                            // Ps2RHssMajor: P0 -> H[0]
+                tuple<sequence<0>>,                            // Ps2RHssMinor: P0 -> warpNum
+                sequence<1, 2>,                                // Ys2RHsMajor
+                sequence<1, 0>>{},                             // Ys2RHsMinor
+            bool_constant<true>{});                            // IsWarpLevelParallelOnly
+    }
+
+    // As MakeKDramTdmTileDistribution(), for the V copy. V's tile setting names its axes the
+    // other way round -- kK1 is the seqlen dim and kN1 the head dim -- so this is the
+    // transposed orientation, the one the ds_read_tr reader expects.
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeVDramTdmTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
+
+        constexpr index_t warpNum = kBlockSize / get_warp_size();
+
+        static_assert(kKPerBlock % warpNum == 0,
+                      "kK1 must be divisible by the number of warps for the Tdm V "
+                      "distribution");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,                                    // RsLengths: no replication
+                tuple<sequence<warpNum, kKPerBlock / warpNum>, // HsLengthss[0]: seqlen, by wave
+                      sequence<kNPerBlock>>,                   // HsLengthss[1]: hdim, whole
+                tuple<sequence<1>>,                            // Ps2RHssMajor: P0 -> H[0]
+                tuple<sequence<0>>,                            // Ps2RHssMinor: P0 -> warpNum
+                sequence<1, 2>,                                // Ys2RHsMajor
+                sequence<1, 0>>{},                             // Ys2RHsMinor
+            bool_constant<true>{});                            // IsWarpLevelParallelOnly
+    }
+
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeKDramTileDistribution()
     {
