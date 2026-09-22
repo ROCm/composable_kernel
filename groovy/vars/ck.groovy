@@ -1413,7 +1413,6 @@ def runBuildCKAndTests(String arch) {
     switch (arch) {
         case "gfx90a":
             gpuTarget = "gfx90a"
-            extraSetupArgs = " -DCK_CXX_STANDARD=\"17\""
             execute_cmd = build_client_examples(gpuTarget)
             break
         case "gfx1250":
