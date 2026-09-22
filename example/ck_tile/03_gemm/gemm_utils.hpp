@@ -8,9 +8,12 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/utility/json_dump.hpp"
+#include "gemm_common/vector_size_fallback_dispatch.hpp"
 
 #include <string>
 #include <variant>
+
+using ck_tile_example::GemmConfigVectorSizeFallback;
 
 // Max. vectorized global memory access in bytes.
 static constexpr ck_tile::index_t kMaxVectorBytes = 16;
@@ -56,11 +59,11 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t VectorSizeB = 1;
     static constexpr ck_tile::index_t VectorSizeC = 1;
 
-    // Enable for RCR
-    static constexpr bool EnableKPadFallback = false;
+    static constexpr bool EnableSmallerVectorLoadFallback = false;
 };
 
-// A,B vector sizes must divide K_Warp_Tile.
+// A,B vector sizes must divide K_Warp_Tile. Used directly by test_gemm_unaligned_k.cpp; the
+// general run_gemm_example.inc dispatch path uses GemmConfigVectorSizeFallback instead.
 template <typename GemmConfig,
           ck_tile::index_t VectorSizeA_,
           ck_tile::index_t VectorSizeB_,
@@ -236,7 +239,7 @@ struct GemmConfigComputeV3_WMMA : public GemmConfigBase
 
     static constexpr int kBlockPerCu = 2;
 
-    static constexpr bool EnableKPadFallback = true;
+    static constexpr bool EnableSmallerVectorLoadFallback = true;
 };
 
 template <typename PrecType>
@@ -245,8 +248,8 @@ struct GemmConfigComputeV3_WMMA_ClusterLaunch : public GemmConfigComputeV3_WMMA<
     static constexpr ck_tile::index_t kClusterSizeM = 2;
     static constexpr ck_tile::index_t kClusterSizeN = 2;
 
-    // KPad fallback not validated on the cluster-launch path yet, disable for now.
-    static constexpr bool EnableKPadFallback = false;
+    // Vector-size fallback not validated on the cluster-launch path yet, disable for now.
+    static constexpr bool EnableSmallerVectorLoadFallback = false;
 };
 
 template <typename PrecType>

@@ -74,7 +74,8 @@ struct UniversalInvoker
                                              VectorSize,
                                              GemmConfig::DataCachePrefetchA,
                                              GemmConfig::DataCachePrefetchB,
-                                             GemmConfig::Async>;
+                                             GemmConfig::Async,
+                                             false>; // LargeTensors
 
         constexpr auto scheduler = GemmConfig::Scheduler;
 
@@ -297,7 +298,10 @@ struct UniversalInvoker
                                                   ck_tile::element_wise::PassThrough,
                                                   ck_tile::element_wise::PassThrough,
                                                   AComputeDataType,
-                                                  BComputeDataType>;
+                                                  BComputeDataType,
+                                                  GemmConfig::FixedVectorSize,
+                                                  GemmConfig::VectorSizeA,
+                                                  GemmConfig::VectorSizeB>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
@@ -320,9 +324,9 @@ struct UniversalInvoker
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
                                              GemmConfig::NumWaveGroups,
-                                             false, /*FixedVectorSize_*/
-                                             1,     /*VectorSizeC_*/
-                                             1,     /*BlockedXDLN_PerWarp_*/
+                                             GemmConfig::FixedVectorSize,
+                                             GemmConfig::VectorSizeC,
+                                             1, /*BlockedXDLN_PerWarp_*/
                                              GemmConfig::DoubleSmemBuffer,
                                              AComputeDataType,
                                              BComputeDataType>>;

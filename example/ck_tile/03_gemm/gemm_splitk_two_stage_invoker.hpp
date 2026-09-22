@@ -15,7 +15,7 @@ struct GemmConfigTwoStage_Wmma : public GemmConfigComputeV3_WMMA<PrecType_>
 {
     using WorkspaceType = ck_tile::remove_cvref_t<WorkspaceType_>;
 
-    static constexpr bool EnableKPadFallback = false; // TODO invoker not supported yet
+    static constexpr bool EnableSmallerVectorLoadFallback = false; // TODO invoker not supported yet
 };
 
 struct SplitKTwoStageInvoker

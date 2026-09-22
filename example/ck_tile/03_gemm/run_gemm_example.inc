@@ -5,6 +5,7 @@
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "ck_tile/ops/common/utils.hpp"
+#include "gemm_common/vector_size_fallback_dispatch.hpp"
 
 #include <type_traits>
 
@@ -349,19 +350,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    // Enable fallback: RCR, PackedSize=1
-    constexpr bool k_pad_fallback_eligible =
-        GemmConfig::EnableKPadFallback && !GemmConfig::FixedVectorSize &&
-        std::is_same_v<ADataTypeBuf, BDataTypeBuf> &&
-        std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor> &&
-        std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor> &&
-        std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
-        ck_tile::numeric_traits<ADataTypeBuf>::PackedSize == 1 &&
-        ck_tile::numeric_traits<BDataTypeBuf>::PackedSize == 1;
-
-    // Invoke GEMM
-    auto run_invoke = [&](auto cfg_tag) {
-        using Cfg = typename decltype(cfg_tag)::type;
+    auto invoke = [&]<typename Cfg>() {
         return invoke_gemm<Cfg,
                            Invoker,
                            ADataTypeBuf,
@@ -389,20 +378,14 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                     rotating_count);
     };
 
-    float ave_time;
-    if constexpr(k_pad_fallback_eligible)
-    {
-        using KPadConfig = GemmConfigFixedVectorSize<GemmConfig, 1, 1, kMaxVectorElems<CDataType>>;
-
-        ave_time = (K % kMaxVectorElems<ADataTypeBuf> != 0)
-                       ? run_invoke(std::type_identity<KPadConfig>{})  // unaligned K
-                       : run_invoke(std::type_identity<GemmConfig>{}); // aligned K
-    }
-    else
-    {
-        // Do not use KPad fallback
-        ave_time = run_invoke(std::type_identity<GemmConfig>{});
-    }
+    float ave_time = ck_tile_example::dispatch_vector_size_fallback<GemmConfig,
+                                                                    ADataTypeBuf,
+                                                                    BDataTypeBuf,
+                                                                    CDataType,
+                                                                    ALayout,
+                                                                    BLayout,
+                                                                    CLayout>(
+        M, N, K, stride_A, stride_B, stride_C, kbatch, invoke);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 

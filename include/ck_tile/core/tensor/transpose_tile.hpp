@@ -38,13 +38,8 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
     // we have same rh_major, but reversed rh_minor!
     constexpr index_t NDimY = InTensor::get_tile_distribution().get_num_of_dimension_y();
 
-    constexpr auto y_dim_out_to_in = [&] {
-        map<index_t, index_t> y_dim_out_to_in_;
-
-        static_for<0, NDimY, 1>{}([&](auto i) { y_dim_out_to_in_(i) = NDimY - 1 - i; });
-
-        return y_dim_out_to_in_;
-    }();
+    constexpr auto y_dim_out_to_in =
+        typename arithmetic_sequence_gen<0, NDimY, 1>::type{}.reverse();
 
     constexpr auto y_lengths = to_sequence(y_in_desc.get_lengths());
 
@@ -146,7 +141,7 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
 
             // set output vectors
             static_for<0, num_vec_out, 1>{}([&](auto i) {
-                constexpr auto idx_y_out_tmp = generate_array(
+                constexpr auto idx_y_out_tmp = generate_tuple(
                     [&](auto ii) {
                         return ii == y_dim_vec_in ? idx_y_start[ii] + i : idx_y_start[ii];
                     },
