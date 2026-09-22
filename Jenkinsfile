@@ -91,7 +91,6 @@ def showCompilerInfo(boolean deferBinaryInfo = false, String dockerImage = "") {
 
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
-                                              0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_DISPATCHER_PERF_TESTS=true;RUN_DISPATCHER_CORRECTNESS_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=false;BUILD_GFX908=false;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=develop;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=therock;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
@@ -181,14 +180,6 @@ pipeline {
             name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
             description: "Run the ck_tile FMHA tests (default: OFF)")
-        booleanParam(
-            name: "RUN_DISPATCHER_CORRECTNESS_TESTS",
-            defaultValue: false,
-            description: "Run Correctness Tier for Dispatcher")
-        booleanParam(
-            name: "RUN_DISPATCHER_PERF_TESTS",
-            defaultValue: false,
-            description: "Run Performance Tier for Dispatcher")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -638,26 +629,8 @@ pipeline {
                 }
             }
         }
-        stage("Run DISPATCHER Tests")
-        {
-            when {
-                beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() && (params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean() || params.RUN_DISPATCHER_PERF_TESTS.toBoolean()) }
-            }
-            agent none
-            steps {
-                script {
-                    loadCk()
-                    ck.runDispatcherTests(
-                        this.&rocmnode,
-                        params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean(),
-                        params.RUN_DISPATCHER_PERF_TESTS.toBoolean(),
-                        params.BUILD_COMPILER)
-                }
-            }
-        }
 
-        stage("Build CK and run Tests")
+		stage("Build CK and run Tests")
         {
             when {
                 beforeAgent true
@@ -701,6 +674,21 @@ pipeline {
                         }
                     }
                 }
+                /*
+                stage("Build CK and run Tests on gfx908")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx908") }
+                    steps{
+                        deleteDir()
+                        script { loadCk(); ck.runBuildCKAndTests("gfx908") }
+                        cleanWs()
+                    }
+                }
+                */
                 stage("Build CK and run Tests on gfx90a")
                 {
                     when {
@@ -726,6 +714,14 @@ pipeline {
                         expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() }
                     }
                     agent none
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                            -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
+                                            -DGPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic" \
+                                            -D CMAKE_BUILD_TYPE=Release .. && ninja -j64 """
+                    }
                     steps{
                         script {
                             loadCk()
@@ -737,6 +733,21 @@ pipeline {
                         }
                     }
                 }
+                /*
+                stage("Build CK and run Tests on gfx1010")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_GFX101.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1010") }
+                    steps{
+                        deleteDir()
+                        script { loadCk(); ck.runBuildCKAndTests("gfx10-1-generic") }
+                        cleanWs()
+                    }
+                }
+                */
                 stage("Build CK and run Tests on gfx1030")
                 {
                     when {
@@ -815,6 +826,7 @@ pipeline {
                     node(rocmnode("nogpu")) {
                         script {
                             loadCk()
+                            // Simulate capture
                             ck.generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx11.json")
                             ck.generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx12.json")
                             ck.generateAndArchiveBuildTraceVisualization("ck_build_trace_gfx90a.json")
@@ -828,6 +840,7 @@ pipeline {
                     script {
                         node(rocmnode("nogpu")) {
                             loadCk()
+                            // Report the parent stage build ck and run tests status
                             ck.setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
                             echo "Reporting success status for build ck and run tests"
                         }
