@@ -155,8 +155,10 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
         constexpr index_t n0_loops = kN0 / kN0Sub;
         constexpr index_t k1_loops = kN0 / kK1;
 
-        static_assert(n0_loops >= 2, "n0_loops >= 2 required by this pipeline");
-        static_assert(k1_loops >= 2, "k1_loops >= 2 required by this pipeline");
+        static_assert(n0_loops % k1_loops == 0,
+                      "n0_loops % k1_loops == 0 required by this pipeline");
+
+        constexpr index_t n0loops_per_k1 = (n0_loops / k1_loops);
 
         constexpr auto NumKLdsBuffers = Policy::template GetNumKLdsBuffers<Problem>();
         constexpr auto NumVLdsBuffers = Policy::template GetNumVLdsBuffers<Problem>();
@@ -223,14 +225,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
 
         using k_tile_type = decltype(load_tile(k_dram_window));
 
-        constexpr index_t NumPrefetchK = 2;
+        statically_indexed_array<k_tile_type, n0_loops> k_tiles;
 
-        static_assert(n0_loops >= NumPrefetchK, "Check failed!");
-
-        // only prefetch two k tiles to save vgprs consumption
-        statically_indexed_array<k_tile_type, NumPrefetchK> k_tiles;
-
-        static_for<0, NumPrefetchK, 1>{}([&](auto i_n0) {
+        static_for<0, n0_loops, 1>{}([&](auto i_n0) {
             k_tiles[i_n0] = load_tile(k_dram_window);
             move_tile_window(k_dram_window, {kN0Sub, 0});
         });
@@ -327,39 +324,25 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
 
         auto seqlen_k_curr = seqlen_k_start;
 
-        constexpr index_t NumPrefetchV = 2;
-
-        static_assert(NumPrefetchV >= NumPrefetchK);
-
         using v_tile_type = decltype(load_tile(v_dram_window));
 
-        statically_indexed_array<v_tile_type, NumPrefetchV> v_tiles;
+        statically_indexed_array<v_tile_type, k1_loops> v_tiles;
 
         do
         {
             // STAGE 1, Gemm_0 ( S = Q@K )
             static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-                store_tile(k_lds_windows[number<i_n0 % NumKLdsBuffers>{}],
-                           k_tiles[number<i_n0 % NumPrefetchK>{}],
-                           partition_index);
+                store_tile(
+                    k_lds_windows[number<i_n0 % NumKLdsBuffers>{}], k_tiles[i_n0], partition_index);
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
-
-                if constexpr(i_n0 < n0_loops - NumPrefetchK)
+                if constexpr((i_n0 + 1) % n0loops_per_k1 == 0)
                 {
-                    k_tiles[number<i_n0 % NumPrefetchK>{}] = load_tile(k_dram_window);
-                    move_tile_window(k_dram_window, {kN0Sub, 0});
-                }
-                else
-                {
-                    // Since NumPrefetchV >= NumPrefetchK, we are able to have NumPrefetchK
-                    // prefetchings of v_tile arranged in n0_loops
+                    constexpr index_t i_k1 = (i_n0 + 1) / n0loops_per_k1 - 1;
 
-                    v_tiles[number<i_n0 - (n0_loops - NumPrefetchK)>{}] = load_tile(v_dram_window);
+                    // load v_tiles used in current iteration
+                    v_tiles[number<i_k1>{}] = load_tile(v_dram_window);
                     move_tile_window(v_dram_window, {0, kK1});
-                };
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                }
 
                 block_sync_lds();
 
@@ -416,8 +399,6 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
                 });
             }
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
-
             using v_shuffled_tile_type = decltype(make_static_distributed_tensor<QKVDataType>(
                 Policy::template MakeShuffledVRegTileDistribution<Problem>()));
 
@@ -426,15 +407,6 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
             shuffle_tile(v_shuffled_tile, v_tiles[number<0>{}]);
 
             store_tile(v_lds_windows[number<0>{}], v_shuffled_tile, partition_index);
-
-            __builtin_amdgcn_sched_barrier(0x00000001);
-
-            static_for<NumPrefetchK, NumPrefetchV, 1>{}([&](auto i_k1) {
-                v_tiles[i_k1] = load_tile(v_dram_window);
-                move_tile_window(v_dram_window, {0, kK1});
-            });
-
-            __builtin_amdgcn_sched_barrier(0x00000001);
 
             const auto m_old = m;
 
@@ -515,20 +487,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
 
             // STAGE 3, Gemm_1 ( O = P@V )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
-                if constexpr(i_k1 < k1_loops - NumPrefetchV)
-                {
-                    v_tiles[number<i_k1 % NumPrefetchV>{}] = load_tile(v_dram_window);
-                    move_tile_window(v_dram_window, {0, kK1});
-                };
-
-                if constexpr((i_k1 >= k1_loops - NumPrefetchV) &&
-                             (i_k1 - (k1_loops - NumPrefetchV) < NumPrefetchK))
-                {
-                    k_tiles[number<i_k1 - (k1_loops - NumPrefetchV)>{}] = load_tile(k_dram_window);
+                // load k_tiles used by next iteration
+                static_for<0, n0loops_per_k1, 1>{}([&](auto j) {
+                    k_tiles[number<i_k1 * n0loops_per_k1 + j>{}] = load_tile(k_dram_window);
                     move_tile_window(k_dram_window, {kN0Sub, 0});
-                };
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                });
 
                 block_sync_lds();
 
@@ -541,7 +504,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
                 {
                     __builtin_amdgcn_sched_barrier(0x00000001);
 
-                    shuffle_tile(v_shuffled_tile, v_tiles[number<(i_k1 + 1) % NumPrefetchV>{}]);
+                    shuffle_tile(v_shuffled_tile, v_tiles[number<i_k1 + 1>{}]);
                     store_tile(v_lds_windows[number<(i_k1 + 1) % NumVLdsBuffers>{}],
                                v_shuffled_tile,
                                partition_index);
