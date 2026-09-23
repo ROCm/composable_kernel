@@ -267,7 +267,9 @@ template <index_t NDimSpatial,
           typename AComputeType                          = ADataType,
           typename BComputeType                          = AComputeType,
           index_t MaxTransposeTransferInScalarPerVector  = 1,
-          index_t MaxTransposeTransferOutScalarPerVector = 1>
+          index_t MaxTransposeTransferOutScalarPerVector = 1,
+          bool UseLdsTranspose                           = false,
+          bool TransposeC                                = false>
 struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
     : public DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                ALayout,    // output image
@@ -422,10 +424,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         }
     }
 
+    // static_assert(is_same<ALayout, BLayout>::value);
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
-        ALayout,
-        BLayout,
+        ck::tensor_layout::gemm::RowMajor, // ALayout
+        ck::tensor_layout::gemm::RowMajor, // BLayout
         DsLayout,
         ELayout,
         Tuple<ADataType>,
@@ -475,23 +479,27 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         false, // PermuteA
         false, // PermuteB
         false, // IsBPreShuffled
-        true>; // ForceThreadTileTransfer
+        true,  // ForceThreadTileTransfer
+        false, // IsFusedKernel
+        UseLdsTranspose,
+        TransposeC>;
 
-#define GridwiseGemmCTransposeTemplateParameters                                                   \
-    ALayout, BLayout, DsLayout, ELayout, Tuple<ADataType>, Tuple<BDataType>, AccDataType,          \
-        CShuffleDataType, DsDataType, EDataType, BElementwiseOp, AElementwiseOp, CDEElementwiseOp, \
-        GemmSpec, BlockSize, NPerBlock, MPerBlock, KPerBlock, BK1, AK1, NPerWmma, MPerWmma,        \
-        NRepeat, MRepeat, BBlockTransferThreadClusterLengths_BK0_N_BK1,                            \
-        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                     \
-        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                              \
-        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                              \
-        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder,     \
-        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                                  \
-        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,             \
-        ABlockLdsExtraM, CShuffleMRepeatPerShuffle, CShuffleNRepeatPerShuffle,                     \
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                     \
-        CShuffleBlockTransferScalarPerVector, BlkGemmPipeSched, BlkGemmPipelineVer, BComputeType,  \
-        AComputeType, false, false, false, true
+#define GridwiseGemmCTransposeTemplateParameters                                                  \
+    ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, DsLayout, ELayout,      \
+        Tuple<ADataType>, Tuple<BDataType>, AccDataType, CShuffleDataType, DsDataType, EDataType, \
+        BElementwiseOp, AElementwiseOp, CDEElementwiseOp, GemmSpec, BlockSize, NPerBlock,         \
+        MPerBlock, KPerBlock, BK1, AK1, NPerWmma, MPerWmma, NRepeat, MRepeat,                     \
+        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder,    \
+        BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim,                                 \
+        BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false,            \
+        BBlockLdsExtraN, ABlockTransferThreadClusterLengths_AK0_M_AK1,                            \
+        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                    \
+        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                             \
+        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM, CShuffleMRepeatPerShuffle,  \
+        CShuffleNRepeatPerShuffle,                                                                \
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                    \
+        CShuffleBlockTransferScalarPerVector, BlkGemmPipeSched, BlkGemmPipelineVer, BComputeType, \
+        AComputeType, false, false, false, true, false, UseLdsTranspose, TransposeC
 
     using GridwiseGemmCTranspose =
         std::conditional_t<CTranspose,

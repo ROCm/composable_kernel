@@ -166,7 +166,8 @@ template <typename ALayout,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
-          bool PermuteB                               = false>
+          bool PermuteB                               = false,
+          bool UseLdsTranspose                        = false>
 struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                         BLayout,
                                                         CLayout,
@@ -227,7 +228,11 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        false,            // IsBPreShuffled
+        false,            // ForceThreadTileTransfer
+        false,            // IsFusedKernel
+        UseLdsTranspose>; // UseLdsTranspose
 
     using Argument = typename GridwiseGemm::Argument;
 

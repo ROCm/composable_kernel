@@ -29,8 +29,10 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC = false,
-          bool BSkipLDS   = false>
+          bool TransposeC       = false,
+          bool BSkipLDS         = false,
+          bool UseLdsTransposeA = false,
+          bool UseLdsTransposeB = false>
 constexpr auto BlockGemmPipeline_Selector()
 {
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
@@ -56,7 +58,9 @@ constexpr auto BlockGemmPipeline_Selector()
                                                 KPack,
                                                 KInner,
                                                 TransposeC,
-                                                BSkipLDS>{};
+                                                BSkipLDS,
+                                                UseLdsTransposeA,
+                                                UseLdsTransposeB>{};
     }
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
@@ -81,7 +85,9 @@ constexpr auto BlockGemmPipeline_Selector()
                                                 KPack,
                                                 KInner,
                                                 TransposeC,
-                                                BSkipLDS>{};
+                                                BSkipLDS,
+                                                UseLdsTransposeA,
+                                                UseLdsTransposeB>{};
     }
     else
     {

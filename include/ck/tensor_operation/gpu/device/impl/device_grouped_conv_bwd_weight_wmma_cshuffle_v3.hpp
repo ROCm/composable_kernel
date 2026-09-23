@@ -163,7 +163,9 @@ template <ck::index_t NDimSpatial,
           typename ComputeTypeA                          = InDataType,
           typename ComputeTypeB                          = ComputeTypeA,
           index_t MaxTransposeTransferSrcScalarPerVector = 1,
-          index_t MaxTransposeTransferDstScalarPerVector = 1>
+          index_t MaxTransposeTransferDstScalarPerVector = 1,
+          bool UseLdsTranspose                           = false,
+          bool TransposeC                                = false>
 struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
     : public DeviceGroupedConvBwdWeight<NDimSpatial,
                                         InLayout,
@@ -420,7 +422,10 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
         false, // PermuteA
         false, // permuteB
         false, // IsBPreshuffle
-        true>; // ForceThreadTileTransfer
+        true,  // ForceThreadTileTransfer
+        false, // IsFusedKernel
+        UseLdsTranspose,
+        TransposeC>;
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =

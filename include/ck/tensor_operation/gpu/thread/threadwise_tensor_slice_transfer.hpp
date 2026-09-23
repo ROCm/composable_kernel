@@ -1260,6 +1260,7 @@ template <typename SrcData,
           index_t SrcVectorDim,
           index_t SrcScalarPerVector,
           index_t SrcScalarStrideInVector,
+          bool DoTranspose               = false,
           typename enable_if<SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                              bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v4
@@ -1395,8 +1396,8 @@ struct ThreadwiseTensorSliceTransfer_v4
             if constexpr(SrcBuffer::IsDynamicBuffer())
             {
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                    src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
-                                                       is_src_valid);
+                    src_buf.template Get<src_vector_t, DoTranspose>(
+                        src_data_coord.GetOffset() / PackedSize, is_src_valid);
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {
