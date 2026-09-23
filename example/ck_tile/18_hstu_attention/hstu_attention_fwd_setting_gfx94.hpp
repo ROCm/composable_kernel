@@ -11,7 +11,6 @@
 #if defined(BUILD_HSTU_FOR_GFX94)
 using WarpTile_16x16x16 = ck_tile::sequence<16, 16, 16>;
 using WarpTile_16x16x32 = ck_tile::sequence<16, 16, 32>;
-using WarpTile_32x32x16 = ck_tile::sequence<32, 32, 16>;
 
 template <ck_tile::index_t MaxK,
           ck_tile::index_t MTile            = 0,
@@ -233,9 +232,9 @@ struct HstuAttentionWithSoftmaxFwdTileSetting<96, MTile>
     using Type = ck_tile::HstuAttentionFwdTileSettingClass<
         typename HstuAttentionWithSoftmaxFwdBlockTile<96>::type,
         typename HstuAttentionWithSoftmaxFwdBlockTile<96>::gemm0_warps,
-        WarpTile_32x32x16,
+        WarpTile_16x16x16,
         typename HstuAttentionWithSoftmaxFwdBlockTile<96>::gemm1_warps,
-        WarpTile_32x32x16>;
+        WarpTile_16x16x16>;
 };
 
 template struct HstuAttentionWithSoftmaxFwdTileSetting<96, 64>;
