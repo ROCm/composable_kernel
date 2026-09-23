@@ -166,6 +166,134 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
+    // ---- Tdm staging: plain-Lds descriptors and their pad ------------------------------
+    //
+    // The Tdm engine writes K and V into Lds itself, in plain row-major order, so the
+    // xor-swizzled layouts MakeK/VLdsBlockDescriptor() build are not available to a Tdm
+    // staged buffer; bank conflicts are avoided with a row pad instead. These four entry
+    // points are additive -- the existing descriptors are untouched and still serve the
+    // Default and TrLoad pipelines.
+    //
+    // They live here rather than in the pipelines because detail::GetTdm*() only exist inside
+    // #if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE. A call spelled `detail::GetTdm...` in a
+    // pipeline is a non-dependent qualified-id, so it is looked up when the template is
+    // *defined* rather than instantiated -- merely including a Tdm pipeline header on
+    // gfx94/gfx95 would then be a parse error, however carefully the call is guarded by
+    // if constexpr. Going through the policy makes the name dependent on Problem and keeps
+    // the #if on this side, which is the same shape the rest of this file already uses.
+
+    // The (pad_interval, pad_amount) pair for the global -> Lds copy that stages K, already
+    // encoded the way the Tdm descriptor carries it. MakeKLdsPlainBlockDescriptor() derives
+    // the reader side of the same buffer from the same GetTdmLdsPaddingConfigForNormalRead()
+    // call; the two are separate derivations and have been checked to agree, so an edit to
+    // one must be mirrored in the other.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetTdmPadConfigK()
+    {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto lds_pad =
+            detail::GetTdmLdsPaddingConfigForNormalRead<WG, false /*inputB*/, kKPerBlock>();
+
+        return detail::GetTdmRawPaddingConfig<lds_pad.at(number<0>{}), lds_pad.at(number<1>{})>();
+#else
+        static_assert(sizeof(Problem) == 0,
+                      "GetTdmPadConfigK() is only meaningful where Tdm staging is available");
+        return make_tuple(number<0>{}, number<0>{});
+#endif
+    }
+
+    // As GetTdmPadConfigK(), for the V copy. V is read back with ds_read_tr, so its pad comes
+    // from GetTdmLdsPaddingConfigForTrLoadRead() and is wider than K's.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetTdmPadConfigV()
+    {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
+
+        using BlockGemm = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, true /*kUseTrLoad*/>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto lds_pad =
+            detail::GetTdmLdsPaddingConfigForTrLoadRead<WG, false /*inputB*/, kNPerBlock>();
+
+        return detail::GetTdmRawPaddingConfig<lds_pad.at(number<0>{}), lds_pad.at(number<1>{})>();
+#else
+        static_assert(sizeof(Problem) == 0,
+                      "GetTdmPadConfigV() is only meaningful where Tdm staging is available");
+        return make_tuple(number<0>{}, number<0>{});
+#endif
+    }
+
+    // Reader-side descriptor for a Tdm staged K buffer.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsPlainBlockDescriptor()
+    {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
+        constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto pad_config =
+            detail::GetTdmLdsPaddingConfigForNormalRead<WG, false /*inputB*/, kKPerBlock>();
+
+        return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
+                                                            NumKLdsBuffers,
+                                                            kNPerBlock,
+                                                            kKPerBlock,
+                                                            pad_config.at(number<0>{}),
+                                                            pad_config.at(number<1>{})>();
+#else
+        static_assert(sizeof(Problem) == 0,
+                      "MakeKLdsPlainBlockDescriptor() is only meaningful where Tdm staging is "
+                      "available");
+        return 0;
+#endif
+    }
+
+    // Reader-side descriptor for a Tdm staged V buffer. V is always read back with
+    // ds_read_tr, so the pad is the wider tr-load one. kNPerBlock (= kN1) is the row length
+    // of the V buffer, i.e. the descriptor's Cols, which is what the pad interval has to be
+    // derived from.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsPlainBlockDescriptor()
+    {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t NumVLdsBuffers = GetNumVLdsBuffers<Problem>();
+        constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN1;
+        constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kK1;
+
+        using BlockGemm = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, true /*kUseTrLoad*/>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto pad_config =
+            detail::GetTdmLdsPaddingConfigForTrLoadRead<WG, false /*inputB*/, kNPerBlock>();
+
+        return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
+                                                            NumVLdsBuffers,
+                                                            kKPerBlock,
+                                                            kNPerBlock,
+                                                            pad_config.at(number<0>{}),
+                                                            pad_config.at(number<1>{})>();
+#else
+        static_assert(sizeof(Problem) == 0,
+                      "MakeVLdsPlainBlockDescriptor() is only meaningful where Tdm staging is "
+                      "available");
+        return 0;
+#endif
+    }
+
     template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
@@ -251,6 +379,72 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             return k_lds_block_desc;
         };
+    }
+
+    // load_tile_tdm() does not take the hardware box shape as an argument: it recovers it from
+    // the Dram window, by reading back the ys_to_d lengths of the window's tile distribution.
+    // A Tdm load therefore needs a distribution whose Y dims describe one contiguous rectangle
+    // per wave. The general-purpose MakeK/VDramTileDistribution() do not: they scatter lanes
+    // across the head dim, which is what a register-staged buffer_load wants but is read back
+    // by Tdm as a scattered box that the Lds side cannot interpret. These two give Tdm the
+    // layout it needs instead -- the seqlen dim is split across waves and the head dim is left
+    // whole, so the Y lengths come out (rows-per-wave, head dim).
+    //
+    // Both pass IsWarpLevelParallelOnly = true, so the single P dim indexes the warp rather
+    // than the lane: every lane of a wave shares one P and the rectangle is owned by the wave
+    // as a whole. That is also why these must only ever be fed to load_tile_tdm() -- under a
+    // plain load_tile() every lane would materialise the entire rectangle.
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeKDramTdmTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        constexpr index_t warpNum = kBlockSize / get_warp_size();
+
+        static_assert(kNPerBlock % warpNum == 0,
+                      "kN0Sub must be divisible by the number of warps for the Tdm K "
+                      "distribution");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,                                    // RsLengths: no replication
+                tuple<sequence<warpNum, kNPerBlock / warpNum>, // HsLengthss[0]: seqlen, by wave
+                      sequence<kKPerBlock>>,                   // HsLengthss[1]: hdim, whole
+                tuple<sequence<1>>,                            // Ps2RHssMajor: P0 -> H[0]
+                tuple<sequence<0>>,                            // Ps2RHssMinor: P0 -> warpNum
+                sequence<1, 2>,                                // Ys2RHsMajor
+                sequence<1, 0>>{},                             // Ys2RHsMinor
+            bool_constant<true>{});                            // IsWarpLevelParallelOnly
+    }
+
+    // As MakeKDramTdmTileDistribution(), for the V copy. V's tile setting names its axes the
+    // other way round -- kK1 is the seqlen dim and kN1 the head dim -- so this is the
+    // transposed orientation, the one the ds_read_tr reader expects.
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeVDramTdmTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
+
+        constexpr index_t warpNum = kBlockSize / get_warp_size();
+
+        static_assert(kKPerBlock % warpNum == 0,
+                      "kK1 must be divisible by the number of warps for the Tdm V "
+                      "distribution");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,                                    // RsLengths: no replication
+                tuple<sequence<warpNum, kKPerBlock / warpNum>, // HsLengthss[0]: seqlen, by wave
+                      sequence<kNPerBlock>>,                   // HsLengthss[1]: hdim, whole
+                tuple<sequence<1>>,                            // Ps2RHssMajor: P0 -> H[0]
+                tuple<sequence<0>>,                            // Ps2RHssMinor: P0 -> warpNum
+                sequence<1, 2>,                                // Ys2RHsMajor
+                sequence<1, 0>>{},                             // Ys2RHsMinor
+            bool_constant<true>{});                            // IsWarpLevelParallelOnly
     }
 
     template <typename Problem>
@@ -666,6 +860,35 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     {
         return GetSmemSizeK<Problem, kPipelineUseTrLoad>() +
                GetSmemSizeV<Problem, kPipelineUseTrLoad>() + GetSmemSizeDropout<Problem>();
+    }
+
+    // Lds sizes for the Tdm staged buffers. Same rounding as GetSmemSizeK/V(), over the
+    // plain descriptors.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeKPlain()
+    {
+        constexpr auto actual_bytes =
+            MakeKLdsPlainBlockDescriptor<Problem>().get_element_space_size() *
+            sizeof(typename Problem::QKVDataType);
+
+        return (actual_bytes + 63) / 64 * 64;
+    };
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeVPlain()
+    {
+        constexpr auto actual_bytes =
+            MakeVLdsPlainBlockDescriptor<Problem>().get_element_space_size() *
+            sizeof(typename Problem::QKVDataType);
+
+        return (actual_bytes + 63) / 64 * 64;
+    };
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizePlain()
+    {
+        return GetSmemSizeKPlain<Problem>() + GetSmemSizeVPlain<Problem>() +
+               GetSmemSizeDropout<Problem>();
     }
 };
 
