@@ -194,14 +194,16 @@ struct HstuCrossAttentionBlockMaskWithLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
+    template <bool kHasContextual = true>
+    CK_TILE_HOST_DEVICE bool
+    IsTokenPairInsideMask(int row, int col, bool_constant<kHasContextual> = {}) const
     {
         int row_id;
         int col_id;
 
         row += diff_q_kv_len;
 
-        if(contextual_seqlen > 0)
+        if(kHasContextual && contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
             // max_uih_len
@@ -442,12 +444,14 @@ struct HstuSelfAttentionBlockMaskWithLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
+    template <bool kHasContextual = true>
+    CK_TILE_HOST_DEVICE bool
+    IsTokenPairInsideMask(int row, int col, bool_constant<kHasContextual> = {}) const
     {
         int row_id;
         int col_id;
 
-        if(contextual_seqlen > 0)
+        if(kHasContextual && contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
             // max_uih_len
@@ -595,14 +599,16 @@ struct HstuCrossAttentionBlockMaskNoLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
+    template <bool kHasContextual = true>
+    CK_TILE_HOST_DEVICE bool
+    IsTokenPairInsideMask(int row, int col, bool_constant<kHasContextual> = {}) const
     {
         int row_id;
         int col_id;
 
         row += diff_q_kv_len;
 
-        if(contextual_seqlen > 0)
+        if(kHasContextual && contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen
             // and max_uih_len
@@ -732,12 +738,14 @@ struct HstuSelfAttentionBlockMaskNoLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
+    template <bool kHasContextual = true>
+    CK_TILE_HOST_DEVICE bool
+    IsTokenPairInsideMask(int row, int col, bool_constant<kHasContextual> = {}) const
     {
         int row_id;
         int col_id;
 
-        if(contextual_seqlen > 0)
+        if(kHasContextual && contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen
             // and max_uih_len

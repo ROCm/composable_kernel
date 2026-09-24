@@ -446,23 +446,34 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdm
                    q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{}))
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
-                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            pcomp_tile.get_tile_distribution(),
-                            make_tuple(idx0, idx1),
-                            partition_index);
+                // contextual_seqlen is a tile-invariant scalar, so hoist its test out of the
+                // per-element sweep: inside the sweep it makes the index clamp depend on a
+                // runtime value and the whole clamp gets replicated once per element.
+                auto sweep_mask = [&](auto has_contextual) {
+                    sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                            const auto tile_idx = get_x_indices_from_distributed_indices(
+                                pcomp_tile.get_tile_distribution(),
+                                make_tuple(idx0, idx1),
+                                partition_index);
 
-                        const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                        const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                            const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                        if(!mask.IsTokenPairInsideMask(row, col) || col >= seqlen_k_end)
-                        {
-                            pcomp_tile(i_j_idx) = -numeric<CompDataType>::infinity();
-                        };
+                            if(!mask.IsTokenPairInsideMask(row, col, has_contextual) ||
+                               col >= seqlen_k_end)
+                            {
+                                pcomp_tile(i_j_idx) = -numeric<CompDataType>::infinity();
+                            };
+                        });
                     });
-                });
+                };
+
+                if(mask.contextual_seqlen > 0)
+                    sweep_mask(bool_constant<true>{});
+                else
+                    sweep_mask(bool_constant<false>{});
             }
 
             __builtin_amdgcn_sched_barrier(0x00000001);
