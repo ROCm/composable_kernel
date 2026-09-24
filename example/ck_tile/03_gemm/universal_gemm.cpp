@@ -199,6 +199,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
         return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
             a_layout, b_layout, arg_parser);
     }
+#if !CK_TILE_USE_WMMA || defined(CK_USE_WMMA_FP8)
     else if(data_type == "fp8")
     {
         return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::fp8_t>,
@@ -215,6 +216,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
                                                     ck_tile::half_t>(
             a_layout, b_layout, arg_parser);
     }
+#endif
     else if(data_type == "int8")
     {
         return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::int8_t>,
@@ -241,6 +243,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     }
     else if(data_type == "fp8i4")
     {
+#if !CK_TILE_USE_WMMA || defined(CK_USE_WMMA_FP8)
         if constexpr(GemmConfig<ck_tile::fp8_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
         {
             return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::fp8_t>,
@@ -253,9 +256,11 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
         {
             throw std::runtime_error("Unsupported pipeline for this operation !!!");
         }
+#endif
     }
     else if(data_type == "bf8i4")
     {
+#if !CK_TILE_USE_WMMA || defined(CK_USE_WMMA_FP8)
         if constexpr(GemmConfig<ck_tile::bf8_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
         {
             return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::bf8_t>,
@@ -268,6 +273,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
         {
             throw std::runtime_error("Unsupported pipeline for this operation !!!");
         }
+#endif
     }
     if(data_type == "fp4")
     {
