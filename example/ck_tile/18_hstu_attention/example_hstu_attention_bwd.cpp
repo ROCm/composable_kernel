@@ -732,6 +732,17 @@ bool run_no_group_hstu_forward_backward(const ck_tile::ArgParser& arg_parser, bo
                                                                             p_drop,
                                                                             rand_vals_host);
 
+            // The backward reference must consume the SAME O/LSE that the backward
+            // *kernel* consumed, i.e. the forward *kernel*'s output (o_dev/lse_dev),
+            // not the host forward reference's output. Otherwise the two forward
+            // implementations differ by ~fp16 ULPs, and the softmax-backward
+            // D = dO.O (dP - D) catastrophic cancellation amplifies that tiny O
+            // difference into large dQ/dK errors (e.g. >20% for hdim96). Overwrite
+            // the host reference forward's O/LSE with the device forward kernel's.
+            o_dev.FromDevice(o_host.data());
+            if(use_softmax)
+                lse_dev.FromDevice(lse_host.data());
+
             ck_tile::reference_no_group_hstu_attention_bwd<InOutDataType,
                                                            GemmAccDataType,
                                                            CompDataType,
@@ -1368,6 +1379,15 @@ bool run_group_hstu_forward_backward(const ck_tile::ArgParser& arg_parser, int n
                                  group_attn_scales,
                                  p_drop,
                                  rand_vals_host);
+
+            // The backward reference must consume the SAME O/LSE that the backward
+            // *kernel* consumed (the forward *kernel*'s output), not the host forward
+            // reference's output. The softmax-backward D = dO.O (dP - D) cancellation
+            // otherwise amplifies the ~fp16-ULP forward-O difference into large dQ/dK
+            // errors. Overwrite the host reference forward O/LSE with the device values.
+            o_dev.FromDevice(o_host.data());
+            if(use_softmax)
+                lse_dev.FromDevice(lse_host.data());
 
             ck_tile::reference_group_hstu_attention_bwd<
                 InOutDataType,
