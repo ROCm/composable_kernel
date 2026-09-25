@@ -99,10 +99,10 @@ fi
 echo ""
 echo "Step 3b: Checking ck_tile FMHA example for changes..."
 FMHA_EXAMPLE_PATTERN='projects/composablekernel/example/ck_tile/01_fmha/.*\.(cpp|cc|cxx|hpp|hxx|h|py)$'
-FMHA_CHANGED_FILES=$(git diff --name-only origin/${BASE_BRANCH}...HEAD 2>/dev/null || echo "")
+CHANGED_FILES=$(git diff --name-only origin/${BASE_BRANCH}...HEAD 2>/dev/null || echo "")
 
 if echo "${ARCH_NAME}" | grep -qE "gfx12|gfx9" \
-    && echo "${FMHA_CHANGED_FILES}" | grep -qE "${FMHA_EXAMPLE_PATTERN}"; then
+    && echo "${CHANGED_FILES}" | grep -qE "${FMHA_EXAMPLE_PATTERN}"; then
     echo "FMHA example changes detected - forcing test_ck_tile_fmha build and run"
     # test_ck_tile_fmha is a ninja umbrella target (builds all fwd/bwd fmha tests)
     # and, unanchored, matches every registered test_ck_tile_fmha_* ctest name.
@@ -115,6 +115,35 @@ if echo "${ARCH_NAME}" | grep -qE "gfx12|gfx9" \
     ' tests_to_run.json > "${tmp_json}" && mv "${tmp_json}" tests_to_run.json
 else
     echo "No ck_tile FMHA example changes detected"
+fi
+
+# Step 3c: Force-include the ck_tile example build tests if their CMakeLists changed
+# CMakeLists.txt is never a key in the dependency map (it is built from the
+# .cpp/.cc/.cu/.hip translation units and their header closures), so a change
+# that adds, removes or re-guards an example target maps to no test at all and
+# the whole stage is skipped. Build and run the example set in that case.
+echo ""
+echo "Step 3c: Checking ck_tile example CMakeLists for changes..."
+CK_TILE_EXAMPLE_CMAKE_PATTERN='projects/composablekernel/example/ck_tile/.*CMakeLists\.txt$'
+
+if ! echo "${CHANGED_FILES}" | grep -qE "${CK_TILE_EXAMPLE_CMAKE_PATTERN}"; then
+    echo "No ck_tile example CMakeLists changes detected"
+elif ! ninja -t query tile_examples >/dev/null 2>&1; then
+    # example/ is only added when BUILD_CK_EXAMPLES is on, so the umbrella
+    # target does not always exist. Forcing it then would fail the build.
+    echo "ck_tile example CMakeLists changed, but tile_examples is not configured - nothing to force"
+else
+    echo "ck_tile example CMakeLists changes detected - forcing tile_examples build and run"
+    # tile_examples is a ninja umbrella target depending on every registered
+    # example, so it covers whichever subset this architecture configured.
+    # The ctest names are the target names, hence the separate regex.
+    tmp_json=$(mktemp)
+    jq --arg t "tile_examples" --arg r "^tile_example_" '
+        .executables = (.executables + [$t] | unique)
+        | .tests_to_run = (.tests_to_run + [$t] | unique)
+        | .regex_chunks = (.regex_chunks + [$r] | unique)
+        | .regex = (if (.regex | length) > 0 then .regex + "|" + $r else $r end)
+    ' tests_to_run.json > "${tmp_json}" && mv "${tmp_json}" tests_to_run.json
 fi
 
 # Step 4: Check if any tests were selected
