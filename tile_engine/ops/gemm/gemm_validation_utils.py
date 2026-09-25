@@ -36,7 +36,21 @@ GEMM_PIPELINES = ["mem", "compv3", "compv4"]
 GEMM_PRESHUFFLE_PIPELINES = ["preshufflev2"]
 
 GEMM_ROWCOLQUANT_PIPELINES = ["compv3"]
-GEMM_MX_PIPELINES = ["comp_async"]
+GEMM_MX_PIPELINES_BY_ARCH = {
+    "gfx950": ("comp_async", "comp_async_eight_waves", "weight_preshuffle"),
+    "gfx1250": (
+        "comp_tdm",
+        "comp_tdm_v2",
+        "comp_async",
+        "comp_async_eight_waves",
+        "weight_preshuffle",
+    ),
+}
+GEMM_MX_PIPELINES = list(
+    dict.fromkeys(
+        p for pipelines in GEMM_MX_PIPELINES_BY_ARCH.values() for p in pipelines
+    )
+)
 GEMM_BQUANT_PIPELINES = ["compv3"]
 
 GEMM_ABQUANT_PIPELINES = ["compv3"]
@@ -72,7 +86,17 @@ def get_warp_size_for_gpu(gpu_target: str) -> int:
 
 
 WARP_SUPPORTED_COMBINATIONS = {
-    "gfx1250": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1], [2, 1, 1], [1, 2, 2], [4, 1, 1], [1, 4, 1], [2, 2, 1]],
+    "gfx1250": [
+        [2, 4, 1],
+        [1, 8, 1],
+        [8, 1, 1],
+        [4, 2, 1],
+        [2, 1, 1],
+        [1, 2, 2],
+        [4, 1, 1],
+        [1, 4, 1],
+        [2, 2, 1],
+    ],
     "gfx90a": [
         [1, 4, 1],
         [2, 2, 1],
@@ -246,6 +270,10 @@ GEMM_WARP_TILE_SUPPORTED_COMBINATIONS = {
 }
 
 GEMM_MX_WARP_TILE_SUPPORTED_COMBINATIONS = {
+    "gfx1250": {
+        "fp4_fp4_fp16": [[16, 16, 128], [32, 16, 128], [32, 32, 128]],
+        "fp8_fp8_fp16": [[16, 16, 128], [32, 32, 128]],
+    },
     "gfx950": {
         "fp4_fp4_fp16": [[16, 16, 128]],
         "fp8_fp8_fp16": [[16, 16, 128]],
@@ -297,6 +325,15 @@ def is_trait_combination_valid(
     layout: str = "",
 ) -> bool:
     """Check if a trait combination is valid."""
+    if kernel_name_prefix == "mx_gemm":
+        return scheduler == "intrawave" and (
+            (pipeline in GEMM_MX_PIPELINES_BY_ARCH["gfx950"] and epilogue == "cshuffle")
+            or (
+                pipeline in ("comp_tdm", "comp_tdm_v2")
+                and epilogue == "tdm"
+                and not persistent_or_preshuffle_quant
+            )
+        )
     if kernel_name_prefix == "gemm_aquant":
         if (pipeline, epilogue, scheduler) in AQUANT_TRAIT_UNSUPPORTED_COMBINATIONS:
             return False
@@ -311,7 +348,11 @@ def is_trait_combination_valid(
         if pipeline != "compv3" or scheduler != "intrawave":
             return False
         # BPreshuffleQuant requires ColumnMajor BLayout (second char of layout is 'c')
-        if persistent_or_preshuffle_quant is True and len(layout) >= 2 and layout[1] != "c":
+        if (
+            persistent_or_preshuffle_quant is True
+            and len(layout) >= 2
+            and layout[1] != "c"
+        ):
             return False
         return True
     elif (
@@ -330,7 +371,11 @@ def is_trait_combination_valid(
         if pipeline != "compv3" or scheduler != "intrawave":
             return False
         # BPreshuffleQuant requires ColumnMajor BLayout (second char of layout is 'c')
-        if persistent_or_preshuffle_quant is True and len(layout) >= 2 and layout[1] != "c":
+        if (
+            persistent_or_preshuffle_quant is True
+            and len(layout) >= 2
+            and layout[1] != "c"
+        ):
             return False
         return True
     else:
@@ -416,11 +461,14 @@ def validate_dimension_alignment(
     return len(alignment_issues) == 0, alignment_issues
 
 
+# Hardware capacity from ck_tile::get_lds_size() in core/arch/arch.hpp.
+# Dispatcher ArchFilter has a separate generated table; keep these in sync.
 LDS_SIZE_MAP = {
-    "gfx90a": 2**16,   # 64KB
-    "gfx942": 2**16,   # 64KB
+    "gfx90a": 2**16,  # 64KB
+    "gfx942": 2**16,  # 64KB
     "gfx950": 160 * 1024,  # 160KB
     "gfx1201": 2**16,  # 64KB
+    "gfx1250": 320 * 1024,  # 320KB
 }
 
 DEFAULT_LDS_SIZE = 2**16  # 64KB
@@ -438,11 +486,46 @@ def validate_lds_capacity(
     """Validate LDS capacity requirements."""
     matrix_a_size = (tile_m * tile_k) * element_size(a_datatype)
     matrix_b_size = (tile_n * tile_k) * element_size(b_datatype)
+    if pipeline == "weight_preshuffle":
+        # This MX pipeline reads preshuffled B directly into registers.
+        matrix_b_size = 0
+    elif (
+        pipeline in ("comp_tdm", "comp_tdm_v2")
+        and _base_gfx_arch(gpu_target) == "gfx1250"
+    ):
+        # MX RCR uses TDM's non-transposed LDS descriptors. Each group of
+        # rows spanning at least 256 bytes is separated by 16 padding bytes.
+        # GetSmemSizeA/B round to 16 bytes; valid MX K tiles are already aligned.
+        a_lds_layer = max(1, 256 // (tile_k * element_size(a_datatype)))
+        b_lds_layer = max(1, 256 // (tile_k * element_size(b_datatype)))
+        matrix_a_size += max(0, tile_m // a_lds_layer - 1) * 16
+        matrix_b_size += max(0, tile_n // b_lds_layer - 1) * 16
+    elif pipeline == "comp_async":
+        # The 16x16x128 FP8 XOR-swizzled descriptor has two outer groups
+        # separated by 16 bytes. Packed FP4 has one group and no padding.
+        matrix_a_size += 16 if a_datatype == "fp8" else 0
+        matrix_b_size += 16 if b_datatype == "fp8" else 0
+    elif pipeline == "comp_async_eight_waves":
+        # The native 16x16x128 MX LDS descriptor inserts padding between the
+        # two waves loading each MFMA tile: 1/32 of the data size. FP4 K=128
+        # uses one loading wave per tile and needs no padding.
+        if a_datatype == "fp8" or (a_datatype == "fp4" and tile_k >= 256):
+            matrix_a_size += matrix_a_size / 32
+        if b_datatype == "fp8" or (b_datatype == "fp4" and tile_k >= 256):
+            matrix_b_size += matrix_b_size / 32
     total_tile_in_lds = matrix_a_size + matrix_b_size
 
     base_gpu_target = _base_gfx_arch(gpu_target)
     hw_lds_size = LDS_SIZE_MAP.get(base_gpu_target, DEFAULT_LDS_SIZE)
-    double_buffer = pipeline in ["preshufflev2", "compv4"]
+    double_buffer = pipeline in [
+        "preshufflev2",
+        "compv4",
+        "comp_async",
+        "comp_tdm",
+        "comp_tdm_v2",
+        "comp_async_eight_waves",
+        "weight_preshuffle",
+    ]
     max_tile_size = hw_lds_size // 2 if double_buffer else hw_lds_size
 
     if total_tile_in_lds > max_tile_size:
@@ -559,7 +642,7 @@ def validate_gemm_mx_warp_tile_combination(
     current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
 
     gpu_warp_tile_combinations = GEMM_MX_WARP_TILE_SUPPORTED_COMBINATIONS.get(
-        gpu_name, {}
+        _base_gfx_arch(gpu_name), {}
     )
     if not gpu_warp_tile_combinations:
         logging.warning(f"No MX GEMM warp tile combinations found for GPU: {gpu_name}")
@@ -623,7 +706,15 @@ def is_tile_config_valid(
         return False
 
     # Validate warp configuration
-    if not validate_warp_configuration(warp_m, warp_n, warp_k, gpu_target):
+    mx_eight_waves = (
+        kernel_name_prefix == "mx_gemm"
+        and pipeline == "comp_async_eight_waves"
+        and _base_gfx_arch(gpu_target) in ("gfx950", "gfx1250")
+        and (warp_m, warp_n, warp_k) == (4, 2, 1)
+    )
+    if not mx_eight_waves and not validate_warp_configuration(
+        warp_m, warp_n, warp_k, gpu_target
+    ):
         logging.debug(
             f"Invalid warp configuration: warp_m({warp_m}), warp_n({warp_n}), warp_k({warp_k})"
         )
@@ -651,7 +742,13 @@ def is_tile_config_valid(
 
     # Validate LDS capacity
     lds_valid, lds_error = validate_lds_capacity(
-        tile_m, tile_n, tile_k, a_datatype, b_datatype, pipeline, gpu_target
+        tile_m,
+        tile_n,
+        tile_k,
+        a_datatype,
+        b_datatype,
+        pipeline,
+        gpu_target,
     )
     if not lds_valid:
         logging.debug(f"LDS validation failed: {lds_error}")
@@ -772,9 +869,10 @@ def is_tile_config_valid(
     # These limits come from the two grouped quant bridges' code generation,
     # not from gfx1250 hardware or the shared RowColQuant fragment rules. Keep
     # them at the routing boundary so plain gemm_rowcolquant is not filtered.
-    if kernel_name_prefix in ("grouped_gemm_rowcolquant", "grouped_gemm_tensorquant") and (
-        _base_gfx_arch(gpu_target) == "gfx1250"
-    ):
+    if kernel_name_prefix in (
+        "grouped_gemm_rowcolquant",
+        "grouped_gemm_tensorquant",
+    ) and (_base_gfx_arch(gpu_target) == "gfx1250"):
         if warp_m * warp_n * warp_k > 4:
             logging.debug(
                 "gfx1250 grouped quant bridges require at most four warps per block"
@@ -1262,6 +1360,66 @@ def validate_gemm_mx(
     if tile_k % 32 != 0 or warp_tile_k % 32 != 0:
         return False, "MX GEMM tile K and warp tile K must be multiples of 32"
 
+    arch = _base_gfx_arch(gpu_target)
+    if pipeline not in GEMM_MX_PIPELINES_BY_ARCH.get(arch, ()):
+        return False, f"MX pipeline {pipeline!r} is not supported on {arch}"
+    if arch == "gfx1250" and pipeline in ("comp_tdm", "comp_tdm_v2"):
+        if (warp_m, warp_n, warp_k) != (2, 2, 1):
+            return False, "gfx1250 MX GEMM requires 2x2x1 warps"
+        # TdmEpilogue stages the full FP16 output tile in the shared LDS allocation.
+        if tile_m * tile_n * 2 > LDS_SIZE_MAP[arch]:
+            return False, "MX TDM epilogue exceeds the architecture LDS capacity"
+        return True, ""
+    if (warp_tile_m, warp_tile_n) != (16, 16):
+        return False, "MX non-16x16 warp tiles currently require gfx1250 TDM V1/V2"
+    if pipeline != "weight_preshuffle":
+        # Both async MX epilogues pack the full output tile into LDS. Mirror
+        # CShuffle's gfx950 FP16 row descriptor, including bank-word padding.
+        lds_layer = max(1, 256 // (tile_n * 2))
+        row_bytes = tile_n * lds_layer * 2
+        pad_bytes = 4 if (row_bytes // 4) % 2 == 0 else 0
+        rows = tile_m // lds_layer
+        epilogue_bytes = rows * row_bytes + (rows - 1) * pad_bytes
+        if arch == "gfx1250":
+            epilogue_bytes = tile_m * tile_n * 2 + (tile_m - 1) * 2
+        if epilogue_bytes > LDS_SIZE_MAP[arch]:
+            return (
+                False,
+                "MX packed CShuffle epilogue exceeds the architecture LDS capacity",
+            )
+    if pipeline == "comp_async_eight_waves":
+        if (warp_m, warp_n, warp_k) != (4, 2, 1):
+            return False, "MX eight-wave async requires 4x2x1 warps"
+        if tile_m % 128 or tile_n % 128:
+            return False, "MX eight-wave async requires M/N tiles divisible by 128"
+        if a_datatype == "fp4" and tile_k > 128 and tile_k % 256:
+            return False, "MX FP4 eight-wave async requires K=128 or a multiple of 256"
+        # Its packed CShuffle tile must distribute whole wavefronts as well.
+        return validate_cshuffle_epilogue_distribution(
+            tile_m,
+            tile_n,
+            warp_m,
+            warp_n,
+            warp_k,
+            warp_tile_m,
+            warp_tile_n,
+            get_warp_size_for_gpu(gpu_target),
+            c_datatype,
+        )
+    if pipeline == "weight_preshuffle":
+        if (warp_m, warp_n, warp_k) != (1, 4, 1):
+            return False, "MX weight preshuffle requires 1x4x1 warps"
+        if tile_m % 32 or tile_n % 128 or tile_k % 256:
+            return False, "MX weight preshuffle requires tiles divisible by 32x128x256"
+        if b_datatype == "fp4" and tile_n % 512:
+            return False, "MX FP4 weight preshuffle requires N tiles divisible by 512"
+        return True, ""
+
+    if arch == "gfx1250":
+        if (warp_m, warp_n, warp_k) != (2, 2, 1):
+            return False, "gfx1250 MX async requires 2x2x1 warps"
+        return True, ""
+
     warp_size = get_warp_size_for_gpu(gpu_target)
     if warp_size != 64:
         return False, "MX GEMM scaled MFMA path currently requires wave64"
@@ -1555,8 +1713,12 @@ def validate_gemm_rowcol_tensor_quant(
         return False, whole_workgroup_cover_error
 
     return _validate_fp8_mfma_warp_tile_k(
-        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, gpu_target,
-        op_label="RowColQuant / TensorQuant"
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
+        a_datatype,
+        gpu_target,
+        op_label="RowColQuant / TensorQuant",
     )
 
 
@@ -1612,8 +1774,7 @@ def validate_gemm_aquant(
         )
 
     return _validate_fp8_mfma_warp_tile_k(
-        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, gpu_target,
-        op_label="AQuant"
+        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, gpu_target, op_label="AQuant"
     )
 
 
@@ -1666,8 +1827,7 @@ def validate_gemm_bquant(
         )
 
     return _validate_fp8_mfma_warp_tile_k(
-        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, gpu_target,
-        op_label="BQuant"
+        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, gpu_target, op_label="BQuant"
     )
 
 
@@ -1719,6 +1879,10 @@ def validate_gemm_abquant(
         )
 
     return _validate_fp8_mfma_warp_tile_k(
-        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, gpu_target,
-        op_label="ABQuant"
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
+        a_datatype,
+        gpu_target,
+        op_label="ABQuant",
     )

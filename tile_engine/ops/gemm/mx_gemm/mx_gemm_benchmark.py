@@ -66,12 +66,12 @@ class MxGemmBenchmark(GemmBenchmark):
         }
 
         parts = args.split("_")
-        if len(parts) >= 6 and parts[2] == "comp" and parts[3] == "async":
+        if len(parts) >= 12:
             info["data_type"] = parts[0]
             info["layout"] = parts[1]
-            info["pipeline"] = "comp_async"
-            info["epilogue"] = parts[4]
-            info["scheduler"] = parts[5]
+            info["pipeline"] = "_".join(parts[2:-9])
+            info["epilogue"] = parts[-9]
+            info["scheduler"] = parts[-8]
         elif len(parts) >= 5:
             info["data_type"] = parts[0]
             info["layout"] = parts[1]
@@ -156,7 +156,9 @@ def main():
             return 1
 
         if k % 32 != 0:
-            print(f"Invalid problem size: {size_str}; MX GEMM requires K divisible by 32")
+            print(
+                f"Invalid problem size: {size_str}; MX GEMM requires K divisible by 32"
+            )
             return 1
 
     benchmark = MxGemmBenchmark(args.build_dir, verbose=args.verbose)

@@ -467,8 +467,14 @@ struct buffer_view<address_space_enum::global,
 #if defined(__gfx125__) // for gfx125; there uses another instruction to do async load
         auto p_uniform_ptr              = amd_wave_read_first_lane(p_data_);
         constexpr index_t static_offset = linear_offset_t{}.value;
+        // Global-to-LDS instructions do not carry a buffer resource descriptor.
+        // Match the buffer instruction's bounds check, including speculative
+        // prefetches past the last row that have valid transform coordinates.
+        const index_t global_offset = i + wave_i;
+        is_valid_element = is_valid_element && global_offset >= 0 && buffer_size_ >= t_per_x &&
+                           global_offset <= buffer_size_ - t_per_x;
         amd_async_global_load_to_lds<remove_cvref_t<T>, t_per_x, static_offset, true, Coherence>(
-            smem, p_uniform_ptr, i + wave_i, is_valid_element);
+            smem, p_uniform_ptr, global_offset, is_valid_element);
         ignore = linear_offset;
 #else
         const auto rsrc = make_builtin_buffer_resource(p_data_, buffer_size_ * sizeof(type));

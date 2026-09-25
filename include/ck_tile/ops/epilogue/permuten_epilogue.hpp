@@ -140,6 +140,10 @@ struct PermuteNEpilogue
     static constexpr index_t MRepeat       = kMPerBlock / (MPerXdl * MWave);
     static constexpr index_t NRepeat       = kNPerBlock / (NPerXdl * NWave);
 
+    // Like CShuffle, vector atomics update 16-bit outputs in pairs.
+    static constexpr bool kAtomicAddRequiresEvenVectorSize =
+        is_any_of<ODataType, fp16_t, bf16_t>::value;
+
     CDElementwise elfunc_;
 
     // PermuteN epilogue does not support D tensors or non-passthrough elementwise operations.

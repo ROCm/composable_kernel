@@ -459,13 +459,18 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
         {
             GTEST_SKIP() << "Unsupported data type combination for mx_gemm pipeline test.";
         }
-        // TDM pipelines use cluster launch (multicast), not supported on gfx1250 A0 (revision 0)
+        // The non-cluster 16x16 scale32 path supports revision 0. Keep the
+        // revision gate for other TDM variants, including cluster multicast.
+        constexpr bool supports_revision_zero = !ClusterLaunch && M_Warp_Tile == 16 &&
+                                                N_Warp_Tile == 16 && ScaleBlockSize == 32 &&
+                                                std::is_same_v<AScaleDataType, ck_tile::e8m0_t> &&
+                                                std::is_same_v<BScaleDataType, ck_tile::e8m0_t>;
         if constexpr(PipelineType == MxGemmPipelineType::CompTDMV1 ||
                      PipelineType == MxGemmPipelineType::CompTDMV2)
         {
-            if(ck_tile::get_device_revision() == 0)
+            if(!supports_revision_zero && ck_tile::get_device_revision() == 0)
             {
-                GTEST_SKIP() << "TDM pipeline cluster launch is not supported on gfx1250 "
+                GTEST_SKIP() << "This TDM variant is not enabled on gfx1250 "
                                 "asicRevision=0";
             }
         }

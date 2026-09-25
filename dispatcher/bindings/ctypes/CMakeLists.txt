@@ -9,7 +9,7 @@
 #
 # Targets:
 #   - dispatcher_gemm_lib      : GEMM dispatcher library
-#   - dispatcher_mx_gemm_lib   : MX-GEMM (microscaling) dispatcher library (gfx950)
+#   - dispatcher_mx_gemm_lib   : MX-GEMM (microscaling) dispatcher library (gfx950/gfx1250)
 #   - dispatcher_conv_lib      : Convolution dispatcher library (forward + bwd_data)
 #   - dispatcher_conv_bwdw_lib : Convolution backward weight library
 #   - gpu_helper               : GPU helper executable for Python
@@ -48,12 +48,12 @@ function(add_ctypes_library TARGET_NAME SOURCE_FILE)
     )
 endfunction()
 
-# Feature definitions for the two single-target grouped quant bridges below.
+# Feature definitions for the single-target MX and grouped quant bridges below.
 # Keep these aligned with dispatcher_common.arch_feature_defines(). Parent CK
 # builds enable features directory-wide for the union of their GPU targets.
 # Clear those definitions for these bridges before applying the selected arch,
 # so host/device FP8 encoding and the backend match the standalone JIT path.
-function(set_grouped_quant_arch_features TARGET_NAME GFX_ARCH)
+function(set_single_target_arch_features TARGET_NAME GFX_ARCH)
     # Compile options follow directory/target definitions on the command line.
     # Keep both the undefines and replacement defines here to preserve ordering
     # without changing the inherited definitions of any sibling target.
@@ -187,7 +187,7 @@ else()
 endif()
 
 # =============================================================================
-# MX-GEMM ctypes Library (microscaling GEMM, gfx950/MI350 only)
+# MX-GEMM ctypes Library (microscaling GEMM, gfx950/gfx1250)
 # =============================================================================
 #
 # Force-includes a generated mx_gemm kernel header (SelectedKernel/KERNEL_NAME/
@@ -201,14 +201,8 @@ set(MX_GEMM_TE_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm/mx_gemm
 )
 
-# Resolve the configured GPU target GENERICALLY -- do NOT hardcode/default the
-# arch to gfx950. mx_gemm is gfx950-only (it calls the gfx950-only
-# preShuffleScaleBuffer_gfx950 helper), and that requirement is enforced IN THE
-# SOURCE: mx_gemm_ctypes_lib.cpp #errors if GFX_ARCH is unset and static_asserts
-# GFX_ARCH == "gfx950" (plus a runtime device guard). Here we simply pass the
-# real build target through as -DGFX_ARCH and only wire up the target when the
-# build actually targets gfx950, so a gfx942/other dispatcher build is neither
-# broken by the static_assert nor silently built for an unsupported arch.
+# Select the configured target and pass its base architecture to the bridge's
+# compile-time and runtime guards. Unsupported targets do not build this library.
 if(DEFINED GPU_TARGETS AND NOT GPU_TARGETS STREQUAL "")
     string(REPLACE ";" " " _mx_gpu_targets_space "${GPU_TARGETS}")
     string(REPLACE " " ";" _mx_gpu_targets_list "${_mx_gpu_targets_space}")
@@ -219,10 +213,11 @@ else()
     set(MX_GEMM_GPU_TARGET "")
 endif()
 
-if(NOT MX_GEMM_GPU_TARGET STREQUAL "gfx950")
+string(REGEX REPLACE ":.*$" "" MX_GEMM_GPU_TARGET "${MX_GEMM_GPU_TARGET}")
+if(NOT MX_GEMM_GPU_TARGET STREQUAL "gfx950" AND
+   NOT MX_GEMM_GPU_TARGET STREQUAL "gfx1250")
     message(STATUS
-        "MX-GEMM ctypes lib is gfx950-only; skipping for GPU target "
-        "'${MX_GEMM_GPU_TARGET}' (configure with GPU_TARGETS=gfx950 to enable).")
+        "Skipping MX-GEMM ctypes lib for unsupported GPU target '${MX_GEMM_GPU_TARGET}'.")
 else()
     file(GLOB MX_GEMM_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/mx_gemm_*.hpp")
     if(MX_GEMM_KERNEL_HEADERS)
@@ -235,8 +230,7 @@ else()
         )
         target_include_directories(dispatcher_mx_gemm_lib PRIVATE ${MX_GEMM_TE_INCLUDE_DIRS})
         # The generated header only exports SelectedKernel/KERNEL_NAME/ScaleType/...
-        # under this define. Pass the resolved build target through as -DGFX_ARCH
-        # (the source #errors if unset and static_asserts it is gfx950).
+        # under this define. Pass the base architecture through as -DGFX_ARCH.
         target_compile_definitions(dispatcher_mx_gemm_lib PRIVATE
             CK_TILE_SINGLE_KERNEL_INCLUDE
             GFX_ARCH="${MX_GEMM_GPU_TARGET}"
@@ -250,8 +244,7 @@ else()
             ${MX_GEMM_TE_INCLUDE_DIRS}
         )
         target_link_libraries(dispatcher_mx_gemm_lib PRIVATE hip::device)
-        # Pass the resolved build target through as -DGFX_ARCH (the source #errors
-        # if unset and static_asserts it is gfx950).
+        # Pass the base architecture through as -DGFX_ARCH.
         target_compile_definitions(dispatcher_mx_gemm_lib PRIVATE
             GFX_ARCH="${MX_GEMM_GPU_TARGET}")
         set_target_properties(dispatcher_mx_gemm_lib PROPERTIES
@@ -259,6 +252,7 @@ else()
             CXX_STANDARD 17
         )
     endif()
+    set_single_target_arch_features(dispatcher_mx_gemm_lib "${MX_GEMM_GPU_TARGET}")
 endif()
 
 # =============================================================================
@@ -394,7 +388,7 @@ if(ROWCOLQUANT_GEMM_KERNEL_HEADERS)
     string(REGEX REPLACE "^gfx" "0x" _rowcolquant_target_id "${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
     target_compile_options(dispatcher_grouped_gemm_rowcolquant_lib PRIVATE
         -UCK_CMAKE_GPU_TARGET_IDS "-DCK_CMAKE_GPU_TARGET_IDS=${_rowcolquant_target_id}")
-    set_grouped_quant_arch_features(dispatcher_grouped_gemm_rowcolquant_lib
+    set_single_target_arch_features(dispatcher_grouped_gemm_rowcolquant_lib
         "${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
 
     target_compile_definitions(dispatcher_grouped_gemm_rowcolquant_lib PRIVATE
@@ -453,7 +447,7 @@ if(TENSORQUANT_GEMM_KERNEL_HEADERS)
     string(REGEX REPLACE "^gfx" "0x" _tensorquant_target_id "${CK_TILE_TENSORQUANT_GFX_ARCH}")
     target_compile_options(dispatcher_grouped_gemm_tensorquant_lib PRIVATE
         -UCK_CMAKE_GPU_TARGET_IDS "-DCK_CMAKE_GPU_TARGET_IDS=${_tensorquant_target_id}")
-    set_grouped_quant_arch_features(dispatcher_grouped_gemm_tensorquant_lib
+    set_single_target_arch_features(dispatcher_grouped_gemm_tensorquant_lib
         "${CK_TILE_TENSORQUANT_GFX_ARCH}")
 
     target_compile_definitions(dispatcher_grouped_gemm_tensorquant_lib PRIVATE

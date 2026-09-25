@@ -41,7 +41,8 @@ template <typename AsDataType_,
           typename BComputeDataType_   = void,
           bool TilesPacked_            = false,
           typename CComputeDataType_   = AccDataType_,
-          typename CShuffleDataType_   = ODataType_>
+          typename CShuffleDataType_   = ODataType_,
+          bool UseEightWaveLayout_     = false>
 struct CShuffleEpilogueProblem
 {
     using AsDataType                             = remove_cvref_t<AsDataType_>;
@@ -72,6 +73,7 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kNumWaveGroups      = kNumWaveGroups_;
     static constexpr index_t NumDTensor          = DsDataType::size();
     static constexpr bool TilesPacked            = TilesPacked_;
+    static constexpr bool UseEightWaveLayout     = UseEightWaveLayout_;
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
 };
@@ -134,7 +136,15 @@ struct CShuffleEpilogue
 #if defined(__gfx9__)
     static constexpr bool EightWave = (MWave * NWave == 8);
 #else
-    static constexpr bool EightWave = false;
+    template <typename T>
+    using UseEightWaveLayout = decltype(T::UseEightWaveLayout);
+
+    static constexpr bool EightWave = [] {
+        if constexpr(is_detected<UseEightWaveLayout, Problem>::value)
+            return Problem::UseEightWaveLayout;
+        else
+            return false;
+    }();
 #endif
 
     // If the wave tiles computed by a single wave are packed
@@ -201,6 +211,11 @@ struct CShuffleEpilogue
             static_assert(false, "Unsupported ELayout!");
         }
     }
+
+    // The vector atomic path updates 16-bit outputs in pairs. A scalar store
+    // remains valid for ordinary GEMM, but cannot be instantiated for split-K.
+    static constexpr bool kAtomicAddRequiresEvenVectorSize =
+        is_any_of<ODataType, fp16_t, bf16_t>::value;
 
     /**
      * @brief Get the vector store size for Di tensor.

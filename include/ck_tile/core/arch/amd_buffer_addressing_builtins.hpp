@@ -2890,6 +2890,7 @@ __device__ void amd_async_global_load_to_lds(CK_TILE_LDS_ADDR T* smem_ptr,
             (std::is_same_v<T, bf16_t> && (N == 2 || N == 4 || N == 8)) ||
             (std::is_same_v<T, fp8_t> && (N == 1 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same_v<T, bf8_t> && (N == 1 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same_v<T, pk_fp4_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same_v<T, int8_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same_v<T, uint8_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)),
         "wrong! not implemented");

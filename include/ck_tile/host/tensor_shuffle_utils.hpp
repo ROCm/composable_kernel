@@ -103,7 +103,7 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
     if(ck_tile::is_gfx12_supported())
     {
         constexpr int divisor      = 2;
-        constexpr int kABK1PerLane = 8;
+        constexpr int kABK1PerLane = std::is_same_v<T, pk_fp4_t> ? 32 : 8;
         int kABK0PerLane           = gemmConfig.K_Warp_Tile / divisor / kABK1PerLane;
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Warp_Tile,
                                        gemmConfig.N_Warp_Tile,

@@ -22,8 +22,11 @@ Each header is compiled per-kernel via force-include:
     hipcc -include <kernel.hpp> -DCK_TILE_SINGLE_KERNEL_INCLUDE mx_gemm_ctypes_lib.cpp
 
 mx_gemm is microscaling GEMM (fp4/fp8 A*B, per-32-K e8m0 block scales), gfx950
-only. The single valid trait combo is comp_async + cshuffle + intrawave, with a
-fixed 16x16x128 warp tile.
+and gfx1250. Both targets provide async, eight-wave async, and weight-preshuffle
+pipelines with CShuffle; gfx1250 also provides TDM V1 and V2 with the TDM epilogue.
+Both use intrawave scheduling. The default warp tile is 16x16x128;
+gfx1250 TDM V1/V2 also expose 32x32x128 and FP4 32x16x128. Native pipeline
+compilation determines instruction support; codegen does not distinguish A0/B0.
 """
 
 import argparse
@@ -48,9 +51,16 @@ _THIS_DIR = Path(__file__).resolve().parent
 _GEMM_DIR = (_THIS_DIR / ".." / ".." / "tile_engine" / "ops" / "gemm").resolve()
 _MX_GEMM_DIR = _GEMM_DIR / "mx_gemm"
 
-for _p in (str(_GEMM_DIR), str(_MX_GEMM_DIR)):
+for _p in (str(_THIS_DIR), str(_GEMM_DIR), str(_MX_GEMM_DIR)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
+
+from codegen_common import normalize_gfx_arch  # noqa: E402
+from gemm_validation_utils import (  # noqa: E402
+    GEMM_MX_PIPELINES_BY_ARCH,
+    is_tile_config_valid,
+    validate_gemm_mx_warp_tile_combination,
+)
 
 
 def _load_mx_builder():
@@ -67,17 +77,18 @@ def _load_mx_builder():
 
 
 # =============================================================================
-# Config validation (restrict to the single valid mx_gemm combo)
+# Config validation for the supported architecture-specific MX pipelines
 # =============================================================================
 
 KERNEL_NAME_PREFIX = "mx_gemm"
 
 VALID_DATATYPES = {"fp4", "fp8"}
 VALID_LAYOUT = "rcr"
-VALID_PIPELINE = "comp_async"
-VALID_EPILOGUE = "cshuffle"
+ARCH_TRAITS = {
+    "gfx950": ("comp_async", "cshuffle"),
+    "gfx1250": ("comp_tdm", "tdm"),
+}
 VALID_SCHEDULER = "intrawave"
-FIXED_WARP_TILE = (16, 16, 128)
 
 _REQUIRED_TILE_KEYS = (
     "tile_m",
@@ -103,16 +114,21 @@ def _validate(cfg: dict) -> None:
     if layout != VALID_LAYOUT:
         raise ValueError(f"layout must be {VALID_LAYOUT!r}, got {layout!r}")
 
-    pipeline = cfg.get("pipeline", VALID_PIPELINE)
-    if pipeline != VALID_PIPELINE:
+    arch = normalize_gfx_arch(cfg.get("gpu_target") or "")
+    if arch not in ARCH_TRAITS:
+        raise ValueError("mx_gemm requires explicit gpu_target gfx950 or gfx1250")
+    default_pipeline, valid_epilogue = ARCH_TRAITS[arch]
+    pipeline = cfg.get("pipeline", default_pipeline)
+    if pipeline not in GEMM_MX_PIPELINES_BY_ARCH[arch]:
         raise ValueError(
-            f"pipeline must be {VALID_PIPELINE!r} for mx_gemm, got {pipeline!r}"
+            f"pipeline must be one of {GEMM_MX_PIPELINES_BY_ARCH[arch]} on {arch}, got {pipeline!r}"
         )
 
-    epilogue = cfg.get("epilogue", VALID_EPILOGUE)
-    if epilogue != VALID_EPILOGUE:
+    valid_epilogue = "tdm" if pipeline in ("comp_tdm", "comp_tdm_v2") else "cshuffle"
+    epilogue = cfg.get("epilogue", valid_epilogue)
+    if epilogue != valid_epilogue:
         raise ValueError(
-            f"epilogue must be {VALID_EPILOGUE!r} for mx_gemm, got {epilogue!r}"
+            f"epilogue must be {valid_epilogue!r} for mx_gemm, got {epilogue!r}"
         )
 
     scheduler = cfg.get("scheduler", VALID_SCHEDULER)
@@ -128,10 +144,39 @@ def _validate(cfg: dict) -> None:
     if missing:
         raise ValueError(f"tile_config missing keys: {missing}")
 
-    warp_tile = (tc["warp_tile_m"], tc["warp_tile_n"], tc["warp_tile_k"])
-    if tuple(warp_tile) != FIXED_WARP_TILE:
+    for block, waves, warp in (
+        ("tile_m", "warp_m", "warp_tile_m"),
+        ("tile_n", "warp_n", "warp_tile_n"),
+        ("tile_k", "warp_k", "warp_tile_k"),
+    ):
+        if any(
+            not isinstance(tc[key], int) or tc[key] <= 0 for key in (block, waves, warp)
+        ):
+            raise ValueError("tile and warp dimensions must be positive integers")
+        if tc[block] % (tc[waves] * tc[warp]):
+            raise ValueError("block tiles must be divisible by their warp arrangement")
+    if arch == "gfx1250":
+        if cfg.get("persistent") or cfg.get("pad_k"):
+            raise ValueError(
+                "gfx1250 MX GEMM does not support persistent execution or K padding"
+            )
+    if not is_tile_config_valid(
+        *(tc[key] for key in _REQUIRED_TILE_KEYS),
+        datatype,
+        datatype,
+        "fp16",
+        pipeline,
+        layout,
+        arch,
+        KERNEL_NAME_PREFIX,
+    ):
+        # Preserve the shared validator's architecture/dtype-specific diagnostic.
+        _, warp_error = validate_gemm_mx_warp_tile_combination(
+            tc["warp_tile_m"], tc["warp_tile_n"], tc["warp_tile_k"],
+            datatype, datatype, "fp16", arch,
+        )
         raise ValueError(
-            f"mx_gemm warp tile is fixed at {FIXED_WARP_TILE}, got {tuple(warp_tile)}"
+            warp_error or f"unsupported MX tile configuration for {arch}/{pipeline}"
         )
 
 
@@ -142,9 +187,12 @@ def _tile_config_from_cfg(cfg: dict) -> dict:
 
 def _trait_combo_from_cfg(cfg: dict) -> Tuple:
     """7-tuple: (pipeline, epilogue, scheduler, pad_m, pad_n, pad_k, persistent)."""
+    valid_pipeline, _ = ARCH_TRAITS[normalize_gfx_arch(cfg["gpu_target"])]
+    pipeline = cfg.get("pipeline", valid_pipeline)
+    valid_epilogue = "tdm" if pipeline in ("comp_tdm", "comp_tdm_v2") else "cshuffle"
     return (
-        cfg.get("pipeline", VALID_PIPELINE),
-        cfg.get("epilogue", VALID_EPILOGUE),
+        cfg.get("pipeline", valid_pipeline),
+        cfg.get("epilogue", valid_epilogue),
         cfg.get("scheduler", VALID_SCHEDULER),
         bool(cfg.get("pad_m", False)),
         bool(cfg.get("pad_n", False)),
@@ -189,7 +237,7 @@ def _make_builder(cfg: dict) -> Iterator["object"]:
         cfg_path = work_dir / "mx_gemm_codegen_config.json"
         cfg_path.write_text(json.dumps(tmp_cfg))
 
-        gpu_target = cfg.get("gpu_target")
+        gpu_target = normalize_gfx_arch(cfg.get("gpu_target") or "")
         if not gpu_target:
             raise ValueError(
                 "mx_gemm codegen requires an explicit 'gpu_target' in the config; "

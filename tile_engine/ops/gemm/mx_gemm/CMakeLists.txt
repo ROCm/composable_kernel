@@ -102,9 +102,9 @@ function(create_individual_mx_gemm_target datatype layout trait tile_config conf
     add_dependencies(benchmark_mx_gemm_${datatype}_${layout} ${target_name})
 
     # Add to trait-specific targets
-    if(trait MATCHES "^comp_async_")
-        set(pipeline "comp_async")
-        string(REGEX REPLACE "^comp_async_" "" trait_tail "${trait}")
+    if(trait MATCHES "^(comp_async_eight_waves|comp_tdm_v2|comp_async|comp_tdm|weight_preshuffle)_")
+        set(pipeline "${CMAKE_MATCH_1}")
+        string(REGEX REPLACE "^${pipeline}_" "" trait_tail "${trait}")
         string(REPLACE "_" ";" trait_parts ${trait_tail})
         list(GET trait_parts 0 epilogue)
         list(GET trait_parts 1 scheduler)
@@ -128,7 +128,7 @@ function(build_individual_mx_gemm_targets datatype layout)
     # Priority order:
     # 1. Environment variable MX_GEMM_CONFIG_FILE
     # 2. CMake variable MX_GEMM_CONFIG_FILE
-    # 3. Default based on layout
+    # 3. Default based on GPU target
 
     # Check environment variable first
     if(DEFINED ENV{MX_GEMM_CONFIG_FILE} AND NOT "$ENV{MX_GEMM_CONFIG_FILE}" STREQUAL "")
@@ -139,6 +139,8 @@ function(build_individual_mx_gemm_targets datatype layout)
         # Use CMake variable if set
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${MX_GEMM_CONFIG_FILE}")
         message(VERBOSE "  Using custom config: ${MX_GEMM_CONFIG_FILE}")
+    elseif(MX_GEMM_GPU_TARGETS_INDIVIDUAL MATCHES "gfx1250")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config_gfx1250.json")
     else()
         # Use default config for all layouts
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
@@ -248,18 +250,23 @@ message(VERBOSE "MX_GEMM_DATATYPE: ${MX_GEMM_DATATYPE}")
 message(VERBOSE "MX_GEMM_LAYOUT: ${MX_GEMM_LAYOUT}")
 message(VERBOSE "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
-# Filter GPU targets to the scaled MFMA architecture supported by ck_tile example 42.
+# Each generated MX kernel and its scale layout target one architecture.
 set(MX_GEMM_GPU_TARGETS_INDIVIDUAL "")
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
-    if(target MATCHES "^gfx950")
+    if(target MATCHES "^gfx(950|1250)(:|$)")
         list(APPEND MX_GEMM_GPU_TARGETS_INDIVIDUAL ${target})
         message(VERBOSE "  Adding GPU target: ${target}")
     endif()
 endforeach()
 
+list(LENGTH MX_GEMM_GPU_TARGETS_INDIVIDUAL mx_target_count)
+if(mx_target_count GREATER 1)
+    message(FATAL_ERROR "Tile Engine MX GEMM requires one GPU target per build; select gfx950 or gfx1250 with GPU_TARGETS")
+endif()
+
 # Skip build if no matching targets found
 if(NOT MX_GEMM_GPU_TARGETS_INDIVIDUAL)
-    message(WARNING "Skipping Tile Engine MX GEMM build: no gfx950 target found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+    message(WARNING "Skipping Tile Engine MX GEMM build: no gfx950 or gfx1250 target found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 else()
     message(VERBOSE "Building individual MX GEMM targets for GPU targets: ${MX_GEMM_GPU_TARGETS_INDIVIDUAL}")
 
@@ -306,8 +313,8 @@ else()
 
     # Create trait-based collection targets
     # These are common trait components used across all MX GEMM kernels
-    set(MX_GEMM_PIPELINES "comp_async")
-    set(MX_GEMM_EPILOGUES "cshuffle")
+    set(MX_GEMM_PIPELINES "comp_async;comp_async_eight_waves;weight_preshuffle;comp_tdm;comp_tdm_v2")
+    set(MX_GEMM_EPILOGUES "cshuffle;tdm")
     set(MX_GEMM_SCHEDULERS "intrawave")
 
     foreach(pipeline IN LISTS MX_GEMM_PIPELINES)

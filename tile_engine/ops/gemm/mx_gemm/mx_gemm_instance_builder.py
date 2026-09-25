@@ -9,7 +9,7 @@ import concurrent.futures
 
 
 def _import_gemm_kernel_builder():
-    """Import validation utilities from commons directory."""
+    """Load the parent builder and reuse its architecture validation table."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
 
@@ -21,10 +21,13 @@ def _import_gemm_kernel_builder():
     gemm_builder_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gemm_builder_module)
 
-    return gemm_builder_module.GemmKernelBuilder
+    return (
+        gemm_builder_module.GemmKernelBuilder,
+        gemm_builder_module._validation_utils.GEMM_MX_PIPELINES_BY_ARCH,
+    )
 
 
-GemmKernelBuilder = _import_gemm_kernel_builder()
+GemmKernelBuilder, GEMM_MX_PIPELINES_BY_ARCH = _import_gemm_kernel_builder()
 
 
 class MxGemmKernelBuilder(GemmKernelBuilder):
@@ -54,6 +57,16 @@ class MxGemmKernelBuilder(GemmKernelBuilder):
             manifest_path=manifest_path,
         )
 
+    def _generate_trait_combinations(self):
+        arch = self.gpu_target.split(":", 1)[0]
+        expected = GEMM_MX_PIPELINES_BY_ARCH.get(arch, ())
+        return [
+            combo
+            for combo in super()._generate_trait_combinations()
+            if combo[0] in expected
+            and not (arch == "gfx1250" and (combo[5] or combo[6]))  # pad_k, persistent
+        ]
+
     def _generate_all_individual(self, num_workers=None):
         """Generate individual kernel files for separate compilation with parallel processing"""
         if num_workers is None:
@@ -68,6 +81,19 @@ class MxGemmKernelBuilder(GemmKernelBuilder):
         work_items = []
         for tile_config in tile_configs:
             for trait_combo in trait_combos:
+                if not self._validate_tile_config(
+                    tile_config["tile_m"],
+                    tile_config["tile_n"],
+                    tile_config["tile_k"],
+                    tile_config["warp_m"],
+                    tile_config["warp_n"],
+                    tile_config["warp_k"],
+                    tile_config["warp_tile_m"],
+                    tile_config["warp_tile_n"],
+                    tile_config["warp_tile_k"],
+                    trait_combo[0],
+                ):
+                    continue
                 work_items.append(
                     (
                         tile_config,

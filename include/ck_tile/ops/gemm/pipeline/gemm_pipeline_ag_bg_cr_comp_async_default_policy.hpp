@@ -508,6 +508,24 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_DramTileDistribution()
     {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        using Shape                       = typename Problem::BlockGemmShape;
+        using Warps                       = typename Shape::BlockWarps;
+        constexpr index_t MWarps          = Warps::at(I0);
+        constexpr index_t NWarps          = Warps::at(I1);
+        constexpr index_t WarpM           = Shape::WarpTile::at(I0);
+        constexpr index_t MRepeat         = Shape::kM / (MWarps * WarpM);
+        constexpr index_t ReplicatedLanes = get_warp_size() / WarpM;
+        // Match the packed M/N iteration order of the async block GEMM.
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<NWarps, ReplicatedLanes>,
+                tuple<sequence<MWarps, MRepeat, WarpM>, sequence<Shape::kK / 128, 1>>,
+                tuple<sequence<1, 0>, sequence<0, 1>>,
+                tuple<sequence<0, 0>, sequence<1, 2>>,
+                sequence<1, 2, 2>,
+                sequence<1, 0, 1>>{});
+#else
         using BlockGemmShape = typename Problem::BlockGemmShape;
         using BlockWarps     = typename BlockGemmShape::BlockWarps;
         using WarpTile       = typename BlockGemmShape::WarpTile;
@@ -543,11 +561,30 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
                                        tuple<sequence<0, 0>, sequence<1, 2>>,
                                        sequence<2, 1, 2>,
                                        sequence<0, 1, 2>>{});
+#endif
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_DramTileDistribution()
     {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        using Shape                       = typename Problem::BlockGemmShape;
+        using Warps                       = typename Shape::BlockWarps;
+        constexpr index_t MWarps          = Warps::at(I0);
+        constexpr index_t NWarps          = Warps::at(I1);
+        constexpr index_t WarpN           = Shape::WarpTile::at(I1);
+        constexpr index_t NRepeat         = Shape::kN / (NWarps * WarpN);
+        constexpr index_t ReplicatedLanes = get_warp_size() / WarpN;
+        // Match the packed M/N iteration order of the async block GEMM.
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<MWarps, ReplicatedLanes>,
+                tuple<sequence<NWarps, NRepeat, WarpN>, sequence<Shape::kK / 128, 1>>,
+                tuple<sequence<0, 1>, sequence<0, 1>>,
+                tuple<sequence<0, 0>, sequence<1, 2>>,
+                sequence<1, 2, 2>,
+                sequence<1, 0, 1>>{});
+#else
         using BlockGemmShape = typename Problem::BlockGemmShape;
         using BlockWarps     = typename BlockGemmShape::BlockWarps;
         using WarpTile       = typename BlockGemmShape::WarpTile;
@@ -583,6 +620,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
                                        tuple<sequence<0, 0>, sequence<1, 2>>,
                                        sequence<2, 1, 2>,
                                        sequence<0, 1, 2>>{});
+#endif
     }
 
     template <typename Problem>

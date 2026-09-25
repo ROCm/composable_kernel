@@ -17,9 +17,11 @@ namespace ck_tile {
  * skipping the intermediate loading into pipeline registers.
  */
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncEightWavesPolicy>
-struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrCompV3<Problem>
+struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrCompV3<Problem, true>
 {
-    using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
+    // The dedicated ping/pong implementation uses the five eight-wave tail cases
+    // on both wave32 and wave64, independently of comp_v3's wave32 schedule.
+    using Base             = BaseGemmPipelineAgBgCrCompV3<Problem, true>;
     using PipelineImplBase = GemmPipelineAgBgCrEightWavesImplBase<Problem, Policy>;
 
     using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;

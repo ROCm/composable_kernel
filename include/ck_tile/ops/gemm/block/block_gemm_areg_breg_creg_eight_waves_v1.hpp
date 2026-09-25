@@ -335,6 +335,12 @@ struct BlockGemmARegBRegCRegEightWavesV1
                                                        .get_static_tile_distribution_encoding())>>,
             "C distribution is wrong!");
 
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        // Each WMMA consumes an entire int32_t of four consecutive K scales.
+        constexpr index_t MXdlPack = 1;
+        constexpr index_t NXdlPack = 1;
+        constexpr index_t KXdlPack = 1;
+#else
         // Effective XdlPack: fall back to 1 when iteration count is insufficient
         constexpr index_t MXdlPack =
             (MIterPerWarp >= MXdlPack_ && MIterPerWarp % MXdlPack_ == 0) ? MXdlPack_ : 1;
@@ -342,6 +348,7 @@ struct BlockGemmARegBRegCRegEightWavesV1
             (NIterPerWarp >= NXdlPack_ && NIterPerWarp % NXdlPack_ == 0) ? NXdlPack_ : 1;
         constexpr index_t KXdlPack =
             (KIterPerWarp >= KXdlPack_ && KIterPerWarp % KXdlPack_ == 0) ? KXdlPack_ : 1;
+#endif
 
         constexpr index_t MPackIterPerWarp = MIterPerWarp / MXdlPack;
         constexpr index_t NPackIterPerWarp = NIterPerWarp / NXdlPack;
@@ -368,12 +375,6 @@ struct BlockGemmARegBRegCRegEightWavesV1
                     constexpr auto mIter = impack * MXdlPack + imxdl;
                     constexpr auto nIter = inpack * NXdlPack + inxdl;
 
-                    // OpSel for A: selects byte within packed int32_t
-                    constexpr index_t kOpSelA = ikxdl * MXdlPack + imxdl;
-
-                    // OpSel for B: selects byte within packed int32_t
-                    constexpr index_t kOpSelB = ikxdl * NXdlPack + inxdl;
-
                     // read A warp tensor from A Block window
                     AWarpTensor a_warp_tensor;
                     a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
@@ -392,13 +393,25 @@ struct BlockGemmARegBRegCRegEightWavesV1
                         merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-                    // warp GEMM with MX scaling
+                // warp GEMM with MX scaling
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+                    WarpGemm{}
+                        .template operator()<
+                            AScaleDataType<
+                                ScaleDataTypeToEnum<typename Problem::AScaleDataType>::value>,
+                            BScaleDataType<
+                                ScaleDataTypeToEnum<typename Problem::BScaleDataType>::value>>(
+#else
+                    // OpSel selects a byte within each packed int32_t scale.
+                    constexpr index_t kOpSelA = ikxdl * MXdlPack + imxdl;
+                    constexpr index_t kOpSelB = ikxdl * NXdlPack + inxdl;
                     WarpGemm{}.template operator()<OpSelA<kOpSelA>, OpSelB<kOpSelB>>(
-                        c_warp_tensor,
-                        a_warp_tensor,
-                        b_warp_tensor,
-                        a_scale_packed,
-                        b_scale_packed);
+#endif
+                            c_warp_tensor,
+                            a_warp_tensor,
+                            b_warp_tensor,
+                            a_scale_packed,
+                            b_scale_packed);
 
                     // write C warp tensor into C block tensor
                     c_block_tensor.set_y_sliced_thread_data(

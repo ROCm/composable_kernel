@@ -45,8 +45,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 
     static constexpr auto WGAccess =
         std::is_same_v<ComputeDataType, fp8_t> || std::is_same_v<ComputeDataType, bf8_t>
-            ? WGAttrNumAccessEnum::Double
-            : WGAttrNumAccessEnum::Single;
+            ? (get_warp_size() == 32 ? WGAttrNumAccessEnum::Quad : WGAttrNumAccessEnum::Double)
+            : (get_warp_size() == 32 ? WGAttrNumAccessEnum::Double : WGAttrNumAccessEnum::Single);
     static constexpr auto PackedSize = numeric_traits<ComputeDataType>::PackedSize;
 
     using BlockGemmShape = typename Problem::BlockGemmShape;
@@ -103,7 +103,11 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 
     static constexpr index_t warp_size = get_warp_size();
     static constexpr index_t warp_num  = BlockSize / warp_size;
+#if defined(__gfx125__) && CK_TILE_USE_WMMA
+    static_assert(warp_size == 32, "gfx1250 requires wave32");
+#else
     static_assert(warp_size == 64, "Wrong!");
+#endif
     static_assert(warp_num * warp_size == BlockSize, "Wrong!");
 
     static_assert(sizeof(ADataType) == sizeof(BDataType), "Wrong!");
@@ -183,6 +187,13 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     template <typename WindowTmp>
     CK_TILE_DEVICE static constexpr auto MakeAsyncLoadADramWindow(const WindowTmp& window_tmp)
     {
+#if defined(__gfx125__)
+        // Global-to-LDS instructions take an explicit per-lane LDS address on
+        // gfx1250. The LDS descriptor applies the swizzle at the destination.
+        return make_tile_window(window_tmp.get_bottom_tensor_view(),
+                                window_tmp.get_window_lengths(),
+                                window_tmp.get_window_origin());
+#else
         constexpr auto ndims = std::decay_t<decltype(window_tmp)>::get_num_of_dimension();
         static_assert(ndims == 2, "only support 2D tensor");
         auto&& tensor_view_tmp  = window_tmp.get_bottom_tensor_view();
@@ -226,6 +237,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
                                     &tensor_view_tmp.get_buffer_view()(0), desc),
                                 window_tmp.get_window_lengths(),
                                 window_tmp.get_window_origin());
+#endif
     }
 
     template <typename WindowTmp>
@@ -403,12 +415,20 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     static constexpr index_t KPerXdl      = WarpTile::at(I2);
     static constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;
 
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+    static constexpr index_t MXdlPackEff      = 1;
+    static constexpr index_t NXdlPackEff      = 1;
+    static constexpr index_t KXdlPackEff      = 4;
+    static constexpr index_t KInstructionPack = 1;
+#else
     static constexpr index_t MXdlPackEff =
         (MIterPerWarp >= MXdlPack && MIterPerWarp % MXdlPack == 0) ? MXdlPack : 1;
     static constexpr index_t NXdlPackEff =
         (NIterPerWarp >= NXdlPack && NIterPerWarp % NXdlPack == 0) ? NXdlPack : 1;
     static constexpr index_t KXdlPackEff =
         (KIterPerWarp >= KXdlPack && KIterPerWarp % KXdlPack == 0) ? KXdlPack : 1;
+    static constexpr index_t KInstructionPack = KXdlPackEff;
+#endif
 
     static constexpr index_t KPerBlockScale = KPerBlock / BlockScaleSize / KXdlPackEff;
 
@@ -421,16 +441,28 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 
     CK_TILE_HOST_DEVICE static constexpr auto GetInstCountAQ()
     {
-        return (MIterPerWarp / MXdlPackEff) * (KIterPerWarp / KXdlPackEff);
+        return (MIterPerWarp / MXdlPackEff) * (KIterPerWarp / KInstructionPack);
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetInstCountBQ()
     {
-        return (NIterPerWarp / NXdlPackEff) * (KIterPerWarp / KXdlPackEff);
+        return (NIterPerWarp / NXdlPackEff) * (KIterPerWarp / KInstructionPack);
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeAQBlockDistribution()
     {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        constexpr index_t ReplicatedLanes = get_warp_size() / WarpTileM;
+        // Eight-wave ping/pong groups put the N warp before the M warp.
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<NWarps, ReplicatedLanes>,
+                tuple<sequence<MWarps, MIterPerWarp, WarpTileM>, sequence<KIterPerWarp, 1>>,
+                tuple<sequence<0, 1>, sequence<0, 1>>,
+                tuple<sequence<0, 0>, sequence<1, 2>>,
+                sequence<2, 1, 2>,
+                sequence<0, 1, 1>>{});
+#else
         constexpr index_t K_Lane = get_warp_size() / WarpTileM;
 
         constexpr index_t KPerLane = WarpTileK / BlockScaleSize / K_Lane;
@@ -447,10 +479,23 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
                 tuple<sequence<0, 0>, sequence<1, 2>>,
                 sequence<2, 1, 2>, // <KIterPerWarp, MIterPerWarp, KPerLane>
                 sequence<0, 1, 2>>{});
+#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeBQBlockDistribution()
     {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        constexpr index_t ReplicatedLanes = get_warp_size() / WarpTileN;
+        // Eight-wave ping/pong groups put the N warp before the M warp.
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<MWarps, ReplicatedLanes>,
+                tuple<sequence<NWarps, NIterPerWarp, WarpTileN>, sequence<KIterPerWarp, 1>>,
+                tuple<sequence<1, 0>, sequence<0, 1>>,
+                tuple<sequence<0, 0>, sequence<1, 2>>,
+                sequence<2, 1, 2>,
+                sequence<0, 1, 1>>{});
+#else
         constexpr index_t K_Lane = get_warp_size() / WarpTileN;
 
         constexpr index_t KPerLane = WarpTileK / BlockScaleSize / K_Lane;
@@ -468,6 +513,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
                 tuple<sequence<0, 0, 2>, sequence<1, 3>>,
                 sequence<2, 1, 2>, // <KIterPerWarp, NIterPerWarp, KPerLane>
                 sequence<0, 1, 2>>{});
+#endif
     }
 };
 } // namespace detail
@@ -529,8 +575,9 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 
         constexpr auto WGAccess =
             std::is_same_v<ComputeDataType, fp8_t> || std::is_same_v<ComputeDataType, bf8_t>
-                ? WGAttrNumAccessEnum::Double
-                : WGAttrNumAccessEnum::Single;
+                ? (get_warp_size() == 32 ? WGAttrNumAccessEnum::Quad : WGAttrNumAccessEnum::Double)
+                : (get_warp_size() == 32 ? WGAttrNumAccessEnum::Double
+                                         : WGAttrNumAccessEnum::Single);
 
         // TODO: Fix for transpose
         constexpr auto wg_attr_num_access = WGAccess;
