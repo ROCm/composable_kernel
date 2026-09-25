@@ -411,6 +411,98 @@ TEST(TestCkTileFmhaFwd, QrTdmLdsArenaPrefill)
     }
 }
 
+// gfx125x-only: qr_tdm correctness at the head dims this PR added but that the
+// generic General sweep does not cover -- (160,160) and (96,96). The generic
+// suite already exercises 32/64/128/192-128 through qr_tdm but never asserts
+// the pipeline, and never requests 160 or the true 96/96 tile. Non-multiple
+// seqlens select the seqlen-padded instances.
+//
+// In batch mode these cases also lock the bm0 crossover: seqlen_q below the
+// measured N=128 (see GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q in fmha_fwd.py)
+// must select the bm0=64 tile, and at/above N=128 the bm0=128 tile. seqlen_q=128
+// covers the boundary; 99/127 cover below it. Group mode keys dispatch on the
+// packed total q length, not this seqlen, so the bm0 assertion is batch-only.
+class QrTdmNewHeadDim
+    : public TestWithParam<std::tuple<mode_enum, std::tuple<int, int, int, int, const char*>>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    QrTdmNewHeadDim,
+    Combine(Values(mode_enum::batch, mode_enum::group),
+            Values(std::tuple{160, 160, 127, 509, "0"}, // 160 dense, seqlen-padded, bm0=64
+                   std::tuple{160, 160, 128, 256, "0"}, // 160 at N=128: bm0=128
+                   std::tuple{160, 160, 99, 256, "1"},  // 160 causal, bm0=64
+                   std::tuple{96, 96, 127, 509, "0"},   // 96/96 dense, bm0=64
+                   std::tuple{96, 96, 128, 256, "0"},   // 96/96 at N=128: bm0=128
+                   std::tuple{96, 96, 99, 256, "1"}))); // 96/96 causal, bm0=64
+
+TEST_P(QrTdmNewHeadDim, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm is only supported on gfx1250";
+
+        auto [mode, dims]                                   = GetParam();
+        auto [hdim_q, hdim_v, seqlen_q, seqlen_k, mask_str] = dims;
+
+        std::string selected_kernel;
+        auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                                   2,
+                                                   2,
+                                                   2,
+                                                   {adjust_seqlen(seqlen_q)},
+                                                   {adjust_seqlen(seqlen_k)},
+                                                   adjust_hdim(hdim_q),
+                                                   adjust_hdim(hdim_v),
+                                                   0,
+                                                   {-1},
+                                                   {-1},
+                                                   {},
+                                                   {},
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   0,
+                                                   true,
+                                                   false,
+                                                   0,
+                                                   false,
+                                                   "n",
+                                                   0.0f,
+                                                   0,
+                                                   0,
+                                                   false,
+                                                   mask_str,
+                                                   qscale_str,
+                                                   true,
+                                                   1,
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_qr_tdm_"), std::string::npos);
+
+        // bm0 crossover at max_seqlen_q == 128 (measured; see
+        // GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q in fmha_fwd.py). The tile is
+        // embedded in the kernel name as "_b<bm0>x<bn0>x...". Only assert in batch
+        // mode: there a.max_seqlen_q == seqlen_q, so the input directly drives tile
+        // selection. In group mode a.max_seqlen_q is the packed total q length across
+        // the batch (sum of per-sequence lengths), not the per-sequence seqlen, so a
+        // single input seqlen does not pin dispatch to one side of the crossover.
+        if(mode == mode_enum::batch)
+        {
+            if(seqlen_q >= 128)
+                EXPECT_NE(selected_kernel.find("_b128x"), std::string::npos) << selected_kernel;
+            else
+                EXPECT_NE(selected_kernel.find("_b64x"), std::string::npos) << selected_kernel;
+        }
+    }
+}
+
 class General
     : public TestWithParam<std::tuple<std::tuple<int, int>,
                                       bool,

@@ -42,12 +42,36 @@ set_directory_properties(PROPERTIES CMAKE_CONFIGURE_DEPENDS "${CODE_GEN_SCRIPTS}
 
 list(JOIN INST_TARGETS , FMHA_TARGETS_ARG)
 
+# Select the fwd --optdim head-dim list by architecture. gfx125x (QR-TDM) adds
+# 96/160/192; other archs keep the shared develop list. generate.py applies
+# --optdim uniformly across all --targets, so a mixed gfx9x + gfx125x build would
+# leak the gfx125x-only head dims into the gfx9/gfx11/gfx12 generic QR factories
+# (which also define 96/160/192 tiles). Disallow mixing so the list stays correct.
+set(FMHA_FWD_HAS_GFX125 FALSE)
+set(FMHA_FWD_HAS_NON_GFX125 FALSE)
+foreach(inst_target ${INST_TARGETS})
+  if(inst_target MATCHES "^gfx125")
+    set(FMHA_FWD_HAS_GFX125 TRUE)
+  else()
+    set(FMHA_FWD_HAS_NON_GFX125 TRUE)
+  endif()
+endforeach()
+if(FMHA_FWD_HAS_GFX125 AND FMHA_FWD_HAS_NON_GFX125)
+  message(FATAL_ERROR "CK Tile FMHA: gfx125x cannot be built together with other archs "
+                      "(the fwd --optdim head-dim list differs per arch). INST_TARGETS: ${INST_TARGETS}")
+endif()
+if(FMHA_FWD_HAS_GFX125)
+  set(FMHA_FWD_OPTDIM 32,64,96,128,160,192,256)
+else()
+  set(FMHA_FWD_OPTDIM 32,64,80,128,256)
+endif()
+
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --targets ${FMHA_TARGETS_ARG}
   --api ${FMHA_FWD_APIS}
-  --optdim 32,64,80,128,256
+  --optdim ${FMHA_FWD_OPTDIM}
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py

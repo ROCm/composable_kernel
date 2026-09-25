@@ -50,9 +50,17 @@ K0_MAX_SUBMAX_MAP = {
     80: 96,
     96: 128,
     128: 128,
+    160: 256,
     192: 192,
     256: 256,
 }
+
+# TDM stores the head dim at its true length (see tdm_ceil_to_qualified_tile_length
+# in tile_fmha_shape.hpp), so 96 and 160 map to themselves (not the shared rounded
+# 128 / 256) -- the dpad=f dcheck then reads hdim_q % 96 or % 160, letting those
+# head dims take the un-padded naive-load path. Only the qr_tdm dcheck/dvcheck use
+# this; the generic qr fallback keeps the shared rounded map above (160 -> 256).
+TDM_K0_MAX_SUBMAX_MAP = {**K0_MAX_SUBMAX_MAP, 96: 96, 160: 160}
 
 FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.\n
@@ -91,7 +99,8 @@ using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
                                           ck_tile::sequence<{F_wm0}, {F_wn0}, {F_wk0}>,
                                           ck_tile::sequence<{F_rm1}, {F_rn1}, {F_rk1}>,
                                           ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
-                                          {F_vlayout}>;
+                                          {F_vlayout},
+                                          {F_use_tdm_ceil}>;
 
 using fmha_traits = ck_tile::TileFmhaTraits<{F_spad},
                                             {F_skpad},
@@ -415,7 +424,7 @@ class FmhaFwdApiTrait:
         elif self.pipeline_tag == "qr_tdm":
             if self.dpad == "t":
                 return "a.hdim_q % 8 == 0"
-            return f"a.hdim_q % {K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
+            return f"a.hdim_q % {TDM_K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
         elif self.pipeline_tag in ["qr", "qs", "qr_async", "qr_async_trload", "qr_async_trload_v3"]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == "t":
@@ -435,7 +444,7 @@ class FmhaFwdApiTrait:
         elif self.pipeline_tag == "qr_tdm":
             if self.dvpad == "t":
                 return "a.hdim_v % 8 == 0"
-            return f"a.hdim_v % {K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
+            return f"a.hdim_v % {TDM_K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
         elif self.pipeline_tag in ["qr", "qs", "qr_async", "qr_async_trload", "qr_async_trload_v3"]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == "t":
@@ -811,6 +820,7 @@ class FmhaFwdKernel:
             F_wn1=self.F_tile.F_wn1,
             F_wk1=self.F_tile.F_wk1,
             F_vlayout=LAYOUT_MAP[self.F_pipeline.F_vlayout],
+            F_use_tdm_ceil=("true" if self.F_pipeline.tag == "qr_tdm" else "false"),
             F_spad=BOOL_MAP[self.F_pipeline.F_spad],
             F_skpad=BOOL_MAP[self.F_pipeline.F_skpad],
             F_dpad=BOOL_MAP[self.F_pipeline.F_dpad],
@@ -1445,6 +1455,39 @@ class KernelComponentFactoryGfx12(CompatibilityRuleFactory):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", "f"))  # fmt: skip
         return pipelines
 
+# Measured bm0=64 -> bm0=128 crossover max_seqlen_q on gfx1250 (fp16/bf16), per
+# head dim (hdim_q, hdim_v). Each value is an independent benchmark result, not a
+# shared symbol: they all happen to be 128 under the current double-buffer pipeline
+# but must be re-benchmarked (not inherited) when a head dim is added or the pipeline
+# changes.
+GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q = {
+    (32, 32): 128, (64, 64): 128, (96, 96): 128,
+    (128, 128): 128, (160, 160): 128, (192, 128): 128,
+}
+
+
+def _gfx125_qr_tdm_crossover_constraint(hdim):
+    return CppConstraint(
+        f"a.max_seqlen_q < {GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q[hdim]}"
+    )
+
+
+def _validate_qr_tdm_bm0_crossover_pairs(tile_dict):
+    # Dispatch matches the first tile whose constraint holds, so any non-final tile
+    # MUST carry a constraint; otherwise it is always-true and silently shadows every
+    # tile after it (e.g. a bm0=64 entry would hide its bm0=128 fallback). The shared
+    # bm0-monotonicity assert does not catch this, and it cannot live there because
+    # other factories legitimately gate non-final tiles by CU count instead of seqlen.
+    for (hdim, hdim_v), tiles in tile_dict.items():
+        for tile, next_tile in zip(tiles, tiles[1:]):
+            assert tile.F_constraint.bool_expr is not None, (
+                f"({hdim},{hdim_v}): bm0={tile.F_bm0} has no CppConstraint but is "
+                f"followed by bm0={next_tile.F_bm0} -- it would shadow every tile "
+                "after it in dispatch order"
+            )
+    return tile_dict
+
+
 class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
     arch = ArchTrait("gfx125")
 
@@ -1459,15 +1502,29 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
     @classmethod
     def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
         if dtype in cls._DT_FP16_BF16:
-            return {
+            # Most entries pair a bm0=64 tile guarded by the per-dim crossover
+            # constraint (see GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q) with a bm0=128
+            # fallback: the dispatcher picks bm0=64 below the crossover max_seqlen_q
+            # and bm0=128 at/above it. (256,256) is the exception -- a single unguarded
+            # bm0=64 tile with no fallback. _validate_qr_tdm_bm0_crossover_pairs enforces
+            # that any non-final tile keeps a constraint so a bm0=64 entry can never
+            # silently shadow its bm0=128 fallback in dispatch order.
+            return _validate_qr_tdm_bm0_crossover_pairs({
                 #                             bm0, bn0, bk0, bn1, bk1,
-                ( 32,  32) : [FmhaFwdTileSize( 64,  64,  32,  32,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-                ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-                (128, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint("a.max_seqlen_q < 2048")),
+                ( 32,  32) : [FmhaFwdTileSize( 64,  64,  32,  32,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint(( 32,  32))),
+                              FmhaFwdTileSize(128,  64,  32,  32,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint(( 64,  64))),
+                              FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                ( 96,  96) : [FmhaFwdTileSize( 64,  64,  32,  96,  32,   96,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint(( 96,  96))),
+                              FmhaFwdTileSize(128,  64,  32,  96,  32,   96,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                (128, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint((128, 128))),
                               FmhaFwdTileSize(128,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-                (192, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                (160, 160) : [FmhaFwdTileSize( 64,  64,  32, 160,  32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint((160, 160))),
+                              FmhaFwdTileSize(128,  64,  32, 160,  32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                (192, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  192,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint((192, 128))),
+                              FmhaFwdTileSize(128,  64,  32, 128,  32,  192,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
                 (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-            }  # fmt: skip
+            })  # fmt: skip
         elif dtype in cls._DT_FP8_FP8BF16:
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
@@ -1511,10 +1568,10 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             # qr_tdm: gfx1250 TDM pipeline, preferred for d=128.
             # Emitted first so runtime dispatcher selects qr_tdm over qr
             # when both match (dispatch order = list order in generated code).
-            # NOTE: dropout is not yet implemented in qr_tdm — only emit
+            # NOTE: dropout is not yet implemented in qr_tdm - only emit
             # dropout="f" so dropout workloads fall through to qr.
             # Logits soft cap is not implemented either, so pin logits="f".
-            if hdim == 128 and hdim_v == 128:
+            if (hdim, hdim_v) in {(32, 32), (64, 64), (96, 96), (128, 128), (160, 160), (192, 128), (256, 256)}:
                 for logits, mask, bias, lse, sink in itertools.product(
                     ["f"],
                     get_mask_map(mask_impl).keys(),

@@ -12,6 +12,16 @@
 
 namespace ck_tile {
 
+// IGLP "bulk" grouping for the gemm1 (P*V) sched_group_barrier hints. Instead of
+// the fine 1-MFMA:1-DS_READ interleave, issue all DS_READ first then all MFMA, so
+// the V ds_load_tr16 latency hides behind a burst of back-to-back WMMAs (the
+// accumulators are independent). Measured on gfx1250 bf16: +3.0% d128, +2.6%
+// d160, +1.6% d192 at s=16384. On by default; disable with
+// -DCK_TILE_FMHA_TDM_IGLP_BULK=0.
+#ifndef CK_TILE_FMHA_TDM_IGLP_BULK
+#define CK_TILE_FMHA_TDM_IGLP_BULK 1
+#endif
+
 // This pipeline is qkv all located in LDS, targeting gfx1250
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSTdmDefaultPolicy>
 struct BlockFmhaPipelineQRKSVSTdm
@@ -1267,7 +1277,6 @@ struct BlockFmhaPipelineQRKSVSTdm
 
         static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
-
         block_sync_lds<0>();
         load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
         load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
@@ -1297,7 +1306,14 @@ struct BlockFmhaPipelineQRKSVSTdm
         constexpr index_t k_lds_insts = k_lds_read_window.get_num_of_access();
         constexpr index_t v_lds_insts = v_lds_read_window.get_num_of_access();
 
-        s_wait_tensorcnt_barrier<0>();
+        // drain-to-2: the prologue issued 3 TDM loads (K->ptrk0 above, V, then
+        // K->ptrk1). Wait for the oldest (K->ptrk0) to land so the load_tile
+        // below can read ptrk0, while ptrk1 and V stay in flight. This count is
+        // structurally coupled to the prologue's prefetch sequence: it equals
+        // (TDM loads issued in prologue) - (loads that must complete before the
+        // first LDS read). If the prologue prefetch count changes, update this
+        // value or risk a silent data hazard / unnecessary stall.
+        s_wait_tensorcnt_barrier<2>();
         auto k_tile = load_tile(k_lds_read_window);
 
         __builtin_amdgcn_sched_barrier(0);
@@ -1506,6 +1522,10 @@ struct BlockFmhaPipelineQRKSVSTdm
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
+#if CK_TILE_FMHA_TDM_IGLP_BULK
+            __builtin_amdgcn_sched_group_barrier(0x100, 20, 0); // DS_READ bulk
+            __builtin_amdgcn_sched_group_barrier(0x008, 12, 0); // MFMA bulk
+#else
             static_for<0, 12, 1>{}([&](auto i) {
                 ignore = i;
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
@@ -1517,6 +1537,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS_READ
             });
+#endif
 
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
@@ -1672,6 +1693,10 @@ struct BlockFmhaPipelineQRKSVSTdm
             k_lds_read_window.set_bottom_tensor_view_data_ptr(k_lds_read_ptr);
             k_tile = load_tile(k_lds_read_window);
 
+#if CK_TILE_FMHA_TDM_IGLP_BULK
+            __builtin_amdgcn_sched_group_barrier(0x100, 20, 0); // DS_READ bulk
+            __builtin_amdgcn_sched_group_barrier(0x008, 12, 0); // MFMA bulk
+#else
             static_for<0, 12, 1>{}([&](auto i) {
                 ignore = i;
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
@@ -1683,6 +1708,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS_READ
             });
+#endif
         }; // mainloop
 
         do
