@@ -43,10 +43,16 @@ struct group_forward_dispatch
     static constexpr HstuFwdPipelineKind kPipelineKind =
         get_hstu_fwd_pipeline_kind<kUseSoftmax, MaxK>();
 
-    using HstuAttentionTileSetting = typename std::conditional_t<
-        kUseSoftmax,
-        HstuAttentionWithSoftmaxFwdTileSetting<MaxK, MTile, kPipelineKind>,
-        HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile, kPipelineKind>>::Type;
+#if defined(__hstu_gfx125__)
+    using HstuAttentionTileSetting = decltype(GetHstuAttentionFwdTileSetting<MaxK,
+                                                                             MTile,
+                                                                             kUseSoftmax,
+                                                                             kUseCausal,
+                                                                             kPipelineKind>());
+#else
+    using HstuAttentionTileSetting =
+        decltype(GetHstuAttentionFwdTileSetting<MaxK, MTile, kUseSoftmax, kUseCausal>());
+#endif
 
     template <bool kIsCrossAttention>
     using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
