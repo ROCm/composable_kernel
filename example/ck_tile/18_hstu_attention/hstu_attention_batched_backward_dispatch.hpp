@@ -46,11 +46,9 @@ template <typename InOutDataType,
 struct batched_backward_dispatch
 {
     using HstuAttentionTileSettingForKernel1 =
-        typename std::conditional_t<kUseSoftmax,
-                                    HstuAttentionWithSoftmaxBwdTileSettingForKernel1<MaxK>,
-                                    HstuAttentionNoSoftmaxBwdTileSettingForKernel1<MaxK>>::Type;
+        decltype(GetHstuAttentionBwdKernel1TileSetting<MaxK, kUseSoftmax>());
     using HstuAttentionTileSettingForKernel2 =
-        typename HstuAttentionBwdTileSettingForKernel2<MaxK>::Type;
+        decltype(GetHstuAttentionBwdKernel2TileSetting<MaxK>());
 
 #if HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     static constexpr bool use_trload_pipeline = true;

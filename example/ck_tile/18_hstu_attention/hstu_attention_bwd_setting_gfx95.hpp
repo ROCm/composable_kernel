@@ -8,272 +8,160 @@
 #include "hstu_attention_bwd_tile_setting_define.hpp"
 
 #if defined(BUILD_HSTU_FOR_GFX95)
-using WarpTile_16x16x16 = ck_tile::sequence<16, 16, 16>;
 using WarpTile_16x16x32 = ck_tile::sequence<16, 16, 32>;
-using WarpTile_32x32x16 = ck_tile::sequence<32, 32, 16>;
 
-template <ck_tile::index_t MaxK>
-struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1;
+using HstuAttentionBwdKernel1Gemm0Gemm2Warps = ck_tile::sequence<4, 1, 1>;
+using HstuAttentionBwdKernel1Gemm4Warps      = ck_tile::sequence<4, 1, 1>;
 
-// Tile-sizes: M N0 N0Sub K1 MaxK
+using HstuAttentionBwdKernel2Gemm0Gemm2Warps = ck_tile::sequence<1, 4, 1>;
+using HstuAttentionBwdKernel2Gemm1Warps      = ck_tile::sequence<4, 1, 1>;
+using HstuAttentionBwdKernel2Gemm3Warps      = ck_tile::sequence<4, 1, 1>;
+
+// Kernel1 Tile-sizes: M N0 N0Sub K1 MaxK
 //
-template <>
-struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<64>
-{
-    using type             = ck_tile::sequence<128, 64, 32, 32, 64>;
-    using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
-};
+using HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_64_Sub32_K1_32 =
+    ck_tile::sequence<128, 64, 32, 32, 64>;
+using HstuAttentionBwdKernel1BlockTile_Hdim96_M128_N0_64_Sub32_K1_32 =
+    ck_tile::sequence<128, 64, 32, 32, 96>;
+using HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_64_Sub16_K1_32 =
+    ck_tile::sequence<128, 64, 16, 32, 128>;
+using HstuAttentionBwdKernel1BlockTile_Hdim128_M64_N0_64_Sub16_K1_32 =
+    ck_tile::sequence<64, 64, 16, 32, 128>;
+using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub32_K1_32 =
+    ck_tile::sequence<64, 64, 32, 32, 256>;
+using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub16_K1_32 =
+    ck_tile::sequence<64, 64, 16, 32, 256>;
 
-template <>
-struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<96>
-{
-    using type             = ck_tile::sequence<128, 64, 32, 32, 96>;
-    using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<128>
-{
-    using type             = ck_tile::sequence<128, 64, 16, 32, 128>;
-    using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxBwdBlockTileForKernel1<256>
-{
-    using type             = ck_tile::sequence<64, 64, 32, 32, 256>;
-    using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <ck_tile::index_t MaxK>
-struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1;
-
-// Tile-sizes: M N0 N0Sub MaxK
+// Kernel2 Tile-sizes: M0 N M0Sub K1 MaxK
 //
-template <>
-struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<64>
-{
-    using type             = ck_tile::sequence<128, 64, 32, 32, 64>;
-    using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
-};
+using HstuAttentionBwdKernel2BlockTile_Hdim64_M0_64_N64_Sub32_K1_32 =
+    ck_tile::sequence<64, 64, 32, 32, 64>;
+using HstuAttentionBwdKernel2BlockTile_Hdim96_M0_64_N64_Sub32_K1_32 =
+    ck_tile::sequence<64, 64, 32, 32, 96>;
+using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_32 =
+    ck_tile::sequence<32, 64, 16, 32, 128>;
+using HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_32 =
+    ck_tile::sequence<32, 64, 16, 32, 256>;
 
-template <>
-struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<96>
+template <ck_tile::index_t MaxK, bool kUseSoftmax>
+static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
 {
-    using type             = ck_tile::sequence<128, 64, 32, 32, 96>;
-    using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<128>
-{
-    using type             = ck_tile::sequence<64, 64, 16, 32, 128>;
-    using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxBwdBlockTileForKernel1<256>
-{
-    using type             = ck_tile::sequence<64, 64, 16, 32, 256>;
-    using gemm0gemm2_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm4_warps      = ck_tile::sequence<4, 1, 1>;
-};
+    if constexpr(MaxK == 64)
+    {
+        return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+            HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_64_Sub32_K1_32,
+            HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel1Gemm4Warps,
+            WarpTile_16x16x32>{};
+    }
+    else if constexpr(MaxK == 96)
+    {
+        return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+            HstuAttentionBwdKernel1BlockTile_Hdim96_M128_N0_64_Sub32_K1_32,
+            HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel1Gemm4Warps,
+            WarpTile_16x16x32>{};
+    }
+    else if constexpr(MaxK == 128)
+    {
+        if constexpr(kUseSoftmax)
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+                HstuAttentionBwdKernel1BlockTile_Hdim128_M64_N0_64_Sub16_K1_32,
+                HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+                WarpTile_16x16x32,
+                HstuAttentionBwdKernel1Gemm4Warps,
+                WarpTile_16x16x32>{};
+        }
+        else
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+                HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_64_Sub16_K1_32,
+                HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+                WarpTile_16x16x32,
+                HstuAttentionBwdKernel1Gemm4Warps,
+                WarpTile_16x16x32>{};
+        }
+    }
+    else if constexpr(MaxK == 256)
+    {
+        if constexpr(kUseSoftmax)
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+                HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub16_K1_32,
+                HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+                WarpTile_16x16x32,
+                HstuAttentionBwdKernel1Gemm4Warps,
+                WarpTile_16x16x32>{};
+        }
+        else
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+                HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub32_K1_32,
+                HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+                WarpTile_16x16x32,
+                HstuAttentionBwdKernel1Gemm4Warps,
+                WarpTile_16x16x32>{};
+        }
+    }
+    else
+    {
+        static_assert(false, "MaxK size not supported!");
+    }
+}
 
 template <ck_tile::index_t MaxK>
-struct HstuAttentionNoSoftmaxBwdTileSettingForKernel1;
-
-template <>
-struct HstuAttentionNoSoftmaxBwdTileSettingForKernel1<64>
+static constexpr auto GetHstuAttentionBwdKernel2TileSetting()
 {
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<64>::type,
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<64>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<64>::gemm4_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxBwdTileSettingForKernel1<96>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<96>::type,
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<96>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<96>::gemm4_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxBwdTileSettingForKernel1<128>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<128>::type,
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<128>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<128>::gemm4_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxBwdTileSettingForKernel1<256>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<256>::type,
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<256>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionNoSoftmaxBwdBlockTileForKernel1<256>::gemm4_warps,
-        WarpTile_16x16x32>;
-};
-
-template <ck_tile::index_t MaxK>
-struct HstuAttentionWithSoftmaxBwdTileSettingForKernel1;
-
-template <>
-struct HstuAttentionWithSoftmaxBwdTileSettingForKernel1<64>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<64>::type,
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<64>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<64>::gemm4_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxBwdTileSettingForKernel1<96>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<96>::type,
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<96>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<96>::gemm4_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxBwdTileSettingForKernel1<128>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<128>::type,
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<128>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<128>::gemm4_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxBwdTileSettingForKernel1<256>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<256>::type,
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<256>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionWithSoftmaxBwdBlockTileForKernel1<256>::gemm4_warps,
-        WarpTile_16x16x32>;
-};
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-template <ck_tile::index_t MaxK>
-struct HstuAttentionBwdBlockTileForKernel2;
-
-// Tile-sizes: M0 N M0Sub K1 MaxK
-//
-template <>
-struct HstuAttentionBwdBlockTileForKernel2<64>
-{
-    using type             = ck_tile::sequence<64, 64, 32, 32, 64>;
-    using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
-    using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
-    using gemm3_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionBwdBlockTileForKernel2<96>
-{
-    using type             = ck_tile::sequence<64, 64, 32, 32, 96>;
-    using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
-    using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
-    using gemm3_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionBwdBlockTileForKernel2<128>
-{
-    using type             = ck_tile::sequence<32, 64, 16, 32, 128>;
-    using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
-    using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
-    using gemm3_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionBwdBlockTileForKernel2<256>
-{
-    using type             = ck_tile::sequence<32, 64, 16, 32, 256>;
-    using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
-    using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
-    using gemm3_warps      = ck_tile::sequence<4, 1, 1>;
-};
-
-template <ck_tile::index_t MaxK>
-struct HstuAttentionBwdTileSettingForKernel2;
-
-template <>
-struct HstuAttentionBwdTileSettingForKernel2<64>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
-        typename HstuAttentionBwdBlockTileForKernel2<64>::type,
-        typename HstuAttentionBwdBlockTileForKernel2<64>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionBwdBlockTileForKernel2<64>::gemm1_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionBwdBlockTileForKernel2<64>::gemm3_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionBwdTileSettingForKernel2<96>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
-        typename HstuAttentionBwdBlockTileForKernel2<96>::type,
-        typename HstuAttentionBwdBlockTileForKernel2<96>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionBwdBlockTileForKernel2<96>::gemm1_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionBwdBlockTileForKernel2<96>::gemm3_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionBwdTileSettingForKernel2<128>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
-        typename HstuAttentionBwdBlockTileForKernel2<128>::type,
-        typename HstuAttentionBwdBlockTileForKernel2<128>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionBwdBlockTileForKernel2<128>::gemm1_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionBwdBlockTileForKernel2<128>::gemm3_warps,
-        WarpTile_16x16x32>;
-};
-
-template <>
-struct HstuAttentionBwdTileSettingForKernel2<256>
-{
-    using Type = ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
-        typename HstuAttentionBwdBlockTileForKernel2<256>::type,
-        typename HstuAttentionBwdBlockTileForKernel2<256>::gemm0gemm2_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionBwdBlockTileForKernel2<256>::gemm1_warps,
-        WarpTile_16x16x32,
-        typename HstuAttentionBwdBlockTileForKernel2<256>::gemm3_warps,
-        WarpTile_16x16x32>;
-};
+    if constexpr(MaxK == 64)
+    {
+        return ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
+            HstuAttentionBwdKernel2BlockTile_Hdim64_M0_64_N64_Sub32_K1_32,
+            HstuAttentionBwdKernel2Gemm0Gemm2Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel2Gemm1Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel2Gemm3Warps,
+            WarpTile_16x16x32>{};
+    }
+    else if constexpr(MaxK == 96)
+    {
+        return ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
+            HstuAttentionBwdKernel2BlockTile_Hdim96_M0_64_N64_Sub32_K1_32,
+            HstuAttentionBwdKernel2Gemm0Gemm2Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel2Gemm1Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel2Gemm3Warps,
+            WarpTile_16x16x32>{};
+    }
+    else if constexpr(MaxK == 128)
+    {
+        return ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
+            HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_32,
+            HstuAttentionBwdKernel2Gemm0Gemm2Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel2Gemm1Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel2Gemm3Warps,
+            WarpTile_16x16x32>{};
+    }
+    else if constexpr(MaxK == 256)
+    {
+        return ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
+            HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_32,
+            HstuAttentionBwdKernel2Gemm0Gemm2Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel2Gemm1Warps,
+            WarpTile_16x16x32,
+            HstuAttentionBwdKernel2Gemm3Warps,
+            WarpTile_16x16x32>{};
+    }
+    else
+    {
+        static_assert(false, "MaxK size not supported!");
+    }
+}
 #endif
