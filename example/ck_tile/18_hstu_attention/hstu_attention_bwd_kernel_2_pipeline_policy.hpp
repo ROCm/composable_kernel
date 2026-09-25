@@ -272,7 +272,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     {
         using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         return BlockGemm::template MakeBBlockTileDistribution<
-            Problem::HstuAttentionTileSetting::kN0,
+            Problem::HstuAttentionTileSetting::kN,
             Problem::HstuAttentionTileSetting::kQKHeaddim>();
     }
 
@@ -282,7 +282,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     {
         using BlockGemm = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
         return BlockGemm::template MakeBBlockTileDistribution<
-            Problem::HstuAttentionTileSetting::kN0,
+            Problem::HstuAttentionTileSetting::kN,
             Problem::HstuAttentionTileSetting::kVHeaddim>();
     }
 
@@ -292,7 +292,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     {
         using BlockGemm = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
         return BlockGemm::template MakeABlockTileDistribution<
-            Problem::HstuAttentionTileSetting::kN0,
+            Problem::HstuAttentionTileSetting::kN,
             Problem::HstuAttentionTileSetting::kM0>();
     }
 
@@ -302,7 +302,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     {
         using BlockGemm = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
         return BlockGemm::template MakeABlockTileDistribution<
-            Problem::HstuAttentionTileSetting::kN0,
+            Problem::HstuAttentionTileSetting::kN,
             Problem::HstuAttentionTileSetting::kM0>();
     }
 
@@ -313,7 +313,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         using BlockGemm                       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto bias_block_dstr_encode = BlockGemm::template MakeCBlockDistributionEncode<
             Problem::HstuAttentionTileSetting::kM0,
-            Problem::HstuAttentionTileSetting::kN0>();
+            Problem::HstuAttentionTileSetting::kN>();
         return make_static_tile_distribution(bias_block_dstr_encode);
     }
 
@@ -324,7 +324,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         auto sacc_tile =
             BlockGemm::template MakeCBlockTile<Problem::HstuAttentionTileSetting::kM0,
-                                               Problem::HstuAttentionTileSetting::kN0>();
+                                               Problem::HstuAttentionTileSetting::kN>();
         const auto f_sum        = [](auto a, auto b) { return a + b; };
         using reduced_tile_type = decltype(block_tile_reduce<typename Problem::CompDataType>(
             sacc_tile, sequence<1>{}, f_sum, typename Problem::CompDataType{0}));
@@ -947,7 +947,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::GemmAccDataType,
             Problem::kNumGemm0Gemm2Warps * get_warp_size(),
             TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0Sub,
-                                   Problem::HstuAttentionTileSetting::kN0,
+                                   Problem::HstuAttentionTileSetting::kN,
                                    Problem::HstuAttentionTileSetting::kQKHeaddim>,
                           typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
                           typename Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile>>;
@@ -1014,7 +1014,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::GemmAccDataType,
             Problem::kNumGemm0Gemm2Warps * get_warp_size(),
             TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0,
-                                   Problem::HstuAttentionTileSetting::kN0,
+                                   Problem::HstuAttentionTileSetting::kN,
                                    Problem::HstuAttentionTileSetting::kQKHeaddim>,
                           typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
                           typename Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile>>;
@@ -1079,7 +1079,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::GemmAccDataType,
             Problem::kNumGemm0Gemm2Warps * get_warp_size(),
             TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0Sub,
-                                   Problem::HstuAttentionTileSetting::kN0,
+                                   Problem::HstuAttentionTileSetting::kN,
                                    Problem::HstuAttentionTileSetting::kVHeaddim>,
                           typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
                           typename Problem::HstuAttentionTileSetting::Gemm0Gemm2WarpTile>>;
@@ -1154,7 +1154,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             constexpr index_t MWarp =
                 Problem::HstuAttentionTileSetting::Gemm1BlockWarps::at(number<0>{});
 
-            constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kN0;
+            constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kN;
             constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kM0;
 
             constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
@@ -1250,7 +1250,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             constexpr index_t MWarp =
                 Problem::HstuAttentionTileSetting::Gemm3BlockWarps::at(number<0>{});
 
-            constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kN0;
+            constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kN;
             constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kM0;
 
             constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
@@ -1345,7 +1345,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::QKVDataType,
             typename Problem::GemmAccDataType,
             Problem::kNumGemm1Warps * get_warp_size(),
-            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kN0,
+            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kN,
                                    Problem::HstuAttentionTileSetting::kVHeaddim,
                                    Problem::HstuAttentionTileSetting::kK1>,
                           typename Problem::HstuAttentionTileSetting::Gemm1BlockWarps,
@@ -1450,7 +1450,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::QKVDataType,
             typename Problem::GemmAccDataType,
             Problem::kNumGemm3Warps * get_warp_size(),
-            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kN0,
+            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kN,
                                    Problem::HstuAttentionTileSetting::kQKHeaddim,
                                    Problem::HstuAttentionTileSetting::kK1>,
                           typename Problem::HstuAttentionTileSetting::Gemm3BlockWarps,

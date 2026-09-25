@@ -47,7 +47,7 @@ struct HstuAttentionBwdTileSettingClassForKernel1
 
     static constexpr index_t NumWarps = NumGemm0Gemm2Warps;
 
-    static constexpr index_t kM0        = BlockTile::at(number<0>{}); // tile size along q seqlen
+    static constexpr index_t kM         = BlockTile::at(number<0>{}); // tile size along q seqlen
     static constexpr index_t kN0        = BlockTile::at(number<1>{}); // tile size along k seqlen
     static constexpr index_t kN0Sub     = BlockTile::at(number<2>{}); // tile size for dividing kN0
     static constexpr index_t kK1        = BlockTile::at(number<3>{});
@@ -102,7 +102,7 @@ struct HstuAttentionBwdTileSettingClassForKernel2
     static constexpr index_t NumWarps = max(NumGemm0Gemm2Warps, max(NumGemm1Warps, NumGemm3Warps));
 
     static constexpr index_t kM0        = BlockTile::at(number<0>{}); // tile size along q seqlen
-    static constexpr index_t kN0        = BlockTile::at(number<1>{}); // tile size along k seqlen
+    static constexpr index_t kN         = BlockTile::at(number<1>{}); // tile size along k seqlen
     static constexpr index_t kM0Sub     = BlockTile::at(number<2>{}); // tile size for dividing kM0
     static constexpr index_t kK1        = BlockTile::at(number<3>{});
     static constexpr index_t kQKHeaddim = BlockTile::at(number<4>{}); // total length of QK head_dim

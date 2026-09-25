@@ -33,7 +33,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0        = HstuAttentionTileSetting::kM0;
+    static constexpr index_t kM0        = HstuAttentionTileSetting::kM;
     static constexpr index_t kN0        = HstuAttentionTileSetting::kN0;
     static constexpr index_t kN0Sub     = HstuAttentionTileSetting::kN0Sub;
     static constexpr index_t kQKHeaddim = HstuAttentionTileSetting::kQKHeaddim;
