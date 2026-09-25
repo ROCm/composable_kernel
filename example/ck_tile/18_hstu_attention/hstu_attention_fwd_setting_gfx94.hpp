@@ -10,269 +10,124 @@
 
 #if defined(BUILD_HSTU_FOR_GFX94)
 using WarpTile_16x16x16 = ck_tile::sequence<16, 16, 16>;
-using WarpTile_16x16x32 = ck_tile::sequence<16, 16, 32>;
 
-template <ck_tile::index_t MaxK,
-          ck_tile::index_t MTile            = 0,
-          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
-struct HstuAttentionNoSoftmaxFwdBlockTile;
+using HstuAttentionFwdGemm0Warps = ck_tile::sequence<4, 1, 1>;
+using HstuAttentionFwdGemm1Warps = ck_tile::sequence<4, 1, 1>;
 
 // Tile-sizes: M N0 N0Sub N1 K1 MaxK (MaxK % N1 == 0, N0 % K1 == 0)
 //
-template <>
-struct HstuAttentionNoSoftmaxFwdBlockTile<64, 64>
+using HstuAttentionFwdBlockTile_Hdim64_M64_N0_64_Sub32_K1_32 =
+    ck_tile::sequence<64, 64, 32, 64, 32, 64>;
+using HstuAttentionFwdBlockTile_Hdim64_M128_N0_64_Sub32_K1_32 =
+    ck_tile::sequence<128, 64, 32, 64, 32, 64>;
+
+using HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub32_K1_32 =
+    ck_tile::sequence<128, 64, 32, 128, 32, 96>;
+
+using HstuAttentionFwdBlockTile_Hdim128_M64_N0_32_Sub16_K1_32 =
+    ck_tile::sequence<64, 32, 16, 128, 32, 128>;
+using HstuAttentionFwdBlockTile_Hdim128_M128_N0_32_Sub16_K1_32 =
+    ck_tile::sequence<128, 32, 16, 128, 32, 128>;
+
+using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub16_K1_32 =
+    ck_tile::sequence<128, 64, 16, 128, 32, 128>;
+// use K1 = 16 to save vgpr consumption when Softmax and Causal Mask are both used
+using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub16_K1_16 =
+    ck_tile::sequence<128, 64, 16, 128, 16, 128>;
+
+using HstuAttentionFwdBlockTile_Hdim256_M128_N0_32_Sub16_K1_16 =
+    ck_tile::sequence<128, 32, 16, 256, 16, 256>;
+
+template <ck_tile::index_t MaxK, ck_tile::index_t ExpectedMTile, bool kUseSoftmax, bool kUseCausal>
+static constexpr auto GetHstuAttentionFwdTileSetting()
 {
-    using type        = ck_tile::sequence<64, 64, 32, 64, 32, 64>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxFwdBlockTile<64, 128>
-{
-    using type        = ck_tile::sequence<128, 64, 32, 64, 32, 64>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <ck_tile::index_t MTile>
-struct HstuAttentionNoSoftmaxFwdBlockTile<96, MTile>
-{
-    using type        = ck_tile::sequence<128, 64, 32, 128, 32, 96>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxFwdBlockTile<128, 64>
-{
-    using type        = ck_tile::sequence<64, 32, 16, 128, 32, 128>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxFwdBlockTile<128, 128>
-{
-    using type        = ck_tile::sequence<128, 32, 16, 128, 32, 128>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <ck_tile::index_t MTile>
-struct HstuAttentionNoSoftmaxFwdBlockTile<256, MTile>
-{
-    using type        = ck_tile::sequence<128, 32, 16, 256, 16, 256>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <ck_tile::index_t MaxK,
-          ck_tile::index_t MTile            = 0,
-          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
-struct HstuAttentionWithSoftmaxFwdBlockTile;
-
-// Tile-sizes: M N0 N0Sub N1 K1 MaxK (MaxK % N1 == 0, N0 % K1 == 0)
-//
-template <>
-struct HstuAttentionWithSoftmaxFwdBlockTile<64, 64>
-{
-    using type        = ck_tile::sequence<64, 64, 32, 64, 32, 64>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxFwdBlockTile<64, 128>
-{
-    using type        = ck_tile::sequence<128, 64, 32, 64, 32, 64>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <ck_tile::index_t MTile>
-struct HstuAttentionWithSoftmaxFwdBlockTile<96, MTile>
-{
-    using type        = ck_tile::sequence<128, 64, 32, 128, 32, 96>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxFwdBlockTile<128, 64>
-{
-    using type        = ck_tile::sequence<64, 64, 16, 128, 32, 128>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxFwdBlockTile<128, 128>
-{
-    using type        = ck_tile::sequence<128, 64, 16, 128, 16, 128>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <ck_tile::index_t MTile>
-struct HstuAttentionWithSoftmaxFwdBlockTile<256, MTile>
-{
-    using type        = ck_tile::sequence<128, 32, 16, 256, 16, 256>;
-    using gemm0_warps = ck_tile::sequence<4, 1, 1>;
-    using gemm1_warps = ck_tile::sequence<4, 1, 1>;
-};
-
-template <ck_tile::index_t MaxK,
-          ck_tile::index_t MTile            = 0,
-          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
-struct HstuAttentionNoSoftmaxFwdTileSetting;
-
-template <>
-struct HstuAttentionNoSoftmaxFwdTileSetting<64, 64>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionNoSoftmaxFwdBlockTile<64, 64>::type,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<64, 64>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<64, 64>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxFwdTileSetting<64, 128>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionNoSoftmaxFwdBlockTile<64, 128>::type,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<64, 128>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<64, 128>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template <ck_tile::index_t MTile>
-struct HstuAttentionNoSoftmaxFwdTileSetting<96, MTile>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionNoSoftmaxFwdBlockTile<96>::type,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<96>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<96>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template struct HstuAttentionNoSoftmaxFwdTileSetting<96, 64>;
-template struct HstuAttentionNoSoftmaxFwdTileSetting<96, 128>;
-
-template <>
-struct HstuAttentionNoSoftmaxFwdTileSetting<128, 64>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionNoSoftmaxFwdBlockTile<128, 64>::type,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<128, 64>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<128, 64>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template <>
-struct HstuAttentionNoSoftmaxFwdTileSetting<128, 128>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionNoSoftmaxFwdBlockTile<128, 128>::type,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<128, 128>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<128, 128>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template <ck_tile::index_t MTile>
-struct HstuAttentionNoSoftmaxFwdTileSetting<256, MTile>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionNoSoftmaxFwdBlockTile<256>::type,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<256>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionNoSoftmaxFwdBlockTile<256>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template struct HstuAttentionNoSoftmaxFwdTileSetting<256, 64>;
-template struct HstuAttentionNoSoftmaxFwdTileSetting<256, 128>;
-
-template <ck_tile::index_t MaxK,
-          ck_tile::index_t MTile            = 0,
-          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
-struct HstuAttentionWithSoftmaxFwdTileSetting;
-
-template <>
-struct HstuAttentionWithSoftmaxFwdTileSetting<64, 64>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionWithSoftmaxFwdBlockTile<64, 64>::type,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<64, 64>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<64, 64>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxFwdTileSetting<64, 128>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionWithSoftmaxFwdBlockTile<64, 128>::type,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<64, 128>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<64, 128>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template <ck_tile::index_t MTile>
-struct HstuAttentionWithSoftmaxFwdTileSetting<96, MTile>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionWithSoftmaxFwdBlockTile<96>::type,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<96>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<96>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template struct HstuAttentionWithSoftmaxFwdTileSetting<96, 64>;
-template struct HstuAttentionWithSoftmaxFwdTileSetting<96, 128>;
-
-template <>
-struct HstuAttentionWithSoftmaxFwdTileSetting<128, 64>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionWithSoftmaxFwdBlockTile<128, 64>::type,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<128, 64>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<128, 64>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template <>
-struct HstuAttentionWithSoftmaxFwdTileSetting<128, 128>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionWithSoftmaxFwdBlockTile<128, 128>::type,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<128, 128>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<128, 128>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template <ck_tile::index_t MTile>
-struct HstuAttentionWithSoftmaxFwdTileSetting<256, MTile>
-{
-    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
-        typename HstuAttentionWithSoftmaxFwdBlockTile<256>::type,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<256>::gemm0_warps,
-        WarpTile_16x16x16,
-        typename HstuAttentionWithSoftmaxFwdBlockTile<256>::gemm1_warps,
-        WarpTile_16x16x16>;
-};
-
-template struct HstuAttentionWithSoftmaxFwdTileSetting<256, 64>;
-template struct HstuAttentionWithSoftmaxFwdTileSetting<256, 128>;
+    if constexpr(MaxK == 64)
+    {
+        if constexpr(ExpectedMTile == 64)
+        {
+            return ck_tile::HstuAttentionFwdTileSettingClass<
+                HstuAttentionFwdBlockTile_Hdim64_M64_N0_64_Sub32_K1_32,
+                HstuAttentionFwdGemm0Warps,
+                WarpTile_16x16x16,
+                HstuAttentionFwdGemm1Warps,
+                WarpTile_16x16x16>{};
+        }
+        else
+        {
+            return ck_tile::HstuAttentionFwdTileSettingClass<
+                HstuAttentionFwdBlockTile_Hdim64_M128_N0_64_Sub32_K1_32,
+                HstuAttentionFwdGemm0Warps,
+                WarpTile_16x16x16,
+                HstuAttentionFwdGemm1Warps,
+                WarpTile_16x16x16>{};
+        }
+    }
+    else if constexpr(MaxK == 96)
+    {
+        return ck_tile::HstuAttentionFwdTileSettingClass<
+            HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub32_K1_32,
+            HstuAttentionFwdGemm0Warps,
+            WarpTile_16x16x16,
+            HstuAttentionFwdGemm1Warps,
+            WarpTile_16x16x16>{};
+    }
+    else if constexpr(MaxK == 128)
+    {
+        if constexpr(ExpectedMTile == 64)
+        {
+            return ck_tile::HstuAttentionFwdTileSettingClass<
+                HstuAttentionFwdBlockTile_Hdim128_M64_N0_32_Sub16_K1_32,
+                HstuAttentionFwdGemm0Warps,
+                WarpTile_16x16x16,
+                HstuAttentionFwdGemm1Warps,
+                WarpTile_16x16x16>{};
+        }
+        else
+        {
+            if constexpr(kUseSoftmax)
+            {
+                if constexpr(kUseCausal)
+                {
+                    return ck_tile::HstuAttentionFwdTileSettingClass<
+                        HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub16_K1_16,
+                        HstuAttentionFwdGemm0Warps,
+                        WarpTile_16x16x16,
+                        HstuAttentionFwdGemm1Warps,
+                        WarpTile_16x16x16>{};
+                }
+                else
+                {
+                    return ck_tile::HstuAttentionFwdTileSettingClass<
+                        HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub16_K1_32,
+                        HstuAttentionFwdGemm0Warps,
+                        WarpTile_16x16x16,
+                        HstuAttentionFwdGemm1Warps,
+                        WarpTile_16x16x16>{};
+                }
+            }
+            else
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim128_M128_N0_32_Sub16_K1_32,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x16,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x16>{};
+            }
+        }
+    }
+    else if constexpr(MaxK == 256)
+    {
+        return ck_tile::HstuAttentionFwdTileSettingClass<
+            HstuAttentionFwdBlockTile_Hdim256_M128_N0_32_Sub16_K1_16,
+            HstuAttentionFwdGemm0Warps,
+            WarpTile_16x16x16,
+            HstuAttentionFwdGemm1Warps,
+            WarpTile_16x16x16>{};
+    }
+    else
+    {
+        static_assert(false, "MaxK size not supported!");
+    }
+}
 #endif
