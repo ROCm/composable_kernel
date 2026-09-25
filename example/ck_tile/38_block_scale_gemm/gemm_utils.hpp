@@ -216,6 +216,31 @@ struct GemmConfigPreshuffleB_BQuant_Prefill : public GemmConfigBase
     static constexpr int kBlockPerCu       = 2;
 };
 
+// RowCol (per-token x per-channel) scales on a weight-preshuffled B. The scales
+// are applied by the epilogue, so the quant mode and the B layout are
+// independent axes; this is the shape FP8 LLM inference uses when activations
+// are quantized online.
+template <typename PrecType>
+struct GemmConfigPreshuffleB_RowCol_Prefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile, true>();
+
+    static constexpr bool PreshuffleB      = true;
+    static constexpr bool DoubleSmemBuffer = true;
+    static constexpr int kBlockPerCu       = 2;
+};
+
 template <typename PrecType>
 struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
     : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>

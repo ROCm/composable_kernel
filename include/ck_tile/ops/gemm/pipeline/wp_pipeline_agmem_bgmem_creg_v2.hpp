@@ -76,6 +76,13 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     using Base             = BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, PipelinePolicy>;
 
+    // This pipeline consumes a preshuffled B. Kernels that have to know --
+    // QuantGemmKernel picks its B window and its N-step from it -- detect that
+    // by SFINAE on GemmPipeline::PreshuffleB and default to *false* when the
+    // member is absent (gemm_quant_kernel.hpp is_preshuffleB_enabled), which
+    // silently makes them treat preshuffled weights as a plain B.
+    static constexpr bool PreshuffleB = true;
+
     using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
     using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
     using CDataType  = remove_cvref_t<typename Problem::CDataType>;

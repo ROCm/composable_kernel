@@ -85,6 +85,12 @@ auto gen_lut_key(const ck_tile::ArgParser& arg_parser)
             arg_parser.get_bool("preshufflequant") ? "preshufflequant" : "non-preshufflequant";
         params.push_back(preshufflequant);
     }
+    if(quant_mode == "rowcol")
+    {
+        // RowCol scales are independent of the B layout, so the preshuffle
+        // choice selects a different kernel and must be part of the key.
+        params.push_back(arg_parser.get_bool("preshuffleb") ? "preshuffleb" : "non-preshuffleb");
+    }
     if(quant_mode != "rowcol" && quant_mode != "tensor")
     {
         // NOTE: rowcol and tensor pipeline do not use group size

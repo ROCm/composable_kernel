@@ -1626,9 +1626,11 @@ class TestCkTileGemmRowColQuant
     using typename Base::ComputeDataType;
     using typename Base::DsDataType;
     using typename Base::DsLayout;
+    using typename Base::GemmConfig;
     using typename Base::QDataType;
 
-    static constexpr auto QuantType = Base::QuantType;
+    static constexpr auto QuantType   = Base::QuantType;
+    static constexpr auto PreshuffleB = Base::PreshuffleB;
 
     static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
 
@@ -1676,7 +1678,15 @@ class TestCkTileGemmRowColQuant
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
+        if constexpr(PreshuffleB)
+        {
+            auto b_k_n_shuffled = ck_tile::shuffle_b_v0<GemmConfig>(b_k_n);
+            b_k_n_dev_buf.ToDevice(b_k_n_shuffled.data());
+        }
+        else
+        {
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
         row_scales_dev_buf.ToDevice(row_scales_m.data());
         col_scales_dev_buf.ToDevice(col_scales_n.data());
 
@@ -2127,7 +2137,10 @@ class TestCkTileGemmRowColQuant
                                                                      ComputeDataType,
                                                                      ComputeDataType>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+        using BaseGemmPipeline = std::conditional_t<
+            PreshuffleB,
+            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
         constexpr auto K1 = CodegenGemmShape::WarpTile::at(ck_tile::number<2>{});
         const ck_tile::index_t K_split =
@@ -2155,7 +2168,10 @@ class TestCkTileGemmRowColQuant
                 has_hot_loop_v,
                 tail_number_v>;
 
-            using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
+            using GemmPipeline = std::conditional_t<
+                PreshuffleB,
+                ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>,
+                ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,

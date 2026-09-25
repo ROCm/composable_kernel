@@ -6,6 +6,9 @@
 template <typename T>
 using GemmConfig = GemmConfigQuantDecode<T>;
 
+template <typename T>
+using GemmConfigPreshuffle = GemmConfigPreshuffleB_RowCol_Prefill<T>;
+
 static auto _ = []() {
     auto& lut = get_kernel_lut();
     // NOTE: QuantGroupSize is a place holder. rowcol pipeline does not use QuantGroupSize
@@ -26,5 +29,18 @@ static auto _ = []() {
                                           QuantGroupSize,
                                           ck_tile::QuantType::RowColQuant>(arg_parser);
     };
+    lut[hash_multiple_strings({"fp8", "rowcol", "preshuffleb"})] = [](const ck_tile::ArgParser&
+                                                                          arg_parser) {
+        using TypeConfig =
+            decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
+        return run_gemm_example_prec_type<GemmConfigPreshuffle<ck_tile::fp8_t>,
+                                          TypeConfig,
+                                          QuantGroupSize,
+                                          ck_tile::QuantType::RowColQuant>(arg_parser);
+    };
+    lut[hash_multiple_strings({"fp8", "rowcol", "non-preshuffleb"})] =
+        lut[hash_multiple_strings({"fp8", "rowcol"})];
+    lut[hash_multiple_strings({"bf8", "rowcol", "non-preshuffleb"})] =
+        lut[hash_multiple_strings({"bf8", "rowcol"})];
     return 0;
 }();
