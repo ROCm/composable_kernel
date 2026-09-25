@@ -55,7 +55,7 @@ using MultiDAddressEpilogue = ck_tile::CShuffleEpilogue<
 using MultiDAddressKernel = ck_tile::
     GroupedGemmKernel<MultiDAddressPartitioner, MultiDAddressPipeline, MultiDAddressEpilogue>;
 
-TEST(TestCkTileGroupedGemmMultiDAddressability, RebasedDAndEViewsAreAccepted)
+TEST(TestCkTileGroupedGemmMultiDAddressability, OffsetDAndEViewsAreAccepted)
 {
     ck_tile::UniversalGemmKernelArgs<1, 1, 2> args{{nullptr},
                                                    {nullptr},
@@ -69,10 +69,10 @@ TEST(TestCkTileGroupedGemmMultiDAddressability, RebasedDAndEViewsAreAccepted)
                                                    {4096, 4096},
                                                    4096,
                                                    1};
-    EXPECT_TRUE(MultiDAddressKernel::IsGroupedGemmAddressable(args));
+    EXPECT_TRUE(MultiDAddressKernel::IsArgumentAddressable(args));
 }
 
-TEST(TestCkTileGroupedGemmMultiDAddressability, RebasedBroadcastDViewsAreAccepted)
+TEST(TestCkTileGroupedGemmMultiDAddressability, OffsetBroadcastDViewsAreAccepted)
 {
     ck_tile::UniversalGemmKernelArgs<1, 1, 2> args{{nullptr},
                                                    {nullptr},
@@ -86,7 +86,7 @@ TEST(TestCkTileGroupedGemmMultiDAddressability, RebasedBroadcastDViewsAreAccepte
                                                    {0, 0},
                                                    4096,
                                                    1};
-    EXPECT_TRUE(MultiDAddressKernel::IsGroupedGemmAddressable(args));
+    EXPECT_TRUE(MultiDAddressKernel::IsArgumentAddressable(args));
 }
 
 } // namespace

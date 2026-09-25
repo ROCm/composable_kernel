@@ -15,8 +15,6 @@
 #include <hip/hip_runtime.h>
 
 #include <cstddef>
-#include <cstdint>
-#include <limits>
 
 #if __clang_major__ >= 23
 #pragma clang diagnostic push
@@ -294,14 +292,6 @@ struct GroupedGemmKernel
             {
                 return false;
             }
-            if(!IsGroupedGemmAddressable(karg.group_karg))
-            {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("A grouped GEMM tensor view exceeds 32-bit buffer addressing");
-                }
-                return false;
-            }
         }
         return true;
     }
@@ -325,75 +315,11 @@ struct GroupedGemmKernel
         return suitable;
     }
 
-    template <typename DataType>
-    CK_TILE_HOST_DEVICE static constexpr bool
-    IsBufferAddressable(const long_index_t element_space_size)
-    {
-        constexpr long_index_t max_descriptor_elements = std::numeric_limits<index_t>::max();
-        constexpr long_index_t max_buffer_elements =
-            std::numeric_limits<std::uint32_t>::max() / sizeof(DataType);
-        constexpr long_index_t max_elements = max_descriptor_elements < max_buffer_elements
-                                                  ? max_descriptor_elements
-                                                  : max_buffer_elements;
-        return element_space_size > 0 && element_space_size <= max_elements;
-    }
-
-    template <typename Layout>
-    CK_TILE_HOST_DEVICE static constexpr long_index_t
-    GetElementSpaceSize(const index_t rows, const index_t columns, const index_t stride)
-    {
-        if(rows <= 0 || columns <= 0 || stride <= 0)
-        {
-            return 0;
-        }
-
-        if constexpr(std::is_same_v<Layout, tensor_layout::gemm::RowMajor>)
-        {
-            return static_cast<long_index_t>(rows - 1) * stride + columns;
-        }
-        else
-        {
-            return static_cast<long_index_t>(columns - 1) * stride + rows;
-        }
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr bool
-    IsGroupedGemmAddressable(const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs)
-    {
-        if(kargs.M < 0 || kargs.N <= 0 || kargs.K < 0 || kargs.k_batch <= 0)
-        {
-            return false;
-        }
-        if(kargs.M == 0 || kargs.K == 0)
-        {
-            return true;
-        }
-
-        constexpr bool rebase_m = IsLargeTensorMOffsettingSupported();
-        const index_t view_m = rebase_m ? std::min(kargs.M, TilePartitioner::MPerBlock) : kargs.M;
-        bool addressable     = IsBufferAddressable<ADataType>(
-            GetElementSpaceSize<ALayout>(view_m, kargs.K, kargs.stride_As[0]));
-        addressable = addressable && IsBufferAddressable<BDataType>(GetElementSpaceSize<BLayout>(
-                                         kargs.K, kargs.N, kargs.stride_Bs[0]));
-        static_for<0, NumDTensor_, 1>{}([&](auto i) {
-            using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-            using DiDataType = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-            const long_index_t d_element_space_size =
-                kargs.stride_Ds[i] == 0
-                    ? kargs.N
-                    : GetElementSpaceSize<DiLayout>(view_m, kargs.N, kargs.stride_Ds[i]);
-            addressable = addressable && IsBufferAddressable<DiDataType>(d_element_space_size);
-        });
-        addressable = addressable && IsBufferAddressable<CDataType>(GetElementSpaceSize<CLayout>(
-                                         view_m, kargs.N, kargs.stride_E));
-        return addressable;
-    }
-
     CK_TILE_DEVICE void Run(UniversalGemmKernelArgs<1, 1, NumDTensor_> kargs,
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
-        if(!IsGroupedGemmAddressable(kargs))
+        if(!Base::IsArgumentAddressable(kargs))
         {
             __hip_assert(false && "A grouped GEMM tensor view exceeds 32-bit buffer addressing");
         }

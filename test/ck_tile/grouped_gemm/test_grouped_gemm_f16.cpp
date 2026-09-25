@@ -76,16 +76,16 @@ auto MakeAddressTestArg(const ck_tile::index_t m,
         {nullptr}, {nullptr}, {}, nullptr, m, n, k, {stride_a}, {stride_b}, {}, stride_c, 1}};
 }
 
-TEST(TestCkTileGroupedGemmAddressability, RowMajorMViewIsRebased)
+TEST(TestCkTileGroupedGemmAddressability, RowMajorMViewIsOffset)
 {
     using Kernel = AddressTestKernel<ck_tile::tensor_layout::gemm::RowMajor,
                                      ck_tile::tensor_layout::gemm::ColumnMajor>;
     auto below   = MakeAddressTestArg(524287, 4096, 64, 64, 64, 4096);
     auto exact   = MakeAddressTestArg(524288, 4096, 64, 64, 64, 4096);
     auto above   = MakeAddressTestArg(524289, 4096, 64, 64, 64, 4096);
-    EXPECT_TRUE(Kernel::IsGroupedGemmAddressable(below.group_karg));
-    EXPECT_TRUE(Kernel::IsGroupedGemmAddressable(exact.group_karg));
-    EXPECT_TRUE(Kernel::IsGroupedGemmAddressable(above.group_karg));
+    EXPECT_TRUE(Kernel::IsArgumentAddressable(below.group_karg));
+    EXPECT_TRUE(Kernel::IsArgumentAddressable(exact.group_karg));
+    EXPECT_TRUE(Kernel::IsArgumentAddressable(above.group_karg));
 
     const std::vector<ck_tile::GemmTransKernelArg<>> accepted{std::move(exact)};
     EXPECT_TRUE(Kernel::IsSupportedArgument(accepted));
@@ -93,7 +93,7 @@ TEST(TestCkTileGroupedGemmAddressability, RowMajorMViewIsRebased)
     using PersistentKernel = AddressTestKernel<ck_tile::tensor_layout::gemm::RowMajor,
                                                ck_tile::tensor_layout::gemm::ColumnMajor,
                                                true>;
-    EXPECT_TRUE(PersistentKernel::IsGroupedGemmAddressable(accepted[0].group_karg));
+    EXPECT_TRUE(PersistentKernel::IsArgumentAddressable(accepted[0].group_karg));
     EXPECT_TRUE(PersistentKernel::IsSupportedArgument(accepted));
 }
 
@@ -102,17 +102,20 @@ TEST(TestCkTileGroupedGemmAddressability, UnsafeFullViewsAreRejected)
     using UnsafeA = AddressTestKernel<ck_tile::tensor_layout::gemm::ColumnMajor,
                                       ck_tile::tensor_layout::gemm::ColumnMajor>;
     auto unsafe_a = MakeAddressTestArg(524288, 128, 4096, 524288, 4096, 128);
-    EXPECT_FALSE(UnsafeA::IsGroupedGemmAddressable(unsafe_a.group_karg));
+    EXPECT_FALSE(UnsafeA::IsArgumentAddressable(unsafe_a.group_karg));
     const std::vector<ck_tile::GemmTransKernelArg<>> rejected{std::move(unsafe_a)};
     EXPECT_FALSE(UnsafeA::IsSupportedArgument(rejected));
 
     using UnsafeB = AddressTestKernel<ck_tile::tensor_layout::gemm::RowMajor,
                                       ck_tile::tensor_layout::gemm::RowMajor>;
     auto unsafe_b = MakeAddressTestArg(128, 4096, 524288, 524288, 4096, 4096);
-    EXPECT_FALSE(UnsafeB::IsGroupedGemmAddressable(unsafe_b.group_karg));
+    EXPECT_FALSE(UnsafeB::IsArgumentAddressable(unsafe_b.group_karg));
 
-    auto safe_boundary = MakeAddressTestArg(128, 4096, 524287, 524287, 4096, 4096);
-    EXPECT_TRUE(UnsafeB::IsGroupedGemmAddressable(safe_boundary.group_karg));
+    auto below_limit = MakeAddressTestArg(128, 4096, 262143, 262143, 4096, 4096);
+    EXPECT_TRUE(UnsafeB::IsArgumentAddressable(below_limit.group_karg));
+
+    auto at_limit = MakeAddressTestArg(128, 4096, 262144, 262144, 4096, 4096);
+    EXPECT_FALSE(UnsafeB::IsArgumentAddressable(at_limit.group_karg));
 }
 
 } // namespace
