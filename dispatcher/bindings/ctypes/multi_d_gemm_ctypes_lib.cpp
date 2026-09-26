@@ -299,7 +299,7 @@ int dispatcher_run_multi_d_gemm(const void* A,
             {
                 *time_ms = -1.0f;
             }
-            return -2; // Arguments not supported by this kernel
+            return -3; // Arguments not supported by this kernel
         }
         return -1;
     }

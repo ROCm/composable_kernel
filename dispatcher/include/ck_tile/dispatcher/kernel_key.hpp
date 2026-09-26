@@ -49,7 +49,10 @@ enum class Pipeline : std::uint8_t
     CompV6,       // Compute pipeline v6
     PreShuffleV1, // Weight preshuffle pipeline v1
     PreShuffleV2, // Weight preshuffle pipeline v2 (optimized)
-    Wavelet       // Wavelet pipeline (specialized math + load waves)
+    Wavelet,      // Wavelet pipeline (specialized math + load waves)
+    CompAsync,    // Async global->LDS compute pipeline (always double-buffered)
+    CompTDMV1,    // Tensor Data Mover compute pipeline v1 (gfx1250 only)
+    CompTDMV2     // Tensor Data Mover compute pipeline v2 (gfx1250 only, 4 waves)
 };
 
 /// Epilogue strategies for output processing
@@ -57,11 +60,12 @@ enum class Pipeline : std::uint8_t
 enum class Epilogue : std::uint8_t
 {
     None,
-    Default,       // DefaultGemm2DEpilogue
-    CShuffle,      // CShuffleEpilogue (cross-shuffle)
-    Bias,          // Bias addition
-    Activation,    // Fused activation
-    BiasActivation // Fused bias + activation
+    Default,        // DefaultGemm2DEpilogue
+    CShuffle,       // CShuffleEpilogue (cross-shuffle)
+    Bias,           // Bias addition
+    Activation,     // Fused activation
+    BiasActivation, // Fused bias + activation
+    Tdm             // TdmEpilogue (Tensor Data Mover store, gfx1250 only)
 };
 
 /// Scheduler types for wave coordination
@@ -328,6 +332,9 @@ inline std::string to_string(Pipeline pipeline)
     case Pipeline::PreShuffleV1: return "preshufflev1";
     case Pipeline::PreShuffleV2: return "preshufflev2";
     case Pipeline::Wavelet: return "wavelet";
+    case Pipeline::CompAsync: return "comp_async";
+    case Pipeline::CompTDMV1: return "comp_tdm";
+    case Pipeline::CompTDMV2: return "comp_tdm_v2";
     default: return "unknown";
     }
 }
@@ -355,6 +362,12 @@ inline Pipeline string_to_pipeline(const std::string& str)
         return Pipeline::PreShuffleV2;
     if(str == "wavelet")
         return Pipeline::Wavelet;
+    if(str == "comp_async")
+        return Pipeline::CompAsync;
+    if(str == "comp_tdm")
+        return Pipeline::CompTDMV1;
+    if(str == "comp_tdm_v2")
+        return Pipeline::CompTDMV2;
     return Pipeline::Mem; // Default
 }
 
@@ -369,6 +382,7 @@ inline std::string to_string(Epilogue epilogue)
     case Epilogue::Bias: return "bias";
     case Epilogue::Activation: return "activation";
     case Epilogue::BiasActivation: return "bias_activation";
+    case Epilogue::Tdm: return "tdm";
     default: return "unknown";
     }
 }
@@ -388,6 +402,8 @@ inline Epilogue string_to_epilogue(const std::string& str)
         return Epilogue::Activation;
     if(str == "bias_activation")
         return Epilogue::BiasActivation;
+    if(str == "tdm")
+        return Epilogue::Tdm;
     return Epilogue::Default; // Default
 }
 

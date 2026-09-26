@@ -227,6 +227,63 @@ set_tests_properties(dispatcher_test_gemm_utils PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# gfx1250 comp_async / comp_tdm / comp_tdm_v2 pipelines and the tdm epilogue:
+# ArchFilter, codegen and gemm_utils gates, LDS budget and codegen output.
+# CPU-only.
+add_test(
+    NAME dispatcher_test_gfx1250_tdm_pipelines
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_gfx1250_tdm_pipelines.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_gfx1250_tdm_pipelines PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 300
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# The Tile Engine and dispatcher gfx1250 pipeline gates must accept exactly
+# the same trait x tile configs. CPU-only enumeration.
+add_test(
+    NAME dispatcher_test_gfx1250_gate_equivalence
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_gfx1250_gate_equivalence.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_gfx1250_gate_equivalence PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# arch_specs_generated.py/.hpp must equal a fresh regeneration from
+# arch_specs.json (timestamp ignored), so the JSON stays the source of truth.
+add_test(
+    NAME dispatcher_test_arch_specs_regeneration
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_arch_specs_regeneration.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_arch_specs_regeneration PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# Explicit unsupported run status (ctypes run() == -1): GemmResult exposes
+# it and the search-space sweep counts it as a skip. ctypes lib is mocked.
+add_test(
+    NAME dispatcher_test_gemm_result_status
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_gemm_result_status.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_gemm_result_status PROPERTIES
+    LABELS "dispatcher;python;gemm;validation"
+    TIMEOUT 60
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # MX bridge host tests and CMake configuration tests. Report missing host build
 # tools as a skipped CMake test rather than an all-skipped pass.
 foreach(_mx_test bridge cmake)

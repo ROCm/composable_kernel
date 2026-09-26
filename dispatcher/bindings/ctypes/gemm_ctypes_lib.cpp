@@ -624,6 +624,14 @@ int dispatcher_run_gemm(
     catch(const std::exception& e)
     {
         cleanup_gpu_mem();
+        if(std::string(e.what()).find("not supported") != std::string::npos)
+        {
+            if(time_ms)
+            {
+                *time_ms = -1.0f;
+            }
+            return -3; // Arguments not supported by this kernel
+        }
         return -1;
     }
 

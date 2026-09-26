@@ -24,7 +24,34 @@ def _import_gemm_kernel_builder():
     return gemm_builder_module.GemmKernelBuilder
 
 
+def _import_split_trait():
+    """Import the trait-string splitter shared by the GEMM ops."""
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    spec = importlib.util.spec_from_file_location(
+        "trait_parse", os.path.join(parent_dir, "trait_parse.py")
+    )
+    trait_parse_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(trait_parse_module)
+    return trait_parse_module.split_trait
+
+
 GemmKernelBuilder = _import_gemm_kernel_builder()
+split_trait = _import_split_trait()
+
+# gfx1250 WMMA warp tiles per datatype (the gfx1250 row of the dispatcher
+# arch_specs). The shared tile-engine warp-tile table has no gfx1250 entry and
+# accepts any warp tile there, so gemm_universal applies this row itself. Only
+# gfx1250 targets consult it; every other arch is validated exactly as before.
+GFX1250_WARP_TILES = {
+    "fp16": ([16, 16, 32],),
+    "bf16": ([16, 16, 32],),
+    "fp8": ([16, 16, 64], [16, 16, 128]),
+    "bf8": ([16, 16, 64], [16, 16, 128]),
+}
+
+
+def _is_gfx1250_target(gpu_target):
+    return str(gpu_target).split(":", 1)[0] == "gfx1250"
 
 
 class GemmUniversalKernelBuilder(GemmKernelBuilder):
@@ -52,6 +79,37 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
             seed=seed,
             tier=tier,
             manifest_path=manifest_path,
+        )
+
+    def _validate_tile_config(
+        self,
+        tile_m,
+        tile_n,
+        tile_k,
+        warp_m,
+        warp_n,
+        warp_k,
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
+        pipeline,
+    ):
+        """Restrict gfx1250 warp tiles to its WMMA row, then run the shared checks."""
+        if _is_gfx1250_target(self.gpu_target):
+            allowed = GFX1250_WARP_TILES.get(self.datatype, ())
+            if [warp_tile_m, warp_tile_n, warp_tile_k] not in allowed:
+                return False
+        return super()._validate_tile_config(
+            tile_m,
+            tile_n,
+            tile_k,
+            warp_m,
+            warp_n,
+            warp_k,
+            warp_tile_m,
+            warp_tile_n,
+            warp_tile_k,
+            pipeline,
         )
 
     def _generate_all_individual(self, num_workers=None):
@@ -314,8 +372,8 @@ def main():
             "warp_tile_k": int(warp_tile_dims[2]),
         }
 
-        # Parse trait combo
-        trait_parts = args.trait_combo.split("_")
+        # Parse trait combo (pipeline names such as comp_tdm_v2 contain "_")
+        trait_parts = split_trait(args.trait_combo)
         trait_combo = (
             trait_parts[0],  # pipeline
             trait_parts[1],  # epilogue
@@ -327,10 +385,7 @@ def main():
         )
 
         # Generate the kernel
-        builder._generate_kernel_instance(
-            tile_config,
-            trait_combo,
-        )
+        builder._generate_kernel_instance(tile_config, trait_combo, validate=True)
     elif args.gen_all_individual:
         # Generate all individual kernel files
         builder._generate_all_individual(args.num_workers)

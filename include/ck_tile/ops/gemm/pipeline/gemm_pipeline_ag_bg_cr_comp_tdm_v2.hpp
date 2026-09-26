@@ -32,7 +32,10 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
-    static_assert(BlockSize == get_warp_size() * 4, "pipeline requires 4 waves per workgroup");
+    // The pipeline body hardcodes four wave roles (warp_id 0-3); extra waves would skip the
+    // per-wave TDM issue and wait.
+    static_assert(Problem::BlockGemmShape::NumWarps == 4,
+                  "comp_tdm_v2 requires exactly 4 waves per workgroup");
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {

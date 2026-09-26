@@ -8,6 +8,9 @@ set(BATCHED_GEMM_MAX_INSTANCES "" CACHE STRING "Max kernel instances per (dtype,
 
 set(BATCHED_GEMM_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
+# Trait-string splitter that understands multi-token pipelines (comp_tdm_v2)
+include(${CMAKE_CURRENT_LIST_DIR}/../gemm_trait_parse.cmake)
+
 function(create_individual_batched_gemm_target datatype layout trait tile_config config_json)
     if(NOT BATCHED_GEMM_GPU_TARGETS)
         message(WARNING "Skipping individual batched GEMM target ${datatype}_${layout}_${trait}_${tile_config}: No supported GPU targets")
@@ -64,10 +67,7 @@ function(create_individual_batched_gemm_target datatype layout trait tile_config
     add_dependencies(benchmark_batched_gemm_${layout} ${target_name})
     add_dependencies(benchmark_batched_gemm_${datatype}_${layout} ${target_name})
 
-    string(REPLACE "_" ";" trait_parts ${trait})
-    list(GET trait_parts 0 pipeline)
-    list(GET trait_parts 1 epilogue)
-    list(GET trait_parts 2 scheduler)
+    ck_tile_gemm_split_trait("${trait}" pipeline epilogue scheduler)
 
     add_dependencies(benchmark_batched_gemm_${pipeline}_pipeline ${target_name})
     add_dependencies(benchmark_batched_gemm_${epilogue}_epilogue ${target_name})
@@ -84,6 +84,10 @@ function(build_individual_batched_gemm_targets datatype layout)
     elseif(NOT "${BATCHED_GEMM_CONFIG_FILE}" STREQUAL "")
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${BATCHED_GEMM_CONFIG_FILE}")
         message(VERBOSE "  Using custom config: ${BATCHED_GEMM_CONFIG_FILE}")
+    elseif(BATCHED_GEMM_GPU_TARGETS MATCHES "gfx1250")
+        # gfx1250 (WMMA) has its own warp-tile set and the TDM/async pipelines
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config_gfx1250.json")
+        message(VERBOSE "  Using gfx1250 default config for batched GEMM")
     else()
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
         message(VERBOSE "  Using default config for batched GEMM")
@@ -165,8 +169,29 @@ foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     endif()
 endforeach()
 
+# gfx1250 uses a different config (WMMA warp tiles, TDM/async pipelines) and a
+# single --gpu_target per kernel, so it is only built when it is the sole
+# matching target. In a mixed target list it is skipped and the other targets
+# are configured exactly as before.
+set(_BATCHED_GEMM_GFX1250_TARGETS "")
+foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
+    if(target MATCHES "^gfx1250(:|$)")
+        list(APPEND _BATCHED_GEMM_GFX1250_TARGETS ${target})
+    endif()
+endforeach()
+list(REMOVE_DUPLICATES _BATCHED_GEMM_GFX1250_TARGETS)
+list(LENGTH _BATCHED_GEMM_GFX1250_TARGETS _bg_n_gfx1250)
+if(_bg_n_gfx1250 GREATER 0)
+    if(NOT BATCHED_GEMM_GPU_TARGETS AND _bg_n_gfx1250 EQUAL 1)
+        set(BATCHED_GEMM_GPU_TARGETS ${_BATCHED_GEMM_GFX1250_TARGETS})
+        message(VERBOSE "  Adding GPU target: ${_BATCHED_GEMM_GFX1250_TARGETS}")
+    else()
+        message(WARNING "Skipping gfx1250 for Tile Engine batched GEMM: gfx1250 must be the only GPU target (found ${SUPPORTED_GPU_TARGETS})")
+    endif()
+endif()
+
 if(NOT BATCHED_GEMM_GPU_TARGETS)
-    message(WARNING "Skipping Tile Engine batched GEMM build: No supported GPU targets (gfx90a, gfx942, gfx950, gfx1201) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+    message(WARNING "Skipping Tile Engine batched GEMM build: No supported GPU targets (gfx90a, gfx942, gfx950, gfx1201, gfx1250) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 else()
     message(VERBOSE "Building individual batched GEMM targets for GPU targets: ${BATCHED_GEMM_GPU_TARGETS}")
 
@@ -189,6 +214,14 @@ else()
     set(BATCHED_GEMM_PIPELINES "mem;compv3;compv4")
     set(BATCHED_GEMM_EPILOGUES "default;cshuffle")
     set(BATCHED_GEMM_SCHEDULERS "intrawave;interwave")
+    if(BATCHED_GEMM_GPU_TARGETS MATCHES "gfx1250")
+        # gfx1250 pipelines: non-MX comp_async (cshuffle epilogue) and the TDM
+        # pipelines comp_tdm / comp_tdm_v2 (tdm epilogue). The weight-preshuffle
+        # pipelines are not built: the batched kernel's per-batch B offset
+        # assumes an unshuffled B.
+        list(APPEND BATCHED_GEMM_PIPELINES "comp_async;comp_tdm;comp_tdm_v2")
+        list(APPEND BATCHED_GEMM_EPILOGUES "tdm")
+    endif()
 
     foreach(pipeline IN LISTS BATCHED_GEMM_PIPELINES)
         add_custom_target(benchmark_batched_gemm_${pipeline}_pipeline)

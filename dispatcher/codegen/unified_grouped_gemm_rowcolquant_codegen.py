@@ -24,6 +24,7 @@ Reference:
 """
 
 import argparse
+import functools
 import itertools
 import json
 import logging
@@ -40,10 +41,17 @@ from codegen_common import (
     validate_rowcol_tensor_quant_gfx_arch,
     make_rowcolquant_kernel_name,
     rowcol_tensor_quant_default_tile,
+    reject_async_tdm_traits as _reject_async_tdm_traits,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
+
+
+# No async/TDM kernel path for this op: bind the shared guard to its name.
+reject_async_tdm_traits = functools.partial(
+    _reject_async_tdm_traits, "grouped_gemm_rowcolquant"
+)
 
 
 # =============================================================================
@@ -146,6 +154,9 @@ class RowColQuantKernelSpec:
     block_size: int = 256
     k_block_per_cu: int = 1
     gfx_arch: str = ""
+
+    def __post_init__(self):
+        reject_async_tdm_traits(self.pipeline, self.epilogue)
 
     @property
     def name(self) -> str:
@@ -455,6 +466,7 @@ def _build_specs(config: dict) -> List[RowColQuantKernelSpec]:
     defaults   = ROWCOL_TENSOR_QUANT_DEFAULT_TRAITS
     pipeline   = config.get("pipeline", defaults["pipeline"])
     epilogue   = config.get("epilogue", defaults["epilogue"])
+    reject_async_tdm_traits(pipeline, epilogue)
     scheduler  = config.get("scheduler", defaults["scheduler"])
     pad_m      = config.get("pad_m", defaults["pad_m"])
     pad_n      = config.get("pad_n", defaults["pad_n"])

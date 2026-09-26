@@ -3,6 +3,7 @@
 
 import os
 import argparse
+import functools
 import importlib.util
 import multiprocessing
 import concurrent.futures
@@ -44,6 +45,18 @@ def _import_validation_utils():
 _validation_utils = _import_validation_utils()
 LAYOUT_MAP = _validation_utils.LAYOUT_MAP
 
+
+# No async/TDM kernel path for this op: bind the shared guards to its name.
+_OP_NAME = "gemm_multi_abd"
+reject_async_tdm_traits = functools.partial(
+    _validation_utils.reject_async_tdm_traits, _OP_NAME
+)
+reject_async_tdm_trait_string = functools.partial(
+    _validation_utils.reject_async_tdm_trait_string, _OP_NAME
+)
+_reject_async_tdm_config = functools.partial(
+    _validation_utils.reject_async_tdm_config, _OP_NAME
+)
 
 def get_multi_abd_base_layouts(layout_code):
     """
@@ -242,6 +255,10 @@ class GemmMultiABDKernelBuilder(GemmKernelBuilder):
 
         return instance_code
 
+    def _generate_trait_combinations(self):
+        _reject_async_tdm_config(self.config)
+        return super()._generate_trait_combinations()
+
     def populate_launch(
         self,
         scheduler_type_map,
@@ -252,6 +269,7 @@ class GemmMultiABDKernelBuilder(GemmKernelBuilder):
         k_block_per_cu,
         persistent,
     ):
+        reject_async_tdm_traits(pipeline, epilogue)
         instance_code = """
 
     // Launch function
@@ -314,7 +332,8 @@ class GemmMultiABDKernelBuilder(GemmKernelBuilder):
 """
         return instance_code
 
-    def populate_epilogue(self, epilogue):
+    def populate_epilogue(self, epilogue, pipeline=None):
+        reject_async_tdm_traits(pipeline, epilogue)
         instance_code = """
 
         // Epilogue
@@ -641,6 +660,7 @@ def main():
             "warp_tile_k": int(warp_tile_dims[2]),
         }
 
+        reject_async_tdm_trait_string(args.trait_combo)
         trait_parts = args.trait_combo.split("_")
         trait_combo = (
             trait_parts[0],  # pipeline
@@ -652,7 +672,7 @@ def main():
             trait_parts[6] == "True",  # persistent
         )
 
-        builder._generate_kernel_instance(tile_config, trait_combo)
+        builder._generate_kernel_instance(tile_config, trait_combo, validate=True)
     elif args.gen_all_individual:
         builder._generate_all_individual(args.num_workers)
     else:

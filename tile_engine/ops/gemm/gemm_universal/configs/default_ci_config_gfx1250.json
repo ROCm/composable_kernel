@@ -1,19 +1,19 @@
 {
     "tile_config": {
         "tile_m": {
-            "max": 256,
-            "min": 64,
-            "step": 256
+            "values": [
+                128
+            ]
         },
         "tile_n": {
-            "max": 256,
-            "min": 64,
-            "step": 256
+            "values": [
+                128
+            ]
         },
         "tile_k": {
-            "max": 256,
-            "min": 64,
-            "step": 256
+            "values": [
+                64
+            ]
         },
         "warp_m": {
             "values": [
@@ -42,16 +42,14 @@
         },
         "warp_tile_k": {
             "values": [
-                32
+                32,
+                64
             ]
         }
     },
     "trait_config": {
         "pipeline": {
             "values": [
-                "compv3",
-                "compv4",
-                "mem",
                 "comp_async",
                 "comp_tdm",
                 "comp_tdm_v2"
@@ -59,14 +57,12 @@
         },
         "scheduler": {
             "values": [
-                "intrawave",
-                "interwave"
+                "intrawave"
             ]
         },
         "epilogue": {
             "values": [
                 "cshuffle",
-                "default",
                 "tdm"
             ]
         },

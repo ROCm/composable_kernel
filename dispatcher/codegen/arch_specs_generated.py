@@ -297,6 +297,12 @@ TRAIT_UNSUPPORTED_COMBINATIONS: Set[Tuple[str, str, str]] = {
     ("compv6", "default", "interwave"),
     ("comp_async", "cshuffle", "interwave"),
     ("comp_async", "default", "interwave"),
+    ("comp_tdm", "cshuffle", "interwave"),
+    ("comp_tdm", "default", "interwave"),
+    ("comp_tdm", "tdm", "interwave"),
+    ("comp_tdm_v2", "cshuffle", "interwave"),
+    ("comp_tdm_v2", "default", "interwave"),
+    ("comp_tdm_v2", "tdm", "interwave"),
 }
 
 # Valid dtype combinations: (A_dtype, B_dtype) -> acc_dtype and notes
@@ -342,6 +348,16 @@ def get_warp_tile_combos(gpu_arch: str, dtype_key: str) -> List[List[int]]:
     return gpu_combos.get(dtype_key.lower(), [])
 
 
+# Pipelines that stage LDS exactly like another pipeline and therefore share its
+# budget. The TDM pipelines always allocate two LDS buffers, as comp_async does.
+# Kept as an alias rather than as extra per-architecture keys so the budget
+# tables above stay uniform across architectures.
+LDS_PIPELINE_BUDGET_ALIASES: Dict[str, str] = {
+    "comp_tdm": "comp_async",
+    "comp_tdm_v2": "comp_async",
+}
+
+
 def get_lds_limit(gpu_arch: str, pipeline: str, double_smem_buffer: bool = False) -> int:
     """Get the LDS staging budget in bytes for an architecture and pipeline.
 
@@ -359,7 +375,8 @@ def get_lds_limit(gpu_arch: str, pipeline: str, double_smem_buffer: bool = False
         # that cannot launch.
         per_pipeline = _SMALLEST_LDS_BUDGET
 
-    budget = per_pipeline.get(pipeline.lower(), per_pipeline["default"])
+    pipeline_key = LDS_PIPELINE_BUDGET_ALIASES.get(pipeline.lower(), pipeline.lower())
+    budget = per_pipeline.get(pipeline_key, per_pipeline["default"])
 
     if double_smem_buffer:
         capacity = LDS_TOTAL_CAPACITY_BY_ARCH.get(arch, _SMALLEST_LDS_CAPACITY)

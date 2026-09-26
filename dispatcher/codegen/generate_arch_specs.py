@@ -93,6 +93,30 @@ def resolve_pipeline_lds_budgets(specs: Dict[str, Any]) -> Dict[str, Dict[str, i
     return resolved
 
 
+def resolve_pipeline_lds_budget_aliases(specs: Dict[str, Any]) -> Dict[str, str]:
+    """Return {alias: target} from pipeline_lds_budget_aliases.
+
+    Every target must be a pipeline with its own pipeline_lds_budget entry, so
+    an alias can never silently fall through to 'default'.
+    """
+    aliases = {
+        alias: target
+        for alias, target in specs.get("pipeline_lds_budget_aliases", {}).items()
+        if not alias.startswith("_")
+    }
+    for alias, target in aliases.items():
+        if target not in specs["pipeline_lds_budget"] or target.startswith("_"):
+            raise ValueError(
+                f"pipeline_lds_budget_aliases['{alias}'] targets '{target}', "
+                f"which has no pipeline_lds_budget entry."
+            )
+        if alias in specs["pipeline_lds_budget"]:
+            raise ValueError(
+                f"'{alias}' is both a pipeline_lds_budget entry and an alias."
+            )
+    return aliases
+
+
 def generate_python_module(specs: Dict[str, Any], output_path: Path):
     """Generate Python module from arch specs."""
 
@@ -141,6 +165,11 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
             lds_budgets_str += f'        "{pipeline}": {budget},\n'
         lds_budgets_str += "    },\n"
     lds_budgets_str += "}"
+
+    lds_aliases_str = "{\n"
+    for alias, target in resolve_pipeline_lds_budget_aliases(specs).items():
+        lds_aliases_str += f'    "{alias}": "{target}",\n'
+    lds_aliases_str += "}"
 
     lds_total_str = "{\n"
     for arch in lds_budgets:
@@ -262,6 +291,13 @@ def get_warp_tile_combos(gpu_arch: str, dtype_key: str) -> List[List[int]]:
     return gpu_combos.get(dtype_key.lower(), [])
 
 
+# Pipelines that stage LDS exactly like another pipeline and therefore share its
+# budget. The TDM pipelines always allocate two LDS buffers, as comp_async does.
+# Kept as an alias rather than as extra per-architecture keys so the budget
+# tables above stay uniform across architectures.
+LDS_PIPELINE_BUDGET_ALIASES: Dict[str, str] = {lds_aliases_str}
+
+
 def get_lds_limit(gpu_arch: str, pipeline: str, double_smem_buffer: bool = False) -> int:
     """Get the LDS staging budget in bytes for an architecture and pipeline.
 
@@ -279,7 +315,8 @@ def get_lds_limit(gpu_arch: str, pipeline: str, double_smem_buffer: bool = False
         # that cannot launch.
         per_pipeline = _SMALLEST_LDS_BUDGET
 
-    budget = per_pipeline.get(pipeline.lower(), per_pipeline["default"])
+    pipeline_key = LDS_PIPELINE_BUDGET_ALIASES.get(pipeline.lower(), pipeline.lower())
+    budget = per_pipeline.get(pipeline_key, per_pipeline["default"])
 
     if double_smem_buffer:
         capacity = LDS_TOTAL_CAPACITY_BY_ARCH.get(arch, _SMALLEST_LDS_CAPACITY)
@@ -383,9 +420,16 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
         "preshufflev1": "PreShuffleV1",
         "preshufflev2": "PreShuffleV2",
         "wavelet": "Wavelet",
-        # comp_async has no Pipeline enumerator, so it is intentionally absent:
-        # its budget exists only on the Python side.
     }
+    # comp_async and the gfx1250 TDM pipelines are emitted after the entries
+    # above so the case order of the pre-existing enumerators is unchanged. The
+    # TDM pipelines resolve their budget through pipeline_lds_budget_aliases.
+    async_pipeline_enum_map = {
+        "comp_async": "CompAsync",
+        "comp_tdm": "CompTDMV1",
+        "comp_tdm_v2": "CompTDMV2",
+    }
+    lds_budget_aliases = resolve_pipeline_lds_budget_aliases(specs)
 
     def _lds_pipeline_switch(per_pipeline: Dict[str, int], indent: str) -> list:
         lines = [f"{indent}switch(pipeline)", f"{indent}{{"]
@@ -394,6 +438,12 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
                 lines.append(
                     f"{indent}case Pipeline::{pipeline_enum_map[pipeline]}: "
                     f"return {budget};"
+                )
+        for pipeline, enum_name in async_pipeline_enum_map.items():
+            key = lds_budget_aliases.get(pipeline, pipeline)
+            if key in per_pipeline:
+                lines.append(
+                    f"{indent}case Pipeline::{enum_name}: return {per_pipeline[key]};"
                 )
         lines.append(f"{indent}default: return {per_pipeline['default']};")
         lines.append(f"{indent}}}")
@@ -507,7 +557,8 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch) {{
 
 // LDS staging budget in bytes for the A+B tiles, per architecture and
 // pipeline. The budget depends on the target: a tile that overflows one
-// architecture's LDS may fit comfortably in another's.
+// architecture's LDS may fit comfortably in another's. The gfx1250 TDM
+// pipelines (CompTDMV1/V2) share the double-buffered comp_async budget.
 inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline) {{
     switch(arch)
     {{
@@ -531,7 +582,9 @@ inline std::size_t get_lds_total_capacity(GpuArch arch) {{
 inline bool is_trait_unsupported(Pipeline pipeline, [[maybe_unused]] Epilogue epilogue, Scheduler scheduler) {{
     // Generated from unsupported_trait_combos in arch_specs.json
     if (scheduler == Scheduler::Interwave) {{
-        if (pipeline == Pipeline::CompV3 || pipeline == Pipeline::CompV4) {{
+        if (pipeline == Pipeline::CompV3 || pipeline == Pipeline::CompV4 ||
+            pipeline == Pipeline::CompAsync || pipeline == Pipeline::CompTDMV1 ||
+            pipeline == Pipeline::CompTDMV2) {{
             return true;
         }}
     }}

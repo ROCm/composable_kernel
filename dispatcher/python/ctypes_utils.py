@@ -647,7 +647,8 @@ class DispatcherLib:
         Run GEMM operation
 
         Returns: (status, time_ms)
-            status: 0 = success, -1 = error, -2 = no suitable kernel
+            status: 0 = success, -1 = error, -2 = no suitable kernel,
+                    -3 = kernel rejected the arguments
         """
         time_ms = ctypes.c_float(0.0)
 

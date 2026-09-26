@@ -27,6 +27,7 @@ Reference:
 """
 
 import argparse
+import functools
 import itertools
 import json
 import logging
@@ -34,10 +35,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from codegen_common import make_aquant_kernel_name, aquant_effective_epilogue
+from codegen_common import (
+    make_aquant_kernel_name,
+    aquant_effective_epilogue,
+    reject_async_tdm_traits as _reject_async_tdm_traits,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
+
+
+# No async/TDM kernel path for this op: bind the shared guard to its name.
+reject_async_tdm_traits = functools.partial(
+    _reject_async_tdm_traits, "grouped_gemm_aquant"
+)
 
 
 # =============================================================================
@@ -169,6 +180,9 @@ class AQuantKernelSpec:
     block_size: int = 256
     k_block_per_cu: int = 1
     transpose_c: bool = False
+
+    def __post_init__(self):
+        reject_async_tdm_traits(self.pipeline, self.epilogue)
 
     @property
     def name(self) -> str:
@@ -458,6 +472,7 @@ def _build_specs(config: dict) -> List[AQuantKernelSpec]:
     specs = []
     pipeline   = config.get("pipeline", "compv3")
     epilogue   = config.get("epilogue", "cshuffle")
+    reject_async_tdm_traits(pipeline, epilogue)
     scheduler  = config.get("scheduler", "intrawave")
     pad_m      = config.get("pad_m", False)
     pad_n      = config.get("pad_n", False)

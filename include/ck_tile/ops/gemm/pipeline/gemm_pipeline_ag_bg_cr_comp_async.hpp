@@ -137,6 +137,15 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
     static constexpr bool LargeTensors = Problem::LargeTensors;
 
+    template <typename T>
+    using mx_scale_type = typename T::AScaleDataType;
+
+    // Plain GEMM problems take the persistent (tile-looping) kernel entry point when requested.
+    // MX problems keep one block per tile: their host path launches GridSize(M, N, k_batch),
+    // whose split-K z-dimension the persistent loop does not read.
+    static constexpr bool UsePersistentKernel =
+        Problem::Traits::UsePersistentKernel && !is_detected<mx_scale_type, Problem>{};
+
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;

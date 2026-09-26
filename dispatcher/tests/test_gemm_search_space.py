@@ -378,7 +378,7 @@ def run(args) -> int:
     flops = ops.grouped_problem.flops if variant == "grouped" else ops.problem.flops
 
     results = []
-    n_pass = n_fail = n_build_fail = 0
+    n_pass = n_fail = n_build_fail = n_skip = 0
 
     for cfg, so in zip(configs, so_paths):
         if so is None:
@@ -398,6 +398,14 @@ def run(args) -> int:
         except Exception as exc:
             n_fail += 1
             results.append({"name": cfg.name, "status": "run_error", "error": str(exc)})
+            continue
+        # run() rejected the problem (IsSupportedArgument): the kernel never
+        # launched, so there is no output to verify. Count it as a skip, not a
+        # numerical failure.
+        if result is not None and getattr(result, "unsupported", False):
+            n_skip += 1
+            results.append({"name": cfg.name, "status": "unsupported",
+                            "error": f"status={result.status}"})
             continue
         if result is None or not result.success:
             n_fail += 1
@@ -425,25 +433,31 @@ def run(args) -> int:
     # --- Report ---
     print(f"\n{'='*60}")
     print(f"Results: {n_pass} pass / {n_fail} fail / {n_build_fail} build-fail "
-          f"/ {len(configs)} total")
+          f"/ {n_skip} unsupported-skip / {len(configs)} total")
 
     if args.json:
         out = {"variant": variant, "arch": arch, "size": size, "seed": seed,
                "budget": budget, "total_configs": total, "n_pass": n_pass,
-               "n_fail": n_fail, "n_build_fail": n_build_fail, "kernels": results}
+               "n_fail": n_fail, "n_build_fail": n_build_fail, "n_skip": n_skip,
+               "kernels": results}
         Path(args.json).write_text(json.dumps(out, indent=2))
         print(f"Results written to {args.json}")
 
     if n_fail > 0 or n_build_fail > 0:
         print("\nFailed kernels:")
         for r in results:
-            if r["status"] != "pass":
+            if r["status"] not in ("pass", "unsupported"):
                 print(f"  {r['name']}: {r['status']} "
                       f"{r.get('error', r.get('max_rel', ''))}")
 
     # A build failure is a failure. Excluding it would mean a total codegen or
     # compile breakage -- every kernel failing to build, nothing verified --
     # still reports a green lane.
+    # Same reasoning for unsupported skips: if every kernel that built was
+    # rejected at run() time, nothing was verified and the lane must not pass.
+    if n_pass == 0 and n_skip > 0:
+        print("\nNo kernel was verified: every built kernel was unsupported.")
+        return 1
     return 0 if n_fail == 0 and n_build_fail == 0 else 1
 
 

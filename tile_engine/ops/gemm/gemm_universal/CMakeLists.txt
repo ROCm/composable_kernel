@@ -15,6 +15,9 @@ set(GEMM_UNIVERSAL_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(GEMM_UNIVERSAL_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/../configs"
     CACHE PATH "Directory holding gemm sweep config JSONs")
 
+# Trait-string splitter that understands multi-token pipelines (comp_tdm_v2)
+include(${CMAKE_CURRENT_LIST_DIR}/../gemm_trait_parse.cmake)
+
 # Function to create individual GEMM Universal targets
 function(create_individual_gemm_universal_target datatype layout trait tile_config config_json)
     # Use the parent scope GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL variable
@@ -107,10 +110,7 @@ function(create_individual_gemm_universal_target datatype layout trait tile_conf
     add_dependencies(benchmark_gemm_universal_${datatype}_${layout} ${target_name})
 
     # Add to trait-specific targets
-    string(REPLACE "_" ";" trait_parts ${trait})
-    list(GET trait_parts 0 pipeline)
-    list(GET trait_parts 1 epilogue)
-    list(GET trait_parts 2 scheduler)
+    ck_tile_gemm_split_trait("${trait}" pipeline epilogue scheduler)
 
     add_dependencies(benchmark_gemm_universal_${pipeline}_pipeline ${target_name})
     add_dependencies(benchmark_gemm_universal_${epilogue}_epilogue ${target_name})
@@ -136,6 +136,10 @@ function(build_individual_gemm_universal_targets datatype layout)
         # Use CMake variable if set
         set(json_blob "${GEMM_UNIVERSAL_CONFIG_DIR}/${GEMM_UNIVERSAL_CONFIG_FILE}")
         message(VERBOSE "  Using custom config: ${GEMM_UNIVERSAL_CONFIG_FILE}")
+    elseif(GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL MATCHES "gfx1250")
+        # gfx1250 (WMMA) has its own warp-tile set and the TDM/async pipelines
+        set(json_blob "${GEMM_UNIVERSAL_SOURCE_DIR}/configs/default_config_gfx1250.json")
+        message(VERBOSE "  Using gfx1250 default config for layout ${layout}")
     else()
         # Use default config for all layouts
         set(json_blob "${GEMM_UNIVERSAL_CONFIG_DIR}/default_config.json")
@@ -255,9 +259,30 @@ foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     endif()
 endforeach()
 
+# gfx1250 uses a different config (WMMA warp tiles, TDM/async pipelines) and a
+# single --gpu_target per kernel, so it is only built when it is the sole
+# matching target. In a mixed target list it is skipped and the other targets
+# are configured exactly as before.
+set(_GEMM_UNIVERSAL_GFX1250_TARGETS "")
+foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
+    if(target MATCHES "^gfx1250(:|$)")
+        list(APPEND _GEMM_UNIVERSAL_GFX1250_TARGETS ${target})
+    endif()
+endforeach()
+list(REMOVE_DUPLICATES _GEMM_UNIVERSAL_GFX1250_TARGETS)
+list(LENGTH _GEMM_UNIVERSAL_GFX1250_TARGETS _gu_n_gfx1250)
+if(_gu_n_gfx1250 GREATER 0)
+    if(NOT GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL AND _gu_n_gfx1250 EQUAL 1)
+        set(GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL ${_GEMM_UNIVERSAL_GFX1250_TARGETS})
+        message(VERBOSE "  Adding GPU target: ${_GEMM_UNIVERSAL_GFX1250_TARGETS}")
+    else()
+        message(WARNING "Skipping gfx1250 for Tile Engine GEMM Universal: gfx1250 must be the only GPU target (found ${SUPPORTED_GPU_TARGETS})")
+    endif()
+endif()
+
 # Skip build if no matching targets found
 if(NOT GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL)
-    message(WARNING "Skipping Tile Engine GEMM Universal build: No supported GPU targets (gfx90a, gfx942, gfx950, gfx1201, gfx12-generic) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+    message(WARNING "Skipping Tile Engine GEMM Universal build: No supported GPU targets (gfx90a, gfx942, gfx950, gfx1201, gfx12-generic, gfx1250) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 else()
     message(VERBOSE "Building individual GEMM Universal targets for GPU targets: ${GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL}")
 
@@ -307,6 +332,12 @@ else()
     set(GEMM_UNIVERSAL_PIPELINES "mem;compv3;compv4")
     set(GEMM_UNIVERSAL_EPILOGUES "default;cshuffle")
     set(GEMM_UNIVERSAL_SCHEDULERS "intrawave;interwave")
+    if(GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL MATCHES "gfx1250")
+        # gfx1250 pipelines: non-MX comp_async (cshuffle epilogue) and the TDM
+        # pipelines comp_tdm / comp_tdm_v2 (tdm epilogue)
+        list(APPEND GEMM_UNIVERSAL_PIPELINES "comp_async;comp_tdm;comp_tdm_v2")
+        list(APPEND GEMM_UNIVERSAL_EPILOGUES "tdm")
+    endif()
 
     foreach(pipeline IN LISTS GEMM_UNIVERSAL_PIPELINES)
         add_custom_target(benchmark_gemm_universal_${pipeline}_pipeline)

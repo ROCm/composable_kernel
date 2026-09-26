@@ -112,6 +112,12 @@ class TraitConfigBase:
             ("comp_async", "default", "interwave"),
             ("basic_async_v1", "cshuffle", "interwave"),
             ("basic_async_v1", "default", "interwave"),
+            ("comp_tdm", "tdm", "interwave"),
+            ("comp_tdm", "cshuffle", "interwave"),
+            ("comp_tdm", "default", "interwave"),
+            ("comp_tdm_v2", "tdm", "interwave"),
+            ("comp_tdm_v2", "cshuffle", "interwave"),
+            ("comp_tdm_v2", "default", "interwave"),
         }
     )
 
@@ -184,6 +190,10 @@ class CommonTypeMappings:
         "compv4": "GemmPipelineAgBgCrCompV4",
         "compv5": "GemmPipelineAgBgCrCompV5",
         "preshufflev2": "WeightPreshufflePipelineAGmemBGmemCRegV2",
+        "comp_async": "GemmPipelineAgBgCrCompAsync",
+        # gfx1250 only (Tensor Data Mover); always paired with the tdm epilogue.
+        "comp_tdm": "GemmPipelineAgBgCrCompTDMV1",
+        "comp_tdm_v2": "GemmPipelineAgBgCrCompTDMV2",
     }
 
     PIPELINE_TO_BASE = {
@@ -192,6 +202,9 @@ class CommonTypeMappings:
         "compv4": "BaseGemmPipelineAgBgCrCompV4",
         "compv5": "BaseGemmPipelineAgBgCrCompV5",
         "preshufflev2": "BaseWeightPreshufflePipelineAGmemBGmemCRegV2",
+        "comp_async": "BaseGemmPipelineAgBgCrCompAsync",
+        "comp_tdm": "BaseGemmPipelineAgBgCrCompTDM",
+        "comp_tdm_v2": "BaseGemmPipelineAgBgCrCompTDM",
     }
 
     PIPELINE_TO_DISPATCHER = {
@@ -200,6 +213,9 @@ class CommonTypeMappings:
         "compv4": "Pipeline::CompV4",
         "compv5": "Pipeline::CompV5",
         "preshufflev2": "Pipeline::PreShuffleV2",
+        "comp_async": "Pipeline::CompAsync",
+        "comp_tdm": "Pipeline::CompTDMV1",
+        "comp_tdm_v2": "Pipeline::CompTDMV2",
     }
 
     SCHEDULER_TO_CK = {
@@ -217,6 +233,7 @@ class CommonTypeMappings:
     EPILOGUE_TO_DISPATCHER = {
         "cshuffle": "Epilogue::CShuffle",
         "default": "Epilogue::Default",
+        "tdm": "Epilogue::Tdm",
     }
 
     @staticmethod
@@ -723,6 +740,139 @@ def tile_config_from_dict(tile_dict: Mapping[str, int]) -> TileConfig:
         warp_tile_n=tile_dict["warp_tile_n"],
         warp_tile_k=tile_dict["warp_tile_k"],
     )
+
+
+# Non-MX comp_async on gfx1250 must be fully padded. Shared by
+# unified_gemm_codegen, arch_filter and the Tile Engine gemm_validation_utils
+# (identical text there).
+GFX1250_COMP_ASYNC_PAD_REJECT_REASON = (
+    "comp_async on gfx1250 unpadded: the async K-prefetch reads past the A/B "
+    "extent and the TailNumber::Two path lacks an LDS fence, so comp_async "
+    "requires pad_m=pad_n=pad_k=True"
+)
+
+# Non-MX comp_async on gfx1250 with 8-bit A/B (fp8/bf8, the XOR-swizzled async
+# load path) gives wrong results with warp_tile_k 32 or 64 at any tile_k
+# (on-device verified); warp_tile_k=128 is correct. Shared like
+# GFX1250_COMP_ASYNC_PAD_REJECT_REASON above.
+GFX1250_COMP_ASYNC_8BIT_DTYPES = ("fp8", "bf8")
+GFX1250_COMP_ASYNC_8BIT_MIN_WARP_TILE_K = 128
+GFX1250_COMP_ASYNC_8BIT_WARP_TILE_K_REJECT_REASON = (
+    "comp_async on gfx1250 with fp8/bf8 A/B gives wrong results below "
+    "warp_tile_k=128 (XOR-swizzled 8-bit async load), so it requires "
+    "warp_tile_k >= 128"
+)
+
+
+def gfx1250_comp_async_8bit_warp_tile_k_rejected(dtype_a, dtype_b, warp_tile_k) -> bool:
+    """True if a gfx1250 non-MX comp_async config has fp8/bf8 A or B and a
+    warp_tile_k below GFX1250_COMP_ASYNC_8BIT_MIN_WARP_TILE_K."""
+    is_8bit = (
+        dtype_a in GFX1250_COMP_ASYNC_8BIT_DTYPES
+        or dtype_b in GFX1250_COMP_ASYNC_8BIT_DTYPES
+    )
+    return is_8bit and warp_tile_k < GFX1250_COMP_ASYNC_8BIT_MIN_WARP_TILE_K
+
+
+# gfx1250 pipelines: the Tensor Data Mover pipelines (gfx1250-only; off gfx1250
+# the TDM path compiles to a no-op and the kernel silently writes zeros, so the
+# arch gate is exact) plus non-MX comp_async (MX comp_async on gfx950 is a
+# separate kernel family and is not gated here).
+GFX1250_ARCH = "gfx1250"
+TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2")
+GFX1250_ONLY_PIPELINES = ("comp_async",) + TDM_PIPELINES
+TDM_PAD_REJECT_REASON = (
+    "TDM bounds-clips on real descriptor extents; kPad right-pad transforms "
+    "inflate them, so TDM requires pad_m=pad_n=pad_k=False"
+)
+GFX1250_COMP_ASYNC_LAYOUT_REJECT_REASON = (
+    "comp_async on gfx1250 requires A row-major and B col-major (transpose-load "
+    "path incompatible with WMMA 16x16x32 K distribution)"
+)
+
+
+# The grouped quant GEMM kernels have no async (comp_async) or TDM (comp_tdm,
+# comp_tdm_v2 + tdm epilogue) implementation: the quant pipeline problem is
+# synchronous and the kernel uses a CShuffle-style epilogue. Their codegens
+# reject these traits on every arch instead of skipping or mislabelling a kernel.
+UNSUPPORTED_ASYNC_TDM_PIPELINES = GFX1250_ONLY_PIPELINES
+UNSUPPORTED_ASYNC_TDM_EPILOGUES = ("tdm",)
+
+
+def reject_async_tdm_traits(op_name: str, pipeline: str, epilogue: str) -> None:
+    """Raise ValueError if pipeline/epilogue is an async/TDM-only trait."""
+    if pipeline in UNSUPPORTED_ASYNC_TDM_PIPELINES:
+        raise ValueError(
+            f"{op_name} does not support the '{pipeline}' pipeline "
+            "(async/TDM pipelines are not implemented for grouped quant GEMM)"
+        )
+    if epilogue in UNSUPPORTED_ASYNC_TDM_EPILOGUES:
+        raise ValueError(
+            f"{op_name} does not support the '{epilogue}' epilogue "
+            "(TDM epilogue is not implemented for grouped quant GEMM)"
+        )
+
+
+def gfx1250_pipeline_reject_reason(
+    gpu_target: str,
+    pipeline: str,
+    epilogue: str,
+    scheduler: str,
+    num_waves: int,
+    warp_tile_k: int,
+    dtype_a: str,
+    dtype_b: str,
+    layout: str,
+    variant_supported: bool = True,
+    variant_name: str = "",
+    persistent: bool = False,
+    pads: Optional[Tuple[bool, bool, bool]] = None,
+) -> str:
+    """Why a comp_async / comp_tdm* / tdm-epilogue GEMM config is rejected.
+
+    Single source of truth for the non-MX GEMM rules shared by
+    unified_gemm_codegen, arch_filter and python/gemm_utils. Returns "" when
+    the config is accepted; every other pipeline/epilogue returns ""
+    immediately, so existing kernel sets are unchanged.
+
+    ``variant_supported`` is False for GEMM variants the pipelines do not
+    support (only plain and batched GEMM are). ``pads`` is (pad_m, pad_n,
+    pad_k); None means unknown and skips the pad rules. An empty ``layout``
+    skips the comp_async layout rule and empty dtypes skip the 8-bit
+    warp_tile_k rule.
+    """
+    is_tdm = pipeline in TDM_PIPELINES
+    if pipeline not in GFX1250_ONLY_PIPELINES and epilogue != "tdm":
+        return ""
+    if epilogue == "tdm" and not is_tdm:
+        return f"epilogue=tdm requires a TDM pipeline {TDM_PIPELINES}"
+    if normalize_gfx_arch(gpu_target).lower() != GFX1250_ARCH:
+        return f"pipeline={pipeline} requires {GFX1250_ARCH}, got {gpu_target}"
+    if scheduler != "intrawave":
+        return f"pipeline={pipeline} requires scheduler=intrawave"
+    if not variant_supported:
+        return f"pipeline={pipeline} is not supported for {variant_name}"
+    if is_tdm:
+        if epilogue != "tdm":
+            return f"pipeline={pipeline} requires epilogue=tdm"
+        if persistent:
+            return f"pipeline={pipeline} does not support the persistent kernel"
+        if pads is not None and any(pads):
+            return TDM_PAD_REJECT_REASON
+        if pipeline == "comp_tdm_v2" and num_waves != 4:
+            return "comp_tdm_v2 requires exactly 4 waves"
+        return ""
+    # Only the cshuffle epilogue carries DoubleSmemBuffer, matching the Tile
+    # Engine trait rules.
+    if epilogue != "cshuffle":
+        return f"pipeline={pipeline} requires epilogue=cshuffle"
+    if layout and layout[:2] != "rc":
+        return GFX1250_COMP_ASYNC_LAYOUT_REJECT_REASON
+    if pads is not None and not all(pads):
+        return GFX1250_COMP_ASYNC_PAD_REJECT_REASON
+    if gfx1250_comp_async_8bit_warp_tile_k_rejected(dtype_a, dtype_b, warp_tile_k):
+        return GFX1250_COMP_ASYNC_8BIT_WARP_TILE_K_REJECT_REASON
+    return ""
 
 
 def rcr_only_layout_guard(layout: str) -> Optional[str]:

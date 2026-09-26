@@ -3,26 +3,30 @@
         "tile_m": {
             "max": 256,
             "min": 64,
-            "step": 256
+            "step": 64
         },
         "tile_n": {
             "max": 256,
             "min": 64,
-            "step": 256
+            "step": 64
         },
         "tile_k": {
             "max": 256,
             "min": 64,
-            "step": 256
+            "step": 64
         },
         "warp_m": {
             "values": [
-                2
+                4,
+                2,
+                1
             ]
         },
         "warp_n": {
             "values": [
-                2
+                4,
+                2,
+                1
             ]
         },
         "warp_k": {
@@ -42,7 +46,9 @@
         },
         "warp_tile_k": {
             "values": [
-                32
+                32,
+                64,
+                128
             ]
         }
     },
@@ -90,7 +96,8 @@
         },
         "persistent": {
             "values": [
-                false
+                false,
+                true
             ]
         }
     },
