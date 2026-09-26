@@ -116,31 +116,30 @@ struct BlockGemmARegBSmemCRegV2Hack_0
         constexpr auto I0 = number<0>{};
 
         // hot loop:
+        using b_warp_tensor_type = decltype(load_tile(b_warp_windows(I0)(I0)));
+
+        statically_indexed_array<statically_indexed_array<b_warp_tensor_type, NIterPerWarp>, 2>
+            b_warp_tensors;
+
+        // read B warp tensor from B Block window
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-            using b_warp_tensor_type = decltype(load_tile(b_warp_windows(I0)(I0)));
-
-            statically_indexed_array<b_warp_tensor_type, KIterPerWarp> b_warp_tensors;
-
-            // read B warp tensor from B Block window
             b_warp_windows(nIter)(I0) = b_warp_window_tmp;
             move_tile_window(b_warp_windows(nIter)(I0),
                              {nIter * NPerBlockPerIter, 0 * KPerBlockPerIter});
-            b_warp_tensors[I0] = load_tile(b_warp_windows(nIter)(I0));
+            b_warp_tensors(I0)(nIter) = load_tile(b_warp_windows(nIter)(I0));
+        });
 
-            __builtin_amdgcn_sched_barrier(0);
-
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+        static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 if constexpr(kIter < KIterPerWarp - 1)
                 {
                     // read B warp tensor from B Block window
                     b_warp_windows(nIter)(number<kIter + 1>{}) = b_warp_window_tmp;
                     move_tile_window(b_warp_windows(nIter)(number<kIter + 1>{}),
                                      {nIter * NPerBlockPerIter, (kIter + 1) * KPerBlockPerIter});
-                    b_warp_tensors[number<kIter + 1>{}] =
+                    b_warp_tensors(number<(kIter + 1) % 2>{})(nIter) =
                         load_tile(b_warp_windows(nIter)(number<kIter + 1>{}));
                 };
-
-                __builtin_amdgcn_sched_barrier(0);
 
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
@@ -156,7 +155,8 @@ struct BlockGemmARegBSmemCRegV2Hack_0
                     if constexpr(kIter == 0)
                     {
                         // warp GEMM
-                        c_warp_tensor = WG{}(a_warp_tensor, b_warp_tensors[kIter]);
+                        c_warp_tensor =
+                            WG{}(a_warp_tensor, b_warp_tensors[number<kIter % 2>{}][nIter]);
                         // WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_array[nIter]);
                     }
                     else
@@ -166,7 +166,9 @@ struct BlockGemmARegBSmemCRegV2Hack_0
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                         // warp GEMM
-                        WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensors[kIter]);
+                        WG{}(c_warp_tensor,
+                             a_warp_tensor,
+                             b_warp_tensors[number<kIter % 2>{}][nIter]);
                         // WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_array[nIter]);
                     };
 
