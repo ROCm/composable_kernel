@@ -357,6 +357,96 @@ struct BlockGemmARegBRegCRegV2
         }
     }
 
+    template <bool NPairMajor = false,
+              typename CBlockTensor,
+              typename ABlockTensor,
+              typename BBlockTensor,
+              typename AfterWarp>
+    CK_TILE_DEVICE void RunWithAfterWarp(CBlockTensor& c_block_tensor,
+                                         const ABlockTensor& a_block_tensor,
+                                         const BBlockTensor& b_block_tensor,
+                                         AfterWarp&& after_warp) const
+    {
+        static_assert(BlockGemmLoopOrder == GemmLoopOrder::MNK);
+        static_assert((MIterPerWarp == 1 || MIterPerWarp == 2) && NIterPerWarp == 4 &&
+                      KIterPerWarp == 1);
+        static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
+                          std::is_same_v<BDataType, remove_cv_t<typename BBlockTensor::DataType>> &&
+                          std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+                      "wrong!");
+
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(MakeABlockDistributionEncode())>,
+                           remove_cvref_t<decltype(ABlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "A distribution is wrong!");
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(MakeBBlockDistributionEncode())>,
+                           remove_cvref_t<decltype(BBlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "B distribution is wrong!");
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(MakeCBlockDistributionEncode())>,
+                           remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "C distribution is wrong!");
+
+        using AWarpDstr = typename WarpGemm::AWarpDstr;
+        using BWarpDstr = typename WarpGemm::BWarpDstr;
+        using CWarpDstr = typename WarpGemm::CWarpDstr;
+
+        using AWarpTensor = typename WarpGemm::AWarpTensor;
+        using BWarpTensor = typename WarpGemm::BWarpTensor;
+        using CWarpTensor = typename WarpGemm::CWarpTensor;
+
+        constexpr auto a_warp_y_lengths =
+            to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto b_warp_y_lengths =
+            to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+        constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+        constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
+        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+        // Visit a pair of B fragments across M before advancing to the next pair.
+        // This preserves A reuse inside the pair and releases B early for a reload.
+        using Iterations =
+            std::conditional_t<NPairMajor,
+                               sequence<NIterPerWarp / 2, MIterPerWarp, 2, KIterPerWarp>,
+                               sequence<1, MIterPerWarp, NIterPerWarp, KIterPerWarp>>;
+        static_ford<Iterations>{}([&](auto mnk) {
+            constexpr auto mIter = number<mnk[number<1>{}]>{};
+            constexpr auto nIter =
+                number<mnk[number<0>{}] * (NPairMajor ? 2 : NIterPerWarp) + mnk[number<2>{}]>{};
+            constexpr auto kIter = number<mnk[number<3>{}]>{};
+
+            AWarpTensor a_warp_tensor;
+            a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
+                merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
+            BWarpTensor b_warp_tensor;
+            b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
+                merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+
+            CWarpTensor c_warp_tensor;
+            c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+            WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+
+            c_block_tensor.set_y_sliced_thread_data(
+                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                c_warp_tensor.get_thread_buffer());
+            after_warp(mIter, nIter, kIter);
+        });
+    }
+
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
         if constexpr(UseDefaultScheduler)

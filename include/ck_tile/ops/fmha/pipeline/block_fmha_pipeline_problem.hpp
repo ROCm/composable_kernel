@@ -71,7 +71,9 @@ template <typename QDataType_,
           typename AttentionVariant_,
           typename FmhaMask_,
           bool kUseTrLoad_,
-          typename Traits_>
+          typename Traits_,
+          bool kUseDoubleKVLdsBuffer_ = false,
+          bool kProgressiveDsLoadK_   = false>
 struct BlockFmhaPipelineProblem
 {
     using QDataType             = remove_cvref_t<QDataType_>;
@@ -103,8 +105,10 @@ struct BlockFmhaPipelineProblem
     static constexpr index_t kNumGemm1Warps = BlockFmhaShape::NumGemm1Warps;
     static constexpr index_t kBlockSize     = BlockFmhaShape::NumWarps * get_warp_size();
 
-    static constexpr bool kIsGroupMode = kIsGroupMode_;
-    static constexpr bool kUseTrLoad   = kUseTrLoad_;
+    static constexpr bool kIsGroupMode          = kIsGroupMode_;
+    static constexpr bool kUseTrLoad            = kUseTrLoad_;
+    static constexpr bool kUseDoubleKVLdsBuffer = kUseDoubleKVLdsBuffer_;
+    static constexpr bool kProgressiveDsLoadK   = kProgressiveDsLoadK_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;

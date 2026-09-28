@@ -1525,6 +1525,22 @@ struct FmhaFwdKernel
             {
                 const index_t num_tile_n1 =
                     ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
+                if constexpr(kHasMask && detail::uses_qr_tdm_lds_arena_v<FmhaPipeline> &&
+                             !kIsGroupMode && !kHasDropout)
+                {
+                    // Square causal tiles have monotonically increasing work along Q.
+                    // Visit the longest tiles across all heads first instead of restarting
+                    // the long-to-short sequence at each head. Dense keeps head-major order.
+                    if(kargs.seqlen_q == kargs.seqlen_k && kargs.window_size_left < 0 &&
+                       kargs.window_size_right == 0 && num_tile_n1 == 1)
+                    {
+                        return ck_tile::make_tuple(static_cast<index_t>(gridDim.y) - 1 -
+                                                       static_cast<index_t>(blockIdx.y),
+                                                   index_t{0},
+                                                   static_cast<index_t>(blockIdx.x),
+                                                   static_cast<index_t>(blockIdx.z));
+                    }
+                }
                 const index_t num_tile_total   = has_padded_seqlen_k ? gridDim.z : gridDim.y;
                 const index_t num_head         = gridDim.x;
                 const index_t blocks_per_batch = num_head * num_tile_total;

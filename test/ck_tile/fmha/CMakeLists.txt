@@ -97,8 +97,8 @@ add_gtest_fwd(${TEST_NAME}_fwd)
 add_gtest_bwd(${TEST_NAME}_bwd)
 add_custom_target(${TEST_NAME} DEPENDS ${TEST_NAME}_fwd ${TEST_NAME}_bwd)
 
-set(FMHA_QR_TDM_PADDING_TEST_TARGET)
-if(GPU_TARGETS MATCHES "gfx125")
+set(FMHA_QR_TDM_TEST_TARGETS)
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
     add_gtest_executable(test_ck_tile_fmha_qr_tdm_lds_padding
         test_qr_tdm_lds_padding.cpp)
     target_link_libraries(test_ck_tile_fmha_qr_tdm_lds_padding PRIVATE utility)
@@ -107,7 +107,38 @@ if(GPU_TARGETS MATCHES "gfx125")
         PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
     set_tests_properties(test_ck_tile_fmha_qr_tdm_lds_padding PROPERTIES
         LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
-    set(FMHA_QR_TDM_PADDING_TEST_TARGET test_ck_tile_fmha_qr_tdm_lds_padding)
+
+    add_gtest_executable(test_ck_tile_fmha_qr_tdm_progressive_k_lds
+        test_qr_tdm_progressive_k_lds.cpp)
+    # the qr_tdm pipeline folds log2(e) into scale_s and has no exp() fallback
+    target_compile_definitions(test_ck_tile_fmha_qr_tdm_progressive_k_lds
+        PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
+    # The causal pipeline deliberately compares the masked-row -infinity sentinel.
+    target_compile_options(test_ck_tile_fmha_qr_tdm_progressive_k_lds PRIVATE -Wno-float-equal)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_progressive_k_lds PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
+    add_gtest_executable(test_ck_tile_fmha_qr_tdm_causal_mapping
+        test_qr_tdm_causal_mapping.cpp)
+    target_compile_definitions(test_ck_tile_fmha_qr_tdm_causal_mapping
+        PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_causal_mapping PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
+    add_gtest_executable(test_ck_tile_fmha_qr_tdm_row_reduce
+        test_qr_tdm_row_reduce.cpp)
+    target_compile_definitions(test_ck_tile_fmha_qr_tdm_row_reduce
+        PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
+    # Hand-derived sums/maxima are exactly representable integers; require exact equality.
+    target_compile_options(test_ck_tile_fmha_qr_tdm_row_reduce PRIVATE -Wno-float-equal)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_row_reduce PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
+    set(FMHA_QR_TDM_TEST_TARGETS
+        test_ck_tile_fmha_qr_tdm_lds_padding
+        test_ck_tile_fmha_qr_tdm_progressive_k_lds
+        test_ck_tile_fmha_qr_tdm_causal_mapping
+        test_ck_tile_fmha_qr_tdm_row_reduce)
 endif()
 
 # Python integration test for the fmha_fwd codegen path.
@@ -135,7 +166,7 @@ set_tests_properties(${FMHA_FWD_TUNE_CONFIG_PY_TEST}
 # Usage: ninja ck_tile_fmha_tests
 add_custom_target(ck_tile_fmha_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_FMHA_TESTS"
-    DEPENDS ${TEST_NAME} ${FMHA_QR_TDM_PADDING_TEST_TARGET}
+    DEPENDS ${TEST_NAME} ${FMHA_QR_TDM_TEST_TARGETS}
     USES_TERMINAL
     COMMENT "Running all ck_tile fmha tests..."
 )

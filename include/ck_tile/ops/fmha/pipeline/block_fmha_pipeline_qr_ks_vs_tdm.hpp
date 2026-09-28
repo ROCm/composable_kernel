@@ -51,7 +51,9 @@ struct BlockFmhaPipelineQRKSVSTdm
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static constexpr bool kKLoadOnce = BlockFmhaShape::kM0 > 64;
+    static constexpr bool kKLoadOnce = Problem::kUseDoubleKVLdsBuffer;
+    static_assert(!Problem::kProgressiveDsLoadK || Problem::kUseDoubleKVLdsBuffer,
+                  "progressive K LDS loading requires double K/V LDS buffers");
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -87,6 +89,122 @@ struct BlockFmhaPipelineQRKSVSTdm
     static constexpr bool kStoreLSE        = Problem::kStoreLSE;
     static constexpr bool kHasUnevenSplits = true;
     static constexpr bool kHasSink         = Problem::kHasSink;
+
+    // Select independent local-max chains from the tensor distribution; no
+    // data type, pipeline feature, or physical register layout is assumed.
+    template <typename Tensor>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetRowMaxPartialCount()
+    {
+        using TensorType                = remove_cvref_t<Tensor>;
+        constexpr auto spans            = TensorType::get_distributed_spans();
+        constexpr index_t local_columns = container_reduce(spans[I1].impl_, multiplies<>{}, 1);
+        constexpr index_t preferred     = FmhaMask::IsMasking ? 2 : 4;
+        if constexpr(local_columns >= preferred && local_columns % preferred == 0)
+            return preferred;
+        else
+            return 0;
+    }
+
+    template <typename Tensor>
+    CK_TILE_DEVICE static auto ReduceRowMaxLocal(const Tensor& scores)
+    {
+        const auto f_max           = [](auto a, auto b) { return max(a, b); };
+        constexpr auto spans       = Tensor::get_distributed_spans();
+        constexpr index_t partials = GetRowMaxPartialCount<Tensor>();
+        if constexpr(partials > 0)
+        {
+            constexpr index_t local_columns = container_reduce(spans[I1].impl_, multiplies<>{}, 1);
+            constexpr auto columns =
+                make_naive_tensor_descriptor_packed(sequence_to_tuple_of_number(spans[I1].impl_));
+            constexpr auto distribution = make_static_tile_distribution(
+                ck_tile::detail::make_reduce_tile_distribution_encoding(
+                    Tensor::get_tile_distribution().get_static_tile_distribution_encoding(),
+                    sequence<1>{}));
+            auto maxima = make_static_distributed_tensor<SMPLComputeDataType>(distribution);
+            // Masked tiles favor fewer initialized chains; dense tiles favor
+            // four data-seeded chains. Keep the maxNum identity in both paths.
+            constexpr index_t cols_per_partial = local_columns / partials;
+            sweep_tile_span(spans[I0], [&](auto row) {
+                thread_buffer<SMPLComputeDataType, partials> partial;
+                if constexpr(FmhaMask::IsMasking)
+                {
+                    static_for<0, partials, 1>{}(
+                        [&](auto i) { partial(i) = -numeric<SMPLComputeDataType>::infinity(); });
+                }
+                sweep_tile_span(spans[I1], [&](auto col) {
+                    constexpr index_t offset = columns.calculate_offset(col.impl_);
+                    constexpr index_t group  = offset / cols_per_partial;
+                    if constexpr(!FmhaMask::IsMasking && offset % cols_per_partial == 0)
+                        partial(number<group>{}) = scores[make_tuple(row, col)];
+                    else
+                        partial(number<group>{}) =
+                            max(partial[number<group>{}], scores[make_tuple(row, col)]);
+                });
+                const auto local = [&]() {
+                    if constexpr(partials == 2)
+                        return max(partial[number<0>{}], partial[number<1>{}]);
+                    else
+                        return max(max(partial[number<0>{}], partial[number<1>{}]),
+                                   max(partial[number<2>{}], partial[number<3>{}]));
+                }();
+                if constexpr(FmhaMask::IsMasking)
+                    maxima(make_tuple(row)) = local;
+                else
+                {
+                    // Apply the original identity once, including for all-NaN rows.
+                    maxima(make_tuple(row)) = max(local, -numeric<SMPLComputeDataType>::infinity());
+                }
+            });
+            return maxima;
+        }
+        else
+        {
+            return block_tile_reduce<SMPLComputeDataType>(
+                scores, sequence<1>{}, f_max, -numeric<SMPLComputeDataType>::infinity());
+        }
+    }
+
+    // A paired-half wave32 reduction has one partial in each 16-lane half.
+    // Exchange those partials on VALU instead of putting a bpermute in the
+    // LDS dependency queue. Other distributions retain the generic path.
+    template <typename Tensor, typename ReduceFunc>
+    CK_TILE_DEVICE static void ReduceRowSync(Tensor& tensor, const ReduceFunc& reduce)
+    {
+        using Dstr                   = typename Tensor::StaticTileDistribution;
+        using Encode                 = typename Dstr::DstrEncode;
+        using Detail                 = typename Encode::detail;
+        constexpr index_t lane_dim   = Dstr::get_num_of_dimension_p() - 1;
+        constexpr bool paired_halves = [] {
+            index_t lane_reductions = 0;
+            bool supported          = true;
+            static_for<0, Dstr::get_num_of_dimension_r(), 1>{}([&](auto r) {
+                if constexpr(Detail::does_p_own_r_[lane_dim][r] && Encode::rs_lengths_[r] > 1)
+                {
+                    ++lane_reductions;
+                    supported &= Encode::rs_lengths_[r] == 2 &&
+                                 Detail::ps_over_rs_derivative_[lane_dim][r] == 16;
+                }
+            });
+            return supported && lane_reductions == 1;
+        }();
+        if constexpr(paired_halves)
+        {
+            using DataType = typename Tensor::DataType;
+
+            static_assert(get_warp_size() == 32);
+            static_assert(sizeof(DataType) == sizeof(int32_t));
+            static_for<0, Tensor::get_thread_buffer_size(), 1>{}([&](auto i) {
+                const auto local              = tensor.get_thread_buffer()[i];
+                const auto remote             = bit_cast<DataType>(__builtin_amdgcn_permlanex16(
+                    0, bit_cast<int32_t>(local), 0x76543210, 0xfedcba98, false, true));
+                tensor.get_thread_buffer()(i) = reduce(local, remote);
+            });
+        }
+        else
+        {
+            block_tile_reduce_sync(tensor, reduce, bool_constant<false>{});
+        }
+    }
 
     static constexpr bool kHwGemm1Scale = is_any_of<VDataType, fp8_t, bf8_t>::value &&
                                           BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 128;
@@ -242,6 +360,40 @@ struct BlockFmhaPipelineQRKSVSTdm
 
     static constexpr const char* name = "qr_tdm";
 
+    // The progressive M128 traversal has the fragment shape required by the
+    // staged hand-off below. Element types and attention features do not alter
+    // those LDS fragment lifetimes.
+    static constexpr bool kStagedKPairs =
+        Problem::kProgressiveDsLoadK && kM0 == 128 && kQKHeaddim == 128 && kK0 == 32;
+    static constexpr bool kUseIglpBulkScheduling = CK_TILE_FMHA_TDM_IGLP_BULK && !kStagedKPairs;
+
+    // Unchecked TDM bounds need a stronger, independent range proof. Keep this
+    // separate from K staging so padded/group/sink/custom-mask configurations
+    // can use the staged traversal without inheriting the full-box shortcut.
+    static constexpr bool kTdmBoxesAlwaysInBounds =
+        kStagedKPairs && !kIsGroupMode && !kPadSeqLenK && !kPadHeadDimQ && !kPadHeadDimV &&
+        !kHasSink && !Problem::kSkipMinSeqlenQ &&
+        (!FmhaMask::IsMasking || std::is_same_v<FmhaMask, GenericAttentionMask<true, false>>);
+
+    template <bool AllowDenseFullBox = false, typename LdsWindow, typename DramWindow>
+    CK_TILE_DEVICE static void LoadTdmFullTileOrPadded(const TDMConfig& config,
+                                                       LdsWindow& lds_window,
+                                                       const DramWindow& dram_window)
+    {
+        if constexpr(kTdmBoxesAlwaysInBounds && (FmhaMask::IsMasking || AllowDenseFullBox))
+        {
+            // K/V start on N64 boundaries. The dense/causal range never
+            // exceeds the nonzero, N64-aligned, unpadded K sequence,
+            // and tail prefetches repeat the final valid tile. Each warp's
+            // box is therefore full, even on the final loop iteration.
+            load_tile_tdm_full_tile(config, lds_window, dram_window);
+        }
+        else
+        {
+            load_tile_tdm(config, lds_window, dram_window);
+        }
+    }
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
@@ -292,7 +444,7 @@ struct BlockFmhaPipelineQRKSVSTdm
         return p_tile;
     }
 
-    // Decode (single shared-memory buffer)
+    // Single K/V LDS buffer path.
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -300,20 +452,20 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
-    run_decode(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,        // M0*1 tile
-               FmhaMask mask,
-               PositionEncoding position_encoding,
-               float scale_s,
-               void* smem_arena,
-               float sink_v,
-               const float* k_descale_ptr,
-               const float* v_descale_ptr,
-               index_t block_scale_size_kv,
-               float v_descale) const
+    run_single_kv_lds_buffer(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
+                             const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
+                             const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
+                             const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+                             LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,        // M0*1 tile
+                             FmhaMask mask,
+                             PositionEncoding position_encoding,
+                             float scale_s,
+                             void* smem_arena,
+                             float sink_v,
+                             const float* k_descale_ptr,
+                             const float* v_descale_ptr,
+                             index_t block_scale_size_kv,
+                             float v_descale) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
         auto* smem_ptrq =
@@ -990,28 +1142,28 @@ struct BlockFmhaPipelineQRKSVSTdm
         return o_acc;
     }
 
-    // Prefill, double lds
+    // Double K/V LDS buffer path.
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding>
-    CK_TILE_HOST_DEVICE auto
-    run_prefill(const QDramBlockWindowTmp& __restrict__ q_dram_block_window_tmp,       // M0*K0 tile
-                const KDramBlockWindowTmp& __restrict__ k_dram_block_window_tmp,       // N0*K0 tile
-                const VDramBlockWindowTmp& __restrict__ v_dram_block_window_tmp,       // N1*K1 tile
-                const BiasDramBlockWindowTmp& __restrict__ bias_dram_block_window_tmp, // M0*N0 tile
-                LSEaccDramBlockWindowTmp& __restrict__ lse_acc_dram_window_tmp,        // M0*1 tile
-                FmhaMask mask,
-                PositionEncoding position_encoding,
-                float scale_s,
-                void* __restrict__ smem_arena,
-                float sink_v,
-                const float* k_descale_ptr,
-                const float* v_descale_ptr,
-                index_t block_scale_size_kv,
-                float v_descale) const
+    CK_TILE_HOST_DEVICE auto run_double_kv_lds_buffer(
+        const QDramBlockWindowTmp& __restrict__ q_dram_block_window_tmp,       // M0*K0 tile
+        const KDramBlockWindowTmp& __restrict__ k_dram_block_window_tmp,       // N0*K0 tile
+        const VDramBlockWindowTmp& __restrict__ v_dram_block_window_tmp,       // N1*K1 tile
+        const BiasDramBlockWindowTmp& __restrict__ bias_dram_block_window_tmp, // M0*N0 tile
+        LSEaccDramBlockWindowTmp& __restrict__ lse_acc_dram_window_tmp,        // M0*1 tile
+        FmhaMask mask,
+        PositionEncoding position_encoding,
+        float scale_s,
+        void* __restrict__ smem_arena,
+        float sink_v,
+        const float* k_descale_ptr,
+        const float* v_descale_ptr,
+        index_t block_scale_size_kv,
+        float v_descale) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
         auto* smem_ptrq =
@@ -1031,7 +1183,7 @@ struct BlockFmhaPipelineQRKSVSTdm
             "wrong!");
 
         // Hybrid loaders: Q/K via TDM, V via async_load + ds_load_tr (same
-        // as the single-buffer overload above; see notes there).
+        // as the single K/V LDS buffer overload above; see notes there).
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[I0] &&
                           kSubQKHeaddim == QDramBlockWindowTmp{}.get_window_lengths()[I1] &&
                           kN0 == KDramBlockWindowTmp{}.get_window_lengths()[I0] &&
@@ -1189,6 +1341,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                              {0, 0},
                              Policy::template MakeQRegTileDistribution<Problem>());
 
+        // qr_tdm permits a partial final Q tile even with kPadSeqLenQ=false.
+        // Preserve its zero-fill bounds; the full-tile shortcut is K/V-only.
         load_tile_tdm(tdm_config_q, q_lds_store_window, q_dram_window);
         s_wait_tensorcnt_barrier<0>();
         auto q_tile = load_tile(q_lds_read_window);
@@ -1278,10 +1432,10 @@ struct BlockFmhaPipelineQRKSVSTdm
         static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
         block_sync_lds<0>();
-        load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
-        load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
+        LoadTdmFullTileOrPadded(tdm_config_k, k_lds_write_window, k_dram_window);
+        LoadTdmFullTileOrPadded<true>(tdm_config_v, v_lds_write_window, v_dram_window);
 
-        move_tile_window(k_dram_window, {kN0, 0});
+        move_tile_window(k_dram_window, {num_total_loop > 1 ? kN0 : 0, 0});
         // The prologue issues two K prefetches: the first into ptrk0, which
         // k_lds_read_window is bound to and which mainloop() therefore consumes at
         // i_total_loops == 0, and the second into ptrk1, consumed at
@@ -1294,14 +1448,14 @@ struct BlockFmhaPipelineQRKSVSTdm
         // i_total_loops == num_sink_loop - 2 check below).
         if constexpr(kHasSink)
         {
-            if(num_sink_loop == 1)
+            if(num_sink_loop == 1 && num_total_loop > 1)
             {
                 move_tile_window(k_dram_window, {physical_seqlen_k_start - sink_seq_end, 0});
             }
         }
         k_lds_write_window.set_bottom_tensor_view_data_ptr(
             static_cast<KDataType* __restrict__>(smem_ptrk1));
-        load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+        LoadTdmFullTileOrPadded(tdm_config_k, k_lds_write_window, k_dram_window);
 
         constexpr index_t k_lds_insts = k_lds_read_window.get_num_of_access();
         constexpr index_t v_lds_insts = v_lds_read_window.get_num_of_access();
@@ -1334,42 +1488,185 @@ struct BlockFmhaPipelineQRKSVSTdm
             // fetch the first normal-region V tile from the wrong (pre-jump) address.
             if constexpr(kHasSink)
             {
-                if(i_total_loops == num_sink_loop - 1)
+                if(i_total_loops == num_sink_loop - 1 && i_total_loops + 1 < num_total_loop)
                 {
                     move_tile_window(v_dram_window, {physical_seqlen_k_start - sink_seq_end, 0});
                 }
             }
-            move_tile_window(v_dram_window, {kN0, 0});
+            // Preserve the TDM counter schedule in the tail, but re-read the last
+            // valid tile instead of forming an unused out-of-allocation address.
+            move_tile_window(v_dram_window, {i_total_loops + 1 < num_total_loop ? kN0 : 0, 0});
             v_lds_write_window.set_bottom_tensor_view_data_ptr(v_lds_write_ptr);
-            load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
+            LoadTdmFullTileOrPadded<true>(tdm_config_v, v_lds_write_window, v_dram_window);
 
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
 
-            if constexpr(1 < k0_loops)
+            // Keep additional K pairs ahead of their consumers in the standard
+            // BF16 M128 path: four pairs for dense, six for dedicated causal.
+            if constexpr(kStagedKPairs)
+            {
+                using Gemm0  = remove_cvref_t<decltype(gemm_0)>;
+                using Window = remove_cvref_t<decltype(k_lds_read_window)>;
+                using Tile   = remove_cvref_t<decltype(k_tile)>;
+                using BDstr  = typename Gemm0::WarpGemm::BWarpDstr;
+                static_assert(Gemm0::MIterPerWarp == 2 && Gemm0::NIterPerWarp == 4 &&
+                              Gemm0::KIterPerWarp == 1 && k0_loops == 4);
+                static_assert(Window::Traits::NumAccess == 8 &&
+                              Window::Traits::ScalarPerVector == 8 &&
+                              sizeof(typename Window::Traits::vector_t) == 16 &&
+                              Tile::get_thread_buffer_size() == 64);
+                constexpr auto b_lengths =
+                    to_sequence(BDstr{}.get_ys_to_d_descriptor().get_lengths());
+                constexpr auto b_zeros = uniform_sequence_gen_t<BDstr::NDimY, 0>{};
+                constexpr unsigned kDsSchedMask =
+                    0x002 | 0x004 | 0x010 | 0x020 | 0x040 | 0x200 | 0x400 | 0x800;
+
+                constexpr bool kSixPairs = FmhaMask::IsMasking;
+                // Two additional pairs for dense, four for causal. Each staged
+                // pair is handed off only after k_tile's prior pair is dead.
+                Tile k_stage;
+                Tile k_stage_far;
+                auto k_stage_window = k_lds_read_window;
+                move_tile_window(k_stage_window, {0, kK0});
+                k_stage_window.template load_access_range<0, 8>(k_stage); // P2/P3
+                move_tile_window(k_stage_window, {0, kK0});
+                if constexpr(kSixPairs)
+                {
+                    k_stage_window.template load_access_range<0, 8>(k_stage_far); // P4/P5
+                    move_tile_window(k_stage_window, {0, kK0});
+                }
+                __builtin_amdgcn_sched_barrier(kDsSchedMask);
+
+                static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+                    gemm_0.template RunWithAfterWarp<true>(
+                        s_acc,
+                        get_slice_tile(
+                            q_tile, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
+                        k_tile,
+                        [&](auto mIter, auto nIter, auto kIter) {
+                            if constexpr(mIter == 1 && kIter == 0 &&
+                                         decltype(nIter)::value % 2 == 1)
+                            {
+                                constexpr index_t pair = 2 * i_k0 + nIter / 2;
+                                if constexpr(pair < 6)
+                                {
+                                    __builtin_amdgcn_sched_barrier(kDsSchedMask);
+                                    // The consumed pair is dead. Hand off its already-prefetched
+                                    // successor (P2...P7), then reuse the staging slot.
+                                    auto& source = [&]() -> Tile& {
+                                        if constexpr(kSixPairs && decltype(i_k0)::value == 1)
+                                            return k_stage_far;
+                                        else
+                                            return k_stage;
+                                    }();
+                                    static_for<0, 2, 1>{}([&](auto j) {
+                                        constexpr auto origin = merge_sequences(
+                                            sequence<decltype(nIter)::value - 1 + j, 0>{}, b_zeros);
+                                        constexpr auto lengths =
+                                            merge_sequences(sequence<1, 1>{}, b_lengths);
+                                        k_tile.set_y_sliced_thread_data(
+                                            origin,
+                                            lengths,
+                                            source.get_y_sliced_thread_data(origin, lengths));
+                                    });
+                                    if constexpr(pair < (kSixPairs ? 2 : 4))
+                                    {
+                                        constexpr index_t begin = (pair % 2) * 4;
+                                        k_stage_window.template load_access_range<begin, begin + 4>(
+                                            k_stage);
+                                        if constexpr(!kSixPairs && pair == 1)
+                                            move_tile_window(k_stage_window, {0, kK0});
+                                    }
+                                    __builtin_amdgcn_sched_barrier(kDsSchedMask);
+                                }
+                            }
+                        });
+                });
+            }
+            else if constexpr(1 < k0_loops)
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
                     // loop over along the [K]ey head dimension
                     move_tile_window(k_lds_read_window, {0, kK0});
-                    auto k_tile_switch = load_tile(k_lds_read_window);
+                    using Gemm0 = remove_cvref_t<decltype(gemm_0)>;
+                    if constexpr(Problem::kProgressiveDsLoadK)
+                    {
+                        static_assert(
+                            std::is_same_v<Policy, BlockFmhaPipelineQRKSVSTdmDefaultPolicy>);
+                        static_assert(Gemm0::MIterPerWarp == 1 || Gemm0::MIterPerWarp == 2);
+                        static_assert(Gemm0::NIterPerWarp == 4 && Gemm0::KIterPerWarp == 1);
+                        using Window = remove_cvref_t<decltype(k_lds_read_window)>;
+                        using Tile   = remove_cvref_t<decltype(k_tile)>;
+                        static_assert(std::is_same_v<Tile, decltype(load_tile(k_lds_read_window))>);
+                        static_assert(std::is_trivially_destructible_v<
+                                      typename Gemm0::WarpGemm::BWarpTensor>);
+                        static_assert(Window::Traits::NumAccess == 8);
+                        static_assert(Window::Traits::ScalarPerVector == 8);
+                        static_assert(sizeof(typename Window::Traits::vector_t) == 16);
+                        static_assert(Tile::get_thread_buffer_size() == 64);
 
-                    gemm_0(s_acc,
-                           get_slice_tile(q_tile,
-                                          sequence<0, i_k0 * kK0>{},
-                                          sequence<kM0, (i_k0 + 1) * kK0>{}),
-                           k_tile);
-
-                    k_tile = k_tile_switch;
+                        // On the final M iteration, reload pairs of K fragments after both
+                        // WMMAs have consumed them for the last time. Grouping the four DS reads
+                        // keeps the next head-dimension slice in the same register storage.
+                        gemm_0.template RunWithAfterWarp<true>(
+                            s_acc,
+                            get_slice_tile(q_tile,
+                                           sequence<0, i_k0 * kK0>{},
+                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
+                            k_tile,
+                            [&k_lds_read_window, &k_tile](auto mIter, auto nIter, auto kIter) {
+                                if constexpr(mIter == Gemm0::MIterPerWarp - 1 && kIter == 0 &&
+                                             decltype(nIter)::value % 2 == 1)
+                                {
+                                    // Allow VALU/SALU/VMEM/DS-write/TRANS/LDSDMA to cross while
+                                    // keeping MFMA/WMMA and DS-read ordered around the reload.
+                                    constexpr unsigned kProgressiveDsLoadSchedMask =
+                                        0x002 | 0x004 | 0x010 | 0x020 | 0x040 | 0x200 | 0x400 |
+                                        0x800;
+                                    __builtin_amdgcn_sched_barrier(kProgressiveDsLoadSchedMask);
+                                    constexpr index_t begin = 2 * (decltype(nIter)::value - 1);
+                                    k_lds_read_window.template load_access_range<begin, begin + 4>(
+                                        k_tile);
+                                    __builtin_amdgcn_sched_barrier(kProgressiveDsLoadSchedMask);
+                                }
+                            });
+                    }
+                    else
+                    {
+                        auto k_tile_switch = load_tile(k_lds_read_window);
+                        gemm_0(s_acc,
+                               get_slice_tile(q_tile,
+                                              sequence<0, i_k0 * kK0>{},
+                                              sequence<kM0, (i_k0 + 1) * kK0>{}),
+                               k_tile);
+                        k_tile = k_tile_switch;
+                    }
                 });
                 // move back to the origin
                 move_tile_window(k_lds_read_window, {0, -kK0 * (k0_loops - 1)});
             }
 
-            gemm_0(s_acc,
-                   get_slice_tile(q_tile,
-                                  sequence<0, (k0_loops - 1) * kK0>{},
-                                  sequence<kM0, k0_loops * kK0>{}),
-                   k_tile);
+            if constexpr(!kStagedKPairs && Problem::kProgressiveDsLoadK)
+            {
+                // Retain the reload-overlap traversal when consuming the final
+                // head-dimension slice, even though this slice has no reload.
+                gemm_0.template RunWithAfterWarp<true>(
+                    s_acc,
+                    get_slice_tile(q_tile,
+                                   sequence<0, (k0_loops - 1) * kK0>{},
+                                   sequence<kM0, k0_loops * kK0>{}),
+                    k_tile,
+                    [](auto, auto, auto) {});
+            }
+            else if constexpr(!kStagedKPairs)
+            {
+                gemm_0(s_acc,
+                       get_slice_tile(q_tile,
+                                      sequence<0, (k0_loops - 1) * kK0>{},
+                                      sequence<kM0, k0_loops * kK0>{}),
+                       k_tile);
+            }
 
             if constexpr(kBlockScale)
             {
@@ -1447,7 +1744,15 @@ struct BlockFmhaPipelineQRKSVSTdm
                         kN0 * (i_total_loops - num_sink_loop) + physical_seqlen_k_start, 0);
             }();
 
-            if constexpr(kHasUnevenSplits)
+            // Standard causal ranges round their end to N64
+            // (nonpositive ranges already returned above). With no sink/split,
+            // each processed score column is strictly below that physical end.
+            // Other mask types retain this independent tail clamp. Dense keeps
+            // its original control flow for the measured QK/PV loop scheduling.
+            constexpr bool kScoreTailClampRedundant =
+                kTdmBoxesAlwaysInBounds &&
+                std::is_same_v<FmhaMask, GenericAttentionMask<true, false>>;
+            if constexpr(kHasUnevenSplits && !kScoreTailClampRedundant)
             {
                 if(i_total_loops == (num_total_loop - 1))
                 {
@@ -1515,29 +1820,28 @@ struct BlockFmhaPipelineQRKSVSTdm
                 }
             }();
 
-            auto m_local = block_tile_reduce<SMPLComputeDataType>(
-                s_new,
-                sequence<1>{},
-                f_max,
-                -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
+            auto m_local = ReduceRowMaxLocal(s_new); // m_local = rowmax(S{j})
+            ReduceRowSync(m_local, f_max);
 
-#if CK_TILE_FMHA_TDM_IGLP_BULK
-            __builtin_amdgcn_sched_group_barrier(0x100, 20, 0); // DS_READ bulk
-            __builtin_amdgcn_sched_group_barrier(0x008, 12, 0); // MFMA bulk
-#else
-            static_for<0, 12, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS_READ
-            });
+            if constexpr(kUseIglpBulkScheduling)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, 20, 0); // DS_READ bulk
+                __builtin_amdgcn_sched_group_barrier(0x008, 12, 0); // MFMA bulk
+            }
+            else
+            {
+                static_for<0, 12, 1>{}([&](auto i) {
+                    ignore = i;
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS_READ
+                });
 
-            static_for<0, 4, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS_READ
-            });
-#endif
+                static_for<0, 4, 1>{}([&](auto i) {
+                    ignore = i;
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS_READ
+                });
+            }
 
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
@@ -1587,10 +1891,24 @@ struct BlockFmhaPipelineQRKSVSTdm
                 });
             });
 
-            auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
-                p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
-
-            block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+            // The current PV consumes P and corrected O, not the denominator.
+            // Keep whole-P production unchanged and defer only l's reduction
+            // in the guarded path. The original left-fold and row sync remain.
+            constexpr bool kDeferDenominator = kStagedKPairs && FmhaMask::IsMasking;
+            auto rowsum_p                    = [&]() {
+                if constexpr(kDeferDenominator)
+                {
+                    return m;
+                }
+                else
+                {
+                    auto sum = block_tile_reduce<SMPLComputeDataType>(
+                        p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0});
+                    ReduceRowSync(sum, f_sum);
+                    return sum;
+                }
+            }();
+            auto l_correction = m;
 
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
@@ -1618,7 +1936,14 @@ struct BlockFmhaPipelineQRKSVSTdm
                         }
                     }
                 }();
-                l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                if constexpr(kDeferDenominator)
+                {
+                    l_correction(i_idx) = tmp;
+                }
+                else
+                {
+                    l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                }
                 sweep_tile_span(o_spans[I1], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
@@ -1636,14 +1961,14 @@ struct BlockFmhaPipelineQRKSVSTdm
             // case is instead handled in the prologue, see the comment there.
             if constexpr(kHasSink)
             {
-                if(i_total_loops == num_sink_loop - 2)
+                if(i_total_loops == num_sink_loop - 2 && i_total_loops + 2 < num_total_loop)
                 {
                     move_tile_window(k_dram_window, {physical_seqlen_k_start - sink_seq_end, 0});
                 }
             }
-            move_tile_window(k_dram_window, {kN0, 0});
+            move_tile_window(k_dram_window, {i_total_loops + 2 < num_total_loop ? kN0 : 0, 0});
             k_lds_write_window.set_bottom_tensor_view_data_ptr(k_lds_write_ptr);
-            load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+            LoadTdmFullTileOrPadded(tdm_config_k, k_lds_write_window, k_dram_window);
 
             const auto p_scale_arg = make_gemm1_scale<decltype(gemm_1)>(p_scale);
 
@@ -1689,26 +2014,39 @@ struct BlockFmhaPipelineQRKSVSTdm
                    p_scale_arg,
                    v_scale(number<k1_loops - 1>{}));
 
+            if constexpr(kDeferDenominator)
+            {
+                rowsum_p = block_tile_reduce<SMPLComputeDataType>(
+                    p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0});
+                ReduceRowSync(rowsum_p, f_sum);
+                tile_elementwise_inout([](auto& sum,
+                                          auto correction,
+                                          auto row_sum) { sum = correction * sum + row_sum; },
+                                       l,
+                                       l_correction,
+                                       rowsum_p);
+            }
+
             s_wait_tensorcnt_barrier<1>();
             k_lds_read_window.set_bottom_tensor_view_data_ptr(k_lds_read_ptr);
             k_tile = load_tile(k_lds_read_window);
 
-#if CK_TILE_FMHA_TDM_IGLP_BULK
-            __builtin_amdgcn_sched_group_barrier(0x100, 20, 0); // DS_READ bulk
-            __builtin_amdgcn_sched_group_barrier(0x008, 12, 0); // MFMA bulk
-#else
-            static_for<0, 12, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS_READ
-            });
+            if constexpr(kUseIglpBulkScheduling)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, 20, 0); // DS_READ bulk
+                __builtin_amdgcn_sched_group_barrier(0x008, 12, 0); // MFMA bulk
+            }
+            else
+            {
+                static_for<0, 3, 1>{}([&](auto i) {
+                    ignore = i;
+                    __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x100, 8, 0); // DS_READ
+                });
 
-            static_for<0, 4, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS_READ
-            });
-#endif
+                __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 4, 0); // DS_READ
+            }
         }; // mainloop
 
         do
@@ -1802,20 +2140,36 @@ struct BlockFmhaPipelineQRKSVSTdm
                                         float sink_v) const
     {
         static_assert(!kQuantized, "qr_tdm pipeline: this granularity needs the descale arguments");
-        return run_decode(q_dram_block_window_tmp,
-                          k_dram_block_window_tmp,
-                          v_dram_block_window_tmp,
-                          bias_dram_block_window_tmp,
-                          lse_acc_dram_window_tmp,
-                          mask,
-                          position_encoding,
-                          scale_s,
-                          smem_ptr,
-                          sink_v,
-                          nullptr,
-                          nullptr,
-                          1,
-                          1.0f);
+        if constexpr(Problem::kUseDoubleKVLdsBuffer)
+            return run_double_kv_lds_buffer(q_dram_block_window_tmp,
+                                            k_dram_block_window_tmp,
+                                            v_dram_block_window_tmp,
+                                            bias_dram_block_window_tmp,
+                                            lse_acc_dram_window_tmp,
+                                            mask,
+                                            position_encoding,
+                                            scale_s,
+                                            smem_ptr,
+                                            sink_v,
+                                            nullptr,
+                                            nullptr,
+                                            1,
+                                            1.0f);
+        else
+            return run_single_kv_lds_buffer(q_dram_block_window_tmp,
+                                            k_dram_block_window_tmp,
+                                            v_dram_block_window_tmp,
+                                            bias_dram_block_window_tmp,
+                                            lse_acc_dram_window_tmp,
+                                            mask,
+                                            position_encoding,
+                                            scale_s,
+                                            smem_ptr,
+                                            sink_v,
+                                            nullptr,
+                                            nullptr,
+                                            1,
+                                            1.0f);
     }
 
     template <typename QDramBlockWindowTmp,
@@ -1841,20 +2195,36 @@ struct BlockFmhaPipelineQRKSVSTdm
     {
         static_assert(kQuantized,
                       "qr_tdm pipeline: this granularity ignores the descale arguments");
-        return run_decode(q_dram_block_window_tmp,
-                          k_dram_block_window_tmp,
-                          v_dram_block_window_tmp,
-                          bias_dram_block_window_tmp,
-                          lse_acc_dram_window_tmp,
-                          mask,
-                          position_encoding,
-                          scale_s,
-                          smem_ptr,
-                          sink_v,
-                          k_descale_ptr,
-                          v_descale_ptr,
-                          block_scale_size_kv,
-                          v_descale);
+        if constexpr(Problem::kUseDoubleKVLdsBuffer)
+            return run_double_kv_lds_buffer(q_dram_block_window_tmp,
+                                            k_dram_block_window_tmp,
+                                            v_dram_block_window_tmp,
+                                            bias_dram_block_window_tmp,
+                                            lse_acc_dram_window_tmp,
+                                            mask,
+                                            position_encoding,
+                                            scale_s,
+                                            smem_ptr,
+                                            sink_v,
+                                            k_descale_ptr,
+                                            v_descale_ptr,
+                                            block_scale_size_kv,
+                                            v_descale);
+        else
+            return run_single_kv_lds_buffer(q_dram_block_window_tmp,
+                                            k_dram_block_window_tmp,
+                                            v_dram_block_window_tmp,
+                                            bias_dram_block_window_tmp,
+                                            lse_acc_dram_window_tmp,
+                                            mask,
+                                            position_encoding,
+                                            scale_s,
+                                            smem_ptr,
+                                            sink_v,
+                                            k_descale_ptr,
+                                            v_descale_ptr,
+                                            block_scale_size_kv,
+                                            v_descale);
     }
 
     template <typename QDramBlockWindowTmp,
@@ -1875,20 +2245,36 @@ struct BlockFmhaPipelineQRKSVSTdm
                                         void* smem_arena) const
     {
         static_assert(!kQuantized, "qr_tdm pipeline: this granularity needs the descale arguments");
-        return run_prefill(q_dram_block_window_tmp,
-                           k_dram_block_window_tmp,
-                           v_dram_block_window_tmp,
-                           bias_dram_block_window_tmp,
-                           lse_acc_dram_window_tmp,
-                           mask,
-                           position_encoding,
-                           scale_s,
-                           smem_arena,
-                           sink_v,
-                           nullptr,
-                           nullptr,
-                           1,
-                           1.0f);
+        if constexpr(Problem::kUseDoubleKVLdsBuffer)
+            return run_double_kv_lds_buffer(q_dram_block_window_tmp,
+                                            k_dram_block_window_tmp,
+                                            v_dram_block_window_tmp,
+                                            bias_dram_block_window_tmp,
+                                            lse_acc_dram_window_tmp,
+                                            mask,
+                                            position_encoding,
+                                            scale_s,
+                                            smem_arena,
+                                            sink_v,
+                                            nullptr,
+                                            nullptr,
+                                            1,
+                                            1.0f);
+        else
+            return run_single_kv_lds_buffer(q_dram_block_window_tmp,
+                                            k_dram_block_window_tmp,
+                                            v_dram_block_window_tmp,
+                                            bias_dram_block_window_tmp,
+                                            lse_acc_dram_window_tmp,
+                                            mask,
+                                            position_encoding,
+                                            scale_s,
+                                            smem_arena,
+                                            sink_v,
+                                            nullptr,
+                                            nullptr,
+                                            1,
+                                            1.0f);
     }
 
     template <typename QDramBlockWindowTmp,
@@ -1914,20 +2300,36 @@ struct BlockFmhaPipelineQRKSVSTdm
     {
         static_assert(kQuantized,
                       "qr_tdm pipeline: this granularity ignores the descale arguments");
-        return run_prefill(q_dram_block_window_tmp,
-                           k_dram_block_window_tmp,
-                           v_dram_block_window_tmp,
-                           bias_dram_block_window_tmp,
-                           lse_acc_dram_window_tmp,
-                           mask,
-                           position_encoding,
-                           scale_s,
-                           smem_arena,
-                           sink_v,
-                           k_descale_ptr,
-                           v_descale_ptr,
-                           block_scale_size_kv,
-                           v_descale);
+        if constexpr(Problem::kUseDoubleKVLdsBuffer)
+            return run_double_kv_lds_buffer(q_dram_block_window_tmp,
+                                            k_dram_block_window_tmp,
+                                            v_dram_block_window_tmp,
+                                            bias_dram_block_window_tmp,
+                                            lse_acc_dram_window_tmp,
+                                            mask,
+                                            position_encoding,
+                                            scale_s,
+                                            smem_arena,
+                                            sink_v,
+                                            k_descale_ptr,
+                                            v_descale_ptr,
+                                            block_scale_size_kv,
+                                            v_descale);
+        else
+            return run_single_kv_lds_buffer(q_dram_block_window_tmp,
+                                            k_dram_block_window_tmp,
+                                            v_dram_block_window_tmp,
+                                            bias_dram_block_window_tmp,
+                                            lse_acc_dram_window_tmp,
+                                            mask,
+                                            position_encoding,
+                                            scale_s,
+                                            smem_arena,
+                                            sink_v,
+                                            k_descale_ptr,
+                                            v_descale_ptr,
+                                            block_scale_size_kv,
+                                            v_descale);
     }
 };
 
