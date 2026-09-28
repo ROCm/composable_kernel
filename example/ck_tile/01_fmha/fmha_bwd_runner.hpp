@@ -8,8 +8,6 @@
 #include "utils.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
-#include "ck_tile/host/pinned_host_releaser.hpp"
-
 #include <array>
 #include <chrono>
 #include <cstring>
@@ -427,21 +425,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
     const size_t ws_size = launcher.workspace_size;
     ck_tile::DeviceMem ws_buf(ws_size);
 
-    // Stage seqstart to device before prepare_workspace_async (which D2Hs it back).
+    // Stage seqstart to device before prepare_workspace_async (read on-device in group mode).
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
-
-    // Pinned host allocator for the launcher's async prepare pipeline. The
-    // shared_ptr deleter MUST NOT call any HIP API: it runs from the launcher's
-    // tail hipLaunchHostFunc on the driver helper thread, which holds HIP
-    // runtime locks. Deleter enqueues to a worker thread that hipHostFrees off
-    // the callback path.
-    auto pinned_host_alloc = [](size_t bytes) -> std::shared_ptr<void> {
-        void* p = nullptr;
-        HIP_CHECK_ERROR(hipHostMalloc(&p, bytes, hipHostMallocDefault));
-        return std::shared_ptr<void>(
-            p, [](void* q) { ck_tile::pinned_host_releaser::instance().enqueue(q); });
-    };
 
     ck_tile::gpu_timer prepare_ws_timer;
     prepare_ws_timer.start(stream_config.stream_id_);
@@ -451,8 +437,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                                    : nullptr,
         (mode == mode_enum::group) ? static_cast<const int*>(seqstart_k.GetDeviceBuffer())
                                    : nullptr,
-        stream_config,
-        pinned_host_alloc);
+        stream_config);
     prepare_ws_timer.stop(stream_config.stream_id_);
 
     q_buf.ToDevice(q_host.data());
@@ -977,8 +962,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                                        : nullptr,
             (mode == mode_enum::group) ? static_cast<const int*>(seqstart_k.GetDeviceBuffer())
                                        : nullptr,
-            stream_config_v,
-            pinned_host_alloc);
+            stream_config_v);
         launcher(fmha_args, stream_config_v);
 
         dq_buf.FromDevice(dq_host.data());

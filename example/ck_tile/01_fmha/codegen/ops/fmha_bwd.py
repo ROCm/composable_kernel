@@ -222,6 +222,23 @@ size_t fmha_bwd_dq_dk_dv_dq_prepare_ws_host_<dq_dk_dv_trait_{F_idx}, {F_arch.tag
 }}
 
 template <>
+void fmha_bwd_dq_dk_dv_dq_prepare_ws_device_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(
+    void* gpu_ws, ck_tile::index_t batch_size, ck_tile::index_t hdim_q,
+    ck_tile::index_t nhead_q, ck_tile::index_t seqlen_q, ck_tile::index_t seqlen_k,
+    ck_tile::index_t num_cus, const ck_tile::index_t* seqstart_qs,
+    const ck_tile::index_t* seqstart_ks, const ck_tile::stream_config& s)
+{{
+    using k_      = fmha_bwd_dq_dk_dv_kernel_{F_idx};
+    using prep_k_ = typename k_::PrepareWorkspaceKernel;
+    auto kargs        = prep_k_::MakeKargs(gpu_ws, batch_size, hdim_q, nhead_q, seqlen_q,
+                                    seqlen_k, num_cus, seqstart_qs, seqstart_ks);
+    const dim3 grids  = prep_k_::GridSize();
+    const dim3 blocks = prep_k_::BlockSize();
+    ck_tile::make_kernel<1, {F_arch.tag}>(prep_k_{{}}, grids, blocks, 0, kargs)(
+        ck_tile::stream_config{{s.stream_id_}});
+}}
+
+template <>
 bool fmha_bwd_dq_dk_dv_needs_zero_dq_acc_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>()
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
