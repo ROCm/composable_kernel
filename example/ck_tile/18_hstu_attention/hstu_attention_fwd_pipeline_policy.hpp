@@ -26,13 +26,19 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
     {
-        return 2;
+        constexpr index_t n0_loops =
+            Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kN0Sub;
+
+        return min(n0_loops, 2);
     }
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumVLdsBuffers()
     {
-        return 2;
+        constexpr index_t k1_loops =
+            Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kK1;
+
+        return min(k1_loops, 2);
     }
 
     template <typename Problem>
