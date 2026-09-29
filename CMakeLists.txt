@@ -43,6 +43,14 @@ endif()
 
 set(version 1.3.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
+
+# CK's large HIP translation units can fail in Clang's heterogeneous DWARF
+# emission under host TSAN. Release does not override debug flags inherited
+# from a parent toolchain, so disable debug info for CK compilation only.
+# Keep the host TSAN instrumentation and all other toolchain flags.
+if(THEROCK_SANITIZER STREQUAL "TSAN")
+  add_compile_options(-g0)
+endif()
 include(CTest)
 
 option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
