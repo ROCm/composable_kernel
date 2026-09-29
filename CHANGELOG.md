@@ -53,6 +53,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Added
 
 * Added multiple D (bias) and large tensor support to the CK Tile quantized GEMM kernel for row-column quantization.
+* Added a CI path-length check that rejects newly added or renamed files whose repository-relative path exceeds 200 characters, keeping the absolute path under the Windows `MAX_PATH` limit of 260.
 
 ### Changed
 

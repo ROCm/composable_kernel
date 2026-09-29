@@ -321,6 +321,11 @@ pipeline {
                     ck.runOnHealthyNode(rocmnode("nogpu")) {
                         showCompilerInfo(params.BUILD_DOCKER.toBoolean())
                         ck.checkoutComposableKernel()
+                        // Runs here, not in "Static checks", so that it is not
+                        // subject to the SHOULD_RUN_CI skip computed just below:
+                        // a docs- or Markdown-only change skips CI but can still
+                        // add a path that breaks the Windows checkout.
+                        ck.runPathLengthCheck()
                         env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || ck.shouldRunCICheck())
                         echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
                     }
