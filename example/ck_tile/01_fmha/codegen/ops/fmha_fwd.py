@@ -573,13 +573,13 @@ class FmhaFwdPipeline:
                     "QR-TDM progressive K LDS loading requires K/V LDS prefetch (double buffering)"
                 )
             if self.F_use_double_kv_lds_buffer == "t":
-                n += "_kvldsprefetch"
+                n += "_kvlp"
             else:
-                n += "_nkvldsprefetch"
+                n += "_nkvlp"
             if self.F_progressive_ds_load_k == "t":
-                n += "_progressivedsk"
+                n += "_plk"
             else:
-                n += "_nprogressivedsk"
+                n += "_nplk"
         if self.F_sink == "t":
             n += "_sink"
         else:
