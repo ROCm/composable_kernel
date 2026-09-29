@@ -924,6 +924,32 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return (actual_bytes + 63) / 64 * 64;
     };
 
+#if defined(__hstu_gfx94__)
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr ck_tile::index_t IsFirstKBufferOverlapLastVBuffer()
+    {
+        constexpr index_t NumKLdsBuffers            = GetNumKLdsBuffers<Problem>();
+        constexpr index_t NumVLdsBuffers            = GetNumVLdsBuffers<Problem>();
+        constexpr index_t first_k_buff_upper_offset = GetSmemSizeK<Problem>() / NumKLdsBuffers;
+        constexpr index_t last_v_buff_lower_offset =
+            (GetSmemSizeV<Problem>() / NumVLdsBuffers) * (NumVLdsBuffers - 1);
+
+        return first_k_buff_upper_offset > last_v_buff_lower_offset;
+    };
+
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr ck_tile::index_t IsFirstVBufferOverlapLastKBuffer()
+    {
+        constexpr index_t NumKLdsBuffers            = GetNumKLdsBuffers<Problem>();
+        constexpr index_t NumVLdsBuffers            = GetNumVLdsBuffers<Problem>();
+        constexpr index_t first_v_buff_upper_offset = GetSmemSizeV<Problem>() / NumVLdsBuffers;
+        constexpr index_t last_k_buff_lower_offset =
+            (GetSmemSizeK<Problem>() / NumKLdsBuffers) * (NumKLdsBuffers - 1);
+
+        return first_v_buff_upper_offset > last_k_buff_lower_offset;
+    };
+#endif
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout()
     {
@@ -949,12 +975,21 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
     };
 
+#if defined(__hstu_gfx94__)
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        return max(GetSmemSizeK<Problem>(), GetSmemSizeV<Problem>()) +
+               GetSmemSizeDropout<Problem>();
+    }
+#else
     template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return GetSmemSizeK<Problem, kPipelineUseTrLoad>() +
                GetSmemSizeV<Problem, kPipelineUseTrLoad>() + GetSmemSizeDropout<Problem>();
     }
+#endif
 
     // Lds sizes for the Tdm staged buffers. Same rounding as GetSmemSizeK/V(), over the
     // plain descriptors.

@@ -206,7 +206,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
             move_tile_window(k_dram_window, {kN0Sub, 0});
         });
 
-        __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
         // provide partition_index for LDS tile window so that warp_id is in vgpr
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
@@ -239,10 +239,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
         });
 
         // V tile in LDS
-        auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<QKVDataType*>(reinterpret_cast<char*>(smem_ptr) +
-                                           Policy::template GetSmemSizeK<Problem>()),
-            Policy::template MakeVLdsBlockDescriptor<Problem>());
+        QKVDataType* v_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
+        auto v_lds             = make_tensor_view<address_space_enum::lds>(
+            v_lds_ptr, Policy::template MakeVLdsBlockDescriptor<Problem>());
         auto v_lds_monolithic_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
@@ -343,7 +342,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
             // STAGE 2, scale_s, add bias, mask, siLU
             if constexpr(kHasBias)
@@ -387,7 +386,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                 });
             }
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
             using v_shuffled_tile_type = decltype(make_static_distributed_tensor<QKVDataType>(
                 Policy::template MakeShuffledVRegTileDistribution<Problem>()));
@@ -396,9 +395,15 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
             shuffle_tile(v_shuffled_tile, v_tiles[number<0>{}]);
 
+            if constexpr(Policy::template IsFirstVBufferOverlapLastKBuffer<Problem>())
+            {
+                // ensure all warps have done their access to k_lds so that v_lds can be stored
+                __builtin_amdgcn_s_barrier();
+            }
+
             store_tile(v_lds_windows[number<0>{}], v_shuffled_tile, partition_index);
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
             tile_elementwise_inout(f_silu, pcomp_tile);
 
@@ -410,8 +415,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                 __builtin_amdgcn_sched_barrier(0);
 
                 auto randval_lds_ptr = reinterpret_cast<char*>(smem_ptr) +
-                                       Policy::template GetSmemSizeK<Problem>() +
-                                       Policy::template GetSmemSizeV<Problem>();
+                                       max(Policy::template GetSmemSizeK<Problem>(),
+                                           Policy::template GetSmemSizeV<Problem>());
 
                 dropout.template Run<Gemm0Combined, CompDataType, uint8_t>(
                     randval_lds_ptr, seqlen_k_curr, pcomp_tile, null_randval_window);
@@ -454,16 +459,24 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
                 if constexpr(i_k1 < k1_loops - 1)
                 {
-                    __builtin_amdgcn_sched_barrier(0x00000001);
+                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
+                                                   LLVMSchedGroupMask::TRANS);
 
                     shuffle_tile(v_shuffled_tile, v_tiles[number<i_k1 + 1>{}]);
                     store_tile(v_lds_windows[number<(i_k1 + 1) % NumVLdsBuffers>{}],
                                v_shuffled_tile,
                                partition_index);
 
-                    __builtin_amdgcn_sched_barrier(0x00000001);
+                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
+                                                   LLVMSchedGroupMask::TRANS);
                 };
             });
+
+            if constexpr(Policy::template IsFirstKBufferOverlapLastVBuffer<Problem>())
+            {
+                // ensure all warps have done their access to v_lds so that k_lds can be stored
+                __builtin_amdgcn_s_barrier();
+            }
         } while(seqlen_k_curr < seqlen_k_end);
 
         return o_acc;
