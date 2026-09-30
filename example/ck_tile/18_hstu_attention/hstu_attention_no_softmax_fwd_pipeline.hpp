@@ -40,10 +40,11 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
     static_assert(Problem::kUseSoftmax == false, "This pipeline only works with not-using softmax");
 
-    static constexpr bool kIsJagged   = Problem::kIsJagged;
-    static constexpr auto kHasBias    = Problem::kHasBias;
-    static constexpr bool kHasDropout = Problem::kHasDropout;
-    static constexpr bool kHasCausal  = Problem::kHasCausal;
+    static constexpr bool kIsCrossAttention = Problem::kIsCrossAttention;
+    static constexpr bool kIsJagged         = Problem::kIsJagged;
+    static constexpr auto kHasBias          = Problem::kHasBias;
+    static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr bool kHasCausal        = Problem::kHasCausal;
 
     static constexpr bool kUseTrLoad = false;
 
@@ -78,10 +79,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
             if constexpr(kQKHeaddim == 64)
             {
                 if constexpr(kM0 == 128)
-                {
                     return 4;
-                }
-
+                if constexpr(kM0 == 64 && kIsCrossAttention)
+                    return 4;
                 return 2;
             }
             else if constexpr(kQKHeaddim == 96 || kQKHeaddim == 128)
