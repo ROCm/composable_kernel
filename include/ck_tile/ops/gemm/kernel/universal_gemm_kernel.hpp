@@ -480,11 +480,11 @@ struct UniversalGemmKernel
         return LargeTensors && IsLargeTensorGlobalLoadSupported();
     }
 
-    // True when the kernel shifts the A and E base pointers by the M tile before building their
-    // descriptors, so those descriptors span at most one M tile however large M is. Not virtual:
-    // a derived kernel opts in by declaring its own version, which hides this one and is found
-    // through SelfType. Declaring it without performing the shift corrupts memory; performing the
-    // shift without declaring it only loses large-M support.
+    // True when the kernel shifts every non-broadcast M-indexed tensor base by the M tile before
+    // building its descriptor, so those descriptors span at most one M tile however large M is.
+    // Not virtual: a derived kernel opts in by declaring its own version, which hides this one and
+    // is found through SelfType. Declaring it without performing every required shift corrupts
+    // memory; performing the shifts without declaring it only loses large-M support.
     CK_TILE_HOST_DEVICE static constexpr bool IsLargeTensorMOffsettingSupported() { return false; }
 
     // Single definition of the offsetted M extent, shared by the host-side large-tensor guard
@@ -498,6 +498,63 @@ struct UniversalGemmKernel
         else
         {
             return M;
+        }
+    }
+
+    CK_TILE_HOST_DEVICE static bool IsArgumentAddressable(const KernelArgs& kargs)
+    {
+        if constexpr(UseLargeTensorGlobalLoad())
+        {
+            return true;
+        }
+        else
+        {
+            auto is_large_tensor = [](auto layout,
+                                      index_t rows,
+                                      index_t cols,
+                                      index_t stride,
+                                      auto data_type) {
+                constexpr size_t SizeLimit = (size_t{1} << 31);
+                constexpr size_t PackedSize =
+                    numeric_traits<remove_cvref_t<decltype(data_type)>>::PackedSize;
+
+                const size_t n =
+                    std::is_same_v<tensor_layout::gemm::RowMajor, remove_cvref_t<decltype(layout)>>
+                        ? static_cast<size_t>(rows)
+                        : static_cast<size_t>(cols);
+                return n * static_cast<size_t>(stride) * sizeof(data_type) / PackedSize >=
+                       SizeLimit;
+            };
+
+            const index_t m_extent = SelfType::ClampMToOffsettedTile(kargs.M, 0);
+            bool addressable       = true;
+
+            static_for<0, NumATensor, 1>{}([&](auto i) {
+                using AiLayout   = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
+                using AiDataType = remove_cvref_t<std::tuple_element_t<i.value, AsDataType>>;
+                addressable      = addressable &&
+                              !is_large_tensor(
+                                  AiLayout{}, m_extent, kargs.K, kargs.stride_As[i], AiDataType{});
+            });
+            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                using BiLayout   = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
+                using BiDataType = remove_cvref_t<std::tuple_element_t<i.value, BsDataType>>;
+                addressable      = addressable &&
+                              !is_large_tensor(
+                                  BiLayout{}, kargs.K, kargs.N, kargs.stride_Bs[i], BiDataType{});
+            });
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                using DiDataType = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+                addressable      = addressable &&
+                              !is_large_tensor(
+                                  DiLayout{}, m_extent, kargs.N, kargs.stride_Ds[i], DiDataType{});
+            });
+            addressable =
+                addressable &&
+                !is_large_tensor(CLayout{}, m_extent, kargs.N, kargs.stride_E, EDataType{});
+
+            return addressable;
         }
     }
 
@@ -762,66 +819,16 @@ struct UniversalGemmKernel
         }
 
         // A tensor whose single-dimension byte extent reaches the 2GB buffer-addressing limit
-        // overflows the 32-bit offset arithmetic. Only the 64-bit global load/store path can
-        // address it, so without that path the argument must be rejected rather than silently
-        // producing wrong results.
-        if constexpr(!UseLargeTensorGlobalLoad())
+        // overflows the 32-bit offset arithmetic. Only the 64-bit global load/store or M-tile
+        // offset path can address it, so otherwise reject it rather than silently producing wrong
+        // results.
+        if(!SelfType::IsArgumentAddressable(kargs))
         {
-            auto is_large_tensor = [](auto layout,
-                                      index_t rows,
-                                      index_t cols,
-                                      index_t stride,
-                                      auto data_type) {
-                constexpr size_t SizeLimit = (size_t{1} << 31);
-                constexpr size_t PackedSize =
-                    ck_tile::numeric_traits<remove_cvref_t<decltype(data_type)>>::PackedSize;
-
-                const size_t n =
-                    std::is_same_v<tensor_layout::gemm::RowMajor, remove_cvref_t<decltype(layout)>>
-                        ? static_cast<size_t>(rows)
-                        : static_cast<size_t>(cols);
-                return n * static_cast<size_t>(stride) * sizeof(data_type) / PackedSize >=
-                       SizeLimit;
-            };
-
-            // A and E are addressed through descriptors a derived kernel may restrict to a
-            // single M tile; D is not, so it is checked against the full kargs.M below.
-            const index_t m_extent = SelfType::ClampMToOffsettedTile(kargs.M, 0);
-
-            const bool any_large_tensor = [&]() {
-                bool r = false;
-
-                static_for<0, NumATensor, 1>{}([&](auto i) {
-                    using AiLayout   = remove_cvref_t<std::tuple_element_t<i.value, AsLayout>>;
-                    using AiDataType = remove_cvref_t<std::tuple_element_t<i.value, AsDataType>>;
-                    r                = r || is_large_tensor(
-                                 AiLayout{}, m_extent, kargs.K, kargs.stride_As[i], AiDataType{});
-                });
-                static_for<0, NumBTensor, 1>{}([&](auto i) {
-                    using BiLayout   = remove_cvref_t<std::tuple_element_t<i.value, BsLayout>>;
-                    using BiDataType = remove_cvref_t<std::tuple_element_t<i.value, BsDataType>>;
-                    r                = r || is_large_tensor(
-                                 BiLayout{}, kargs.K, kargs.N, kargs.stride_Bs[i], BiDataType{});
-                });
-                static_for<0, NumDTensor, 1>{}([&](auto i) {
-                    using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-                    using DiDataType = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-                    r                = r || is_large_tensor(
-                                 DiLayout{}, kargs.M, kargs.N, kargs.stride_Ds[i], DiDataType{});
-                });
-                r = r || is_large_tensor(CLayout{}, m_extent, kargs.N, kargs.stride_E, EDataType{});
-
-                return r;
-            }();
-
-            if(any_large_tensor)
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                {
-                    CK_TILE_ERROR("Can't support large tensors without the LargeTensors trait!");
-                }
-                return false;
+                CK_TILE_ERROR("Can't support large tensors without the LargeTensors trait!");
             }
+            return false;
         }
 
         return AsTensorIsValid && BsTensorIsValid && DTensorIsValid;
