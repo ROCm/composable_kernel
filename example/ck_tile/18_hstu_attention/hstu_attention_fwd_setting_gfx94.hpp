@@ -29,14 +29,9 @@ using HstuAttentionFwdBlockTile_Hdim64_M128_N0_96_Sub32_K1_32_softmax =
 using HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub32_K1_32 =
     ck_tile::sequence<128, 64, 32, 128, 32, 96>;
 
-// used by silu/softmax + causal mask situation
-// ToDo: need to use xor swizzle to reduce LDS to improve occupancy to 2
-using HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32 =
-    ck_tile::sequence<64, 64, 32, 128, 32, 128>;
-// used by silu/softmax + no causal mask situation
-// ToDo: need to use xor swizzle to reduce LDS to improve occupancy to 2
-using HstuAttentionFwdBlockTile_Hdim128_M64_N0_128_Sub32_K1_32 =
-    ck_tile::sequence<64, 128, 32, 128, 32, 128>;
+// used by silu/softmax + causal mask/no causal mask situation
+using HstuAttentionFwdBlockTile_Hdim128_M64_N0_128_Sub64_K1_32 =
+    ck_tile::sequence<64, 128, 64, 128, 32, 128>;
 
 // used by silu + causal mask situation
 using HstuAttentionFwdBlockTile_Hdim128_M128_N0_32_Sub16_K1_32_silu =
@@ -119,7 +114,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
             if constexpr(kUseCausal)
             {
                 return ck_tile::HstuAttentionFwdTileSettingClass<
-                    HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32,
+                    HstuAttentionFwdBlockTile_Hdim128_M64_N0_128_Sub64_K1_32,
                     HstuAttentionFwdGemm0Warps,
                     WarpTile_16x16x16,
                     HstuAttentionFwdGemm1Warps,
@@ -128,7 +123,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
             else
             {
                 return ck_tile::HstuAttentionFwdTileSettingClass<
-                    HstuAttentionFwdBlockTile_Hdim128_M64_N0_128_Sub32_K1_32,
+                    HstuAttentionFwdBlockTile_Hdim128_M64_N0_128_Sub64_K1_32,
                     HstuAttentionFwdGemm0Warps,
                     WarpTile_16x16x16,
                     HstuAttentionFwdGemm1Warps,
