@@ -117,7 +117,7 @@ __device__ __amdgpu_buffer_rsrc_t make_wave_buffer_resource_new(T* p_wave,
     // wavewise base address (64 bit)
     auto p         = const_cast<remove_cv_t<T>*>(p_wave);
     int32_t stride = 0;
-    int32_t num    = element_space_size * sizeof(T);
+    uint32_t num   = static_cast<uint32_t>(element_space_size) * static_cast<uint32_t>(sizeof(T));
     auto flags     = CK_BUFFER_RESOURCE_3RD_DWORD;
 
     return __builtin_amdgcn_make_buffer_rsrc(p, stride, num, flags);
@@ -133,7 +133,7 @@ __device__ __amdgpu_buffer_rsrc_t make_wave_buffer_resource_new(T CK_CONSTANT_AD
     // Cast constant address space pointer to generic and set stride = 1
     auto p         = const_cast<remove_cv_t<T>*>(cast_pointer_to_generic_address_space(p_wave));
     int32_t stride = 1; // stride = 1 for constant address space buffer access
-    int32_t num    = element_space_size * sizeof(T);
+    uint32_t num   = static_cast<uint32_t>(element_space_size) * static_cast<uint32_t>(sizeof(T));
     auto flags     = CK_BUFFER_RESOURCE_3RD_DWORD;
 
     return __builtin_amdgcn_make_buffer_rsrc(p, stride, num, flags);

@@ -386,8 +386,10 @@ struct TransformConvFwdToGemm
             I1 + (N_ - I1) * NStrideTensorC_ + (Do_ - I1) * DoStride_ + (Ho_ - I1) * HoStride_ +
             (Wo_ - I1) * WoStride_ + (K_ - I1) * KStrideTensorC_;
 
-        bool is_a_descriptor_smaller_than_2GB = (in_desc_space_size * sizeof(ADataType)) <= TwoGB;
-        bool is_c_descriptor_smaller_than_2GB = (out_desc_space_size * sizeof(CDataType)) <= TwoGB;
+        bool is_a_descriptor_smaller_than_2GB =
+            (in_desc_space_size * sizeof(ADataType)) <= TwoGB && in_desc_space_size < TwoGB;
+        bool is_c_descriptor_smaller_than_2GB =
+            (out_desc_space_size * sizeof(CDataType)) <= TwoGB && out_desc_space_size < TwoGB;
 
         return is_a_descriptor_smaller_than_2GB && is_c_descriptor_smaller_than_2GB;
     }

@@ -1265,10 +1265,19 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
                  const AElementwiseOp& a_element_op,
                  const BElementwiseOp& b_element_op,
                  const CDEElementwiseOp& cde_element_op,
-                 const ck::index_t split_k = 1)
+                 const index_t split_k = 1)
     {
         if constexpr(!LargeTensors)
         {
+            bool ds_ovf = false;
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                ds_ovf |= tensor_exceeds_2gb<DDataType>(ds_g_n_c_wis_lengths[i]);
+            });
+            const bool stride_ovf = tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths) ||
+                                    tensor_exceeds_2gb<BDataType>(b_g_k_c_xs_lengths) ||
+                                    tensor_exceeds_2gb<EDataType>(e_g_n_c_wis_lengths) || ds_ovf;
+
             return Argument{p_a,
                             p_b,
                             p_ds,
@@ -1288,7 +1297,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
                             a_element_op,
                             b_element_op,
                             cde_element_op,
-                            split_k};
+                            split_k,
+                            stride_ovf};
         }
         else
         {
@@ -1485,6 +1495,15 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
     {
         if constexpr(!LargeTensors)
         {
+            bool ds_ovf = false;
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                ds_ovf |= tensor_exceeds_2gb<DDataType>(ds_g_n_c_wis_lengths[i]);
+            });
+            const bool stride_ovf = tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths) ||
+                                    tensor_exceeds_2gb<BDataType>(b_g_k_c_xs_lengths) ||
+                                    tensor_exceeds_2gb<EDataType>(e_g_n_c_wis_lengths) || ds_ovf;
+
             return std::make_unique<Argument>(p_a,
                                               p_b,
                                               p_ds,
@@ -1504,7 +1523,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
                                               a_element_op,
                                               b_element_op,
                                               cde_element_op,
-                                              split_k);
+                                              split_k,
+                                              stride_ovf);
         }
         else
         {
