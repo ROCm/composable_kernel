@@ -566,6 +566,19 @@ fwd_result fmha_fwd_run(mode_enum mode,
         return fwd_result::invalid_args;
     }
 
+    // Every descale is dequantized_max/quantized_max with quantized_max taken as the format
+    // maximum, which treats the tensors as the image of an fp32 tensor whose amax is qkv_max.
+    // That only describes a fill saturating the format, and init=3 alone does. Under any other
+    // fill the descale contradicts its own tensor: at init=uf the logits land near 1e-4, a sink
+    // token becomes the row maximum, every P value collapses onto one number and its rounding
+    // turns into a pure gain on the output. Only validation reads those numbers, so a timing-only
+    // run is left alone.
+    if(qscale.type != quant_scale_enum::no_scale && init_method != "3" && do_validation != 0)
+    {
+        std::cerr << "qscale=" << qscale_str << " requires -init=3 when validating" << std::endl;
+        return fwd_result::invalid_args;
+    }
+
     bool s_randval = false;
     if(p_drop > 0.0f && do_validation)
     {
@@ -734,7 +747,15 @@ fwd_result fmha_fwd_run(mode_enum mode,
        q_eff_lens_per_batch.empty() && kv_eff_lens_per_batch.empty() &&
        qscale.type != quant_scale_enum::mx)
     {
-        if(qscale.type == quant_scale_enum::perhead)
+        // sink is one logit per logical Q head, but packing folds those heads into seqlen and
+        // the kernel indexes sink_ptr by its own head index, which is the K head. Alibi and the
+        // perhead descale are per-Q-head for the same reason and are excluded as well.
+        if(init_sink_value != 0)
+        {
+            std::cerr << "pack_gqa is not supported with a sink. ignoring the 'pack_gqa' option"
+                      << std::endl;
+        }
+        else if(qscale.type == quant_scale_enum::perhead)
         {
             std::cerr << "pack_gqa is not supported with the perhead quant scale. ignoring the "
                          "'pack_gqa' option"
@@ -951,6 +972,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             }
         }
     }
+
     if constexpr(is_mx)
     {
         auto gen_scales = [&](auto& scales, auto data, float range) {
@@ -1013,6 +1035,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
         float max_descale_k = qkv_max / k_dtype_max;
         float max_descale_v = qkv_max / v_dtype_max;
 
+        // Keep the band narrow. Neighbouring entries still differ, so an index off-by-one
+        // changes the answer, but no KV block dominates the softmax: the pipeline folds
+        // k_descale into s_acc per N-block, so a wide spread there would peak every row onto
+        // whichever block carries the largest scale and collapse the effective key count.
         ck_tile::FillUniformDistribution<float>{max_descale_q * 0.8f, max_descale_q, next_seed()}(
             q_descale_host);
         ck_tile::FillUniformDistribution<float>{max_descale_k * 0.8f, max_descale_k, next_seed()}(

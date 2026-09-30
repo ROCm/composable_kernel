@@ -28,9 +28,10 @@ struct mx_wmma_scale_layout
 template <index_t ScaleGranularity,
           index_t MLane,
           index_t KLane,
+          bool UpdateSrcWithQuantizedValues = false,
           typename DstTensor,
           typename SrcTensor>
-CK_TILE_DEVICE auto cast_tile_mx_wmma(DstTensor& dst_tensor, const SrcTensor& src_tensor)
+CK_TILE_DEVICE auto cast_tile_mx_wmma(DstTensor& dst_tensor, SrcTensor& src_tensor)
 {
     using DstDataType = remove_cv_t<typename DstTensor::DataType>;
     static_assert(is_any_of<DstDataType, fp8_t, bf8_t>::value,
@@ -95,13 +96,31 @@ CK_TILE_DEVICE auto cast_tile_mx_wmma(DstTensor& dst_tensor, const SrcTensor& sr
                 constexpr index_t dst_offset = src_offset / values_per_vec;
                 if constexpr(std::is_same_v<DstDataType, fp8_t>)
                 {
-                    dst_tensor.get_thread_buffer().template set_as<fp8x8_t>(
-                        number<dst_offset>{}, fp32x8_to_fp8x8(v, scale));
+                    const auto converted = fp32x8_to_fp8x8(v, scale);
+                    dst_tensor.get_thread_buffer().template set_as<fp8x8_t>(number<dst_offset>{},
+                                                                            converted);
+                    if constexpr(UpdateSrcWithQuantizedValues)
+                    {
+                        const auto dequantized = fp8x8_to_fp32x8(converted, scale);
+                        static_for<0, values_per_vec, 1>{}([&](auto e) {
+                            src_tensor.get_thread_buffer()(number<src_offset + e>{}) =
+                                dequantized[e()];
+                        });
+                    }
                 }
                 else
                 {
-                    dst_tensor.get_thread_buffer().template set_as<bf8x8_t>(
-                        number<dst_offset>{}, fp32x8_to_bf8x8(v, scale));
+                    const auto converted = fp32x8_to_bf8x8(v, scale);
+                    dst_tensor.get_thread_buffer().template set_as<bf8x8_t>(number<dst_offset>{},
+                                                                            converted);
+                    if constexpr(UpdateSrcWithQuantizedValues)
+                    {
+                        const auto dequantized = bf8x8_to_fp32x8(converted, scale);
+                        static_for<0, values_per_vec, 1>{}([&](auto e) {
+                            src_tensor.get_thread_buffer()(number<src_offset + e>{}) =
+                                dequantized[e()];
+                        });
+                    }
                 }
             });
 

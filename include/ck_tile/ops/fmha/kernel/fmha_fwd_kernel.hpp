@@ -163,6 +163,11 @@ struct FmhaFwdKernel
     static constexpr bool kSkipMinSeqlenQ   = FmhaPipeline::Problem::kSkipMinSeqlenQ;
     static constexpr bool kHasSink          = FmhaPipeline::kHasSink;
 
+    static constexpr std::string_view kPipelineName = FmhaPipeline::name;
+
+    static_assert(kPipelineName == "qr_tdm" || QScaleEnum != BlockAttentionQuantScaleEnum::PERHEAD,
+                  "perhead scale is only supported on qr_tdm");
+
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
@@ -175,8 +180,6 @@ struct FmhaFwdKernel
 #else
     static constexpr bool kIsAvailable = !kUseTrLoad;
 #endif
-
-    static constexpr std::string_view kPipelineName = FmhaPipeline::name;
 
     template <ck_tile::index_t I> // to avoid duplicated base class prblem, introduce an template
                                   // arg
@@ -1652,7 +1655,17 @@ struct FmhaFwdKernel
         }
     }
 
-    CK_TILE_DEVICE static constexpr float GetSoftmaxScale(const Kargs& kargs)
+    // PERTENSOR folds q_descale*k_descale into scale_s for every pipeline (its offset is always
+    // 0 - one scale for the whole tensor). qr_tdm additionally folds PERHEAD's q_descale*k_descale
+    // (per-head) and BLOCKSCALE's q_descale (per-M-block, via i_m0) into scale_s - other pipelines
+    // never instantiate PERHEAD, and leave BLOCKSCALE's q_descale/k_descale to be applied
+    // elsewhere, so scale_s stays unfolded there. descale_offset_q/k are the caller's
+    // already-computed nhead/batch (and, in group mode, block-scale-seqstart) offsets - 0 wherever
+    // the caller's pipeline never indexes them.
+    CK_TILE_DEVICE static constexpr float GetSoftmaxScale(const Kargs& kargs,
+                                                          long_index_t descale_offset_q,
+                                                          long_index_t descale_offset_k,
+                                                          index_t i_m0)
     {
         if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
         {
@@ -1660,6 +1673,24 @@ struct FmhaFwdKernel
             const float k_descale = *(reinterpret_cast<const float*>(kargs.k_descale_ptr));
 
             return kargs.scale_s * q_descale * k_descale;
+        }
+        else if constexpr(kPipelineName == "qr_tdm" &&
+                          QScaleEnum == BlockAttentionQuantScaleEnum::PERHEAD)
+        {
+            const float* q_descale_ptr = reinterpret_cast<const float*>(kargs.q_descale_ptr);
+            const float* k_descale_ptr = reinterpret_cast<const float*>(kargs.k_descale_ptr);
+
+            return kargs.scale_s * q_descale_ptr[descale_offset_q] *
+                   k_descale_ptr[descale_offset_k];
+        }
+        else if constexpr(kPipelineName == "qr_tdm" &&
+                          QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+        {
+            const float* q_descale_ptr = reinterpret_cast<const float*>(kargs.q_descale_ptr);
+            const float q_descale =
+                q_descale_ptr[descale_offset_q + i_m0 / kargs.block_scale_size_q];
+
+            return kargs.scale_s * q_descale;
         }
         else
         {
@@ -1706,9 +1737,11 @@ struct FmhaFwdKernel
             }
             else
             {
+                // This branch is never qr_tdm, so we can use 0,0 as perhead is not supported
+                // and blockscale is handled elementwise in the pipeline.
                 sink_value = kargs.sink_ptr != nullptr
                                  ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) /
-                                       GetSoftmaxScale(kargs)
+                                       GetSoftmaxScale(kargs, 0, 0, i_m0)
                                  : -numeric<float>::infinity();
             }
 
@@ -2173,7 +2206,9 @@ struct FmhaFwdKernel
 
             AttentionVariant variant;
             const auto variant_params = [&] {
-                const float scale_s = GetSoftmaxScale(kargs);
+                // This branch is never qr_tdm, so we can use 0,0 as perhead is not supported and
+                // blockscale is handled elementwise in the pipeline.
+                const float scale_s = GetSoftmaxScale(kargs, 0, 0, i_m0);
 
                 if constexpr(kHasLogitsSoftCap)
                 {
@@ -3252,29 +3287,16 @@ struct FmhaFwdKernel
                 else
                     return 1.0f;
             }();
-            const float scale_s = [&] {
-                if constexpr(kFoldedQScale)
-                {
-                    const float q_descale =
-                        reinterpret_cast<const float*>(kargs.q_descale_ptr)[descale_offset_q];
-                    const float k_descale =
-                        reinterpret_cast<const float*>(kargs.k_descale_ptr)[descale_offset_k];
-                    return kargs.scale_s * q_descale * k_descale;
-                }
-                else if constexpr(kBlockQScale)
-                {
-                    const float q_descale = reinterpret_cast<const float*>(
-                        kargs.q_descale_ptr)[descale_offset_q + i_m0 / kargs.block_scale_size_q];
-                    return kargs.scale_s * q_descale;
-                }
-                else
-                    return kargs.scale_s;
-            }();
-            // Divide by the folded scale_s the pipeline re-applies, else descales do not cancel.
+
+            // Same scale_s the pipeline receives, so the sink recovers its logit in the same
+            // units it was seeded in. Dividing by the folded scale_s the pipeline re-applies is
+            // what makes the descales cancel.
+            const float scale_s = GetSoftmaxScale(kargs, descale_offset_q, descale_offset_k, i_m0);
             const float sink_value =
                 kargs.sink_ptr != nullptr
                     ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / scale_s
                     : -numeric<float>::infinity();
+
             auto invoke_fmha_pipeline = [&](auto&&... args) -> decltype(auto) {
                 if constexpr(kPipelineName == "qr_tdm" && kBlockQScale)
                 {

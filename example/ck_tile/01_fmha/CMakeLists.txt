@@ -176,6 +176,17 @@ else()
 endif()
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -fgpu-flush-denormals-to-zero)
 
+# Per-kernel VGPR/SGPR/LDS/scratch/spill and occupancy remarks, on stderr at
+# compile time. Must hang off the instance targets: the generated blobs are
+# LANGUAGE HIP, so they take CMAKE_HIP_FLAGS and never see CMAKE_CXX_FLAGS.
+# One remark block per kernel -- narrow the instance set before enabling.
+option(FMHA_RESOURCE_USAGE
+  "emit -Rpass-analysis=kernel-resource-usage remarks for FMHA instances" OFF)
+if(FMHA_RESOURCE_USAGE)
+  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Rpass-analysis=kernel-resource-usage)
+  list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Rpass-analysis=kernel-resource-usage)
+endif()
+
 # conditionally enable call to the fwd_splitkv API in fmha_fwd example and tests
 if("fwd_splitkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=1)

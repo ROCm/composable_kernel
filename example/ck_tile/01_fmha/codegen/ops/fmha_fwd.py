@@ -1496,14 +1496,19 @@ class KernelComponentFactoryGfx12(CompatibilityRuleFactory):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", "f"))  # fmt: skip
         return pipelines
 
+
 # Measured bm0=64 -> bm0=128 crossover max_seqlen_q on gfx1250 (fp16/bf16), per
 # head dim (hdim_q, hdim_v). Each value is an independent benchmark result, not a
 # shared symbol: they all happen to be 128 under the current double-buffer pipeline
 # but must be re-benchmarked (not inherited) when a head dim is added or the pipeline
 # changes.
 GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q = {
-    (32, 32): 128, (64, 64): 128, (96, 96): 128,
-    (128, 128): 128, (160, 160): 128, (192, 128): 128,
+    (32, 32): 128,
+    (64, 64): 128,
+    (96, 96): 128,
+    (128, 128): 128,
+    (160, 160): 128,
+    (192, 128): 128,
 }
 
 
@@ -1527,6 +1532,7 @@ def _validate_qr_tdm_bm0_crossover_pairs(tile_dict):
                 "after it in dispatch order"
             )
     return tile_dict
+
 
 class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
     arch = ArchTrait("gfx125")
@@ -1678,17 +1684,18 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             # no need dropout kernels. Alibi is held back: its near-one-hot P leaves a
             # slope-dependent quantization bias the OUT gain check reads as a systematic error.
             if (hdim, hdim_v) in ((128, 128), (64, 64)):
-                for logits, qscale, mask, bias, lse in itertools.product(
+                for logits, qscale, mask, bias, lse, sink in itertools.product(
                     ["f"],
                     ["no", "pertensor", "perhead", "blockscale"],
                     get_mask_map(mask_impl).keys(),
                     ["no", "bias"],
                     ["f", "t"],
+                    ["f", "t"],
                 ):
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", "f"))  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", "f"))  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", "f"))  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", "f"))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
 
             for logits, qscale, mask, bias in itertools.product(
                 ["f"], ["no", "pertensor"], get_mask_map(mask_impl).keys(), ["no"]

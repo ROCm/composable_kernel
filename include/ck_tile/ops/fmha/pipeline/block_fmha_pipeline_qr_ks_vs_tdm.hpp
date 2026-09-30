@@ -209,6 +209,8 @@ struct BlockFmhaPipelineQRKSVSTdm
     static constexpr bool kHwGemm1Scale = is_any_of<VDataType, fp8_t, bf8_t>::value &&
                                           BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 128;
 
+    static constexpr bool kDeferSink = kHwGemm1Scale && kHasSink;
+
     static constexpr index_t kScaleBytes        = 4;
     static constexpr index_t kGemm1KPerByte     = kK1 / kScaleBytes;
     static constexpr index_t kPScaleGranularity = kGemm1KPerByte;
@@ -291,9 +293,6 @@ struct BlockFmhaPipelineQRKSVSTdm
                       QScaleEnum == BlockAttentionQuantScaleEnum::PERHEAD ||
                       QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE,
                   "qr_tdm pipeline: unsupported quantization granularity");
-
-    static_assert(!(kBlockScale && kHasSink),
-                  "qr_tdm pipeline: BLOCKSCALE + sink would read the wrong descale block");
 
     static_assert(!kBlockScale || kHwGemm1Scale,
                   "qr_tdm pipeline: BLOCKSCALE requires the scaled MMA in gemm1");
@@ -400,11 +399,66 @@ struct BlockFmhaPipelineQRKSVSTdm
         return Layout::kArenaBytes;
     }
 
+    // gemm_1 consumes q(P), but l accumulates the unrounded P. Rescaling the numerator by
+    // l/sum(q(P)) makes O a weighted mean over exactly the weights gemm_1 used, so a common
+    // multiplicative P-rounding error cancels instead of surviving as a gain on the row.
+    // l itself is left alone: it is the mathematical row sum that LSE reports.
+    template <typename RowTile, typename OutputTile>
+    CK_TILE_DEVICE static void
+    CorrectQuantizedMass(const RowTile& l, const RowTile& l_quant, OutputTile& o_acc)
+    {
+        if constexpr(kQuantized)
+        {
+            constexpr auto spans = OutputTile::get_distributed_spans();
+            sweep_tile_span(spans[I0], [&](auto idx0) {
+                constexpr auto i      = make_tuple(idx0);
+                const auto correction = l_quant[i] == 0.f ? 0.f : l[i] / l_quant[i];
+                sweep_tile_span(spans[I1],
+                                [&](auto idx1) { o_acc(make_tuple(idx0, idx1)) *= correction; });
+            });
+        }
+    }
+
+    // The learned sink has no V, so it only ever contributes to the denominator. Pre-seeding
+    // m with it lets it own the max frame, which pushes every real P down the fp8 grid and
+    // biases the whole row. Merging it here instead -- one extra max-frame step on the final
+    // (m,l,O), algebraically the same as appending a score whose value vector is zero -- keeps
+    // the frame set by the real scores.
+    template <typename RowTile, typename OutputTile>
+    CK_TILE_DEVICE static void
+    MergeSink(RowTile& m, RowTile& l, OutputTile& o_acc, float sink_v, float scale_s)
+    {
+        if constexpr(kDeferSink)
+        {
+            if(__builtin_isinf_sign(sink_v) >= 0)
+            {
+                // Same split the pre-seed used: the bias paths carry scale_s inside m, the
+                // plain path applies it when the exponent is evaluated.
+                constexpr bool kScaledMax = BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                            BiasEnum == BlockAttentionBiasEnum::ALIBI ||
+                                            kHasLogitsSoftCap;
+                const float sink_m = kScaledMax ? sink_v * scale_s * C_LOG2E : sink_v * C_LOG2E;
+                const float exponent_scale = kScaledMax ? 1.0f : scale_s;
+
+                constexpr auto spans = OutputTile::get_distributed_spans();
+                sweep_tile_span(spans[I0], [&](auto idx0) {
+                    constexpr auto i      = make_tuple(idx0);
+                    const auto merged_m   = max(m[i], sink_m);
+                    const auto correction = exp2((m[i] - merged_m) * exponent_scale);
+                    l(i) = l[i] * correction + exp2((sink_m - merged_m) * exponent_scale);
+                    m(i) = merged_m;
+                    sweep_tile_span(
+                        spans[I1], [&](auto idx1) { o_acc(make_tuple(idx0, idx1)) *= correction; });
+                });
+            }
+        }
+    }
+
     // Re-pack gemm_0 C into gemm_1 A: C is M-outer (MIter,KIter), A is K-outer.
     // Lanes already align (NWarp==1), so this is an in-thread block reorder;
     // identity when MIterPerWarp==1.
     template <typename Gemm1, typename PComputeTensor>
-    CK_TILE_DEVICE static auto MakePForGemm1(const PComputeTensor& p_compute, int32_t& p_scale)
+    CK_TILE_DEVICE static auto MakePForGemm1(PComputeTensor& p_compute, int32_t& p_scale)
     {
         constexpr index_t kPMI = Gemm1::MIterPerWarp;
         constexpr index_t kPKI = kN0 / Gemm1::WarpGemm::kK;
@@ -417,11 +471,11 @@ struct BlockFmhaPipelineQRKSVSTdm
             static_assert(kPMI * kPKI == 1,
                           "qr_tdm pipeline: the dynamic P scale needs the (MIter,KIter) repack "
                           "to be the identity");
-            using WG = typename Gemm1::WarpGemm;
-            const auto packed =
-                cast_tile_mx_wmma<kPScaleGranularity,
-                                  WG::WarpGemmAttribute::Impl::kAMLane,
-                                  WG::WarpGemmAttribute::Impl::kABKLane>(p_tile, p_compute);
+            using WG          = typename Gemm1::WarpGemm;
+            const auto packed = cast_tile_mx_wmma<kPScaleGranularity,
+                                                  WG::WarpGemmAttribute::Impl::kAMLane,
+                                                  WG::WarpGemmAttribute::Impl::kABKLane,
+                                                  true>(p_tile, p_compute);
             static_assert(packed.size() == 1);
             p_scale = packed[I0];
         }
@@ -517,12 +571,19 @@ struct BlockFmhaPipelineQRKSVSTdm
         // init M, L (sink-aware: when sink_v is finite, pre-seed m/l)
         auto m = MLBlockTileType{};
         auto l = MLBlockTileType{};
+        // Row sum of the quantized P actually handed to gemm_1; unused unless kQuantized.
+        auto l_quant = MLBlockTileType{};
+        if constexpr(kQuantized)
+            clear_tile(l_quant);
 
         clear_tile(o_acc);
-        if(__builtin_isinf_sign(sink_v) >= 0)
+        // kDeferSink folds to false at compile time for every non-deferred instance; the
+        // else branch below must stay reachable in both cases, so this is one runtime if.
+        if(!kDeferSink && __builtin_isinf_sign(sink_v) >= 0)
         {
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-            if constexpr(kHasLogitsSoftCap)
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI ||
+                         BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS || kHasLogitsSoftCap)
                 set_tile(m, sink_v * scale_s * C_LOG2E);
             else
                 set_tile(m, sink_v * C_LOG2E);
@@ -751,7 +812,15 @@ struct BlockFmhaPipelineQRKSVSTdm
 
         do
         {
-            [[maybe_unused]] const index_t kv_tile_start = kv_load_start + i_total_loops * kN0;
+            // Sink-aware: in the sink phase tiles start at 0, in the normal phase at
+            // physical_seqlen_k_start. k_origin below and the blockscale descale index
+            // (k_descale in the kBlockScale sweep, v_descale in pack_v_scale) address the
+            // same tile, so they share this one expression -- a sink-blind index here
+            // trails the loaded column by physical_seqlen_k_start - sink_seq_end.
+            const index_t kv_tile_start =
+                (num_sink_loop > i_total_loops)
+                    ? kv_load_start + i_total_loops * kN0
+                    : physical_seqlen_k_start + (i_total_loops - num_sink_loop) * kN0;
             // the tile range rounds its end up to kN0, so bound the scale index by seqlen_k
             [[maybe_unused]] const index_t kv_last = mask.GetXTotal() - 1;
 
@@ -839,15 +908,8 @@ struct BlockFmhaPipelineQRKSVSTdm
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
-                const auto current_k_origin = [&]() {
-                    const bool in_sink = (num_sink_loop > i_total_loops);
-                    if(in_sink)
-                        return make_tuple(kN0 * i_total_loops + kv_load_start, 0);
-                    else
-                        return make_tuple(
-                            kN0 * (i_total_loops - num_sink_loop) + physical_seqlen_k_start, 0);
-                }();
-                constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
+                const auto current_k_origin = make_tuple(kv_tile_start, 0);
+                constexpr auto s_spans      = decltype(s_acc)::get_distributed_spans();
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
@@ -861,16 +923,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                 });
             }
 
-            // Sink-aware k_origin: in sink phase, tiles start at 0;
-            // in normal phase, tiles start at physical_seqlen_k_start.
-            const auto k_origin = [&]() {
-                const bool in_sink_phase = (num_sink_loop > i_total_loops);
-                if(in_sink_phase)
-                    return make_tuple(kN0 * i_total_loops + kv_load_start, 0);
-                else
-                    return make_tuple(
-                        kN0 * (i_total_loops - num_sink_loop) + physical_seqlen_k_start, 0);
-            }();
+            const auto k_origin = make_tuple(kv_tile_start, 0);
 
             if constexpr(kHasUnevenSplits)
             {
@@ -1005,6 +1058,16 @@ struct BlockFmhaPipelineQRKSVSTdm
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
 
+            // MakePForGemm1 leaves p_compute holding the dequantized values gemm_1 will
+            // multiply, so reducing it here gives sum(q(P)) over the same groups.
+            auto rowsum_p_quant = rowsum_p;
+            if constexpr(kQuantized)
+            {
+                rowsum_p_quant = block_tile_reduce<SMPLComputeDataType>(
+                    p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0});
+                block_tile_reduce_sync(rowsum_p_quant, f_sum, bool_constant<false>{});
+            }
+
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[I0], [&](auto idx0) {
@@ -1029,6 +1092,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                     }
                 }();
                 l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                if constexpr(kQuantized)
+                    l_quant(i_idx) = tmp * l_quant[i_idx] + rowsum_p_quant[i_idx];
                 sweep_tile_span(o_spans[I1], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
@@ -1085,6 +1150,9 @@ struct BlockFmhaPipelineQRKSVSTdm
                    v_scale(number<k1_loops - 1>{}));
 
         } while(++i_total_loops < num_total_loop);
+
+        CorrectQuantizedMass(l, l_quant, o_acc);
+        MergeSink(m, l, o_acc, sink_v, scale_s);
 
         if constexpr(kStoreLSE)
         {
@@ -1217,12 +1285,19 @@ struct BlockFmhaPipelineQRKSVSTdm
         // init M, L (sink-aware)
         auto m = MLBlockTileType{};
         auto l = MLBlockTileType{};
+        // Row sum of the quantized P actually handed to gemm_1; unused unless kQuantized.
+        auto l_quant = MLBlockTileType{};
+        if constexpr(kQuantized)
+            clear_tile(l_quant);
 
         clear_tile(o_acc);
-        if(__builtin_isinf_sign(sink_v) >= 0)
+        // kDeferSink folds to false at compile time for every non-deferred instance; the
+        // else branch below must stay reachable in both cases, so this is one runtime if.
+        if(!kDeferSink && __builtin_isinf_sign(sink_v) >= 0)
         {
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-            if constexpr(kHasLogitsSoftCap)
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI ||
+                         BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS || kHasLogitsSoftCap)
                 set_tile(m, sink_v * scale_s * C_LOG2E);
             else
                 set_tile(m, sink_v * C_LOG2E);
@@ -1476,7 +1551,15 @@ struct BlockFmhaPipelineQRKSVSTdm
                             KDataType* __restrict__ k_lds_read_ptr,
                             KDataType* __restrict__ v_lds_write_ptr,
                             KDataType* __restrict__ v_lds_read_ptr) {
-            [[maybe_unused]] const index_t kv_tile_start = kv_load_start + i_total_loops * kN0;
+            // Sink-aware: in the sink phase tiles start at 0, in the normal phase at
+            // physical_seqlen_k_start. k_origin below and the blockscale descale index
+            // (k_descale in the kBlockScale sweep, v_descale in pack_v_scale) address the
+            // same tile, so they share this one expression -- a sink-blind index here
+            // trails the loaded column by physical_seqlen_k_start - sink_seq_end.
+            const index_t kv_tile_start =
+                (num_sink_loop > i_total_loops)
+                    ? kv_load_start + i_total_loops * kN0
+                    : physical_seqlen_k_start + (i_total_loops - num_sink_loop) * kN0;
             // the tile range rounds its end up to kN0, so bound the scale index by seqlen_k
             [[maybe_unused]] const index_t kv_last = mask.GetXTotal() - 1;
 
@@ -1708,15 +1791,8 @@ struct BlockFmhaPipelineQRKSVSTdm
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
-                const auto current_k_origin = [&]() {
-                    const bool in_sink = (num_sink_loop > i_total_loops);
-                    if(in_sink)
-                        return make_tuple(kN0 * i_total_loops + kv_load_start, 0);
-                    else
-                        return make_tuple(
-                            kN0 * (i_total_loops - num_sink_loop) + physical_seqlen_k_start, 0);
-                }();
-                constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
+                const auto current_k_origin = make_tuple(kv_tile_start, 0);
+                constexpr auto s_spans      = decltype(s_acc)::get_distributed_spans();
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
@@ -1734,15 +1810,7 @@ struct BlockFmhaPipelineQRKSVSTdm
             v_lds_read_window.set_bottom_tensor_view_data_ptr(v_lds_read_ptr);
             auto v_tile = load_tile_transpose(v_lds_read_window);
 
-            // Sink-aware k_origin (prefill path)
-            const auto k_origin = [&]() {
-                const bool in_sink_phase = (num_sink_loop > i_total_loops);
-                if(in_sink_phase)
-                    return make_tuple(kN0 * i_total_loops + kv_load_start, 0);
-                else
-                    return make_tuple(
-                        kN0 * (i_total_loops - num_sink_loop) + physical_seqlen_k_start, 0);
-            }();
+            const auto k_origin = make_tuple(kv_tile_start, 0);
 
             // Standard causal ranges round their end to N64
             // (nonpositive ranges already returned above). With no sink/split,
@@ -1913,6 +1981,16 @@ struct BlockFmhaPipelineQRKSVSTdm
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
 
+            // MakePForGemm1 leaves p_compute holding the dequantized values gemm_1 will
+            // multiply, so reducing it here gives sum(q(P)) over the same groups.
+            auto rowsum_p_quant = rowsum_p;
+            if constexpr(kQuantized)
+            {
+                rowsum_p_quant = block_tile_reduce<SMPLComputeDataType>(
+                    p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0});
+                block_tile_reduce_sync(rowsum_p_quant, f_sum, bool_constant<false>{});
+            }
+
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[I0], [&](auto idx0) {
@@ -1944,6 +2022,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                 {
                     l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
                 }
+                if constexpr(kQuantized)
+                    l_quant(i_idx) = tmp * l_quant[i_idx] + rowsum_p_quant[i_idx];
                 sweep_tile_span(o_spans[I1], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
@@ -2065,6 +2145,8 @@ struct BlockFmhaPipelineQRKSVSTdm
         } while(i_total_loops < num_total_loop);
 
         s_wait_tensorcnt_barrier<0>();
+        CorrectQuantizedMass(l, l_quant, o_acc);
+        MergeSink(m, l, o_acc, sink_v, scale_s);
 
         if constexpr(kStoreLSE)
         {
