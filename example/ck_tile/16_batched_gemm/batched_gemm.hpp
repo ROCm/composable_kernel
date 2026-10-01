@@ -26,6 +26,8 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t VectorSizeC = 1;
 
     static constexpr bool EnableSmallerVectorLoadFallback = false;
+
+    static constexpr bool LargeTensors = false;
 };
 
 struct GemmConfigMemory : public GemmConfigBase
@@ -50,6 +52,10 @@ struct GemmConfigMemory : public GemmConfigBase
 
 struct GemmConfigV3 : public GemmConfigBase
 {
+    static constexpr bool kPadM = true;
+    static constexpr bool kPadN = true;
+    static constexpr bool kPadK = true;
+
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
@@ -66,6 +72,9 @@ struct GemmConfigV3 : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
+
+    static constexpr bool EnableSmallerVectorLoadFallback = true;
+    static constexpr bool LargeTensors                    = true;
 };
 
 struct GemmConfigV4 : public GemmConfigBase
@@ -109,6 +118,7 @@ struct GemmConfigV3_Wmma : public GemmConfigBase
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
 
     static constexpr bool EnableSmallerVectorLoadFallback = true;
+    static constexpr bool LargeTensors                    = true;
 };
 
 template <ck_tile::GemmPipeline PipelineId>

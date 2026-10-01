@@ -75,7 +75,7 @@ struct UniversalInvoker
                                              GemmConfig::DataCachePrefetchA,
                                              GemmConfig::DataCachePrefetchB,
                                              GemmConfig::Async,
-                                             false>; // LargeTensors
+                                             GemmConfig::LargeTensors>;
 
         constexpr auto scheduler = GemmConfig::Scheduler;
 
@@ -270,7 +270,8 @@ struct UniversalInvoker
                                              VectorSize,
                                              GemmConfig::DataCachePrefetchA,
                                              GemmConfig::DataCachePrefetchB,
-                                             GemmConfig::Async>;
+                                             GemmConfig::Async,
+                                             GemmConfig::LargeTensors>;
 
         constexpr auto scheduler = GemmConfig::Scheduler;
         using AComputeDataType =

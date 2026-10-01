@@ -62,15 +62,25 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
     using TilePartitioner = ck_tile::
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
-                                                                 kPadN,
-                                                                 kPadK,
-                                                                 DoubleSmemBuffer,
-                                                                 ALayout,
-                                                                 BLayout,
-                                                                 CLayout,
-                                                                 TransposeC>;
-    constexpr auto scheduler  = GemmConfig::Scheduler;
+    using GemmUniversalTraits =
+        ck_tile::TileGemmUniversalTraits<kPadM,
+                                         kPadN,
+                                         kPadK,
+                                         DoubleSmemBuffer,
+                                         ALayout,
+                                         BLayout,
+                                         CLayout,
+                                         TransposeC,
+                                         /*UseStructuredSparsity=*/false,
+                                         /*UsePersistentKernel=*/false,
+                                         /*NumWaveGroups=*/1,
+                                         /*Preshuffle=*/false,
+                                         /*VectorSize=*/16,
+                                         ck_tile::DataCachePrefetchKind::None,
+                                         ck_tile::DataCachePrefetchKind::None,
+                                         /*Async=*/false,
+                                         GemmConfig::LargeTensors>;
+    constexpr auto scheduler = GemmConfig::Scheduler;
 
     using UniversalGemmProblem =
         ck_tile::UniversalGemmPipelineProblem<ADataType,
