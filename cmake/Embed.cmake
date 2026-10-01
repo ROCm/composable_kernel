@@ -76,19 +76,21 @@ function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
             set(START_SYMBOL "_binary_${SYMBOL}_start")
             set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
             if(EMBED_USE STREQUAL "LD")
+		# Use unsigned char to avoid -Wnarrowing errors when byte values >= 0x80 are read.
                 string(APPEND EXTERNS "
-extern const char ${START_SYMBOL}[];
+extern const unsigned char ${START_SYMBOL}[];
 extern const size_t _binary_${SYMBOL}_size;
 const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
 ")
             else()
+		# Use unsigned char to avoid -Wnarrowing errors when byte values >= 0x80 are read.
                 string(APPEND EXTERNS "
-extern const char ${START_SYMBOL}[];
+extern const unsigned char ${START_SYMBOL}[];
 extern const size_t ${LENGTH_SYMBOL};
 ")
             endif()
             string(APPEND INIT_KERNELS "
-        { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
+	{ \"${BASE_NAME}\", { reinterpret_cast<const char*>(${START_SYMBOL}), ${LENGTH_SYMBOL}} },")
         endif()
     endforeach()
     if(EMBED_USE STREQUAL "RC")
@@ -166,9 +168,10 @@ function(embed_file FILE BASE_DIRECTORY)
         string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " ARRAY_VALUES ${HEX_STRING})
         # removes trailing comma
         string(REGEX REPLACE ", $" "" ARRAY_VALUES ${ARRAY_VALUES})
+	# Use unsigned char to avoid -Wnarrowing errors when byte values >= 0x80 are read.
         file(WRITE "${OUTPUT_FILE}" "
 #include <cstddef>
-extern const char _binary_${OUTPUT_SYMBOL}_start[] = { ${ARRAY_VALUES} };
+extern const unsigned char _binary_${OUTPUT_SYMBOL}_start[] = { ${ARRAY_VALUES} };
 extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SYMBOL}_start);
 ")
         set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
@@ -202,7 +205,11 @@ function(add_embed_library EMBED_NAME)
         target_sources(${INTERNAL_EMBED_LIB} PRIVATE ${OUTPUT_FILES})
     endif()
     target_include_directories(${INTERNAL_EMBED_LIB} PRIVATE "${EMBED_DIR}/include")
-    target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
+    target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE
+         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-Wno-reserved-identifier>
+         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-Wno-extern-initializer>
+         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-Wno-missing-variable-declarations>
+         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>>:-Werror=narrowing>)
     set_target_properties(${INTERNAL_EMBED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE On)
     add_library(${EMBED_NAME} INTERFACE)
     if(EMBED_USE STREQUAL "RC")

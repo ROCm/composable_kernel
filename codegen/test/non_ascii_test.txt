@@ -1,0 +1,2 @@
+Test data for Embed.cmake unsigned char regression test.
+Contains non-ASCII bytes: em dash — guillemets « »
