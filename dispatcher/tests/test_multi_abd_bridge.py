@@ -172,8 +172,18 @@ class TestMultiAbdShippedConfigs(unittest.TestCase):
         self.assertTrue(_CONFIG_DIR.is_dir(), _CONFIG_DIR)
 
     def test_configs_are_valid_sweeps(self):
-        configs = sorted(_CONFIG_DIR.glob("*.json"))
-        self.assertGreater(len(configs), 0, "no multi_abd configs shipped")
+        # Only sweep configs carry "tile_config". The directory also ships
+        # problem-shape files (e.g. example_problems.json, a {"problems": [...]}
+        # list), which this used to glob indiscriminately and then fail on for
+        # not being something it never claimed to be.
+        candidates = sorted(_CONFIG_DIR.glob("*.json"))
+        self.assertGreater(len(candidates), 0, "no multi_abd json shipped")
+        configs = []
+        for path in candidates:
+            with open(path) as f:
+                if "tile_config" in json.load(f):
+                    configs.append(path)
+        self.assertGreater(len(configs), 0, "no multi_abd sweep configs shipped")
         for path in configs:
             with self.subTest(config=path.name):
                 with open(path) as f:

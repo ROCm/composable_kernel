@@ -419,10 +419,26 @@ set_tests_properties(dispatcher_test_search_space_sampling PROPERTIES
 # every test in the file skips, which would hide a missing GPU behind a green
 # result. Run as scripts with SKIP_RETURN_CODE 77 they report Skipped instead.
 # =============================================================================
+#
+# test_blockscale_quant_arch_gates pins the gfx12 arch gates of the five
+# non-grouped block-scale quant bridges: warp_tile_k must match gfx1250 EXACTLY
+# (gfx1200/gfx1201 have no 16x16x128 8-bit WMMA fragment and would silently
+# compute wrong results), while the OCP fp8 predicates must stay family-wide.
+# =============================================================================
 foreach(_quant_test
+        test_aquant_preshuffle_ccr
+        test_blockscale_quant_arch_gates
+        test_bq_preshuffle_coordinates
+        test_copilot_runtime_build_regressions
+        test_dispatcher_cache_safety
         test_grouped_gemm_rowcolquant_utils
         test_grouped_gemm_tensorquant_utils
-        test_quant_review_regressions)
+        test_quant_codegen_target_validation
+        test_quant_default_arch_resolution
+        test_quant_gfx1250_default_configs
+        test_quant_layout_regressions
+        test_quant_review_regressions
+        test_quant_target_header_regressions)
     add_test(
         NAME dispatcher_${_quant_test}
         COMMAND ${Python3_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/${_quant_test}.py -v
@@ -435,7 +451,9 @@ foreach(_quant_test
     )
 endforeach()
 
+# test_aquant_mem_tail_gpu is gfx1250-only; main() exits 77 on any other arch.
 foreach(_quant_gpu_test
+        test_aquant_mem_tail_gpu
         test_rowcolquant_gpu_correctness
         test_tensorquant_gpu_correctness)
     add_test(

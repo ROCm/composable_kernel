@@ -39,10 +39,11 @@ struct GemmABQuantPipelineAgBgCrDefaultPolicy
     {
         return GemmBQuantPipelineAgBgCrDefaultPolicy::GetVectorSizeBQ<Problem>();
     }
-    template <typename Problem>
+    template <typename Problem, bool CompactPreshuffledN = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBQDramTileDistribution()
     {
-        return GemmBQuantPipelineAgBgCrDefaultPolicy::MakeBQDramTileDistribution<Problem>();
+        return GemmBQuantPipelineAgBgCrDefaultPolicy::
+            MakeBQDramTileDistribution<Problem, CompactPreshuffledN>();
     }
 
     template <typename Problem>
@@ -54,6 +55,12 @@ struct GemmABQuantPipelineAgBgCrDefaultPolicy
         static_assert(Problem::BQuantGroupSize::kK % WarpTile::at(I2) == 0,
                       "KPerWarpGemm must be a multiple of QuantGroupSize::kK!");
 
+#if defined(__gfx125__)
+        // WMMA uses the native K0/K1 lane decomposition. The MFMA transpose-load
+        // selector below assumes at most four accesses and yields Invalid for
+        // gfx1250's 16x16x128 fp8/bf8 tile (64 elements per lane, 8 per access).
+        constexpr auto wg_attr_num_access = WGAttrNumAccessEnum::Default;
+#else
         constexpr index_t vector_size =
             DS_READ_TR_SIZE() / sizeof(typename Problem::AComputeDataType);
         constexpr index_t thread_elements = WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size();
@@ -64,6 +71,7 @@ struct GemmABQuantPipelineAgBgCrDefaultPolicy
             : vector_size * 2 == thread_elements ? WGAttrNumAccessEnum::Double
             : vector_size * 4 == thread_elements ? WGAttrNumAccessEnum::Quad
                                                  : WGAttrNumAccessEnum::Invalid;
+#endif
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::AComputeDataType,
                                             typename Problem::BComputeDataType,

@@ -72,8 +72,8 @@ inline void permute_i4_inplace(ck_tile::HostTensor<T>& t)
 // operator.
 //
 // Note the row-major load: aquant additionally static_asserts that its AQLayout
-// really is row-major, which holds because the ccr layout is excluded from the
-// preshufflequant path. abquant's AQ can be column-major on the n=128 EightWaves
+// really is row-major, as emitted by the native TileEngine AQuant builder for
+// every A/B layout. abquant's AQ can be column-major on the n=128 EightWaves
 // fast path, but only ever with APreshuffleQuant off, so this branch is dead
 // there and the plain copy is what runs.
 template <typename KernelT, ck_tile::index_t GroupK, typename QT>

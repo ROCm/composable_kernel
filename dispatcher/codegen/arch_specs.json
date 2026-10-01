@@ -214,11 +214,16 @@
         "here; enabling them would newly generate kernels for combinations this",
         "bridge has never exercised, which needs its own device validation."
       ],
+      "_warp_tile_int8_source": [
+        "Native WarpGemmWmma_i32_16x16x64_i8_i8 in warp_gemm_dispatcher.hpp.",
+        "Validated with exact integer comparisons by test_gemm_parity.py on gfx1250."
+      ],
       "warp_tile_combos": {
         "fp16_fp16_fp32": [[16, 16, 32]],
         "bf16_bf16_fp32": [[16, 16, 32]],
         "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128]],
-        "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128]]
+        "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128]],
+        "int8_int8_int32": [[16, 16, 64]]
       }
     }
   },

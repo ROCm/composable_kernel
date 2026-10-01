@@ -41,7 +41,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy
         }
     }
 
-    template <typename Problem>
+    template <typename Problem, bool CompactPreshuffledN = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBQDramTileDistribution()
     {
         using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
@@ -67,11 +67,17 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy
 
         if constexpr(BPreshuffleQuant)
         {
+            // CompV3 indexes coarse preshuffled registers by N quantization group.
+            // Other consumers keep their existing distribution until they opt in.
+            constexpr index_t PreshuffledRowsPerBlock =
+                (CompactPreshuffledN && Problem::BQuantGroupSize::kN > WarpGemm::kN)
+                    ? NPerBlockBQ
+                    : NPerBlock / WarpGemm::kN;
             using TileEncodingPattern = tile_distribution_encoding_pattern_bq<
                 BlockGemmShape,
                 WarpGemm,
                 BlockSize,
-                NPerBlock / WarpGemm::kN,
+                PreshuffledRowsPerBlock,
                 ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()),
                 Problem::BQuantGroupSize::kN,
                 Problem::BQuantGroupSize::kK,

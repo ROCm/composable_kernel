@@ -108,7 +108,12 @@ def _make_fp16_config(gfx_arch: str) -> BatchedGemmKernelConfig:
     )
 
 
-def test_batched_fp16(gfx_arch: str) -> tuple[str, str]:
+# NOTE: deliberately NOT named test_* -- this module is script-style and is
+# run directly by ctest (see tests/CMakeLists.txt). Under the old name pytest
+# collected it and failed with "fixture 'gfx_arch' not found" (conftest
+# provides 'gpu_arch'), and it returns a (status, detail) tuple, which pytest
+# also flags. main() below remains the supported entry point.
+def check_batched_fp16(gfx_arch: str) -> tuple[str, str]:
     # Small multi-batch problem; K=128 gives 4 tile-K iterations (128/32).
     batch, M, N, K = 3, 128, 128, 128
     cfg = _make_fp16_config(gfx_arch)
@@ -170,7 +175,7 @@ def main() -> int:
     log.info("Running batched GEMM GPU correctness on %s", gfx)
 
     try:
-        status, detail = test_batched_fp16(gfx)
+        status, detail = check_batched_fp16(gfx)
     except Exception as exc:  # noqa: BLE001
         status, detail = FAIL, f"batched/fp16: exception: {exc}"
 

@@ -23,9 +23,10 @@ ABQuant quantizes BOTH A and B:
 Parity target arch: gfx950 (MI350) is the default. The default-config generators
 are ARCH-AWARE (a single config set cannot be byte-identical to Old-TE for both
 gfx942 and gfx950): warp_tile_k is arch-derived from get_k_warp_tile<PrecType,16>()
-(fp8/bf8 -> 128 on gfx950, 32 on gfx942; fp4 -> 32 everywhere), and the gfx950
-eight_waves fast path (GemmConfig/GemmConfigPrefill aliases under CK_USE_GFX950)
-is selected for exactly the 6 fp8/bf8 kernels that route through those aliases.
+(fp8/bf8 -> 128 on gfx950 and gfx1250, 32 on gfx942; fp4 -> 32 on gfx950/gfx942
+but 128 on gfx1250), and the gfx950 eight_waves fast path
+(GemmConfig/GemmConfigPrefill aliases under CK_USE_GFX950) is selected for
+exactly the 6 fp8/bf8 kernels that route through those aliases.
 
 Usage (end-to-end):
   configs = [default_fp8_config()]
@@ -34,10 +35,12 @@ Usage (end-to-end):
   result = runner.run(A, B, AQ, BQ, ABQuantGemmProblem(M=128, N=128, K=256))
 """
 
-from dispatcher_common import unified_framework_flags
+from dispatcher_common import validate_configs_match_arch, unified_framework_flags, arch_feature_defines
+from quant_default_config import deferred_arch_default, resolve_default_configs
 import ctypes
 import json
 import logging
+import re
 import subprocess
 import sys
 import tempfile
@@ -70,7 +73,12 @@ _CTYPES_LIB_SRC = Path(__file__).parent.parent / "bindings" / "ctypes" / "gemm_a
 _codegen_dir = str(Path(__file__).parent.parent / "codegen")
 if _codegen_dir not in sys.path:
     sys.path.insert(0, _codegen_dir)
-from codegen_common import make_gemm_abquant_kernel_name  # noqa: E402
+from codegen_common import (  # noqa: E402
+    abquant_uses_column_major_aq,
+    make_gemm_abquant_kernel_name,
+    validate_abquant_eight_waves_target,
+    validate_gfx1250_quant_warp_tile,
+)
 
 # Tile-Engine perf flags -- single source of truth (quant_bridge_flags.py).
 if str(Path(__file__).parent) not in sys.path:
@@ -82,12 +90,19 @@ _DEFAULT_HIPCC = "hipcc"
 # Architectures the ABQuant bridge supports. NEVER default to gfx942 silently:
 # the arch must be detected (get_arch) or explicitly supplied, and unknown archs
 # raise (Python) / return an error (C++ runtime check in the ctypes lib).
-_SUPPORTED_ARCHS = ("gfx942", "gfx950")
+_SUPPORTED_ARCHS = ("gfx942", "gfx950", "gfx1250")
 
 
 def _validate_arch(arch: str) -> str:
-    """Return arch if supported, else raise. Mirrors the C++ runtime arch check."""
-    if not arch or not any(arch.startswith(a) for a in _SUPPORTED_ARCHS):
+    """Return arch if supported, else raise. Mirrors the C++ runtime arch check.
+
+    Matching is EXACT on the target name after stripping any feature suffix, so
+    "gfx1250" and "gfx1250:xnack-" are accepted while near-misses such as
+    "gfx12500" are rejected instead of slipping through a prefix test.  The
+    original string is returned unchanged because it is what reaches
+    --offload-arch and the .so filename.
+    """
+    if not arch or arch.split(":", 1)[0] not in _SUPPORTED_ARCHS:
         raise ValueError(
             f"Unsupported GPU architecture {arch!r} for ABQuant bridge "
             f"(supported: {', '.join(_SUPPORTED_ARCHS)})"
@@ -137,7 +152,20 @@ class ABQuantKernelConfig:
     pad_k: bool              = False
     k_block_per_cu: int      = 1
 
-    gfx_arch: str = "gfx950"
+    gfx_arch: Optional[str] = None
+
+    def __post_init__(self):
+        self.validate_target()
+
+    def validate_target(self, gfx_arch=None):
+        """Check the final mutable configuration before generating a kernel."""
+        arch = self.gfx_arch if gfx_arch is None else gfx_arch
+        if arch:
+            _validate_arch(arch)
+        validate_gfx1250_quant_warp_tile(
+            self.warp_tile_m, self.warp_tile_n, self.warp_tile_k, arch, bridge="ABQuant"
+        )
+        validate_abquant_eight_waves_target(self.pipeline, self.eight_waves, arch)
 
     @property
     def name(self) -> str:
@@ -161,7 +189,9 @@ class ABQuantKernelConfig:
 
     def to_codegen_config(self) -> dict:
         """Produce the JSON config dict consumed by unified_gemm_abquant_codegen.py."""
+        self.validate_target()
         return {
+            "gfx_arch": self.gfx_arch,
             "variant_keys": [self.variant_key],
             "layouts": [self.layout],
             "pipeline": self.pipeline,
@@ -314,7 +344,7 @@ class ABQuantDispatcherLib(DispatcherLibBase):
         for the RowMajor-B families crr/rrr. The caller sets stride_B to match.
         C must be the array that will receive output.
         aq_column_major supplies AQ as column-major bytes (leading dim = M) for
-        the n=128 EightWaves fast path; otherwise AQ is row-major (leading dim=QK_A).
+        n=128 with eight warps; otherwise AQ is row-major (leading dim=QK_A).
         a_column_major supplies A as column-major bytes (leading dim = M) for the
         ccr/crr families (ALayout=ColumnMajor, StrideA=M) so A[m,k] lives at
         k*M+m; otherwise A is row-major (leading dim = K, StrideA=K). The caller
@@ -340,7 +370,7 @@ class ABQuantDispatcherLib(DispatcherLibBase):
             B = np.asfortranarray(B) if b_column_major else np.ascontiguousarray(B)
         else:
             B = np.ascontiguousarray(B)
-        # AQLayout is ColumnMajor for the n=128 EightWaves fast path (StrideAQ=M):
+        # AQLayout is ColumnMajor for n=128 with eight warps (StrideAQ=M):
         # supply Fortran-order [M, QK_A] bytes so AQ[m,qk] lives at qk*M+m.
         if aq_column_major and AQ.ndim == 2:
             AQ = np.asfortranarray(AQ)
@@ -376,14 +406,22 @@ class ABQuantDispatcherLib(DispatcherLibBase):
 
     @staticmethod
     def kernel_uses_column_major_aq(kernel_name: str) -> bool:
-        """Whether a kernel name resolves to the ColumnMajor-AQ EightWaves path.
+        """Read the generated name's warp shape and BQ N-group size.
 
-        Mirrors the codegen AQLayout rule (run_gemm_quant_example.inc:1013-1021):
-        BQuantGroupSize::kN == 128 && M_Warp*N_Warp*K_Warp == 8. Since warps==8
-        occurs only for the 4x2x1 EightWaves configs, we detect 'eightwaves' plus
-        the 'bqg1x128x' N-group segment in the byte-exact kernel name.
+        ABQuant currently fixes APreshuffleQuant=false. The AQ layout rule is
+        independent of pipeline, so CompV3 and EightWaves use the same predicate.
+        The warp shape immediately precedes the warp-tile and quant-group tokens.
         """
-        return "eightwaves" in kernel_name and "bqg1x128x" in kernel_name
+        match = re.search(
+            r"_(\d+)x(\d+)x(\d+)_\d+x\d+x\d+_aqg\d+x\d+x\d+_bqg\d+x(\d+)x\d+(?:_|$)",
+            kernel_name,
+        )
+        if match is None:
+            return False
+        warp_m, warp_n, warp_k, group_n = map(int, match.groups())
+        return abquant_uses_column_major_aq(
+            group_n, warp_m, warp_n, warp_k, apreshuffle_quant=False
+        )
 
     @staticmethod
     def kernel_uses_column_major_a(kernel_name: str) -> bool:
@@ -453,7 +491,7 @@ class ABQuantGpuGemmRunner:
         # Output buffer -- dtype must match the compiled kernel's CDataType.
         C = np.zeros((M, N), dtype=c_dtype)
 
-        # AQLayout is ColumnMajor for the n=128 EightWaves fast path (StrideAQ=M);
+        # AQLayout is ColumnMajor for n=128 with eight warps (StrideAQ=M);
         # RowMajor (StrideAQ=QK_A) everywhere else.
         aq_column_major = ABQuantDispatcherLib.kernel_uses_column_major_aq(self.kernel_name)
 
@@ -590,13 +628,17 @@ def _compile_abquant_kernel(
     # -- Step 1: compile to object file --------------------------------------
     obj_path = so_path.with_suffix(".o")
 
-    # Arch-specific defines: gfx950 uses OCP fp8 (not FNUZ), native MX support,
-    # and the CK_GFX950_SUPPORT flag that gates the eight_waves fast path.
-    arch_defines = []
-    if "gfx950" in gfx_arch:
-        arch_defines += ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8",
-                         "-DCK_USE_NATIVE_MX_SUPPORT", "-DCK_GFX950_SUPPORT",
-                         "-DCK_USE_GFX950"]
+    # Arch-specific defines. These mirror the CMakeLists.txt definitions normally
+    # injected by CMake but absent in the standalone hipcc build path.
+    # Architecture defines for the standalone hipcc path, from the shared helper
+    # (dispatcher_common.arch_feature_defines) that the five grouped bridges
+    # already use. It supplies the OCP fp8 pair AND the per-arch feature set the
+    # top-level CMakeLists provides for a normal build but the JIT path does not:
+    # notably CK_TILE_USE_WMMA, which must be passed even when 0 -- leaving it
+    # undefined only works because the preprocessor reads it as 0, which is right
+    # on gfx942/gfx950 and wrong on every WMMA part, so a gfx1250 kernel could
+    # compile down the non-WMMA feature path.
+    arch_defines = arch_feature_defines(gfx_arch)
 
     # Tile-Engine perf flags via the shared single source of truth
     # (quant_bridge_flags.te_perf_flags = the canonical 5-flag develop TE set +
@@ -704,7 +746,11 @@ def setup_multiple_abquant_dispatchers(
     if not configs:
         return []
 
-    arch = _validate_arch(gfx_arch) if gfx_arch else _detect_gpu_arch()
+    arch = _validate_arch(gfx_arch if gfx_arch is not None else _detect_gpu_arch())
+    configs = resolve_default_configs(configs, arch)
+    validate_configs_match_arch(configs, arch, "ABQuant")
+    for config in configs:
+        config.validate_target(arch)
 
     def _compile_fn(hpp: Path, so: Path, a: str) -> bool:
         return _compile_abquant_kernel(
@@ -732,7 +778,7 @@ def setup_multiple_abquant_dispatchers(
 
 def expand_abquant_sweep(
     config_path: str,
-    gfx_arch: str = "gfx950",
+    gfx_arch: Optional[str] = None,
 ) -> List["ABQuantKernelConfig"]:
     """Expand an ABQuant JSON sweep config into a list of ABQuantKernelConfig objects.
 
@@ -743,7 +789,8 @@ def expand_abquant_sweep(
     """
     import itertools
 
-    _validate_arch(gfx_arch)
+    if gfx_arch is not None:
+        _validate_arch(gfx_arch)
     with open(config_path) as f:
         cfg = json.load(f)
 
@@ -871,12 +918,50 @@ def expand_abquant_sweep(
 # =============================================================================
 
 
-def _warp_tile_k_for(variant_key: str, gfx_arch: str, is_flat_mm: bool = False) -> int:
-    """Arch-derived K warp-tile, mirroring ck_tile::get_k_warp_tile<PrecType, 16, IsFlatMM>().
+def _is_gfx1250(gfx_arch: Optional[str]) -> bool:
+    """EXACT gfx1250 match, tolerant of feature suffixes (``gfx1250:xnack-``).
 
-    (tile_gemm_shape.hpp:104-136, M_Warp_Tile=16, non-WMMA path)
-      gfx950 (CK_GFX950_SUPPORT): fp8/bf8 -> 128, non-8bit-float (fp4) -> 32
-                                  (IsFlatMM does NOT change the gfx950 result)
+    Deliberately exact, NOT a ``"gfx12" in gfx_arch`` family test.  Two distinct
+    kinds of gfx12 predicate exist across the block-scale quant bridges and must
+    never be "tidied" into each other:
+
+      * OCP fp8 encoding / ``-DCK_TILE_USE_OCP_FP8`` compile defines: family-wide
+        ``"gfx12" in ...`` is CORRECT -- every gfx12xx part uses OCP e4m3/e5m2.
+      * 8-bit ``warp_tile_k`` selection (this helper): family-wide is a BUG.
+        gfx1200/gfx1201 expose only a 16x16x16 8-bit WMMA fragment, so the K=128
+        warp tile below does not exist on them; the kernel would still compile
+        and silently return garbage.
+
+    ``codegen_common.normalize_gfx_arch()`` now provides the suffix-stripping half
+    of this rule; collapsing this helper onto it is a worthwhile follow-up, kept
+    out of this change to avoid adding a codegen import to all five bridges.
+    """
+    return (gfx_arch or "").split(":")[0] == "gfx1250"
+
+
+def _warp_tile_k_for(variant_key: str, gfx_arch: str, is_flat_mm: bool = False) -> int:
+    """Arch-derived K warp-tile for this bridge's M_Warp_Tile=16 configs.
+
+    (cf. ck_tile::get_k_warp_tile<PrecType, 16, IsFlatMM>(), tile_gemm_shape.hpp:104-136)
+      gfx950 (CK_GFX950_SUPPORT, MFMA branch, hpp:122-130):
+                                  fp8/bf8 -> 128, non-8bit-float (fp4) -> 32
+                                  (IsFlatMM does NOT change the gfx950 result).
+                                  Matches get_k_warp_tile exactly.
+      gfx1250                   : 128 for EVERY variant -- fp8/bf8 AND fp4.
+                                  This is a DELIBERATE DIVERGENCE, not a mirror:
+                                  gfx1250 takes the WMMA branch (hpp:107-121, and
+                                  CMakeLists.txt sets CK_TILE_USE_WMMA=1 for gfx12),
+                                  where M_Warp_Tile==16 yields `is_8bit ? 64 : 32`
+                                  -- i.e. upstream's own answer is 64, not 128.
+                                  128 is used because it is the GPU-verified tile on
+                                  MI400 and maps to WarpGemmWmma_f32_16x16x128_f8_f8
+                                  (warp_gemm_dispatcher.hpp:268, under __gfx125__);
+                                  64 is untested for these pipelines.
+                                  fp4 differs from gfx950 (which uses 32): at 32
+                                  gfx1250 silently computes a dead accumulator --
+                                  see the body.  The gfx1250 test is EXACT (see
+                                  _is_gfx1250); gfx1200/gfx1201 have no 16x16x128
+                                  8-bit fragment and must not take it.
       gfx942/other              : IsFlatMM==false -> 32 ; IsFlatMM==true -> 64
                                   (sizeof(PrecType)==2 i.e. 16-bit is the only 32-case
                                    under IsFlatMM, and abquant has no 16-bit variant)
@@ -889,11 +974,48 @@ def _warp_tile_k_for(variant_key: str, gfx_arch: str, is_flat_mm: bool = False) 
     (GemmConfigPreshuffleBQuantPrefill, extends GemmConfigQuantPrefill) use the default
     IsFlatMM=false -> 32 on gfx942, so they must NOT pass is_flat_mm=True.
     """
+    if not gfx_arch:
+        # Never silently default: an absent arch must not fall through to the
+        # gfx942 legacy tile (see the module header's "NEVER default silently" rule).
+        raise ValueError("gfx_arch is required to derive warp_tile_k for ABQuant")
     is_8bit_float = variant_key in ("fp8", "bf8")
+    if _is_gfx1250(gfx_arch):
+        # gfx1250 uses 128 for EVERY variant, including fp4 -- unlike gfx950, where
+        # fp4 stays at 32.  This is not cosmetic: fp4 at 32 is a silent-wrong-answer
+        # bug on gfx1250, GPU-confirmed on MI400.
+        #
+        # The abquant policy dispatches the warp GEMM on AComputeDataType, and
+        # auto_compute_type collapses a packed A==B==pk_fp4_t to fp8_t
+        # (mixed_prec_compute_type.hpp:18-28), so the fp4 kernel requests the same
+        # fp8 warp gemm as the fp8 variant.  At K=32 that resolves to
+        # Dispatcher<fp8_t,fp8_t,float,16,16,32> (warp_gemm_dispatcher.hpp:176/178),
+        # which is NOT arch-guarded and so still instantiates on gfx1250 -- but it is
+        # an MFMA fragment whose intrinsics are #if __gfx94__/__gfx95__ only
+        # (warp_gemm_attribute_mfma_impl.hpp:1440-1459).  Off those arches the body
+        # degrades to `return CVecType{0.f}`, so the kernel builds, launches, and
+        # produces a DEAD ACCUMULATOR.
+        #
+        # Measured on MI400 (M=256,N=256,K=512): at K=32 the result is ~50% exact
+        # zeros and ~50% uncorrelated noise (corr vs reference -0.004, max |C| 19.2
+        # against a reference max of 1896.7).  Note it is NOT uniformly zero, so an
+        # `all(C == 0)` guard does NOT catch it -- only a tolerance check does.
+        # K=64 and K=128 both verify at 4.74e-4 max relative error (the fp8 control
+        # on the same run: 4.70e-4).  128 is chosen so gfx1250 has a single
+        # arch-uniform warp tile; 64 is equally valid and is what
+        # get_k_warp_tile<pk_fp4_raw_t,16>() returns, since sizeof(pk_fp4_raw_t)==1.
+        return 128
     if "gfx950" in gfx_arch:
-        # CK_GFX950_SUPPORT branch: is_8bit_float ? 128 : 32.  IsFlatMM is IGNORED here
-        # (the gfx950 M_Warp_Tile==16 else-branch does not depend on IsFlatMM), so fp4
-        # preshuffleb stays 32 on gfx950 -- do NOT bump it to 64.
+        # gfx950 stays a SUBSTRING test (unlike gfx1250, which is exact) so that
+        # feature-suffixed target ids such as "gfx950:xnack-" still match; no real
+        # or plausible target name contains "gfx950" as a proper substring.  It is
+        # tested AFTER _is_gfx1250 so the whole selector stays None-safe: `in`
+        # raises TypeError on None before the helper could run.
+        #
+        # CK_GFX950_SUPPORT branch: is_8bit_float ? 128 : 32.  IsFlatMM is IGNORED
+        # (the gfx950 M_Warp_Tile==16 else-branch does not depend on it), so fp4
+        # preshuffleb stays 32 on gfx950 -- do NOT bump it to 64.  32 is valid here,
+        # unlike on gfx1250, because Dispatcher<fp8_t,fp8_t,float,16,16,32> is a real
+        # MFMA fragment on gfx950.
         return 128 if is_8bit_float else 32
     # gfx942/other (no CK_GFX950_SUPPORT, non-WMMA): M_Warp_Tile==16 else-branch is
     #   (sizeof(PrecType)==2 || IsFlatMM==false) ? 32 : 64.
@@ -980,11 +1102,13 @@ def _abquant_prefill_config(
 # =============================================================================
 # Decode family (non-preshuffle, tile 128x128x128, warp 1x4x1)
 #   fp8/bf8: K_warp = 128 on gfx950 (EightWaves for bquant_group_n>1), 32 on gfx942.
-#   fp4:     K_warp = 32 on all arches.
+#   fp4:     K_warp = 32 on gfx950/gfx942; 128 on gfx1250 (32 there selects an
+#            MFMA fragment that is a no-op under __gfx125__ -- GPU-confirmed).
 # =============================================================================
 
 
-def default_fp8_config(bquant_group_n: int = 1, gfx_arch: str = "gfx950") -> ABQuantKernelConfig:
+@deferred_arch_default
+def default_fp8_config(bquant_group_n: int = 1, gfx_arch: Optional[str] = None) -> ABQuantKernelConfig:
     """fp8 ABQuant, non-preshuffle.
 
     Old-TE (gemm_abquant_quantgrouped_fp8.cpp):
@@ -999,7 +1123,8 @@ def default_fp8_config(bquant_group_n: int = 1, gfx_arch: str = "gfx950") -> ABQ
                                    transpose_c=(bquant_group_n > 1), gfx_arch=gfx_arch)
 
 
-def default_bf8_config(bquant_group_n: int = 1, gfx_arch: str = "gfx950") -> ABQuantKernelConfig:
+@deferred_arch_default
+def default_bf8_config(bquant_group_n: int = 1, gfx_arch: Optional[str] = None) -> ABQuantKernelConfig:
     """bf8 ABQuant, non-preshuffle (same alias split as fp8)."""
     if bquant_group_n > 1 and _uses_eight_waves("bf8", gfx_arch):
         return _abquant_eight_waves_config("bf8", pipeline="compv3", preshuffle_b=False,
@@ -1009,7 +1134,8 @@ def default_bf8_config(bquant_group_n: int = 1, gfx_arch: str = "gfx950") -> ABQ
                                    transpose_c=(bquant_group_n > 1), gfx_arch=gfx_arch)
 
 
-def default_fp4_config(gfx_arch: str = "gfx950") -> ABQuantKernelConfig:
+@deferred_arch_default
+def default_fp4_config(gfx_arch: Optional[str] = None) -> ABQuantKernelConfig:
     """fp4 ABQuant, non-preshuffle (only bquant_group_n=128; hardcoded
     GemmConfigABQuantPrefill<pk_fp4_raw_t>, never eight_waves, warp_tile_k=32)."""
     return _abquant_prefill_config("fp4", warp_tile_k=_warp_tile_k_for("fp4", gfx_arch),
@@ -1022,8 +1148,9 @@ def default_fp4_config(gfx_arch: str = "gfx950") -> ABQuantKernelConfig:
 # =============================================================================
 
 
+@deferred_arch_default
 def default_fp8_preshufflequant_config(
-    bquant_group_n: int = 1, gfx_arch: str = "gfx950"
+    bquant_group_n: int = 1, gfx_arch: Optional[str] = None
 ) -> ABQuantKernelConfig:
     """fp8 ABQuant + preshufflequant (GemmConfigPreshuffleBQuantPrefill<fp8>).
 
@@ -1052,7 +1179,7 @@ def default_fp8_preshufflequant_config(
 # =============================================================================
 # Preshuffleb family (tile 128x128x128, warp 2x2x1, DoubleSmemBuffer=true)
 #   fp8/bf8: gfx950 -> EightWaves (warp 4x2x1, K_warp=128); gfx942 -> K_warp=64 (IsFlatMM=true).
-#   fp4:     K_warp=32 on all arches; never eight_waves.
+#   fp4:     K_warp=32 on gfx950/gfx942; 128 on gfx1250; never eight_waves.
 # =============================================================================
 
 
@@ -1090,8 +1217,9 @@ def _abquant_preshuffleb_config(
     )
 
 
+@deferred_arch_default
 def default_fp8_preshuffleb_config(
-    bquant_group_n: int = 1, gfx_arch: str = "gfx950"
+    bquant_group_n: int = 1, gfx_arch: Optional[str] = None
 ) -> ABQuantKernelConfig:
     """fp8 ABQuant + preshuffleb.
 
@@ -1108,8 +1236,9 @@ def default_fp8_preshuffleb_config(
         preshuffle_bquant=False, transpose_c=True, gfx_arch=gfx_arch)
 
 
+@deferred_arch_default
 def default_bf8_preshuffleb_config(
-    bquant_group_n: int = 1, gfx_arch: str = "gfx950"
+    bquant_group_n: int = 1, gfx_arch: Optional[str] = None
 ) -> ABQuantKernelConfig:
     """bf8 ABQuant + preshuffleb (same GemmConfigPrefill alias split as fp8)."""
     if _uses_eight_waves("bf8", gfx_arch):
@@ -1121,7 +1250,8 @@ def default_bf8_preshuffleb_config(
         preshuffle_bquant=False, transpose_c=True, gfx_arch=gfx_arch)
 
 
-def default_fp4_preshuffleb_config(gfx_arch: str = "gfx950") -> ABQuantKernelConfig:
+@deferred_arch_default
+def default_fp4_preshuffleb_config(gfx_arch: Optional[str] = None) -> ABQuantKernelConfig:
     """fp4 ABQuant + preshuffleb (only bquant_group_n=128; explicit
     GemmConfigPreshuffleB_ABQuant_Prefill<pk_fp4_raw_t>, never eight_waves)."""
     return _abquant_preshuffleb_config(
@@ -1136,8 +1266,9 @@ def default_fp4_preshuffleb_config(gfx_arch: str = "gfx950") -> ABQuantKernelCon
 # =============================================================================
 
 
+@deferred_arch_default
 def default_fp8_preshuffleb_preshufflequant_config(
-    bquant_group_n: int = 1, gfx_arch: str = "gfx950"
+    bquant_group_n: int = 1, gfx_arch: Optional[str] = None
 ) -> ABQuantKernelConfig:
     """fp8 ABQuant + preshuffleb + preshufflequant
     (GemmConfigPreshuffleB_ABQuant_PreshuffleBQuant_Prefill<fp8, TransposeC>).
@@ -1157,7 +1288,7 @@ def default_fp8_preshuffleb_preshufflequant_config(
 # =============================================================================
 
 
-def all_default_configs(gfx_arch: str = "gfx950") -> List[ABQuantKernelConfig]:
+def all_default_configs(gfx_arch: Optional[str] = None) -> List[ABQuantKernelConfig]:
     """Return every ABQuant config that maps to a Old-TE gemm_abquant lut entry.
 
     dtype x layout x preshuffle matrix:
@@ -1185,7 +1316,8 @@ def all_default_configs(gfx_arch: str = "gfx950") -> List[ABQuantKernelConfig]:
     # bf8 preshuffleb
     cfgs.append(default_bf8_preshuffleb_config(bquant_group_n=1, gfx_arch=gfx_arch))
     cfgs.append(default_bf8_preshuffleb_config(bquant_group_n=128, gfx_arch=gfx_arch))
-    # fp4 non-preshuffle + preshuffleb (only 128)
+    # fp4 non-preshuffle + preshuffleb (only 128).  On gfx1250 these carry
+    # warp_tile_k=128 rather than gfx950's 32 -- see _warp_tile_k_for.
     cfgs.append(default_fp4_config(gfx_arch=gfx_arch))
     cfgs.append(default_fp4_preshuffleb_config(gfx_arch=gfx_arch))
     return cfgs

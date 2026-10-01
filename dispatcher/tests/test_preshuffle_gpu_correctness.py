@@ -162,24 +162,9 @@ def _run_preshuffle_fp16(gfx_arch: str) -> tuple[str, str]:
                   f"kernel={runner.kernel_name}")
 
 
-def test_preshuffle_fp16_gpu() -> None:
-    """pytest entry point.
-
-    Named without a bare ``gfx_arch`` parameter so pytest does not try to
-    resolve a nonexistent fixture; skips cleanly when no supported GPU/hipcc
-    is present, otherwise asserts the on-device result matches the reference.
-    """
-    import pytest
-
-    if not _has_gpu():
-        pytest.skip("no supported GPU detected (rocminfo); preshuffle GPU test skipped")
-    try:
-        status, detail = _run_preshuffle_fp16(_resolve_arch(None))
-    except FileNotFoundError as exc:
-        # Broad pytest runs may execute without a compiled dispatcher (unit-only
-        # stage). The on-device check needs the built .so, so skip cleanly rather
-        # than fail collection when the build artifacts are absent.
-        pytest.skip(f"dispatcher not built; preshuffle GPU test skipped ({exc})")
+def test_preshuffle_fp16_gpu(gpu_arch, dispatcher_static_lib) -> None:
+    """Build the prerequisite and verify the result whenever a GPU is available."""
+    status, detail = _run_preshuffle_fp16(gpu_arch)
     assert status == PASS, detail
 
 
@@ -204,6 +189,16 @@ def main() -> int:
               f"{'/'.join(_SUPPORTED_ARCHS)}; got {gfx}")
         return SKIP_EXIT
     log.info("Running preshuffle GEMM GPU correctness on %s", gfx)
+
+    # Build the prerequisite the pytest entry point gets from the
+    # dispatcher_static_lib fixture; ctest runs this script directly.
+    from dispatcher_build import ensure_dispatcher_static_lib
+
+    try:
+        ensure_dispatcher_static_lib()
+    except RuntimeError as exc:
+        print(f"FAIL: could not build the dispatcher static lib: {exc}")
+        return 1
 
     try:
         status, detail = _run_preshuffle_fp16(gfx)

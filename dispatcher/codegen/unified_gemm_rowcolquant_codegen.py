@@ -55,6 +55,7 @@ from codegen_common import (
     quant_decode_default_config,
     rcr_only_layout_guard,
     run_codegen_cli,
+    validate_quant_codegen_target,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -292,21 +293,19 @@ using SelectedKernel = {struct};
 # =============================================================================
 
 
-def _default_config() -> dict:
+def _default_config(gfx_arch: str = "gfx950") -> dict:
     """Default sweep config matching GemmConfigRowColQuant tile defaults.
 
     GemmConfigRowColQuant<fp8_t> is the shared decode tile (16x64x256).
-    WarpTileK is arch-derived (128 on gfx950, 32 on gfx942; 128 silently
-    outputs all-zeros on gfx942). The Python driver
-    (gemm_rowcolquant_utils.default_*_config -> _warp_tile_k_for) sets this
-    per-arch; this standalone fallback uses the gfx950 value.
+    WarpTileK is arch-derived from ``--gfx-arch`` (default gfx950): 128 on
+    gfx950/gfx1250, 32 on gfx942 (128 silently outputs all-zeros on gfx942).
 
     pad_k=False overrides the shared decode default (True): RowColQuant runs
     the unpadded-K pipeline for Old-TE perf parity, unlike tensor_quant and
     bquant which keep the padded default.
     """
     return quant_decode_default_config(
-        warp_tile_k=fp8_warp_tile_k_for_arch("gfx950"),
+        warp_tile_k=fp8_warp_tile_k_for_arch(gfx_arch),
         pad_k=False,
     )
 
@@ -353,6 +352,13 @@ def _build_specs(config: dict) -> List[RowColQuantKernelSpec]:
 # =============================================================================
 
 
+def _validate_target_config(config: dict, gfx_arch: str) -> None:
+    validate_quant_codegen_target(
+        config, gfx_arch, _build_specs, bridge="RowColQuant",
+        supported_archs=("gfx942", "gfx950", "gfx1250"),
+    )
+
+
 def main() -> int:
     return run_codegen_cli(
         description="Gemm RowColQuant kernel header generator",
@@ -360,6 +366,9 @@ def main() -> int:
         make_generator=RowColQuantKernelHeaderGenerator,
         build_specs=_build_specs,
         default_config=_default_config,
+        arch_aware=True,
+        default_gfx_arch="gfx950",
+        validate_target_config=_validate_target_config,
     )
 
 

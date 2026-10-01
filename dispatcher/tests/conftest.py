@@ -28,6 +28,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import Callable, Optional
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -140,6 +141,19 @@ def skip_without_ml_dtypes():
 def gpu_arch(skip_without_gpu) -> str:
     """The detected GPU arch (only resolved after the GPU skip-gate passes)."""
     return detect_gpu_arch()
+
+
+@pytest.fixture(scope="session")
+def dispatcher_static_lib(has_gpu):
+    """Build the registry dependency used by the example/JIT integration tests."""
+    if not has_gpu:
+        pytest.skip("no ROCm GPU / hipcc detected")
+    from dispatcher_build import ensure_dispatcher_static_lib
+
+    try:
+        return ensure_dispatcher_static_lib()
+    except RuntimeError as exc:
+        pytest.fail(str(exc))
 
 
 # =============================================================================

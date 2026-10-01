@@ -355,10 +355,24 @@ struct QuantGemmMultiDKernel
         // where merged_outer_dim = bq_y * wave_tile_count_x
         // This layout facilitates efficient block-to-data mapping
         const auto pad_wave_size = ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
+        const auto bq_merge_transform = [&]() {
+            const auto lengths = make_tuple(bq_y, wave_tile_count_x);
+            if constexpr(core::amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1250)
+            {
+                // Avoid device-side 64-bit magic-divisor setup here. On gfx1250 A0,
+                // translation of its distant branches can overwrite live SGPRs,
+                // including the AQ pointer. Division/modulo preserves the same
+                // merged BQ coordinates, as in the preshuffled AQ descriptor.
+                return make_merge_transform_v3_division_mod(lengths);
+            }
+            else
+            {
+                return make_merge_transform(lengths);
+            }
+        }();
         const auto bq_merge_pad1_desc = transform_tensor_descriptor(
             bq_pad1_desc,
-            make_tuple(make_merge_transform(make_tuple(bq_y, wave_tile_count_x)),
-                       make_pass_through_transform(pad_wave_size)),
+            make_tuple(bq_merge_transform, make_pass_through_transform(pad_wave_size)),
             make_tuple(sequence<0, 1>{}, sequence<2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -659,10 +673,23 @@ struct QuantGemmMultiDKernel
 
                 const auto pad_wave_size =
                     ck_tile::integer_least_multiple(wave_tile_size, get_warp_size());
+                const auto aq_merge_transform = [&]() {
+                    const auto lengths = make_tuple(aq_y, wave_tile_count_x);
+                    if constexpr(core::amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1250)
+                    {
+                        // Avoid device-side 64-bit magic-divisor setup here. On gfx1250 A0,
+                        // translation of its distant branches can overwrite live SGPRs.
+                        // Division/modulo preserves the same merged AQ coordinates.
+                        return make_merge_transform_v3_division_mod(lengths);
+                    }
+                    else
+                    {
+                        return make_merge_transform(lengths);
+                    }
+                }();
                 const auto aq_merge_pad1_desc = transform_tensor_descriptor(
                     aq_pad1_desc,
-                    make_tuple(make_merge_transform(make_tuple(aq_y, wave_tile_count_x)),
-                               make_pass_through_transform(pad_wave_size)),
+                    make_tuple(aq_merge_transform, make_pass_through_transform(pad_wave_size)),
                     make_tuple(sequence<0, 1>{}, sequence<2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -710,7 +737,11 @@ struct QuantGemmMultiDKernel
                         aq_ptr,
                         make_tuple(kargs.M, remaining_qk_a),
                         make_tuple(1, kargs.stride_AQ),
-                        number<GemmPipeline::GetVectorSizeAQ()>{},
+                        // The last logical dimension is QK_A, whose stride is
+                        // stride_AQ (M), not one. Advertise only scalar
+                        // contiguity here; the CompV3 consumer transposes this
+                        // view without making adjacent K-group scales contiguous.
+                        number<1>{},
                         number<1>{});
                 }
             }

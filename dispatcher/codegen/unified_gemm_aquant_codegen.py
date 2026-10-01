@@ -12,10 +12,9 @@ taking QuantGemmHostArgs -- compiled per-kernel via force-include:
 
     hipcc -include <kernel.hpp> -DCK_TILE_SINGLE_KERNEL_INCLUDE gemm_aquant_ctypes_lib.cpp
 
-Scope (matches Old-TE gemm_aquant_quantgrouped*.cpp):
+Scope (matches the native TileEngine AQuant builder):
   dtypes : fp8, bf8, fp8i4 (A=pk_int4), bf8i4 (A=pk_int4)
-  layouts: rcr, rrr, crr, ccr  (non-preshufflequant)
-           rcr, rrr, crr       (preshufflequant -- ccr rejected by Old-TE)
+  layouts: rcr, rrr, crr, ccr  (with or without preshufflequant; AQ is RowMajor)
   pipeline: compv3  ->  AQuantGemmPipelineAgBgCrMem       (non-preshufflequant)
                         AQuantGemmPipelineAgBgCrCompV3    (preshufflequant)
   host args = ck_tile::QuantGemmHostArgs (aq_ptr set, bq_ptr = nullptr)
@@ -52,7 +51,9 @@ from codegen_common import (
     fp8_warp_tile_k_for_arch,
     iter_quant_axes,
     make_gemm_aquant_kernel_name,
+    normalize_gfx_arch,
     run_codegen_cli,
+    validate_quant_codegen_target,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -406,8 +407,12 @@ def _default_config(gfx_arch: str = "gfx950") -> dict:
     WarpTileK is arch-derived (get_k_warp_tile<fp8/bf8_t, 16>() = 128 on gfx950,
     32 on gfx942 for the decode path).
     """
+    # pk_int4 variants return NaN on gfx1250, so its default sweep omits them.
+    variant_keys = ["fp8", "bf8", "fp8i4", "bf8i4"]
+    if normalize_gfx_arch(gfx_arch or "") == "gfx1250":
+        variant_keys = ["fp8", "bf8"]
     return {
-        "variant_keys": ["fp8", "bf8", "fp8i4", "bf8i4"],
+        "variant_keys": variant_keys,
         "layouts": ["rcr", "rrr", "crr", "ccr"],
         "epilogues": ["cshuffle", "default"],
         # Old-TE never emits an interwave mem/decode kernel: gemm_validation_utils
@@ -471,9 +476,6 @@ def _build_specs(config: dict) -> List[AQuantKernelSpec]:
     def _layout_guard(layout: str) -> Optional[str]:
         if layout not in AQUANT_AQ_LAYOUT:
             return f"Unsupported layout {layout} -- skipping"
-        # Old-TE rejects the ccr layout for the preshufflequant path.
-        if preshuffle_aquant and layout == "ccr":
-            return "ccr layout is unsupported for preshufflequant -- skipping"
         return None
 
     # AQuant has no pipeline axis, so no pipeline_map is passed.
@@ -515,6 +517,14 @@ def _build_specs(config: dict) -> List[AQuantKernelSpec]:
 # =============================================================================
 
 
+def _validate_target_config(config: dict, gfx_arch: str) -> None:
+    validate_quant_codegen_target(
+        config, gfx_arch, _build_specs, bridge="AQuant",
+        supported_archs=("gfx90a", "gfx942", "gfx950", "gfx1250"),
+        gfx1250_unsupported_variants=("fp8i4", "bf8i4"),
+    )
+
+
 def main() -> int:
     return run_codegen_cli(
         description="AQuant (A-only quantized) GEMM kernel header generator",
@@ -524,6 +534,7 @@ def main() -> int:
         default_config=_default_config,
         arch_aware=True,
         default_gfx_arch="gfx950",
+        validate_target_config=_validate_target_config,
     )
 
 

@@ -49,6 +49,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from dispatcher_common import (
+    load_hip_runtime,
     ValidationResultBase,
     _detect_gpu_arch_via_amd_smi,
     auto_correct_trait,
@@ -58,6 +59,7 @@ from dispatcher_common import (
     validate_wave_config,
     validate_warp_tile_config,
     unified_framework_flags,
+    arch_feature_defines,
 )
 
 
@@ -660,10 +662,25 @@ class GpuGroupedConvRunner:
                 self._dispatch_lib = GroupedConvDispatcherLib.find()
 
             if self._dispatch_lib is None:
+                # Record WHY. This used to `return` silently, leaving
+                # _init_error None while is_available() reported False, so the
+                # caller had no way to tell "no dispatcher .so was found" apart
+                # from "the GPU context failed to initialise" -- and the
+                # grouped-conv examples surfaced both as a bare
+                # "JIT build failed" even when codegen and hipcc had succeeded.
+                searched = self._lib_path or "auto-detect via GroupedConvDispatcherLib.find()"
+                self._init_error = (
+                    f"No grouped-conv dispatcher library could be loaded ({searched}). "
+                    f"The kernel may have been generated and compiled successfully but "
+                    f"not placed where find() looks for it."
+                )
                 return
 
-            # Load HIP library - THIS creates GPU context
-            self._hip = ctypes.CDLL("libamdhip64.so")
+            # Load HIP library - THIS creates GPU context.
+            # Via the shared loader: the bare "libamdhip64.so" hardcoded here
+            # before is the dev symlink, which is absent from the ldconfig cache
+            # on a stock ROCm install, so this silently reported "no GPU".
+            self._hip = load_hip_runtime()
             self._hip.hipMalloc.argtypes = [
                 ctypes.POINTER(ctypes.c_void_p),
                 ctypes.c_size_t,
@@ -1690,6 +1707,7 @@ class GroupedConvCodegenRunner:
                 f"--offload-arch={c.arch}",
                 f'-DGFX_ARCH="{c.arch}"',
                 *unified_framework_flags(c.arch),
+                *arch_feature_defines(c.arch),
                 "-mllvm",
                 "-enable-noalias-to-md-conversion=0",
                 "-Wno-undefined-func-template",

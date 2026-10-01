@@ -51,7 +51,7 @@ _CTYPES_LIB_SRC = Path(__file__).parent.parent / "bindings" / "ctypes" / "groupe
 _codegen_dir = str(Path(__file__).parent.parent / "codegen")
 if _codegen_dir not in sys.path:
     sys.path.insert(0, _codegen_dir)
-from codegen_common import make_bquant_kernel_name  # noqa: E402
+from codegen_common import make_bquant_kernel_name, normalize_gfx_arch  # noqa: E402
 
 _python_dir = str(Path(__file__).parent)
 if _python_dir not in sys.path:
@@ -816,23 +816,45 @@ def expand_bquant_sweep(
 # places; until that follow-up lands, treat the gfx942 values as unvalidated.
 
 
+# Archs whose fp8/bf8 M_Warp_Tile=16 configs use the K=128 warp tile.
+#
+# gfx950 gets it from CK_GFX950_SUPPORT in get_k_warp_tile<fp8_t, 16>().
+# gfx1250 gets it empirically: BQuant fp8/bf8 are GPU-verified on MI400 with the
+# SAME stock config (see the gfx1250 section below and default_fp8_config_gfx1250).
+# These are matched EXACTLY after stripping the feature suffix -- gfx1200/gfx1201
+# expose only a 16x16x16 8-bit WMMA fragment and must NOT be widened into.
+_WARP_TILE_K_128_ARCHS = ("gfx950", "gfx1250")
+
+
 def _fp8_warp_tile_k(gfx_arch: str) -> int:
-    """warp_tile_k for fp8/bf8 compv3 (non-FlatMM): 128 on gfx950, 32 on gfx942.
+    """warp_tile_k for fp8/bf8 compv3 (non-FlatMM): 128 on gfx950/gfx1250, 32 on gfx942.
 
     get_k_warp_tile<fp8_t, M_Warp_Tile=16>() in tile_gemm_shape.hpp returns 128
     on gfx950 (CK_GFX950_SUPPORT set) and 32 on gfx942 (is_8bit_float, standard
     MFMA, mfma_f32_16x16x32_fp8_fp8). A mismatched value compiles but silently
     returns zeros rather than a build error.
+
+    gfx1250 must also take the 128 branch: the gfx1250 default helpers delegate
+    straight here, and 32 emits a 16x16x32 kernel that zeros out on MI400.
     """
-    return 128 if gfx_arch.startswith("gfx950") else 32
+    return 128 if normalize_gfx_arch(gfx_arch or "") in _WARP_TILE_K_128_ARCHS else 32
 
 
 def _preshuffleb_warp_tile_k(gfx_arch: str) -> int:
-    """warp_tile_k for preshuffleB FlatMM: 128 on gfx950, 64 on gfx942.
+    """warp_tile_k for preshuffleB FlatMM: 128 on gfx950, 64 otherwise.
 
     Mirrors abquant's _preshuffleb_warp_tile_k; same CK_GFX950_SUPPORT branch.
+
+    Deliberately NOT extended to gfx1250, unlike _fp8_warp_tile_k above. This
+    selector feeds six public constructors (preshuffle-B, preshuffle-quant and
+    the combined form, fp8 and bf8), none of which has gfx1250 test coverage or
+    on-device validation. gfx1250 does have a 16x16x64 fp8 WMMA fragment, so the
+    64 it gets here is instantiable rather than a silent-zero tile, and it is the
+    value the arch already receives today -- so leaving it alone adds no
+    unvalidated numeric behaviour. Extending it wants GPU correctness coverage
+    for those six paths first.
     """
-    return 128 if gfx_arch.startswith("gfx950") else 64
+    return 128 if normalize_gfx_arch(gfx_arch or "") == "gfx950" else 64
 
 
 def default_fp8_config(

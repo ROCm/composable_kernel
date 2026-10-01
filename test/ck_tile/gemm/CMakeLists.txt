@@ -20,6 +20,12 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     # Collect all test targets for umbrella label
     set(CK_TILE_GEMM_TEST_TARGETS)
 
+    # Host dispatch also instantiates device kernels. Check its CompV3 schedule
+    # in both MFMA and WMMA builds without allocating or launching on a GPU.
+    add_gtest_executable(test_ck_tile_gemm_compv3_tail_dispatch test_gemm_compv3_tail_dispatch.cpp)
+    target_compile_options(test_ck_tile_gemm_compv3_tail_dispatch PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_compv3_tail_dispatch)
+
     if(GPU_TARGETS MATCHES "gfx94|gfx95")
         add_gtest_executable(test_ck_tile_gemm_pipeline_mem test_gemm_pipeline_mem.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv3 test_gemm_pipeline_compv3.cpp)

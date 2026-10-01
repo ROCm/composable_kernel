@@ -67,13 +67,20 @@ int dispatcher_run_bquant_gemm(const void* A,
        !check_quant_group_count(kFn, "QN_B", QN_B, "N", N, QuantGroupSize::kN))
         return -1;
 
-    // Only packed layouts are supported. BQ is ColumnMajor [QK_B, QN_B] (leading
-    // dim QK_B), matching Old-TE's rcr path and the WPQuantB pipeline.
-    if(stride_A != K || stride_B != K || stride_BQ != QK_B || stride_C != N)
+    // Packed A/B leading dimensions follow the generated layouts. BQ remains
+    // ColumnMajor [QK_B, QN_B], and C remains RowMajor [M, N].
+    constexpr bool kAIsColumnMajor =
+        std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
+    constexpr bool kBIsColumnMajor =
+        std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
+    const int64_t expected_stride_A = kAIsColumnMajor ? M : K;
+    const int64_t expected_stride_B = kBIsColumnMajor ? K : N;
+    if(stride_A != expected_stride_A || stride_B != expected_stride_B || stride_BQ != QK_B ||
+       stride_C != N)
     {
-        std::cerr << kFn << ": non-packed strides are not supported. Expected stride_A=" << K
-                  << " stride_B=" << K << " stride_BQ=" << QK_B << " stride_C=" << N
-                  << ", got stride_A=" << stride_A << " stride_B=" << stride_B
+        std::cerr << kFn << ": non-packed strides are not supported. Expected stride_A="
+                  << expected_stride_A << " stride_B=" << expected_stride_B << " stride_BQ=" << QK_B
+                  << " stride_C=" << N << ", got stride_A=" << stride_A << " stride_B=" << stride_B
                   << " stride_BQ=" << stride_BQ << " stride_C=" << stride_C << "\n";
         return -1;
     }
@@ -101,8 +108,8 @@ int dispatcher_run_bquant_gemm(const void* A,
     // path copies raw B straight to device with no intermediate host tensors.
     if constexpr(SelectedKernel::PreshuffleB || std::is_same_v<BDataType, ck_tile::pk_int4_t>)
     {
-        auto b_k_n = load_host_tensor<false>(
-            B_host, static_cast<int>(K), static_cast<int>(N), static_cast<int>(K));
+        auto b_k_n = load_host_tensor<!kBIsColumnMajor>(
+            B_host, static_cast<int>(K), static_cast<int>(N), static_cast<int>(stride_B));
         if constexpr(SelectedKernel::PreshuffleB)
         {
             constexpr bool use_permute_n =

@@ -86,14 +86,6 @@ def _detect_arch():
     return None
 
 
-def _static_lib_present():
-    try:
-        import ctypes_utils as _cu
-        return (_cu.get_build_dir() / "libck_tile_dispatcher.a").exists()
-    except Exception:
-        return False
-
-
 def _max_rel_err(got: np.ndarray, ref: np.ndarray) -> float:
     g = got.astype(np.float32)
     r = ref.astype(np.float32)
@@ -200,13 +192,23 @@ def main():
     if not gfx:
         print("SKIP: no GPU detected (rocminfo); multi_d GPU tests skipped")
         return SKIP_EXIT
-    if not _static_lib_present():
-        print("SKIP: dispatcher static lib (libck_tile_dispatcher.a) not built; "
-              "multi_d is registry-routed and needs it")
+    # The fixed 32x32x16 warp tile is an MFMA shape; codegen rejects it on
+    # WMMA targets (gfx11/gfx12), so there is nothing to build there.
+    if not gfx.startswith("gfx9"):
+        print(f"SKIP: multi_d config uses an MFMA warp tile; {gfx} is not an MFMA target")
         return SKIP_EXIT
     if shutil.which("hipcc") is None and not Path("/opt/rocm/bin/hipcc").exists():
         print("SKIP: hipcc not found; cannot build multi_d kernels")
         return SKIP_EXIT
+    # multi_d is registry-routed: build the dispatcher archive it links against
+    # instead of skipping when a clean tree has not built it yet.
+    from dispatcher_build import ensure_dispatcher_static_lib
+
+    try:
+        ensure_dispatcher_static_lib()
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 1
 
     results = []
     for name, fn in TESTS:

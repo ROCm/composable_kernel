@@ -57,6 +57,90 @@ def get_codegen_dir() -> Path:
     return get_dispatcher_root() / "codegen"
 
 
+# ============================================================================
+# HIP runtime loading
+# ============================================================================
+
+# Fallback sonames for installations without a usable library discovery tool.
+#
+# The bare ``libamdhip64.so`` is the *development* symlink: it ships in
+# ``$ROCM_PATH/lib`` but is frequently NOT in the ldconfig cache, so a plain
+# ``CDLL("libamdhip64.so")`` fails on an otherwise healthy ROCm node unless the
+# caller happens to have ``LD_LIBRARY_PATH`` set. Only the versioned soname is
+# registered on runtime-only installations. Discover the registered soname
+# instead of assuming its major version; the list below remains a fallback
+# when the system lookup tools are unavailable.
+_HIP_SONAMES = (
+    "libamdhip64.so",
+    "libamdhip64.so.7",
+    "libamdhip64.so.6",
+    "libamdhip64.so.5",
+)
+
+
+def hip_library_candidates() -> List[str]:
+    """Return the HIP runtime names/paths to try, in order.
+
+    Discover files under ``$ROCM_PATH/{lib,lib64}`` (default ``/opt/rocm``),
+    then consult the system library cache and finally try fallback sonames.
+    Neither path requires the unversioned development symlink or a hardcoded
+    runtime major version.
+    """
+    import ctypes.util
+    import os
+    import re
+
+    candidates: List[str] = []
+    try:
+        installed = ctypes.util.find_library("amdhip64")
+    except OSError:
+        installed = None
+    rocm = Path(os.environ.get("ROCM_PATH", "/opt/rocm")).expanduser()
+    for libdir in (rocm / "lib", rocm / "lib64"):
+        candidates.append(str(libdir / _HIP_SONAMES[0]))
+        # Numeric ordering tries .so.10 before .so.9 and accepts full filenames
+        # such as .so.10.0.26306 when even the major-version symlink is absent.
+        versioned = []
+        try:
+            for path in libdir.glob("libamdhip64.so.*"):
+                match = re.fullmatch(r"libamdhip64\.so\.(\d+(?:\.\d+)*)", path.name)
+                if match and path.is_file():
+                    versioned.append((tuple(map(int, match[1].split("."))), str(path)))
+        except OSError:
+            pass
+        candidates.extend(path for _, path in sorted(versioned, reverse=True))
+    if installed:
+        candidates.append(installed)
+    candidates.extend(_HIP_SONAMES)
+    return list(dict.fromkeys(candidates))
+
+
+def load_hip_runtime():
+    """Load libamdhip64 via ctypes using discovered and fallback candidates.
+
+    Single source of truth so the bridges cannot drift into their own partial
+    lists -- grouped_conv hardcoded the bare ``libamdhip64.so`` (which fails
+    wherever only the versioned soname is registered) and fmha listed only
+    ``.so``/``.so.6`` (which fails on ROCm 7).
+
+    Raises OSError naming every candidate tried, so a failure is diagnosable
+    instead of surfacing later as a bare "no GPU available".
+    """
+    import ctypes
+
+    tried: List[str] = []
+    for name in hip_library_candidates():
+        try:
+            return ctypes.CDLL(name)
+        except OSError:
+            tried.append(name)
+    raise OSError(
+        "Could not load the HIP runtime (libamdhip64). Tried: "
+        + ", ".join(tried)
+        + ". Is ROCm installed, and is $ROCM_PATH/lib on the loader path?"
+    )
+
+
 def _detect_gpu_arch_via_amd_smi() -> Optional[str]:
     """Best-effort arch via the shared amd-smi-first smi_utils wrapper.
 
@@ -180,6 +264,41 @@ def ocp_arch_defines(arch: Optional[str]) -> List[str]:
     if not fp8_uses_ocp(arch):
         return []
     return ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"]
+
+
+def validate_configs_match_arch(configs, arch, bridge: str = "") -> None:
+    """Reject configs that were built for a different arch than we are compiling for.
+
+    Every arch-dependent safeguard in these bridges -- the warp_tile_k selectors,
+    the fp4 rule, the i4 rejection -- runs when the CONFIG is constructed, keyed on
+    that config's own gfx_arch. The compile entry points take their own gfx_arch,
+    so a config built for one arch and handed to a build for another slips past all
+    of them: the config's literal tile is emitted verbatim and compiled for the
+    other target.
+
+    Concretely, default_fp4_config(gfx_arch="gfx950") records warp_tile_k=32, and
+    compiling it with gfx_arch="gfx1250" emits a 16x16x32 tile for gfx1250 -- the
+    GPU-confirmed dead-accumulator case the fp4 rule exists to prevent. The same
+    hole bypasses the AQuant/BQuant i4 rejection.
+
+    Configs with no recorded arch are left alone; only a genuine mismatch raises.
+    """
+    target = normalize_arch(arch)
+    mismatched = []
+    for i, cfg in enumerate(configs or []):
+        cfg_arch = normalize_arch(getattr(cfg, "gfx_arch", None))
+        if cfg_arch and target and cfg_arch != target:
+            name = getattr(cfg, "name", None) or f"<config {i}>"
+            mismatched.append(f"  [{i}] {name}: built for {cfg_arch!r}")
+    if mismatched:
+        raise ValueError(
+            f"{bridge or 'bridge'}: refusing to compile for {target!r} using configs "
+            f"built for a different architecture. Their arch-dependent fields "
+            f"(warp_tile_k in particular) were derived for the other target and would "
+            f"be emitted verbatim, bypassing the arch safeguards that ran at "
+            f"construction time. Rebuild them with gfx_arch={target!r}:\n"
+            + "\n".join(mismatched)
+        )
 
 
 def arch_feature_defines(arch: Optional[str]) -> List[str]:

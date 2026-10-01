@@ -132,7 +132,12 @@ def _build(gfx_arch: str):
     return so_paths[0] if so_paths else None
 
 
-def test_contraction_multi_abd_fp16(gfx_arch: str):
+# NOTE: deliberately NOT named test_* -- this module is script-style and is
+# run directly by ctest (see tests/CMakeLists.txt). Under the old name pytest
+# collected it and failed with "fixture 'gfx_arch' not found" (conftest
+# provides 'gpu_arch'), and it returns a (status, detail) tuple, which pytest
+# also flags. main() below remains the supported entry point.
+def check_contraction_multi_abd_fp16(gfx_arch: str):
     so_path = _build(gfx_arch)
     if so_path is None:
         return FAIL, "contraction_multi_abd/fp16: kernel build failed"
@@ -202,7 +207,7 @@ def main() -> int:
     log.info("Running contraction_multi_abd GPU correctness on %s", gfx)
 
     try:
-        status, detail = test_contraction_multi_abd_fp16(gfx)
+        status, detail = check_contraction_multi_abd_fp16(gfx)
     except Exception as exc:  # noqa: BLE001
         status, detail = FAIL, f"contraction_multi_abd/fp16: exception: {exc}"
 

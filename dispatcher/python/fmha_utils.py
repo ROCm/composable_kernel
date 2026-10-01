@@ -16,7 +16,7 @@ Usage:
     result = runner.run(Q, K, V, problem)
 """
 
-from dispatcher_common import unified_framework_flags
+from dispatcher_common import unified_framework_flags, load_hip_runtime
 import ctypes
 import json
 import os
@@ -741,33 +741,31 @@ class FmhaRunner:
             raise RuntimeError("Failed to initialize FMHA dispatcher")
 
     def _load_hip(self):
-        for name in ["libamdhip64.so", "libamdhip64.so.6"]:
-            try:
-                self._hip = ctypes.CDLL(name)
-                self._hip.hipMalloc.argtypes = [
-                    ctypes.POINTER(ctypes.c_void_p),
-                    ctypes.c_size_t,
-                ]
-                self._hip.hipMalloc.restype = ctypes.c_int
-                self._hip.hipFree.argtypes = [ctypes.c_void_p]
-                self._hip.hipFree.restype = ctypes.c_int
-                self._hip.hipMemcpy.argtypes = [
-                    ctypes.c_void_p,
-                    ctypes.c_void_p,
-                    ctypes.c_size_t,
-                    ctypes.c_int,
-                ]
-                self._hip.hipMemcpy.restype = ctypes.c_int
-                self._hip.hipMemset.argtypes = [
-                    ctypes.c_void_p,
-                    ctypes.c_int,
-                    ctypes.c_size_t,
-                ]
-                self._hip.hipMemset.restype = ctypes.c_int
-                return
-            except OSError:
-                continue
-        raise RuntimeError("Could not load libamdhip64.so")
+        # Soname selection lives in dispatcher_common.load_hip_runtime(). This
+        # used to try only ["libamdhip64.so", "libamdhip64.so.6"], which fails
+        # on ROCm 7 (only .so.7 is registered) and wherever the unversioned dev
+        # symlink is not on the loader path.
+        self._hip = load_hip_runtime()
+        self._hip.hipMalloc.argtypes = [
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_size_t,
+        ]
+        self._hip.hipMalloc.restype = ctypes.c_int
+        self._hip.hipFree.argtypes = [ctypes.c_void_p]
+        self._hip.hipFree.restype = ctypes.c_int
+        self._hip.hipMemcpy.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_int,
+        ]
+        self._hip.hipMemcpy.restype = ctypes.c_int
+        self._hip.hipMemset.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_size_t,
+        ]
+        self._hip.hipMemset.restype = ctypes.c_int
 
     @classmethod
     def from_prebuilt(cls, arch: Optional[str] = None) -> "FmhaRunner":

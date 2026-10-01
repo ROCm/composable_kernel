@@ -26,7 +26,7 @@ how it is compiled into a ``.so``.
 """
 
 from __future__ import annotations
-from dispatcher_common import unified_framework_flags
+from dispatcher_common import unified_framework_flags, arch_feature_defines
 
 import ctypes
 import functools
@@ -2095,12 +2095,9 @@ def _build_compile_jobs(
         f"--offload-arch={config.gfx_arch}",
         f'-DGFX_ARCH="{config.gfx_arch}"',
         *unified_framework_flags(config.gfx_arch),
-        # Pin the fp8/bf8 encoding so BOTH compiler passes agree. Without this the
-        # device pass of config.hpp sees __gfx950__ and picks OCP while the host
-        # pass falls back to FNUZ -- and the numpy reference, which follows the
-        # arch (see numpy_dtype_for), then disagrees with the kernel by a factor
-        # of two. FNUZ archs need no define; the list is empty for them.
-        *_ocp_arch_defines(config.gfx_arch),
+        # Keep host/device fp8 encodings consistent and enable the target's
+        # WMMA/MX features, matching the CMake build.
+        *arch_feature_defines(config.gfx_arch),
         # Match Tile Engine's AMDGPU codegen flags exactly (see variant_flags /
         # _tile_engine_codegen_flags). Without them the kernel is compiled with
         # different inlining/register allocation, which changes occupancy;
@@ -2154,22 +2151,6 @@ def setup_multiple_gemm_dispatchers(
     if n == 0:
         return results
 
-    # Guard the compile path: every config's gfx_arch must be a concrete,
-    # supported arch before it reaches -DGFX_ARCH / --offload-arch / gpu_target.
-    # expand_sweep already resolves this, but a config built directly (gfx_arch
-    # left as None) would otherwise emit a literal "None" arch. Resolve/validate
-    # here too, defaulting a None to the rocminfo-detected arch (never gfx942).
-    _shared_arch: Optional[str] = None
-    resolved_configs: List[GemmKernelConfig] = []
-    for c in configs:
-        if c.gfx_arch:
-            resolved_configs.append(replace(c, gfx_arch=_resolve_arch(c.gfx_arch)))
-        else:
-            if _shared_arch is None:
-                _shared_arch = _get_arch()
-            resolved_configs.append(replace(c, gfx_arch=_shared_arch))
-    configs = resolved_configs
-
     # Hard-fail rather than build a runnable but WRONG kernel: a preshuffle config
     # with permute_n=True would compile a "_permuteN" kernel whose device pipeline
     # is not yet bridged (it mis-shuffles B -> wrong results; see BRIDGE_PERMUTE_N).
@@ -2187,6 +2168,22 @@ def setup_multiple_gemm_dispatchers(
                     f"that would mis-shuffle B ({c.name}). Flip BRIDGE_PERMUTE_N once "
                     "the permuteN pipeline is emitted in unified_gemm_codegen."
                 )
+
+    # Guard the compile path: every config's gfx_arch must be a concrete,
+    # supported arch before it reaches -DGFX_ARCH / --offload-arch / gpu_target.
+    # expand_sweep already resolves this, but a config built directly (gfx_arch
+    # left as None) would otherwise emit a literal "None" arch. Resolve/validate
+    # here too, defaulting a None to the rocminfo-detected arch (never gfx942).
+    _shared_arch: Optional[str] = None
+    resolved_configs: List[GemmKernelConfig] = []
+    for c in configs:
+        if c.gfx_arch:
+            resolved_configs.append(replace(c, gfx_arch=_resolve_arch(c.gfx_arch)))
+        else:
+            if _shared_arch is None:
+                _shared_arch = _get_arch()
+            resolved_configs.append(replace(c, gfx_arch=_shared_arch))
+    configs = resolved_configs
 
     max_workers = max_workers or min(multiprocessing.cpu_count(), 8)
 

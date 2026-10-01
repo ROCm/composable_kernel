@@ -7,6 +7,7 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher_unification.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_wmma_gemm.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_wmma_logical_k32.hpp"
 
 namespace ck_tile {
 
@@ -179,20 +180,52 @@ template<> struct Dispatcher<bf16_t, bf16_t, float, 32, 32, 16,  true, true> { u
 // fp8
 // ADataType, BDataType, AccDataType, MPerWave, NPerWave, KPerWave, TransposeC, SwizzleA, UseStructuredSparsity
 template<> struct Dispatcher<fp8_t, fp8_t, float, 32, 32,  16, false> { using Type = WarpGemmMfma_f32_32x32x16_fp8_fp8; };
-template<> struct Dispatcher<fp8_t, fp8_t, float, 16, 16,  32, false> { using Type = WarpGemmMfma_f32_16x16x32_fp8_fp8; };
 template<> struct Dispatcher<fp8_t, fp8_t, float, 32, 32,  16,  true> { using Type = WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed; };
-template<> struct Dispatcher<fp8_t, fp8_t, float, 16, 16,  32,  true> { using Type = WarpGemmMfma_f32_16x16x32_fp8_fp8_CTransposed; };
 template<> struct Dispatcher<fp8_t, bf8_t, float, 32, 32,  16, false> { using Type = WarpGemmMfma_f32_32x32x16_fp8_bf8; };
 template<> struct Dispatcher<fp8_t, bf8_t, float, 32, 32,  16,  true> { using Type = WarpGemmMfma_f32_32x32x16_fp8_bf8_CTransposed; };
-template<> struct Dispatcher<fp8_t, bf8_t, float, 16, 16,  32, false> { using Type = WarpGemmMfma_f32_16x16x32_fp8_bf8; };
-template<> struct Dispatcher<bf8_t, fp8_t, float, 16, 16,  32, false> { using Type = WarpGemmMfma_f32_16x16x32_bf8_fp8; };
 template<> struct Dispatcher<fp8_t, bf8_t, float, 32, 32,  32, false> { using Type = WarpGemmMfma_f32_32x32x32_fp8_bf8; };
 template<> struct Dispatcher<bf8_t, fp8_t, float, 32, 32,  16, false> { using Type = WarpGemmMfma_f32_32x32x16_bf8_fp8; };
 template<> struct Dispatcher<bf8_t, fp8_t, float, 32, 32,  16,  true> { using Type = WarpGemmMfma_f32_32x32x16_bf8_fp8_CTransposed; };
 template<> struct Dispatcher<bf8_t, bf8_t, float, 32, 32,  16, false> { using Type = WarpGemmMfma_f32_32x32x16_bf8_bf8; };
+template<> struct Dispatcher<bf8_t, bf8_t, float, 32, 32,  16,  true> { using Type = WarpGemmMfma_f32_32x32x16_bf8_bf8_CTransposed; };
+
+#if defined(__gfx125__)
+// Full specializations deliberately avoid the generic Default-to-Single probe:
+// logical K32 is supported only for same-type dense, non-transposed operands
+// with the proven Default/Default distribution. Other forms remain guarded.
+template<>
+struct Dispatcher<fp8_t, fp8_t, float, 16, 16, 32, false, false, false,
+                  EDefault, EDefault, false, void> : WmmaTag
+{
+    using Type = WarpGemmWmmaLogicalK32<fp8_t>;
+};
+template<>
+struct Dispatcher<bf8_t, bf8_t, float, 16, 16, 32, false, false, false,
+                  EDefault, EDefault, false, void> : WmmaTag
+{
+    using Type = WarpGemmWmmaLogicalK32<bf8_t>;
+};
+
+// The legacy 16x16x32 FP8/BF8 MFMA fragment has no gfx1250 arithmetic and
+// distributes C across 64 lanes, while gfx1250 uses wave32. Never let a direct
+// C++ caller compile this tile into a kernel that silently accumulates zero.
+template<typename A, typename B, bool TransposeC>
+struct Dispatcher<A, B, float, 16, 16, 32, TransposeC, false, false, ESingle, ESingle, false,
+                  std::enable_if_t<is_any_of<A, fp8_t, bf8_t>::value &&
+                                   is_any_of<B, fp8_t, bf8_t>::value>>
+{
+    static_assert(!std::is_same_v<A, A>,
+                  "gfx1250 logical FP8/BF8 warp tile 16x16x32 requires same-type, "
+                  "non-transposed, dense Default/Default WMMA operands");
+};
+#else
+template<> struct Dispatcher<fp8_t, fp8_t, float, 16, 16,  32, false> { using Type = WarpGemmMfma_f32_16x16x32_fp8_fp8; };
+template<> struct Dispatcher<fp8_t, fp8_t, float, 16, 16,  32,  true> { using Type = WarpGemmMfma_f32_16x16x32_fp8_fp8_CTransposed; };
+template<> struct Dispatcher<fp8_t, bf8_t, float, 16, 16,  32, false> { using Type = WarpGemmMfma_f32_16x16x32_fp8_bf8; };
+template<> struct Dispatcher<bf8_t, fp8_t, float, 16, 16,  32, false> { using Type = WarpGemmMfma_f32_16x16x32_bf8_fp8; };
 template<> struct Dispatcher<bf8_t, bf8_t, float, 16, 16,  32, false> { using Type = WarpGemmMfma_f32_16x16x32_bf8_bf8; };
 template<> struct Dispatcher<bf8_t, bf8_t, float, 16, 16,  32,  true> { using Type = WarpGemmMfma_f32_16x16x32_bf8_bf8_CTransposed; };
-template<> struct Dispatcher<bf8_t, bf8_t, float, 32, 32,  16,  true> { using Type = WarpGemmMfma_f32_32x32x16_bf8_bf8_CTransposed; };
+#endif
 
 // MX scaled-MFMA (f8f6f4) input types: fp8/bf8 and packed fp6/fp4.
 template <typename T>

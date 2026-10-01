@@ -548,11 +548,29 @@ def bquant_effective_epilogue(
     )
 
 
+def gemm_bquant_effective_epilogue(
+    tile_n: int,
+    warp_n: int,
+    warp_tile_n: int,
+    quant_group_n: int,
+    *,
+    pipeline: str,
+    requested_epilogue: str,
+    preshuffle_b: bool = False,
+) -> str:
+    """Honor native CompV3 default epilogues for non-grouped BQuant."""
+    if pipeline == "compv3" and not preshuffle_b and requested_epilogue == "default":
+        return "default"
+    return bquant_effective_epilogue(
+        tile_n, warp_n, warp_tile_n, quant_group_n, preshuffle_b
+    )
+
+
 def make_bquant_kernel_name(
     variant_key: str,
     layout: str,
     pipeline: str,
-    epilogue: str,  # ignored — actual epilogue is computed from tile params via bquant_effective_epilogue
+    epilogue: str,
     scheduler: str,
     tile_m: int, tile_n: int, tile_k: int,
     warp_m: int, warp_n: int, warp_k: int,
@@ -569,24 +587,31 @@ def make_bquant_kernel_name(
     Both BQuantKernelConfig (utils) and BQuantKernelSpec (codegen) delegate to this
     function so the two sides are guaranteed to stay byte-exact.
 
-    The epilogue segment in the name reflects the epilogue the codegen actually emits
-    (computed via bquant_effective_epilogue from tile params) rather than the
-    user-specified epilogue string, so the name always matches the compiled kernel.
-    The ``epilogue`` parameter is accepted for call-site compatibility but not used.
+    The epilogue segment reflects the emitted kernel. Non-grouped CompV3 honors
+    the native default trait when PreshuffleB is disabled. Grouped kernels and
+    weight-preshuffle paths retain their existing effective-epilogue policy.
 
     ``name_prefix`` selects the operator family. It defaults to
     ``"grouped_gemm_bquant"`` for backward compatibility with the quant-grouped
     (single-problem) BQuant bridge already in tree; the plain non-grouped
     ``gemm_bquant`` bridge under 38_block_scale_gemm passes ``"gemm_bquant"``.
     """
+    effective_epilogue = (
+        gemm_bquant_effective_epilogue(
+            tile_n, warp_n, warp_tile_n, quant_group_n,
+            pipeline=pipeline, requested_epilogue=epilogue, preshuffle_b=preshuffle_b,
+        )
+        if name_prefix == "gemm_bquant"
+        else bquant_effective_epilogue(
+            tile_n, warp_n, warp_tile_n, quant_group_n, preshuffle_b
+        )
+    )
     return make_quant_kernel_name(
         prefix=name_prefix,
         variant_key=variant_key,
         layout=layout,
         pipeline=pipeline,
-        epilogue=bquant_effective_epilogue(
-            tile_n, warp_n, warp_tile_n, quant_group_n, preshuffle_b
-        ),
+        epilogue=effective_epilogue,
         scheduler=scheduler,
         tile_m=tile_m, tile_n=tile_n, tile_k=tile_k,
         warp_m=warp_m, warp_n=warp_n, warp_k=warp_k,
@@ -689,18 +714,29 @@ def fp8_warp_tile_k_for_arch(gfx_arch: str, *, preshuffle_quant: bool = False) -
     (include/ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp)::
 
         gfx950                        -> 128  (both plain and preshufflequant)
+        gfx1250 (EXACT match)         -> 128  (see below -- a divergence, not a mirror)
         gfx942/other, plain           ->  32
         gfx942/other, preshufflequant ->  64
+
+    gfx1250 is the one arch where this does NOT mirror ``get_k_warp_tile``: that
+    function's WMMA branch returns ``is_8bit ? 64 : 32`` at ``M_Warp_Tile==16``,
+    i.e. 64.  128 is used because ``warp_gemm_dispatcher.hpp`` provides the
+    16x16x128 fp8/bf8 WMMA fragment under ``__gfx125__`` and it is GPU-verified on
+    MI400.  The match is EXACT (suffix-tolerant), never ``"gfx12" in ...``:
+    gfx1200/gfx1201 expose only a 16x16x16 8-bit fragment, so K=128 would compile
+    and then silently mis-execute there.
 
     This rule must exist exactly once. Using 128 on gfx942 compiles cleanly and
     then produces **all-zeros output** -- there is no valid 16x16x128 fp8/bf8
     warp-gemm on gfx942 -- so a second, drifting copy is a silent-wrong-answer
-    bug rather than a build failure.
+    bug rather than a build failure.  The five ``gemm_*quant_utils`` bridges keep
+    a private ``_is_gfx1250()`` carrying the same rule; those are candidates to
+    collapse onto ``normalize_gfx_arch()`` in a follow-up.
 
     ``preshuffle_quant`` applies to AQuant's preshufflequant configs; every
     other quant operator passes the default.
     """
-    if "gfx950" in gfx_arch:
+    if "gfx950" in gfx_arch or normalize_gfx_arch(gfx_arch or "") == "gfx1250":
         return 128
     return 64 if preshuffle_quant else 32
 
@@ -1195,6 +1231,78 @@ def rowcol_tensor_quant_default_tile(gfx_arch: str = "") -> dict:
 ROWCOL_TENSOR_QUANT_SUPPORTED_ARCHES = ("gfx942", "gfx950", "gfx1250")
 
 
+def validate_gfx1250_quant_warp_tile(
+    warp_tile_m, warp_tile_n, warp_tile_k, gfx_arch, *, bridge, logical_k32=False
+):
+    """Reject unsupported WMMA fragments without changing an explicit request.
+
+    Only TensorQuant opts into the validated logical-K32 adapter. The other
+    quant bridges retain their native K64/K128 boundary.
+    """
+    if normalize_gfx_arch(gfx_arch or "") != "gfx1250":
+        return
+    allowed_k = (32, 64, 128) if logical_k32 else (64, 128)
+    if (warp_tile_m, warp_tile_n) != (16, 16) or warp_tile_k not in allowed_k:
+        raise ValueError(
+            f"{bridge} on {gfx_arch!r} requires a 16x16 WMMA tile with "
+            f"warp_tile_k in {allowed_k}; got "
+            f"{warp_tile_m}x{warp_tile_n}x{warp_tile_k}."
+        )
+
+
+def validate_abquant_eight_waves_target(pipeline, eight_waves, gfx_arch, *, bridge="ABQuant"):
+    """Reject the ABQuant EightWaves pipeline on any target other than gfx950.
+
+    ABQuantGemmPipelineAgBgCrEightWaves is only available under ``__gfx950__``;
+    elsewhere its device body compiles to nothing, so the kernel launches and
+    leaves C untouched. CompV3 with eight warps is a different pipeline and is
+    not affected. An empty target is left to the caller's arch resolution.
+    """
+    target = normalize_gfx_arch(gfx_arch or "")
+    if target and target != "gfx950" and (pipeline == "eightwaves" or eight_waves):
+        raise ValueError(
+            f"{bridge}: the EightWaves pipeline requires gfx950; got {gfx_arch!r}."
+        )
+
+
+def validate_quant_codegen_target(
+    config, gfx_arch, build_specs, *, bridge, supported_archs,
+    gfx1250_unsupported_variants=(), gfx950_only_variants=(),
+):
+    """Target check for a block-scale quant codegen CLI before any header is written.
+
+    The codegen CLIs are a second entry point next to the Python bridges, so
+    they re-run the same op-local rules: a supported target, no conflicting
+    recorded ``gfx_arch``, variants the target can run, and the gfx1250 WMMA
+    warp-tile boundary. gfx9 targets are only checked for support, which keeps
+    their previous output unchanged.
+    """
+    target = normalize_gfx_arch(gfx_arch or "")
+    if target not in supported_archs:
+        raise ValueError(
+            f"{bridge}: unsupported GPU architecture {gfx_arch!r}; "
+            f"supported: {', '.join(supported_archs)}."
+        )
+    recorded = config.get("gfx_arch")
+    if recorded and normalize_gfx_arch(recorded) != target:
+        raise ValueError(
+            f"{bridge}: config gfx_arch {recorded!r} does not match target {gfx_arch!r}."
+        )
+    for spec in build_specs(config):
+        if target == "gfx1250" and spec.variant_key in gfx1250_unsupported_variants:
+            raise ValueError(
+                f"{bridge} variant {spec.variant_key!r} is not supported on gfx1250."
+            )
+        if target != "gfx950" and spec.variant_key in gfx950_only_variants:
+            raise ValueError(
+                f"{bridge} variant {spec.variant_key!r} requires gfx950; got {gfx_arch!r}."
+            )
+        validate_gfx1250_quant_warp_tile(
+            spec.tile.warp_tile_m, spec.tile.warp_tile_n, spec.tile.warp_tile_k,
+            target, bridge=bridge,
+        )
+
+
 def validate_rowcol_tensor_quant_gfx_arch(gfx_arch: str, *, require_explicit: bool = False) -> str:
     """Normalize and check a caller-supplied gfx target; return the bare target.
 
@@ -1417,11 +1525,26 @@ def make_gemm_aquant_kernel_name(
 # name make_abquant_kernel_name in this module.
 
 
+def abquant_uses_column_major_aq(
+    bquant_group_n: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    apreshuffle_quant: bool = False,
+) -> bool:
+    """AQ layout rule shared by generated ABQuant headers and the public runner."""
+    return (
+        not apreshuffle_quant
+        and bquant_group_n == 128
+        and warp_m * warp_n * warp_k == 8
+    )
+
+
 def make_gemm_abquant_kernel_name(
     variant_key: str,
     layout: str,
     pipeline: str,
-    epilogue: str,  # ignored — actual epilogue is computed from tile params via bquant_effective_epilogue
+    epilogue: str,
     scheduler: str,
     tile_m: int, tile_n: int, tile_k: int,
     warp_m: int, warp_n: int, warp_k: int,
@@ -1462,7 +1585,11 @@ def make_gemm_abquant_kernel_name(
     # this family. Pinned by TestQuantKernelNames.
     # test_gemm_abquant_never_emits_permute_n; fixing it changes emitted kernel
     # names and needs its own commit, not this refactor.
-    if preshuffle_b and not eight_waves:
+    if epilogue == "default" and pipeline == "compv3" and not preshuffle_b and not eight_waves:
+        # Native CompV3 instance builders emit DefaultGemm2DEpilogue for this
+        # explicit trait; its name must remain distinct from CShuffle.
+        effective_epilogue = "default"
+    elif preshuffle_b and not eight_waves:
         effective_epilogue = bquant_effective_epilogue(
             tile_n, warp_n, warp_tile_n, bquant_group_n
         )
@@ -1634,6 +1761,7 @@ using AccDataType = {ck_acc};
 
 
 _QUANT_EPILOGUE_TAIL = {
+    "default": "",
     "cshuffle": "",
     "permute_n": ",\n                    false,\n                    1",
 }
@@ -1642,18 +1770,18 @@ _QUANT_EPILOGUE_TAIL = {
 def emit_quant_epilogue_block(kind: str, ns: str) -> str:
     """Emit the ``using GemmEpilogue = ...`` block for a quant kernel body.
 
-    ``kind`` is the *effective* epilogue tag -- ``"cshuffle"`` or ``"permute_n"``,
-    i.e. what quant_effective_epilogue returned, not what the user requested. The
-    two forms differ only in the class name and in PermuteN's two extra trailing
-    template arguments (``false, 1``).
+    ``kind`` is the effective epilogue tag. DefaultGemm2D takes padding flags
+    where CShuffle and PermuteN take warp counts; PermuteN also has two extra
+    trailing template arguments (``false, 1``).
     """
     try:
         tail = _QUANT_EPILOGUE_TAIL[kind]
     except KeyError:
         raise ValueError(
-            f"unknown epilogue kind {kind!r}; expected 'cshuffle' or 'permute_n'"
+            f"unknown epilogue kind {kind!r}; expected 'default', 'cshuffle', or 'permute_n'"
         ) from None
-    cls = "CShuffle" if kind == "cshuffle" else "PermuteN"
+    cls = {"default": "DefaultGemm2D", "cshuffle": "CShuffle", "permute_n": "PermuteN"}[kind]
+    geometry = "kPadM, kPadN" if kind == "default" else "WarpM, WarpN"
     return f"""\
             using GemmEpilogue = ck_tile::{cls}Epilogue<
                 ck_tile::{cls}EpilogueProblem<
@@ -1667,7 +1795,7 @@ def emit_quant_epilogue_block(kind: str, ns: str) -> str:
                     ck_tile::element_wise::PassThrough,
                     TilePartitioner::MPerBlock,
                     TilePartitioner::NPerBlock,
-                    WarpM, WarpN,
+                    {geometry},
                     WarpTileM, WarpTileN, WarpTileK,
                     TransposeC{tail}>>;"""
 
@@ -1865,12 +1993,17 @@ def run_codegen_cli(
     default_config: Callable[..., dict],
     arch_aware: bool = False,
     default_gfx_arch: str = "gfx950",
+    validate_target_config: Optional[Callable[[dict, str], None]] = None,
 ) -> int:
     """Shared argparse + config-load + list/generate driver for the quant codegen CLIs.
 
     ``arch_aware`` adds ``--gfx-arch`` and mirrors the existing per-op behavior
     exactly: generation always uses ``default_config()`` (no arch arg), while
     ``--list-names`` uses ``default_config(gfx_arch)``.
+
+    An optional ``validate_target_config`` opts into target-aware generation:
+    explicit ``--gfx-arch``, JSON ``gfx_arch``, then ``default_gfx_arch`` choose
+    the target for both listing and generation, including explicit JSON configs.
     """
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
@@ -1890,9 +2023,12 @@ def run_codegen_cli(
         help="Print kernel names that would be generated and exit")
     if arch_aware:
         parser.add_argument(
-            "--gfx-arch", type=str, default=default_gfx_arch,
-            help="Target GPU arch for the built-in default config's arch-derived "
-                 "WarpTileK. Ignored when --config/--config-json is given.")
+            "--gfx-arch", type=str,
+            default=None if validate_target_config is not None else default_gfx_arch,
+            help=("Target GPU arch; validates explicit JSON configs as well as defaults."
+                  if validate_target_config is not None else
+                  "Target GPU arch for the built-in default config's arch-derived "
+                  "WarpTileK. Ignored when --config/--config-json is given."))
     args = parser.parse_args()
 
     cfg: Optional[dict] = None
@@ -1906,8 +2042,20 @@ def run_codegen_cli(
         with open(args.config) as f:
             cfg = json.load(f)
 
+    if validate_target_config is not None:
+        target = (getattr(args, "gfx_arch", None)
+                  or (cfg or {}).get("gfx_arch") or default_gfx_arch)
+        if cfg is None:
+            cfg = default_config(target) if arch_aware else default_config()
+        try:
+            validate_target_config(cfg, target)
+        except ValueError as e:
+            log.error("%s", e)
+            return 1
+
     if args.list_names:
-        list_cfg = cfg or (default_config(args.gfx_arch) if arch_aware else default_config())
+        list_cfg = (cfg if validate_target_config is not None else
+                    cfg or (default_config(args.gfx_arch) if arch_aware else default_config()))
         for s in build_specs(list_cfg):
             print(s.name)
         return 0
@@ -1915,7 +2063,7 @@ def run_codegen_cli(
     if args.output_dir is None:
         parser.error("--output-dir is required unless --list-names is given")
 
-    specs = build_specs(cfg or default_config())
+    specs = build_specs(cfg if validate_target_config is not None else cfg or default_config())
     paths = generate_kernels_generic(
         op_label=op_label,
         generator=make_generator(),

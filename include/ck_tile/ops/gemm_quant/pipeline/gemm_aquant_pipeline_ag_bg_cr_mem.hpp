@@ -404,7 +404,8 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                aq_block_tiles.get(number<prefetch_idx>{}),
                                a_lds_gemm_window,
                                b_lds_gemm_window);
-                    // no second block_sync_lds because it's interwave
+                    // All waves must finish reading before the next tile overwrites LDS.
+                    block_sync_lds();
 
                     if constexpr(is_a_col_major && !is_a_load_tr_v())
                     {

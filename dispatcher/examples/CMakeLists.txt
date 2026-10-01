@@ -401,10 +401,47 @@ endif()
 
 # Generate a single fallback kernel for the Python library (fp16, rcr, compv4)
 set(GEMM_FALLBACK_KERNEL_DIR "${CMAKE_CURRENT_BINARY_DIR}/gemm_python_fallback")
-set(GEMM_FALLBACK_KERNEL "${GEMM_FALLBACK_KERNEL_DIR}/gemm_fp16_rcr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16.hpp")
+
+# The warp tile MUST be chosen per architecture.
+#
+# This used to hardcode 32x32x16 (and a filename containing it). That is an MFMA
+# fragment: valid on gfx9, and absent on every wave32/WMMA part -- gfx1250 wants
+# 16x16x32 and gfx1200/gfx1201 want 16x16x16. On those targets the codegen's arch
+# filter silently dropped the only requested config ("standard: 0 configurations",
+# "Kernels: 0 ... Failed: 0"), the custom target still reported success, and the
+# breakage surfaced two steps later as dispatcher_gemm_lib failing to compile with
+# a bare "file not found" on the -include below. That made `make dispatcher_gemm_lib`
+# unbuildable for gfx1250 and unusable as a CI lane.
+#
+# Ask arch_specs_generated.py -- the same table the codegen filters with -- so the
+# tile and the filename are derived from one source and cannot drift apart again.
+string(REGEX REPLACE ":.*$" "" _gemm_fallback_arch "${GPU_TARGET}")
+execute_process(
+    COMMAND python3 -c
+            "import sys; sys.path.insert(0, sys.argv[1]); from arch_specs_generated import get_warp_tile_combos; c = get_warp_tile_combos(sys.argv[2], 'fp16_fp16_fp32'); print('%d;%d;%d' % tuple(c[0]) if c else '')"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../codegen" "${_gemm_fallback_arch}"
+    OUTPUT_VARIABLE _gemm_fallback_warp_tile
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _gemm_fallback_probe_rc
+)
+if(NOT _gemm_fallback_probe_rc EQUAL 0 OR _gemm_fallback_warp_tile STREQUAL "")
+    message(FATAL_ERROR
+        "Cannot pick an fp16 warp tile for GPU_TARGET='${GPU_TARGET}' "
+        "(normalised '${_gemm_fallback_arch}'): arch_specs_generated.get_warp_tile_combos() "
+        "returned nothing. Add the architecture there, or disable "
+        "BUILD_DISPATCHER_EXAMPLES for this target.")
+endif()
+list(GET _gemm_fallback_warp_tile 0 GEMM_FALLBACK_WT_M)
+list(GET _gemm_fallback_warp_tile 1 GEMM_FALLBACK_WT_N)
+list(GET _gemm_fallback_warp_tile 2 GEMM_FALLBACK_WT_K)
+message(STATUS
+    "GEMM Python fallback kernel: fp16 warp tile "
+    "${GEMM_FALLBACK_WT_M}x${GEMM_FALLBACK_WT_N}x${GEMM_FALLBACK_WT_K} for ${_gemm_fallback_arch}")
+
+set(GEMM_FALLBACK_KERNEL "${GEMM_FALLBACK_KERNEL_DIR}/gemm_fp16_rcr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_${GEMM_FALLBACK_WT_M}x${GEMM_FALLBACK_WT_N}x${GEMM_FALLBACK_WT_K}.hpp")
 
 # Tile config JSON for single kernel generation
-set(GEMM_FALLBACK_TILE_CONFIG "{\"tile_m\":[128],\"tile_n\":[128],\"tile_k\":[32],\"warp_m\":[2],\"warp_n\":[2],\"warp_k\":[1],\"warp_tile_m\":[32],\"warp_tile_n\":[32],\"warp_tile_k\":[16],\"pipeline\":[\"compv4\"],\"scheduler\":[\"intrawave\"],\"epilogue\":[\"cshuffle\"]}")
+set(GEMM_FALLBACK_TILE_CONFIG "{\"tile_m\":[128],\"tile_n\":[128],\"tile_k\":[32],\"warp_m\":[2],\"warp_n\":[2],\"warp_k\":[1],\"warp_tile_m\":[${GEMM_FALLBACK_WT_M}],\"warp_tile_n\":[${GEMM_FALLBACK_WT_N}],\"warp_tile_k\":[${GEMM_FALLBACK_WT_K}],\"pipeline\":[\"compv4\"],\"scheduler\":[\"intrawave\"],\"epilogue\":[\"cshuffle\"]}")
 
 # Generate single fallback kernel (not all 6000+ kernels)
 add_custom_command(
@@ -412,9 +449,16 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${GEMM_FALLBACK_KERNEL_DIR}
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_gemm_codegen.py 
             --datatype fp16 --layout rcr --variants standard
-            --gpu-target ${GPU_TARGET}
+            --gpu-target ${_gemm_fallback_arch}
             --output-dir ${GEMM_FALLBACK_KERNEL_DIR}
             --tile-config-json "${GEMM_FALLBACK_TILE_CONFIG}"
+    # Fail here, not three steps later. unified_gemm_codegen.py exits 0 even when
+    # the arch filter drops every requested config, so without this check a
+    # generated-nothing run looks successful and only surfaces as an opaque
+    # "file not found" on the -include when dispatcher_gemm_lib compiles.
+    COMMAND python3 -c
+            "import os, sys; p = sys.argv[1]; sys.exit(0) if os.path.exists(p) else sys.exit('ERROR: the fallback GEMM kernel was not generated for ${_gemm_fallback_arch}:\\n  ' + p + '\\nThe codegen arch filter dropped the requested tile. Check that the fp16 warp tile above is valid for this architecture in dispatcher/codegen/arch_specs_generated.py.')"
+            "${GEMM_FALLBACK_KERNEL}"
     COMMENT "Generating single fallback GEMM kernel for Python library"
     VERBATIM
 )
@@ -422,6 +466,21 @@ add_custom_command(
 add_custom_target(generate_gemm_fallback_kernel DEPENDS ${GEMM_FALLBACK_KERNEL})
 
 # GEMM dynamic library for Python
+# This directory can be configured without CK's parent CMakeLists.txt. Use the
+# same target features and framework gate as the standalone Python builds; in
+# particular, gfx1250 must not pick the unsupported unified-framework default.
+execute_process(
+    COMMAND python3 -c
+            "import sys; sys.path.insert(0, sys.argv[1]); from dispatcher_common import arch_feature_defines, unified_framework_flags; print(';'.join(arch_feature_defines(sys.argv[2]) + unified_framework_flags(sys.argv[2])))"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../python" "${GPU_TARGET}"
+    OUTPUT_VARIABLE _gemm_fallback_arch_flags
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _gemm_fallback_flags_rc
+)
+if(NOT _gemm_fallback_flags_rc EQUAL 0)
+    message(FATAL_ERROR "Cannot determine GEMM compile flags for ${GPU_TARGET}")
+endif()
+
 add_library(dispatcher_gemm_lib SHARED ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/gemm_ctypes_lib.cpp)
 target_link_libraries(dispatcher_gemm_lib PRIVATE ck_tile_dispatcher)
 target_include_directories(dispatcher_gemm_lib PRIVATE
@@ -430,6 +489,7 @@ target_include_directories(dispatcher_gemm_lib PRIVATE
     ${GEMM_FALLBACK_KERNEL_DIR}
 )
 target_compile_options(dispatcher_gemm_lib PRIVATE
+    ${_gemm_fallback_arch_flags}
     -DCK_TILE_SINGLE_KERNEL_INCLUDE
     -include ${GEMM_FALLBACK_KERNEL}
     -DGFX_ARCH="${GPU_TARGET}"

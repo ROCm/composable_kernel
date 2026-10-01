@@ -915,7 +915,9 @@ struct SelectedKernel {{
     static constexpr ck_tile::index_t N_Warp_Tile = WarpTileN;
     static constexpr ck_tile::index_t K_Warp_Tile = WarpTileK;
     static constexpr ck_tile::index_t BContiguousItemsPerAccess =
-        std::is_same_v<BDataType, ck_tile::pk_fp4_t> ? 32 : 16;"""
+        std::is_same_v<BDataType, ck_tile::pk_fp4_t> ? 32 : 16;
+    // gfx12 shuffle_b: the MX weight-preshuffle interleaved per-lane K layout.
+    static constexpr bool BPreshuffleLaneInterleavedK = true;"""
             else:
                 instance_code += """
     static constexpr bool Preshuffle = false;"""

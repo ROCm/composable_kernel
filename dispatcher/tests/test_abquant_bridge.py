@@ -22,6 +22,9 @@ sys.path.insert(0, str(_DISP / "codegen"))
 
 from gemm_abquant_utils import (  # noqa: E402
     ABQuantDispatcherLib,
+    ABQuantGpuGemmRunner,
+    ABQuantGemmProblem,
+    ABQuantKernelConfig,
     default_fp8_config,
     default_bf8_config,
     default_fp4_config,
@@ -259,6 +262,36 @@ class TestBqPermuteNForPermuteNKernels(unittest.TestCase):
         self.assertTrue(cfg.preshuffle_b and cfg.preshuffle_bquant, cfg.name)
         self.assertIn("cshuffle", cfg.name, cfg.name)
         self.assertNotIn("permute_n", cfg.name, cfg.name)
+
+    def test_cshuffle_preshuffleb_uses_matching_b_and_bq_packing(self):
+        # An even NRepeat must not enable PermuteN input packing while the
+        # emitted epilogue still writes C in ordinary column order. Exercise
+        # both scale layouts and the exact geometry that failed on gfx1250.
+        for arch in ("gfx942", "gfx950", "gfx1250", "gfx1250:xnack-"):
+            for ctor in (
+                default_fp8_preshuffleb_config,
+                default_bf8_preshuffleb_config,
+                default_fp8_preshuffleb_preshufflequant_config,
+            ):
+                for group_n in (1, 128):
+                    cfg = ctor(bquant_group_n=group_n, gfx_arch=arch)
+                    with self.subTest(arch=arch, factory=ctor.__name__, group_n=group_n):
+                        text = _header_text(cfg)
+                        uses_permute_n = "using GemmEpilogue = ck_tile::PermuteNEpilogue<" in text
+                        self.assertEqual(_static_bool(text, "TiledMMAPermuteN"), uses_permute_n)
+                        self.assertIn("using GemmEpilogue = ck_tile::CShuffleEpilogue<", text)
+                        self.assertIn(f'KERNEL_NAME = "{cfg.name}"', text)
+                        self.assertIn("_cshuffle_", cfg.name)
+                        self.assertTrue(_static_bool(text, "PreshuffleB"))
+                        self.assertEqual(_static_bool(text, "BPreshuffleQuant"), cfg.preshuffle_bquant)
+                        self.assertEqual(_static_bool(text, "TransposeC"), cfg.transpose_c)
+                        for name, value in (
+                            ("N_Tile", "TileN"), ("N_Warp", "WarpN"),
+                            ("N_Warp_Tile", "WarpTileN"), ("K_Warp_Tile", "WarpTileK"),
+                        ):
+                            self.assertRegex(text, rf"{name}\s*=\s*{value};")
+
+
 class TestRunnerNoPostHocPermuteN(unittest.TestCase):
     """Round-5 FIX: now that round-4's bq_permuteN makes the kernel/ctypes
     epilogue write C in correct logical column order for permute_n kernels,
@@ -346,9 +379,9 @@ class TestEightWavesColumnMajorAQ(unittest.TestCase):
             )
             self.assertFalse(ABQuantDispatcherLib.kernel_uses_column_major_aq(cfg.name), cfg.name)
 
-    def test_non_eightwaves_stay_row_major_aq(self):
-        # All non-EightWaves kernels (fp8 n=1, fp4, all preshufflequant) use
-        # RowMajor AQ regardless of arch.
+    def test_other_default_factories_stay_row_major_aq(self):
+        # These factory shapes have either groupN != 128 or fewer than eight
+        # warps; pipeline names alone do not determine AQ layout.
         non_ew = [
             default_fp8_config(bquant_group_n=1, gfx_arch="gfx950"),
             default_fp4_config(gfx_arch="gfx950"),
@@ -362,6 +395,71 @@ class TestEightWavesColumnMajorAQ(unittest.TestCase):
             self.assertFalse(cfg.eight_waves, cfg.name)
             self.assertFalse(_static_bool(_header_text(cfg), "AQIsColumnMajor"), cfg.name)
             self.assertFalse(ABQuantDispatcherLib.kernel_uses_column_major_aq(cfg.name), cfg.name)
+
+    def test_compv3_column_aq_public_runner_packs_matching_bytes(self):
+        import ctypes
+        from types import SimpleNamespace
+        import numpy as np
+        from unified_gemm_abquant_codegen import ABQuantKernelHeaderGenerator, _build_specs
+
+        # Exercise the real public runner and low-level ctypes marshalling.
+        # The callback replaces only the device export and captures its ABI bytes.
+        M, N, K = 3, 5, 256
+        A = np.arange(M * K, dtype=np.uint8).reshape(M, K)
+        B = np.arange(K * N, dtype=np.uint8).reshape(K, N)
+        AQ = np.arange(M * 2, dtype=np.float32).reshape(M, 2) + 0.25
+        for layout, group_n, warps, epilogue in (
+            ("rcr", 128, (4, 2, 1), "cshuffle"),
+            ("ccr", 128, (2, 4, 1), "default"),
+            ("crr", 128, (4, 1, 1), "default"),
+            ("rrr", 1, (4, 2, 1), "cshuffle"),
+        ):
+            with self.subTest(layout=layout, group_n=group_n, warps=warps, epilogue=epilogue):
+                cfg = ABQuantKernelConfig(
+                    variant_key="fp8", layout=layout, pipeline="compv3",
+                    epilogue=epilogue, scheduler="intrawave", tile_m=128,
+                    tile_n=128, tile_k=256, warp_m=warps[0], warp_n=warps[1],
+                    warp_k=warps[2], warp_tile_m=16, warp_tile_n=16, warp_tile_k=64,
+                    aquant_group_k=128, bquant_group_n=group_n, bquant_group_k=128,
+                    gfx_arch="gfx1250",
+                )
+                spec = _build_specs(cfg.to_codegen_config())[0]
+                header = ABQuantKernelHeaderGenerator().generate(spec)
+                aq_column = _static_bool(header, "AQIsColumnMajor")
+                self.assertEqual(ABQuantDispatcherLib.kernel_uses_column_major_aq(cfg.name), aq_column)
+                problem = ABQuantGemmProblem(M=M, N=N, K=K, bquant_group_n=group_n)
+                BQ = np.arange(problem.QK_B * problem.QN_B, dtype=np.float32).reshape(
+                    problem.QK_B, problem.QN_B
+                ) + 0.5
+                captured = {}
+
+                def capture(a, b, aq, bq, c, m, n, k, sa, sb, saq, sbq, sc, qka, qkb, qnb, kb, time):
+                    captured.update(
+                        A=ctypes.string_at(a, M * K), B=ctypes.string_at(b, K * N),
+                        AQ=ctypes.string_at(aq, M * qka * 4),
+                        BQ=ctypes.string_at(bq, qkb * qnb * 4),
+                        strides=(sa, sb, saq, sbq, sc), shape=(m, n, k),
+                    )
+                    time[0] = 0.0
+                    return 0
+
+                callback = ctypes.CFUNCTYPE(ctypes.c_int, *ABQuantDispatcherLib._RUN_ARGTYPES)(capture)
+                wrapper = object.__new__(ABQuantDispatcherLib)
+                wrapper._lib = SimpleNamespace(dispatcher_run_abquant_gemm=callback)
+                wrapper.get_kernel_name = lambda: cfg.name
+                runner = object.__new__(ABQuantGpuGemmRunner)
+                runner._lib = wrapper
+                runner.run(A, B, AQ, BQ, problem)
+                self.assertEqual(captured['shape'], (M, N, K))
+                self.assertEqual(captured['A'], A.tobytes(order='F' if layout[0] == 'c' else 'C'))
+                self.assertEqual(captured['B'], B.tobytes(order='F' if layout[1] == 'c' else 'C'))
+                self.assertEqual(captured['AQ'], AQ.tobytes(order='F' if aq_column else 'C'))
+                self.assertEqual(captured['BQ'], BQ.tobytes(order='F'))
+                self.assertEqual(captured['strides'], (
+                    M if layout[0] == 'c' else K,
+                    K if layout[1] == 'c' else N,
+                    M if aq_column else problem.QK_A, problem.QK_B, N,
+                ))
 
     def test_ctypes_lib_derives_column_major_aq_stride(self):
         # The ctypes stride check must use M for ColumnMajor AQ, QK_A otherwise.

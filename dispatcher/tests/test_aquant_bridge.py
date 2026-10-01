@@ -100,21 +100,20 @@ class TestAQStride(unittest.TestCase):
 
 
 class TestLayoutScope(unittest.TestCase):
-    """Lock the layout scope and the 28-kernel (4 variant x 7 layout) count."""
+    """Lock the layout scope and the 32-kernel (4 variant x 8 layout) count."""
 
     def test_decode_layouts(self):
         self.assertEqual(_LAYOUTS_DECODE, ("rcr", "rrr", "crr", "ccr"))
 
-    def test_preshufflequant_excludes_ccr(self):
-        self.assertEqual(_LAYOUTS_PRESHUFFLEQUANT, ("rcr", "rrr", "crr"))
-        self.assertNotIn("ccr", _LAYOUTS_PRESHUFFLEQUANT)
+    def test_preshufflequant_includes_ccr(self):
+        self.assertEqual(_LAYOUTS_PRESHUFFLEQUANT, ("rcr", "rrr", "crr", "ccr"))
 
-    def test_full_kernel_count_is_28(self):
-        # 4 variants x (4 decode layouts + 3 preshufflequant layouts) = 28.
+    def test_full_kernel_count_is_32(self):
+        # 4 variants x (4 decode layouts + 4 preshufflequant layouts) = 32.
         variants = len(_VARIANT_META)
         total = variants * (len(_LAYOUTS_DECODE) + len(_LAYOUTS_PRESHUFFLEQUANT))
         self.assertEqual(variants, 4)
-        self.assertEqual(total, 28)
+        self.assertEqual(total, 32)
 
 
 class TestArchWarpTileK(unittest.TestCase):

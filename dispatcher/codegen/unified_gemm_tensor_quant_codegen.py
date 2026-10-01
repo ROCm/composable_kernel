@@ -66,6 +66,8 @@ from codegen_common import (
     rcr_only_layout_guard,
     run_codegen_cli,
     tensor_quant_effective_epilogue,  # noqa: F401
+    validate_gfx1250_quant_warp_tile,
+    validate_rowcol_tensor_quant_gfx_arch,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -143,6 +145,24 @@ TENSOR_QUANT_SCHEDULER_TO_CK = QUANT_SCHEDULER_TO_CK
 # Was a verbatim redeclaration of codegen_common.TileConfig, fields and
 # is_valid() alike. Aliased rather than renamed so call sites read unchanged.
 TensorQuantTileConfig = TileConfig
+
+
+def validate_tensor_quant_target(variant_key, warp_tile_m, warp_tile_n, warp_tile_k,
+                                 gfx_arch):
+    """Validate the TensorQuant architecture without retuning explicit tiles.
+
+    gfx1250 same-type FP8/BF8 16x16x32 uses a wave32 logical-K32 adapter
+    with zero-padded K64 WMMA arithmetic. The C++ dispatcher keeps the
+    Default/Default, non-transposed dense boundary; TensorQuant's compv3
+    rcr pipeline selects exactly that form. Arch-derived defaults remain K128.
+    """
+    validate_rowcol_tensor_quant_gfx_arch(gfx_arch)
+    if variant_key not in TENSOR_QUANT_VARIANTS:
+        raise ValueError(f"Unsupported TensorQuant variant {variant_key!r}")
+    validate_gfx1250_quant_warp_tile(
+        warp_tile_m, warp_tile_n, warp_tile_k, gfx_arch,
+        bridge="TensorQuant", logical_k32=True,
+    )
 
 
 @dataclass
@@ -403,6 +423,11 @@ def _build_specs(config: dict) -> List[TensorQuantKernelSpec]:
         pipeline_map=TENSOR_QUANT_PIPELINE_MAP,
         layout_guard=rcr_only_layout_guard,
     ):
+        if config.get("gfx_arch"):
+            validate_tensor_quant_target(
+                variant_key, tile.warp_tile_m, tile.warp_tile_n, tile.warp_tile_k,
+                config["gfx_arch"],
+            )
         specs.append(TensorQuantKernelSpec(
             variant_key=variant_key,
             layout=layout,
@@ -420,6 +445,22 @@ def _build_specs(config: dict) -> List[TensorQuantKernelSpec]:
 
     return specs
 
+
+def _validate_target_config(config: dict, gfx_arch: str) -> None:
+    """Validate explicit JSON against the actual CLI target as well as its metadata."""
+    target = validate_rowcol_tensor_quant_gfx_arch(gfx_arch, require_explicit=True)
+    recorded = config.get("gfx_arch")
+    if recorded and validate_rowcol_tensor_quant_gfx_arch(recorded) != target:
+        raise ValueError(
+            f"TensorQuant config records gfx_arch={recorded!r}, but the requested "
+            f"codegen target is {gfx_arch!r}; rebuild the config for that target."
+        )
+    for spec in _build_specs(config):
+        validate_tensor_quant_target(
+            spec.variant_key, spec.tile.warp_tile_m, spec.tile.warp_tile_n,
+            spec.tile.warp_tile_k, target,
+        )
+
 # =============================================================================
 # CLI
 # =============================================================================
@@ -434,6 +475,7 @@ def main() -> int:
         default_config=_default_config,
         arch_aware=True,
         default_gfx_arch=_DEFAULT_GFX_ARCH,
+        validate_target_config=_validate_target_config,
     )
 
 

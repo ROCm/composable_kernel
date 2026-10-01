@@ -14,6 +14,7 @@ import unittest
 import subprocess
 import sys
 import os
+import pytest
 from pathlib import Path
 
 # Get paths
@@ -65,6 +66,7 @@ def run_cpp_example(
     )
 
 
+@pytest.mark.usefixtures("dispatcher_static_lib")
 class TestGemmPythonExamples(unittest.TestCase):
     """Test GEMM Python examples."""
 
@@ -83,7 +85,7 @@ class TestGemmPythonExamples(unittest.TestCase):
 
         result = run_python_example(example)
 
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("TFLOPS", result.stdout, "Should report TFLOPS")
 
     def test_02_batch_gemm(self):
@@ -94,7 +96,7 @@ class TestGemmPythonExamples(unittest.TestCase):
 
         result = run_python_example(example)
 
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
 
     def test_03_benchmark(self):
         """Test benchmark example."""
@@ -104,7 +106,7 @@ class TestGemmPythonExamples(unittest.TestCase):
 
         result = run_python_example(example)
 
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
 
     def test_04_validation(self):
         """Test validation example."""
@@ -114,10 +116,11 @@ class TestGemmPythonExamples(unittest.TestCase):
 
         result = run_python_example(example)
 
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper(), "Validation should pass")
 
 
+@pytest.mark.usefixtures("dispatcher_static_lib")
 class TestConvPythonExamples(unittest.TestCase):
     """Test grouped conv Python examples."""
 
@@ -134,7 +137,7 @@ class TestConvPythonExamples(unittest.TestCase):
         if not example.exists():
             self.skipTest(f"{example.name} not found")
         result = run_python_example(example)
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
     def test_02_forward(self):
@@ -143,7 +146,7 @@ class TestConvPythonExamples(unittest.TestCase):
         if not example.exists():
             self.skipTest(f"{example.name} not found")
         result = run_python_example(example)
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
     def test_03_bwd_data(self):
@@ -152,7 +155,7 @@ class TestConvPythonExamples(unittest.TestCase):
         if not example.exists():
             self.skipTest(f"{example.name} not found")
         result = run_python_example(example)
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
     def test_04_bwd_weight(self):
@@ -161,7 +164,7 @@ class TestConvPythonExamples(unittest.TestCase):
         if not example.exists():
             self.skipTest(f"{example.name} not found")
         result = run_python_example(example)
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
     def test_05_benchmark(self):
@@ -172,7 +175,7 @@ class TestConvPythonExamples(unittest.TestCase):
         result = run_python_example(
             example, extra_args=["--warmup", "1", "--repeat", "1"]
         )
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
     def test_06_registry_json(self):
@@ -181,7 +184,7 @@ class TestConvPythonExamples(unittest.TestCase):
         if not example.exists():
             self.skipTest(f"{example.name} not found")
         result = run_python_example(example)
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
 
@@ -201,7 +204,7 @@ class TestGemmCppExamples(unittest.TestCase):
         if result is None:
             self.skipTest("gemm_01_basic not built")
 
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("TFLOPS", result.stdout, "Should report TFLOPS")
 
     def test_gemm_02_multi_size(self):
@@ -210,7 +213,7 @@ class TestGemmCppExamples(unittest.TestCase):
         if result is None:
             self.skipTest("gemm_02_multi_size not built")
 
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
 
     def test_gemm_03_benchmark_validation(self):
         """Test benchmark+validation GEMM C++ example."""
@@ -218,7 +221,7 @@ class TestGemmCppExamples(unittest.TestCase):
         if result is None:
             self.skipTest("gemm_03_benchmark_validation not built")
 
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper(), "Validation should pass")
 
 
@@ -237,7 +240,7 @@ class TestConvCppExamples(unittest.TestCase):
         result = run_cpp_example("grouped_conv_01_basic")
         if result is None:
             self.skipTest("grouped_conv_01_basic not built")
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
     def test_grouped_conv_02_all_dirs(self):
@@ -245,7 +248,7 @@ class TestConvCppExamples(unittest.TestCase):
         result = run_cpp_example("grouped_conv_02_all_dirs")
         if result is None:
             self.skipTest("grouped_conv_02_all_dirs not built")
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
     def test_grouped_conv_03_bench_val(self):
@@ -253,7 +256,7 @@ class TestConvCppExamples(unittest.TestCase):
         result = run_cpp_example("grouped_conv_03_bench_val")
         if result is None:
             self.skipTest("grouped_conv_03_bench_val not built")
-        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stdout}\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper())
 
 

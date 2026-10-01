@@ -15,8 +15,8 @@ Kernel computed here -- scales on the B (weight) operand only:
 
     C = A @ dequant(B, BQ),   B[k, n] *= BQ[k // quant_group_k, n // quant_group_n]
 
-gfx950 only, matching the bridge. gemm_bquant_utils pins
-_NAME_ONLY_GFX_ARCH = "gfx950" and its _MX_VARIANTS hard-require gfx950; the
+gfx950 only, matching the bridge. gemm_bquant_utils resolves the target arch
+and its _MX_VARIANTS hard-require gfx950; the
 warp_tile_k the default configs pick (128) silently outputs all-zeros on gfx942
 rather than failing to build, so a wider gate here would produce a confident
 wrong answer instead of a skip. The gate must move together with the one on

@@ -17,8 +17,8 @@
  * follows AQLayout, which is always RowMajor (Old-TE hardcodes AQLayout=RowMajor
  * for every layout), so stride_AQ=QK_A for all layouts. For pk_int4 A the
  * raw values are permuted (permute_i4_inplace) before the device copy, and
- * APreshuffleQuant kernels shuffle AQ via shuffle_aq (row-major only; ccr is
- * excluded from the preshufflequant path by Old-TE).
+ * APreshuffleQuant kernels shuffle AQ via shuffle_aq (row-major AQ, independently
+ * of the A/B layouts).
  *
  * Shared infrastructure lives in quant_bridge_common.hpp; host-load primitives
  * in quant_bridge_shuffle.hpp. Memory model: host-pointer.
@@ -126,13 +126,13 @@ int dispatcher_run_aquant_gemm(const void* A,
 
     // Apply AQ preshuffle when required; shared with abquant, see
     // prepare_aq_device() (run_gemm_quant_example.inc:746-751). The assert is
-    // AQuant-specific: shuffle_aq assumes a row-major AQ descriptor, which holds
-    // here because Old-TE rejects the ccr layout for the preshufflequant path.
+    // AQuant-specific: shuffle_aq assumes a row-major AQ descriptor, which the
+    // native TileEngine builder uses for every A/B layout, including ccr.
     // (abquant's AQ *can* be column-major, but never with APreshuffleQuant on.)
     static_assert(!SelectedKernel::APreshuffleQuant ||
                       std::is_same_v<AQLayout, ck_tile::tensor_layout::gemm::RowMajor>,
-                  "APreshuffleQuant requires a row-major AQ layout (ccr is excluded "
-                  "from the preshufflequant path); shuffle_aq assumes row-major");
+                  "APreshuffleQuant requires a row-major AQ layout; "
+                  "shuffle_aq assumes row-major");
     BRIDGE_HIP_CHECK(
         kFn, (prepare_aq_device<SelectedKernel, QuantGroupSize::kK>(AQ_host, AQ_dev, M, QK_A)));
     BRIDGE_HIP_CHECK(

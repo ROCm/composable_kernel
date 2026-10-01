@@ -28,7 +28,8 @@ Usage (end-to-end):
   result = runner.run(A, B, AQ, BQ, RowColQuantGemmProblem(M=16, N=64, K=256))
 """
 
-from dispatcher_common import unified_framework_flags
+from dispatcher_common import validate_configs_match_arch, unified_framework_flags, arch_feature_defines
+from quant_default_config import deferred_arch_default, resolve_default_configs
 import ctypes
 import json
 import logging
@@ -63,7 +64,11 @@ _CTYPES_LIB_SRC = Path(__file__).parent.parent / "bindings" / "ctypes" / "gemm_r
 _codegen_dir = str(Path(__file__).parent.parent / "codegen")
 if _codegen_dir not in sys.path:
     sys.path.insert(0, _codegen_dir)
-from codegen_common import make_gemm_rowcolquant_kernel_name  # noqa: E402
+from codegen_common import (  # noqa: E402
+    make_gemm_rowcolquant_kernel_name,
+    validate_gfx1250_quant_warp_tile,
+    validate_rowcol_tensor_quant_gfx_arch,
+)
 
 _DEFAULT_HIPCC    = "hipcc"
 
@@ -73,7 +78,12 @@ if str(Path(__file__).parent) not in sys.path:
 from quant_bridge_flags import te_perf_flags as _te_perf_flags  # noqa: E402
 # --- end Tile-Engine perf flags ---
 
-_DEFAULT_GFX_ARCH = "gfx950"
+def _validate_arch(arch: str) -> str:
+    """Retain the full target after checking this bridge's supported devices."""
+    if not arch:
+        raise ValueError(f"Unsupported GPU architecture {arch!r} for RowColQuant bridge")
+    validate_rowcol_tensor_quant_gfx_arch(arch)
+    return arch
 
 
 # =============================================================================
@@ -110,7 +120,19 @@ class RowColQuantKernelConfig:
     double_smem_buffer: bool = False
     k_block_per_cu: int      = 1
 
-    gfx_arch: str = _DEFAULT_GFX_ARCH
+    gfx_arch: Optional[str] = None
+
+    def __post_init__(self):
+        self.validate_target()
+
+    def validate_target(self, gfx_arch=None):
+        """Revalidate mutable target-dependent fields before code generation."""
+        arch = self.gfx_arch if gfx_arch is None else gfx_arch
+        if arch:
+            _validate_arch(arch)
+        validate_gfx1250_quant_warp_tile(
+            self.warp_tile_m, self.warp_tile_n, self.warp_tile_k, arch, bridge="RowColQuant"
+        )
 
     @property
     def name(self) -> str:
@@ -128,7 +150,9 @@ class RowColQuantKernelConfig:
 
     def to_codegen_config(self) -> dict:
         """Produce the JSON config dict consumed by unified_gemm_rowcolquant_codegen.py."""
+        self.validate_target()
         return {
+            "gfx_arch": self.gfx_arch,
             "variant_keys": [self.variant_key],
             "layouts": [self.layout],
             "pipeline": self.pipeline,
@@ -376,6 +400,9 @@ def _uses_ocp_fp8(gfx_arch: Optional[str]) -> bool:
 
     Mirrors the CK_USE_OCP_FP8 compile-time switch. Defaults to OCP when the
     arch is unknown (None) to preserve the historical gfx950 self-test default.
+
+    The gfx12 test here is deliberately FAMILY-WIDE (all gfx12xx parts use OCP)
+    and must not be narrowed to the exact gfx1250 match used for warp_tile_k.
     """
     if not gfx_arch:
         return True
@@ -519,11 +546,15 @@ def _compile_rowcolquant_kernel(
     # Arch-specific defines: gfx950 uses OCP fp8 (not FNUZ). These mirror the
     # CMakeLists.txt definitions that are normally injected by CMake but are
     # absent in the standalone hipcc build path.
-    arch_defines = []
-    if "gfx12" in gfx_arch or "gfx950" in gfx_arch:
-        arch_defines += ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"]
-    if "gfx950" in gfx_arch:
-        arch_defines += ["-DCK_USE_NATIVE_MX_SUPPORT", "-DCK_GFX950_SUPPORT"]
+    # Architecture defines for the standalone hipcc path, from the shared helper
+    # (dispatcher_common.arch_feature_defines) that the five grouped bridges
+    # already use. It supplies the OCP fp8 pair AND the per-arch feature set the
+    # top-level CMakeLists provides for a normal build but the JIT path does not:
+    # notably CK_TILE_USE_WMMA, which must be passed even when 0 -- leaving it
+    # undefined only works because the preprocessor reads it as 0, which is right
+    # on gfx942/gfx950 and wrong on every WMMA part, so a gfx1250 kernel could
+    # compile down the non-WMMA feature path.
+    arch_defines = arch_feature_defines(gfx_arch)
 
     compile_cmd = [hipcc, "-c", "-fPIC", "-O3", "-std=c++17",
                    "-DCK_TILE_SINGLE_KERNEL_INCLUDE", "-w",
@@ -612,7 +643,11 @@ def setup_multiple_rowcolquant_dispatchers(
     if not configs:
         return []
 
-    arch = gfx_arch or _detect_gpu_arch()
+    arch = _validate_arch(gfx_arch if gfx_arch is not None else _detect_gpu_arch())
+    configs = resolve_default_configs(configs, arch)
+    validate_configs_match_arch(configs, arch, "RowColQuant")
+    for config in configs:
+        config.validate_target(arch)
 
     def _compile_fn(hpp: Path, so: Path, a: str) -> bool:
         return _compile_rowcolquant_kernel(
@@ -640,7 +675,7 @@ def setup_multiple_rowcolquant_dispatchers(
 
 def expand_rowcolquant_sweep(
     config_path: str,
-    gfx_arch: str = _DEFAULT_GFX_ARCH,
+    gfx_arch: Optional[str] = None,
 ) -> List["RowColQuantKernelConfig"]:
     """Expand a RowColQuant JSON sweep config into RowColQuantKernelConfig objects.
 
@@ -699,11 +734,45 @@ def expand_rowcolquant_sweep(
 # =============================================================================
 
 
-def _warp_tile_k_for(variant_key: str, gfx_arch: str) -> int:
-    """Arch-derived K warp-tile, mirroring ck_tile::get_k_warp_tile<PrecType, 16>().
+def _is_gfx1250(gfx_arch: Optional[str]) -> bool:
+    """EXACT gfx1250 match, tolerant of feature suffixes (``gfx1250:xnack-``).
 
-    (tile_gemm_shape.hpp, M_Warp_Tile=16, non-WMMA path)
+    Deliberately exact, NOT a ``"gfx12" in gfx_arch`` family test.  This module
+    contains both kinds of gfx12 predicate and they must never be "tidied" into
+    each other:
+
+      * OCP fp8 encoding (``_uses_ocp_fp8``) and the ``-DCK_TILE_USE_OCP_FP8``
+        compile defines: family-wide ``"gfx12" in ...`` is CORRECT -- every
+        gfx12xx part uses OCP e4m3/e5m2, so narrowing those would break fp8 on
+        gfx1200/gfx1201.
+      * 8-bit ``warp_tile_k`` selection (this helper): family-wide is a BUG.
+        gfx1200/gfx1201 expose only a 16x16x16 8-bit WMMA fragment, so the K=128
+        warp tile does not exist on them; the kernel would still compile and
+        silently return garbage.
+
+    ``codegen_common.normalize_gfx_arch()`` now provides the suffix-stripping half
+    of this rule; collapsing this helper onto it is a worthwhile follow-up, kept
+    out of this change to avoid adding a codegen import to all five bridges.
+    """
+    return (gfx_arch or "").split(":")[0] == "gfx1250"
+
+
+def _warp_tile_k_for(variant_key: str, gfx_arch: str) -> int:
+    """Arch-derived K warp-tile for this bridge's M_Warp_Tile=16 configs.
+
+    (cf. ck_tile::get_k_warp_tile<PrecType, 16>() -- matched exactly on
+    gfx942/gfx950; see the gfx1250 note below for the one divergence.)
+
+    (tile_gemm_shape.hpp, M_Warp_Tile=16)
       gfx950 (CK_GFX950_SUPPORT): fp8/bf8 -> 128
+      gfx1250: 128 -- a DELIBERATE DIVERGENCE from get_k_warp_tile, not a mirror.
+              gfx1250 takes that function's WMMA branch (CMakeLists.txt sets
+              CK_TILE_USE_WMMA=1 for gfx12), where M_Warp_Tile==16 yields
+              `is_8bit ? 64 : 32` -- upstream's own answer is 64.  128 is used
+              because warp_gemm_dispatcher.hpp provides the 16x16x128 fp8/bf8 WMMA
+              fragment under __gfx125__ and it is GPU-verified on MI400; 64 is
+              untested for these pipelines.  The gfx1250 test is EXACT (see
+              _is_gfx1250) -- gfx1200/gfx1201 have only a 16x16x16 8-bit fragment.
       gfx942/other              : fp8/bf8 ->  32   (no 16x16x128 fp8/bf8 warp-gemm)
 
     This is a BLOCKING correctness constraint, not just a naming detail: a
@@ -711,18 +780,27 @@ def _warp_tile_k_for(variant_key: str, gfx_arch: str) -> int:
     all-zeros output (confirmed on the sibling tensor_quant GPU tester). Old-TE
     uses 16x16x32 on gfx942 and is bit-exact there with warp_tile_k=32.
     """
+    if not gfx_arch:
+        # Never silently default: an absent arch must not fall through to the
+        # gfx942 legacy tile (see this module's "never silently default" rule).
+        raise ValueError("gfx_arch is required to derive warp_tile_k for RowColQuant")
     is_8bit_float = variant_key in ("fp8", "bf8")
-    if "gfx950" in gfx_arch and is_8bit_float:
+    # _is_gfx1250 first keeps this None-safe (`in` raises TypeError on None);
+    # gfx950 stays a substring test so "gfx950:xnack-" still matches.
+    if (_is_gfx1250(gfx_arch) or "gfx950" in gfx_arch) and is_8bit_float:
         return 128
     return 32
 
 
-def default_fp8_config(gfx_arch: str = _DEFAULT_GFX_ARCH) -> RowColQuantKernelConfig:
+@deferred_arch_default
+def default_fp8_config(gfx_arch: Optional[str] = None) -> RowColQuantKernelConfig:
     """Return the default fp8 RowColQuant config (tile = 16x64x256, warp = 1x4x1).
 
     Matches GemmConfigRowColQuant<fp8_t>. WarpTileK is arch-derived via
     get_k_warp_tile<fp8_t, M_Warp_Tile=16>(): 128 on gfx950, 32 on gfx942
     (128 silently outputs all-zeros on gfx942).
+    gfx1250 also uses 128, but by deliberate divergence from get_k_warp_tile
+    rather than derivation from it -- see _warp_tile_k_for.
     """
     return RowColQuantKernelConfig(
         variant_key="fp8",
@@ -738,12 +816,15 @@ def default_fp8_config(gfx_arch: str = _DEFAULT_GFX_ARCH) -> RowColQuantKernelCo
     )
 
 
-def default_bf8_config(gfx_arch: str = _DEFAULT_GFX_ARCH) -> RowColQuantKernelConfig:
+@deferred_arch_default
+def default_bf8_config(gfx_arch: Optional[str] = None) -> RowColQuantKernelConfig:
     """Return the default bf8 RowColQuant config (tile = 16x64x256, warp = 1x4x1).
 
     Matches GemmConfigRowColQuant<bf8_t>. WarpTileK is arch-derived via
     get_k_warp_tile<bf8_t, M_Warp_Tile=16>(): 128 on gfx950, 32 on gfx942
     (128 silently outputs all-zeros on gfx942).
+    gfx1250 also uses 128, but by deliberate divergence from get_k_warp_tile
+    rather than derivation from it -- see _warp_tile_k_for.
     """
     return RowColQuantKernelConfig(
         variant_key="bf8",

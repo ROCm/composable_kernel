@@ -147,8 +147,11 @@ class TestArchSafety(unittest.TestCase):
 
     def test_setup_rejects_mx_on_non_gfx950(self):
         # The build entry point must fail early (before hipcc) for MX on gfx942.
-        cfg = default_mx_bf16bf16_config(gfx_arch="gfx942")
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "requires gfx950"):
+            default_mx_bf16bf16_config(gfx_arch="gfx942")
+        cfg = default_mx_bf16bf16_config(gfx_arch="gfx950")
+        cfg.gfx_arch = "gfx942"
+        with self.assertRaisesRegex(ValueError, "requires gfx950"):
             setup_multiple_bquant_dispatchers([cfg], gfx_arch="gfx942")
 
 

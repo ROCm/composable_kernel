@@ -394,6 +394,48 @@ class TestQuantKernelNames(unittest.TestCase):
             "_preshuffleb_preshufflebq",
         )
 
+    def test_gemm_abquant_default_name_is_distinct(self):
+        name = make_gemm_abquant_kernel_name(
+            "fp8", "rcr", "compv3", "default", "intrawave", **_TILE,
+            aquant_group_k=128, bquant_group_n=128, bquant_group_k=128,
+            preshuffle_bquant=True,
+        )
+        self.assertEqual(
+            name,
+            "gemm_abquant_fp8_rcr_compv3_default_intrawave"
+            "_128x128x128_1x4x1_16x16x32_aqg1x1x128_bqg1x128x128_preshufflebq",
+        )
+
+    def test_bquant_default_name_is_scoped_to_non_grouped(self):
+        args = ("fp8", "rcr", "compv3", "default", "intrawave")
+        group = dict(quant_group_m=1, quant_group_n=1, quant_group_k=128)
+        self.assertEqual(
+            make_bquant_kernel_name(*args, **_TILE, **group, name_prefix="gemm_bquant"),
+            "gemm_bquant_fp8_rcr_compv3_default_intrawave"
+            "_128x128x128_1x4x1_16x16x32_qg1x1x128",
+        )
+        self.assertIn("_cshuffle_", make_bquant_kernel_name(*args, **_TILE, **group))
+
+    def test_requested_default_reaches_non_grouped_header(self):
+        from unified_gemm_abquant_codegen import ABQuantKernelSpec, ABQuantKernelHeaderGenerator
+        from unified_gemm_bquant_codegen import BQuantKernelSpec, BQuantKernelHeaderGenerator
+
+        tile = TileConfig(**_TILE)
+        for spec_class, generator_class in (
+            (ABQuantKernelSpec, ABQuantKernelHeaderGenerator),
+            (BQuantKernelSpec, BQuantKernelHeaderGenerator),
+        ):
+            with self.subTest(family=spec_class.__name__):
+                spec = spec_class(
+                    variant_key="fp8", layout="rcr", pipeline="compv3",
+                    epilogue="default", scheduler="intrawave", tile=tile,
+                )
+                header = generator_class().generate(spec)
+                self.assertIn('_compv3_default_', spec.name)
+                self.assertIn('using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<', header)
+                self.assertIn('kPadM, kPadN,', header)
+                self.assertNotIn('using GemmEpilogue = ck_tile::CShuffleEpilogue<', header)
+
     def test_gemm_abquant_never_emits_permute_n(self):
         # Pins a surprise. make_gemm_abquant_kernel_name has an
         # `if preshuffle_b and not eight_waves` branch that calls
@@ -623,7 +665,22 @@ class TestQuantSpecSweepHelpers(unittest.TestCase):
 
 
 class TestArchWarpTileK(unittest.TestCase):
-    """The gfx942/gfx950 WarpTileK rule -- a silent-wrong-answer trap."""
+    """The gfx942/gfx950/gfx1250 WarpTileK rule -- a silent-wrong-answer trap."""
+
+    def test_gfx1250_is_128_regardless_of_preshuffle(self):
+        self.assertEqual(fp8_warp_tile_k_for_arch("gfx1250"), 128)
+        self.assertEqual(fp8_warp_tile_k_for_arch("gfx1250", preshuffle_quant=True), 128)
+
+    def test_gfx1250_match_is_exact_and_suffix_tolerant(self):
+        # Real agents report a feature suffix, which must not defeat the match...
+        self.assertEqual(fp8_warp_tile_k_for_arch("gfx1250:xnack-"), 128)
+        # ...but the match is EXACT, never a "gfx12" family test: gfx1200/gfx1201
+        # expose only a 16x16x16 8-bit WMMA fragment, so K=128 would compile and
+        # then silently mis-execute there.
+        self.assertEqual(fp8_warp_tile_k_for_arch("gfx1200"), 32)
+        self.assertEqual(fp8_warp_tile_k_for_arch("gfx1201"), 32)
+        # A prefix test would wrongly accept this.
+        self.assertEqual(fp8_warp_tile_k_for_arch("gfx12500"), 32)
 
     def test_gfx950_is_128_regardless_of_preshuffle(self):
         self.assertEqual(fp8_warp_tile_k_for_arch("gfx950"), 128)
