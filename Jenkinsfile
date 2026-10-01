@@ -310,7 +310,6 @@ pipeline {
         dbsshpassword = "${dbsshpassword}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        BUILD_GFX103 = "${env.BRANCH_NAME == 'develop' ? true : false}"
     }
     stages{
         stage("Determine CI Execution") {
@@ -328,6 +327,10 @@ pipeline {
                         ck.runPathLengthCheck()
                         env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || ck.shouldRunCICheck())
                         echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                        env.BUILD_GFX103 = String.valueOf(env.BRANCH_NAME == 'develop' || params.BUILD_GFX103.toBoolean())
+                        echo "BUILD_GFX103: ${env.BUILD_GFX103}"
+                        env.BUILD_GFX908 = String.valueOf(env.BRANCH_NAME == 'develop' || params.BUILD_GFX908.toBoolean())
+                        echo "BUILD_GFX908: ${env.BUILD_GFX908}"
                     }
                 }
             }
@@ -679,12 +682,11 @@ pipeline {
                         }
                     }
                 }
-                /*
                 stage("Build CK and run Tests on gfx908")
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { env.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908") }
                     steps{
@@ -693,7 +695,6 @@ pipeline {
                         cleanWs()
                     }
                 }
-                */
                 stage("Build CK and run Tests on gfx90a")
                 {
                     when {
@@ -757,7 +758,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { env.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent none
                     steps{

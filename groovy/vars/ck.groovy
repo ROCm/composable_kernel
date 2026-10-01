@@ -735,12 +735,13 @@ def build_and_run_fmha(String arch){
 
 def cmake_build(Map conf=[:]){
 
-    def config_targets = conf.get("config_targets","check")
+    def config_targets = conf.get("config_targets","install")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
     // make sure all unit tests always run on develop branch
     def runAllUnitTests = (env.BRANCH_NAME == "develop") ? true : params.RUN_ALL_UNIT_TESTS
+    echo "runAllUnitTests = ${runAllUnitTests}, RUN_ALL_UNIT_TESTS = ${params.RUN_ALL_UNIT_TESTS}"
 
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
@@ -755,9 +756,9 @@ def cmake_build(Map conf=[:]){
         cmake_envs = "CXX=/opt/rocm/llvm/bin/clang++ CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
     }
 
-    if(conf.get("build_install","") == "true")
+    if(runAllUnitTests)
     {
-        config_targets = 'install ' + config_targets
+        config_targets = 'install'
         setup_args = ' -DBUILD_DEV=On -DCMAKE_INSTALL_PREFIX=../install' + setup_args
     } else{
         setup_args = ' -DBUILD_DEV=On' + setup_args
@@ -974,7 +975,7 @@ def cmake_build(Map conf=[:]){
                         bash ../script/dependency-parser/smart_build_and_test.sh
                     """
                 }
-                else{ //run all tests
+                else{ //run all tests if runAllUnitTests = true
                     if(!setup_args.contains("gfx1250")){
                         echo "Full test suite requested (RUN_ALL_UNIT_TESTS=true or develop branch)"
                         sh "ninja -j${nt} install check"
