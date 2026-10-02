@@ -356,34 +356,66 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         {
             constexpr index_t kDsReadVector = GetQKWarpGemmBScalarPerVector<Problem>();
 
-            constexpr index_t SingleBufferSize =
-                kKPerBlock * kNPerBlock + kKPerBlock * kDsReadVector / kKVector;
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
+            constexpr index_t BankSpanElements = 64 * 4 / sizeof(typename Problem::QKVDataType);
+#else
+            constexpr index_t BankSpanElements = 32 * 4 / sizeof(typename Problem::QKVDataType);
+#endif
+            // specially constructed lay-out, so that ds_write2_b64 can be used by the compiler
+            // to avoid bank-conflict when writing to Lds
+            if constexpr(kKPerBlock == BankSpanElements)
+            { // This path is always chosen for hdim64 on gfx942, and it was found
+              // this path could not completely remove bank-conflicts for hdim128
+                constexpr auto kSwizzleUnit = kDsReadVector;
 
-            constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
-                make_tuple(number<NumKLdsBuffers>{},
-                           number<kKPerBlock / kKVector>{},
-                           number<kKVector / kDsReadVector>{},
-                           number<kNPerBlock>{},
-                           number<kDsReadVector>{}),
-                make_tuple(number<SingleBufferSize>{},
-                           number<kNPerBlock * kKVector + kDsReadVector>{},
-                           number<kNPerBlock * kDsReadVector>{},
-                           number<kDsReadVector>{},
-                           number<1>{}),
-                number<kDsReadVector>{},
-                number<1>{});
+                constexpr auto desc_native = detail::MakeSwizzledNativeDesc<Problem,
+                                                                            NumKLdsBuffers,
+                                                                            kNPerBlock,
+                                                                            kKPerBlock,
+                                                                            kSwizzleUnit>();
 
-            constexpr auto k_lds_block_desc = transform_tensor_descriptor(
-                k_lds_block_desc_0,
-                make_tuple(make_merge_transform(
-                               make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
-                           make_merge_transform(make_tuple(number<kKPerBlock / kKVector>{},
-                                                           number<kKVector / kDsReadVector>{},
-                                                           number<kDsReadVector>{}))),
-                make_tuple(sequence<0, 3>{}, sequence<1, 2, 4>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+                return transform_tensor_descriptor(
+                    desc_native,
+                    make_tuple(make_merge_transform(
+                                   make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
+                               make_pass_through_transform(number<kKPerBlock>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else
+            { // This path is chosen for hdim128 on gfx942
+              // This path is able to completely remove bank-conflicts for kKPerBlock >=
+              // BankSpanElements (kKPerBlock < BankSpanElements not tested)
+                static_assert(kKVector == 2 * kDsReadVector, "Check failed!");
 
-            return k_lds_block_desc;
+                constexpr index_t SingleBufferSize = kKPerBlock * kNPerBlock + kKPerBlock / 2;
+
+                constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
+                    make_tuple(number<NumKLdsBuffers>{},
+                               number<kKPerBlock / kKVector>{},
+                               number<2>{},
+                               number<kNPerBlock>{},
+                               number<kDsReadVector>{}),
+                    make_tuple(number<SingleBufferSize>{},
+                               number<kNPerBlock * kKVector + kDsReadVector>{},
+                               number<kNPerBlock * kDsReadVector>{},
+                               number<kDsReadVector>{},
+                               number<1>{}),
+                    number<kDsReadVector>{},
+                    number<1>{});
+
+                constexpr auto k_lds_block_desc = transform_tensor_descriptor(
+                    k_lds_block_desc_0,
+                    make_tuple(make_merge_transform(
+                                   make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
+                               make_merge_transform(make_tuple(number<kKPerBlock / kKVector>{},
+                                                               number<2>{},
+                                                               number<kDsReadVector>{}))),
+                    make_tuple(sequence<0, 3>{}, sequence<1, 2, 4>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                return k_lds_block_desc;
+            }
         };
     }
 
