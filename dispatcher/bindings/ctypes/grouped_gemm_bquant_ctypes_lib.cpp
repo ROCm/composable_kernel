@@ -31,7 +31,7 @@
 
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 
-#include "quant_bridge_common.hpp"
+#include "quant_bridge_shuffle.hpp"
 
 // Kernel header force-included via -include compiler flag.
 // Defines: ADataType, BDataType, CDataType, QDataType, AccDataType,
@@ -155,8 +155,22 @@ int dispatcher_run_bquant_gemm(const void* A,
     // Copy inputs to device
     BRIDGE_HIP_CHECK(
         kFn, hipMemcpy(A_dev, A, elements_to_bytes<ADataType>(M * K), hipMemcpyHostToDevice));
-    BRIDGE_HIP_CHECK(
-        kFn, hipMemcpy(B_dev, B, elements_to_bytes<BDataType>(K * N), hipMemcpyHostToDevice));
+    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {
+        // Match the packed INT4 order consumed by the device conversion.
+        auto b_k_n = load_host_tensor<false>(
+            B_host, static_cast<int>(K), static_cast<int>(N), static_cast<int>(K));
+        permute_i4_inplace(b_k_n);
+        BRIDGE_HIP_CHECK(
+            kFn,
+            hipMemcpy(
+                B_dev, b_k_n.data(), elements_to_bytes<BDataType>(K * N), hipMemcpyHostToDevice));
+    }
+    else
+    {
+        BRIDGE_HIP_CHECK(
+            kFn, hipMemcpy(B_dev, B, elements_to_bytes<BDataType>(K * N), hipMemcpyHostToDevice));
+    }
     // Apply BQ preshuffle when required -- mirrors gemm_bquant_profiler.hpp:118-121.
     // BPreshuffleQuant reorders BQ in host memory before the device copy so the kernel
     // finds the scale values in the interleaved layout it expects.

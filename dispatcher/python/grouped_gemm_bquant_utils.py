@@ -353,6 +353,9 @@ class BQuantGpuGemmRunner:
 
     def __init__(self, so_path: Path):
         self._lib = BQuantDispatcherLib(so_path)
+        # The build helper appends the target to the library filename.
+        arch = Path(so_path).stem.rsplit("_", 1)[-1]
+        self._gfx_arch = arch if arch.startswith("gfx") else None
 
     @property
     def kernel_name(self) -> str:
@@ -379,6 +382,12 @@ class BQuantGpuGemmRunner:
 
         if c_dtype is None:
             c_dtype = np.float16
+
+        # Share the non-grouped BQuant encoder: INT4 kernels read one-byte
+        # FP8/BF8 scales, so passing float32 bytes directly produces NaN/Inf.
+        from gemm_bquant_utils import _encode_bq_for_variant, _variant_from_kernel_name
+        variant = _variant_from_kernel_name(self.kernel_name.removeprefix("grouped_"))
+        BQ = _encode_bq_for_variant(BQ, variant, gfx_arch=self._gfx_arch)
 
         # Output buffer — dtype must match the compiled kernel's CDataType.
         C = np.zeros((M, N), dtype=c_dtype)
@@ -563,7 +572,7 @@ def _compile_bquant_kernel(
             capture_output=True, text=True, timeout=600,
         )
         if result.returncode != 0:
-            log.error("Compile failed for %s:\n%s", so_path.name, result.stderr[-2000:])
+            log.error("Compile failed for %s:\n%s", so_path.name, result.stderr)
             return False
     except subprocess.TimeoutExpired:
         log.error("Compile timed out for %s", so_path.name)
@@ -914,7 +923,10 @@ def default_fp8i4_config(
     quant_group_n: int = 1,
     gfx_arch: str = _DEFAULT_GFX_ARCH,
 ) -> BQuantKernelConfig:
-    """Return the default fp8i4 BQuant config (A=fp8, B=pk_int4, Q=fp8; tile = 16x64x256)."""
+    """Return the default fp8i4 BQuant config (A=fp8, B=pk_int4, Q=fp8; tile = 16x64x256).
+
+    B is converted to fp8 before the warp GEMM, so use the fp8 arch-specific tile.
+    """
     return BQuantKernelConfig(
         variant_key="fp8i4",
         layout="rcr",
@@ -923,7 +935,7 @@ def default_fp8i4_config(
         scheduler="intrawave",
         tile_m=16, tile_n=64, tile_k=256,
         warp_m=1, warp_n=4, warp_k=1,
-        warp_tile_m=16, warp_tile_n=16, warp_tile_k=16,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=_fp8_warp_tile_k(gfx_arch),
         quant_group_m=1,
         quant_group_n=quant_group_n,
         quant_group_k=quant_group_k,
@@ -936,7 +948,10 @@ def default_bf8i4_config(
     quant_group_n: int = 1,
     gfx_arch: str = _DEFAULT_GFX_ARCH,
 ) -> BQuantKernelConfig:
-    """Return the default bf8i4 BQuant config (A=bf8, B=pk_int4, Q=bf8; tile = 16x64x256)."""
+    """Return the default bf8i4 BQuant config (A=bf8, B=pk_int4, Q=bf8; tile = 16x64x256).
+
+    B is converted to bf8 before the warp GEMM, so use the bf8 arch-specific tile.
+    """
     return BQuantKernelConfig(
         variant_key="bf8i4",
         layout="rcr",
@@ -945,7 +960,7 @@ def default_bf8i4_config(
         scheduler="intrawave",
         tile_m=16, tile_n=64, tile_k=256,
         warp_m=1, warp_n=4, warp_k=1,
-        warp_tile_m=16, warp_tile_n=16, warp_tile_k=16,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=_fp8_warp_tile_k(gfx_arch),
         quant_group_m=1,
         quant_group_n=quant_group_n,
         quant_group_k=quant_group_k,

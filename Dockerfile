@@ -100,7 +100,10 @@ RUN set -x && \
     wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb && \
     dpkg -i dumb-init_*.deb && rm dumb-init_*.deb && \
 # Install packages for processing the performance results
-    pip3 install --break-system-packages --upgrade pytest pymysql pandas==2.2.3 sqlalchemy==2.0.3 setuptools-rust setuptools sshtunnel==0.4.0 && \
+# ml_dtypes==0.6.0 is pinned because it provides both OCP (float8_e4m3fn/e5m2)
+# and FNUZ (float8_e4m3fnuz/e5m2fnuz) fp8 variants used by the dispatcher
+# correctness tests. An unpinned upgrade could silently change reference values.
+    pip3 install --break-system-packages --upgrade pytest pymysql pandas==2.2.3 sqlalchemy==2.0.3 setuptools-rust setuptools sshtunnel==0.4.0 ml_dtypes==0.6.0 && \
 # Add render group
     groupadd -f render && \
 # Install the new rocm-cmake version

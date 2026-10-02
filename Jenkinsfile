@@ -96,7 +96,8 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=therock;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 13 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
-                                              0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;RUN_FA_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true''' : ""
+                                              0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;RUN_FA_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
+                                              0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_DISPATCHER_PERF_TESTS=true;RUN_DISPATCHER_CORRECTNESS_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true''' : ""
 CURRENT_BRANCH_NAME = env.CHANGE_ID ? "refs/pull/${env.CHANGE_ID}/head" : (env.CHANGE_BRANCH ? env.CHANGE_BRANCH : env.BRANCH_NAME)
 
 POLL_SPEC = BRANCH_NAME == "develop" ? 'H H/6 * * *' : ''
@@ -292,6 +293,14 @@ pipeline {
             name: 'ck_fa_branch',
             defaultValue: CURRENT_BRANCH_NAME,
             description: 'Specify which branch of CK to test with flash-attention (default: current branch)')
+        booleanParam(
+            name: "RUN_DISPATCHER_CORRECTNESS_TESTS",
+            defaultValue: true,
+            description: "Run Correctness Tier for Dispatcher")
+        booleanParam(
+            name: "RUN_DISPATCHER_PERF_TESTS",
+            defaultValue: true,
+            description: "Run Performance Tier for Dispatcher")
         booleanParam(
             name: "FORCE_CI",
             defaultValue: false,
@@ -551,6 +560,44 @@ pipeline {
                                 cleanWs()
                             }
                         }
+                    }
+                }
+            }
+        }
+        stage("Run DISPATCHER Tests")
+        {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() && (params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean() || params.RUN_DISPATCHER_PERF_TESTS.toBoolean()) }
+            }
+            agent none
+            steps {
+                script {
+                    loadCk()
+                    // runDispatcherTests is defined in this branch's vars/ck.groovy.
+                    // With USE_CURRENT_BRANCH_FOR_CK_GROOVY off (the default) loadCk()
+                    // resolves to ck@develop instead, and any develop copy predating
+                    // this change has no such method. Left unguarded that throws
+                    // NoSuchMethodError and aborts the whole pipeline, taking stages
+                    // with nothing to do with the dispatcher (FMHA, Build CK, Process
+                    // results) down with it. Degrade to UNSTABLE so the rest of CI
+                    // still reports and the operator gets an actionable message.
+                    try {
+                        ck.runDispatcherTests(
+                            this.&rocmnode,
+                            params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean(),
+                            params.RUN_DISPATCHER_PERF_TESTS.toBoolean(),
+                            params.BUILD_COMPILER)
+                    } catch (NoSuchMethodError e) {
+                        // Only swallow the missing-DSL-method case; a NoSuchMethodError
+                        // raised from inside a working runDispatcherTests must still fail.
+                        if (!"${e.message}".contains("runDispatcherTests")) {
+                            throw e
+                        }
+                        echo "DISPATCHER tests SKIPPED: the loaded ck.groovy does not define " +
+                             "runDispatcherTests. Re-run with USE_CURRENT_BRANCH_FOR_CK_GROOVY=true " +
+                             "to load ck.groovy from this branch instead of develop."
+                        currentBuild.result = 'UNSTABLE'
                     }
                 }
             }
