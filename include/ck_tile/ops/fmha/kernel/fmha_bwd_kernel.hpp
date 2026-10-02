@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/epilogue/tdm_epilogue.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dq_dk_dv_pipeline_selector.hpp"
 
@@ -15,6 +16,27 @@
 #include <utility>
 #include <variant>
 #include <memory>
+
+// Pair a masked tile with its mirror so one workgroup covers both.
+#ifndef CK_TILE_FMHA_BWD_MASK_TILE_PAIRING
+#define CK_TILE_FMHA_BWD_MASK_TILE_PAIRING 1
+#endif
+
+// Pairing halves the grid, so it is only worth it while the paired grid still
+// fills the CUs: at least get_num_cus() / MIN_CU_DIV workgroups, and at most
+// MAX_JOBS_PER_HEAD kv tiles per head.
+#ifndef CK_TILE_FMHA_BWD_PAIRING_MIN_CU_DIV
+#define CK_TILE_FMHA_BWD_PAIRING_MIN_CU_DIV 2
+#endif
+
+#ifndef CK_TILE_FMHA_BWD_PAIRING_MAX_JOBS_PER_HEAD
+#define CK_TILE_FMHA_BWD_PAIRING_MAX_JOBS_PER_HEAD 160
+#endif
+
+// Write dK/dV out through LDS and a TDM store. Requires a target with TDM.
+#ifndef CK_TILE_FMHA_BWD_TDM_DKDV_STORE
+#define CK_TILE_FMHA_BWD_TDM_DKDV_STORE 1
+#endif
 
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
@@ -29,6 +51,17 @@
 // dQ[seqlen_q, hdim_q] = dS'[seqlen_q, seqlen_k] @ K^T[hdim_q, seqlen_k] * Scale[1]
 
 namespace ck_tile {
+
+template <typename P, typename = void>
+struct fmha_bwd_qdo_depth
+{
+    static constexpr index_t value = 3;
+};
+template <typename P>
+struct fmha_bwd_qdo_depth<P, std::void_t<decltype(P::kQDOSlotsResolved)>>
+{
+    static constexpr index_t value = P::kQDOSlotsResolved;
+};
 
 // Per-CU state for group-mode deterministic persistent scheduling.
 // alignas(16): enables aligned 128-bit loads; sizeof == 32 (6x4 + 8 pad).
@@ -638,6 +671,7 @@ template <typename FmhaPipeline_,
           typename KGradEpiloguePipeline_,
           typename VGradEpiloguePipeline_,
           typename QGradEpiloguePipeline_ = void>
+
 struct FmhaBwdDQDKDVKernel
 {
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
@@ -648,6 +682,8 @@ struct FmhaBwdDQDKDVKernel
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static constexpr bool kUseQrQtrDorPipeline =
         ck_tile::fmha_bwd_qr_qtr_dor_pipeline<FmhaPipeline>::value;
+    static constexpr bool kUseTdmDecodePipeline =
+        ck_tile::fmha_bwd_tdm_decode_pipeline<FmhaPipeline>::value;
     static_assert(!kUseQrQtrDorPipeline || !std::is_same_v<QGradEpiloguePipeline_, void>,
                   "QrQtrDorPipeline needs QGradEpiloguePipeline");
 
@@ -683,11 +719,34 @@ struct FmhaBwdDQDKDVKernel
     static_assert(kUseQrQtrDorPipeline == (kMaxSeqLenQ != 0));
 #if defined(__gfx950__)
     static constexpr bool kIsAvailable = true;
+#elif defined(__gfx125__)
+    // gfx1250 has ds_load_tr but no async global->LDS, so the only member of the
+    // trload family ported to it is the TDM decode pipeline. The plain QrQtrDor
+    // one still issues async_load_tile and does not build here, so an instance
+    // that reaches it on gfx12 is a codegen mistake rather than a slow path.
+    static constexpr bool kIsAvailable = !kUseTrLoad || kUseTdmDecodePipeline;
 #else
     static constexpr bool kIsAvailable = !kUseTrLoad;
 #endif
+    // Writing dK/dV out through LDS + TDM needs the tensor store, which only
+    // gfx12 has -- amd_tdm_store compiles to nothing elsewhere, so every other
+    // target has to keep the plain epilogues or it would store no gradient at
+    // all. The macro only selects between the two on a target that has TDM.
+#if defined(__gfx125__)
+    static constexpr bool kUseTdmDKDVStore = CK_TILE_FMHA_BWD_TDM_DKDV_STORE;
+#else
+    static constexpr bool kUseTdmDKDVStore = false;
+#endif
+
     static constexpr bool kUsePersistent = kIsDeterministic && !kUseQrQtrDorPipeline;
     using WorkspaceManager = FmhaBwdWorkspaceManager<AccDataType, kIsGroupMode, kIsDeterministic>;
+
+    static constexpr bool kMaskTilePairing =
+#if CK_TILE_FMHA_BWD_MASK_TILE_PAIRING
+        kHasMask && !kUsePersistent && !kUseQrQtrDorPipeline && !kIsGroupMode;
+#else
+        false;
+#endif
 
     // clang-format off
     template <typename T> struct t2s;
@@ -1420,6 +1479,17 @@ struct FmhaBwdDQDKDVKernel
             kUseQrQtrDorPipeline ? 1 : integer_divide_ceil(seqlen_k_, FmhaPipeline::kN0);
         if constexpr(kUsePersistent)
             return dim3(get_num_cus(), 1, 1);
+        else if constexpr(kMaskTilePairing)
+        {
+            const index_t paired_x  = integer_divide_ceil(jobs_per_head, 2);
+            const index_t paired_wg = paired_x * nhead_ * batch_size_;
+            const index_t min_wg =
+                static_cast<index_t>(get_num_cus()) / CK_TILE_FMHA_BWD_PAIRING_MIN_CU_DIV;
+            return (paired_wg > min_wg &&
+                    jobs_per_head <= CK_TILE_FMHA_BWD_PAIRING_MAX_JOBS_PER_HEAD)
+                       ? dim3(paired_x, nhead_, batch_size_)
+                       : dim3(jobs_per_head, nhead_, batch_size_);
+        }
         else
             return dim3(jobs_per_head, nhead_, batch_size_);
     }
@@ -1436,11 +1506,20 @@ struct FmhaBwdDQDKDVKernel
         }
     }
 
+    // tdm_store_2d_pair stages both accumulators in LDS before the TDM store, in
+    // the same buffer the pipeline uses. Counted unconditionally so the size
+    // stays the same in the host and device passes; it is well under the
+    // pipeline's own footprint for every shape that is built.
+    static constexpr ck_tile::index_t kTdmDKDVStageBytes =
+        static_cast<ck_tile::index_t>(sizeof(typename KGradEpiloguePipeline::ODataType)) *
+        FmhaPipeline::kN0 * (FmhaPipeline::kQKHeaddim + FmhaPipeline::kVHeaddim);
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return ck_tile::max(FmhaPipeline::GetSmemSize(),
                             KGradEpiloguePipeline::GetSmemSize(),
-                            VGradEpiloguePipeline::GetSmemSize());
+                            VGradEpiloguePipeline::GetSmemSize(),
+                            kTdmDKDVStageBytes);
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
@@ -1452,6 +1531,32 @@ struct FmhaBwdDQDKDVKernel
                 if constexpr(kUseQrQtrDorPipeline || kIsGroupMode)
                 {
                     run_(std::move(kargs), blockIdx, blockIdx.x, 0);
+                }
+                else if constexpr(kMaskTilePairing)
+                {
+                    static_assert(!kIsDeterministic,
+                                  "Deterministic Batch Mode should use persistent kernel");
+                    // Grid was halved; cover tiles {x, n-1-x}. i_split/n_splits
+                    // are dead on the non-deterministic path (see the dq_acc
+                    // offset), so the trailing arguments are placeholders.
+                    const index_t n_tiles = integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0);
+                    const index_t x       = blockIdx.x;
+                    // GridSize() may have declined to pair, in which case it
+                    // launched the full grid; then this block covers only x.
+                    // Inferring it from gridDim keeps host and device in sync
+                    // with no kargs flag, and leaves the `mirror != x` test
+                    // below byte-identical to the always-paired form.
+                    const index_t mirror =
+                        (static_cast<index_t>(gridDim.x) < n_tiles) ? (n_tiles - 1 - x) : x;
+                    // Run the tile, then its mirror. The wait between them
+                    // retires the first body's outstanding LDS and TDM traffic
+                    // before the second reuses the same buffers.
+                    run_(kargs, dim3(x, blockIdx.y, blockIdx.z), 0, 1);
+                    if(mirror != x)
+                    {
+                        s_wait_tensorcnt_barrier<0 /*tensorcnt*/, 0 /*lgkmcnt*/>();
+                        run_(kargs, dim3(mirror, blockIdx.y, blockIdx.z), 0, 1);
+                    }
                 }
                 else
                 {
@@ -1763,12 +1868,26 @@ struct FmhaBwdDQDKDVKernel
                 sequence<false, (kPadHeadDimV > 0)>{});
         }();
 
-        // lse and d should be fine to read unpaded data as they are not on the reduction dimension
-        const auto lse_dram = make_naive_tensor_view_packed<address_space_enum::global>(
-            lse_ptr, make_tuple(kargs.seqlen_q), number<FmhaPipeline::kM0>{});
+        // lse and d are 1-D over seqlen_q and must be padded to kM0. When
+        // kM0 > warp size, MakeLSEDDramTileDistribution gives each lane
+        // M2 = kM0/warp_size seqlen-contiguous elements, so the tail access is a
+        // multi-dword transaction. Without a pad transform the coordinate is
+        // statically valid, an unconditional wide load is emitted, and at an odd
+        // seqlen_q it straddles num_records and is nullified as a whole --
+        // zeroing lse/d for the last real row and corrupting dQ/dK/dV.
+        // pad_tensor_view keeps element_space_size (no extra allocation needed)
+        // and supplies the per-element validity predicate.
+        const auto lse_dram = pad_tensor_view(
+            make_naive_tensor_view<address_space_enum::global>(
+                lse_ptr, make_tuple(kargs.seqlen_q), make_tuple(1), number<1>{}, number<1>{}),
+            make_tuple(number<FmhaPipeline::kM0>{}),
+            sequence<true>{});
 
-        const auto d_dram = make_naive_tensor_view_packed<address_space_enum::global>(
-            d_ptr, make_tuple(kargs.seqlen_q), number<FmhaPipeline::kM0>{});
+        const auto d_dram = pad_tensor_view(
+            make_naive_tensor_view<address_space_enum::global>(
+                d_ptr, make_tuple(kargs.seqlen_q), make_tuple(1), number<1>{}, number<1>{}),
+            make_tuple(number<FmhaPipeline::kM0>{}),
+            sequence<true>{});
 
         const auto do_dram_naive = make_naive_tensor_view<address_space_enum::global>(
             do_ptr,
@@ -1841,9 +1960,12 @@ struct FmhaBwdDQDKDVKernel
             // Non-deterministic paths also use 'atomic_add' (kUseKSplit=false).
             constexpr auto DstInMemOp = conditional_expr<(kUseKSplit && !kUsePersistent)>(
                 memory_operation_enum::set, memory_operation_enum::atomic_add);
-            const index_t stride_dq_acc = [&]() {
+            const auto stride_dq_acc = [&]() {
                 if constexpr(kUseQrQtrDorPipeline)
                     return kargs.stride_dq;
+                else if constexpr(!kPadHeadDimQ && !kHasMask &&
+                                  fmha_bwd_qdo_depth<FmhaPipeline>::value > 2)
+                    return number<FmhaPipeline::kQKHeaddim>{};
                 else
                     return kargs.hdim_q;
             }();
@@ -2103,8 +2225,25 @@ struct FmhaBwdDQDKDVKernel
             }
 #endif
 
-            KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile, nullptr);
-            VGradEpiloguePipeline{}(dv_dram_window, dv_acc_tile, nullptr);
+            if constexpr(kUseTdmDKDVStore)
+            {
+                static_assert(std::is_same_v<typename KGradEpiloguePipeline::ODataType,
+                                             typename VGradEpiloguePipeline::ODataType>,
+                              "TDM dK/dV store assumes a single output type");
+                static_assert(kTdmDKDVStageBytes <= GetSmemSize(),
+                              "TDM dK/dV staging does not fit the kernel's LDS budget");
+                tdm_store_2d_pair<typename KGradEpiloguePipeline::ODataType,
+                                  kBlockSize,
+                                  FmhaPipeline::kN0,
+                                  FmhaPipeline::kQKHeaddim,
+                                  FmhaPipeline::kVHeaddim>(
+                    dk_dram_window, dk_acc_tile, dv_dram_window, dv_acc_tile, smem_ptr);
+            }
+            else
+            {
+                KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile, nullptr);
+                VGradEpiloguePipeline{}(dv_dram_window, dv_acc_tile, nullptr);
+            }
         }
         else
         {

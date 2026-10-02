@@ -28,7 +28,9 @@ template <typename QDataType_,
           typename FmhaMask_,
           typename FmhaDropout_,
           bool kUseTrLoad_,
-          typename Traits_>
+          typename Traits_,
+          bool kUseTdmKRKTR_  = false,
+          bool kUseTdmDecode_ = false>
 struct BlockFmhaBwdPipelineProblem
 {
     using QDataType             = remove_cvref_t<QDataType_>;
@@ -55,10 +57,13 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
     static constexpr bool kUseTrLoad       = kUseTrLoad_;
+    static constexpr bool kUseTdmKRKTR     = kUseTdmKRKTR_;
+    static constexpr bool kUseTdmDecode    = kUseTdmDecode_;
 
     // attributes from traits
     static constexpr index_t kPadHeadDimQ = Traits::kPadHeadDimQ;
     static constexpr index_t kPadHeadDimV = Traits::kPadHeadDimV;
+    static constexpr index_t kQDOSlots    = Traits::kQDOSlots;
     static constexpr auto BiasEnum        = Traits::BiasEnum;
     static constexpr bool kHasBiasGrad    = Traits::kHasBiasGrad;
     static constexpr index_t kBlockPerCu  = Traits::kBlockPerCu;

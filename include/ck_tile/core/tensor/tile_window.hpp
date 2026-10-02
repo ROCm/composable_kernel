@@ -23,6 +23,59 @@
 
 namespace ck_tile {
 
+namespace detail {
+
+template <typename T>
+struct is_right_pad_transform : std::false_type
+{
+};
+template <typename L, typename R, bool S>
+struct is_right_pad_transform<right_pad<L, R, S>> : std::true_type
+{
+};
+
+// Lengths of a tensor descriptor with right padding removed. TDM needs the
+// pre-pad extent: a padded length would let it pull real neighbouring memory
+// into the padding instead of reading zeros.
+//
+// Each top dimension is resolved to the transform that produces it, so the
+// result does not depend on the order transforms were composed in.
+template <typename TensorDesc>
+CK_TILE_HOST_DEVICE constexpr auto tdm_real_lengths(const TensorDesc& desc)
+{
+    const auto lengths     = desc.get_lengths();
+    const auto& transforms = desc.get_transforms();
+    using Desc             = remove_cvref_t<TensorDesc>;
+
+    return generate_tuple(
+        [&](auto idim) {
+            constexpr index_t idim_hidden = Desc::get_top_dimension_hidden_ids().at(idim);
+            constexpr auto found =
+                Desc::get_transform_and_its_upper_dimension(number<idim_hidden>{});
+            constexpr index_t itran = found[number<0>{}];
+
+            if constexpr(!found[number<2>{}])
+            {
+                return static_cast<index_t>(lengths[idim]);
+            }
+            else
+            {
+                const auto& tf = transforms[number<itran>{}];
+                if constexpr(is_right_pad_transform<remove_cvref_t<decltype(tf)>>::value)
+                {
+                    return static_cast<index_t>(tf.low_length_);
+                }
+                else
+                {
+                    return static_cast<index_t>(lengths[idim]);
+                }
+            }
+        },
+        number<remove_cvref_t<decltype(lengths)>::size()>{});
+}
+
+} // namespace detail
+
 /**
  * @brief This class provides tile (windowed) view and access to the device memory.
  *
@@ -985,11 +1038,13 @@ struct tile_window_with_static_distribution
                 else
                 {
                     // Clamp remaining dimensions so out-of-bounds boxes load zeros.
-                    auto dims =
-                        to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(transform_tuples(
-                            [](auto x) { return max(index_t{0}, x); },
-                            glb_tensor_descriptor.get_lengths() - this->get_window_origin() -
-                                window_adaptor_thread_coord.get_bottom_index())));
+                    // The extent comes from the pre-pad length: a padded descriptor
+                    // would let TDM pull real neighbouring memory into the padding.
+                    auto dims = to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(
+                        transform_tuples([](auto x) { return max(index_t{0}, x); },
+                                         detail::tdm_real_lengths(glb_tensor_descriptor) -
+                                             this->get_window_origin() -
+                                             window_adaptor_thread_coord.get_bottom_index())));
                     dims[0] /= Traits::PackedSize;
                     return dims;
                 }
@@ -1141,10 +1196,11 @@ struct tile_window_with_static_distribution
 
             // Calculate remaining tensor dimensions, clamping negative values to 0
             // This prevents out-of-bounds access when window_origin + bottom_index > tensor_length
-            auto&& tensor_dims = to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(
-                transform_tuples([](auto x) { return max(index_t{0}, x); },
-                                 glb_tensor_descriptor.get_lengths() - this->get_window_origin() -
-                                     window_adaptor_thread_coord.get_bottom_index())));
+            auto&& tensor_dims =
+                to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(transform_tuples(
+                    [](auto x) { return max(index_t{0}, x); },
+                    detail::tdm_real_lengths(glb_tensor_descriptor) - this->get_window_origin() -
+                        window_adaptor_thread_coord.get_bottom_index())));
             tensor_dims[0] /= Traits::PackedSize;
 
             // Prefetch across the 2D tile using strides
@@ -1390,10 +1446,11 @@ struct tile_window_with_static_distribution
             // Calculate remaining tensor dimensions, clamping negative values to 0
             // This prevents out-of-bounds access when window_origin + bottom_index >
             // tensor_length
-            auto&& tensor_dims = to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(
-                transform_tuples([](auto x) { return max(index_t{0}, x); },
-                                 glb_tensor_descriptor.get_lengths() - this->get_window_origin() -
-                                     window_adaptor_thread_coord.get_bottom_index())));
+            auto&& tensor_dims =
+                to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(transform_tuples(
+                    [](auto x) { return max(index_t{0}, x); },
+                    detail::tdm_real_lengths(glb_tensor_descriptor) - this->get_window_origin() -
+                        window_adaptor_thread_coord.get_bottom_index())));
             tensor_dims[0] /= Traits::PackedSize;
 
             constexpr auto raw_box_dim =
