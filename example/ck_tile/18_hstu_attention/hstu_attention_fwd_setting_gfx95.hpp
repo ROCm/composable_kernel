@@ -26,13 +26,16 @@ using HstuAttentionFwdBlockTile_Hdim64_M128_N0_64_Sub32_K1_32 =
 using HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub32_K1_32 =
     ck_tile::sequence<128, 64, 32, 128, 32, 96>;
 
-using HstuAttentionFwdBlockTile_Hdim128_M64_N0_32_Sub32_K1_32 =
-    ck_tile::sequence<64, 32, 32, 128, 32, 128>;
-using HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32 =
+// used by silu + causal mask/no causal mask situation
+using HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32_silu =
     ck_tile::sequence<64, 64, 32, 128, 32, 128>;
-using HstuAttentionFwdBlockTile_Hdim128_M128_N0_32_Sub32_K1_32 =
+// used by softmax + causal mask/no causal mask situation
+using HstuAttentionFwdBlockTile_Hdim128_M64_N0_128_Sub32_K1_32_softmax =
+    ck_tile::sequence<64, 128, 32, 128, 32, 128>;
+
+using HstuAttentionFwdBlockTile_Hdim128_M128_N0_32_Sub32_K1_32_silu =
     ck_tile::sequence<128, 32, 32, 128, 32, 128>;
-using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub32_K1_32 =
+using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub32_K1_32_softmax =
     ck_tile::sequence<128, 64, 32, 128, 32, 128>;
 
 using HstuAttentionFwdBlockTile_Hdim256_M128_N0_32_Sub32_K1_32 =
@@ -92,7 +95,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
             if constexpr(kUseSoftmax)
             {
                 return ck_tile::HstuAttentionFwdTileSettingClass<
-                    HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32,
+                    HstuAttentionFwdBlockTile_Hdim128_M64_N0_128_Sub32_K1_32_softmax,
                     HstuAttentionFwdGemm0Warps,
                     WarpTile_16x16x32,
                     HstuAttentionFwdGemm1Warps,
@@ -101,7 +104,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
             else
             {
                 return ck_tile::HstuAttentionFwdTileSettingClass<
-                    HstuAttentionFwdBlockTile_Hdim128_M64_N0_32_Sub32_K1_32,
+                    HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32_silu,
                     HstuAttentionFwdGemm0Warps,
                     WarpTile_16x16x32,
                     HstuAttentionFwdGemm1Warps,
@@ -113,7 +116,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
             if constexpr(kUseSoftmax)
             {
                 return ck_tile::HstuAttentionFwdTileSettingClass<
-                    HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub32_K1_32,
+                    HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub32_K1_32_softmax,
                     HstuAttentionFwdGemm0Warps,
                     WarpTile_32x32x16,
                     HstuAttentionFwdGemm1Warps,
@@ -122,7 +125,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
             else
             {
                 return ck_tile::HstuAttentionFwdTileSettingClass<
-                    HstuAttentionFwdBlockTile_Hdim128_M128_N0_32_Sub32_K1_32,
+                    HstuAttentionFwdBlockTile_Hdim128_M128_N0_32_Sub32_K1_32_silu,
                     HstuAttentionFwdGemm0Warps,
                     WarpTile_16x16x32,
                     HstuAttentionFwdGemm1Warps,
