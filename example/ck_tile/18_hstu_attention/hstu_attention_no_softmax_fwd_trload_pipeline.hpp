@@ -148,7 +148,12 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         constexpr index_t n0_loops = kN0 / kN0Sub;
         constexpr index_t k1_loops = kN0 / kK1;
 
-        static_assert(n0_loops == k1_loops, "n0_loops == k1_loops required by this pipeline");
+        static_assert(
+            (k1_loops % n0_loops == 0) || (n0_loops % k1_loops == 0),
+            "k1_loops % n0_loops == 0 or n0_loops % k1_loops == 0 required by this pipeline");
+
+        constexpr index_t k1loops_per_n0sub = (k1_loops / n0_loops);
+        constexpr index_t n0loops_per_k1    = (n0_loops / k1_loops);
 
         constexpr auto NumKLdsBuffers = Policy::template GetNumKLdsBuffers<Problem>();
         constexpr auto NumVLdsBuffers = Policy::template GetNumVLdsBuffers<Problem>();
@@ -202,7 +207,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
             move_tile_window(k_dram_window, {kN0Sub, 0});
         });
 
-        __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
         // provide partition_index for LDS tile window so that warp_id is in vgpr
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
@@ -313,13 +318,25 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                 store_tile(
                     k_lds_windows[number<i_n0 % NumKLdsBuffers>{}], k_tiles[i_n0], partition_index);
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
-
                 // load v_tiles used in current iteration
-                v_tiles[i_n0] = load_tile(v_dram_window);
-                move_tile_window(v_dram_window, {kK1, 0});
+                if constexpr(k1_loops >= n0_loops)
+                {
+                    static_for<0, k1loops_per_n0sub, 1>{}([&](auto j) {
+                        v_tiles[number<i_n0 * k1loops_per_n0sub + j>{}] = load_tile(v_dram_window);
+                        move_tile_window(v_dram_window, {kK1, 0});
+                    });
+                }
+                else
+                {
+                    if constexpr((i_n0 + 1) % n0loops_per_k1 == 0)
+                    {
+                        constexpr index_t i_k1 = (i_n0 + 1) / n0loops_per_k1 - 1;
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                        // load v_tiles used in current iteration
+                        v_tiles[number<i_k1>{}] = load_tile(v_dram_window);
+                        move_tile_window(v_dram_window, {kK1, 0});
+                    }
+                }
 
                 block_sync_lds();
 
@@ -334,7 +351,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
             // STAGE 2, scale_s, add bias, mask, siLU
             if constexpr(kHasBias)
@@ -407,17 +424,25 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                            v_tiles[number<i_k1>{}],
                            partition_index);
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                if constexpr(k1_loops >= n0_loops)
+                {
+                    if constexpr((i_k1 + 1) % k1loops_per_n0sub == 0)
+                    {
+                        constexpr index_t i_n0 = (i_k1 + 1) / k1loops_per_n0sub - 1;
 
-                // load k_tiles used by next iteration
-                k_tiles[i_k1] = load_tile(k_dram_window);
-                move_tile_window(k_dram_window, {kN0Sub, 0});
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                        k_tiles[number<i_n0>{}] = load_tile(k_dram_window);
+                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                    }
+                }
+                else
+                {
+                    static_for<0, n0loops_per_k1, 1>{}([&](auto j) {
+                        k_tiles[number<i_k1 * n0loops_per_k1 + j>{}] = load_tile(k_dram_window);
+                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                    });
+                }
 
                 block_sync_lds();
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
 
                 gemm_1(
                     o_acc,
