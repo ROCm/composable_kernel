@@ -304,7 +304,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             {seqlen_k_start, 0},
             Policy::template MakeVDramTileDistribution<Problem, true /*kUseTrLoad*/>());
 
-        const auto f_exp = [&](CompDataType x) {
+        [[maybe_unused]] const auto f_exp = [&](CompDataType x) {
             if constexpr(std::is_same_v<CompDataType, float>)
             {
                 return __expf(x);
@@ -312,6 +312,30 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             else
             {
                 return exp(x);
+            }
+        };
+
+        // Softmax numerator in the log2 domain: exp(s * scale_s - m) is evaluated as
+        // exp2(s * exp_scale - m * exp_scale), i.e. one v_fma_f32 plus one v_exp_f32 per
+        // element. That lets S leave gemm_0 unscaled and removes the separate
+        // `pcomp *= scale_s` pass over the whole kM0 x kN0 tile on every KV block. A bias has
+        // to be added in the already-scaled S domain, so that configuration keeps applying
+        // scale_s up front.
+        constexpr bool kFoldScaleIntoExp = !kHasBias;
+        const CompDataType exp_scale     = type_convert<CompDataType>(
+            (kFoldScaleIntoExp ? scale_s : 1.0f) * ck_tile::log2e_v<float>);
+        // m/m_old live in the unscaled S domain when the scale is folded, so the
+        // "keep the previous maximum" heuristic threshold has to be unscaled too.
+        const CompDataType m_reuse_threshold =
+            type_convert<CompDataType>(kFoldScaleIntoExp ? (-8.0f / scale_s) : -8.0f);
+        const auto f_exp2 = [](CompDataType x) {
+            if constexpr(std::is_same_v<CompDataType, float>)
+            {
+                return __builtin_amdgcn_exp2f(x);
+            }
+            else
+            {
+                return type_convert<CompDataType>(__builtin_amdgcn_exp2f(type_convert<float>(x)));
             }
         };
 
@@ -414,7 +438,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
                 move_tile_window(bias_dram_window, {0, kN0});
             }
-            else
+            else if constexpr(!kFoldScaleIntoExp)
             {
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
             }
@@ -478,12 +502,14 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 {
                     // use the m_old[i] as the m-for-stablization if m_old[i] - m[i] >= -8.0f
                     // and still keep the m-for-stablization in m[]
-                    if(m_old[i_idx] - m[i_idx] >= type_convert<CompDataType>(-8.0f))
+                    if(m_old[i_idx] - m[i_idx] >= m_reuse_threshold)
                         m(i_idx) = m_old[i_idx];
+
+                    const CompDataType m_log2 = m[i_idx] * exp_scale;
 
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        pcomp_tile(i_j_idx)    = f_exp(pcomp_tile[i_j_idx] - m[i_idx]);
+                        pcomp_tile(i_j_idx)    = f_exp2(pcomp_tile[i_j_idx] * exp_scale - m_log2);
                     });
                 }
             });
@@ -504,7 +530,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 }
                 else if(m[i_idx] > m_old[i_idx])
                 {
-                    const auto tmp = f_exp(m_old[i_idx] - m[i_idx]);
+                    const auto tmp = f_exp2((m_old[i_idx] - m[i_idx]) * exp_scale);
                     l(i_idx)       = tmp * l[i_idx] + rowsum_p[i_idx];
                     sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -573,6 +599,12 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
         // if pipeline is called from non-splitkv kernel, the window is null if kStoreLSE is false
         if constexpr(!is_null_tile_window_v<LSEorLSEaccDramBlockWindow>)
         {
+            // m[] is tracked on the unscaled S values when the scale is folded into the exp;
+            // lse must still be reported in the scaled domain because the combine kernel
+            // compares lse across splits.
+            const CompDataType m_to_scaled_domain =
+                type_convert<CompDataType>(kFoldScaleIntoExp ? scale_s : 1.0f);
+
             // store lse or lse_acc
             auto lse_or_lse_acc =
                 make_static_distributed_tensor<CompDataType>(m.get_tile_distribution());
@@ -580,7 +612,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             constexpr auto lse_or_lse_acc_spans = decltype(lse_or_lse_acc)::get_distributed_spans();
             sweep_tile_span(lse_or_lse_acc_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx  = make_tuple(idx0);
-                lse_or_lse_acc(i_idx) = m_[i_idx] + log(l_[i_idx]);
+                lse_or_lse_acc(i_idx) = m_[i_idx] * m_to_scaled_domain + log(l_[i_idx]);
             });
 
             store_tile(lse_or_lse_acc_dram_block_window, lse_or_lse_acc);
