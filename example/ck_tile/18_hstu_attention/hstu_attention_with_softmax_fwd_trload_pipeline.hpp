@@ -79,12 +79,13 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             return Traits::kBlockPerCu;
         else
         {
-            if constexpr(kQKHeaddim == 32)
+            if constexpr(kQKHeaddim == 64)
             {
-                return 2;
-            }
-            else if constexpr(kQKHeaddim == 64)
-            {
+                if constexpr(kM0 == 128)
+                    return 3;
+                if constexpr(kM0 == 64)
+                    return 3;
+
                 return 2;
             }
             else if constexpr(kQKHeaddim == 96 || kQKHeaddim == 128)
