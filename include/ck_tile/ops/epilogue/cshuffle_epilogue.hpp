@@ -228,7 +228,14 @@ struct CShuffleEpilogue
         constexpr index_t max_vector_size = 16;
         using DiDataType = remove_cvref_t<std::tuple_element_t<index.value, DsDataType>>;
         using DiLayout   = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
-        if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+        // D tiles are read with the C output distribution, so a fixed C width
+        // also bounds D when both share the layout.
+        if constexpr(FixedVectorSize && std::is_same_v<DiLayout, ELayout>)
+        {
+            return std::min(static_cast<int>(VectorSizeC),
+                            static_cast<int>(max_vector_size / sizeof(DiDataType)));
+        }
+        else if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
         {
             return std::min(static_cast<int>(NPerIteration),
                             static_cast<int>(max_vector_size / sizeof(DiDataType)));

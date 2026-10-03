@@ -173,6 +173,10 @@ struct KernelKey
         bool preshuffle;              // Preshuffle (for weight preshuffle variants)
         bool transpose_c;             // TransposeC
         std::uint8_t num_wave_groups; // NumWaveGroups
+        // Fixed global vector widths (elements) for A/B/C; all 0 = native widths
+        std::uint8_t vector_size_a = 0;
+        std::uint8_t vector_size_b = 0;
+        std::uint8_t vector_size_c = 0;
 
         // Padding support flags (kPadM, kPadN, kPadK in generated kernels)
         bool pad_m = true; // Support arbitrary M dimensions via padding
@@ -234,7 +238,10 @@ struct KernelKey
                         algorithm.pad_k,
                         algorithm.streamk,
                         algorithm.reduction_strategy,
-                        algorithm.workspace);
+                        algorithm.workspace,
+                        algorithm.vector_size_a,
+                        algorithm.vector_size_b,
+                        algorithm.vector_size_c);
     }
 
     /// Equality comparison
@@ -485,6 +492,11 @@ inline std::string KernelKey::encode_identifier() const
         << unsigned(algorithm.wave_shape.k) << "_" << unsigned(algorithm.warp_tile_shape.m) << "x"
         << unsigned(algorithm.warp_tile_shape.n) << "x" << unsigned(algorithm.warp_tile_shape.k);
 
+    // Must match gemm_vector_size_suffix() in codegen_common.py
+    if(algorithm.vector_size_a || algorithm.vector_size_b || algorithm.vector_size_c)
+        oss << "_vec" << unsigned(algorithm.vector_size_a) << "_"
+            << unsigned(algorithm.vector_size_b) << "_" << unsigned(algorithm.vector_size_c);
+
     if(signature.split_k > 1)
         oss << "_splitk" << unsigned(signature.split_k);
     if(!signature.elementwise_op.empty() && signature.elementwise_op != "PassThrough")
@@ -509,6 +521,26 @@ inline std::string KernelKey::encode_identifier() const
     }
 
     return oss.str();
+}
+
+/// Whether the contiguous A/B/C extents divide the effective global vector
+/// widths supplied by the selected pipeline and epilogue. Native widths cannot
+/// be inferred from dtype alone; they depend on tile and warp distributions.
+inline bool vector_widths_divide(const KernelKey& key,
+                                 std::int64_t M,
+                                 std::int64_t N,
+                                 std::int64_t K,
+                                 std::int64_t width_a,
+                                 std::int64_t width_b,
+                                 std::int64_t width_c)
+{
+    const auto& sig          = key.signature;
+    const auto is_row        = [](LayoutTag l) { return l == LayoutTag::RowMajor; };
+    const std::int64_t ext_a = is_row(sig.layout_a) ? K : M;
+    const std::int64_t ext_b = is_row(sig.layout_b) ? N : K;
+    const std::int64_t ext_c = is_row(sig.layout_c) ? N : M;
+    return width_a > 0 && width_b > 0 && width_c > 0 && ext_a % width_a == 0 &&
+           ext_b % width_b == 0 && ext_c % width_c == 0;
 }
 
 } // namespace dispatcher

@@ -34,6 +34,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
+from gemm_utils import _codegen_common  # noqa: E402
 from batched_gemm_utils import (  # noqa: E402
     BatchedGemmKernelConfig,
     BatchedGemmProblem,
@@ -92,20 +93,27 @@ def _reference_batched(A: np.ndarray, B: np.ndarray) -> np.ndarray:
 def _make_fp16_config(gfx_arch: str) -> BatchedGemmKernelConfig:
     """A single small, valid fp16/rcr batched kernel.
 
-    128x128x32 tile, 2x2x1 waves, 32x32x16 warp-tile, compv3/intrawave/cshuffle
-    — a divisibility-valid combination on both gfx942 and gfx950. Padding is on
-    so non-tile-multiple shapes still run.
+    128x128x32 tile, 2x2x1 waves, compv3/intrawave/cshuffle. The warp tile is
+    the MFMA 32x32x16 on gfx942/gfx950 and the WMMA 16x16x32 on gfx1250, which
+    has no 32x32x16 fragment. Padding is on so non-tile-multiple shapes still run.
     """
+    wt = (16, 16, 32) if _codegen_common().normalize_gfx_arch(gfx_arch) == "gfx1250" else (32, 32, 16)
     return BatchedGemmKernelConfig(
         dtype_a="fp16", dtype_b="fp16", dtype_c="fp16", dtype_acc="fp32",
         layout_a="row", layout_b="col", layout_c="row",
         tile_m=128, tile_n=128, tile_k=32,
         wave_m=2, wave_n=2, wave_k=1,
-        warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+        warp_tile_m=wt[0], warp_tile_n=wt[1], warp_tile_k=wt[2],
         pipeline="compv3", scheduler="intrawave", epilogue="cshuffle",
         pad_m=True, pad_n=True, pad_k=True, persistent=False,
         gfx_arch=gfx_arch,
     )
+
+
+# (batch, M, N, K). K=128 gives 4 tile-K iterations (128/32). K=257 is not a
+# multiple of the native 8-wide fp16 A/B loads, so no native kernel accepts it;
+# it runs on the narrowed fixed-width (_vec) kernel instead.
+CASES = [(3, 128, 128, 128), (3, 128, 128, 257)]
 
 
 # NOTE: deliberately NOT named test_* -- this module is script-style and is
@@ -113,10 +121,13 @@ def _make_fp16_config(gfx_arch: str) -> BatchedGemmKernelConfig:
 # collected it and failed with "fixture 'gfx_arch' not found" (conftest
 # provides 'gpu_arch'), and it returns a (status, detail) tuple, which pytest
 # also flags. main() below remains the supported entry point.
-def check_batched_fp16(gfx_arch: str) -> tuple[str, str]:
-    # Small multi-batch problem; K=128 gives 4 tile-K iterations (128/32).
-    batch, M, N, K = 3, 128, 128, 128
+def check_batched_fp16(gfx_arch: str, batch: int, M: int, N: int, K: int) -> tuple[str, str]:
     cfg = _make_fp16_config(gfx_arch)
+    need = _codegen_common().gemm_problem_vector_sizes(M, N, K, "rcr", "fp16", "fp16", "fp16")
+    if need != cfg.effective_vector_sizes:
+        cfg, reason = cfg.with_vector_sizes(need)
+        if reason:
+            return FAIL, f"batched/fp16 K={K}: vector widths rejected: {reason}"
 
     so_paths = setup_multiple_batched_gemm_dispatchers([cfg], verbose=False)
     if not so_paths or so_paths[0] is None:
@@ -152,7 +163,7 @@ def check_batched_fp16(gfx_arch: str) -> tuple[str, str]:
     if result.time_ms <= 0.0:
         return FAIL, f"batched/fp16: time_ms={result.time_ms:.4f} not positive"
 
-    return PASS, (f"batched/fp16: max_rel_err={mre:.4e}, "
+    return PASS, (f"batched/fp16 vec{cfg.effective_vector_sizes}: max_rel_err={mre:.4e}, "
                   f"time_ms={result.time_ms:.3f}, batch={batch} MNK={M}/{N}/{K}")
 
 
@@ -174,15 +185,19 @@ def main() -> int:
     gfx = args.gfx or _resolve_arch(None)
     log.info("Running batched GEMM GPU correctness on %s", gfx)
 
-    try:
-        status, detail = check_batched_fp16(gfx)
-    except Exception as exc:  # noqa: BLE001
-        status, detail = FAIL, f"batched/fp16: exception: {exc}"
+    results = []
+    for case in CASES:
+        try:
+            results.append(check_batched_fp16(gfx, *case))
+        except Exception as exc:  # noqa: BLE001
+            results.append((FAIL, f"batched/fp16 {case}: exception: {exc}"))
 
     print("\n=== Summary ===")
-    print(f"  [{status:4s}] {detail}")
-    print(f"\n{1 if status == PASS else 0}/1 passed")
-    return 0 if status == PASS else 1
+    for status, detail in results:
+        print(f"  [{status:4s}] {detail}")
+    n_pass = sum(status == PASS for status, _ in results)
+    print(f"\n{n_pass}/{len(results)} passed")
+    return 0 if n_pass == len(results) else 1
 
 
 if __name__ == "__main__":

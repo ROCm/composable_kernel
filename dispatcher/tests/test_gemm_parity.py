@@ -34,6 +34,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent.resolve()
 DISPATCHER_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(DISPATCHER_DIR / "python"))
+sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
 
 import numpy as np  # noqa: E402
 import pytest
@@ -52,6 +53,7 @@ from gemm_utils import (  # noqa: E402
     _output_dtype,
 )
 from ctypes_utils import detect_gpu_arch, get_build_dir  # noqa: E402
+from codegen_common import gemm_problem_vector_sizes  # noqa: E402
 
 # (dtype, layout) surface the regular bridge supports. Column-major C is rejected
 # by ck_tile's universal GEMM at build, so every layout keeps row-major C, which
@@ -68,18 +70,10 @@ _CASES = [
     (dt, lay) for dt in (*_FLOAT_DTYPES, *_INT_DTYPES) for lay in _LAYOUTS
 ]
 
-# Padded default algorithm: pad_* all True so M/N/K need not divide the tile,
-# which is what lets the awkward shape below run.
-#
-# Padding only exempts the tile-divisibility checks in ck_tile's
-# IsSupportedArgument. The vector-load/store checks in the same function
-# (M % GetVectorSizeA, N % GetVectorSizeB, N % GetVectorSizeC) are NOT gated on
-# the pad_* flags -- a padded kernel still issues full-width vector accesses
-# along the contiguous dimension, so the extent of that dimension must divide the
-# vector width no matter how the tile is padded. With this 128x128x32 / 256-thread
-# shape the widest access is 16 elements (8-bit A/B operands: 16 bytes / 1 byte);
-# fp16/bf16 operands and every C tensor here are narrower. So M, N and K must all
-# stay multiples of 16 -- see _SHAPES below.
+# Padded default algorithm: pad_* all True so M/N need not divide the tile.
+# Padding alone does not cover an odd contiguous extent (e.g. N=129 for a
+# row-major B or C): such a shape gets a kernel with narrower fixed vector widths
+# (see _shape_config).
 _ALGO = dict(
     tile_m=128, tile_n=128, tile_k=32,
     wave_m=2, wave_n=2, wave_k=1,
@@ -89,11 +83,13 @@ _ALGO = dict(
 )
 
 # (name, M, N, K). 'awkward' is vector-aligned but not block-aligned, exercising
-# padding. Padding does not waive the kernel's vector-load/store alignment.
+# padding. Padding does not waive the kernel's vector-load/store alignment, so
+# 'unaligned' (odd M, N) runs on a kernel with narrowed vector widths.
 _SHAPES = [
     ("square", 512, 512, 512),
     ("rectangular", 1024, 512, 256),
     ("awkward", 272, 144, 512),
+    ("unaligned", 257, 129, 512),
 ]
 
 # Global-relative-error gates. fp16 measured ~3-4e-4 and bf16 ~8e-3 on gfx942.
@@ -188,6 +184,32 @@ def _config(dtype: str, layout: str, arch: str) -> GemmKernelConfig:
     )
 
 
+def _shape_config(dtype: str, layout: str, arch: str, shape) -> GemmKernelConfig:
+    """Native kernel when its vector widths divide the shape's contiguous
+    extents, else a copy with the widest fixed widths the shape allows."""
+    cfg = _config(dtype, layout, arch)
+    _, M, N, K = shape
+    need = gemm_problem_vector_sizes(M, N, K, layout, dtype, dtype, cfg.dtype_c)
+    if all(n % v == 0 for n, v in zip(need, cfg.effective_vector_sizes)):
+        return cfg
+    return cfg.with_vector_sizes(need)[0]
+
+
+def _build_all(arch):
+    """Build every distinct (dtype, layout, shape) kernel once; returns
+    {(dtype, layout, shape_name): (config, .so or None)}."""
+    cfgs = {
+        (dt, lay, sh[0]): _shape_config(dt, lay, arch, sh)
+        for dt, lay in _CASES
+        for sh in _SHAPES
+    }
+    unique = list({c.name: c for c in cfgs.values()}.values())
+    libs = dict(
+        zip((c.name for c in unique), setup_multiple_gemm_dispatchers(unique, verbose=False))
+    )
+    return {key: (c, libs[c.name]) for key, c in cfgs.items()}
+
+
 def _max_rel(out: np.ndarray, ref: np.ndarray) -> float:
     denom = float(np.max(np.abs(ref))) + 1e-12
     return float(np.max(np.abs(out - ref))) / denom
@@ -210,8 +232,8 @@ class GemmBridgeParity(unittest.TestCase):
     """End-to-end GPU-vs-NumPy parity across the bridge's dtype/layout surface."""
 
     arch = None
-    built = {}        # (dtype, layout) -> Path(.so)
-    build_failures = {}
+    built = {}        # (dtype, layout, shape_name) -> (config, Path(.so) or None)
+    build_failures = {}  # (dtype, layout, shape_name) -> kernel name
 
     @classmethod
     def setUpClass(cls):
@@ -220,30 +242,22 @@ class GemmBridgeParity(unittest.TestCase):
             raise unittest.SkipTest(reason)
         cls.arch = detect_gpu_arch()
 
-        configs = [_config(dt, lay, cls.arch) for dt, lay in _CASES]
-        so_paths = setup_multiple_gemm_dispatchers(configs, verbose=False)
-        for (dt, lay), so in zip(_CASES, so_paths):
-            if so is None:
-                cls.build_failures[(dt, lay)] = "codegen/hipcc returned no .so"
-            else:
-                cls.built[(dt, lay)] = so
+        cls.built = _build_all(cls.arch)
+        cls.build_failures = {k: c.name for k, (c, so) in cls.built.items() if so is None}
 
         if cls.arch == "gfx1250" and cls.build_failures:
             raise AssertionError(f"MI400 parity kernels failed to build: {cls.build_failures}")
 
-        if not cls.built:
+        if len(cls.build_failures) == len(cls.built):
             raise unittest.SkipTest(
                 f"no bridge kernels built on {cls.arch} "
                 f"(failures: {cls.build_failures})"
             )
 
     def _run_case(self, dtype, layout, shape):
-        so = self.built.get((dtype, layout))
+        cfg, so = self.built[(dtype, layout, shape[0])]
         if so is None:
-            self.skipTest(
-                f"{dtype}/{layout} did not build on {self.arch}: "
-                f"{self.build_failures.get((dtype, layout))}"
-            )
+            self.skipTest(f"{cfg.name} did not build on {self.arch}")
 
         _, M, N, K = shape
         problem = GemmProblem(M=M, N=N, K=K)
@@ -254,7 +268,7 @@ class GemmBridgeParity(unittest.TestCase):
         # The .so is the contract endpoint: the name it reports must be the config
         # name that drove codegen + the force-include build. The kernel name keys
         # off the input dtype (dtype_a), not the C/acc dtype.
-        self.assertEqual(runner.kernel_name, _config(dtype, layout, self.arch).name)
+        self.assertEqual(runner.kernel_name, cfg.name)
 
         result = runner.run(A, B, problem)
         # Every shape in _SHAPES is chosen to satisfy the kernel's tile and vector
@@ -279,8 +293,9 @@ class GemmBridgeParity(unittest.TestCase):
         )
 
     def test_unaligned_problem_is_rejected(self):
-        """Keep coverage of the old 257x129 shape: vector stores cannot run it."""
-        so = self.built.get(("fp16", "rcr"))
+        """The native kernel's vector widths do not divide 257x129, so it must
+        reject the problem; the 'unaligned' shape runs it on a narrowed kernel."""
+        so = self.built[("fp16", "rcr", "square")][1]
         if so is None:
             self.skipTest("fp16/rcr kernel unavailable")
         M, N, K = 257, 129, 512
@@ -319,9 +334,8 @@ def _main() -> int:
     print(f"GEMM Bridge Parity: Dispatcher (GPU {arch}) vs NumPy reference")
     print("=" * 78)
 
-    configs = [_config(dt, lay, arch) for dt, lay in _CASES]
-    print(f"  Building {len(configs)} bridge kernels (codegen + hipcc)...")
-    so_paths = setup_multiple_gemm_dispatchers(configs, verbose=False)
+    print("  Building bridge kernels (codegen + hipcc)...")
+    built = _build_all(arch)
 
     print(f"\n  {'case':<12} {'shape':<12} {'tflops':>9} {'max_rel':>10} {'tol':>8} {'':>6}")
     print("  " + "-" * 60)
@@ -329,15 +343,15 @@ def _main() -> int:
     rng = np.random.default_rng(42)
     total = 0
     passed = 0
-    for (dtype, layout), so in zip(_CASES, so_paths):
+    for dtype, layout in _CASES:
         tag = f"{dtype}/{layout}"
-        if so is None:
-            print(f"  {tag:<12} {'-':<12} {'BUILD FAILED':>35}")
-            total += len(_SHAPES)
-            continue
-        runner = GpuGemmRunner(lib_path=so)
         for sname, M, N, K in _SHAPES:
             total += 1
+            so = built[(dtype, layout, sname)][1]
+            if so is None:
+                print(f"  {tag:<12} {sname:<12} {'BUILD FAILED':>35}")
+                continue
+            runner = GpuGemmRunner(lib_path=so)
             problem = GemmProblem(M=M, N=N, K=K)
             A, B = _make_inputs(dtype, M, N, K, rng)
             result = runner.run(A, B, problem)
