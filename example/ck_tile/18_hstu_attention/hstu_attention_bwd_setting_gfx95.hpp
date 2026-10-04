@@ -32,17 +32,6 @@ using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub32_K1_32 =
 using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub16_K1_32 =
     ck_tile::sequence<64, 64, 16, 32, 256>;
 
-// Kernel2 Tile-sizes: M0 N M0Sub K1 MaxK
-//
-using HstuAttentionBwdKernel2BlockTile_Hdim64_M0_64_N64_Sub32_K1_32 =
-    ck_tile::sequence<64, 64, 32, 32, 64>;
-using HstuAttentionBwdKernel2BlockTile_Hdim96_M0_64_N64_Sub32_K1_32 =
-    ck_tile::sequence<64, 64, 32, 32, 96>;
-using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_32 =
-    ck_tile::sequence<32, 64, 16, 32, 128>;
-using HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_32 =
-    ck_tile::sequence<32, 64, 16, 32, 256>;
-
 template <ck_tile::index_t MaxK, bool kUseSoftmax>
 static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
 {
@@ -111,6 +100,19 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
         static_assert(false, "MaxK size not supported!");
     }
 }
+
+// Kernel2 Tile-sizes: M0 N M0Sub K1 MaxK
+//
+using HstuAttentionBwdKernel2BlockTile_Hdim64_M0_64_N64_Sub32_K1_32 =
+    ck_tile::sequence<64, 64, 32, 32, 64>;
+using HstuAttentionBwdKernel2BlockTile_Hdim96_M0_64_N64_Sub32_K1_32 =
+    ck_tile::sequence<64, 64, 32, 32, 96>;
+
+using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_32 =
+    ck_tile::sequence<32, 64, 32, 32, 128>;
+
+using HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_32 =
+    ck_tile::sequence<32, 64, 16, 32, 256>;
 
 template <ck_tile::index_t MaxK>
 static constexpr auto GetHstuAttentionBwdKernel2TileSetting()

@@ -63,7 +63,10 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKVLdsBuffers()
     {
-        return 2;
+        constexpr index_t n0_loops =
+            Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kN0Sub;
+
+        return min(n0_loops, 2);
     }
 
     // -------------------------------------------------------------------------

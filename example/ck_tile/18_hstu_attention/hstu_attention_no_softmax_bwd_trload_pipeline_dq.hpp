@@ -134,11 +134,8 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
         constexpr index_t n0_loops = Policy::template GetNumN0Loops<Problem>();
         constexpr index_t k1_loops = Policy::template GetNumK1Loops<Problem>();
 
-        constexpr auto NumKVPrefetches = 2;
+        constexpr auto NumKVPrefetches = min(n0_loops, 2);
         constexpr auto NumVLdsBuffers  = Policy::template GetNumKVLdsBuffers<Problem>();
-
-        static_assert(NumKVPrefetches <= n0_loops, "Check failed!");
-        static_assert(NumVLdsBuffers <= n0_loops, "Check failed!");
 
         // ---- Tile type declarations ----
         using SaccBlockTileType      = decltype(gemm_0.template MakeCBlockTile<kM0, kN0Sub>());
@@ -313,7 +310,7 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
                 store_tile(k_lds_windows[i_n0], k_tiles[i_current_buf], partition_index);
                 store_tile(v_lds_windows[i_lds_buf_0], v_tiles[i_current_buf], partition_index);
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Prefetch next K tile while current stores are in flight
                 if constexpr(i_n0 + 1 < n0_loops)
@@ -329,12 +326,12 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
                     move_tile_window(v_dram_window, {kN0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Ensure all LDS stores are visible before Gemm0 reads
                 block_sync_lds();
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q @ K_sub
                 gemm_0(sacc_tile, q_tile, k_lds_windows[i_n0]);
@@ -353,7 +350,7 @@ struct HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
             // === STAGE 3: scale, optional bias, mask, then compute P and dS ===
 

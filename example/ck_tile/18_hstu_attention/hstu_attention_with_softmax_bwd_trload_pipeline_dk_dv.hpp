@@ -172,9 +172,7 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
         constexpr index_t m0_loops = Policy::template GetNumM0Loops<Problem>();
         constexpr index_t k1_loops = Policy::template GetNumK1Loops<Problem>();
 
-        constexpr auto NumQOGradPrefetches = 2;
-
-        static_assert(NumQOGradPrefetches <= m0_loops, "Check failed!");
+        constexpr auto NumQOGradPrefetches = min(m0_loops, 2);
 
         // ---- Tile type declarations ----
         using SaccBlockTileType      = decltype(gemm_0.template MakeCBlockTile<kM0Sub, kN0>());
@@ -397,12 +395,12 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
                     move_tile_window(do_dram_window, {kM0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Ensure all LDS stores are visible before Gemm0 reads
                 block_sync_lds();
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q_sub @ K
                 gemm_0(sacc_tile, q_lds_windows[i_m0], k_tile);
@@ -431,7 +429,7 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV
                 });
             });
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
             // ---- Scale, optional bias, mask ----
             if constexpr(kHasBias)

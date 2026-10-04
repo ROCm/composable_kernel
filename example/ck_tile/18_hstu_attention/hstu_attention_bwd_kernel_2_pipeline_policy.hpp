@@ -47,7 +47,10 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumQOGradLdsBuffers()
     {
-        return 2;
+        constexpr index_t m0_loops =
+            Problem::HstuAttentionTileSetting::kM0 / Problem::HstuAttentionTileSetting::kM0Sub;
+
+        return min(m0_loops, 2);
     }
 
     // -------------------------------------------------------------------------
