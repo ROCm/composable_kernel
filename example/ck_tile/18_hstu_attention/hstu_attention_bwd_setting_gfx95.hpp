@@ -103,8 +103,9 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
 
 // Kernel2 Tile-sizes: M0 N M0Sub K1 MaxK
 //
-using HstuAttentionBwdKernel2BlockTile_Hdim64_M0_64_N64_Sub32_K1_32 =
-    ck_tile::sequence<64, 64, 32, 32, 64>;
+using HstuAttentionBwdKernel2BlockTile_Hdim64_M0_32_N128_Sub32_K1_32 =
+    ck_tile::sequence<32, 128, 32, 32, 64>;
+
 using HstuAttentionBwdKernel2BlockTile_Hdim96_M0_64_N64_Sub32_K1_32 =
     ck_tile::sequence<64, 64, 32, 32, 96>;
 
@@ -120,7 +121,7 @@ static constexpr auto GetHstuAttentionBwdKernel2TileSetting()
     if constexpr(MaxK == 64)
     {
         return ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
-            HstuAttentionBwdKernel2BlockTile_Hdim64_M0_64_N64_Sub32_K1_32,
+            HstuAttentionBwdKernel2BlockTile_Hdim64_M0_32_N128_Sub32_K1_32,
             HstuAttentionBwdKernel2Gemm0Gemm2Warps,
             WarpTile_16x16x32,
             HstuAttentionBwdKernel2Gemm1Warps,
