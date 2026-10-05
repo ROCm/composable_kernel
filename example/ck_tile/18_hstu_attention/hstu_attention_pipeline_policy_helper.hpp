@@ -461,5 +461,71 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeSwizzledNativeDesc()
     }
 }
 
+template <typename Problem, typename WarpGemm, index_t NumBuffers, index_t kN, index_t kK>
+CK_TILE_HOST_DEVICE static constexpr auto MakeWarpGemmAwareBLdsReadBlockNativeDesc()
+{
+    constexpr index_t kKPack = WarpGemm::WarpGemmAttribute::Impl::kABKPerLane;
+
+    constexpr index_t ElementBytes = sizeof(typename Problem::QKVDataType);
+
+    // Number of kKPack groups the kN row is scattered into (bank-group span).
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
+    constexpr index_t MaxNLdsLayer =
+        (64 * 4 / kK / ElementBytes) < 1 ? 1 : (64 * 4 / kK / ElementBytes);
+#else
+    constexpr index_t MaxNLdsLayer =
+        (32 * 4 / kK / ElementBytes) < 1 ? 1 : (32 * 4 / kK / ElementBytes);
+#endif
+
+    constexpr index_t NThreads = WarpGemm::WarpGemmAttribute::Impl::kBNLane;
+
+    constexpr index_t NLdsLayer = min(kN / NThreads, MaxNLdsLayer);
+
+    // 4D packed physical layout [NumBuffers, NThreads, (kK/kKPack)*NLdsLayer, kKPack].
+    constexpr index_t SingleBufferSize = kN * kK;
+    constexpr auto desc_0              = make_naive_tensor_descriptor(
+        make_tuple(number<NumBuffers>{},
+                   number<kN / NLdsLayer>{},
+                   number<kK / kKPack * NLdsLayer>{},
+                   number<kKPack>{}),
+        make_tuple(
+            number<SingleBufferSize>{}, number<kK * NLdsLayer>{}, number<kKPack>{}, number<1>{}),
+        number<kKPack>{},
+        number<1>{});
+
+    // XOR-swizzle the (NThreads, kK-group*NLdsLayer) dims -> scatter banks.
+    constexpr auto desc_permuted = transform_tensor_descriptor(
+        desc_0,
+        make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                   make_xor_transform(
+                       make_tuple(number<kN / NLdsLayer>{}, number<kK / kKPack * NLdsLayer>{})),
+                   make_pass_through_transform(number<kKPack>{})),
+        make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
+        make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+    // Split the kK-group dim back into [kK/kKPack, NLdsLayer].
+    constexpr auto desc_split = transform_tensor_descriptor(
+        desc_permuted,
+        make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                   make_pass_through_transform(number<kN / NLdsLayer>{}),
+                   make_unmerge_transform(make_tuple(number<kK / kKPack>{}, number<NLdsLayer>{})),
+                   make_pass_through_transform(number<kKPack>{})),
+        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
+
+    // Re-merge to the logical 3D physical view [NumBuffers, kN, kK]:
+    //   kN = NLdsLayer * NThreads
+    //   kK = (kK/kKPack) * kKPack
+    return transform_tensor_descriptor(
+        desc_split,
+        make_tuple(make_pass_through_transform(number<NumBuffers>{}),
+                   make_merge_transform_v3_division_mod(
+                       make_tuple(number<NLdsLayer>{}, number<kN / NLdsLayer>{})),
+                   make_merge_transform_v3_division_mod(
+                       make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
+        make_tuple(sequence<0>{}, sequence<3, 1>{}, sequence<2, 4>{}),
+        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+}
+
 }; // namespace detail
 }; // namespace ck_tile
