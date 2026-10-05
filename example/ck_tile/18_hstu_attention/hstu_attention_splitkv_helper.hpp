@@ -101,3 +101,23 @@ struct SplitkvWorkspace
     void* o_acc_ptr;
     void* lse_acc_ptr; // only used when softmax is used
 };
+
+static void*
+splitkv_workspace_alloc(const HstuWorkspaceAllocator& allocator, size_t bytes, hipStream_t stream)
+{
+    if(allocator.alloc != nullptr)
+        return allocator.alloc(bytes, stream);
+
+    void* ptr = nullptr;
+    HIP_CHECK_ERROR(hipMallocAsync(&ptr, bytes, stream));
+    return ptr;
+}
+
+static void
+splitkv_workspace_free(const HstuWorkspaceAllocator& allocator, void* ptr, hipStream_t stream)
+{
+    if(allocator.free != nullptr)
+        allocator.free(ptr, stream);
+    else
+        HIP_CHECK_ERROR(hipFreeAsync(ptr, stream));
+}
