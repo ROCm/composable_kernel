@@ -19,17 +19,23 @@ using HstuAttentionBwdKernel2Gemm3Warps      = ck_tile::sequence<4, 1, 1>;
 
 // Kernel1 Tile-sizes: M N0 N0Sub K1 MaxK
 //
-using HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_64_Sub32_K1_32 =
+using HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_64_Sub32_K1_32_silu =
     ck_tile::sequence<128, 64, 32, 32, 64>;
+using HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_32_Sub32_K1_32_softmax =
+    ck_tile::sequence<128, 32, 32, 32, 64>;
+
 using HstuAttentionBwdKernel1BlockTile_Hdim96_M128_N0_64_Sub32_K1_32 =
     ck_tile::sequence<128, 64, 32, 32, 96>;
-using HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_64_Sub16_K1_32 =
-    ck_tile::sequence<128, 64, 16, 32, 128>;
-using HstuAttentionBwdKernel1BlockTile_Hdim128_M64_N0_64_Sub16_K1_32 =
-    ck_tile::sequence<64, 64, 16, 32, 128>;
-using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub32_K1_32 =
+
+// This tile setting still has small vgpr spilling
+using HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub32_K1_32_silu =
+    ck_tile::sequence<128, 32, 32, 32, 128>;
+using HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub32_K1_32_softmax =
+    ck_tile::sequence<128, 32, 32, 32, 128>;
+
+using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub32_K1_32_silu =
     ck_tile::sequence<64, 64, 32, 32, 256>;
-using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub16_K1_32 =
+using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub16_K1_32_softmax =
     ck_tile::sequence<64, 64, 16, 32, 256>;
 
 template <ck_tile::index_t MaxK, bool kUseSoftmax>
@@ -37,12 +43,24 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
 {
     if constexpr(MaxK == 64)
     {
-        return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-            HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_64_Sub32_K1_32,
-            HstuAttentionBwdKernel1Gemm0Gemm2Warps,
-            WarpTile_16x16x32,
-            HstuAttentionBwdKernel1Gemm4Warps,
-            WarpTile_16x16x32>{};
+        if constexpr(kUseSoftmax)
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+                HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_32_Sub32_K1_32_softmax,
+                HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+                WarpTile_16x16x32,
+                HstuAttentionBwdKernel1Gemm4Warps,
+                WarpTile_16x16x32>{};
+        }
+        else
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+                HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_64_Sub32_K1_32_silu,
+                HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+                WarpTile_16x16x32,
+                HstuAttentionBwdKernel1Gemm4Warps,
+                WarpTile_16x16x32>{};
+        }
     }
     else if constexpr(MaxK == 96)
     {
@@ -58,7 +76,7 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
         if constexpr(kUseSoftmax)
         {
             return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-                HstuAttentionBwdKernel1BlockTile_Hdim128_M64_N0_64_Sub16_K1_32,
+                HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub32_K1_32_softmax,
                 HstuAttentionBwdKernel1Gemm0Gemm2Warps,
                 WarpTile_16x16x32,
                 HstuAttentionBwdKernel1Gemm4Warps,
@@ -67,7 +85,7 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
         else
         {
             return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-                HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_64_Sub16_K1_32,
+                HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub32_K1_32_silu,
                 HstuAttentionBwdKernel1Gemm0Gemm2Warps,
                 WarpTile_16x16x32,
                 HstuAttentionBwdKernel1Gemm4Warps,
@@ -79,7 +97,7 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
         if constexpr(kUseSoftmax)
         {
             return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-                HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub16_K1_32,
+                HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub16_K1_32_softmax,
                 HstuAttentionBwdKernel1Gemm0Gemm2Warps,
                 WarpTile_16x16x32,
                 HstuAttentionBwdKernel1Gemm4Warps,
@@ -88,7 +106,7 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
         else
         {
             return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-                HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub32_K1_32,
+                HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub32_K1_32_silu,
                 HstuAttentionBwdKernel1Gemm0Gemm2Warps,
                 WarpTile_16x16x32,
                 HstuAttentionBwdKernel1Gemm4Warps,
