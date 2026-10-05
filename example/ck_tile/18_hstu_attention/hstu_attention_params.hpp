@@ -3,7 +3,20 @@
 
 #pragma once
 
+#include <cstddef>
+
+#include <hip/hip_runtime.h>
+
 #include <ck_tile/core/numeric/integer.hpp>
+
+// Allocates the split-KV workspace. Left null, the workspace comes from hipMallocAsync and
+// goes back with hipFreeAsync; a framework can route it through its own caching allocator
+// instead, which avoids contending on the device default memory pool.
+struct HstuWorkspaceAllocator
+{
+    void* (*alloc)(size_t bytes, hipStream_t stream) = nullptr;
+    void (*free)(void* ptr, hipStream_t stream)      = nullptr;
+};
 
 struct HstuAttentionNoGroupFwdParams
 {
@@ -74,6 +87,8 @@ struct HstuAttentionNoGroupFwdParams
     float p_drop;
     uint64_t philox_seed;
     uint64_t philox_offset;
+
+    HstuWorkspaceAllocator workspace_allocator;
 };
 
 struct HstuAttentionGroupFwdParams
@@ -135,4 +150,6 @@ struct HstuAttentionGroupFwdParams
     float p_drop;
     uint64_t philox_seed;
     uint64_t philox_offset;
+
+    HstuWorkspaceAllocator workspace_allocator;
 };
