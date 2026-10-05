@@ -289,7 +289,7 @@ struct batched_forward_splitkv_dispatch
                                  param.num_head * ws.num_splits * param.hdim_v *
                                  sizeof(OaccDataType);
 
-        HIP_CHECK_ERROR(hipMallocAsync(&ws.o_acc_ptr, workspace_bytes, stream));
+        ws.o_acc_ptr = splitkv_workspace_alloc(param.workspace_allocator, workspace_bytes, stream);
 
         if constexpr(kUseSoftmax)
         {
@@ -298,7 +298,8 @@ struct batched_forward_splitkv_dispatch
             workspace_bytes = static_cast<size_t>(param.num_batch) * param.seqlen_q *
                               param.num_head * ws.num_splits * sizeof(LSEDataType);
 
-            HIP_CHECK_ERROR(hipMallocAsync(&ws.lse_acc_ptr, workspace_bytes, stream));
+            ws.lse_acc_ptr =
+                splitkv_workspace_alloc(param.workspace_allocator, workspace_bytes, stream);
         }
 
         const auto kargs = [&] {
@@ -385,10 +386,10 @@ struct batched_forward_splitkv_dispatch
             ck_tile::stream_config{stream, false},
             ck_tile::make_kernel<kBlockPerCu>(HstuKernel{}, kGridSize, kBlockSize, 0, kargs));
 
-        HIP_CHECK_ERROR(hipFreeAsync(ws.o_acc_ptr, stream));
+        splitkv_workspace_free(param.workspace_allocator, ws.o_acc_ptr, stream);
         if constexpr(kUseSoftmax)
         {
-            HIP_CHECK_ERROR(hipFreeAsync(ws.lse_acc_ptr, stream));
+            splitkv_workspace_free(param.workspace_allocator, ws.lse_acc_ptr, stream);
         }
     };
 };
