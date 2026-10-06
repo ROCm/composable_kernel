@@ -151,6 +151,17 @@ struct MoeSilu
     };
 };
 
+struct MoeRelu2
+{
+    template <typename T>
+    CK_TILE_HOST_DEVICE T operator()(T gate, T linear = 1) const
+    {
+        constexpr T zero = type_convert<T>(0);
+        gate             = gate > zero ? gate : zero;
+        return gate * gate * linear;
+    };
+};
+
 struct Swiglu
 {
     const float alpha;

@@ -639,7 +639,7 @@ inline __device__ int8_t neg<int8_t>(int8_t x)
 template <>
 inline __device__ half_t neg<half_t>(half_t x)
 {
-    return __hneg(static_cast<__half>(x));
+    return ck::type_convert<half_t>(-(ck::type_convert<float>(x)));
 };
 
 template <typename T>
@@ -681,7 +681,7 @@ inline __device__ double sin<double>(double x)
 template <>
 inline __device__ half_t sin<half_t>(half_t x)
 {
-    return hsin(static_cast<__half>(x));
+    return ck::type_convert<half_t>(::sinf(ck::type_convert<float>(x)));
 };
 
 template <typename T>
@@ -813,7 +813,7 @@ inline __device__ double ceil<double>(double x)
 template <>
 inline __device__ half_t ceil<half_t>(half_t x)
 {
-    return hceil(static_cast<__half>(x));
+    return ck::type_convert<half_t>(::ceilf(ck::type_convert<float>(x)));
 };
 
 template <typename T>
@@ -855,7 +855,7 @@ inline __device__ double floor<double>(double x)
 template <>
 inline __device__ half_t floor<half_t>(half_t x)
 {
-    return hfloor(static_cast<__half>(x));
+    return ck::type_convert<half_t>(::floorf(ck::type_convert<float>(x)));
 };
 
 template <typename T>
@@ -877,7 +877,7 @@ inline __device__ T exp(T x)
 template <>
 inline __device__ half_t exp<half_t>(half_t x)
 {
-    return hexp(static_cast<__half>(x));
+    return ck::type_convert<half_t>(__ocml_exp_f32(ck::type_convert<float>(x)));
 };
 
 template <>
@@ -901,7 +901,7 @@ inline __device__ T log(T x)
 template <>
 inline __device__ half_t log<half_t>(half_t x)
 {
-    return hlog(static_cast<__half>(x));
+    return ck::type_convert<half_t>(__logf(ck::type_convert<float>(x)));
 };
 
 template <>
