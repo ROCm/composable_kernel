@@ -23,21 +23,14 @@ using HstuAttentionBwdKernel1BlockTile_Hdim64_M128_N0_64_Sub32_K1_32 =
     ck_tile::sequence<128, 64, 32, 32, 64>;
 using HstuAttentionBwdKernel1BlockTile_Hdim96_M128_N0_64_Sub32_K1_32 =
     ck_tile::sequence<128, 64, 32, 32, 96>;
-using HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub16_K1_16 =
+
+using HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub32_K1_16_silu =
+    ck_tile::sequence<128, 32, 32, 16, 128>;
+using HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub16_K1_16_softmax =
     ck_tile::sequence<128, 32, 16, 16, 128>;
+
 using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_32_Sub16_K1_16 =
     ck_tile::sequence<64, 32, 16, 16, 256>;
-
-// Kernel2 Tile-sizes: M0 N M0Sub K1 MaxK
-//
-using HstuAttentionBwdKernel2BlockTile_Hdim64_M0_32_N128_Sub16_K1_16 =
-    ck_tile::sequence<32, 128, 16, 16, 64>;
-using HstuAttentionBwdKernel2BlockTile_Hdim96_M0_32_N128_Sub16_K1_16 =
-    ck_tile::sequence<32, 128, 16, 16, 96>;
-using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_16 =
-    ck_tile::sequence<32, 64, 16, 16, 128>;
-using HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_16 =
-    ck_tile::sequence<32, 64, 16, 16, 256>;
 
 template <ck_tile::index_t MaxK, bool kUseSoftmax>
 static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
@@ -63,12 +56,24 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
     }
     else if constexpr(MaxK == 128)
     {
-        return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
-            HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub16_K1_16,
-            HstuAttentionBwdKernel1Gemm0Gemm2Warps,
-            WarpTile_16x16x16,
-            HstuAttentionBwdKernel1Gemm4Warps,
-            WarpTile_16x16x16>{};
+        if constexpr(kUseSoftmax)
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+                HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub16_K1_16_softmax,
+                HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+                WarpTile_16x16x16,
+                HstuAttentionBwdKernel1Gemm4Warps,
+                WarpTile_16x16x16>{};
+        }
+        else
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel1<
+                HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub32_K1_16_silu,
+                HstuAttentionBwdKernel1Gemm0Gemm2Warps,
+                WarpTile_16x16x16,
+                HstuAttentionBwdKernel1Gemm4Warps,
+                WarpTile_16x16x16>{};
+        }
     }
     else if constexpr(MaxK == 256)
     {
@@ -85,7 +90,23 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
     }
 }
 
-template <ck_tile::index_t MaxK>
+// Kernel2 Tile-sizes: M0 N M0Sub K1 MaxK
+//
+using HstuAttentionBwdKernel2BlockTile_Hdim64_M0_32_N128_Sub16_K1_16 =
+    ck_tile::sequence<32, 128, 16, 16, 64>;
+
+using HstuAttentionBwdKernel2BlockTile_Hdim96_M0_32_N128_Sub16_K1_16 =
+    ck_tile::sequence<32, 128, 16, 16, 96>;
+
+using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_16_silu =
+    ck_tile::sequence<32, 64, 16, 16, 128>;
+using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub32_K1_16_softmax =
+    ck_tile::sequence<32, 64, 32, 16, 128>;
+
+using HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_16 =
+    ck_tile::sequence<32, 64, 16, 16, 256>;
+
+template <ck_tile::index_t MaxK, bool kUseSoftmax>
 static constexpr auto GetHstuAttentionBwdKernel2TileSetting()
 {
     if constexpr(MaxK == 64)
@@ -112,14 +133,28 @@ static constexpr auto GetHstuAttentionBwdKernel2TileSetting()
     }
     else if constexpr(MaxK == 128)
     {
-        return ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
-            HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_16,
-            HstuAttentionBwdKernel2Gemm0Gemm2Warps,
-            WarpTile_16x16x16,
-            HstuAttentionBwdKernel2Gemm1Warps,
-            WarpTile_16x16x16,
-            HstuAttentionBwdKernel2Gemm3Warps,
-            WarpTile_16x16x16>{};
+        if constexpr(kUseSoftmax)
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
+                HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub32_K1_16_softmax,
+                HstuAttentionBwdKernel2Gemm0Gemm2Warps,
+                WarpTile_16x16x16,
+                HstuAttentionBwdKernel2Gemm1Warps,
+                WarpTile_16x16x16,
+                HstuAttentionBwdKernel2Gemm3Warps,
+                WarpTile_16x16x16>{};
+        }
+        else
+        {
+            return ck_tile::HstuAttentionBwdTileSettingClassForKernel2<
+                HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_16_silu,
+                HstuAttentionBwdKernel2Gemm0Gemm2Warps,
+                WarpTile_16x16x16,
+                HstuAttentionBwdKernel2Gemm1Warps,
+                WarpTile_16x16x16,
+                HstuAttentionBwdKernel2Gemm3Warps,
+                WarpTile_16x16x16>{};
+        }
     }
     else if constexpr(MaxK == 256)
     {

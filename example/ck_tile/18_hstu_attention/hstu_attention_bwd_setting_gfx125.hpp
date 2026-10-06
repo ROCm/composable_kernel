@@ -85,7 +85,7 @@ static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
     }
 }
 
-template <ck_tile::index_t MaxK>
+template <ck_tile::index_t MaxK, bool kUseSoftmax>
 static constexpr auto GetHstuAttentionBwdKernel2TileSetting()
 {
     if constexpr(MaxK == 64)

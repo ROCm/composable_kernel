@@ -48,7 +48,7 @@ struct batched_backward_dispatch
     using HstuAttentionTileSettingForKernel1 =
         decltype(GetHstuAttentionBwdKernel1TileSetting<MaxK, kUseSoftmax>());
     using HstuAttentionTileSettingForKernel2 =
-        decltype(GetHstuAttentionBwdKernel2TileSetting<MaxK>());
+        decltype(GetHstuAttentionBwdKernel2TileSetting<MaxK, kUseSoftmax>());
 
 #if HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     static constexpr bool use_trload_pipeline = true;

@@ -133,7 +133,7 @@ using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_32 =
 using HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_32 =
     ck_tile::sequence<32, 64, 16, 32, 256>;
 
-template <ck_tile::index_t MaxK>
+template <ck_tile::index_t MaxK, bool kUseSoftmax>
 static constexpr auto GetHstuAttentionBwdKernel2TileSetting()
 {
     if constexpr(MaxK == 64)
