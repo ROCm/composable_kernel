@@ -43,7 +43,7 @@ def main():
 
     training = os.environ.get("TEST_HSTU_FWD_TRAINING", "0")
 
-    binary = f"{BUILD}/bin/tile_example_hstu_attention"
+    binary = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
     if args.use_softmax == 1:
         exe_prefix = [binary, "-softmax=1", f"-training={training}"]
     else:
