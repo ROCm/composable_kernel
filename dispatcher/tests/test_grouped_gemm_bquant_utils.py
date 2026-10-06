@@ -46,6 +46,42 @@ from grouped_gemm_bquant_utils import (
 )
 
 
+@pytest.mark.parametrize("variant, arch, expected", [
+    ("fp8i4", "gfx950", [48, 56, 60, 64]),
+    ("fp8i4", "gfx942", [56, 64, 68, 72]),
+    ("bf8i4", "gfx950", [56, 60, 62, 64]),
+    ("bf8i4", "gfx942", [60, 64, 66, 68]),
+])
+@pytest.mark.parametrize("preencoded", [False, True])
+def test_int4_runner_encodes_scale_bytes(monkeypatch, variant, arch, expected, preencoded):
+    import numpy as np
+    from types import SimpleNamespace
+    import grouped_gemm_bquant_utils as bquant
+
+    pytest.importorskip("ml_dtypes")
+    received = {}
+
+    def run(**kwargs):
+        received.update(kwargs)
+        return 0, 1.0
+
+    name = f"grouped_gemm_bquant_{variant}_rcr_compv3_cshuffle"
+    lib = SimpleNamespace(run=run, get_kernel_name=lambda: name)
+    monkeypatch.setattr(bquant, "BQuantDispatcherLib", lambda path: lib)
+    runner = bquant.BQuantGpuGemmRunner(Path(f"lib{name}_{arch}.so"))
+    scales = np.array([0.5, 1.0, 1.5, 2.0], dtype=np.float32).reshape(2, 2)
+    if preencoded:
+        scales = np.array(expected, dtype=np.uint8).reshape(2, 2)
+    original = scales.copy()
+    runner.run(np.zeros((16, 256), dtype=np.uint8),
+               np.zeros(256, dtype=np.uint8), scales,
+               BQuantGemmProblem(M=16, N=2, K=256))
+
+    assert received["BQ"].dtype == np.uint8
+    np.testing.assert_array_equal(received["BQ"].ravel(), expected)
+    np.testing.assert_array_equal(scales, original)
+
+
 # =============================================================================
 # BQuantKernelConfig.name — byte-exact match with codegen KERNEL_NAME
 # =============================================================================
@@ -221,6 +257,21 @@ class TestKernelName:
 
 class TestCodegenConfig:
 
+    @pytest.mark.parametrize("factory", [default_fp8i4_config, default_bf8i4_config])
+    @pytest.mark.parametrize("arch, warp_k", [
+        ("gfx942", 32),
+        ("gfx950", 128),
+        ("gfx942:sramecc+:xnack-", 32),
+        ("gfx950:sramecc+:xnack-", 128),
+    ])
+    def test_int4_decode_uses_arch_warp_tile(self, factory, arch, warp_k):
+        # INT4 weights are converted to FP8/BF8 before the warp GEMM. K=16
+        # selects WMMA and fails to compile in the gfx950 correctness lane.
+        cfg = factory(gfx_arch=arch)
+        tile = cfg.to_codegen_config()["tile_configs"][0]
+        assert (tile["warp_tile_m"], tile["warp_tile_n"], tile["warp_tile_k"]) == (16, 16, warp_k)
+        assert f"_16x16x{warp_k}_" in cfg.name
+
     def test_codegen_config_contains_correct_variant(self):
         cfg = default_fp8_config()
         d = cfg.to_codegen_config()
@@ -395,21 +446,21 @@ class TestPhase3Configs:
     def test_fp8_preshufflequant_name(self):
         cfg = default_fp8_preshufflequant_config()
         assert cfg.name == (
-            "grouped_gemm_bquant_fp8_rcr_compv3_permute_n_intrawave_"
+            "grouped_gemm_bquant_fp8_rcr_compv3_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x128_qg1x1x128_preshufflebq"
         )
 
     def test_bf8_preshufflequant_name(self):
         cfg = default_bf8_preshufflequant_config()
         assert cfg.name == (
-            "grouped_gemm_bquant_bf8_rcr_compv3_permute_n_intrawave_"
+            "grouped_gemm_bquant_bf8_rcr_compv3_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x128_qg1x1x128_preshufflebq"
         )
 
     def test_fp8i4_preshufflequant_name(self):
         cfg = default_fp8i4_preshufflequant_config()
         assert cfg.name == (
-            "grouped_gemm_bquant_fp8i4_rcr_compv3_permute_n_intrawave_"
+            "grouped_gemm_bquant_fp8i4_rcr_compv3_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x32_qg1x1x128_preshufflebq"
         )
 
@@ -479,21 +530,21 @@ class TestPhase4MXConfigs:
     def test_mx_bf16bf16_name(self):
         cfg = default_mx_bf16bf16_config(quant_group_k=32)
         assert cfg.name == (
-            "grouped_gemm_bquant_mx_bf16bf16_rcr_microscale_permute_n_intrawave_"
+            "grouped_gemm_bquant_mx_bf16bf16_rcr_microscale_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x32_qg1x1x32"
         )
 
     def test_mx_bf16bf8_name(self):
         cfg = default_mx_bf16bf8_config(quant_group_k=128)
         assert cfg.name == (
-            "grouped_gemm_bquant_mx_bf16bf8_rcr_microscale_permute_n_intrawave_"
+            "grouped_gemm_bquant_mx_bf16bf8_rcr_microscale_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x64_qg1x1x128"
         )
 
     def test_mx_bf16fp4_name(self):
         cfg = default_mx_bf16fp4_config(quant_group_k=32)
         assert cfg.name == (
-            "grouped_gemm_bquant_mx_bf16fp4_rcr_microscale_permute_n_intrawave_"
+            "grouped_gemm_bquant_mx_bf16fp4_rcr_microscale_cshuffle_intrawave_"
             "128x128x128_1x4x1_16x16x32_qg1x1x32"
         )
 
@@ -724,3 +775,55 @@ class TestExpandBquantSweep:
             quant_group_m=1, quant_group_n=1, quant_group_k=128,
         )
         assert configs[0].name == manual.name
+
+
+# =============================================================================
+# gfx1250 (MI400 / WMMA) default configs
+# =============================================================================
+
+
+from grouped_gemm_bquant_utils import (  # noqa: E402
+    default_fp8_config_gfx1250,
+    default_bf8_config_gfx1250,
+)
+
+
+class TestGfx1250Configs:
+    # gfx1250 correct config was determined empirically on MI400/gfx1250:
+    # BQuant fp8/bf8 verify with the SAME stock config (warp_tile_k=128, FlatMM);
+    # warp_tile_k=16 (WMMA) produces all-zeros on gfx12. i4 variants do not
+    # compile on gfx1250, so no gfx1250 helper exists for them.
+
+    def _all(self):
+        return [
+            default_fp8_config_gfx1250(),
+            default_bf8_config_gfx1250(),
+        ]
+
+    def test_gfx1250_uses_flatmm_warp_tile_k_128(self):
+        # GPU-verified: fp8/bf8 are correct on gfx1250 with warp_tile_k=128
+        # (== stock). warp_tile_k=16 silently returns zeros on gfx12.
+        for cfg in self._all():
+            assert cfg.warp_tile_m == 16
+            assert cfg.warp_tile_n == 16
+            assert cfg.warp_tile_k == 128, f"{cfg.name} must use FlatMM warp_tile_k=128"
+
+    def test_gfx1250_arch_propagated(self):
+        for cfg in self._all():
+            assert cfg.gfx_arch == "gfx1250"
+
+    def test_gfx1250_names_16x16x128(self):
+        for cfg in self._all():
+            assert "16x16x128" in cfg.name
+
+    def test_gfx1250_pipeline_is_compv3(self):
+        for cfg in self._all():
+            assert cfg.pipeline == "compv3"
+
+    def test_gfx1250_layout_is_rcr(self):
+        for cfg in self._all():
+            assert cfg.layout == "rcr"
+
+    def test_gfx1250_unique_names(self):
+        names = [cfg.name for cfg in self._all()]
+        assert len(names) == len(set(names))

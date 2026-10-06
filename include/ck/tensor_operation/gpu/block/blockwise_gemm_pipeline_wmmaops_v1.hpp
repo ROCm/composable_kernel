@@ -29,8 +29,10 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC = false,
-          bool BSkipLDS   = false>
+          bool TransposeC       = false,
+          bool BSkipLDS         = false,
+          bool UseLdsTransposeA = false,
+          bool UseLdsTransposeB = false>
 struct BlockwiseGemmWmmaops_pipeline_v1
 {
 };
@@ -54,7 +56,9 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC>
+          bool TransposeC,
+          bool UseLdsTransposeA,
+          bool UseLdsTransposeB>
 struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         BlockSize,
                                         ADataType,
@@ -76,7 +80,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         KPack,
                                         KInner,
                                         TransposeC,
-                                        false>
+                                        false,
+                                        UseLdsTransposeA,
+                                        UseLdsTransposeB>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
@@ -96,7 +102,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                          NRepeat,
                                          KPack,
                                          KInner,
-                                         TransposeC>
+                                         TransposeC,
+                                         UseLdsTransposeA,
+                                         UseLdsTransposeB>
 {
     // GlobalPrefetchStages: 1
     // LocalPreFillStages: 1
@@ -121,7 +129,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                                     NRepeat,
                                                     KPack,
                                                     KInner,
-                                                    TransposeC>;
+                                                    TransposeC,
+                                                    UseLdsTransposeA,
+                                                    UseLdsTransposeB>;
     using Base::I0;
     using Base::I1;
     using typename Base::HotLoopInstList;
@@ -585,7 +595,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                          Sequence<0, 1, 2, 3, 4, 5, 6>,
                                          6,
                                          A_K1,
-                                         A_K1>;
+                                         A_K1,
+                                         UseLdsTransposeA>;
 
     using BThreadCopy =
         ThreadwiseTensorSliceTransfer_v4<BDataType,
@@ -596,7 +607,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                          Sequence<0, 1, 2, 3, 4, 5, 6>,
                                          6,
                                          B_K1,
-                                         B_K1>;
+                                         B_K1,
+                                         UseLdsTransposeB>;
 
     AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex()};
     BThreadCopy b_thread_copy_{Base::CalculateBThreadOriginDataIndex()};
@@ -622,7 +634,9 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC>
+          bool TransposeC,
+          bool UseLdsTransposeA,
+          bool UseLdsTransposeB>
 struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                         BlockSize,
                                         ADataType,
@@ -644,7 +658,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                         KPack,
                                         KInner,
                                         TransposeC,
-                                        false>
+                                        false,
+                                        UseLdsTransposeA,
+                                        UseLdsTransposeB>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
@@ -664,7 +680,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                          NRepeat,
                                          KPack,
                                          KInner,
-                                         TransposeC>
+                                         TransposeC,
+                                         UseLdsTransposeA,
+                                         UseLdsTransposeB>
 {
     // GlobalPrefetchStages: 1
     // LocalPreFillStages: 1
@@ -689,7 +707,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                                     NRepeat,
                                                     KPack,
                                                     KInner,
-                                                    TransposeC>;
+                                                    TransposeC,
+                                                    UseLdsTransposeA,
+                                                    UseLdsTransposeB>;
     using Base::I0;
     using Base::I1;
 
@@ -1020,7 +1040,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                          Sequence<0, 1, 2, 3, 4, 5, 6>,
                                          6,
                                          A_K1,
-                                         A_K1>;
+                                         A_K1,
+                                         UseLdsTransposeA>;
 
     using BThreadCopy =
         ThreadwiseTensorSliceTransfer_v4<BDataType,
@@ -1031,7 +1052,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                          Sequence<0, 1, 2, 3, 4, 5, 6>,
                                          6,
                                          B_K1,
-                                         B_K1>;
+                                         B_K1,
+                                         UseLdsTransposeB>;
 
     AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex()};
     BThreadCopy b_thread_copy_{Base::CalculateBThreadOriginDataIndex()};
@@ -1057,7 +1079,9 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC>
+          bool TransposeC,
+          bool UseLdsTransposeA,
+          bool UseLdsTransposeB>
 struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         BlockSize,
                                         ADataType,
@@ -1079,7 +1103,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         KPack,
                                         KInner,
                                         TransposeC,
-                                        true>
+                                        true,
+                                        UseLdsTransposeA,
+                                        UseLdsTransposeB>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
@@ -1099,7 +1125,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                          NRepeat,
                                          KPack,
                                          KInner,
-                                         TransposeC>
+                                         TransposeC,
+                                         UseLdsTransposeA,
+                                         UseLdsTransposeB>
 {
     // GlobalPrefetchStages: 2
     // LocalPreFillStages: 1
@@ -1124,7 +1152,12 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                                     NRepeat,
                                                     KPack,
                                                     KInner,
-                                                    TransposeC>;
+                                                    TransposeC,
+                                                    UseLdsTransposeA,
+                                                    UseLdsTransposeB>;
+
+    static_assert(!UseLdsTransposeB,
+                  "Lds Transpose not possible: preshuffleB doesn't use LDS for B matrix");
     using Base::I0;
     using Base::I1;
     using Base::MWaves;

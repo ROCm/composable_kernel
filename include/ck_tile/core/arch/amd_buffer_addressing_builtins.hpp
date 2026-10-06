@@ -178,8 +178,8 @@ struct buffer_load<16, pre_nop>
         using mbuf_t = typename impl::buffer_load_trait<16, T>::payload_t;
 #if HAS_RAW_BUFFER_BUILTINS
         index_t s_offset                 = i_offset;
-        reinterpret_cast<mbuf_t&>(value) = __builtin_amdgcn_raw_buffer_load_b128(
-            cast_to_amdgpu_buffer_rsrc_t(res), v_offset, s_offset, 0);
+        reinterpret_cast<mbuf_t&>(value) = bit_cast<mbuf_t>(__builtin_amdgcn_raw_buffer_load_b128(
+            cast_to_amdgpu_buffer_rsrc_t(res), v_offset, s_offset, 0));
 #else
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
@@ -212,8 +212,8 @@ struct buffer_load<8, pre_nop>
         using mbuf_t = typename impl::buffer_load_trait<8, T>::payload_t;
 #if HAS_RAW_BUFFER_BUILTINS
         index_t s_offset                 = i_offset;
-        reinterpret_cast<mbuf_t&>(value) = __builtin_amdgcn_raw_buffer_load_b64(
-            cast_to_amdgpu_buffer_rsrc_t(res), v_offset, s_offset, 0);
+        reinterpret_cast<mbuf_t&>(value) = bit_cast<mbuf_t>(__builtin_amdgcn_raw_buffer_load_b64(
+            cast_to_amdgpu_buffer_rsrc_t(res), v_offset, s_offset, 0));
 #else
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
@@ -849,6 +849,9 @@ struct buffer_atomic_add_if<bf16_t, 2, pre_nop>
                                    index_t flag = 1)
     {
         static_assert(sizeof(T) == 4);
+        // A global atomic skips the buffer range check, so apply it here (res[2] = num_records).
+        const index_t in_range = flag && static_cast<uint32_t>(v_offset + i_offset) + sizeof(T) <=
+                                             static_cast<uint32_t>(res[2]);
         auto save_exec = READ_EXEC();
         using mbuf_t   = float;
         asm volatile(CMPX_LE_EXEC "  1, %4\n"
@@ -859,7 +862,7 @@ struct buffer_atomic_add_if<bf16_t, 2, pre_nop>
                        "v"(bit_cast<mbuf_t>(value)),
                        "s"(res.xy),
                        "n"(i_offset),
-                       "v"(flag),
+                       "v"(in_range),
                        "s"(save_exec)
                      : "memory");
     }
@@ -2890,6 +2893,7 @@ __device__ void amd_async_global_load_to_lds(CK_TILE_LDS_ADDR T* smem_ptr,
             (std::is_same_v<T, bf16_t> && (N == 2 || N == 4 || N == 8)) ||
             (std::is_same_v<T, fp8_t> && (N == 1 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same_v<T, bf8_t> && (N == 1 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same_v<T, pk_fp4_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same_v<T, int8_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same_v<T, uint8_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)),
         "wrong! not implemented");
@@ -3178,11 +3182,18 @@ CK_TILE_DEVICE void amd_buffer_atomic_add(const thread_buffer<T, N>& src_thread_
 #if defined(__gfx942__)
     if constexpr(std::is_same<T, bf16_t>::value)
     {
-        if(dst_thread_element_valid)
-        {
-            amd_global_atomic_add_impl<T, N>(src_thread_data,
-                                             p_dst_wave + dst_thread_element_offset);
-        }
+        // Global atomics have no buffer range check, so drop what the buffer path would drop.
+        // It checks each packed pair on its own.
+        static_for<0, N / 2, 1>{}([&](auto i) {
+            const index_t pair_offset = 2 * i;
+            if(dst_thread_element_valid && dst_thread_element_offset >= -pair_offset &&
+               dst_thread_element_offset <= dst_element_space_size - 2 - pair_offset)
+            {
+                amd_global_atomic_add_impl<T, 2>(
+                    bit_cast<thread_buffer<T, 2>>(src_thread_data.template get_as<bf16x2_t>()[i]),
+                    p_dst_wave + dst_thread_element_offset + pair_offset);
+            }
+        });
     }
     else
     {
@@ -3352,7 +3363,6 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
     if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
     {
 #if defined(__gfx950__)
-        typedef __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16 llvm_fp16x4_t;
         auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_fp16x4_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
 #elif defined(__gfx125__)
@@ -3369,7 +3379,6 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
         auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_bf16x4_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4bf16(lds_ptr));
 #elif defined(__gfx125__)
-        typedef __attribute__((__vector_size__(8 * sizeof(__bf16)))) __bf16 llvm_bf16x8_t;
         auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_bf16x8_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_load_tr16_b128_v8bf16(lds_ptr));
 #else
@@ -3427,7 +3436,7 @@ amd_tdm_load(const TDMDescriptor<DataType, TensorRank, IsGatherMode>& descriptor
     static constexpr auto I4 = number<4>{};
 
     auto tdm_desc_grp = descriptor.getResourceDescriptorGroup();
-    __builtin_amdgcn_tensor_load_to_lds(tdm_desc_grp.get(I0),
+    __builtin_amdgcn_tensor_load_to_lds(bit_cast<uint32x4_t>(tdm_desc_grp.get(I0)),
                                         tdm_desc_grp.get(I1),
                                         tdm_desc_grp.get(I2),
                                         tdm_desc_grp.get(I3),
@@ -3453,7 +3462,7 @@ amd_tdm_store(const TDMDescriptor<DataType, TensorRank, IsGatherMode>& descripto
     static constexpr auto I4 = number<4>{};
 
     auto tdm_desc_grp = descriptor.getResourceDescriptorGroup();
-    __builtin_amdgcn_tensor_store_from_lds(tdm_desc_grp.get(I0),
+    __builtin_amdgcn_tensor_store_from_lds(bit_cast<uint32x4_t>(tdm_desc_grp.get(I0)),
                                            tdm_desc_grp.get(I1),
                                            tdm_desc_grp.get(I2),
                                            tdm_desc_grp.get(I3),

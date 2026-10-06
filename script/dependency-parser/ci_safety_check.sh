@@ -64,11 +64,6 @@ BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|projects/composablekernel/script/dep
 BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|projects/composablekernel/script/cmake/"
 BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|projects/composablekernel/setup\.py|projects/composablekernel/pyproject\.toml)"
 
-if echo "$CHANGED_FILES" | grep -qE "${BUILD_INFRA_PATTERN}"; then
-    FORCE_FULL_BUILD=true
-    REASON="build system configuration changed"
-fi
-
 # 4. Force full build if dependency cache is older than 7 days
 CACHE_FILE="cmake_dependency_mapping.json"
 if [ -f "$CACHE_FILE" ]; then

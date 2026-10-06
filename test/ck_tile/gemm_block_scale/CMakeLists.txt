@@ -159,7 +159,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_bquant_splitk_prefill PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
-    # BQuant tests (with PreshuffleB) - split into 5 files
+    # BQuant tests (with PreshuffleB) - split into 6 files
     add_gtest_executable(test_tile_gemm_quant_bquant_preshuffle_decode_1d 
         test_gemm_quant_bquant_preshuffle_decode_1d.cpp
     )
@@ -184,6 +184,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_gemm_quant_bquant_preshuffle_prefill_2d.cpp
     )
     target_compile_options(test_tile_gemm_quant_bquant_preshuffle_prefill_2d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffle_large_tensor
+        test_gemm_quant_bquant_preshuffle_large_tensor.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffle_large_tensor PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
     # BQuant tests (with PreshuffleQuant) - split into 4 files
     add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_decode_1d 
@@ -253,6 +258,12 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_rowcol PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    # RowColQuant large-tensor tests (64-bit global load/store path).
+    add_gtest_executable(test_tile_gemm_quant_rowcol_large_tensor
+        test_gemm_quant_rowcol_large_tensor.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_rowcol_large_tensor PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     # TensorQuant tests
     add_gtest_executable(test_tile_gemm_quant_tensor 
         test_gemm_quant_tensor.cpp
@@ -300,6 +311,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_tile_gemm_quant_bquant_preshuffle_tiled_permute
         test_tile_gemm_quant_bquant_preshuffle_decode_2d
         test_tile_gemm_quant_bquant_preshuffle_prefill_2d
+        test_tile_gemm_quant_bquant_preshuffle_large_tensor
         # BQuant preshuffleQuant tests
         test_tile_gemm_quant_bquant_preshuffleQuant_decode_1d
         test_tile_gemm_quant_bquant_preshuffleQuant_prefill_1d
@@ -307,6 +319,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_tile_gemm_quant_bquant_preshuffleQuant_prefill_2d
         # Other quant tests
         test_tile_gemm_quant_rowcol
+        test_tile_gemm_quant_rowcol_large_tensor
         test_tile_gemm_quant_tensor
     )
 

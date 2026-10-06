@@ -104,10 +104,19 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
     static constexpr index_t NXdlPack       = 2;
     static constexpr index_t KXdlPack       = 2;
 
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+    // WMMA uses one row and four consecutive K scales per packed int32_t.
+    static constexpr index_t MXdlPackEff   = 1;
+    static constexpr index_t NXdlPackEff   = 1;
+    static constexpr index_t KXdlPackEff   = 4;
+    static constexpr index_t ScaleKPerWarp = 1;
+#else
     // Preshuffle only supports this case as checked by static asserts
-    static constexpr index_t MXdlPackEff = MXdlPack;
-    static constexpr index_t NXdlPackEff = NXdlPack;
-    static constexpr index_t KXdlPackEff = KXdlPack;
+    static constexpr index_t MXdlPackEff   = MXdlPack;
+    static constexpr index_t NXdlPackEff   = NXdlPack;
+    static constexpr index_t KXdlPackEff   = KXdlPack;
+    static constexpr index_t ScaleKPerWarp = WaveSize / WarpGemm::kM;
+#endif
 
     static constexpr index_t AK1 = 16 * APackedSize / sizeof(ADataType);
     static constexpr index_t BK1 = 16 * BPackedSize / sizeof(BDataType);
@@ -127,16 +136,23 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
 
     static constexpr index_t Bload_num_perK = NPerBlock * WarpGemm::kK / NWarp / BK1 / WaveSize;
     static constexpr index_t Bload_num      = Bload_num_perK * KIterPerWarp;
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+    static constexpr index_t ScaleBload_num = NIterPerWarp * KIterPerWarp;
+    static constexpr index_t ScaleAload_num = MIterPerWarp * KIterPerWarp;
+#else
     static constexpr index_t ScaleBload_num =
         NPerBlock * KPerBlock / NWarp / ScaleBlockSize / NXdlPack / KXdlPack / WaveSize;
     static constexpr index_t ScaleAload_num =
         MPerBlock * KPerBlock / MWarp / ScaleBlockSize / MXdlPack / KXdlPack / WaveSize;
 
+#endif
+
     static constexpr index_t HalfMIter        = (MIterPerWarp + 1) / 2;
     static constexpr index_t Bload_rep        = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
-    static constexpr index_t MPackIterPerWarp = MIterPerWarp / MXdlPack;
-    static constexpr index_t NPackIterPerWarp = NIterPerWarp / NXdlPack;
-    static constexpr index_t KPackIterPerWarp = KIterPerWarp / KXdlPack;
+    static constexpr index_t MPackIterPerWarp = MIterPerWarp / MXdlPackEff;
+    static constexpr index_t NPackIterPerWarp = NIterPerWarp / NXdlPackEff;
+    static constexpr index_t KPackIterPerWarp =
+        KPerBlock / (ScaleBlockSize * KXdlPackEff * ScaleKPerWarp);
 
     static constexpr index_t mfma_perM_perK = NIterPerWarp * mfma_per_wg;
     static constexpr index_t dswrite_mIter  = (DsWritePreIssue - 1) % MIterPerWarp;
@@ -174,8 +190,8 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                                        void* __restrict__ p_smem_ping,
                                        void* __restrict__ p_smem_pong) const
         {
-#ifndef __gfx950__
-            static_assert(false, "Only gfx950 is supported for MXFP4 Gemm pipeline now.");
+#if !defined(__gfx950__) && !defined(__gfx125__)
+            static_assert(false, "MX preshuffle requires gfx950 or gfx1250.");
 #endif
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
@@ -253,27 +269,37 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
 
             auto scale_a_dram_window = make_tile_window(
                 scale_a_window.get_bottom_tensor_view(),
-                make_tuple(number<MWarp * WarpGemm::kM>{}, number<WaveSize / WarpGemm::kM>{}),
+                make_tuple(number<MWarp * WarpGemm::kM>{}, number<ScaleKPerWarp>{}),
                 scale_a_window.get_window_origin(),
                 PipelinePolicy::template MakeMX_ScaleA_FlatDramTileDistribution<Problem>());
             const auto scale_a_dram_step_m =
                 amd_wave_read_first_lane(scale_a_dram_window.get_load_offset(
                     tuple<number<MWarp * WarpGemm::kM>, number<0>>{}));
-            const auto scale_a_dram_step_k =
-                amd_wave_read_first_lane(scale_a_dram_window.get_load_offset(
-                    tuple<number<0>, number<WaveSize / WarpGemm::kM>>{}));
+            const auto scale_a_dram_step_k = amd_wave_read_first_lane(
+                scale_a_dram_window.get_load_offset(tuple<number<0>, number<ScaleKPerWarp>>{}));
 
             auto scale_b_dram_window = make_tile_window(
                 scale_b_window.get_bottom_tensor_view(),
-                make_tuple(number<NWarp * WarpGemm::kN>{}, number<WaveSize / WarpGemm::kN>{}),
+                make_tuple(number<NWarp * WarpGemm::kN>{}, number<ScaleKPerWarp>{}),
                 scale_b_window.get_window_origin(),
                 PipelinePolicy::template MakeMX_ScaleB_DramTileDistribution<Problem>());
             const auto scale_b_dram_step_n =
                 amd_wave_read_first_lane(scale_b_dram_window.get_load_offset(
                     tuple<number<NWarp * WarpGemm::kN>, number<0>>{}));
-            const auto scale_b_dram_step_k =
-                amd_wave_read_first_lane(scale_b_dram_window.get_load_offset(
-                    tuple<number<0>, number<WaveSize / WarpGemm::kN>>{}));
+            const auto scale_b_dram_offsets = generate_tuple(
+                [&](auto inpack) {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+                    constexpr index_t n_tile =
+                        inpack / NXdlPack * NXdlPack * NWarp + inpack % NXdlPack;
+                    return scale_b_dram_window.get_load_offset(
+                        tuple<number<n_tile * WarpGemm::kN>, number<0>>{});
+#else
+                    return inpack * scale_b_dram_step_n;
+#endif
+                },
+                number<NPackIterPerWarp>{});
+            const auto scale_b_dram_step_k = amd_wave_read_first_lane(
+                scale_b_dram_window.get_load_offset(tuple<number<0>, number<ScaleKPerWarp>>{}));
 
             statically_indexed_array<
                 statically_indexed_array<decltype(load_tile(scale_a_dram_window)),
@@ -306,16 +332,16 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                         impack * scale_a_dram_step_m + ikpack * scale_a_dram_step_k);
                 });
             });
-            move_tile_window(scale_a_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
+            move_tile_window(scale_a_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPackEff)});
 
             static_for<0, NPackIterPerWarp, 1>{}([&](auto inpack) {
                 static_for<0, KPackIterPerWarp, 1>{}([&](auto ikpack) {
                     scale_b_tile_tensor_ping(inpack)(ikpack) = load_tile_with_offset(
                         scale_b_dram_window,
-                        inpack * scale_b_dram_step_n + ikpack * scale_b_dram_step_k);
+                        scale_b_dram_offsets(inpack) + ikpack * scale_b_dram_step_k);
                 });
             });
-            move_tile_window(scale_b_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
+            move_tile_window(scale_b_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPackEff)});
             __builtin_amdgcn_sched_barrier(0);
 
             if constexpr(HasHotLoop || TailNum == TailNumber::Even)
@@ -331,7 +357,11 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                 static_for<0, NIterPerWarp, 1>{}(
                     [&](auto nIter) { clear_tile(c_warp_tensors(mIter)(nIter)); });
             });
+#if defined(__gfx125__)
+            block_sync_lds_direct_load();
+#else
             s_waitcnt_barrier<Bload_num + ScaleAload_num + ScaleBload_num>();
+#endif
             block_gemm.LocalPrefetch(a_load_windows_ping);
             __builtin_amdgcn_sched_barrier(0);
 
@@ -360,7 +390,7 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                     static_for<0, NPackIterPerWarp, 1>{}([&](auto inpack) {
                         scale_b_tile_tensor_pong(inpack)(ikpack) = load_tile_with_offset(
                             scale_b_dram_window,
-                            inpack * scale_b_dram_step_n + ikpack * scale_b_dram_step_k);
+                            scale_b_dram_offsets(inpack) + ikpack * scale_b_dram_step_k);
                     });
                 });
 
@@ -369,14 +399,20 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                            scale_a_tile_tensor_ping,
                            scale_b_tile_tensor_ping,
                            a_warp_window_ping);
-                s_waitcnt<Bload_num + ScaleAload_num + ScaleBload_num>();
+                s_waitcnt<get_warp_size() == 32 ? 0
+                                                : Bload_num + ScaleAload_num + ScaleBload_num>();
+#if defined(__gfx125__)
+                block_sync_lds_direct_load();
+#endif
                 block_sync_lds();
 
                 Base::GlobalPrefetchAsync(
                     a_store_lds_window_ping, a_dram_window, a_dram_tile_window_step);
 
-                move_tile_window(scale_a_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
-                move_tile_window(scale_b_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
+                move_tile_window(scale_a_dram_window,
+                                 {0, KPerBlock / (ScaleBlockSize * KXdlPackEff)});
+                move_tile_window(scale_b_dram_window,
+                                 {0, KPerBlock / (ScaleBlockSize * KXdlPackEff)});
 
                 block_gemm.LocalPrefetch(a_load_windows_pong);
                 HotLoopScheduler();
@@ -404,7 +440,7 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                     static_for<0, NPackIterPerWarp, 1>{}([&](auto inpack) {
                         scale_b_tile_tensor_ping(inpack)(ikpack) = load_tile_with_offset(
                             scale_b_dram_window,
-                            inpack * scale_b_dram_step_n + ikpack * scale_b_dram_step_k);
+                            scale_b_dram_offsets(inpack) + ikpack * scale_b_dram_step_k);
                     });
                 });
 
@@ -413,13 +449,19 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                            scale_a_tile_tensor_pong,
                            scale_b_tile_tensor_pong,
                            a_warp_window_pong);
-                s_waitcnt<Bload_num + ScaleAload_num + ScaleBload_num>();
+                s_waitcnt<get_warp_size() == 32 ? 0
+                                                : Bload_num + ScaleAload_num + ScaleBload_num>();
+#if defined(__gfx125__)
+                block_sync_lds_direct_load();
+#endif
                 block_sync_lds();
 
                 Base::GlobalPrefetchAsync(
                     a_store_lds_window_pong, a_dram_window, a_dram_tile_window_step);
-                move_tile_window(scale_a_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
-                move_tile_window(scale_b_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
+                move_tile_window(scale_a_dram_window,
+                                 {0, KPerBlock / (ScaleBlockSize * KXdlPackEff)});
+                move_tile_window(scale_b_dram_window,
+                                 {0, KPerBlock / (ScaleBlockSize * KXdlPackEff)});
 
                 block_gemm.LocalPrefetch(a_load_windows_ping);
                 HotLoopScheduler();
@@ -455,7 +497,7 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                     static_for<0, KPackIterPerWarp, 1>{}([&](auto ikpack) {
                         scale_b_tile_tensor_pong(inpack)(ikpack) = load_tile_with_offset(
                             scale_b_dram_window,
-                            inpack * scale_b_dram_step_n + ikpack * scale_b_dram_step_k);
+                            scale_b_dram_offsets(inpack) + ikpack * scale_b_dram_step_k);
                     });
                 });
 
@@ -464,7 +506,11 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                            scale_a_tile_tensor_ping,
                            scale_b_tile_tensor_ping,
                            a_warp_window_ping);
-                s_waitcnt<Bload_num + ScaleAload_num + ScaleBload_num>();
+                s_waitcnt<get_warp_size() == 32 ? 0
+                                                : Bload_num + ScaleAload_num + ScaleBload_num>();
+#if defined(__gfx125__)
+                block_sync_lds_direct_load();
+#endif
                 block_sync_lds();
 
                 block_gemm.LocalPrefetch(a_load_windows_pong);

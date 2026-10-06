@@ -671,7 +671,7 @@ def main():
             trait_parts[6] == "True",  # persistent
         )
 
-        builder._generate_kernel_instance(tile_config, trait_combo)
+        builder._generate_kernel_instance(tile_config, trait_combo, validate=True)
     elif args.gen_all_individual:
         builder._generate_all_individual(args.num_workers)
     else:

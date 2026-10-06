@@ -267,7 +267,9 @@ template <index_t NDimSpatial,
           typename AComputeType                          = ADataType,
           typename BComputeType                          = AComputeType,
           index_t MaxTransposeTransferInScalarPerVector  = 1,
-          index_t MaxTransposeTransferOutScalarPerVector = 1>
+          index_t MaxTransposeTransferOutScalarPerVector = 1,
+          bool UseLdsTranspose                           = false,
+          bool TransposeC                                = false>
 struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
     : public DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                ALayout,    // output image
@@ -422,10 +424,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         }
     }
 
+    // static_assert(is_same<ALayout, BLayout>::value);
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
-        ALayout,
-        BLayout,
+        ck::tensor_layout::gemm::RowMajor, // ALayout
+        ck::tensor_layout::gemm::RowMajor, // BLayout
         DsLayout,
         ELayout,
         Tuple<ADataType>,
@@ -475,23 +479,27 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         false, // PermuteA
         false, // PermuteB
         false, // IsBPreShuffled
-        true>; // ForceThreadTileTransfer
+        true,  // ForceThreadTileTransfer
+        false, // IsFusedKernel
+        UseLdsTranspose,
+        TransposeC>;
 
-#define GridwiseGemmCTransposeTemplateParameters                                                   \
-    ALayout, BLayout, DsLayout, ELayout, Tuple<ADataType>, Tuple<BDataType>, AccDataType,          \
-        CShuffleDataType, DsDataType, EDataType, BElementwiseOp, AElementwiseOp, CDEElementwiseOp, \
-        GemmSpec, BlockSize, NPerBlock, MPerBlock, KPerBlock, BK1, AK1, NPerWmma, MPerWmma,        \
-        NRepeat, MRepeat, BBlockTransferThreadClusterLengths_BK0_N_BK1,                            \
-        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                     \
-        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                              \
-        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                              \
-        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder,     \
-        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                                  \
-        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,             \
-        ABlockLdsExtraM, CShuffleMRepeatPerShuffle, CShuffleNRepeatPerShuffle,                     \
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                     \
-        CShuffleBlockTransferScalarPerVector, BlkGemmPipeSched, BlkGemmPipelineVer, BComputeType,  \
-        AComputeType, false, false, false, true
+#define GridwiseGemmCTransposeTemplateParameters                                                  \
+    ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, DsLayout, ELayout,      \
+        Tuple<ADataType>, Tuple<BDataType>, AccDataType, CShuffleDataType, DsDataType, EDataType, \
+        BElementwiseOp, AElementwiseOp, CDEElementwiseOp, GemmSpec, BlockSize, NPerBlock,         \
+        MPerBlock, KPerBlock, BK1, AK1, NPerWmma, MPerWmma, NRepeat, MRepeat,                     \
+        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder,    \
+        BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim,                                 \
+        BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false,            \
+        BBlockLdsExtraN, ABlockTransferThreadClusterLengths_AK0_M_AK1,                            \
+        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                    \
+        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                             \
+        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM, CShuffleMRepeatPerShuffle,  \
+        CShuffleNRepeatPerShuffle,                                                                \
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                    \
+        CShuffleBlockTransferScalarPerVector, BlkGemmPipeSched, BlkGemmPipelineVer, BComputeType, \
+        AComputeType, false, false, false, true, false, UseLdsTranspose, TransposeC
 
     using GridwiseGemmCTranspose =
         std::conditional_t<CTranspose,
@@ -1465,7 +1473,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(arg.stride_overflow)
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Stride overflow!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
             return false;
+        }
 
         if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
@@ -1819,6 +1834,30 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             }
         }
 
+        // check descriptors sizes
+        bool is_size_valid = true;
+        for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); i++)
+        {
+            static_for<0, NumDTensor, 1>{}([&](auto j) {
+                using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
+                is_size_valid &=
+                    !descriptor_exceeds_2gb<DDataType>(arg.ds_grid_desc_m_n_container_[i][j]);
+            });
+
+            is_size_valid &= !descriptor_exceeds_2gb<ADataType>(arg.a_grid_desc_m_k_container_[i]);
+            is_size_valid &= !descriptor_exceeds_2gb<BDataType>(arg.b_grid_desc_n_k_container_[i]);
+            is_size_valid &= !descriptor_exceeds_2gb<EDataType>(arg.e_grid_desc_m_n_container_[i]);
+        }
+        if(!is_size_valid)
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Large tensor case!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
+            return false;
+        }
+
         // Check gridwise gemm validity
         // Create dummy values for Ds pointers and strides
         std::array<const void*, NumDTensor> p_ds_grid_dummy;
@@ -1827,7 +1866,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             p_ds_grid_dummy[i] = nullptr;
             StrideDs_dummy[i]  = I0;
         });
-        for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); i++)
+        for(std::size_t i = 0; i < arg.a_grid_desc_m_k_container_.size(); i++)
         {
             const index_t GemmM = arg.a_grid_desc_m_k_container_[i].GetLength(I0);
             const index_t GemmN = arg.b_grid_desc_n_k_container_[i].GetLength(I0);

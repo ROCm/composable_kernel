@@ -104,6 +104,25 @@ struct numeric_traits<float>
     using bitwise_type                  = uint32_t;
 };
 
+template <>
+struct numeric_traits<double>
+{
+    // IEEE 754
+    static constexpr int exp            = 11;
+    static constexpr int mant           = 52;
+    static constexpr int bias           = 1023;
+    static constexpr uint64_t nan_mask  = 0x7FF0000000000000;
+    static constexpr uint64_t head_mask = 0xFFF0000000000000;
+    static constexpr uint64_t mant_mask = 0xFFFFFFFFFFFFF;
+    static constexpr uint64_t exp_mask  = 0x7FF;
+    static constexpr uint64_t abs_mask  = 0x7FFFFFFFFFFFFFFF;
+    static constexpr uint64_t Inf       = 0x7FF0000000000000;
+    static constexpr uint64_t NegInf    = 0xFFF0000000000000;
+    static constexpr uint64_t NaN       = 0x7FF0000000000001;
+    static constexpr uint64_t Neg0      = 0x8000000000000000;
+    static constexpr int PackedSize     = 1;
+    using bitwise_type                  = uint64_t;
+};
 /**
  * @brief Number of elements of T that fit in one 128-bit (16-byte) access.
  *

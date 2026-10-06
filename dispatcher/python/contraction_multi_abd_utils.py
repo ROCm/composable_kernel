@@ -26,6 +26,7 @@ Usage (end-to-end):
   result = runner.run(As, Bs, Ds, problem)
 """
 
+from dispatcher_common import unified_framework_flags
 import ctypes
 import json
 import logging
@@ -55,19 +56,33 @@ _CTYPES_LIB_SRC = (
 
 # Import the shared name-construction helper from codegen so both sides
 # produce byte-exact names without duplicating the logic.
+#
+# The arch policy comes from the same place, for the same reason: which warp
+# tile an arch defaults to, which tiles it can execute for a given dtype, and
+# how a feature-suffixed target name normalizes are decisions the generator
+# already makes. A second copy here would be free to disagree with the kernels
+# actually emitted.
 _codegen_dir = str(Path(__file__).parent.parent / "codegen")
 if _codegen_dir not in sys.path:
     sys.path.insert(0, _codegen_dir)
 from unified_contraction_multi_abd_codegen import (  # noqa: E402
     make_contraction_multi_abd_kernel_name,
     validate_contraction_multi_abd_params,
+    normalize_gfx_arch,
+    default_warp_tile_for_arch,
+    valid_warp_tiles_for_arch,
+    validate_dtype_for_arch,
+    validate_layout,
 )
 
 _DEFAULT_HIPCC = "hipcc"
 
 # Archs this bridge is known to build for. Mirrors batched_contraction_utils;
 # there is deliberately no default -- see _detect_gpu_arch().
-_SUPPORTED_ARCHS = ("gfx90a", "gfx942", "gfx950")
+#
+# Distinct from the codegen's warp-tile tables: this answers "has this bridge
+# been built for that target", not "which tile is legal there".
+_SUPPORTED_ARCHS = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 
 _HIPCC_BASE_FLAGS = [
     "-std=c++17",
@@ -135,11 +150,13 @@ class ContractionMultiABDKernelConfig:
         # much later as codegen subprocess stderr, by which point the caller has
         # lost the connection to the field that was wrong.
         validate_contraction_multi_abd_params(
+            layout=self.layout,
             epilogue=self.epilogue,
             persistent=self.persistent,
             num_a_tensor=self.num_a_tensor,
             num_b_tensor=self.num_b_tensor,
         )
+        validate_dtype_for_arch(self.dtype, self.gfx_arch)
 
     @property
     def name(self) -> str:
@@ -630,12 +647,85 @@ class ContractionMultiABDRunner:
 
 
 def _validate_arch(arch: str) -> str:
-    """Validate an explicitly supplied arch against the supported set."""
-    if arch not in _SUPPORTED_ARCHS:
+    """Validate a supplied arch against the supported set, tolerating suffixes.
+
+    Returns the bare name. rocm_agent_enumerator and CMake both hand back forms
+    like 'gfx942:sramecc+:xnack-', and every consumer downstream of here -- the
+    codegen tables, the .so filename, --offload-arch -- wants the bare target.
+    """
+    bare = normalize_gfx_arch(arch)
+    if bare not in _SUPPORTED_ARCHS:
         raise ValueError(
             f"Unsupported GPU architecture {arch!r}; supported: {list(_SUPPORTED_ARCHS)}"
         )
-    return arch
+    return bare
+
+
+def warp_tile_supported_on_arch(
+    warp_tile: Tuple[int, int, int], arch: str, dtype: str
+) -> bool:
+    """Whether `arch` can execute this warp tile for `dtype`.
+
+    Defers to the codegen table so this bridge accepts exactly what the
+    generator emits. An arch absent from that table is unconstrained (the gfx9
+    path); an arch present but with no tile for the dtype's width is a refusal,
+    not an omission.
+    """
+    allowed = valid_warp_tiles_for_arch(_validate_arch(arch), dtype)
+    return allowed is None or tuple(warp_tile) in allowed
+
+
+def _validate_warp_tiles_for_arch(
+    configs: List["ContractionMultiABDKernelConfig"], arch: str
+) -> None:
+    """Reject configs carrying a warp tile the target arch cannot execute.
+
+    Rejecting rather than silently substituting the arch default: the caller
+    asked for a specific tile, and quietly building a different kernel than the
+    one requested is its own bug. On gfx1250 the failure this guards against is
+    an all-zero result, which no downstream check would catch.
+    """
+    for cfg in configs:
+        validate_layout(cfg.layout)
+        validate_dtype_for_arch(cfg.dtype, arch)
+
+    bad = [
+        cfg for cfg in configs
+        if not warp_tile_supported_on_arch(
+            (cfg.warp_tile_m, cfg.warp_tile_n, cfg.warp_tile_k), arch, cfg.dtype
+        )
+    ]
+    if not bad:
+        return
+
+    sample = ", ".join(
+        f"{cfg.name} ({cfg.dtype} {cfg.warp_tile_m}x{cfg.warp_tile_n}x{cfg.warp_tile_k})"
+        for cfg in bad[:3]
+    )
+
+    # A dtype the arch has no validated tile for at all reads differently from a
+    # tile that is merely the wrong shape: listing "supported tiles: []" for the
+    # former looks like a table bug rather than a deliberate refusal.
+    refused = sorted({
+        cfg.dtype for cfg in bad if not valid_warp_tiles_for_arch(arch, cfg.dtype)
+    })
+    if refused:
+        detail = (
+            f"{arch} has no validated warp tile for dtype(s) {refused} in this "
+            f"operator, so they are refused rather than emitted untested."
+        )
+    else:
+        allowed = sorted(valid_warp_tiles_for_arch(arch, bad[0].dtype))
+        detail = (
+            f"Supported on {arch} for {bad[0].dtype}: "
+            f"{[f'{m}x{n}x{k}' for m, n, k in allowed]}. "
+            f"Use default_warp_tile_for_arch({arch!r}) to pick the right tile."
+        )
+
+    raise ValueError(
+        f"{len(bad)} of {len(configs)} config(s) rejected for {arch}: "
+        f"{sample}{' ...' if len(bad) > 3 else ''}. {detail}"
+    )
 
 
 def _detect_gpu_arch() -> str:
@@ -679,8 +769,14 @@ def _get_ck_include_dir() -> Optional[Path]:
 def _generate_kernel_header(
     config: ContractionMultiABDKernelConfig,
     output_dir: Path,
+    gfx_arch: str = "",
 ) -> Optional[Path]:
-    """Run unified_contraction_multi_abd_codegen.py for one config; return .hpp path or None."""
+    """Run unified_contraction_multi_abd_codegen.py for one config; return .hpp path or None.
+
+    `gfx_arch` is forwarded so the generator applies its own arch filter here as
+    it already does for the CMake build. Without it this path emits a header the
+    target cannot execute and the mistake only surfaces at hipcc time.
+    """
     config_dict = config.to_codegen_config()
     config_json = json.dumps(config_dict)
 
@@ -695,6 +791,8 @@ def _generate_kernel_header(
             "--output-dir", str(output_dir),
             "--config", cfg_file,
         ]
+        if gfx_arch:
+            cmd += ["--gfx-arch", gfx_arch]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if result.returncode != 0:
             log.error("Codegen failed for %s:\n%s", config.name, result.stderr)
@@ -734,6 +832,7 @@ def _compile_kernel(
         "-DCK_TILE_SINGLE_KERNEL_INCLUDE", "-w",
         f"--offload-arch={gfx_arch}",
         f"-DGFX_ARCH=\"{gfx_arch}\"",
+        *unified_framework_flags(gfx_arch),
         *arch_defines,
         "-include", str(hpp_path),
         str(_CTYPES_LIB_SRC),
@@ -805,6 +904,7 @@ def setup_multiple_contraction_multi_abd_dispatchers(
         return []
 
     arch     = _validate_arch(gfx_arch) if gfx_arch else _detect_gpu_arch()
+    _validate_warp_tiles_for_arch(configs, arch)
     base_dir = output_dir or Path(tempfile.mkdtemp(prefix="contraction_multi_abd_"))
     base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -829,7 +929,7 @@ def setup_multiple_contraction_multi_abd_dispatchers(
     results: List[Optional[Path]] = [None] * len(configs)
 
     def _build_one(idx: int, cfg: ContractionMultiABDKernelConfig) -> Tuple[int, Optional[Path]]:
-        hpp = _generate_kernel_header(cfg, headers_dir)
+        hpp = _generate_kernel_header(cfg, headers_dir, arch)
         if hpp is None:
             return idx, None
 

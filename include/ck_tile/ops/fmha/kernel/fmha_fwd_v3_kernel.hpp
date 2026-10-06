@@ -364,6 +364,9 @@ struct FmhaFwdV3Kernel
         return kargs;
     }
 
+    // The generated launcher calls this for every kernel type; this one rejects nothing.
+    CK_TILE_HOST static bool IsSupportedArgument(const Kargs&) { return true; }
+
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size,
                                                 ck_tile::index_t nhead,
                                                 ck_tile::index_t max_seqlen_q,

@@ -228,7 +228,7 @@ int dispatcher_run_grouped_gemm(int group_count,
             {
                 *time_ms = -1.0f;
             }
-            return -2; // Arguments not supported by this kernel
+            return -3; // Arguments not supported by this kernel
         }
         return -1;
     }

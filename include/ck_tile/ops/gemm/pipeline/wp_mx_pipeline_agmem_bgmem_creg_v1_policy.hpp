@@ -116,6 +116,27 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
         auto&& tensor_view_tmp  = window_tmp.get_bottom_tensor_view();
         const auto [rows, cols] = tensor_view_tmp.get_tensor_descriptor().get_lengths();
 
+#if defined(__gfx125__)
+        // The explicit per-lane LDS address already applies the destination
+        // swizzle. Keep the source in its original row-major byte order.
+        const auto cols_bytes = cols / APackedSize * sizeof(ADataType);
+        const auto d0         = make_naive_tensor_descriptor(make_tuple(rows, cols_bytes),
+                                                     make_tuple(cols_bytes, number<1>{}),
+                                                     number<DWORDx4>{},
+                                                     number<1>{});
+        const auto desc =
+            decltype(d0)(d0.get_transforms(),
+                         tensor_view_tmp.get_tensor_descriptor().get_element_space_size() /
+                             APackedSize * sizeof(ADataType));
+        const auto* byte_ptr =
+            reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
+        const auto origin = window_tmp.get_window_origin();
+        return make_tile_window(
+            make_tensor_view<address_space_enum::global>(byte_ptr, desc),
+            make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize * sizeof(ADataType)>{}),
+            {origin[0], origin[1] / APackedSize * static_cast<index_t>(sizeof(ADataType))},
+            MakeMX_ABytesDramTileDistribution());
+#else
         constexpr index_t K2 = DWORDx4;
         constexpr index_t K1 = kDramLoadPackBytes / DWORDx4;
         const index_t K0     = cols / (K1 * K2 / sizeof(ADataType) * APackedSize);
@@ -152,6 +173,7 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
             make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize * sizeof(ADataType)>{}),
             {origin_tmp[0], origin_tmp[1] / APackedSize * static_cast<index_t>(sizeof(ADataType))},
             MakeMX_ABytesDramTileDistribution());
+#endif
     }
 
     CK_TILE_DEVICE static constexpr auto MakeMX_ALdsBytesBlockDescriptor()
@@ -225,12 +247,21 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BFlatBytesDramTileDistribution()
     {
-        constexpr index_t K1          = WaveSize;
-        constexpr index_t KWavePerBlk = 1;
-        constexpr index_t K0          = KWavePerBlk;
-
+        constexpr index_t K1         = WaveSize;
         constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
 
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<WaveRepeat>,
+                tuple<sequence<NWarps, NXdlPack>,
+                      sequence<K1, K_Thread / (BPackedSize * DWORDx4), DWORDx4>>,
+                tuple<sequence<0, 1>, sequence<2>>,
+                tuple<sequence<0, 0>, sequence<0>>,
+                sequence<2, 2>,
+                sequence<1, 2>>{});
+#else
+        constexpr index_t K0 = 1;
         if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
             return make_static_tile_distribution(
                 tile_distribution_encoding<
@@ -252,6 +283,7 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
                     sequence<0, 3>>{});
         else
             static_assert(false, "unsupported datatype");
+#endif
     }
 
     template <typename WindowTmp>
@@ -320,6 +352,9 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_DramTileDistribution()
     {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        return MakeMX_ScaleB_FlatDramTileDistribution();
+#else
         constexpr index_t NRepeat = NPerBlock / (NWarps * NPerXdl);
         static_assert(NRepeat % NXdlPack == 0,
                       "ScaleB distribution requires NRepeat to be divisible by NXdlPack.");
@@ -341,12 +376,22 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
                                        tuple<sequence<0, 1>, sequence<0, 2>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
+#endif
     }
 
     // Scale A follows the preshuffled-B path rather than the standard packed MX GEMM scale
     // path, so it uses the flat K view that matches the B-flat iteration order.
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleA_FlatDramTileDistribution()
     {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<NWarps, K_Lane>,
+                                       tuple<sequence<MWarps, MPerXdl>, sequence<1>>,
+                                       tuple<sequence<1, 0>, sequence<0, 1>>,
+                                       tuple<sequence<0, 0>, sequence<1, 1>>,
+                                       sequence<2>,
+                                       sequence<0>>{});
+#else
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarps>,
                                        tuple<sequence<MWarps, MPerXdl>, sequence<K_Lane, 1>>,
@@ -354,10 +399,20 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
                                        tuple<sequence<0, 0>, sequence<0, 1>>,
                                        sequence<2>,
                                        sequence<1>>{});
+#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ScaleB_FlatDramTileDistribution()
     {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<MWarps, K_Lane>,
+                                       tuple<sequence<NWarps, NXdlPack, NPerXdl>, sequence<1>>,
+                                       tuple<sequence<0, 1>, sequence<0, 1>>,
+                                       tuple<sequence<0, 0>, sequence<1, 2>>,
+                                       sequence<2>,
+                                       sequence<0>>{});
+#else
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<MWarps>,
                                        tuple<sequence<NWarps, NPerXdl>, sequence<K_Lane, 1>>,
@@ -365,6 +420,7 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
                                        tuple<sequence<0, 0>, sequence<0, 1>>,
                                        sequence<2>,
                                        sequence<1>>{});
+#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()

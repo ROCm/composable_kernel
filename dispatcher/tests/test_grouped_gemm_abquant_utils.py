@@ -361,3 +361,55 @@ class TestEdgeCases:
         without_tc = default_fp8_compv3_config()
         assert "transposec" in with_tc.name
         assert "transposec" not in without_tc.name
+
+
+# =============================================================================
+# gfx1250 (MI400 / WMMA) default configs
+# =============================================================================
+
+
+from grouped_gemm_abquant_utils import (  # noqa: E402
+    default_fp8_compv3_config_gfx1250,
+    default_bf8_compv3_config_gfx1250,
+)
+
+
+class TestGfx1250Configs:
+    # gfx1250 correct config was determined empirically on MI400/gfx1250:
+    # ABQuant CompV3 fp8/bf8 verify only with warp_tile_k=128 (FlatMM tile);
+    # warp_tile_k=32 (gfx9 MFMA) and warp_tile_k=16 (WMMA) both produce all-zeros
+    # on gfx12. Still uses the standard CompV3 pipeline with transpose_c=False
+    # (NOT the gfx950-native eightwaves/preshuffleb path).
+
+    def _all(self):
+        return [
+            default_fp8_compv3_config_gfx1250(),
+            default_bf8_compv3_config_gfx1250(),
+        ]
+
+    def test_gfx1250_uses_flatmm_warp_tile_k_128(self):
+        # GPU-verified: CompV3 fp8/bf8 are correct on gfx1250 only with
+        # warp_tile_k=128; warp_tile_k=32 and warp_tile_k=16 both zero out.
+        for cfg in self._all():
+            assert cfg.warp_tile_m == 16
+            assert cfg.warp_tile_n == 16
+            assert cfg.warp_tile_k == 128, f"{cfg.name} must use FlatMM warp_tile_k=128"
+
+    def test_gfx1250_uses_compv3_not_eightwaves(self):
+        # eightwaves / preshuffleb are gfx950-only; gfx1250 uses standard compv3.
+        for cfg in self._all():
+            assert cfg.pipeline == "compv3"
+            assert cfg.transpose_c is False
+            assert cfg.preshuffle_b is False
+
+    def test_gfx1250_arch_propagated(self):
+        for cfg in self._all():
+            assert cfg.gfx_arch == "gfx1250"
+
+    def test_gfx1250_names_16x16x128(self):
+        for cfg in self._all():
+            assert "16x16x128" in cfg.name
+
+    def test_gfx1250_unique_names(self):
+        names = [cfg.name for cfg in self._all()]
+        assert len(names) == len(set(names))

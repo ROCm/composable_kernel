@@ -27,6 +27,32 @@ TYPED_TEST(TestCkTileGemmRowColQuant, RowColQuantTest)
     this->run_test_with_validation(1024, 1024, 1024);
 }
 
+#ifdef CK_GFX950_SUPPORT
+using RowColQuantPreshuffleTypes = ::testing::Types<std::tuple<RowMajor,
+                                                               ColumnMajor,
+                                                               RowMajor,
+                                                               RowMajor,
+                                                               FP8,
+                                                               FP8,
+                                                               float,
+                                                               Half,
+                                                               RowColQuant,
+                                                               GemmConfigPreshuffleBPrefill,
+                                                               GroupSize1D_128>>;
+
+template <typename Tuple>
+class TestCkTileGemmRowColQuantPreshuffle : public TestCkTileGemmRowColQuant<Tuple>
+{
+};
+
+TYPED_TEST_SUITE(TestCkTileGemmRowColQuantPreshuffle, RowColQuantPreshuffleTypes);
+
+TYPED_TEST(TestCkTileGemmRowColQuantPreshuffle, PreshuffledBTest)
+{
+    this->run_test_with_validation(1024, 1024, 1024);
+}
+#endif
+
 template <typename Tuple>
 class TestCkTileGemmRowColQuantMultiD : public TestCkTileGemmRowColQuant<Tuple>
 {

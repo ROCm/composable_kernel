@@ -140,7 +140,38 @@ def main():
 
     # Export JSON if requested
     if args.json:
-        benchmark_utils.export_json(benchmark.results, args.json, best_kernels)
+        benchmark_utils.export_json(
+            benchmark.results,
+            args.json,
+            best_kernels,
+            launch_counts={
+                "attempted": benchmark.launch_attempted,
+                "failed": benchmark.launch_failed,
+            },
+        )
+
+    # Exiting 0 after every launch failed would leave the CI lane green with no signal
+    attempted = benchmark.launch_attempted
+    failed = benchmark.launch_failed
+    succeeded = attempted - failed
+    print(f"Launches: {attempted} attempted, {succeeded} succeeded, {failed} failed")
+
+    if attempted == 0:
+        print("No kernel launches were attempted - no kernels discovered")
+        return 1
+    if not benchmark.results:
+        print("No benchmark results were collected")
+        return 1
+    if failed > 0:
+        # A warning, not a failure: this sweep runs every generated config, and
+        # individual configs legitimately fail to launch (unsupported tile shape
+        # for the arch, workspace too large for the problem size). Making any
+        # single failure red would trade a permanently-green lane for a
+        # permanently-red one, which is no more informative. Total failure is
+        # already caught by the empty-result check above, and the per-run counts
+        # are in the JSON (launches_attempted/succeeded/failed) for anyone
+        # tracking the trend.
+        print(f"WARNING: {failed} of {attempted} kernel launch(es) failed")
 
     return 0
 

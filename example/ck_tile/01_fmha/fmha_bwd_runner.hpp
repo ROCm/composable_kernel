@@ -8,8 +8,6 @@
 #include "utils.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
-#include "ck_tile/host/pinned_host_releaser.hpp"
-
 #include <array>
 #include <chrono>
 #include <cstring>
@@ -427,21 +425,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
     const size_t ws_size = launcher.workspace_size;
     ck_tile::DeviceMem ws_buf(ws_size);
 
-    // Stage seqstart to device before prepare_workspace_async (which D2Hs it back).
+    // Stage seqstart to device before prepare_workspace_async (read on-device in group mode).
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
-
-    // Pinned host allocator for the launcher's async prepare pipeline. The
-    // shared_ptr deleter MUST NOT call any HIP API: it runs from the launcher's
-    // tail hipLaunchHostFunc on the driver helper thread, which holds HIP
-    // runtime locks. Deleter enqueues to a worker thread that hipHostFrees off
-    // the callback path.
-    auto pinned_host_alloc = [](size_t bytes) -> std::shared_ptr<void> {
-        void* p = nullptr;
-        HIP_CHECK_ERROR(hipHostMalloc(&p, bytes, hipHostMallocDefault));
-        return std::shared_ptr<void>(
-            p, [](void* q) { ck_tile::pinned_host_releaser::instance().enqueue(q); });
-    };
 
     ck_tile::gpu_timer prepare_ws_timer;
     prepare_ws_timer.start(stream_config.stream_id_);
@@ -451,8 +437,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                                    : nullptr,
         (mode == mode_enum::group) ? static_cast<const int*>(seqstart_k.GetDeviceBuffer())
                                    : nullptr,
-        stream_config,
-        pinned_host_alloc);
+        stream_config);
     prepare_ws_timer.stop(stream_config.stream_id_);
 
     q_buf.ToDevice(q_host.data());
@@ -878,14 +863,25 @@ bwd_result fmha_bwd_run(mode_enum mode,
                             (std::isinf(hi) && hi < AccDataType(0))
                                 ? hi
                                 : hi + ck_tile::log(AccDataType(1) + ck_tile::exp(lo - hi));
-                        AccDataType p_scale = ck_tile::exp(lse_old - lse_new);
+
+                        // lse_new == -inf: every key masked AND the sink disabled. Both
+                        // scalings below would be exp(-inf - -inf) = NaN, which reaches the
+                        // GPU through o_host_ref = P*V, an input to the backward call.
+                        const bool row_is_empty = std::isinf(lse_new) && lse_new < AccDataType(0);
+
+                        // P is already exactly 0 on such a row, so only finiteness matters; 1
+                        // means "denominator unchanged" and does not hide a non-zero P.
+                        AccDataType p_scale =
+                            row_is_empty ? AccDataType(1) : ck_tile::exp(lse_old - lse_new);
 
                         lse_host_ref(i_h, i_q) = lse_new;
 
                         for(int i_k = 0; i_k < real_seqlen_k; ++i_k)
                             p_hp_host_ref(i_h, i_q, i_k) *= p_scale;
 
-                        p_sink_host_ref(i_h, i_q) = ck_tile::exp(sink_val - lse_new);
+                        // Forced, unlike p_scale: a -inf sink must contribute exactly 0.
+                        p_sink_host_ref(i_h, i_q) =
+                            row_is_empty ? AccDataType(0) : ck_tile::exp(sink_val - lse_new);
                     }
                 }
             }
@@ -977,8 +973,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                                        : nullptr,
             (mode == mode_enum::group) ? static_cast<const int*>(seqstart_k.GetDeviceBuffer())
                                        : nullptr,
-            stream_config_v,
-            pinned_host_alloc);
+            stream_config_v);
         launcher(fmha_args, stream_config_v);
 
         dq_buf.FromDevice(dq_host.data());
@@ -1233,13 +1228,22 @@ bwd_result fmha_bwd_run(mode_enum mode,
                 const bool neutral = (h % 2 == 0);
                 const double gpu   = ck_tile::type_convert<double>(d_sink_host(h));
 
-                if(neutral && std::abs(gpu) > 0)
+                // Tested first: every comparison below is false for a NaN, so a NaN on an even
+                // head would read as "exactly 0" and pass. That is the shape a -inf sink meeting
+                // a fully masked row produces, so without this the check is blind to it.
+                if(!std::isfinite(gpu))
+                {
+                    identity_pass = false;
+                    std::cerr << "Error: head " << h << " has a non-finite d_sink (" << gpu
+                              << "). exp(sink - lse) went indeterminate\n";
+                }
+                else if(neutral && std::abs(gpu) > 0)
                 {
                     identity_pass = false;
                     std::cerr << "Error: head " << h << " has sink -inf so d_sink must be exactly "
                               << "0, got " << gpu << ". The kernel read some other sink element\n";
                 }
-                if(!neutral && !(std::abs(gpu) > 0))
+                else if(!neutral && !(std::abs(gpu) > 0))
                 {
                     identity_pass = false;
                     std::cerr << "Error: head " << h << " has a finite sink so d_sink must be "

@@ -9,7 +9,7 @@ GPU correctness test for the preshuffle GEMM dispatcher bridge.
 Builds the preshuffle GEMM dispatcher .so (fp16 / rcr — the bridge's supported
 signature; permute_n is pinned False by BRIDGE_PERMUTE_N), runs a small GEMM
 on-device via GpuGemmRunner, and compares the GPU output to an fp32 numpy
-reference within an fp16-appropriate tolerance. Skips cleanly (exit 0) when no
+reference within an fp16-appropriate tolerance. Skips cleanly (exit 77) when no
 GPU / hipcc is available.
 
 The preshuffle kernel pre-permutes the B (weight) operand into a packed layout
@@ -54,6 +54,17 @@ TOLERANCE = 1e-2
 
 PASS = "PASS"
 FAIL = "FAIL"
+
+# ctest SKIP_RETURN_CODE: main() returns this when the box cannot run the test
+# at all, so the lane reports Skipped rather than a vacuous Passed or a Failed.
+SKIP_EXIT = 77
+
+# Mirrors gemm_utils._SUPPORTED_ARCHES, which is what actually builds the
+# kernel. Spelled out here because --gfx bypasses autodetection: without this
+# check a typo'd or unsupported arch is passed straight through to
+# --offload-arch, and the test reports a build FAIL instead of a clean skip.
+# Keep in sync with gemm_utils; the two must not drift.
+_SUPPORTED_ARCHS = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 
 
 def _has_gpu() -> bool:
@@ -151,24 +162,9 @@ def _run_preshuffle_fp16(gfx_arch: str) -> tuple[str, str]:
                   f"kernel={runner.kernel_name}")
 
 
-def test_preshuffle_fp16_gpu() -> None:
-    """pytest entry point.
-
-    Named without a bare ``gfx_arch`` parameter so pytest does not try to
-    resolve a nonexistent fixture; skips cleanly when no supported GPU/hipcc
-    is present, otherwise asserts the on-device result matches the reference.
-    """
-    import pytest
-
-    if not _has_gpu():
-        pytest.skip("no supported GPU detected (rocminfo); preshuffle GPU test skipped")
-    try:
-        status, detail = _run_preshuffle_fp16(_resolve_arch(None))
-    except FileNotFoundError as exc:
-        # Broad pytest runs may execute without a compiled dispatcher (unit-only
-        # stage). The on-device check needs the built .so, so skip cleanly rather
-        # than fail collection when the build artifacts are absent.
-        pytest.skip(f"dispatcher not built; preshuffle GPU test skipped ({exc})")
+def test_preshuffle_fp16_gpu(gpu_arch, dispatcher_static_lib) -> None:
+    """Build the prerequisite and verify the result whenever a GPU is available."""
+    status, detail = _run_preshuffle_fp16(gpu_arch)
     assert status == PASS, detail
 
 
@@ -185,13 +181,33 @@ def main() -> int:
 
     if not _has_gpu():
         print("SKIP: no supported GPU detected (rocminfo); preshuffle GPU test skipped")
-        return 0
+        return SKIP_EXIT
 
     gfx = args.gfx or _resolve_arch(None)
+    if gfx not in _SUPPORTED_ARCHS:
+        print(f"SKIP: preshuffle GEMM needs one of "
+              f"{'/'.join(_SUPPORTED_ARCHS)}; got {gfx}")
+        return SKIP_EXIT
     log.info("Running preshuffle GEMM GPU correctness on %s", gfx)
+
+    # Build the prerequisite the pytest entry point gets from the
+    # dispatcher_static_lib fixture; ctest runs this script directly.
+    from dispatcher_build import ensure_dispatcher_static_lib
+
+    try:
+        ensure_dispatcher_static_lib()
+    except RuntimeError as exc:
+        print(f"FAIL: could not build the dispatcher static lib: {exc}")
+        return 1
 
     try:
         status, detail = _run_preshuffle_fp16(gfx)
+    except FileNotFoundError as exc:
+        # Same gate the pytest entry point applies: the on-device check needs the
+        # compiled dispatcher artifacts, and a unit-only stage runs without them.
+        # Absent artifacts is "cannot run here", not "the bridge is wrong".
+        print(f"SKIP: dispatcher not built; preshuffle GPU test skipped ({exc})")
+        return SKIP_EXIT
     except Exception as exc:  # noqa: BLE001
         status, detail = FAIL, f"preshuffle/fp16: exception: {exc}"
 

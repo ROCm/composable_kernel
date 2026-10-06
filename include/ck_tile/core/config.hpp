@@ -12,12 +12,11 @@
 #include <cstdint>
 #include <type_traits>
 
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
-    defined(__gfx9_4_generic__)
-#define __gfx9__
-#endif
 #if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
+#endif
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__)
+#define __gfx9__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__) || \
     defined(__gfx1013__) || defined(__gfx10_1_generic__)
@@ -28,22 +27,17 @@
     defined(__gfx1036__) || defined(__gfx10_3_generic__)
 #define __gfx103__
 #endif
-#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
-    defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
-    defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
-#define __gfx11__
-#endif
 #if defined(__gfx1150__) || defined(__gfx1151__) || defined(__gfx1152__) || defined(__gfx1153__)
 #define __gfx115__
 #endif
-#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__) || \
-    defined(__gfx1250__)
-#define __gfx12__
+#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
+    defined(__gfx1103__) || defined(__gfx115__) || defined(__gfx11_generic__)
+#define __gfx11__
 #endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
 #define __gfx120__
 #endif
-#if defined(__gfx1250__)
+#if defined(__gfx1250__) || defined(__gfx1250_strict__)
 #define __gfx125__
 #endif
 #if defined(__gfx120__) || defined(__gfx125__)
@@ -261,6 +255,12 @@
 #endif
 #endif
 
+// LLVM is switching the AMDGPU f16 builtin signatures from __fp16 to _Float16.
+// Temporarily hardcode this macro to 0 until a reliable compiler signature is available.
+#ifndef CK_TILE_USE_LLVM_BUILTIN_FLOAT16
+#define CK_TILE_USE_LLVM_BUILTIN_FLOAT16 0
+#endif
+
 // SPIR-V constexpr handling: variables that depend on compile-time architecture
 // detection cannot be constexpr under SPIR-V since the target is resolved at runtime.
 // Following rocPRIM's ROCPRIM_AMDGCN_CONSTEXPR pattern.
@@ -298,19 +298,26 @@
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x0
 #elif defined(__SPIRV__) // SPIR-V: dynamically select via ZCFS at runtime
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD                                                          \
-    ((__builtin_amdgcn_processor_is("gfx1100") || __builtin_amdgcn_processor_is("gfx1101") ||      \
-      __builtin_amdgcn_processor_is("gfx1102") || __builtin_amdgcn_processor_is("gfx1103") ||      \
-      __builtin_amdgcn_processor_is("gfx1150") || __builtin_amdgcn_processor_is("gfx1151") ||      \
-      __builtin_amdgcn_processor_is("gfx1152") || __builtin_amdgcn_processor_is("gfx1153") ||      \
-      __builtin_amdgcn_processor_is("gfx1200") || __builtin_amdgcn_processor_is("gfx1201"))        \
-         ? 0x31004000u                                                                             \
-         : ((__builtin_amdgcn_processor_is("gfx1030") ||                                           \
-             __builtin_amdgcn_processor_is("gfx1031") ||                                           \
-             __builtin_amdgcn_processor_is("gfx1032") ||                                           \
-             __builtin_amdgcn_processor_is("gfx1034") ||                                           \
-             __builtin_amdgcn_processor_is("gfx1035") || __builtin_amdgcn_processor_is("gfx1036")) \
-                ? 0x31014000u                                                                      \
-                : 0x00020000u))
+    (__builtin_amdgcn_processor_is("gfx1250")                                                      \
+         ? 0u                                                                                      \
+         : ((__builtin_amdgcn_processor_is("gfx1100") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1101") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1102") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1103") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1150") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1151") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1152") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1153") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1200") || __builtin_amdgcn_processor_is("gfx1201")) \
+                ? 0x31004000u                                                                      \
+                : ((__builtin_amdgcn_processor_is("gfx1030") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1031") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1032") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1034") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1035") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1036"))                                      \
+                       ? 0x31014000u                                                               \
+                       : 0x00020000u)))
 #else
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0xffffffff // Unknown device
 #endif
@@ -617,11 +624,11 @@ struct amdgcn_compiler_target_state
 #endif // __gfx12_generic__
 
     // GFX12.5
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
     static constexpr bool CK_TILE_ARCH_GFX1250 = true;
 #else
     static constexpr bool CK_TILE_ARCH_GFX1250 = false;
-#endif // __gfx1250__
+#endif // __gfx125__
 
     // SPIR-V (target-agnostic, JIT-compiled at runtime)
     // Guard with __HIP_DEVICE_COMPILE__ because __SPIRV__ is defined during

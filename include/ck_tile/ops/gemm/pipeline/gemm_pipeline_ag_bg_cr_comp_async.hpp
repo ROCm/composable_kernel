@@ -137,6 +137,15 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
     static constexpr bool LargeTensors = Problem::LargeTensors;
 
+    template <typename T>
+    using mx_scale_type = typename T::AScaleDataType;
+
+    // Plain GEMM problems take the persistent (tile-looping) kernel entry point when requested.
+    // MX problems keep one block per tile: their host path launches GridSize(M, N, k_batch),
+    // whose split-K z-dimension the persistent loop does not read.
+    static constexpr bool UsePersistentKernel =
+        Problem::Traits::UsePersistentKernel && !is_detected<mx_scale_type, Problem>{};
+
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
@@ -189,6 +198,12 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
     static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * NPerXdl);
     static constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;
 
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+    // WMMA consumes four consecutive K scales for one row per instruction.
+    static constexpr index_t MXdlPackEff = 1;
+    static constexpr index_t NXdlPackEff = 1;
+    static constexpr index_t KXdlPackEff = 4;
+#else
     static constexpr index_t MXdlPackEff =
         (MIterPerWarp >= Policy::MXdlPack && MIterPerWarp % Policy::MXdlPack == 0)
             ? Policy::MXdlPack
@@ -201,6 +216,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
         (KIterPerWarp >= Policy::KXdlPack && KIterPerWarp % Policy::KXdlPack == 0)
             ? Policy::KXdlPack
             : 1;
+#endif
 
     static constexpr index_t ScaleBlockSize = 32;
 
@@ -441,6 +457,19 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             auto c_block_tile = block_gemm.MakeCBlockTile();
             clear_tile(c_block_tile);
 
+            auto run_block_gemm = [&](auto& c,
+                                      const auto& a,
+                                      const auto& b,
+                                      const auto& scale_a,
+                                      const auto& scale_b) {
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+                if constexpr(IsScaledGemm)
+                    block_gemm.template operator()<0>(c, a, b, scale_a, scale_b);
+                else
+#endif
+                    block_gemm(c, a, b, scale_a, scale_b);
+            };
+
             // read A(1), B(1) from DRAM to LDS window(1)
             // and advance the DRAM windows
             Base::GlobalPrefetchAsync(
@@ -548,11 +577,11 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                                   b_async_tile_windows[number<0>{}],
                                                   b_dram_tile_window_step);
                         // C(i-3) = A(i-3) @ B(i-3)
-                        block_gemm(c_block_tile,
-                                   a_block_tile0,
-                                   b_block_tile0,
-                                   scale_a_tile_ping,
-                                   scale_b_tile_ping);
+                        run_block_gemm(c_block_tile,
+                                       a_block_tile0,
+                                       b_block_tile0,
+                                       scale_a_tile_ping,
+                                       scale_b_tile_ping);
                         HotLoopScheduler();
                         // Load next scales after using current scales above
                         load_scales_from_dram(scale_a_tile_ping, scale_b_tile_ping);
@@ -575,11 +604,11 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                                   b_async_tile_windows[number<0>{}],
                                                   b_dram_tile_window_step);
                         // C(i-2) = A(i-2) @ B(i-2)
-                        block_gemm(c_block_tile,
-                                   a_block_tile1,
-                                   b_block_tile1,
-                                   scale_a_tile_pong,
-                                   scale_b_tile_pong);
+                        run_block_gemm(c_block_tile,
+                                       a_block_tile1,
+                                       b_block_tile1,
+                                       scale_a_tile_pong,
+                                       scale_b_tile_pong);
                         HotLoopScheduler();
                         // Load next scales after using current scales above
                         load_scales_from_dram(scale_a_tile_pong, scale_b_tile_pong);
@@ -596,11 +625,11 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
                     // C(num_loop-2) = A(num_loop-2) @ B(num_loop-2)
-                    block_gemm(c_block_tile,
-                               a_block_tile0,
-                               b_block_tile0,
-                               scale_a_tile_ping,
-                               scale_b_tile_ping);
+                    run_block_gemm(c_block_tile,
+                                   a_block_tile0,
+                                   b_block_tile0,
+                                   scale_a_tile_ping,
+                                   scale_b_tile_ping);
                     // load last scales to ping for the last iteration to ping buffers
                     load_scales_from_dram(scale_a_tile_ping, scale_b_tile_ping);
                 }
@@ -611,19 +640,19 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0, is_b_load_tr_v);
                     // C(num_loop-1) = A(num_loop-1) @ B(num_loop-1)
-                    block_gemm(c_block_tile,
-                               a_block_tile1,
-                               b_block_tile1,
-                               scale_a_tile_pong,
-                               scale_b_tile_pong);
+                    run_block_gemm(c_block_tile,
+                                   a_block_tile1,
+                                   b_block_tile1,
+                                   scale_a_tile_pong,
+                                   scale_b_tile_pong);
                 }
                 {
                     // C(num_loop) = A(num_loop) @ B(num_loop)
-                    block_gemm(c_block_tile,
-                               a_block_tile0,
-                               b_block_tile0,
-                               scale_a_tile_ping,
-                               scale_b_tile_ping);
+                    run_block_gemm(c_block_tile,
+                                   a_block_tile0,
+                                   b_block_tile0,
+                                   scale_a_tile_ping,
+                                   scale_b_tile_ping);
                 }
             }
             else if(TailNum == TailNumber::Two)
@@ -634,29 +663,29 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
                     // C(num_loop-1) = A(num_loop-1) @ B(num_loop-1)
-                    block_gemm(c_block_tile,
-                               a_block_tile0,
-                               b_block_tile0,
-                               scale_a_tile_ping,
-                               scale_b_tile_ping);
+                    run_block_gemm(c_block_tile,
+                                   a_block_tile0,
+                                   b_block_tile0,
+                                   scale_a_tile_ping,
+                                   scale_b_tile_ping);
                 }
                 {
                     // C(num_loop) = A(num_loop) @ B(num_loop)
-                    block_gemm(c_block_tile,
-                               a_block_tile1,
-                               b_block_tile1,
-                               scale_a_tile_pong,
-                               scale_b_tile_pong);
+                    run_block_gemm(c_block_tile,
+                                   a_block_tile1,
+                                   b_block_tile1,
+                                   scale_a_tile_pong,
+                                   scale_b_tile_pong);
                 }
             }
             else if(TailNum == TailNumber::One)
             {
                 block_sync_lds();
-                block_gemm(c_block_tile,
-                           a_block_tile0,
-                           b_block_tile0,
-                           scale_a_tile_ping,
-                           scale_b_tile_ping);
+                run_block_gemm(c_block_tile,
+                               a_block_tile0,
+                               b_block_tile0,
+                               scale_a_tile_ping,
+                               scale_b_tile_ping);
                 __builtin_amdgcn_sched_barrier(0);
             }
             return c_block_tile;

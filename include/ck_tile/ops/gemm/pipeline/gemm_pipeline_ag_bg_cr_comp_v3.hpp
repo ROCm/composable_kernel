@@ -13,7 +13,7 @@ namespace ck_tile {
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
-template <typename Problem>
+template <typename Problem, bool Force8WarpSchedule = false>
 struct BaseGemmPipelineAgBgCrCompV3
 {
     static constexpr index_t PrefetchStages   = 2;
@@ -22,21 +22,32 @@ struct BaseGemmPipelineAgBgCrCompV3
     static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
 
     // The NumWarps==8 special-cased hot-loop/tail schedule below was written for
-    // wave64 512-thread blocks (gfx9xx / MFMA). On gfx1250 (WMMA, wave32) an
-    // 8-warp block is only 256 threads -- the same thread count as a 4-warp
-    // wave64 block -- so it must follow the STANDARD (<=4-warp) schedule. Using
-    // the wave64 8-warp schedule there miscomputes has_hot_loop / tail_number and
-    // makes the intrawave RUN path execute an extra block_gemm on a non-existent
-    // K-tile, producing wrong results (ROCm/rocm-libraries#11161). Disable the
-    // 8-warp special case on gfx1250 so those blocks use the standard path.
-    // NOTE: all users of these functions are CK_TILE_DEVICE (the pipeline
-    // operator() and the grouped/persistent kernel launchers), and TailHandler's
-    // scenarios[] compiles in the same device pass, so this __gfx1250__/__GFX12__
-    // guard is host/device consistent.
-#if defined(__gfx1250__) || defined(__GFX12__)
-    static constexpr bool Use8WarpSchedule = false;
+    // wave64 512-thread blocks (gfx9xx / MFMA). On a wave32 WMMA target (gfx11,
+    // gfx12) an 8-warp block is only 256 threads -- the same thread count as a
+    // 4-warp wave64 block -- so ordinary comp_v3 must follow the STANDARD (<=4-warp)
+    // schedule. Using the wave64 8-warp schedule there miscomputes has_hot_loop /
+    // tail_number and makes the intrawave RUN path execute an extra block_gemm
+    // on a non-existent K-tile, producing wrong results (ROCm/rocm-libraries#11161).
+    // Key the choice on the build's MFMA/WMMA selection (CK_TILE_USE_WMMA, set for
+    // gfx11/gfx12 targets), which is the same in the HIP host and device passes.
+    // Host launchers also call BlockHasHotloop/GetBlockLoopTailNum and TailHandler
+    // to pick the kernel specialization, so a device-only macro such as
+    // __gfx11__/__gfx12__ gives the host a different hot-loop/tail choice and can
+    // make it launch a kernel absent from the device image.
+    // The dedicated eight-wave async pipeline opts in through Force8WarpSchedule
+    // because its ping/pong implementation requires all five tail cases on both
+    // gfx950 and gfx1250.
+#if CK_TILE_USE_WMMA
+    static constexpr bool Use8WarpSchedule = Force8WarpSchedule;
 #else
-    static constexpr bool Use8WarpSchedule = (Problem::BlockGemmShape::NumWarps == 8);
+    static constexpr bool Use8WarpSchedule =
+        Force8WarpSchedule || (Problem::BlockGemmShape::NumWarps == 8);
+#if defined(__HIP_DEVICE_COMPILE__) && (defined(__gfx11__) || defined(__gfx12__))
+    // A wave32 target built without CK_TILE_USE_WMMA (e.g. outside the CK CMake)
+    // would silently take the wave64 8-warp schedule above; fail loudly instead.
+    static_assert(Force8WarpSchedule || Problem::BlockGemmShape::NumWarps != 8,
+                  "wave32 8-warp CompV3 requires -DCK_TILE_USE_WMMA=1 on host and device");
+#endif
 #endif
 
     CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)

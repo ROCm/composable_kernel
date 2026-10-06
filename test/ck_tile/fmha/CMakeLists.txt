@@ -13,13 +13,20 @@ set(TEST_NAME "test_ck_tile_fmha")
 
 function(add_gtest_fwd test_group)
     set(V_TYPES "fp16" "bf16" "fp8bf16" "fp32" "mxfp8" "mxfp4")
+    # fp8/fp8fp32 targets and the quantization-scale sweep only have instances on gfx125x.
+    # Keep them off every other target so their test time does not grow.
+    if(GPU_TARGETS MATCHES "gfx125")
+        list(APPEND V_TYPES "fp8" "fp8fp32")
+    endif()
     if(GPU_TARGETS MATCHES "gfx908|gfx90a" AND NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
         # fp8 instances are built for all gfx9, do not test on archs without hardware support
         list(REMOVE_ITEM V_TYPES "fp8bf16")
     endif()
     set(CPP_TYPE_fp16 "FmhaFwdFp16")
     set(CPP_TYPE_bf16 "FmhaFwdBf16")
+    set(CPP_TYPE_fp8 "FmhaFwdFp8")
     set(CPP_TYPE_fp8bf16 "FmhaFwdFp8Bf16")
+    set(CPP_TYPE_fp8fp32 "FmhaFwdFp8Fp32")
     set(CPP_TYPE_fp32 "FmhaFwdFp32")
     set(CPP_TYPE_mxfp8 "FmhaFwdMxFp8")
     set(CPP_TYPE_mxfp4 "FmhaFwdMxFp4")
@@ -38,11 +45,20 @@ function(add_gtest_fwd test_group)
             continue()
         endif()
         add_gtest_executable(${name} test_fmha_fwd.cpp)
+        # fp8-input types with a wider output only; an fp8 output cannot meet the test's bound.
+        if(GPU_TARGETS MATCHES "gfx125" AND (type STREQUAL "fp8bf16" OR type STREQUAL "fp8fp32"))
+            set_source_files_properties(test_fmha_fwd_sink_exact.cpp PROPERTIES LANGUAGE HIP)
+            target_sources(${name} PRIVATE test_fmha_fwd_sink_exact.cpp)
+        endif()
         get_test_property(${name} LABELS COMMON_LABELS)
         set_tests_properties(${name} PROPERTIES LABELS "${COMMON_LABELS};${TEST_NAME};${test_group};CK_TILE_FMHA_TESTS")
         # increase timeout limit for fmha_fwd tests to prevent timeout on a slower gfx11 machine
         set_tests_properties(${name} PROPERTIES TIMEOUT 3600)
         target_compile_definitions(${name} PRIVATE DataTypeConfig=${CPP_TYPE_${type}})
+        if(GPU_TARGETS MATCHES "gfx125")
+            target_compile_definitions(${name} PRIVATE CK_TILE_TEST_FMHA_QSCALE_SWEEP)
+            target_compile_definitions(${name} PRIVATE CK_TILE_TEST_FMHA_GPTOSS_SINK)
+        endif()
         target_link_libraries(${name} PRIVATE ${FMHA_FWD_INSTANCES})
         list(APPEND all_tests ${name})
     endforeach()
@@ -87,11 +103,96 @@ add_gtest_fwd(${TEST_NAME}_fwd)
 add_gtest_bwd(${TEST_NAME}_bwd)
 add_custom_target(${TEST_NAME} DEPENDS ${TEST_NAME}_fwd ${TEST_NAME}_bwd)
 
+set(FMHA_QR_TDM_TEST_TARGETS)
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
+    add_gtest_executable(test_ck_tile_fmha_bwd_tdm_padding
+        test_fmha_bwd_tdm_padding.cpp
+        test_fmha_bwd_tdm_layout.cpp)
+    set_tests_properties(test_ck_tile_fmha_bwd_tdm_padding PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+    add_gtest_executable(test_ck_tile_fmha_qr_tdm_lds_padding
+        test_qr_tdm_lds_padding.cpp)
+    target_link_libraries(test_ck_tile_fmha_qr_tdm_lds_padding PRIVATE utility)
+    # the qr_tdm pipeline folds log2(e) into scale_s and has no exp() fallback
+    target_compile_definitions(test_ck_tile_fmha_qr_tdm_lds_padding
+        PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_lds_padding PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
+    add_gtest_executable(test_ck_tile_fmha_qr_tdm_progressive_k_lds
+        test_qr_tdm_progressive_k_lds.cpp)
+    # the qr_tdm pipeline folds log2(e) into scale_s and has no exp() fallback
+    target_compile_definitions(test_ck_tile_fmha_qr_tdm_progressive_k_lds
+        PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
+    # The causal pipeline deliberately compares the masked-row -infinity sentinel.
+    target_compile_options(test_ck_tile_fmha_qr_tdm_progressive_k_lds PRIVATE -Wno-float-equal)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_progressive_k_lds PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
+    add_gtest_executable(test_ck_tile_fmha_qr_tdm_causal_mapping
+        test_qr_tdm_causal_mapping.cpp)
+    target_compile_definitions(test_ck_tile_fmha_qr_tdm_causal_mapping
+        PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_causal_mapping PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
+    add_gtest_executable(test_ck_tile_fmha_qr_tdm_row_reduce
+        test_qr_tdm_row_reduce.cpp)
+    target_compile_definitions(test_ck_tile_fmha_qr_tdm_row_reduce
+        PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
+    # Hand-derived sums/maxima are exactly representable integers; require exact equality.
+    target_compile_options(test_ck_tile_fmha_qr_tdm_row_reduce PRIVATE -Wno-float-equal)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_row_reduce PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
+    set(FMHA_QR_TDM_TEST_TARGETS
+        test_ck_tile_fmha_bwd_tdm_padding
+        test_ck_tile_fmha_qr_tdm_lds_padding
+        test_ck_tile_fmha_qr_tdm_progressive_k_lds
+        test_ck_tile_fmha_qr_tdm_causal_mapping
+        test_ck_tile_fmha_qr_tdm_row_reduce)
+endif()
+
+# Python integration test for the fmha_fwd codegen path.
+#
+# Drives the real `generate.py` with a JSON tune-config
+# (CK_TILE_FMHA_FWD_CUSTOM_TUNE_CONFIG_FILE) that declares two tiles
+# identical in every field except F_occupancy, and asserts that codegen
+# emits two distinct .cpp blobs (one with `_o2` suffix, one without).
+# This covers both:
+#   1. CK_TILE_FMHA_FWD_CUSTOM_TUNE_CONFIG_FILE JSON loading & dynamic
+#      factory subclassing.
+#   2. Per-occupancy kernel instantiation (kOccupancy_ template parameter)
+#      exposed via FmhaFwdTileSize.name symbol suffix.
+# Pure Python, no GPU required.
+set(FMHA_FWD_TUNE_CONFIG_PY_TEST test_ck_tile_fmha_fwd_tune_config)
+add_test(
+    NAME ${FMHA_FWD_TUNE_CONFIG_PY_TEST}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_fmha_fwd_tune_config.py -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+set_tests_properties(${FMHA_FWD_TUNE_CONFIG_PY_TEST}
+    PROPERTIES LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
+# Codegen tests for the per-architecture FMHA BWD decode pipeline selection:
+# gfx950 must stay off the TDM decode pipeline (it has no tensor loads), gfx1250
+# must take it, and the two trailing problem-template flags must be emitted in
+# the declared order -- swapping them compiles and silently picks the wrong
+# pipeline. Pure Python, no GPU required.
+set(FMHA_BWD_CODEGEN_PY_TEST test_ck_tile_fmha_bwd_codegen)
+add_test(
+    NAME ${FMHA_BWD_CODEGEN_PY_TEST}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_fmha_bwd_codegen.py -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+set_tests_properties(${FMHA_BWD_CODEGEN_PY_TEST}
+    PROPERTIES LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
+
 # Umbrella target to build and run all ck_tile fmha tests
 # Usage: ninja ck_tile_fmha_tests
 add_custom_target(ck_tile_fmha_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_FMHA_TESTS"
-    DEPENDS ${TEST_NAME}
+    DEPENDS ${TEST_NAME} ${FMHA_QR_TDM_TEST_TARGETS}
     USES_TERMINAL
     COMMENT "Running all ck_tile fmha tests..."
 )

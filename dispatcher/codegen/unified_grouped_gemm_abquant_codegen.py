@@ -38,6 +38,7 @@ Reference:
 """
 
 import argparse
+import functools
 import itertools
 import json
 import logging
@@ -45,10 +46,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from codegen_common import make_abquant_kernel_name, abquant_effective_epilogue
+from codegen_common import (
+    make_abquant_kernel_name,
+    abquant_effective_epilogue,
+    reject_async_tdm_traits as _reject_async_tdm_traits,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
+
+
+# No async/TDM kernel path for this op: bind the shared guard to its name.
+reject_async_tdm_traits = functools.partial(
+    _reject_async_tdm_traits, "grouped_gemm_abquant"
+)
 
 
 # =============================================================================
@@ -167,6 +178,7 @@ class ABQuantKernelSpec:
     k_block_per_cu: int = 1
 
     def __post_init__(self):
+        reject_async_tdm_traits(self.pipeline, self.epilogue)
         if self.aquant_group_k != self.bquant_group_k:
             raise ValueError(
                 f"ABQuant requires AQuantGroupSize::kK == BQuantGroupSize::kK, "
@@ -479,6 +491,7 @@ def _build_specs(config: dict) -> List[ABQuantKernelSpec]:
     specs = []
     pipeline   = config.get("pipeline", "compv3")
     epilogue   = config.get("epilogue", "cshuffle")
+    reject_async_tdm_traits(pipeline, epilogue)
     scheduler  = config.get("scheduler", "intrawave")
     pad_m      = config.get("pad_m", False)
     pad_n      = config.get("pad_n", False)
@@ -561,12 +574,6 @@ def _build_specs(config: dict) -> List[ABQuantKernelSpec]:
             log.warning("Skipping invalid spec: %s", e)
 
     return specs
-
-
-# =============================================================================
-# Generation entry point
-# =============================================================================
-
 
 def generate_kernels(
     output_dir: Path,

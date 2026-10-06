@@ -36,6 +36,7 @@ _THIS_DIR = Path(__file__).resolve().parent
 _COMMON_DIR = _THIS_DIR.parent / "common"
 _DISPATCHER_ROOT = _THIS_DIR.parents[2] / "dispatcher"
 sys.path.insert(0, str(_DISPATCHER_ROOT / "python"))
+sys.path.insert(0, str(_DISPATCHER_ROOT / "codegen"))
 sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
@@ -44,6 +45,7 @@ from batched_gemm_utils import (  # noqa: E402
     expand_sweep,
 )
 from smi_utils import detect_gpu_ids  # noqa: E402
+from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa: E402
 
 # The batched op keeps its sweep configs in tile_engine/ops/gemm/batched_gemm/configs.
 CONFIG_DIR = _THIS_DIR / "batched_gemm" / "configs"
@@ -239,12 +241,17 @@ def main():
     parser.add_argument(
         "configs",
         nargs="*",
-        help="TE sweep config JSON files (default: batched_gemm/configs/default_ci_config.json)",
+        help="TE sweep config JSON files (default: batched_gemm/configs/default_ci_config.json; "
+        "on gfx1250/MI400 pass batched_gemm/configs/default_ci_config_gfx1250.json for WMMA 16x16x32)",
     )
     # Default None so the bridge utilities auto-detect the actual GPU arch via
     # rocminfo (_resolve_arch); never hardcode gfx942 -- that would build an
-    # incompatible kernel on gfx90a/gfx950 and launch it on the visible device.
-    parser.add_argument("--arch", default=None)
+    # incompatible kernel on gfx90a/gfx950/gfx1250 and launch it on the visible device.
+    parser.add_argument(
+        "--arch",
+        default=None,
+        help="GPU arch (gfx90a/gfx942/gfx950/gfx1250); default: auto-detect via rocminfo.",
+    )
     parser.add_argument(
         "--dtype",
         default="fp16",
@@ -279,7 +286,10 @@ def main():
         "--kernel-timeout", type=int, default=30, help="Per-kernel timeout (s)"
     )
     parser.add_argument(
-        "--max-kernels", type=int, default=0, help="Limit to first N kernels (0=all)"
+        "--max-kernels",
+        type=int,
+        default=0,
+        help="Limit to first N kernels plus their vector-width variants (0=all)",
     )
     parser.add_argument(
         "--verify",
@@ -293,6 +303,7 @@ def main():
         default=2e-2,
         help="Relative tolerance for --verify (default 2e-2, suits fp16)",
     )
+    add_vector_fallback_arg(parser)
     args = parser.parse_args()
 
     # --batch-size is the step of range(0, len(built_kernels), args.batch_size);
@@ -312,14 +323,27 @@ def main():
     print(f"{'=' * 80}")
     print(f"  Configs: {', '.join(config_paths)}")
 
+    problems = load_problems(args.problems)
+    vfb = VectorFallback(
+        problems, args.layout, args.dtype, "batched", args.no_vector_fallback,
+        args.tune_c_vector_width,
+    )
+
     all_configs = []
     for cfg_path in config_paths:
         all_configs.extend(
-            expand_sweep(cfg_path, args.arch, dtype=args.dtype, layout=args.layout)
+            expand_sweep(
+                cfg_path,
+                args.arch,
+                dtype=args.dtype,
+                layout=args.layout,
+                **vfb.expand_kwargs,
+            )
         )
 
-    if args.max_kernels > 0:
-        all_configs = all_configs[: args.max_kernels]
+    vfb.report_rejects()
+
+    all_configs = vfb.limit_base_kernels(all_configs, args.max_kernels)
 
     print(f"  Expanded configs: {len(all_configs)}")
     print(f"  Build workers: {args.workers}")
@@ -333,6 +357,7 @@ def main():
     built_kernels = [
         (cfg, lib) for cfg, lib in zip(all_configs, lib_paths) if lib is not None
     ]
+    vfb.report_builds(all_configs, lib_paths)
 
     seen_libs = set()
     unique_kernels = []
@@ -362,12 +387,7 @@ def main():
     print("Phase 2: Load test problems")
     print(f"{'=' * 80}")
 
-    problems = load_problems(args.problems)
-    print(f"  Problems: {len(problems)}")
-    print(
-        f"  Total measurements: {len(built_kernels)} x {len(problems)} = "
-        f"{len(built_kernels) * len(problems)}"
-    )
+    pairs = vfb.pairs(problems, built_kernels)
 
     # ========================================================================
     # Phase 3: Benchmark across all visible GPUs (subprocess isolation, batched)
@@ -405,19 +425,15 @@ def main():
     )
 
     work_q = queue.Queue()
-    for prob_idx, prob in enumerate(problems):
+    for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
         prob_dict = {
             "batch_count": int(prob["batch_count"]),
             "M": int(prob["M"]),
             "N": int(prob["N"]),
             "K": int(prob["K"]),
         }
-        for start in range(0, len(built_kernels), args.batch_size):
-            end = min(start + args.batch_size, len(built_kernels))
-            batch = [
-                (start + j, cfg, lib)
-                for j, (cfg, lib) in enumerate(built_kernels[start:end])
-            ]
+        for start in range(0, len(idx), args.batch_size):
+            batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
             work_q.put((prob_idx, prob_dict, batch))
 
     io_lock = threading.Lock()

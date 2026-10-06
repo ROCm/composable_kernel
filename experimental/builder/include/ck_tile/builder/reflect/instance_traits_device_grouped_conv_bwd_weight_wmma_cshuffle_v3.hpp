@@ -54,7 +54,9 @@ template <ck::index_t NDimSpatial,
           typename ComputeTypeA,
           typename ComputeTypeB,
           ck::index_t MaxTransposeTransferSrcScalarPerVector,
-          ck::index_t MaxTransposeTransferDstScalarPerVector>
+          ck::index_t MaxTransposeTransferDstScalarPerVector,
+          bool UseLdsTranspose,
+          bool TransposeC>
 struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3;
 
 } // namespace ck::tensor_operation::device
@@ -112,7 +114,9 @@ template <ck::index_t NDimSpatial,
           typename ComputeTypeA_,
           typename ComputeTypeB_,
           ck::index_t MaxTransposeTransferSrcScalarPerVector,
-          ck::index_t MaxTransposeTransferDstScalarPerVector>
+          ck::index_t MaxTransposeTransferDstScalarPerVector,
+          bool UseLdsTranspose,
+          bool TransposeC>
 struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Wmma_CShuffleV3<
     NDimSpatial,
     InLayout_,
@@ -158,7 +162,9 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
     ComputeTypeA_,
     ComputeTypeB_,
     MaxTransposeTransferSrcScalarPerVector,
-    MaxTransposeTransferDstScalarPerVector>>
+    MaxTransposeTransferDstScalarPerVector,
+    UseLdsTranspose,
+    TransposeC>>
 {
     static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeight_Wmma_CShuffleV3";
     using device_kernel_tag             = DeviceGroupedConvBwdWeight_Wmma_CShuffle_V3_Tag;

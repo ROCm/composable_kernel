@@ -1099,7 +1099,21 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         {
                             // K must be >= AK1 to ensure K0 = K/AK1 >= 1; otherwise
                             // the flat descriptor would have K0=0 which is invalid.
-                            if(num_group_ == 1 && a_g_n_k_wos_lengths[2] >= AK1)
+                            // K must also be an exact multiple of AK1: the packed
+                            // descriptors compute K0 = K / AK1 with truncating integer
+                            // division and no remainder handling, so the trailing
+                            // K % AK1 output channels are silently dropped from the
+                            // backward-data reduction.
+                            // N must not be split: the packed descriptors cover only
+                            // conv_N_per_block_ images, and the flat launch has no
+                            // per-chunk grid dimension or pointer offset, so the
+                            // remaining N / conv_N_per_block_ - 1 chunks of the output
+                            // are never written. This is the same quantity assigned to
+                            // num_workgroups_per_Conv_N_ below, written inline because
+                            // that member is not yet set at this point in construction.
+                            if(num_group_ == 1 && a_g_n_k_wos_lengths[2] >= AK1 &&
+                               a_g_n_k_wos_lengths[2] % AK1 == 0 &&
+                               a_g_n_k_wos_lengths[1] / conv_N_per_block_ == 1)
                             {
                                 flat_a_container_.push_back(
                                     conv_to_gemm_transform_.MakeADescriptor_AK0_M_AK1_Packed());
@@ -1507,8 +1521,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 bool used_flat_desc = false;
                 if constexpr(NDimSpatial == 2 && !CTranspose && NumDTensor == 0)
                 {
+                    const index_t ConvK = arg.b_g_k_c_xs_lengths_[1];
                     if(arg.num_group_ == 1 && arg.k_batch_ == 1 && arg.gemms_count_ == 1 &&
-                       !arg.flat_a_container_.empty())
+                       !arg.flat_a_container_.empty() && arg.num_workgroups_per_Conv_N_ == 1 &&
+                       ConvK % AK1 == 0 && ConvK % BK1 == 0)
                     {
                         used_flat_desc          = true;
                         const index_t flat_idx  = gemm_set_id;
@@ -1987,6 +2003,30 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         }
         else
         {
+            return false;
+        }
+
+        // check descriptors sizes
+        bool is_size_valid = true;
+        for(std::size_t i = 0; i < arg.a_grid_desc_m_k_container_.size(); i++)
+        {
+            static_for<0, NumDTensor, 1>{}([&](auto j) {
+                using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
+                is_size_valid &=
+                    !descriptor_exceeds_2gb<DDataType>(arg.ds_grid_desc_m_n_container_[i][j]);
+            });
+
+            is_size_valid &= !descriptor_exceeds_2gb<ADataType>(arg.a_grid_desc_m_k_container_[i]);
+            is_size_valid &= !descriptor_exceeds_2gb<BDataType>(arg.b_grid_desc_n_k_container_[i]);
+            is_size_valid &= !descriptor_exceeds_2gb<EDataType>(arg.e_grid_desc_m_n_container_[i]);
+        }
+        if(!is_size_valid)
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Large tensor case!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
             return false;
         }
 

@@ -91,13 +91,13 @@ def showCompilerInfo(boolean deferBinaryInfo = false, String dockerImage = "") {
 
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
-                                              0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_BASIC_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=false;BUILD_GFX908=false;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=develop;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=therock;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 13 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
-                                              0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;RUN_FA_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true''' : ""
+                                              0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;RUN_FA_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
+                                              0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_DISPATCHER_PERF_TESTS=true;RUN_DISPATCHER_CORRECTNESS_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true''' : ""
 CURRENT_BRANCH_NAME = env.CHANGE_ID ? "refs/pull/${env.CHANGE_ID}/head" : (env.CHANGE_BRANCH ? env.CHANGE_BRANCH : env.BRANCH_NAME)
 
 POLL_SPEC = BRANCH_NAME == "develop" ? 'H H/6 * * *' : ''
@@ -181,14 +181,6 @@ pipeline {
             name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
             description: "Run the ck_tile FMHA tests (default: OFF)")
-        booleanParam(
-            name: "RUN_TILE_ENGINE_BASIC_TESTS",
-            defaultValue: true,
-            description: "Run the tile_engine_basic tests (default: ON)")
-        booleanParam(
-            name: "RUN_TILE_ENGINE_GEMM_TESTS",
-            defaultValue: false,
-            description: "Run the tile_engine_gemm tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -302,6 +294,14 @@ pipeline {
             defaultValue: CURRENT_BRANCH_NAME,
             description: 'Specify which branch of CK to test with flash-attention (default: current branch)')
         booleanParam(
+            name: "RUN_DISPATCHER_CORRECTNESS_TESTS",
+            defaultValue: true,
+            description: "Run Correctness Tier for Dispatcher")
+        booleanParam(
+            name: "RUN_DISPATCHER_PERF_TESTS",
+            defaultValue: true,
+            description: "Run Performance Tier for Dispatcher")
+        booleanParam(
             name: "FORCE_CI",
             defaultValue: false,
             description: "Force CI to run even when only non-relevant files are changed (default: OFF)")
@@ -319,7 +319,6 @@ pipeline {
         dbsshpassword = "${dbsshpassword}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        BUILD_GFX103 = "${env.BRANCH_NAME == 'develop' ? true : false}"
     }
     stages{
         stage("Determine CI Execution") {
@@ -330,8 +329,17 @@ pipeline {
                     ck.runOnHealthyNode(rocmnode("nogpu")) {
                         showCompilerInfo(params.BUILD_DOCKER.toBoolean())
                         ck.checkoutComposableKernel()
+                        // Runs here, not in "Static checks", so that it is not
+                        // subject to the SHOULD_RUN_CI skip computed just below:
+                        // a docs- or Markdown-only change skips CI but can still
+                        // add a path that breaks the Windows checkout.
+                        ck.runPathLengthCheck()
                         env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || ck.shouldRunCICheck())
                         echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                        env.BUILD_GFX103 = String.valueOf(env.BRANCH_NAME == 'develop' || params.BUILD_GFX103.toBoolean())
+                        echo "BUILD_GFX103: ${env.BUILD_GFX103}"
+                        env.BUILD_GFX908 = String.valueOf(env.BRANCH_NAME == 'develop' || params.BUILD_GFX908.toBoolean())
+                        echo "BUILD_GFX908: ${env.BUILD_GFX908}"
                     }
                 }
             }
@@ -556,6 +564,44 @@ pipeline {
                 }
             }
         }
+        stage("Run DISPATCHER Tests")
+        {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() && (params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean() || params.RUN_DISPATCHER_PERF_TESTS.toBoolean()) }
+            }
+            agent none
+            steps {
+                script {
+                    loadCk()
+                    // runDispatcherTests is defined in this branch's vars/ck.groovy.
+                    // With USE_CURRENT_BRANCH_FOR_CK_GROOVY off (the default) loadCk()
+                    // resolves to ck@develop instead, and any develop copy predating
+                    // this change has no such method. Left unguarded that throws
+                    // NoSuchMethodError and aborts the whole pipeline, taking stages
+                    // with nothing to do with the dispatcher (FMHA, Build CK, Process
+                    // results) down with it. Degrade to UNSTABLE so the rest of CI
+                    // still reports and the operator gets an actionable message.
+                    try {
+                        ck.runDispatcherTests(
+                            this.&rocmnode,
+                            params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean(),
+                            params.RUN_DISPATCHER_PERF_TESTS.toBoolean(),
+                            params.BUILD_COMPILER)
+                    } catch (NoSuchMethodError e) {
+                        // Only swallow the missing-DSL-method case; a NoSuchMethodError
+                        // raised from inside a working runDispatcherTests must still fail.
+                        if (!"${e.message}".contains("runDispatcherTests")) {
+                            throw e
+                        }
+                        echo "DISPATCHER tests SKIPPED: the loaded ck.groovy does not define " +
+                             "runDispatcherTests. Re-run with USE_CURRENT_BRANCH_FOR_CK_GROOVY=true " +
+                             "to load ck.groovy from this branch instead of develop."
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+        }
         stage("Run CK_TILE_FMHA Tests")
         {
             when {
@@ -638,98 +684,6 @@ pipeline {
                 }
             }
         }
-        stage("Run TILE_ENGINE_BASIC Tests")
-        {
-            when {
-                beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() }
-            }
-            parallel
-            {
-                stage("Run TILE_ENGINE_BASIC Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_BASIC_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                deleteDir()
-                                ck.runTileEngineBasicTests(params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        stage("Run TILE_ENGINE_GEMM Tests")
-        {
-            when {
-                beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() }
-            }
-            parallel
-            {
-                stage("Run TILE_ENGINE_GEMM Tests on gfx942")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                deleteDir()
-                                ck.runTileEngineGemmTests("gfx942", params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run TILE_ENGINE_GEMM Tests on gfx950")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx950")) {
-                                deleteDir()
-                                ck.runTileEngineGemmTests("gfx950", params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-                stage("Run TILE_ENGINE_GEMM Tests on gfx1201")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent none
-                    steps{
-                        script {
-                            loadCk()
-                            ck.runOnHealthyNode(rocmnode("gfx1201")) {
-                                deleteDir()
-                                ck.runTileEngineGemmTests("gfx1201", params.BUILD_COMPILER)
-                                cleanWs()
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
 		stage("Build CK and run Tests")
         {
@@ -775,12 +729,11 @@ pipeline {
                         }
                     }
                 }
-                /*
                 stage("Build CK and run Tests on gfx908")
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { env.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908") }
                     steps{
@@ -789,7 +742,6 @@ pipeline {
                         cleanWs()
                     }
                 }
-                */
                 stage("Build CK and run Tests on gfx90a")
                 {
                     when {
@@ -853,7 +805,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { env.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent none
                     steps{

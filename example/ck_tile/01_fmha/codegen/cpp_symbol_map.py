@@ -82,6 +82,7 @@ QSCALE_MAP = {
     "blockscale": "ck_tile::BlockAttentionQuantScaleEnum::BLOCKSCALE",
     "kv_blockscale": "ck_tile::BlockAttentionQuantScaleEnum::KV_BLOCKSCALE",
     "mx": "ck_tile::BlockAttentionQuantScaleEnum::MX",
+    "perhead": "ck_tile::BlockAttentionQuantScaleEnum::PERHEAD",
 }
 
 QSCALE_CHECK_MAP = {
@@ -90,6 +91,7 @@ QSCALE_CHECK_MAP = {
     "blockscale": "quant_scale_enum::blockscale",
     "kv_blockscale": "quant_scale_enum::kv_blockscale",
     "mx": "quant_scale_enum::mx",
+    "perhead": "quant_scale_enum::perhead",
 }
 
 BIAS_MAP = {

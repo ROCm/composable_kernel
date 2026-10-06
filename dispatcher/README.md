@@ -379,6 +379,11 @@ cd build/examples
 
 ### Python Examples
 
+For FP8/FP4 microscaling GEMM on gfx950 or gfx1250, see the
+[MX GEMM bridge guide](docs/mx_gemm.md) for input formats, runnable code, and
+native/bridge regression tests.
+
+
 Run from the `dispatcher` directory:
 
 ```bash

@@ -125,30 +125,83 @@ int run_mx_gemm_with_layouts(int argc, char* argv[], ALayout, BLayout, CLayout)
     constexpr ck_tile::index_t XdlMNThread = GemmConfig::M_Warp_Tile;
     constexpr ck_tile::index_t XdlKThread  = 64 / XdlMNThread;
 
+    // preShuffleScaleBuffer_gfx950 walks the MN axis in units of
+    // XdlMNThread * MNPack: for packed_mn < MN / MNPack it reads
+    //   orig_mn = (packed_mn / XdlMNThread) * XdlMNThread * MNPack
+    //             + imn * XdlMNThread + (packed_mn % XdlMNThread)
+    // and writes with a stride of XdlMNThread * NumScalesPerDword. Both assume
+    // MN is a multiple of XdlMNThread * MNPack. Where it is not, the routine
+    // reads past the source scale tensor and writes past the shuffled one --
+    // e.g. at M=8 with XdlMNThread=16, MNPack=2 the read reaches orig_mn=19 in
+    // an 8-row tensor. Sizing the shuffled tensor as M / MXdlPackEff * 2 also
+    // truncates to zero rows once M < MXdlPackEff.
+    //
+    // Observed on gfx950 before this change (fp4xfp4, N=K=6144, both
+    // -preshuffle=1 and -preshuffle=0): M=1 100% wrong, M=4 ~56% wrong,
+    // M=2 SIGSEGV, M=8/16 abort with "malloc(): corrupted top size";
+    // correct only from M=32, which is exactly XdlMNThread * MXdlPackEff.
+    //
+    // Align the MN extent of the shuffle up to that granularity and zero-fill
+    // the padding. scale_a_host / scale_b_host stay unpadded and still drive
+    // CPU validation, so the reference is unchanged.
+    constexpr ck_tile::index_t AScaleMNAlign = XdlMNThread * MXdlPackEff;
+    constexpr ck_tile::index_t BScaleMNAlign = XdlMNThread * NXdlPackEff;
+    const ck_tile::index_t M_scale_aligned =
+        (M + AScaleMNAlign - 1) / AScaleMNAlign * AScaleMNAlign;
+    const ck_tile::index_t N_scale_aligned =
+        (N + BScaleMNAlign - 1) / BScaleMNAlign * BScaleMNAlign;
+
+    ck_tile::HostTensor<AScaleDataType> scale_a_aligned(
+        {static_cast<std::size_t>(M_scale_aligned), static_cast<std::size_t>(scale_k_size)},
+        {static_cast<std::size_t>(scale_k_size), static_cast<std::size_t>(1)});
+    std::fill(scale_a_aligned.mData.begin(), scale_a_aligned.mData.end(), AScaleDataType{});
+    std::copy(scale_a_host.mData.begin(),
+              scale_a_host.mData.begin() + static_cast<std::ptrdiff_t>(M) * scale_k_size,
+              scale_a_aligned.mData.begin());
+
+    ck_tile::HostTensor<BScaleDataType> scale_b_aligned(
+        {static_cast<std::size_t>(N_scale_aligned), static_cast<std::size_t>(scale_k_size)},
+        {static_cast<std::size_t>(scale_k_size), static_cast<std::size_t>(1)});
+    std::fill(scale_b_aligned.mData.begin(), scale_b_aligned.mData.end(), BScaleDataType{});
+    std::copy(scale_b_host.mData.begin(),
+              scale_b_host.mData.begin() + static_cast<std::ptrdiff_t>(N) * scale_k_size,
+              scale_b_aligned.mData.begin());
+
     ck_tile::HostTensor<AScaleDataType> scale_a_shuffled(
-        {static_cast<std::size_t>(M / MXdlPackEff * 2),
+        {static_cast<std::size_t>(M_scale_aligned / MXdlPackEff * 2),
          static_cast<std::size_t>(scale_k_size / KXdlPackEff * 2)},
         {static_cast<std::size_t>(scale_k_size / KXdlPackEff * 2), static_cast<std::size_t>(1)});
 
     ck_tile::HostTensor<BScaleDataType> scale_b_shuffled(
-        {static_cast<std::size_t>(N / NXdlPackEff * 2),
+        {static_cast<std::size_t>(N_scale_aligned / NXdlPackEff * 2),
          static_cast<std::size_t>(scale_k_size / KXdlPackEff * 2)},
         {static_cast<std::size_t>(scale_k_size / KXdlPackEff * 2), static_cast<std::size_t>(1)});
 
     ck_tile::preShuffleScaleBuffer_gfx950<MXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(
-        scale_a_host.mData.data(), scale_a_shuffled.mData.data(), M, scale_k_size, true);
+        scale_a_aligned.mData.data(),
+        scale_a_shuffled.mData.data(),
+        M_scale_aligned,
+        scale_k_size,
+        true);
 
     if constexpr(GemmConfig::Preshuffle && GemmConfig::TiledMMAPermuteN)
     {
         ck_tile::preShuffleScaleBufferPermuteN_gfx950<GemmConfig::N_Warp,
                                                       GemmConfig::N_Tile,
-                                                      XdlMNThread>(
-            scale_b_host.mData.data(), scale_b_shuffled.mData.data(), N, scale_k_size, true);
+                                                      XdlMNThread>(scale_b_aligned.mData.data(),
+                                                                   scale_b_shuffled.mData.data(),
+                                                                   N_scale_aligned,
+                                                                   scale_k_size,
+                                                                   true);
     }
     else
     {
         ck_tile::preShuffleScaleBuffer_gfx950<NXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(
-            scale_b_host.mData.data(), scale_b_shuffled.mData.data(), N, scale_k_size, true);
+            scale_b_aligned.mData.data(),
+            scale_b_shuffled.mData.data(),
+            N_scale_aligned,
+            scale_k_size,
+            true);
     }
 
     const auto b_host_for_device = [&]() {

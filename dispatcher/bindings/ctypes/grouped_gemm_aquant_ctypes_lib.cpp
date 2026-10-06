@@ -34,58 +34,20 @@
 #include <iostream>
 #include <string>
 
+#include "quant_bridge_common.hpp"
+
 // Kernel header force-included via -include compiler flag.
 // Defines: ADataType, BDataType, CDataType, QDataType (AQDataType), AccDataType,
 //          QuantGroupSize, SelectedKernel, KERNEL_NAME
-
-// Compute the byte count for N logical elements of type T.
-// For packed types (pk_int4_t, pk_fp4_t) PackedSize=2, so N logical values
-// occupy N/2 bytes even though sizeof(T)==1.  For all other types PackedSize=1.
-template <typename T>
-static constexpr std::size_t elements_to_bytes(std::size_t n)
-{
-    return n * sizeof(T) / ck_tile::numeric_traits<T>::PackedSize;
-}
-
-// GPU architecture is derived from the running device at launch time rather than
-// assumed at compile time -- do not hardcode a default architecture here.
-
-static bool g_initialized = false;
-static std::string g_gfx_arch;
+//
+// Shared infrastructure (elements_to_bytes, DeviceBuffer, validate_supported_arch,
+// make_stream_config, launch<>, BRIDGE_HIP_CHECK, QUANT_BRIDGE_C_API) lives in
+// quant_bridge_common.hpp. GPU architecture is derived from the running device at
+// launch time (see validate_supported_arch) rather than assumed at compile time.
 
 extern "C" {
 
-/**
- * Initialize the ctypes lib. Must be called before dispatcher_run_aquant_gemm.
- *
- * Queries and caches the GPU architecture so subsequent run calls avoid the
- * per-call hipGetDeviceProperties overhead.
- *
- * Returns 0 on success, -1 if device query fails or arch is unsupported.
- */
-int dispatcher_initialize()
-{
-    if(g_initialized)
-        return 0;
-
-    int dev = 0;
-    hipDeviceProp_t props{};
-    if(hipGetDevice(&dev) != hipSuccess || hipGetDeviceProperties(&props, dev) != hipSuccess)
-    {
-        std::cerr << "dispatcher_initialize: could not query device architecture\n";
-        return -1;
-    }
-    g_gfx_arch = props.gcnArchName;
-    if(g_gfx_arch.rfind("gfx950", 0) != 0 && g_gfx_arch.rfind("gfx942", 0) != 0 &&
-       g_gfx_arch.rfind("gfx90a", 0) != 0)
-    {
-        std::cerr << "dispatcher_initialize: unsupported GPU architecture '" << g_gfx_arch
-                  << "' (supported: gfx90a, gfx942, gfx950)\n";
-        return -1;
-    }
-    g_initialized = true;
-    return 0;
-}
+QUANT_BRIDGE_C_API()
 
 /**
  * Run AQuantGrouped GEMM: C[M,N] = dequant(A[M,K], AQ[ceil(M/gM), ceil(K/gK)]) @ B[K,N]
@@ -122,21 +84,28 @@ int dispatcher_run_aquant_gemm(const void* A,
                                int k_batch,
                                float* time_ms)
 {
+    using namespace quant_bridge;
+    const char* kFn = "dispatcher_run_aquant_gemm";
+
     if(!g_initialized)
     {
-        std::cerr << "dispatcher_run_aquant_gemm: not initialized\n";
+        std::cerr << kFn << ": not initialized\n";
         return -1;
     }
     if(!A || !B || !AQ || !C)
     {
-        std::cerr << "dispatcher_run_aquant_gemm: null pointer argument\n";
+        std::cerr << kFn << ": null pointer argument\n";
         return -1;
     }
     if(M <= 0 || N <= 0 || K <= 0 || QK_A <= 0 || QM_A <= 0)
     {
-        std::cerr << "dispatcher_run_aquant_gemm: invalid dimensions\n";
+        std::cerr << kFn << ": invalid dimensions\n";
         return -1;
     }
+    // Derive the GPU architecture from the running device (do not assume one at
+    // compile time) and reject unsupported archs.
+    if(!validate_supported_arch(kFn, /*allow_gfx90a=*/true))
+        return -1;
 
     // Validate that the caller's QK_A/QM_A match the compile-time quant group sizes.
     {
@@ -146,9 +115,9 @@ int dispatcher_run_aquant_gemm(const void* A,
             (M + static_cast<int64_t>(QuantGroupSize::kM) - 1) / QuantGroupSize::kM;
         if(QK_A != expected_QK_A || QM_A != expected_QM_A)
         {
-            std::cerr << "dispatcher_run_aquant_gemm: QK_A/QM_A mismatch. " << "Got (" << QK_A
-                      << ", " << QM_A << "), " << "expected (" << expected_QK_A << ", "
-                      << expected_QM_A << ") " << "for K=" << K << " M=" << M
+            std::cerr << kFn << ": QK_A/QM_A mismatch. " << "Got (" << QK_A << ", " << QM_A << "), "
+                      << "expected (" << expected_QK_A << ", " << expected_QM_A << ") "
+                      << "for K=" << K << " M=" << M
                       << " with QuantGroupSize kK=" << QuantGroupSize::kK
                       << " kM=" << QuantGroupSize::kM << "\n";
             return -1;
@@ -159,82 +128,46 @@ int dispatcher_run_aquant_gemm(const void* A,
     // AQ is RowMajor [QM_A, QK_A]: stride_AQ == QK_A
     if(stride_A != K || stride_B != K || stride_AQ != QK_A || stride_C != N)
     {
-        std::cerr << "dispatcher_run_aquant_gemm: non-packed strides are not supported. "
-                  << "Expected stride_A=" << K << " stride_B=" << K << " stride_AQ=" << QK_A
-                  << " stride_C=" << N << ", got stride_A=" << stride_A << " stride_B=" << stride_B
+        std::cerr << kFn << ": non-packed strides are not supported. " << "Expected stride_A=" << K
+                  << " stride_B=" << K << " stride_AQ=" << QK_A << " stride_C=" << N
+                  << ", got stride_A=" << stride_A << " stride_B=" << stride_B
                   << " stride_AQ=" << stride_AQ << " stride_C=" << stride_C << "\n";
         return -1;
     }
 
-    const ADataType* A_host  = static_cast<const ADataType*>(A);
-    const BDataType* B_host  = static_cast<const BDataType*>(B);
     const QDataType* AQ_host = static_cast<const QDataType*>(AQ);
-    CDataType* C_host        = static_cast<CDataType*>(C);
 
-    ADataType* A_dev  = nullptr;
-    BDataType* B_dev  = nullptr;
-    QDataType* AQ_dev = nullptr;
-    CDataType* C_dev  = nullptr;
-
-    auto cleanup = [&]() {
-        if(A_dev)
-            (void)hipFree(A_dev);
-        if(B_dev)
-            (void)hipFree(B_dev);
-        if(AQ_dev)
-            (void)hipFree(AQ_dev);
-        if(C_dev)
-            (void)hipFree(C_dev);
-    };
-
-    // Allocate device buffers.
+    // RAII device buffers: any early return (including from BRIDGE_HIP_CHECK) frees
+    // every allocation automatically -- no hand-written cleanup lambda needed.
     // B may be a packed type (pk_int4_t): elements_to_bytes<T>(n) handles PackedSize correctly.
-    if(hipMalloc(&A_dev,
-                 elements_to_bytes<ADataType>(static_cast<std::size_t>(M) *
-                                              static_cast<std::size_t>(K))) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
-    if(hipMalloc(&B_dev,
-                 elements_to_bytes<BDataType>(static_cast<std::size_t>(K) *
-                                              static_cast<std::size_t>(N))) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
-    if(hipMalloc(&AQ_dev, elements_to_bytes<QDataType>(QM_A * QK_A)) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
-    if(hipMalloc(&C_dev,
-                 elements_to_bytes<CDataType>(static_cast<std::size_t>(M) *
-                                              static_cast<std::size_t>(N))) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
+    DeviceBuffer<ADataType> A_dev;
+    DeviceBuffer<BDataType> B_dev;
+    DeviceBuffer<QDataType> AQ_dev;
+    DeviceBuffer<CDataType> C_dev;
+    BRIDGE_HIP_CHECK(kFn,
+                     A_dev.allocate(elements_to_bytes<ADataType>(static_cast<std::size_t>(M) *
+                                                                 static_cast<std::size_t>(K))));
+    BRIDGE_HIP_CHECK(kFn,
+                     B_dev.allocate(elements_to_bytes<BDataType>(static_cast<std::size_t>(K) *
+                                                                 static_cast<std::size_t>(N))));
+    BRIDGE_HIP_CHECK(kFn, AQ_dev.allocate(elements_to_bytes<QDataType>(QM_A * QK_A)));
+    BRIDGE_HIP_CHECK(kFn,
+                     C_dev.allocate(elements_to_bytes<CDataType>(static_cast<std::size_t>(M) *
+                                                                 static_cast<std::size_t>(N))));
 
     // Copy inputs to device
-    if(hipMemcpy(
-           A_dev,
-           A_host,
-           elements_to_bytes<ADataType>(static_cast<std::size_t>(M) * static_cast<std::size_t>(K)),
-           hipMemcpyHostToDevice) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
-    if(hipMemcpy(
-           B_dev,
-           B_host,
-           elements_to_bytes<BDataType>(static_cast<std::size_t>(K) * static_cast<std::size_t>(N)),
-           hipMemcpyHostToDevice) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
+    BRIDGE_HIP_CHECK(kFn,
+                     hipMemcpy(A_dev,
+                               A,
+                               elements_to_bytes<ADataType>(static_cast<std::size_t>(M) *
+                                                            static_cast<std::size_t>(K)),
+                               hipMemcpyHostToDevice));
+    BRIDGE_HIP_CHECK(kFn,
+                     hipMemcpy(B_dev,
+                               B,
+                               elements_to_bytes<BDataType>(static_cast<std::size_t>(K) *
+                                                            static_cast<std::size_t>(N)),
+                               hipMemcpyHostToDevice));
     // Copy AQ to device, preshuffling when the kernel requires it.
     // APreshuffleQuant=true (pipeline=compv3): AQ is reordered so the kernel's block tile
     // finds scale values in the interleaved layout it expects.
@@ -249,33 +182,24 @@ int dispatcher_run_aquant_gemm(const void* A,
                                             ck_tile::bool_constant<true>{} /*row-major*/));
         std::copy(AQ_host, AQ_host + QM_A * QK_A, aq_h.begin());
         auto aq_shuffled = ck_tile::shuffle_aq(&aq_h, block_aq_k);
-        if(hipMemcpy(AQ_dev,
-                     aq_shuffled.data(),
-                     elements_to_bytes<QDataType>(QM_A * QK_A),
-                     hipMemcpyHostToDevice) != hipSuccess)
-        {
-            cleanup();
-            return -1;
-        }
+        BRIDGE_HIP_CHECK(kFn,
+                         hipMemcpy(AQ_dev,
+                                   aq_shuffled.data(),
+                                   elements_to_bytes<QDataType>(QM_A * QK_A),
+                                   hipMemcpyHostToDevice));
     }
     else
     {
-        if(hipMemcpy(
-               AQ_dev, AQ_host, elements_to_bytes<QDataType>(QM_A * QK_A), hipMemcpyHostToDevice) !=
-           hipSuccess)
-        {
-            cleanup();
-            return -1;
-        }
+        BRIDGE_HIP_CHECK(
+            kFn,
+            hipMemcpy(
+                AQ_dev, AQ, elements_to_bytes<QDataType>(QM_A * QK_A), hipMemcpyHostToDevice));
     }
-    if(hipMemset(C_dev,
-                 0,
-                 elements_to_bytes<CDataType>(static_cast<std::size_t>(M) *
-                                              static_cast<std::size_t>(N))) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
+    BRIDGE_HIP_CHECK(kFn,
+                     hipMemset(C_dev,
+                               0,
+                               elements_to_bytes<CDataType>(static_cast<std::size_t>(M) *
+                                                            static_cast<std::size_t>(N))));
 
     // Build QuantGemmHostArgs: AQ active, BQ unused
     ck_tile::QuantGemmHostArgs args;
@@ -296,67 +220,26 @@ int dispatcher_run_aquant_gemm(const void* A,
     args.stride_AQ = static_cast<ck_tile::index_t>(stride_AQ);
     args.stride_BQ = 0; // unused
 
-    const bool do_time = (time_ms != nullptr);
-    ck_tile::stream_config stream_cfg{
-        nullptr,          // stream_id_
-        do_time,          // time_kernel_
-        0,                // log_level_
-        do_time ? 3 : 0,  // cold_niters_
-        do_time ? 10 : 1, // nrepeat_
-        do_time,          // is_gpu_timer_
-        false,            // flush_cache_
-        1,                // rotating_count_
-    };
-
-    float exec_time = SelectedKernel::launch(args, stream_cfg);
-
+    // When timing is requested use GPU timer with warmup (cold_niters=3, nrepeat=10);
+    // otherwise run once with no overhead (make_stream_config handles both).
+    const float exec_time = launch<SelectedKernel>(args, time_ms != nullptr);
     if(exec_time < 0.0f)
     {
-        std::cerr << "dispatcher_run_aquant_gemm: kernel reported unsupported args\n";
-        cleanup();
+        std::cerr << kFn << ": kernel reported unsupported args\n";
         return -2;
     }
 
     // Copy result back
-    if(hipMemcpy(
-           C_host,
-           C_dev,
-           elements_to_bytes<CDataType>(static_cast<std::size_t>(M) * static_cast<std::size_t>(N)),
-           hipMemcpyDeviceToHost) != hipSuccess)
-    {
-        cleanup();
-        return -1;
-    }
+    BRIDGE_HIP_CHECK(kFn,
+                     hipMemcpy(C,
+                               C_dev,
+                               elements_to_bytes<CDataType>(static_cast<std::size_t>(M) *
+                                                            static_cast<std::size_t>(N)),
+                               hipMemcpyDeviceToHost));
 
     if(time_ms)
         *time_ms = exec_time;
-
-    cleanup();
     return 0;
-}
-
-/**
- * Return the compile-time KERNEL_NAME of the force-included kernel.
- */
-const char* dispatcher_get_kernel_name() { return KERNEL_NAME; }
-
-/**
- * Initialize dispatcher (alias kept for consistency).
- */
-int dispatcher_init() { return dispatcher_initialize(); }
-
-/**
- * Number of kernels registered (always 1 for the single-kernel-per-.so model).
- */
-int dispatcher_get_kernel_count() { return 1; }
-
-/**
- * Release dispatcher resources.
- */
-void dispatcher_cleanup()
-{
-    g_initialized = false;
-    g_gfx_arch.clear();
 }
 
 } // extern "C"

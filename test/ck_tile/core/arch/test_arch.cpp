@@ -3,6 +3,11 @@
 
 #include <gtest/gtest.h>
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/host/hip_check_error.hpp"
+
+#include <hip/hip_runtime.h>
+
+#include <cstdint>
 
 using namespace ck_tile;
 using namespace ck_tile::core::arch;
@@ -222,6 +227,76 @@ TEST(ArchTest, GcnArchNameStringMapsToSpirv)
 {
     EXPECT_EQ(hip_device_prop_gcn_arch_name_to_amdgcn_target_id("amdgcnspirv"),
               amdgcn_target_id::AMDGCN_SPIRV);
+}
+
+// For amdgcnspirv, this macro resolves at runtime via __builtin_amdgcn_processor_is(), not compile
+// time.
+__global__ void test_buffer_resource_3rd_dword_kernel(uint32_t* out)
+{
+    *out = CK_TILE_BUFFER_RESOURCE_3RD_DWORD;
+}
+
+// Expected value per arch, mirroring the bucket table in CK_TILE_BUFFER_RESOURCE_3RD_DWORD's
+// __SPIRV__ branch. Returns -1 for arches the macro does not special-case (falls to the gfx9
+// default of 0x00020000).
+int64_t expected_buffer_resource_3rd_dword(amdgcn_target_id id)
+{
+    if(id == amdgcn_target_id::GFX1250)
+        return 0;
+    for(auto t : {amdgcn_target_id::GFX1100,
+                  amdgcn_target_id::GFX1101,
+                  amdgcn_target_id::GFX1102,
+                  amdgcn_target_id::GFX1103,
+                  amdgcn_target_id::GFX1150,
+                  amdgcn_target_id::GFX1151,
+                  amdgcn_target_id::GFX1152,
+                  amdgcn_target_id::GFX1153,
+                  amdgcn_target_id::GFX1200,
+                  amdgcn_target_id::GFX1201})
+        if(id == t)
+            return 0x31004000;
+    for(auto t : {amdgcn_target_id::GFX1030,
+                  amdgcn_target_id::GFX1031,
+                  amdgcn_target_id::GFX1032,
+                  amdgcn_target_id::GFX1034,
+                  amdgcn_target_id::GFX1035,
+                  amdgcn_target_id::GFX1036})
+        if(id == t)
+            return 0x31014000;
+    return -1;
+}
+
+// Regression test: the SPIR-V runtime-dispatch branch must resolve
+// CK_TILE_BUFFER_RESOURCE_3RD_DWORD to the same value as the arch's static __gfxNNN__ compile-time
+// case, for every arch it special-cases.
+TEST(ArchTest, BufferResource3rdDwordSpirv)
+{
+    int devCount;
+    hipDevice_t dev;
+    HIP_CHECK_ERROR(hipGetDevice(&dev));
+    HIP_CHECK_ERROR(hipGetDeviceCount(&devCount));
+
+    hipDeviceProp_t devProp;
+    HIP_CHECK_ERROR(hipGetDeviceProperties(&devProp, dev));
+
+    auto currentArchId = hip_device_prop_gcn_arch_name_to_amdgcn_target_id(devProp.gcnArchName);
+    int64_t expected   = expected_buffer_resource_3rd_dword(currentArchId);
+    if(devCount == 0 || expected < 0)
+    {
+        GTEST_SKIP() << "No expected CK_TILE_BUFFER_RESOURCE_3RD_DWORD value for this arch.";
+    }
+
+    uint32_t* d_out;
+    HIP_CHECK_ERROR(hipMalloc(&d_out, sizeof(uint32_t)));
+
+    test_buffer_resource_3rd_dword_kernel<<<1, 1>>>(d_out);
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+    uint32_t h_out = 0;
+    HIP_CHECK_ERROR(hipMemcpy(&h_out, d_out, sizeof(uint32_t), hipMemcpyDeviceToHost));
+    HIP_CHECK_ERROR(hipFree(d_out));
+
+    EXPECT_EQ(h_out, static_cast<uint32_t>(expected));
 }
 
 #elif 0 // TODO: c++20 tests

@@ -16,9 +16,12 @@ Run:
 import sys
 from pathlib import Path
 
+import pytest
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
+import grouped_gemm_rowcolquant_utils as UTILS
 from grouped_gemm_rowcolquant_utils import (
     RowColQuantKernelConfig,
     RowColQuantGemmProblem,
@@ -301,22 +304,215 @@ class TestCodegenHeaderGeneration:
 class TestDefaultConfigAlignment:
     """Ensure default_fp8_config/default_bf8_config stay in sync with _default_config()."""
 
-    def _codegen_default_names(self):
+    # Both defaults are arch-dependent, so comparing them at a single architecture
+    # cannot see a drift that only exists on another one -- which is exactly the
+    # drift gfx1250 enablement introduces. Every arch the bridge supports is
+    # checked, plus a suffixed spelling on each side.
+    _ARCHES = ["gfx942", "gfx950", "gfx1250", "gfx1250:xnack-", "gfx942:sramecc+:xnack-"]
+
+    def _codegen_default_names(self, gfx_arch=""):
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "codegen"))
         from unified_grouped_gemm_rowcolquant_codegen import _default_config, _build_specs
-        specs = _build_specs(_default_config())
+        specs = _build_specs(_default_config(gfx_arch))
         return {s.name for s in specs}
 
-    def test_default_fp8_config_name_in_codegen_defaults(self):
-        cfg = default_fp8_config()
-        assert cfg.name in self._codegen_default_names(), (
-            f"default_fp8_config().name '{cfg.name}' is not produced by _default_config() "
-            f"in the codegen. The two defaults have drifted — update one to match the other."
+    @pytest.mark.parametrize("gfx_arch", _ARCHES)
+    def test_default_fp8_config_name_in_codegen_defaults(self, gfx_arch):
+        cfg = default_fp8_config(gfx_arch)
+        assert cfg.name in self._codegen_default_names(gfx_arch), (
+            f"default_fp8_config('{gfx_arch}').name '{cfg.name}' is not produced by "
+            f"_default_config('{gfx_arch}') in the codegen. The two defaults have "
+            f"drifted — update one to match the other."
         )
 
-    def test_default_bf8_config_name_in_codegen_defaults(self):
-        cfg = default_bf8_config()
-        assert cfg.name in self._codegen_default_names(), (
-            f"default_bf8_config().name '{cfg.name}' is not produced by _default_config() "
-            f"in the codegen. The two defaults have drifted — update one to match the other."
+    @pytest.mark.parametrize("gfx_arch", _ARCHES)
+    def test_default_bf8_config_name_in_codegen_defaults(self, gfx_arch):
+        cfg = default_bf8_config(gfx_arch)
+        assert cfg.name in self._codegen_default_names(gfx_arch), (
+            f"default_bf8_config('{gfx_arch}').name '{cfg.name}' is not produced by "
+            f"_default_config('{gfx_arch}') in the codegen. The two defaults have "
+            f"drifted — update one to match the other."
         )
+
+    def test_gfx1250_default_actually_differs_from_the_gfx9_default(self):
+        """Guard against the parametrization passing for the wrong reason.
+
+        If _default_config() ever stops honouring gfx_arch, every case above
+        still passes -- both sides would just fall back to the gfx9 tile
+        together. Assert the two architectures really do produce different
+        kernels, so that regression is visible.
+        """
+        assert self._codegen_default_names("gfx1250").isdisjoint(
+            self._codegen_default_names("gfx942")
+        )
+
+
+# =============================================================================
+# Arch-dependent hipcc defines
+# =============================================================================
+
+
+class TestArchDefines:
+    """The OCP-FP8 define is deliberately a gfx12 *family* test.
+
+    gfx1200/gfx1201/gfx1250 all use OCP FP8 encoding, so narrowing this to an
+    exact gfx1250 match would be wrong. This is the opposite of the tile
+    selector in codegen_common.rowcol_tensor_quant_default_tile(), which must be
+    exact because gfx1200/gfx1201 have a different 8-bit warp fragment. Both
+    behaviours are pinned so neither gets "fixed" into the other.
+    """
+
+    def _compile_argv(self, monkeypatch, tmp_path, gfx_arch):
+        captured = []
+
+        class _Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        def fake_run(cmd, *a, **kw):
+            captured.append(list(cmd))
+            return _Result()
+
+        monkeypatch.setattr(UTILS.subprocess, "run", fake_run)
+        ok = UTILS._compile_rowcolquant_kernel(
+            hpp_path=tmp_path / "k.hpp",
+            so_path=tmp_path / "k.so",
+            gfx_arch=gfx_arch,
+        )
+        assert ok, "compile helper should report success when hipcc succeeds"
+        return captured[0]
+
+    @pytest.mark.parametrize("arch", ["gfx1250", "gfx1250:xnack-"])
+    def test_supported_gfx12_targets_get_ocp_fp8(self, monkeypatch, tmp_path, arch):
+        argv = self._compile_argv(monkeypatch, tmp_path, arch)
+        assert "-DUSE_NEW_UNIFIED_FRAMEWORK=0" in argv
+        assert "-DCK_CMAKE_GPU_TARGET_IDS=0x1250" in argv
+        assert "-DCK_USE_OCP_FP8" in argv
+        assert "-DCK_TILE_USE_OCP_FP8" in argv
+
+    def test_gfx950_gets_ocp_fp8_and_mx(self, monkeypatch, tmp_path):
+        argv = self._compile_argv(monkeypatch, tmp_path, "gfx950")
+        assert "-DCK_CMAKE_GPU_TARGET_IDS=0x950" in argv
+        assert "-DCK_USE_OCP_FP8" in argv
+        assert "-DCK_USE_NATIVE_MX_SUPPORT" in argv
+
+    def test_gfx942_gets_neither(self, monkeypatch, tmp_path):
+        argv = self._compile_argv(monkeypatch, tmp_path, "gfx942:sramecc+:xnack-")
+        assert "-DCK_USE_OCP_FP8" not in argv
+        assert "-DCK_USE_NATIVE_MX_SUPPORT" not in argv
+
+
+# =============================================================================
+# Compiler-flag arch normalization
+# =============================================================================
+
+
+class TestArchNormalizationInCompileFlags:
+    """A suffixed target must never reach --offload-arch / -DGFX_ARCH.
+
+    normalize_gfx_arch() used to be applied only to the *detected* arch. A caller
+    passing gfx_arch="gfx1250:xnack-" therefore had the raw string forwarded into
+    the compiler flags. Normalization now happens once at the entry boundary.
+    """
+
+    def _compile_argv(self, monkeypatch, tmp_path, gfx_arch):
+        captured = []
+
+        class _Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        def fake_run(cmd, *a, **kw):
+            captured.append(cmd)
+            return _Result()
+
+        monkeypatch.setattr(UTILS.subprocess, "run", fake_run)
+        ok = UTILS._compile_rowcolquant_kernel(
+            hpp_path=tmp_path / "k.hpp",
+            so_path=tmp_path / "k.so",
+            gfx_arch=gfx_arch,
+        )
+        assert ok
+        return captured[0]
+
+    def test_suffixed_arch_is_stripped_from_offload_arch(self, monkeypatch, tmp_path):
+        argv = self._compile_argv(monkeypatch, tmp_path, "gfx1250:xnack-")
+        assert "--offload-arch=gfx1250" in argv
+        assert not any("xnack" in tok for tok in argv), argv
+
+    def test_suffixed_arch_is_stripped_from_gfx_arch_define(self, monkeypatch, tmp_path):
+        argv = self._compile_argv(monkeypatch, tmp_path, "gfx942:sramecc+:xnack-")
+        assert '-DGFX_ARCH="gfx942"' in argv
+
+    def test_default_config_stores_bare_arch(self):
+        assert default_fp8_config(gfx_arch="gfx1250:xnack-").gfx_arch == "gfx1250"
+        assert default_bf8_config(gfx_arch="gfx942:sramecc+").gfx_arch == "gfx942"
+
+
+# =============================================================================
+# .so cache key encodes the ABI
+# =============================================================================
+
+
+class TestSoCacheAbiKey:
+    """A pre-ABI artifact in a persistent output_dir must not be reused.
+
+    setup_multiple_rowcolquant_dispatchers() reuses a .so when the filename
+    matches. The name used to be lib{kernel}_{arch}.so, which says nothing about
+    the exported symbol set, so a .so predating the
+    dispatcher_get_tile_n()/dispatcher_get_pad_n() exports was selected and then
+    died at attribute lookup with "undefined symbol". The name now carries
+    _SO_ABI, so the stale artifact simply cannot be selected.
+    """
+
+    def test_abi_is_versioned(self):
+        assert isinstance(UTILS._SO_ABI, int) and UTILS._SO_ABI >= 2
+
+    @pytest.mark.parametrize("old_suffix", ["", "_abi2"])
+    def test_pre_abi_artifact_is_not_reused(self, monkeypatch, tmp_path, old_suffix):
+        cfg = default_fp8_config(gfx_arch="gfx950")
+
+        so_dir = tmp_path / "libs"
+        so_dir.mkdir(parents=True)
+        # Exactly the name the old code would have produced and reused.
+        stale = so_dir / f"lib{cfg.name}_gfx950{old_suffix}.so"
+        stale.write_bytes(b"stale pre-ABI artifact")
+
+        compiled = []
+
+        def fake_compile(hpp_path, so_path, gfx_arch, **kw):
+            compiled.append(so_path)
+            so_path.write_bytes(b"fresh")
+            return True
+
+        monkeypatch.setattr(UTILS, "_compile_rowcolquant_kernel", fake_compile)
+
+        out = UTILS.setup_multiple_rowcolquant_dispatchers(
+            configs=[cfg], output_dir=tmp_path, gfx_arch="gfx950", parallel=False,
+        )
+
+        assert compiled, "stale pre-ABI .so was reused instead of rebuilt"
+        assert out[0] != stale
+        assert f"_abi{UTILS._SO_ABI}.so" in out[0].name
+        assert stale.read_bytes() == b"stale pre-ABI artifact", "stale file was clobbered"
+
+    def test_second_call_hits_the_cache(self, monkeypatch, tmp_path):
+        cfg = default_fp8_config(gfx_arch="gfx950")
+        calls = []
+
+        def fake_compile(hpp_path, so_path, gfx_arch, **kw):
+            calls.append(so_path)
+            so_path.write_bytes(b"fresh")
+            return True
+
+        monkeypatch.setattr(UTILS, "_compile_rowcolquant_kernel", fake_compile)
+
+        first = UTILS.setup_multiple_rowcolquant_dispatchers(
+            configs=[cfg], output_dir=tmp_path, gfx_arch="gfx950", parallel=False)
+        second = UTILS.setup_multiple_rowcolquant_dispatchers(
+            configs=[cfg], output_dir=tmp_path, gfx_arch="gfx950", parallel=False)
+
+        assert len(calls) == 1, "second call should have hit the cache"
+        assert first[0] == second[0]

@@ -98,6 +98,7 @@ using bhalf_t = __bf16;
 using bhalf_t = ushort;
 #endif
 typedef bhalf_t bhalf2_t __attribute__((ext_vector_type(2)));
+typedef __bf16 llvm_bf16x2_t __attribute__((ext_vector_type(2)));
 
 __host__ __device__ static inline constexpr bool fnuz_f8_is_nan(f8_fnuz_t a)
 {
@@ -685,7 +686,7 @@ static __device__ fp8_storage_t cast_to_f8_from_f16(_Float16 v, unsigned int rng
         }
     }
 
-    val.half_vec =
+    val.i16_vec =
         __builtin_amdgcn_cvt_scalef32_pk_bf8_f16(i16x2val, val.half_vec, /* scale */ 1.f, 0);
 
     return val.i8val[0];
@@ -859,8 +860,8 @@ static __device__ fp8_storage_t cast_to_f8_from_bf16(ushort v, unsigned int rng 
         }
     }
 
-    val.i16_vec =
-        __builtin_amdgcn_cvt_scalef32_pk_fp8_bf16(i16x2val, val.bhalf_vec, /* scale */ 1.f, 0);
+    val.i16_vec = __builtin_amdgcn_cvt_scalef32_pk_fp8_bf16(
+        i16x2val, bit_cast<llvm_bf16x2_t>(val.bhalf_vec), /* scale */ 1.f, 0);
 
     return val.i8val[0];
 }
@@ -907,8 +908,8 @@ static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned in
         }
     }
 
-    val.i16_vec =
-        __builtin_amdgcn_cvt_scalef32_pk_fp8_bf16(i16x2val, val.bhalf_vec, /* scale */ 1.f, 0);
+    val.i16_vec = __builtin_amdgcn_cvt_scalef32_pk_fp8_bf16(
+        i16x2val, bit_cast<llvm_bf16x2_t>(val.bhalf_vec), /* scale */ 1.f, 0);
 
     return fp8x2_storage_t{val.i8val[0], val.i8val[1]};
 #endif
@@ -945,8 +946,8 @@ static __device__ fp8_storage_t cast_to_f8_from_bf16(ushort v, unsigned int rng 
         }
     }
 
-    val.i16_vec =
-        __builtin_amdgcn_cvt_scalef32_pk_bf8_bf16(i16x2val, val.bhalf_vec, /* scale */ 1.f, 0);
+    val.i16_vec = __builtin_amdgcn_cvt_scalef32_pk_bf8_bf16(
+        i16x2val, bit_cast<llvm_bf16x2_t>(val.bhalf_vec), /* scale */ 1.f, 0);
 
     return val.i8val[0];
 }
@@ -988,8 +989,8 @@ static __device__ fp8x2_storage_t cast_to_f8_from_bf16(ushortx2_t v, unsigned in
         }
     }
 
-    val.i16_vec =
-        __builtin_amdgcn_cvt_scalef32_pk_bf8_bf16(i16x2val, val.bhalf_vec, /* scale */ 1.f, 0);
+    val.i16_vec = __builtin_amdgcn_cvt_scalef32_pk_bf8_bf16(
+        i16x2val, bit_cast<llvm_bf16x2_t>(val.bhalf_vec), /* scale */ 1.f, 0);
 
     return fp8x2_storage_t{val.i8val[0], val.i8val[1]};
 }

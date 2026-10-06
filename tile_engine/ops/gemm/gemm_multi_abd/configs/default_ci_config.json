@@ -88,5 +88,13 @@
             ]
         }
     },
+    "multi_abd_config": {
+        "num_a_tensors": 2,
+        "num_b_tensors": 2,
+        "num_d_tensors": 2,
+        "a_elementwise_op": "MultiDAdd",
+        "b_elementwise_op": "MultiDAdd",
+        "cde_elementwise_op": "MultiDAdd"
+    },
     "k_block_per_cu": 1
 }

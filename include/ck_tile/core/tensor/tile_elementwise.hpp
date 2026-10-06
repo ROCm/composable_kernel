@@ -286,6 +286,42 @@ CK_TILE_DEVICE auto cast_tile_pk_fp16bf16_fp32(const InTensor& in_dstr_tensors)
     return out_dstr_tensor;
 }
 
+// Converts a pair of f32 at a time with __builtin_convertvector, which lowers
+// to one packed cvt instead of two scalar ones.
+//
+// Two preconditions, both checked below rather than left to the caller:
+//   * bfloat16_t must be the __bf16 builtin type. Where it is still ushort the
+//     same intrinsic would emit fptoui and quietly return truncated integers.
+//   * the conversion rounds to nearest even, so it may only be used where that
+//     is the configured f32 -> bf16 mode.
+// cast_tile_pk() below enforces both and falls back to the scalar path, so
+// prefer it to calling this directly.
+template <typename OutDataType, typename InTensor>
+CK_TILE_DEVICE auto cast_tile_pk_f32_to_16bit(const InTensor& in_dstr_tensors)
+{
+    static_assert(!std::is_same_v<OutDataType, bf16_t> || CK_TILE_USE_LLVM_BUILTIN_BF16,
+                  "packed f32->bf16 needs the __bf16 builtin type");
+
+    constexpr auto in_tile_dstr = InTensor::get_tile_distribution();
+
+    constexpr index_t thread_buffer_size = InTensor::get_thread_buffer_size();
+    static_assert(thread_buffer_size % 2 == 0);
+
+    auto out_dstr_tensor = make_static_distributed_tensor<OutDataType>(in_tile_dstr);
+
+    using f16x2_t = std::conditional_t<std::is_same_v<OutDataType, fp16_t>, fp16x2_t, bf16x2_t>;
+
+    static_for<0, thread_buffer_size / 2, 1>{}([&](auto i) {
+        const fp32x2_t in_pair{in_dstr_tensors.get_thread_buffer()[number<2 * i + 0>{}],
+                               in_dstr_tensors.get_thread_buffer()[number<2 * i + 1>{}]};
+
+        out_dstr_tensor.get_thread_buffer().template set_as<f16x2_t>(
+            i, __builtin_convertvector(in_pair, f16x2_t));
+    });
+
+    return out_dstr_tensor;
+}
+
 #if CK_TILE_USE_SUBDWORD_TILE_CAST
 // this function assume either src or dst (or both) date type is under 1 dword
 // we pack subdword value into 1 dword to avoid compiler's default subdword behavior(which is buggy)
@@ -376,6 +412,33 @@ CK_TILE_DEVICE auto cast_tile(const SrcTensor& src_tensor)
 #endif
     else
         return tile_elementwise_in(type_convert<DstType, typename SrcTensor::DataType>, src_tensor);
+}
+
+// cast_tile(), but converting f32 pairs with one packed instruction where that
+// is both available and numerically identical to the configured rounding mode.
+// Callers that care about the instruction count opt in explicitly; cast_tile()
+// itself is left alone so no other operation's numerics change.
+template <typename DstType, typename SrcTensor>
+CK_TILE_DEVICE auto cast_tile_pk(const SrcTensor& src_tensor)
+{
+    constexpr bool dst_is_16bit =
+        std::is_same_v<DstType, bf16_t> || std::is_same_v<DstType, fp16_t>;
+    // __builtin_convertvector rounds to nearest even; only take the packed path
+    // where that is what the build asked for.
+    constexpr bool rounding_matches =
+        !std::is_same_v<DstType, bf16_t> ||
+        (CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT == CK_TILE_FLOAT_TO_BFLOAT16_STANDARD ||
+         CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT == CK_TILE_FLOAT_TO_BFLOAT16_STANDARD_ASM ||
+         CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT == CK_TILE_FLOAT_TO_BFLOAT16_STANDARD_CNAN);
+    constexpr bool bf16_is_builtin =
+        !std::is_same_v<DstType, bf16_t> || (CK_TILE_USE_LLVM_BUILTIN_BF16 != 0);
+
+    if constexpr(dst_is_16bit && rounding_matches && bf16_is_builtin &&
+                 std::is_same_v<typename SrcTensor::DataType, float> &&
+                 (SrcTensor::get_thread_buffer_size() % 2 == 0))
+        return impl::cast_tile_pk_f32_to_16bit<DstType, SrcTensor>(src_tensor);
+    else
+        return cast_tile<DstType>(src_tensor);
 }
 
 // no-op function for null_tensor arguments

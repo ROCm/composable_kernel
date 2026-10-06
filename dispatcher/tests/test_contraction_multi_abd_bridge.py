@@ -24,6 +24,8 @@ Run: python3 -m pytest tests/test_contraction_multi_abd_bridge.py -v
 
 import ctypes
 import json
+import subprocess
+import tempfile
 import sys
 import unittest
 from pathlib import Path
@@ -44,12 +46,19 @@ from contraction_multi_abd_utils import (  # noqa: E402
     ContractionMultiABDProblem,
     ContractionMultiABDDispatcherLib,
     ContractionMultiABDRunner,
+    default_warp_tile_for_arch,
+    warp_tile_supported_on_arch,
+    _SUPPORTED_ARCHS,
+    _validate_arch,
+    _validate_warp_tiles_for_arch,
+    _detect_gpu_arch,
 )
 from unified_contraction_multi_abd_codegen import (  # noqa: E402
     SUPPORTED_EPILOGUES,
     ContractionMultiABDKernelSpec,
     make_contraction_multi_abd_kernel_name,
     _expand_nested_config,
+    _DEFAULT_CONFIG,
     build_capped_specs,
     build_specs,
 )
@@ -225,7 +234,7 @@ class TestCodegenConfigProjection(unittest.TestCase):
             self.assertEqual(cfg.to_codegen_config()["dtypes"], [dtype])
 
     def test_layout_round_trips(self):
-        for layout in ("rcr", "rrr", "ccr"):
+        for layout in ("rcr",):
             cfg = _base_config(layout=layout)
             self.assertEqual(cfg.to_codegen_config()["layouts"], [layout])
 
@@ -541,6 +550,264 @@ class TestShippedConfigs(unittest.TestCase):
                 self.assertEqual(len(val), 1, f"smoke_ci: {key} list should have 1 entry")
 
 
+class TestSupportedSurface(unittest.TestCase):
+    def test_non_rcr_rejected_independently_of_arch(self):
+        for layout in ("rrr", "crr", "ccr", "rcc", "crc", "ccc", "rrc"):
+            with self.subTest(layout=layout):
+                with self.assertRaisesRegex(ValueError, "Only 'rcr'.*all architectures"):
+                    _base_config(layout=layout)
+                with self.assertRaisesRegex(ValueError, "Only 'rcr'.*all architectures"):
+                    ContractionMultiABDKernelSpec(**_base_spec_kwargs(layout=layout))
+                for arch in ("", "gfx90a", "gfx942", "gfx950", "gfx1250"):
+                    with self.assertRaisesRegex(ValueError, "Only 'rcr'.*all architectures"):
+                        build_specs({"layouts": ["rcr", layout]}, arch)
+
+    def test_fp8_bf8_rejected_on_gfx1250(self):
+        for arch in ("gfx1250", "gfx1250:xnack-"):
+            for dtype in ("fp8", "bf8"):
+                with self.subTest(arch=arch, dtype=dtype):
+                    error = f"dtype '{dtype}' is currently not supported on {arch.split(':')[0]}"
+                    cfg = _base_config(dtype=dtype)
+                    with self.assertRaisesRegex(ValueError, error):
+                        _base_config(dtype=dtype, gfx_arch=arch)
+                    with self.assertRaisesRegex(ValueError, error):
+                        _validate_warp_tiles_for_arch([cfg], arch)
+                    # A supported dtype preceding the unsupported one must not
+                    # turn a requested mixed config into silent partial output.
+                    with self.assertRaisesRegex(ValueError, error):
+                        build_specs({"dtypes": ["fp16", dtype]}, arch)
+                    self.assertFalse(warp_tile_supported_on_arch((16, 16, 32), arch, dtype))
+
+    def test_supported_dtypes_remain_accepted(self):
+        for arch in ("gfx90a", "gfx942", "gfx950", "gfx1250"):
+            dtypes = ("fp16", "bf16", "fp8", "bf8") if arch in ("gfx90a", "gfx942", "gfx950") else ("fp16", "bf16")
+            for dtype in dtypes:
+                with self.subTest(arch=arch, dtype=dtype):
+                    m, n, k = default_warp_tile_for_arch(arch)
+                    cfg = _base_config(dtype=dtype, gfx_arch=arch,
+                                       warp_tile_m=m, warp_tile_n=n, warp_tile_k=k)
+                    _validate_warp_tiles_for_arch([cfg], arch)
+                    self.assertEqual(len(build_specs(cfg.to_codegen_config(), arch)), 1)
+
+    def test_setup_rejects_before_starting_build(self):
+        from contraction_multi_abd_utils import setup_multiple_contraction_multi_abd_dispatchers
+        for arch in ("gfx1250",):
+            with self.subTest(arch=arch):
+                cfg = _base_config(dtype="fp8")
+                with mock.patch("contraction_multi_abd_utils.subprocess.run") as run:
+                    with self.assertRaisesRegex(ValueError, "not supported"):
+                        setup_multiple_contraction_multi_abd_dispatchers([cfg], gfx_arch=arch)
+                    run.assert_not_called()
+
+    def test_cli_rejects_without_emitting_headers(self):
+        script = DISPATCHER_DIR / "codegen/unified_contraction_multi_abd_codegen.py"
+        for overrides, arch, error in (
+            ({"layouts": ["rcr", "rrr"]}, "gfx942", "Only 'rcr'"),
+            ({"layouts": ["crr"]}, "", "Only 'rcr'"),
+            ({"dtypes": ["fp16", "fp8"]}, "gfx1250", "not supported on gfx1250"),
+            ({"dtypes": ["bf8"]}, "gfx1250", "not supported on gfx1250"),
+        ):
+            for list_only in (False, True):
+                with self.subTest(overrides=overrides, arch=arch, list_only=list_only):
+                    with tempfile.TemporaryDirectory() as tmp:
+                        root = Path(tmp)
+                        config = root / "config.json"
+                        config.write_text(json.dumps(overrides))
+                        out = root / "headers"
+                        cmd = [sys.executable, str(script), "--config", str(config),
+                               "--output-dir", str(out)]
+                        if arch:
+                            cmd += ["--gfx-arch", arch]
+                        if list_only:
+                            cmd += ["--list-name"]
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn(error, result.stderr)
+                        self.assertFalse(list(out.glob("*.hpp")))
+
+
+class TestCliArchDefaults(unittest.TestCase):
+    def _run_cli(self, output, arch="", config=None, list_only=False):
+        cmd = [sys.executable,
+               str(DISPATCHER_DIR / "codegen/unified_contraction_multi_abd_codegen.py"),
+               "--output-dir", str(output)]
+        if arch:
+            cmd += ["--gfx-arch", arch]
+        if config is not None:
+            path = output.parent / "config.json"
+            path.write_text(json.dumps(config))
+            cmd += ["--config", str(path)]
+        if list_only:
+            cmd += ["--list-name"]
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+    def test_no_config_lists_and_generates_arch_default(self):
+        for arch, warp_tile in (("gfx90a", "32x32x16"), ("gfx942", "32x32x16"),
+                                ("gfx950", "32x32x16"), ("gfx1250", "16x16x32"),
+                                ("gfx1250:xnack-", "16x16x32"), ("", "32x32x16")):
+            with self.subTest(arch=arch), tempfile.TemporaryDirectory() as tmp:
+                output = Path(tmp) / "headers"
+                listed = self._run_cli(output, arch, list_only=True)
+                self.assertEqual(listed.returncode, 0, listed.stderr)
+                names = listed.stdout.splitlines()
+                self.assertEqual(len(names), 1)
+                self.assertIn(f"_256x256x64_2x2x1_{warp_tile}_", names[0])
+                generated = self._run_cli(output, arch)
+                self.assertEqual(generated.returncode, 0, generated.stderr)
+                self.assertEqual([p.stem for p in output.glob("*.hpp")], names)
+
+    def test_explicit_gfx950_tile_overrides_default(self):
+        cfg = _base_config(warp_tile_m=16, warp_tile_n=16, warp_tile_k=16)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "headers"
+            result = self._run_cli(output, "gfx950", cfg.to_codegen_config())
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((output / f"{cfg.name}.hpp").is_file())
+
+    def test_explicit_invalid_gfx1250_tile_still_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "headers"
+            result = self._run_cli(output, "gfx1250", _base_config().to_codegen_config())
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("no valid kernel spec", result.stderr)
+            self.assertFalse(list(output.glob("*.hpp")))
+
+    def test_arch_defaults_do_not_leak_between_calls(self):
+        for arch, expected in (("gfx1250", (16, 16, 32)),
+                               ("gfx950", (32, 32, 16)), ("", (32, 32, 16))):
+            with self.subTest(arch=arch):
+                spec, = build_specs(_DEFAULT_CONFIG, arch)
+                self.assertEqual((spec.warp_tile_m, spec.warp_tile_n, spec.warp_tile_k),
+                                 expected)
+
+
+class TestArchSupport(unittest.TestCase):
+    """gfx1250 (MI400) enablement: arch allow-list and its WMMA warp tile."""
+
+    def test_gfx1250_is_supported(self):
+        self.assertIn("gfx1250", _SUPPORTED_ARCHS)
+        self.assertEqual(_validate_arch("gfx1250"), "gfx1250")
+
+    def test_unknown_arch_still_rejected(self):
+        with self.assertRaises(ValueError):
+            _validate_arch("gfx999")
+
+    def test_default_warp_tile_is_wmma_on_gfx1250(self):
+        # gfx1250 is wave32 with RDNA-style WMMA: 16-bit inputs only have
+        # 16x16x32. The gfx9 MFMA 32x32x16 tile does not exist there.
+        self.assertEqual(default_warp_tile_for_arch("gfx1250"), (16, 16, 32))
+
+    def test_default_warp_tile_is_mfma_on_gfx9(self):
+        for arch in ("gfx90a", "gfx942", "gfx950"):
+            with self.subTest(arch=arch):
+                self.assertEqual(default_warp_tile_for_arch(arch), (32, 32, 16))
+
+    def test_every_supported_arch_has_a_default_warp_tile(self):
+        for arch in _SUPPORTED_ARCHS:
+            with self.subTest(arch=arch):
+                self.assertIsNotNone(default_warp_tile_for_arch(arch))
+
+    def _default_config(self) -> dict:
+        path = _CONFIG_DIR / "default_config.json"
+        self.assertTrue(path.is_file(), f"missing default config: {path}")
+        with open(path) as f:
+            return json.load(f)
+
+    def test_default_config_yields_only_wmma_tile_on_gfx1250(self):
+        # default_config.json is the config CMake consumes, so its
+        # arch_tile_config block is what actually puts the WMMA tile on gfx1250.
+        tiles = {
+            (s.warp_tile_m, s.warp_tile_n, s.warp_tile_k)
+            for s in build_specs(self._default_config(), "gfx1250")
+        }
+        self.assertEqual(tiles, {(16, 16, 32)})
+
+    def test_default_config_keeps_mfma_tiles_on_gfx9(self):
+        # gfx9 is absent from the codegen's arch table, so it stays
+        # unconstrained: it keeps the MFMA tile and is not narrowed to gfx1250's.
+        tiles = {
+            (s.warp_tile_m, s.warp_tile_n, s.warp_tile_k)
+            for s in build_specs(self._default_config(), "gfx942")
+        }
+        self.assertIn((32, 32, 16), tiles)
+        self.assertGreater(len(tiles), 1)
+
+
+class TestArchNameNormalization(unittest.TestCase):
+    """Feature-suffixed target names must resolve, not raise.
+
+    rocm_agent_enumerator and CMake both emit forms like 'gfx942:sramecc+:xnack-'.
+    """
+
+    def test_suffixed_name_accepted_and_stripped(self):
+        for raw, bare in (
+            ("gfx1250:xnack-", "gfx1250"),
+            ("gfx942:sramecc+:xnack-", "gfx942"),
+            ("gfx950:sramecc+", "gfx950"),
+        ):
+            with self.subTest(raw=raw):
+                self.assertEqual(_validate_arch(raw), bare)
+
+    def test_suffix_does_not_smuggle_in_an_unsupported_arch(self):
+        with self.assertRaises(ValueError):
+            _validate_arch("gfx999:xnack-")
+
+    def test_detect_gpu_arch_handles_suffixed_enumerator_output(self):
+        completed = mock.Mock(stdout="gfx942:sramecc+:xnack-\n", returncode=0)
+        with mock.patch("contraction_multi_abd_utils.subprocess.run",
+                        return_value=completed):
+            self.assertEqual(_detect_gpu_arch(), "gfx942")
+
+
+class TestWarpTileDtypeGating(unittest.TestCase):
+    """Tile legality is per dtype width, not per arch alone."""
+
+    def test_gfx1250_accepts_wmma_tile_for_16_bit(self):
+        for dtype in ("fp16", "bf16"):
+            with self.subTest(dtype=dtype):
+                self.assertTrue(
+                    warp_tile_supported_on_arch((16, 16, 32), "gfx1250", dtype)
+                )
+
+    def test_gfx1250_rejects_gfx9_mfma_tile(self):
+        self.assertFalse(
+            warp_tile_supported_on_arch((32, 32, 16), "gfx1250", "fp16")
+        )
+
+    def test_gfx1250_refuses_8_bit_entirely(self):
+        # No 8-bit warp tile has been established for this operator on gfx1250,
+        # so every shape is refused -- including the valid 16-bit one.
+        for dtype in ("fp8", "bf8"):
+            with self.subTest(dtype=dtype):
+                self.assertFalse(
+                    warp_tile_supported_on_arch((16, 16, 32), "gfx1250", dtype)
+                )
+
+    def test_gfx9_stays_unconstrained(self):
+        for arch in ("gfx90a", "gfx942", "gfx950"):
+            for tile in ((32, 32, 16), (16, 16, 32), (32, 32, 8)):
+                with self.subTest(arch=arch, tile=tile):
+                    self.assertTrue(
+                        warp_tile_supported_on_arch(tile, arch, "fp16")
+                    )
+
+    def test_validator_rejects_fp8_config_on_gfx1250(self):
+        cfg = _base_config(dtype="fp8", warp_tile_m=16, warp_tile_n=16, warp_tile_k=32)
+        with self.assertRaises(ValueError) as ctx:
+            _validate_warp_tiles_for_arch([cfg], "gfx1250")
+        self.assertIn("fp8", str(ctx.exception))
+
+    def test_validator_accepts_fp16_wmma_config_on_gfx1250(self):
+        cfg = _base_config(warp_tile_m=16, warp_tile_n=16, warp_tile_k=32)
+        _validate_warp_tiles_for_arch([cfg], "gfx1250")  # must not raise
+
+    def test_validator_rejects_mfma_config_on_gfx1250(self):
+        cfg = _base_config()  # defaults to the gfx9 32x32x16 tile
+        with self.assertRaises(ValueError) as ctx:
+            _validate_warp_tiles_for_arch([cfg], "gfx1250")
+        self.assertIn("16x16x32", str(ctx.exception))
+
+
 class TestExpandNestedConfig(unittest.TestCase):
     """Unit tests for _expand_nested_config() — the tile_config/trait_config JSON expansion."""
 
@@ -846,7 +1113,7 @@ class TestMaxInstancesCap(unittest.TestCase):
     def _multi_spec_config(self, **extra) -> dict:
         cfg = {
             "dtypes": ["fp16", "bf16"],
-            "layouts": ["rcr", "rrr"],
+            "layouts": ["rcr"],
             "pipelines": ["compv3"],
             "schedulers": ["intrawave"],
             "epilogues": ["cshuffle", "default2d"],

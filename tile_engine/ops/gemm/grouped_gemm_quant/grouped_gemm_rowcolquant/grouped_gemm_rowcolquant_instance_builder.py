@@ -3,6 +3,7 @@
 
 import os
 import argparse
+import functools
 import importlib.util
 import multiprocessing
 import concurrent.futures
@@ -42,6 +43,19 @@ def _import_validation_utils():
 
 
 _validation_utils = _import_validation_utils()
+
+
+# No async/TDM kernel path for this op: bind the shared guards to its name.
+_OP_NAME = "grouped_gemm_rowcolquant"
+reject_async_tdm_traits = functools.partial(
+    _validation_utils.reject_async_tdm_traits, _OP_NAME
+)
+reject_async_tdm_trait_string = functools.partial(
+    _validation_utils.reject_async_tdm_trait_string, _OP_NAME
+)
+_reject_async_tdm_config = functools.partial(
+    _validation_utils.reject_async_tdm_config, _OP_NAME
+)
 
 
 class GroupedRowColQuantGemmKernelBuilder(GemmKernelBuilder):
@@ -268,6 +282,10 @@ using BQLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
 """
         return instance_code
 
+    def _generate_trait_combinations(self):
+        _reject_async_tdm_config(self.config)
+        return super()._generate_trait_combinations()
+
     def _generate_kernel_instance(self, tile_config, trait_combo):
         """Generate a single kernel instance"""
 
@@ -282,6 +300,7 @@ using BQLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
             pad_k,
             persistent,
         ) = trait_combo
+        reject_async_tdm_traits(pipeline, epilogue)
 
         # Create kernel name with proper boolean capitalization
         kernel_name = f"{self.kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
@@ -597,6 +616,7 @@ def main():
         }
 
         # Parse trait combo
+        reject_async_tdm_trait_string(args.trait_combo)
         trait_parts = args.trait_combo.split("_")
         trait_combo = (
             trait_parts[0],  # pipeline

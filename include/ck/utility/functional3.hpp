@@ -43,7 +43,7 @@ struct ford_base
     /// Mapping from loop level ("new" index) to original dimension ("old" index)
     using New2Old = Orders;
 
-    __host__ __device__ constexpr ford_base()
+    __host__ __device__ __forceinline__ constexpr ford_base()
     {
         static_assert(Lengths::GetSize() > 0, "wrong! Lengths is empty");
         static_assert(Lengths::GetSize() == Orders::GetSize(), "wrong! inconsistent size");
@@ -180,7 +180,7 @@ struct static_ford : detail::ford_base<Lengths, Orders>
      * @param f The functor to call for each multi-index
      */
     template <class F>
-    __host__ __device__ constexpr void operator()(F f) const
+    __host__ __device__ __forceinline__ constexpr void operator()(F f) const
     {
         static_for<0, Base::TotalSize, 1>{}([&](auto linear_idx) {
             using OrderedIdx = typename Decomposer::template decompose<linear_idx.value>;

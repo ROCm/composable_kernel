@@ -17,6 +17,7 @@
     "grouped_gemm_tensorquant": 0.0625,
     "gemm_aquant": 0.0625,
     "gemm_bquant": 0.0625,
-    "gemm_abquant": 0.0625
+    "gemm_abquant": 0.0625,
+    "contraction_multi_abd": 0.0625
   }
 }

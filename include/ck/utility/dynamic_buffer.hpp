@@ -129,6 +129,14 @@ struct DynamicBuffer
             static_assert(!DoTranspose, "load-with-transpose only supported on gfx12+");
 #endif
         }
+        else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds && DoTranspose)
+        {
+#ifdef __gfx1250__
+            return amd_lds_load_transpose_to_vgpr(p_data_ + i);
+#else
+            static_assert(!DoTranspose, "load-with-transpose only supported on gfx12+");
+#endif
+        }
         else
         {
             if(is_valid_element)

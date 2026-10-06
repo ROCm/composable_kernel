@@ -245,40 +245,88 @@ class TestPreshuffleConfigsCoverPersistentFalse(unittest.TestCase):
 
 
 class TestShuffledBCacheGuardParity(unittest.TestCase):
-    """The shuffled-B cache use-site guard must match its definition guard.
+    """Every use of the shuffled-B cache must sit under its definition's guard.
 
-    ``ShuffledBCache``/``g_shuffled_b_cache`` are defined only under
-    ``#if defined(GEMM_KEY_PRESHUFFLE) && (GEMM_KEY_PRESHUFFLE != 0)``. Codegen
-    emits ``#define GEMM_KEY_PRESHUFFLE 0`` for every non-preshuffle kernel, so a
-    bare ``#ifdef GEMM_KEY_PRESHUFFLE`` at a use-site is true for those kernels
-    and references the (undeclared) cache, breaking the standard dispatcher_gemm
-    lib. The use-site must therefore carry the same ``!= 0`` guard.
+    ``g_shuffled_b_cache`` is compiled conditionally, so a use-site guarded more
+    weakly than the definition references an undeclared symbol and breaks the
+    build of the kernels that fall in the gap.  This test pins definition/use
+    parity structurally, rather than pinning one specific macro spelling.
+
+    It deliberately does NOT name ``GEMM_KEY_PRESHUFFLE``.  That macro is gone:
+    preshuffle is now a capability carried in the kernel's own metadata
+    (``SelectedKernel::Preshuffle``, emitted by unified_gemm_codegen.py) and
+    branched on with ``if constexpr``, so the unused half is discarded before
+    instantiation -- the same dead-code elimination the old ``#if
+    GEMM_KEY_PRESHUFFLE`` provided.  The single remaining guard,
+    ``GEMM_KEY_DTYPE_A``, only asks "is this a modern codegen header?" and is not
+    a preshuffle switch (see the comment block at the top of the .cpp).  The
+    earlier version of this test searched for a literal
+    ``g_shuffled_b_cache = ShuffledBCache{}`` assignment that no longer exists
+    and died with StopIteration once the cache switched to ``.clear()``.
     """
 
     _SRC = DISPATCHER_DIR / "bindings" / "ctypes" / "gemm_ctypes_lib.cpp"
+    _SYMBOL = "g_shuffled_b_cache"
 
-    def test_cache_use_site_guard_is_nonzero_form(self):
+    @staticmethod
+    def _guard_stacks(lines):
+        """Yield ``(lineno, text, active_guards)`` tracking #if/#else/#endif nesting.
+
+        ``active_guards`` is the tuple of enclosing conditional expressions, so
+        two sites compile under the same conditions iff their tuples match.
+        """
+        stack = []
+        for i, raw in enumerate(lines, 1):
+            s = raw.strip()
+            if s.startswith("#if"):
+                # "#ifdef X" / "#ifndef X" / "#if <expr>" -> normalised condition
+                cond = s.split(None, 1)[1].strip() if len(s.split(None, 1)) > 1 else ""
+                if s.startswith("#ifdef"):
+                    cond = f"defined({cond})"
+                elif s.startswith("#ifndef"):
+                    cond = f"!defined({cond})"
+                stack.append(cond)
+            elif s.startswith("#elif") or s.startswith("#else"):
+                if stack:
+                    stack[-1] = f"!({stack[-1]})"
+            elif s.startswith("#endif"):
+                if stack:
+                    stack.pop()
+            yield i, raw, tuple(stack)
+
+    def test_cache_uses_share_the_definition_guard(self):
         lines = self._SRC.read_text().splitlines()
-        use_idx = next(
-            i
-            for i, ln in enumerate(lines)
-            if "g_shuffled_b_cache = ShuffledBCache{}" in ln
+        sites = [
+            (n, text, guards)
+            for n, text, guards in self._guard_stacks(lines)
+            if self._SYMBOL in text and not text.strip().startswith("//")
+        ]
+        self.assertTrue(sites, f"{self._SYMBOL} not found in {self._SRC.name}")
+
+        definitions = [s for s in sites if f"ShuffledBCache {self._SYMBOL}" in s[1]]
+        self.assertEqual(
+            len(definitions), 1,
+            f"expected exactly one definition of {self._SYMBOL}, got "
+            f"{[(n, t.strip()) for n, t, _ in definitions]}",
         )
-        guard = next(
-            lines[j]
-            for j in range(use_idx, -1, -1)
-            if lines[j].lstrip().startswith(("#if", "#ifdef"))
-            and "GEMM_KEY_PRESHUFFLE" in lines[j]
+        def_line, _, def_guards = definitions[0]
+        self.assertTrue(
+            def_guards,
+            f"{self._SYMBOL} is defined unconditionally at line {def_line}; if that "
+            f"is intentional this test can be retired, but then the uses are "
+            f"unconditional too and the parity it protects no longer applies.",
         )
-        self.assertIn(
-            "GEMM_KEY_PRESHUFFLE != 0",
-            guard,
-            f"cache use-site guarded by non-'!= 0' directive: {guard!r}",
-        )
-        self.assertFalse(
-            guard.lstrip().startswith("#ifdef "),
-            f"cache use-site must not use bare #ifdef: {guard!r}",
-        )
+
+        for n, text, guards in sites:
+            if n == def_line:
+                continue
+            with self.subTest(line=n):
+                self.assertEqual(
+                    guards[: len(def_guards)], def_guards,
+                    f"line {n} uses {self._SYMBOL} under {guards!r}, which is not "
+                    f"nested inside the definition guard {def_guards!r} (defined at "
+                    f"line {def_line}): {text.strip()!r}",
+                )
 
 
 if __name__ == "__main__":

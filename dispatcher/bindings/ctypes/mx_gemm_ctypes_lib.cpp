@@ -16,7 +16,7 @@
  * and #include "ck_tile/ops/gemm.hpp".
  *
  * Registry bypass: microscaling GEMM's launch takes ck_tile::MxGemmHostArgs
- * (with per-32-K e8m0 block scales that must be pre-shuffled for gfx950), which
+ * (with per-32-K e8m0 block scales that must be pre-shuffled for the target architecture), which
  * the generic dispatcher backend cannot express. So this lib builds the HostArgs
  * from plain C arrays and calls SelectedKernel::launch() directly -- the same
  * direct-launch pattern used by the batched/multi-D bridges.
@@ -38,6 +38,7 @@
  */
 
 #include <hip/hip_runtime.h>
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -45,12 +46,13 @@
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 // Kernel header force-included via -include. Brings in ck_tile core + the
 // ck_tile::MxGemmHostArgs type, SelectedKernel/KERNEL_NAME, and (via
 // ck_tile/ops/gemm.hpp) the mx pipeline. We additionally pull the host
-// helpers explicitly for HostTensor / preShuffleScaleBuffer_gfx950.
+// helpers explicitly for HostTensor and scale reshuffling.
 #include "ck_tile/host.hpp"
 // Old-TE common helpers: provides the free-function template is_row_major(Layout)
 // -> ck_tile::bool_constant<...>, matching the mx_gemm profiler usage.
@@ -61,13 +63,9 @@
     "GFX_ARCH must be defined at compile time (pass -DGFX_ARCH=<arch>); do not default to a specific GPU architecture."
 #endif
 
-// The MX (microscaling) block-scale pre-shuffle below uses ck_tile's gfx950-only
-// preShuffleScaleBuffer_gfx950 host helper, so this bridge is inherently gfx950
-// only. Make that scope explicit: fail the build clearly on any other arch
-// instead of silently mis-calling the gfx950 helper.
-static_assert(std::string_view(GFX_ARCH) == "gfx950",
-              "mx_gemm dispatcher bridge is gfx950-only (uses preShuffleScaleBuffer_gfx950); "
-              "build with -DGFX_ARCH=gfx950.");
+static_assert(std::string_view(GFX_ARCH) == "gfx950" || std::string_view(GFX_ARCH) == "gfx1250",
+              "mx_gemm requires gfx950 or gfx1250");
+static constexpr bool is_gfx1250 = std::string_view(GFX_ARCH) == "gfx1250";
 
 static bool g_initialized = false;
 
@@ -110,8 +108,8 @@ void dispatcher_cleanup() { g_initialized = false; }
  *
  * A, B, C are host pointers. scale_a/scale_b are raw e8m0 bytes, unpacked and
  * unshuffled, shaped [M, K/32] and [N, K/32] row-major respectively. The lib
- * builds HostTensors from them, runs the SAME preShuffleScaleBuffer_gfx950 path
- * as the Old-TE profiler, uploads everything, and calls SelectedKernel::launch.
+ * builds HostTensors from them, uses the same architecture-specific scale layout
+ * as the Tile Engine profiler, uploads everything, and calls SelectedKernel::launch.
  *
  * Returns 0 ok, -1 HIP/bad-args, -2 unsupported shape (divisibility) or kernel rejects.
  */
@@ -176,10 +174,7 @@ int dispatcher_run_mx_gemm(const void* A,
         return -2;
     }
 
-    // MX block-scale pre-shuffle is gfx950-only (preShuffleScaleBuffer_gfx950).
-    // The compile-time static_assert already pins the build to gfx950; also guard
-    // at runtime so a gfx950-built .so run on a non-gfx950 device fails clearly
-    // instead of launching an arch-mismatched kernel.
+    // A library must run on the architecture it was compiled for.
     {
         int dev = 0;
         hipDeviceProp_t props{};
@@ -188,9 +183,10 @@ int dispatcher_run_mx_gemm(const void* A,
             std::cerr << "dispatcher_run_mx_gemm: could not query device architecture\n";
             return -1;
         }
-        if(std::string_view(props.gcnArchName).substr(0, 6) != "gfx950")
+        const std::string_view device_arch(props.gcnArchName);
+        if(device_arch.substr(0, device_arch.find(':')) != GFX_ARCH)
         {
-            std::cerr << "dispatcher_run_mx_gemm: MX GEMM is gfx950-only; running device is "
+            std::cerr << "dispatcher_run_mx_gemm: library/device architecture mismatch: "
                       << props.gcnArchName << "\n";
             return -1;
         }
@@ -237,21 +233,21 @@ int dispatcher_run_mx_gemm(const void* A,
     constexpr ck_tile::index_t xdl_mn_thread = SelectedKernel::WarpTileM;
     constexpr ck_tile::index_t xdl_k_thread  = 64 / xdl_mn_thread;
 
-    // ---- Divisibility guard. The shuffled scale-buffer sizes below use integer
-    // division by the xdl pack factors (m/m_xdl_pack, n/n_xdl_pack,
-    // scale_k_size/k_xdl_pack). If M/N/scale_k are not exact multiples of their
-    // pack factors, that division silently truncates the shuffled buffers, so the
-    // pre-shuffle would read/write past valid data and the kernel would consume a
-    // corrupt scale layout. Return -2 (unsupported shape for the selected warp
-    // tile) rather than -1 (bad-args/HIP error), consistent with the IsSupportedArguments-
-    // style rejects used elsewhere in the dispatcher ctypes layer. ----
-    if(m % m_xdl_pack != 0 || n % n_xdl_pack != 0 || scale_k_size % k_xdl_pack != 0)
+    // Validate before reshuffling: packed scale descriptors cannot represent K tails.
+    if constexpr(SelectedKernel::Preshuffle)
     {
-        std::cerr << "dispatcher_run_mx_gemm: M, N, and scale_k (=K/32) must be divisible by the "
-                     "xdl pack factors (m_xdl_pack="
-                  << m_xdl_pack << ", n_xdl_pack=" << n_xdl_pack << ", k_xdl_pack=" << k_xdl_pack
-                  << ") for the selected warp tile; got M=" << m << ", N=" << n
-                  << ", scale_k=" << scale_k_size << "\n";
+        // shuffle_b forms complete native warp tiles before the device launch.
+        if(n % n_per_xdl != 0 || k % k_per_xdl != 0)
+            return -2;
+    }
+    if constexpr(is_gfx1250)
+    {
+        if(k % 128 != 0 || k % SelectedKernel::TileK != 0)
+            return -2;
+    }
+    else if(m % (m_per_xdl * m_xdl_pack) != 0 || n % (n_per_xdl * n_xdl_pack) != 0 ||
+            k % SelectedKernel::TileK != 0)
+    {
         return -2;
     }
 
@@ -273,20 +269,37 @@ int dispatcher_run_mx_gemm(const void* A,
     for(std::size_t i = 0; i < scale_b_count; ++i)
         scale_b_host.mData[i] = ScaleType(static_cast<typename ScaleType::raw_type>(scale_b[i]));
 
-    // ---- Shuffled scale buffers (same lengths as the profiler). ----
-    ck_tile::HostTensor<ScaleType> scale_a_shuffled(
-        {static_cast<std::size_t>(m / m_xdl_pack * 2),
-         static_cast<std::size_t>(scale_k_size / k_xdl_pack * 2)},
-        {static_cast<std::size_t>(scale_k_size / k_xdl_pack * 2), static_cast<std::size_t>(1)});
-    ck_tile::HostTensor<ScaleType> scale_b_shuffled(
-        {static_cast<std::size_t>(n / n_xdl_pack * 2),
-         static_cast<std::size_t>(scale_k_size / k_xdl_pack * 2)},
-        {static_cast<std::size_t>(scale_k_size / k_xdl_pack * 2), static_cast<std::size_t>(1)});
-
-    ck_tile::preShuffleScaleBuffer_gfx950<m_xdl_pack, k_xdl_pack, xdl_mn_thread, xdl_k_thread>(
-        scale_a_host.mData.data(), scale_a_shuffled.mData.data(), m, scale_k_size, true);
-    ck_tile::preShuffleScaleBuffer_gfx950<n_xdl_pack, k_xdl_pack, xdl_mn_thread, xdl_k_thread>(
-        scale_b_host.mData.data(), scale_b_shuffled.mData.data(), n, scale_k_size, true);
+    // The gfx1250 WMMA instruction consumes four consecutive E8M0 scales per
+    // lane. Pad MN before reshuffling so a partial output tile has valid storage.
+    auto shuffle_scales = [&](const ck_tile::HostTensor<ScaleType>& input, auto is_a) {
+        constexpr bool IsA     = decltype(is_a)::value;
+        constexpr auto warp_mn = IsA ? m_per_xdl : n_per_xdl;
+        constexpr auto tile_mn = IsA ? SelectedKernel::TileM : SelectedKernel::TileN;
+        constexpr auto mn_pack = IsA ? m_xdl_pack : n_xdl_pack;
+        const auto mn          = IsA ? m : n;
+        if constexpr(is_gfx1250)
+        {
+            const auto padded_mn = ck_tile::integer_divide_ceil(mn, tile_mn) * tile_mn;
+            ck_tile::HostTensor<ScaleType> padded(
+                {static_cast<std::size_t>(padded_mn), static_cast<std::size_t>(scale_k_size)});
+            std::copy(input.mData.begin(), input.mData.end(), padded.mData.begin());
+            ck_tile::HostTensor<ScaleType> shuffled(padded.mDesc);
+            ck_tile::preShuffleScaleBuffer_gfx1250<ScaleType, 32, true>(
+                padded.data(), shuffled.data(), padded_mn, scale_k_size, warp_mn);
+            return shuffled;
+        }
+        else
+        {
+            ck_tile::HostTensor<ScaleType> shuffled(
+                {static_cast<std::size_t>(mn / mn_pack * 2),
+                 static_cast<std::size_t>(scale_k_size / k_xdl_pack * 2)});
+            ck_tile::preShuffleScaleBuffer_gfx950<mn_pack, k_xdl_pack, xdl_mn_thread, xdl_k_thread>(
+                input.data(), shuffled.data(), mn, scale_k_size, true);
+            return shuffled;
+        }
+    };
+    auto scale_a_shuffled = shuffle_scales(scale_a_host, std::true_type{});
+    auto scale_b_shuffled = shuffle_scales(scale_b_host, std::false_type{});
 
     // ---- Build A/B/C HostTensors with the SAME descriptors the Old-TE profiler
     // uses, then allocate/copy through ck_tile::DeviceMem. This makes the byte
@@ -313,6 +326,13 @@ int dispatcher_run_mx_gemm(const void* A,
     std::memcpy(a_m_k.mData.data(), A, a_bytes);
     std::memcpy(b_k_n.mData.data(), B, b_bytes);
 
+    const auto b_host_for_device = [&]() {
+        if constexpr(SelectedKernel::Preshuffle)
+            return ck_tile::shuffle_b<SelectedKernel>(b_k_n);
+        else
+            return b_k_n;
+    }();
+
     const std::size_t scale_a_bytes = scale_a_shuffled.get_element_space_size_in_bytes();
     const std::size_t scale_b_bytes = scale_b_shuffled.get_element_space_size_in_bytes();
 
@@ -330,7 +350,7 @@ int dispatcher_run_mx_gemm(const void* A,
         ck_tile::DeviceMem sb_dev(scale_b_bytes);
 
         a_dev.ToDevice(a_m_k.data());
-        b_dev.ToDevice(b_k_n.data());
+        b_dev.ToDevice(b_host_for_device.data());
         c_dev.SetZero();
         sa_dev.ToDevice(scale_a_shuffled.data());
         sb_dev.ToDevice(scale_b_shuffled.data());

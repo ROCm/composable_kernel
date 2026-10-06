@@ -1,0 +1,90 @@
+{
+    "tile_config": {
+        "tile_m": {
+            "values": [
+                64,
+                128
+            ]
+        },
+        "tile_n": {
+            "values": [
+                64,
+                128
+            ]
+        },
+        "tile_k": {
+            "values": [
+                128
+            ]
+        },
+        "warp_m": {
+            "values": [
+                2
+            ]
+        },
+        "warp_n": {
+            "values": [
+                2
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                128
+            ]
+        }
+    },
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "comp_tdm",
+                "comp_tdm_v2"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "tdm"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                false
+            ]
+        },
+        "pad_n": {
+            "values": [
+                false
+            ]
+        },
+        "pad_k": {
+            "values": [
+                false
+            ]
+        },
+        "persistent": {
+            "values": [
+                false
+            ]
+        }
+    },
+    "k_block_per_cu": 1
+}

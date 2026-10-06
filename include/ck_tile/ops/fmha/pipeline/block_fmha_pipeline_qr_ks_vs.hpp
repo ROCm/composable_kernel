@@ -579,17 +579,22 @@ struct BlockFmhaPipelineQRKSVS
                     {
                         static_for<1, kGemm0KItersPerBlock, 1>{}([&](auto i_tail_k_iter) {
                             constexpr index_t kTailKIters = i_tail_k_iter;
-                            constexpr index_t kTailK0     = kTailKIters * kGemm0WarpK;
 
                             if(gemm0_tail_k_iters == kTailKIters)
                             {
+                                // gfx12 WMMA accumulates (c = a*b + c), so a K=kTailK0 tail
+                                // equals kTailKIters accumulating warp-K(=kGemm0WarpK) sub-GEMMs.
+                                // Slicing the Q A-operand register tile at warp-K granularity
+                                // divides the register layout cleanly for any tail multiple of
+                                // kGemm0WarpK (16/32/48), avoiding the reverse_slice_sequence
+                                // static_assert that a monolithic K=48 slice triggers on WMMA.
                                 using Gemm0TailProblem = BlockGemmProblem<
                                     QDataType,
                                     KDataType,
                                     SaccDataType,
                                     Problem::kNumGemm0Warps * get_warp_size(),
                                     TileGemmShape<
-                                        sequence<kM0, kN0, kTailK0>,
+                                        sequence<kM0, kN0, kGemm0WarpK>,
                                         typename BlockFmhaShape::Gemm0BlockWarps,
                                         sequence<BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
                                                  BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
@@ -598,14 +603,20 @@ struct BlockFmhaPipelineQRKSVS
                                     BlockGemmARegBSmemCRegV2<Gemm0TailProblem,
                                                              typename BlockGemm0::Policy>{};
 
-                                auto q_slice =
-                                    get_slice_tile(q_tile,
-                                                   sequence<0, i_k0 * kK0>{},
-                                                   sequence<kM0, i_k0 * kK0 + kTailK0>{});
-                                auto k_tail_window = make_tile_window(
-                                    k_lds, make_tuple(number<kN0>{}, number<kTailK0>{}), {0, 0});
+                                static_for<0, kTailKIters, 1>{}([&](auto j) {
+                                    constexpr index_t kSubKOffset = j.value * kGemm0WarpK;
 
-                                gemm_0_tail(s_acc, q_slice, k_tail_window);
+                                    auto q_slice = get_slice_tile(
+                                        q_tile,
+                                        sequence<0, i_k0 * kK0 + kSubKOffset>{},
+                                        sequence<kM0, i_k0 * kK0 + kSubKOffset + kGemm0WarpK>{});
+                                    auto k_tail_window = make_tile_window(
+                                        k_lds,
+                                        make_tuple(number<kN0>{}, number<kGemm0WarpK>{}),
+                                        {0, kSubKOffset});
+
+                                    gemm_0_tail(s_acc, q_slice, k_tail_window);
+                                });
                             }
                         });
                         return;

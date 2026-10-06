@@ -294,8 +294,8 @@ struct BlockGemmARegBRegCRegV1
         constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        // hot loop:
-        static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
+        // hot loop: A/B block tensors hold a single K sub-tile when KSubTileNum > 1
+        static_ford<sequence<KPerSubTile, MIterPerWarp>>{}([&](auto km) {
             constexpr auto kIter = number<km[number<0>{}]>{};
             constexpr auto mIter = number<km[number<1>{}]>{};
             // read A warp tensor from A Block window

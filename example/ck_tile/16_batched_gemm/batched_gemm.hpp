@@ -10,8 +10,27 @@
 #include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/utility/json_dump.hpp"
+#include "gemm_common/vector_size_fallback_dispatch.hpp"
 
-struct GemmConfigMemory
+using ck_tile_example::GemmConfigVectorSizeFallback;
+
+struct GemmConfigBase
+{
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = false;
+
+    static constexpr bool FixedVectorSize         = false;
+    static constexpr ck_tile::index_t VectorSizeA = 1;
+    static constexpr ck_tile::index_t VectorSizeB = 1;
+    static constexpr ck_tile::index_t VectorSizeC = 1;
+
+    static constexpr bool EnableSmallerVectorLoadFallback = false;
+
+    static constexpr bool LargeTensors = false;
+};
+
+struct GemmConfigMemory : public GemmConfigBase
 {
     // Memory friendly for Interwave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -31,8 +50,12 @@ struct GemmConfigMemory
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
-struct GemmConfigV3
+struct GemmConfigV3 : public GemmConfigBase
 {
+    static constexpr bool kPadM = true;
+    static constexpr bool kPadN = true;
+    static constexpr bool kPadK = true;
+
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
@@ -49,9 +72,12 @@ struct GemmConfigV3
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
+
+    static constexpr bool EnableSmallerVectorLoadFallback = true;
+    static constexpr bool LargeTensors                    = true;
 };
 
-struct GemmConfigV4
+struct GemmConfigV4 : public GemmConfigBase
 {
     // Compute friendly for Intrawave scheduler
     // Using the ping pong reader in the lds level
@@ -72,7 +98,7 @@ struct GemmConfigV4
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
-struct GemmConfigV3_Wmma
+struct GemmConfigV3_Wmma : public GemmConfigBase
 {
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -90,6 +116,9 @@ struct GemmConfigV3_Wmma
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
+
+    static constexpr bool EnableSmallerVectorLoadFallback = true;
+    static constexpr bool LargeTensors                    = true;
 };
 
 template <ck_tile::GemmPipeline PipelineId>

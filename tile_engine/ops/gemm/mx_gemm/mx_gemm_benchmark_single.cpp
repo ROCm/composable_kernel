@@ -79,6 +79,7 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
     catch(const std::exception& e)
     {
         std::cerr << "Benchmark failed: " << e.what() << std::endl;
+        throw;
     }
 }
 

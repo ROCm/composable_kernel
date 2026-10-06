@@ -47,7 +47,7 @@
 // get rerouted to the UnificationDispatcher. The latter is necessary because some pipelines bypass
 // the WarpGemmDispatcher in favor of directly using named WarpGemms.
 #ifndef USE_NEW_UNIFIED_FRAMEWORK
-#define USE_NEW_UNIFIED_FRAMEWORK 0
+#define USE_NEW_UNIFIED_FRAMEWORK 1
 #endif
 
 namespace ck_tile {
@@ -456,14 +456,27 @@ constexpr auto get_compiler_target()
  * will always pick the *first* cmakelists target arch, so there will be issues when compiling for
  * multiple target architectures.
  */
+// Every tier below must be a whole-translation-unit `-D` macro: this selects a template argument
+// type, so a device-pass-only `__gfx*__` tier would make the host and device passes instantiate
+// different types. The CK_USE_GFX* tier is family-coarse and picks a representative target.
+#if defined(CK_CMAKE_GPU_TARGET_IDS)
+#define CK_TILE_GPU_TARGET_IDS CK_CMAKE_GPU_TARGET_IDS
+#elif USE_NEW_UNIFIED_FRAMEWORK
+#pragma message(                                                                             \
+    "ck_tile: no GPU target known at compile time; falling back to the current pass's "      \
+    "target, which makes the host pass see HOST and the device pass see the real arch. "     \
+    "Pass -DCK_CMAKE_GPU_TARGET_IDS=0x0942 (gfx942), or -DCK_USE_GFX94 / -DCK_USE_GFX950 / " \
+    "-DCK_USE_GFX1250, so both passes agree.")
+#endif
+
 // Note: The trivial template and always_false_v are necessary to avoid triggering the first static
 // assert. Without this trick the static assert would be triggered regardless of the value of "id".
 template <typename = void>
 static constexpr auto getCMakeCompilerTarget()
 {
     using ck_tile::core::arch::amdgcn_target_id;
-#ifdef CK_CMAKE_GPU_TARGET_IDS
-    constexpr uint32_t ids[] = {CK_CMAKE_GPU_TARGET_IDS};
+#ifdef CK_TILE_GPU_TARGET_IDS
+    constexpr uint32_t ids[] = {CK_TILE_GPU_TARGET_IDS};
     constexpr amdgcn_target_id id =
         static_cast<amdgcn_target_id>(ids[0]); // We pick the *first* target arch. TODO.
 
@@ -500,15 +513,14 @@ static constexpr auto getCMakeCompilerTarget()
     {
 #if USE_NEW_UNIFIED_FRAMEWORK // Avoid hard errors for third parties including arch.hpp
         static_assert(always_false_v<decltype(id)>,
-                      "CK_CMAKE_GPU_TARGET_IDS[0] is HOST or UNKNOWN!\n");
+                      "CK_TILE_GPU_TARGET_IDS[0] is HOST or UNKNOWN!\n");
 #endif
         return amdgcn_target<>{}; // By default, return HOST target.
     }
 #else
-#if USE_NEW_UNIFIED_FRAMEWORK
-    static_assert(false, "The CK_CMAKE_GPU_TARGET_IDS macro was not made available!\n");
-#endif
-    return amdgcn_target<>{}; // By default, return HOST target.
+    // No configure-time target: fall back to the current pass. Host and device therefore
+    // disagree, so any type selected from this result differs between the two passes.
+    return get_compiler_target();
 #endif
 }
 

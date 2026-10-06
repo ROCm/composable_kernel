@@ -58,7 +58,7 @@ template <typename T, T... Is>
 struct applier
 {
     template <typename F>
-    __host__ __device__ constexpr void operator()(F f) const
+    __host__ __device__ __forceinline__ constexpr void operator()(F f) const
     {
         // tweak -fbracket-depth if compilation fails. Clang default limit is 256
         (f(Number<Is>{}), ...);
@@ -80,7 +80,7 @@ template <typename... Is>
 struct static_for_range
 {
     template <typename F>
-    __host__ __device__ constexpr void operator()(F f) const
+    __host__ __device__ __forceinline__ constexpr void operator()(F f) const
     {
         // tweak -fbracket-depth if compilation fails. Clang default limit is 256
         (f(Is{}), ...);
@@ -97,7 +97,7 @@ template <typename... Is, typename... Rest>
 struct static_for_product<Tuple<Is...>, Rest...>
 {
     template <typename F>
-    __host__ __device__ constexpr void operator()(F f) const
+    __host__ __device__ __forceinline__ constexpr void operator()(F f) const
     {
         static_for_product<Tuple<Is...>>{}([&](auto i0) {   //
             static_for_product<Rest...>{}([&](auto... is) { //

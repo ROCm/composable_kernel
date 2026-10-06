@@ -41,8 +41,16 @@ if(THEROCK_SANITIZER STREQUAL "ASAN" OR THEROCK_SANITIZER STREQUAL "HOST_ASAN")
   message(STATUS "Enabling ASAN for Composable Kernel (THEROCK_SANITIZER=${THEROCK_SANITIZER})")
 endif()
 
-set(version 1.2.0)
+set(version 1.3.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
+
+# CK's large HIP translation units can fail in Clang's heterogeneous DWARF
+# emission under host TSAN. Release does not override debug flags inherited
+# from a parent toolchain, so disable debug info for CK compilation only.
+# Keep the host TSAN instrumentation and all other toolchain flags.
+if(THEROCK_SANITIZER STREQUAL "TSAN")
+  add_compile_options(-g0)
+endif()
 include(CTest)
 
 option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
@@ -196,7 +204,7 @@ function(_ck_gpu_target_string_to_id TARGET_STR OUT_VAR)
         set(${OUT_VAR} "0x1201" PARENT_SCOPE)
     elseif(_tgt MATCHES "^gfx12-generic$")
         set(${OUT_VAR} "0x12FF" PARENT_SCOPE)
-    elseif(_tgt STREQUAL "gfx1250")
+    elseif(_tgt STREQUAL "gfx1250" OR _tgt STREQUAL "gfx1250-strict")
         set(${OUT_VAR} "0x1250" PARENT_SCOPE)
     else()
         message(WARNING "_ck_gpu_target_string_to_id: unknown GPU target '${TARGET_STR}', skipping")

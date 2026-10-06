@@ -831,9 +831,14 @@ __global__ void naive_gemm_kernel(ADataType* A,
         static_assert(std::is_same_v<ADataType, BDataType>,
                       "ADataType and BDataType must be the same");
 
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int row = idx / N; // Compute row index
-    int col = idx % N; // Compute column index
+    // 64-bit indexing: for large tensors the linear element offsets (idx, a/b/c_index) can
+    // exceed INT_MAX, so every derived index must be computed and stored as int64_t. The
+    // per-K loop counter stays int (K is a single dimension well within range), but the
+    // ColumnMajor products k * stride are cast to int64_t before the multiply to avoid a
+    // 32-bit overflow in the intermediate.
+    int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    int64_t row = idx / N; // Compute row index
+    int64_t col = idx % N; // Compute column index
 
     if(row < M && col < N)
     {
@@ -843,12 +848,12 @@ __global__ void naive_gemm_kernel(ADataType* A,
             constexpr index_t packed_size_a = ck_tile::numeric_traits<ADataType>::PackedSize;
             constexpr index_t packed_size_b = ck_tile::numeric_traits<BDataType>::PackedSize;
             // Adjust indexing based on matrix layout
-            int a_index = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
-                              ? row * strideA + k
-                              : k * strideA + row;
-            int b_index = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
-                              ? col * strideB + k
-                              : k * strideB + col;
+            int64_t a_index = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
+                                  ? row * strideA + k
+                                  : static_cast<int64_t>(k) * strideA + row;
+            int64_t b_index = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
+                                  ? col * strideB + k
+                                  : static_cast<int64_t>(k) * strideB + col;
 
             AccDataType v_a;
             AccDataType v_b;
@@ -921,10 +926,10 @@ __global__ void naive_gemm_kernel(ADataType* A,
             }
         }
 
-        int c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
-                          ? row * strideC + col
-                          : col * strideC + row;
-        C[c_index]  = ck_tile::type_convert<CDataType>(acc);
+        int64_t c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
+                              ? row * strideC + col
+                              : col * strideC + row;
+        C[c_index]      = ck_tile::type_convert<CDataType>(acc);
     }
 }
 
@@ -1090,9 +1095,9 @@ void reference_gemm_gpu(ADataType* a_ptr,
                         index_t stride_b,
                         index_t stride_c)
 {
-    int totalElements      = M * N;
+    int64_t totalElements  = static_cast<int64_t>(M) * N;
     int numThreadsPerBlock = 256; // Common choice for threads per block
-    int numBlocks          = (totalElements + numThreadsPerBlock - 1) / numThreadsPerBlock;
+    int64_t numBlocks      = (totalElements + numThreadsPerBlock - 1) / numThreadsPerBlock;
 
     naive_gemm_kernel<ADataType, BDataType, AccDataType, CDataType, LayoutA, LayoutB, LayoutC>
         <<<numBlocks, numThreadsPerBlock>>>(

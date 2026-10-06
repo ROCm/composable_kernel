@@ -319,7 +319,13 @@ int dispatcher_initialize()
     key.algorithm.pad_m = (GEMM_KEY_PAD_M != 0);
     key.algorithm.pad_n = (GEMM_KEY_PAD_N != 0);
     key.algorithm.pad_k = (GEMM_KEY_PAD_K != 0);
-    key.gfx_arch        = GFX_ARCH;
+#ifdef GEMM_KEY_VECTOR_SIZE_A
+    // Fixed global vector widths are part of the kernel name, so the key must carry them.
+    key.algorithm.vector_size_a = GEMM_KEY_VECTOR_SIZE_A;
+    key.algorithm.vector_size_b = GEMM_KEY_VECTOR_SIZE_B;
+    key.algorithm.vector_size_c = GEMM_KEY_VECTOR_SIZE_C;
+#endif
+    key.gfx_arch = GFX_ARCH;
 #else
     // Fallback default for headers generated before GEMM_KEY_* macros existed
     // (fp16 / rcr / compv4-cshuffle-intrawave, 128x128x32). The macro path
@@ -624,6 +630,14 @@ int dispatcher_run_gemm(
     catch(const std::exception& e)
     {
         cleanup_gpu_mem();
+        if(std::string(e.what()).find("not supported") != std::string::npos)
+        {
+            if(time_ms)
+            {
+                *time_ms = -1.0f;
+            }
+            return -3; // Arguments not supported by this kernel
+        }
         return -1;
     }
 

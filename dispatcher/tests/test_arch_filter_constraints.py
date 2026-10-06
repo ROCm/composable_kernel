@@ -26,7 +26,7 @@ DISPATCHER_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
 
 # Importing at all fails if arch_filter.py has a syntax error.
-from arch_filter import OPERATOR_TILE_CONSTRAINTS, OperatorType  # noqa: E402
+from arch_filter import ArchFilter, KernelConfig, OPERATOR_TILE_CONSTRAINTS, OperatorType  # noqa: E402
 
 REQUIRED_KEYS = {
     "min_tile_m",
@@ -74,6 +74,20 @@ class TestOperatorTileConstraints(unittest.TestCase):
         self.assertEqual(REQUIRED_KEYS, set(grouped.keys()))
         # GEMM_GROUPED and GEMM_STREAMK are separate entries, not a merged one.
         self.assertIn(OperatorType.GEMM_STREAMK, OPERATOR_TILE_CONSTRAINTS)
+
+
+class TestGfx1250Int8WarpTile(unittest.TestCase):
+    def test_native_wmma_is_valid_and_mfma_is_rejected(self):
+        for warp, valid in (((16, 16, 64), True), ((32, 32, 16), False)):
+            with self.subTest(warp=warp):
+                config = KernelConfig(
+                    datatype_a="int8", datatype_b="int8", datatype_c="int32",
+                    tile_m=128, tile_n=128, tile_k=64,
+                    warp_m=2, warp_n=2, warp_k=1,
+                    warp_tile_m=warp[0], warp_tile_n=warp[1], warp_tile_k=warp[2],
+                )
+                result = ArchFilter("gfx1250").validate_kernel(config)
+                self.assertEqual(result.valid, valid, result.errors)
 
 
 if __name__ == "__main__":

@@ -122,6 +122,26 @@ run_fp8fp32_tests() {
     done ; done ; done
 }
 
+# perhead is only generated for gfx125x, and the example exits non-zero when an instance is
+# missing, so this cannot be folded into run_fp8bf16_tests without breaking the other targets.
+run_gfx125_qscale_tests() {
+    # hdim 256 is left out: qr_tdm generates no d=256 fp8 instance
+    for prec in fp8 fp8bf16 fp8fp32 ; do
+    for scale in n pt ph bs ; do
+    for mode in 0 1 ; do
+    for hdim in 64 128 ; do
+    for perm in 0 1 ; do
+
+    # init=3 fills up to the fp8 maximum, which only stands for a real tensor when a descale
+    # maps it back to qkv_max. With no descale the logits reach ~3e5 in the exp2 domain and
+    # the softmax collapses to an argmax, where half an fp32 ulp of the row max is worth 1%.
+    if [ "$scale" = "n" ] ; then init=0 ; else init=3 ; fi
+
+    run_exe -prec=$prec -init=$init -mode=$mode -b=2 -h=2 -h_k=1 -d=$hdim -s=99 -s_k=256 -iperm=$perm -operm=$perm -vlayout=r -qscale=$scale -kname=$KNAME $COMMON_ARGS
+
+    done ; done ; done ; done ; done
+}
+
 run_fp16_appendkv_tests() {
     for s in $(seq 63 1 65) ; do
     for s_k in 65 129 ; do
@@ -287,6 +307,31 @@ run_sink_mask_tests() {
     # window_size[-1,1], sink_size=2  (bottom-right, large seqlen + sink)
     run_exe -prec=fp16 -mode=1 -b=1 -h=1 -d=128 -d_v=128 -s=16384 -s_k=16384 -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=128 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:-1,1,2
     run_exe -prec=bf16 -mode=1 -b=1 -h=2 -d=128 -d_v=128 -s=8192  -s_k=8192  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=128 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:-1,1,2
+
+    # Sink->normal window-jump regressions (qr_async, qr_tdm). Need
+    # page_block_size=0 -- =128 above dispatches the unaffected paged pipeline.
+
+    # qr_async: jump was dead code (gated after i_total_loops++)
+    run_exe -prec=fp16 -mode=0 -b=1 -h=1 -d=128 -d_v=128 -s=512   -s_k=512   -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=t:2,0,2
+    run_exe -prec=bf16 -mode=0 -b=2 -h=2 -d=128 -d_v=128 -s=512   -s_k=512   -bias=n -lse=0 -iperm=1 -operm=1 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=t:2,0,2
+    run_exe -prec=fp16 -mode=0 -b=1 -h=1 -d=128 -d_v=128 -s=4096  -s_k=4096  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:1,0,2
+    run_exe -prec=bf16 -mode=0 -b=2 -h=4 -d=128 -d_v=128 -s=2048  -s_k=2048  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:1,0,2
+    run_exe -prec=fp16 -mode=1 -b=1 -h=1 -d=128 -d_v=128 -s=8192  -s_k=8192  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:2,0,2
+
+    # qr_tdm (gfx1250 only, prefill s>=2048): ping-pong K/V prefetch jumped late,
+    # reading stale pre-jump tiles. Falls back to qr_async on gfx950, covered above.
+    # The third mask field is the sink size, and num_sink_loop = ceil(sink / kN0)
+    # with kN0=64 at d=128, so these three (sink=2) all give num_sink_loop==1 and
+    # reach only the prologue jump.
+    run_exe -prec=fp16 -mode=0 -b=1 -h=1 -d=128 -d_v=128 -s=2048  -s_k=2048  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=t:2,0,2
+    run_exe -prec=bf16 -mode=0 -b=1 -h=1 -d=128 -d_v=128 -s=4096  -s_k=4096  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:1,0,2
+    run_exe -prec=fp16 -mode=0 -b=1 -h=1 -d=128 -d_v=128 -s=8192  -s_k=8192  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:2,0,2
+
+    # sink 80 and 150 span 2 and 3 kN0=64 tiles, so num_sink_loop reaches 2 and 3
+    # and the mainloop jump (i_total_loops == num_sink_loop - 2) is exercised. The
+    # sink=2 cases above never reach it.
+    run_exe -prec=bf16 -mode=0 -b=1 -h=1 -d=128 -d_v=128 -s=4096  -s_k=4096  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:1,0,80
+    run_exe -prec=fp16 -mode=0 -b=1 -h=1 -d=128 -d_v=128 -s=8192  -s_k=8192  -bias=n -lse=0 -iperm=0 -operm=0 -vlayout=r -num_splits=1 -page_block_size=0 -cache_batch_idx=0 -kname=$KNAME $COMMON_ARGS -mask=b:2,0,150
 }
 
 # init_sink tests: validate sink token initialization across prec/hdim/mode.
@@ -308,8 +353,15 @@ set -x
 run_fp16_bf16_tests
 run_padding_smoke_tests
 run_padding_basic_boundary_tests
-run_fp8bf16_tests
-run_fp8fp32_tests
+case "$GPU_arch" in
+    gfx125*)
+        run_gfx125_qscale_tests
+        ;;
+    *)
+        run_fp8bf16_tests
+        run_fp8fp32_tests
+        ;;
+esac
 if [ $TEST_STREAM_SINK -eq 1 ] ; then
     run_sink_mask_tests
 fi

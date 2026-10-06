@@ -57,12 +57,24 @@ struct BlockMXGemmASmemBRegCReg
     {
         constexpr index_t K_Lane   = get_warp_size() / 16;
         constexpr index_t K_Thread = WarpGemm::kK / K_Lane;
-        constexpr index_t AK1      = 16 * APackedSize;
 
         static_assert(BlockGemmShape::WarpTile::at(I0) == 16 &&
                       BlockGemmShape::WarpTile::at(I1) == 16);
         static_assert(BlockGemmShape::BlockWarps::at(I0) == 1, "requires Wave_M == 1");
 
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MWarp, MXdlPack, WarpGemm::kM>,
+                                             sequence<K_Thread / WarpGemm::kAKPack,
+                                                      K_Lane,
+                                                      WarpGemm::kAKPack / APackedSize>>,
+                                       tuple<sequence<1, 0>, sequence<2, 1>>,
+                                       tuple<sequence<0, 0>, sequence<1, 2>>,
+                                       sequence<2, 2>,
+                                       sequence<0, 2>>{});
+#else
+        constexpr index_t AK1 = 16 * APackedSize;
         if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<NWarp>,
@@ -84,6 +96,7 @@ struct BlockMXGemmASmemBRegCReg
                     sequence<0, 2>>{});
         else
             static_assert(false, "unsupported datatype");
+#endif
     }
 
     template <typename AWarpWindow>
@@ -163,6 +176,19 @@ struct BlockMXGemmASmemBRegCReg
             constexpr auto k_iter    = ikpack * KXdlPack + ikxdl;
             constexpr auto APackIter = ikxdl * MXdlPack + imxdl;
 
+#if defined(CK_USE_GFX1250) && CK_TILE_USE_WMMA
+            WarpGemm{}
+                .template operator()<
+                    AScaleDataType<ScaleDataTypeToEnum<typename Problem::AScaleDataType>::value>,
+                    BScaleDataType<ScaleDataTypeToEnum<typename Problem::BScaleDataType>::value>>(
+                    c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
+                    preloaded_a_warp_tensor(number<APackIter>{}),
+                    bit_cast<typename WarpGemm::BWarpTensor>(
+                        b_warp_tensors(number<n_iter>{})(number<k_iter>{})),
+                    scale_a_tile_tensors(number<m_iter>{})(number<k_iter>{}).get_thread_buffer()[0],
+                    scale_b_tile_tensors(number<n_iter>{})(number<k_iter>{})
+                        .get_thread_buffer()[0]);
+#else
             WarpGemm{}.template operator()<OpSelA<APackIter>, OpSelB<ikxdl * NXdlPack + inxdl>>(
                 c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
                 preloaded_a_warp_tensor(number<APackIter>{}),
@@ -170,6 +196,7 @@ struct BlockMXGemmASmemBRegCReg
                     b_warp_tensors(number<n_iter>{})(number<k_iter>{})),
                 scale_a_tile_tensors(impack)(ikpack).get_thread_buffer()[0],
                 scale_b_tile_tensors(inpack)(ikpack).get_thread_buffer()[0]);
+#endif
 
             constexpr auto addr = m_iter % 2 + k_iter * 2 + m_iter / 2 * 4 + m_preload;
             if constexpr(addr < (KIterPerWarp * MIterPerWarp) && (n_iter == NIterPerWarp - 1))

@@ -49,6 +49,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "ck_tile/core.hpp"
@@ -67,6 +68,53 @@
 #error \
     "GFX_ARCH must be defined at compile time (pass -DGFX_ARCH=<arch>); do not default to a specific GPU architecture."
 #endif
+
+// ---------------------------------------------------------------------------
+// Compile-time arch / warp-tile backstop.
+//
+// The codegen filter rejects invalid tiles before a header is written, but it
+// only protects headers produced through that path. A header generated out of
+// band and then compiled for gfx1250 would still build, launch and return a
+// wrong answer -- there is no trap and no non-finite output to notice. These
+// asserts read the force-included kernel's own WarpTile constants, so the guard
+// cannot be bypassed by generating the header elsewhere.
+//
+// Constexpr prefix match rather than string equality: GFX_ARCH can arrive
+// carrying feature suffixes such as "gfx1250:sramecc+:xnack-".
+// ---------------------------------------------------------------------------
+namespace {
+
+constexpr bool ct_starts_with(const char* s, const char* prefix)
+{
+    return (*prefix == '\0') ? true : (*s != *prefix) ? false : ct_starts_with(s + 1, prefix + 1);
+}
+
+constexpr bool kIsGfx1250 = ct_starts_with(GFX_ARCH, "gfx1250");
+
+static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+                  std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor> &&
+                  std::is_same_v<ELayout, ck_tile::tensor_layout::gemm::RowMajor>,
+              "batched_contraction_multi_abd: non-rcr layouts are not supported "
+              "on any architecture. Only rcr is supported.");
+
+/// Element width of the kernel's data type, in bits.
+constexpr int kElemBits = static_cast<int>(sizeof(EDataType)) * 8;
+
+constexpr bool kGfx1250WarpTileOk = (SelectedKernel::WarpTileM == 16) &&
+                                    (SelectedKernel::WarpTileN == 16) &&
+                                    (SelectedKernel::WarpTileK == 32);
+
+static_assert(!kIsGfx1250 || kElemBits == 16,
+              "batched_contraction_multi_abd: this dtype is currently not supported on "
+              "gfx1250. Only fp16/bf16 are supported; fp8/bf8 are currently not supported.");
+
+static_assert(!kIsGfx1250 || kGfx1250WarpTileOk,
+              "gfx1250 (MI400) is wave32 with RDNA-style WMMA and its only 16-bit "
+              "warp tile is 16x16x32. The gfx9 MFMA tiles compile and launch here "
+              "and then return a wrong answer, so this is rejected at compile "
+              "time. Regenerate the header with --gfx-arch gfx1250.");
+
+} // namespace
 
 // Guard with fallbacks so the file is still self-describing if the macros change.
 #ifndef CONTRACTION_MULTI_ABD_NUM_A

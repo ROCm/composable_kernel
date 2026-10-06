@@ -32,6 +32,7 @@ byte-identical AMDGPU backend flags -- a prerequisite for fair A/B parity.
 """
 
 from __future__ import annotations
+from dispatcher_common import unified_framework_flags
 
 import ctypes
 import multiprocessing
@@ -95,7 +96,7 @@ def _repeat_ok(
 # GPU architecture resolution (never default to gfx942)
 # ============================================================================
 
-_SUPPORTED_ARCHES: Tuple[str, ...] = ("gfx90a", "gfx942", "gfx950")
+_SUPPORTED_ARCHES: Tuple[str, ...] = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 
 # Byte size of each C output dtype as the compiled kernel writes it
 # (sizeof(CDataType)). The host numpy buffer is memcpy'd verbatim to/from the
@@ -604,6 +605,7 @@ def _build_batched_compile_jobs(
         "-D__HIP_PLATFORM_AMD__",
         f"--offload-arch={gfx_arch}",
         f'-DGFX_ARCH="{gfx_arch}"',
+        *unified_framework_flags(gfx_arch),
         # Byte-identical AMDGPU backend flags to the single-problem bridge and
         # Old-TE (see gemm_utils._tile_engine_codegen_flags) -- required for a
         # fair A/B parity comparison.
@@ -768,6 +770,7 @@ def expand_sweep(
     arch: Optional[str] = None,
     dtype: str = "fp16",
     layout: str = "rcr",
+    **vector_kwargs,
 ) -> List[BatchedGemmKernelConfig]:
     """Expand a Tile Engine batched GEMM JSON sweep config into
     [BatchedGemmKernelConfig]. Reuses gemm_utils.expand_sweep (same tile/trait
@@ -775,7 +778,8 @@ def expand_sweep(
 
     ``arch`` is resolved via ``_get_arch()`` (rocminfo) when omitted and
     validated against the supported set otherwise -- never a silent gfx942
-    default."""
+    default. ``vector_kwargs`` (``vector_sizes``/``rejects``) is forwarded to
+    gemm_utils.expand_sweep for misaligned-problem vector widths."""
     arch = _resolve_arch(arch)
     # Match Old-TE's validated set EXACTLY: the batched_gemm instance builder
     # (tile_engine/ops/gemm/batched_gemm/batched_gemm_instance_builder.py)
@@ -795,7 +799,9 @@ def expand_sweep(
             f"batched_gemm_instance_builder declares --layout choices=['rcr']); "
             f"got {layout!r}"
         )
-    base_configs = _gu.expand_sweep(config_path, arch, dtype=dtype, layout=layout)
+    base_configs = _gu.expand_sweep(
+        config_path, arch, dtype=dtype, layout=layout, variant="batched", **vector_kwargs
+    )
     out: List[BatchedGemmKernelConfig] = []
     seen: set = set()
     for b in base_configs:
@@ -839,6 +845,9 @@ def expand_sweep(
             pad_k=b.pad_k,
             persistent=b.persistent,
             gfx_arch=b.gfx_arch,
+            vector_size_a=b.vector_size_a,
+            vector_size_b=b.vector_size_b,
+            vector_size_c=b.vector_size_c,
             variant="batched",
         )
         if c.name in seen:

@@ -6,7 +6,7 @@
             "step": 64
         },
         "tile_n": {
-            "max": 256,
+            "max": 512,
             "min": 64,
             "step": 64
         },
@@ -53,7 +53,9 @@
     "trait_config": {
         "pipeline": {
             "values": [
-                "comp_async"
+                "comp_async",
+                "comp_async_eight_waves",
+                "weight_preshuffle"
             ]
         },
         "scheduler": {

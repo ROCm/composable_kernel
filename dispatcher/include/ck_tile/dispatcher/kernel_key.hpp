@@ -49,7 +49,10 @@ enum class Pipeline : std::uint8_t
     CompV6,       // Compute pipeline v6
     PreShuffleV1, // Weight preshuffle pipeline v1
     PreShuffleV2, // Weight preshuffle pipeline v2 (optimized)
-    Wavelet       // Wavelet pipeline (specialized math + load waves)
+    Wavelet,      // Wavelet pipeline (specialized math + load waves)
+    CompAsync,    // Async global->LDS compute pipeline (always double-buffered)
+    CompTDMV1,    // Tensor Data Mover compute pipeline v1 (gfx1250 only)
+    CompTDMV2     // Tensor Data Mover compute pipeline v2 (gfx1250 only, 4 waves)
 };
 
 /// Epilogue strategies for output processing
@@ -57,11 +60,12 @@ enum class Pipeline : std::uint8_t
 enum class Epilogue : std::uint8_t
 {
     None,
-    Default,       // DefaultGemm2DEpilogue
-    CShuffle,      // CShuffleEpilogue (cross-shuffle)
-    Bias,          // Bias addition
-    Activation,    // Fused activation
-    BiasActivation // Fused bias + activation
+    Default,        // DefaultGemm2DEpilogue
+    CShuffle,       // CShuffleEpilogue (cross-shuffle)
+    Bias,           // Bias addition
+    Activation,     // Fused activation
+    BiasActivation, // Fused bias + activation
+    Tdm             // TdmEpilogue (Tensor Data Mover store, gfx1250 only)
 };
 
 /// Scheduler types for wave coordination
@@ -160,12 +164,19 @@ struct KernelKey
         Epilogue epilogue;
 
         // Block and memory configuration
-        std::uint16_t block_size;     // BlockSize in generated kernels (typically 256)
-        bool double_buffer;           // DoubleSmemBuffer (true for compv4)
+        std::uint16_t block_size; // BlockSize in generated kernels (typically 256)
+        // Ping-pong LDS staging. Defaulted because the LDS capacity check reads
+        // it: a key that reaches validation without assigning it would otherwise
+        // read an indeterminate value and pick a budget at random.
+        bool double_buffer = false;   // DoubleSmemBuffer (true for compv4)
         bool persistent;              // UsePersistentKernel
         bool preshuffle;              // Preshuffle (for weight preshuffle variants)
         bool transpose_c;             // TransposeC
         std::uint8_t num_wave_groups; // NumWaveGroups
+        // Fixed global vector widths (elements) for A/B/C; all 0 = native widths
+        std::uint8_t vector_size_a = 0;
+        std::uint8_t vector_size_b = 0;
+        std::uint8_t vector_size_c = 0;
 
         // Padding support flags (kPadM, kPadN, kPadK in generated kernels)
         bool pad_m = true; // Support arbitrary M dimensions via padding
@@ -227,7 +238,10 @@ struct KernelKey
                         algorithm.pad_k,
                         algorithm.streamk,
                         algorithm.reduction_strategy,
-                        algorithm.workspace);
+                        algorithm.workspace,
+                        algorithm.vector_size_a,
+                        algorithm.vector_size_b,
+                        algorithm.vector_size_c);
     }
 
     /// Equality comparison
@@ -325,6 +339,9 @@ inline std::string to_string(Pipeline pipeline)
     case Pipeline::PreShuffleV1: return "preshufflev1";
     case Pipeline::PreShuffleV2: return "preshufflev2";
     case Pipeline::Wavelet: return "wavelet";
+    case Pipeline::CompAsync: return "comp_async";
+    case Pipeline::CompTDMV1: return "comp_tdm";
+    case Pipeline::CompTDMV2: return "comp_tdm_v2";
     default: return "unknown";
     }
 }
@@ -352,6 +369,12 @@ inline Pipeline string_to_pipeline(const std::string& str)
         return Pipeline::PreShuffleV2;
     if(str == "wavelet")
         return Pipeline::Wavelet;
+    if(str == "comp_async")
+        return Pipeline::CompAsync;
+    if(str == "comp_tdm")
+        return Pipeline::CompTDMV1;
+    if(str == "comp_tdm_v2")
+        return Pipeline::CompTDMV2;
     return Pipeline::Mem; // Default
 }
 
@@ -366,6 +389,7 @@ inline std::string to_string(Epilogue epilogue)
     case Epilogue::Bias: return "bias";
     case Epilogue::Activation: return "activation";
     case Epilogue::BiasActivation: return "bias_activation";
+    case Epilogue::Tdm: return "tdm";
     default: return "unknown";
     }
 }
@@ -385,6 +409,8 @@ inline Epilogue string_to_epilogue(const std::string& str)
         return Epilogue::Activation;
     if(str == "bias_activation")
         return Epilogue::BiasActivation;
+    if(str == "tdm")
+        return Epilogue::Tdm;
     return Epilogue::Default; // Default
 }
 
@@ -466,6 +492,11 @@ inline std::string KernelKey::encode_identifier() const
         << unsigned(algorithm.wave_shape.k) << "_" << unsigned(algorithm.warp_tile_shape.m) << "x"
         << unsigned(algorithm.warp_tile_shape.n) << "x" << unsigned(algorithm.warp_tile_shape.k);
 
+    // Must match gemm_vector_size_suffix() in codegen_common.py
+    if(algorithm.vector_size_a || algorithm.vector_size_b || algorithm.vector_size_c)
+        oss << "_vec" << unsigned(algorithm.vector_size_a) << "_"
+            << unsigned(algorithm.vector_size_b) << "_" << unsigned(algorithm.vector_size_c);
+
     if(signature.split_k > 1)
         oss << "_splitk" << unsigned(signature.split_k);
     if(!signature.elementwise_op.empty() && signature.elementwise_op != "PassThrough")
@@ -490,6 +521,26 @@ inline std::string KernelKey::encode_identifier() const
     }
 
     return oss.str();
+}
+
+/// Whether the contiguous A/B/C extents divide the effective global vector
+/// widths supplied by the selected pipeline and epilogue. Native widths cannot
+/// be inferred from dtype alone; they depend on tile and warp distributions.
+inline bool vector_widths_divide(const KernelKey& key,
+                                 std::int64_t M,
+                                 std::int64_t N,
+                                 std::int64_t K,
+                                 std::int64_t width_a,
+                                 std::int64_t width_b,
+                                 std::int64_t width_c)
+{
+    const auto& sig          = key.signature;
+    const auto is_row        = [](LayoutTag l) { return l == LayoutTag::RowMajor; };
+    const std::int64_t ext_a = is_row(sig.layout_a) ? K : M;
+    const std::int64_t ext_b = is_row(sig.layout_b) ? N : K;
+    const std::int64_t ext_c = is_row(sig.layout_c) ? N : M;
+    return width_a > 0 && width_b > 0 && width_c > 0 && ext_a % width_a == 0 &&
+           ext_b % width_b == 0 && ext_c % width_c == 0;
 }
 
 } // namespace dispatcher

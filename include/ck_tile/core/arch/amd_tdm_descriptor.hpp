@@ -20,15 +20,15 @@ enum class TDMGatherIndexSize : uint32_t
 
 struct TDMLdsPaddingConfig
 {
-    uint32_t pad_interval;
-    uint32_t pad_amount;
+    uint32_t pad_interval{0};
+    uint32_t pad_amount{0};
 };
 
 struct TDMIterationConfig
 {
-    uint64_t global_addr_increment;
-    uint32_t local_addr_increment;
-    uint16_t iterate_count;
+    uint64_t global_addr_increment{0};
+    uint32_t local_addr_increment{0};
+    uint16_t iterate_count{0};
 };
 
 // context switch is not supported in MI450
@@ -38,7 +38,7 @@ struct TDMConfig
     bool is_restore{false};
     // 0 - don't send an atomic barrier op. 1 - send an atomic barrier op.
     bool atomic_barrier_enable{false};
-    uint16_t atomic_barrier_address;
+    uint16_t atomic_barrier_address{0}; // only consumed when atomic_barrier_enable
     // 0 - don't iterate over the tensor. 1 - iterate over the tensor.
     bool iterate_enable{false};
     TDMIterationConfig iter_config;

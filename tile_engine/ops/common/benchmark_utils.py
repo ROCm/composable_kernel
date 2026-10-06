@@ -143,7 +143,11 @@ def export_best_kernels(best_kernels: Dict, filename: str, verbose: bool = False
 
 
 def export_json(
-    results: List[Dict], filename: str, best_kernels: Dict = None, verbose: bool = False
+    results: List[Dict],
+    filename: str,
+    best_kernels: Dict = None,
+    verbose: bool = False,
+    launch_counts: Dict = None,
 ):
     """Export all results and best kernels to JSON with comprehensive metadata"""
     from datetime import datetime
@@ -222,14 +226,24 @@ def export_json(
                     r.get("tflops", 0) for r in relevant_results
                 ) / len(relevant_results)
 
+    benchmark_metadata = {
+        "timestamp": datetime.now().isoformat(),
+        "total_kernels_tested": len(results),
+        "unique_kernels": len(set(r.get("name", "unknown") for r in results)),
+        "successful_runs": len(successful_results),
+        "failed_runs": len(results) - len(successful_results),
+    }
+
+    # Launch accounting, when the caller tracks it
+    if launch_counts is not None:
+        attempted = launch_counts.get("attempted", 0)
+        failed = launch_counts.get("failed", 0)
+        benchmark_metadata["launches_attempted"] = attempted
+        benchmark_metadata["launches_succeeded"] = attempted - failed
+        benchmark_metadata["launches_failed"] = failed
+
     output_data = {
-        "benchmark_metadata": {
-            "timestamp": datetime.now().isoformat(),
-            "total_kernels_tested": len(results),
-            "unique_kernels": len(set(r.get("name", "unknown") for r in results)),
-            "successful_runs": len(successful_results),
-            "failed_runs": len(results) - len(successful_results),
-        },
+        "benchmark_metadata": benchmark_metadata,
         "performance_summary": {
             "tflops_stats": {
                 "best": max(tflops_values, default=0),

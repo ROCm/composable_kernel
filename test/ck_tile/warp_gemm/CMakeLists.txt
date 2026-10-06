@@ -21,3 +21,13 @@ if(GPU_TARGETS MATCHES "gfx125")
     add_gtest_executable(test_ck_tile_wmma_bf16f32_16x16x32 test_wmma_bf16f32_16x16x32.cpp)
     add_gtest_executable(test_ck_tile_wg_32x16x128_fp4 test_f32_32x16x128_fp4.cpp)
 endif()
+
+# FP64 16x16x4 MFMA warp gemm test.
+# Keep these targets in sync with the header guard in
+# warp_gemm_attribute_mfma_impl.hpp (__gfx90a__ || __gfx942__ || __gfx950__):
+# the FP64 matrix core exists on CDNA2/3/4 but NOT gfx908/CDNA1, so gfx908
+# is intentionally excluded. Exact target names (not gfx94/gfx95) so a
+# gfx940/gfx941 build can't register a test the header would compile out.
+if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950")
+    add_gtest_executable(test_ck_tile_wg_f64_16x16x4_mfma test_f64_16x16x4_mfma.cpp)
+endif()

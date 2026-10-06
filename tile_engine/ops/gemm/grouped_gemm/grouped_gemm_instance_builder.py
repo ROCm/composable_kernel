@@ -335,10 +335,7 @@ def main():
         )
 
         # Generate the kernel
-        builder._generate_kernel_instance(
-            tile_config,
-            trait_combo,
-        )
+        builder._generate_kernel_instance(tile_config, trait_combo, validate=True)
     elif args.gen_all_individual:
         # Generate all individual kernel files
         builder._generate_all_individual(args.num_workers)

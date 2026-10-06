@@ -16,6 +16,7 @@ Usage:
     result = runner.run(Q, K, V, problem)
 """
 
+from dispatcher_common import unified_framework_flags, load_hip_runtime
 import ctypes
 import json
 import os
@@ -740,33 +741,31 @@ class FmhaRunner:
             raise RuntimeError("Failed to initialize FMHA dispatcher")
 
     def _load_hip(self):
-        for name in ["libamdhip64.so", "libamdhip64.so.6"]:
-            try:
-                self._hip = ctypes.CDLL(name)
-                self._hip.hipMalloc.argtypes = [
-                    ctypes.POINTER(ctypes.c_void_p),
-                    ctypes.c_size_t,
-                ]
-                self._hip.hipMalloc.restype = ctypes.c_int
-                self._hip.hipFree.argtypes = [ctypes.c_void_p]
-                self._hip.hipFree.restype = ctypes.c_int
-                self._hip.hipMemcpy.argtypes = [
-                    ctypes.c_void_p,
-                    ctypes.c_void_p,
-                    ctypes.c_size_t,
-                    ctypes.c_int,
-                ]
-                self._hip.hipMemcpy.restype = ctypes.c_int
-                self._hip.hipMemset.argtypes = [
-                    ctypes.c_void_p,
-                    ctypes.c_int,
-                    ctypes.c_size_t,
-                ]
-                self._hip.hipMemset.restype = ctypes.c_int
-                return
-            except OSError:
-                continue
-        raise RuntimeError("Could not load libamdhip64.so")
+        # Soname selection lives in dispatcher_common.load_hip_runtime(). This
+        # used to try only ["libamdhip64.so", "libamdhip64.so.6"], which fails
+        # on ROCm 7 (only .so.7 is registered) and wherever the unversioned dev
+        # symlink is not on the loader path.
+        self._hip = load_hip_runtime()
+        self._hip.hipMalloc.argtypes = [
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_size_t,
+        ]
+        self._hip.hipMalloc.restype = ctypes.c_int
+        self._hip.hipFree.argtypes = [ctypes.c_void_p]
+        self._hip.hipFree.restype = ctypes.c_int
+        self._hip.hipMemcpy.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_int,
+        ]
+        self._hip.hipMemcpy.restype = ctypes.c_int
+        self._hip.hipMemset.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_size_t,
+        ]
+        self._hip.hipMemset.restype = ctypes.c_int
 
     @classmethod
     def from_prebuilt(cls, arch: Optional[str] = None) -> "FmhaRunner":
@@ -1206,6 +1205,7 @@ def fmha_compile_flags(arch: str, hipcc: str = "", family: str = "") -> List[str
     - CK_USE_XDL: enables MFMA (matrix fused multiply-add) instructions
     - CK_TILE_USE_WMMA: 0 for CDNA (uses MFMA instead)
     - CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3: BWD bf16 conversion mode
+    - USE_NEW_UNIFIED_FRAMEWORK=0: preserves the gfx1250 CMake gate for every TU
     """
     if not hipcc:
         hipcc = _find_hipcc()
@@ -1217,6 +1217,7 @@ def fmha_compile_flags(arch: str, hipcc: str = "", family: str = "") -> List[str
         "-O3",
         "-DNDEBUG",
         f"--offload-arch={arch}",
+        *unified_framework_flags(arch),
         "-std=c++17",
         f"-I{root.parent / 'include'}",
         f"-I{root / 'include'}",

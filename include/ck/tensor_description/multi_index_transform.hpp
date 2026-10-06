@@ -1738,7 +1738,7 @@ struct ConvBwdDataImplicitGemmOutTransform
 
     __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
     {
-        return true;
+        return false;
     }
 
     template <typename UpIdx>
@@ -1746,8 +1746,8 @@ struct ConvBwdDataImplicitGemmOutTransform
     IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& idx_up) const
     {
         // Padding
-        index_t K_idx  = idx_up[Number<0>{}] * up_lengths_[Number<2>{}] + idx_up[Number<2>{}];
-        index_t& M_idx = idx_up[Number<1>{}];
+        index_t K_idx     = idx_up[Number<0>{}] * up_lengths_[Number<2>{}] + idx_up[Number<2>{}];
+        const auto& M_idx = idx_up[Number<1>{}];
 
         bool pad_valid = M_idx < up_lengths_[Number<1>{}] - MPad_ &&
                          K_idx < up_lengths_[Number<0>{}] * up_lengths_[Number<2>{}] - KPad_;

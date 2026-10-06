@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_problem.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
@@ -1687,7 +1688,47 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                                               const PInTensor& p_in)
     {
 #if defined(__gfx125__)
-        pt_out.get_thread_buffer() = p_in.get_thread_buffer();
+        {
+            using BG_C           = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+            using BG_A           = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
+            constexpr auto cfg_c = BG_C::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            constexpr auto cfg_a = BG_A::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG_C           = remove_cvref_t<decltype(cfg_c.template at<0>())>;
+            using WG_A           = remove_cvref_t<decltype(cfg_a.template at<0>())>;
+
+            constexpr index_t MWarpC = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
+            constexpr index_t NWarpC = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+            constexpr index_t MWarpA = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<0>{});
+
+            constexpr index_t CM = Problem::BlockFmhaShape::kM0 / (MWarpC * WG_C::kM);
+            constexpr index_t CN = Problem::BlockFmhaShape::kN0 / (NWarpC * WG_C::kN);
+            constexpr index_t AM = Problem::BlockFmhaShape::kN0 / (MWarpA * WG_A::kM);
+            constexpr index_t AK = Problem::BlockFmhaShape::kK1 / WG_A::kK;
+
+            static_assert(CN == AM && CM == AK * 2, "gfx125 C->A fragment counts do not line up");
+
+            constexpr index_t kChunk = WG_C::kM * WG_C::kN / get_warp_size();
+
+            if constexpr(AM == 1)
+            {
+                pt_out.get_thread_buffer() = p_in.get_thread_buffer();
+            }
+            else
+            {
+                static_for<0, AM, 1>{}([&](auto am) {
+                    static_for<0, AK, 1>{}([&](auto ak) {
+                        static_for<0, 2, 1>{}([&](auto h) {
+                            constexpr index_t a_off = ((am * AK + ak) * 2 + h) * kChunk;
+                            constexpr index_t c_off = ((ak * 2 + h) * CN + am) * kChunk;
+                            static_for<0, kChunk, 1>{}([&](auto e) {
+                                pt_out.get_thread_buffer()[number<a_off + e>{}] =
+                                    p_in.get_thread_buffer()[number<c_off + e>{}];
+                            });
+                        });
+                    });
+                });
+            }
+        }
 #else
         if constexpr(Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}) == 16)
         {
@@ -1748,7 +1789,47 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                                                   const SGradInTensor& ds_in)
     {
 #if defined(__gfx125__)
-        dst_out.get_thread_buffer() = ds_in.get_thread_buffer();
+        {
+            using BG_C           = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+            using BG_A           = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
+            constexpr auto cfg_c = BG_C::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            constexpr auto cfg_a = BG_A::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG_C           = remove_cvref_t<decltype(cfg_c.template at<0>())>;
+            using WG_A           = remove_cvref_t<decltype(cfg_a.template at<0>())>;
+
+            constexpr index_t MWarpC = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<0>{});
+            constexpr index_t NWarpC = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<1>{});
+            constexpr index_t MWarpA = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<0>{});
+
+            constexpr index_t CM = Problem::BlockFmhaShape::kM0 / (MWarpC * WG_C::kM);
+            constexpr index_t CN = Problem::BlockFmhaShape::kN0 / (NWarpC * WG_C::kN);
+            constexpr index_t AM = Problem::BlockFmhaShape::kN0 / (MWarpA * WG_A::kM);
+            constexpr index_t AK = Problem::BlockFmhaShape::kK3 / WG_A::kK;
+
+            static_assert(CN == AM && CM == AK * 2, "gfx125 C->A fragment counts do not line up");
+
+            constexpr index_t kChunk = WG_C::kM * WG_C::kN / get_warp_size();
+
+            if constexpr(AM == 1)
+            {
+                dst_out.get_thread_buffer() = ds_in.get_thread_buffer();
+            }
+            else
+            {
+                static_for<0, AM, 1>{}([&](auto am) {
+                    static_for<0, AK, 1>{}([&](auto ak) {
+                        static_for<0, 2, 1>{}([&](auto h) {
+                            constexpr index_t a_off = ((am * AK + ak) * 2 + h) * kChunk;
+                            constexpr index_t c_off = ((ak * 2 + h) * CN + am) * kChunk;
+                            static_for<0, kChunk, 1>{}([&](auto e) {
+                                dst_out.get_thread_buffer()[number<a_off + e>{}] =
+                                    ds_in.get_thread_buffer()[number<c_off + e>{}];
+                            });
+                        });
+                    });
+                });
+            }
+        }
 #else
         if constexpr(Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}) == 16)
         {
@@ -2066,12 +2147,15 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 LDS_WRITE_INST / MFMA_INST >= 1 ? LDS_WRITE_INST / MFMA_INST : 1;
             constexpr index_t MFMA_INST_LDS_WRITE = LDS_WRITE_INST / LDS_WRITE_PER_MFMA;
 
-            constexpr index_t LDS_READ_PER_MFMA =
-                (MFMA_INST - MFMA_INST_LDS_WRITE) > 0
-                    ? LDS_READ_INST / (MFMA_INST - MFMA_INST_LDS_WRITE) > 0
-                          ? LDS_READ_INST / (MFMA_INST - MFMA_INST_LDS_WRITE)
-                          : 1
-                    : 0;
+            // Tiles whose LDS writes outnumber their MFMAs leave nothing for the DS read groups.
+            constexpr index_t MFMA_INST_LDS_READ =
+                MFMA_INST > MFMA_INST_LDS_WRITE ? MFMA_INST - MFMA_INST_LDS_WRITE : 0;
+
+            constexpr index_t LDS_READ_PER_MFMA = MFMA_INST_LDS_READ > 0
+                                                      ? LDS_READ_INST / MFMA_INST_LDS_READ > 0
+                                                            ? LDS_READ_INST / MFMA_INST_LDS_READ
+                                                            : 1
+                                                      : 0;
 
             static_for<0, MFMA_INST_LDS_WRITE, 1>{}([&](auto i) {
                 ignore = i;
@@ -2079,7 +2163,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 __builtin_amdgcn_sched_group_barrier(0x200, LDS_WRITE_PER_MFMA, 0); // DS Write
             });
 
-            static_for<0, MFMA_INST - MFMA_INST_LDS_WRITE, 1>{}([&](auto i) {
+            static_for<0, MFMA_INST_LDS_READ, 1>{}([&](auto i) {
                 ignore = i;
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                 // MFMA
                 __builtin_amdgcn_sched_group_barrier(0x100, LDS_READ_PER_MFMA, 0); // DS Read
@@ -2119,7 +2203,15 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
         static constexpr index_t WarpGemmN =
             Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{});
-        static constexpr index_t WarpGemmK = WarpGemmM == 16 ? 16 : 8;
+
+        // The counts below feed sched_group_barrier, so they must count *instructions*: K here
+        // is the K of one warp gemm instruction, not of the warp tile. A 16x16x32 tile is a
+        // single instruction on gfx950 and gfx1250 but two 16x16x16 MFMAs on gfx90a/gfx942.
+        using Gemm0WarpGemm =
+            remove_cvref_t<decltype(remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>::Policy::
+                                        template GetWarpGemmMWarpNWarp<Problem>()
+                                            .template at<0>())>;
+        static constexpr index_t WarpGemmK = Gemm0WarpGemm::WarpGemmAttribute::Impl::kK;
         static constexpr index_t Gemm4MWarp =
             Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
         static constexpr index_t Gemm4NWarp =

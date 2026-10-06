@@ -493,7 +493,7 @@ def get_wave_warp_pairs(
             result.append((wave, mn))
 
     # If no curated pairs survived (e.g. for architectures whose supported wave
-    # combos don't match the CDNA-derived curated strategies, such as rdna4/gfx1250),
+    # combos don't match the CDNA-derived curated strategies, such as gfx1250),
     # fall back to all tile_math-valid pairs so those arches still get kernels.
     if not result and tm_pairs:
         for wave, wt in tm_pairs:

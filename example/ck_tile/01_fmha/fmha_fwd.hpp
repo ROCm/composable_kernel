@@ -233,12 +233,19 @@ struct FmhaMasks
 // runtime args, some will passed to karg, some will used to compute grids/blocks
 struct fmha_fwd_args
 {
+    std::string* selected_kernel_name = nullptr;
+
     const void* q_ptr;
     const void* k_ptr;
     const void* v_ptr;
     const void* bias_ptr; // bias or alibi_slope pointer
     const void* q_descale_ptr;
     const void* k_descale_ptr;
+    // With BLOCKSCALE on gfx1250 the V descale rides an E8M0 scale operand, which keeps
+    // only the exponent: a value that is not a power of two is truncated toward zero
+    // (1.9 becomes 1.0), silently. Snap the scale to a power of two before quantizing and
+    // quantize with that same value. The caller must guarantee this; neither the kernel
+    // nor fmha_fwd() can validate it (the pointer is device memory).
     const void* v_descale_ptr;
     void* rand_val_ptr;
     void* lse_ptr;
@@ -787,6 +794,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_stride_q_descale,
                                              args.nhead_stride_k_descale,
                                              args.nhead_stride_v_descale,
+                                             args.batch_stride_q_descale,
+                                             args.batch_stride_k_descale,
+                                             args.batch_stride_v_descale,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.sink_size,
@@ -1464,7 +1474,8 @@ template <ck_tile::index_t HDim_,
           bool kPadDv_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_ = false,
-          bool kHasSink_        = false>
+          bool kHasSink_        = false,
+          int kOccupancy_       = -1>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1491,6 +1502,12 @@ struct fmha_fwd_traits_
     static constexpr bool kUseTrLoad                 = kUseTrLoad_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
     static constexpr bool kHasSink                   = kHasSink_;
+    // Purely a policy hint (currently maps to make_kernel<kBlockPerCu>). Kept
+    // as a non-defaulted-away metadata field so tiles sharing all other
+    // traits but different occupancy still produce DISTINCT instantiations of
+    // `fmha_fwd_<traits, arch>`, avoiding `ld: multiple definition` when
+    // multiple such tiles are linked into a single shared object.
+    static constexpr int kOccupancy = kOccupancy_;
 };
 
 template <ck_tile::index_t HDim_,
@@ -1517,6 +1534,7 @@ template <ck_tile::index_t HDim_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_            = false,
           bool kHasSink_                   = false,
+          int kOccupancy_                  = -1,
           ck_tile::index_t kPageBlockSize_ = 1,
           ck_tile::BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout_ =
               ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT,
@@ -1547,7 +1565,8 @@ struct fmha_fwd_batch_prefill_traits_ : public fmha_fwd_traits_<HDim_,
                                                                 kPadDv_,
                                                                 kUseTrLoad_,
                                                                 kSkipMinSeqlenQ_,
-                                                                kHasSink_>
+                                                                kHasSink_,
+                                                                kOccupancy_>
 {
     static constexpr auto kKVMemoryLayout            = kKVMemoryLayout_;
     static constexpr auto kKVLookupTable             = kKVLookupTable_;
@@ -1558,6 +1577,9 @@ struct fmha_fwd_batch_prefill_traits_ : public fmha_fwd_traits_<HDim_,
 
 template <typename Traits_, typename Arch = void>
 float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
+
+template <typename Traits_, typename Arch = void>
+ck_tile::index_t fmha_fwd_kvscale_align_();
 
 template <ck_tile::index_t HDim_,
           typename DataType_,
@@ -1581,7 +1603,8 @@ template <ck_tile::index_t HDim_,
           bool kPadD_,
           bool kPadDv_,
           bool kSkipMinSeqlenQ_ = false,
-          bool kHasSink_        = false>
+          bool kHasSink_        = false,
+          int kOccupancy_       = -1>
 struct fmha_fwd_pagedkv_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1607,6 +1630,9 @@ struct fmha_fwd_pagedkv_traits_
     static constexpr bool kPadDv                     = kPadDv_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
     static constexpr bool kHasSink                   = kHasSink_;
+    // See fmha_fwd_traits_::kOccupancy for rationale (per-tile symbol split
+    // to keep occupancy-only variants from colliding at link time).
+    static constexpr int kOccupancy = kOccupancy_;
 };
 
 template <typename Traits_, typename Arch = void>
@@ -1633,7 +1659,8 @@ template <ck_tile::index_t HDim_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
-          bool kPadDv_>
+          bool kPadDv_,
+          int kOccupancy_ = -1>
 struct fmha_fwd_splitkv_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1658,6 +1685,9 @@ struct fmha_fwd_splitkv_traits_
     static constexpr bool kPadDv                     = kPadDv_;
     static constexpr bool kIsPagedKV                 = kIsPagedKV_;
     static constexpr bool kHasSink                   = kHasSink_;
+    // See fmha_fwd_traits_::kOccupancy for rationale (per-tile symbol split
+    // to keep occupancy-only variants from colliding at link time).
+    static constexpr int kOccupancy = kOccupancy_;
 };
 
 template <typename Traits_, typename Arch = void>
@@ -1748,6 +1778,12 @@ struct fmha_fwd_traits
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
+
+inline constexpr ck_tile::index_t fmha_fwd_largest_n_tile_size = 128;
+
+ck_tile::index_t fmha_fwd_block_scale_size_kv(const std::string& data_type,
+                                              ck_tile::index_t hdim_q,
+                                              ck_tile::index_t hdim_v);
 
 struct fmha_fwd_pagedkv_traits
 {

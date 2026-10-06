@@ -26,18 +26,28 @@ Reference:
     example/ck_tile/38_block_scale_gemm/gemm_utils.hpp  (GemmConfigQuantDecode)
 """
 
-import argparse
+import functools
 import itertools
-import json
 import logging
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List
 
-from codegen_common import make_bquant_kernel_name, bquant_effective_epilogue
+from codegen_common import (
+    make_bquant_kernel_name,
+    bquant_effective_epilogue,
+    emit_single_kernel_include_footer,
+    run_codegen_cli,
+    reject_async_tdm_traits as _reject_async_tdm_traits,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
+
+
+# No async/TDM kernel path for this op: bind the shared guard to its name.
+reject_async_tdm_traits = functools.partial(
+    _reject_async_tdm_traits, "grouped_gemm_bquant"
+)
 
 
 # =============================================================================
@@ -206,6 +216,9 @@ class BQuantKernelSpec:
     block_size: int = 256
     k_block_per_cu: int = 1
 
+    def __post_init__(self):
+        reject_async_tdm_traits(self.pipeline, self.epilogue)
+
     @property
     def name(self) -> str:
         t = self.tile
@@ -269,7 +282,9 @@ class BQuantKernelHeaderGenerator:
         # Delegates to bquant_effective_epilogue (same logic used by make_bquant_kernel_name)
         # so the generated C++ and the kernel name always agree.
         use_permute_n_epilogue = (
-            bquant_effective_epilogue(t.tile_n, t.warp_n, t.warp_tile_n, spec.quant_group_n)
+            bquant_effective_epilogue(
+                t.tile_n, t.warp_n, t.warp_tile_n, spec.quant_group_n, spec.preshuffle_b
+            )
             == "permute_n"
         )
 
@@ -446,18 +461,19 @@ using SelectedKernel = {struct};
 
 }} // namespace {ns}
 
-#ifdef CK_TILE_SINGLE_KERNEL_INCLUDE
-using SelectedKernel = {ns}::{struct};
-constexpr const char* KERNEL_NAME = {ns}::KERNEL_NAME;
-using ADataType   = {ck_a};
-using BDataType   = {ck_b};
-using CDataType   = {ck_c};
-using QDataType   = {ck_q};
-using AccDataType = {ck_acc};
-using QuantGroupSize = {ns}::QuantGroupSize;
-constexpr ck_tile::index_t GroupSizeK = {ns}::{struct}::GroupSizeK;
-#endif // CK_TILE_SINGLE_KERNEL_INCLUDE
-"""
+""" + emit_single_kernel_include_footer(
+            ns=ns,
+            struct=struct,
+            ck_a=ck_a,
+            ck_b=ck_b,
+            ck_c=ck_c,
+            ck_q=ck_q,
+            ck_acc=ck_acc,
+            extra_lines=(
+                f"using QuantGroupSize = {ns}::QuantGroupSize;\n"
+                f"constexpr ck_tile::index_t GroupSizeK = {ns}::{struct}::GroupSizeK;"
+            ),
+        )
 
 
 # =============================================================================
@@ -498,6 +514,7 @@ def _build_specs(config: dict) -> List[BQuantKernelSpec]:
     specs = []
     pipeline  = config.get("pipeline", "compv3")
     epilogue  = config.get("epilogue", "cshuffle")
+    reject_async_tdm_traits(pipeline, epilogue)
     scheduler = config.get("scheduler", "intrawave")
     pad_m     = config.get("pad_m", False)
     pad_n     = config.get("pad_n", False)
@@ -558,105 +575,19 @@ def _build_specs(config: dict) -> List[BQuantKernelSpec]:
 
     return specs
 
-
-# =============================================================================
-# Generation entry point
-# =============================================================================
-
-
-def generate_kernels(
-    output_dir: Path,
-    config: Optional[dict] = None,
-    parallel: bool = True,
-) -> List[Path]:
-    """Generate all BQuant kernel headers into output_dir.
-
-    Returns list of generated .hpp paths.
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    cfg = config or _default_config()
-    specs = _build_specs(cfg)
-
-    if not specs:
-        log.warning("No kernel specs produced from config — check variant_keys and tile_configs")
-        return []
-
-    log.info("Generating %d BQuant kernel headers into %s", len(specs), output_dir)
-
-    gen = BQuantKernelHeaderGenerator()
-    generated: List[Path] = []
-
-    def _generate_one(spec: BQuantKernelSpec) -> Path:
-        header = gen.generate(spec)
-        out_path = output_dir / f"{spec.name}.hpp"
-        out_path.write_text(header)
-        log.info("  wrote %s", out_path.name)
-        return out_path
-
-    if parallel and len(specs) > 1:
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as ex:
-            futures = {ex.submit(_generate_one, s): s for s in specs}
-            for fut in concurrent.futures.as_completed(futures):
-                try:
-                    generated.append(fut.result())
-                except Exception as e:
-                    log.error("Failed generating %s: %s", futures[fut].name, e)
-    else:
-        for spec in specs:
-            try:
-                generated.append(_generate_one(spec))
-            except Exception as e:
-                log.error("Failed generating %s: %s", spec.name, e)
-
-    log.info("Generated %d / %d headers", len(generated), len(specs))
-    return generated
-
-
 # =============================================================================
 # CLI
 # =============================================================================
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="BQuantGrouped GEMM kernel header generator"
+    return run_codegen_cli(
+        description="BQuantGrouped GEMM kernel header generator",
+        op_label="GroupedBQuant",
+        make_generator=BQuantKernelHeaderGenerator,
+        build_specs=_build_specs,
+        default_config=_default_config,
     )
-    parser.add_argument("--output-dir", type=Path, required=True,
-                        help="Directory to write generated .hpp files")
-    parser.add_argument("--config", type=Path,
-                        help="JSON config file (defaults to built-in sweep)")
-    parser.add_argument("--config-json", type=str,
-                        help="Inline JSON config string")
-    parser.add_argument("--no-parallel", action="store_true",
-                        help="Disable parallel generation")
-    parser.add_argument("--list-names", action="store_true",
-                        help="Print kernel names that would be generated and exit")
-    args = parser.parse_args()
-
-    cfg: Optional[dict] = None
-    if args.config_json:
-        try:
-            cfg = json.loads(args.config_json)
-        except json.JSONDecodeError as e:
-            log.error("Invalid --config-json: %s", e)
-            return 1
-    elif args.config:
-        with open(args.config) as f:
-            cfg = json.load(f)
-
-    if args.list_names:
-        specs = _build_specs(cfg or _default_config())
-        for s in specs:
-            print(s.name)
-        return 0
-
-    paths = generate_kernels(
-        output_dir=args.output_dir,
-        config=cfg,
-        parallel=not args.no_parallel,
-    )
-    return 0 if paths else 1
 
 
 if __name__ == "__main__":

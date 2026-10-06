@@ -5,6 +5,9 @@
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "ck_tile/ops/common/utils.hpp"
+#include "gemm_common/vector_size_fallback_dispatch.hpp"
+
+#include <type_traits>
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -347,31 +350,42 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    float ave_time = invoke_gemm<GemmConfig,
-                                 Invoker,
-                                 ADataTypeBuf,
-                                 BDataTypeBuf,
-                                 ck_tile::tuple<>,
-                                 AccDataType,
-                                 CDataType,
-                                 ALayout,
-                                 BLayout,
-                                 ck_tile::tuple<>,
-                                 CLayout>(a_m_k_dev_buf,
-                                          b_k_n_dev_buf,
-                                          c_m_n_dev_buf,
-                                          M,
-                                          N,
-                                          K,
-                                          stride_A,
-                                          stride_B,
-                                          stride_C,
-                                          kbatch,
-                                          n_warmup,
-                                          n_repeat,
-                                          persistent,
-                                          flush_cache,
-                                          rotating_count);
+    auto invoke = [&]<typename Cfg>() {
+        return invoke_gemm<Cfg,
+                           Invoker,
+                           ADataTypeBuf,
+                           BDataTypeBuf,
+                           ck_tile::tuple<>,
+                           AccDataType,
+                           CDataType,
+                           ALayout,
+                           BLayout,
+                           ck_tile::tuple<>,
+                           CLayout>(a_m_k_dev_buf,
+                                    b_k_n_dev_buf,
+                                    c_m_n_dev_buf,
+                                    M,
+                                    N,
+                                    K,
+                                    stride_A,
+                                    stride_B,
+                                    stride_C,
+                                    kbatch,
+                                    n_warmup,
+                                    n_repeat,
+                                    persistent,
+                                    flush_cache,
+                                    rotating_count);
+    };
+
+    float ave_time = ck_tile_example::dispatch_vector_size_fallback<GemmConfig,
+                                                                    ADataTypeBuf,
+                                                                    BDataTypeBuf,
+                                                                    CDataType,
+                                                                    ALayout,
+                                                                    BLayout,
+                                                                    CLayout>(
+        M, N, K, stride_A, stride_B, stride_C, kbatch, invoke);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 

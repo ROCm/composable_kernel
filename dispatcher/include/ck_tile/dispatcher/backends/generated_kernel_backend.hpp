@@ -57,11 +57,6 @@ class GeneratedKernelInstance : public KernelInstance
         constexpr bool pad_n = SelectedKernel::kPadN;
         constexpr bool pad_k = SelectedKernel::kPadK;
 
-        if(pad_m && pad_n && pad_k)
-        {
-            return true; // Padding enabled - supports any size
-        }
-
         // Check divisibility for dimensions without padding
         constexpr int tile_m = SelectedKernel::TileM;
         constexpr int tile_n = SelectedKernel::TileN;
@@ -74,7 +69,18 @@ class GeneratedKernelInstance : public KernelInstance
         if(!pad_k && problem.K % tile_k != 0)
             return false;
 
-        return true;
+        // Padding does not relax the global vector widths; gate on them so the
+        // registry falls through to a narrower kernel instead of failing at launch.
+        using Pipeline = typename SelectedKernel::GemmPipeline;
+        // Select the host-side A/B distribution for this kernel's target.
+        // This avoids a HIP device query for every candidate in the registry.
+        const bool wave32  = key_.gfx_arch.rfind("gfx9", 0) != 0;
+        const auto width_a = wave32 ? Pipeline::template GetVectorSizeA<true>()
+                                    : Pipeline::template GetVectorSizeA<false>();
+        const auto width_b = wave32 ? Pipeline::template GetVectorSizeB<true>()
+                                    : Pipeline::template GetVectorSizeB<false>();
+        return vector_widths_divide(
+            key_, problem.M, problem.N, problem.K, width_a, width_b, SelectedKernel::VectorSizeC);
     }
 
     std::string get_name() const override { return name_; }

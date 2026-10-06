@@ -12,11 +12,34 @@
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
+#include "ck_tile/core/tensor/tensor_coordinate.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
+
+namespace impl {
+// Detect whether a bottom tensor view opts into large-tensor (>2GB single
+// dimension) addressing. Only ck_tile::tensor_view exposes a LargeTensor member;
+// placeholder views (e.g. null_tensor_view) do not, so the detector defaults to
+// false and the coordinate stays 32-bit.
+template <typename T>
+using large_tensor_member_t = decltype(T::LargeTensor);
+
+template <typename T>
+CK_TILE_HOST_DEVICE constexpr bool bottom_view_is_large_tensor()
+{
+    if constexpr(is_detected<large_tensor_member_t, T>::value)
+    {
+        return T::LargeTensor;
+    }
+    else
+    {
+        return false;
+    }
+}
+} // namespace impl
 
 /**
  * @brief This class provides description of tile windowed view on the device memory.
@@ -108,7 +131,13 @@ struct tile_window_with_tile_dstr_base
     using WindowAdaptorCoord =
         decltype(make_tensor_adaptor_coordinate(WindowAdaptor{}, AdaptorTopIndex{}));
 
-    using BottomTensorCoord = decltype(make_tensor_coordinate(
+    // The bottom tensor coordinate carries the linear memory offset. On the
+    // large-tensor path it must be 64-bit; the width is keyed off the bottom
+    // tensor view's LargeTensor flag so it exactly matches BottomTensorView::TensorCoord.
+    static constexpr bool kBottomLargeTensor =
+        impl::bottom_view_is_large_tensor<typename TileWindowBase::BottomTensorView>();
+
+    using BottomTensorCoord = decltype(make_tensor_coordinate<kBottomLargeTensor>(
         typename TileWindowBase::BottomTensorDesc{}, typename TileWindowBase::BottomTensorIndex{}));
 
     static_assert(TileDstr::is_static(), "wrong!");

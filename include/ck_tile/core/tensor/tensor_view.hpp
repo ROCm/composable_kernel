@@ -10,6 +10,7 @@
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/numeric/math.hpp"
+#include "ck_tile/core/tensor/tensor_coordinate.hpp"
 #include "ck_tile/core/tensor/tensor_descriptor.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
@@ -57,7 +58,7 @@ struct tensor_view
     using DataType_   = remove_cvref_t<DataType>;
     using TensorDesc  = remove_cvref_t<TensorDesc_>;
     using TensorIndex = array<index_t, TensorDesc::get_num_of_top_dimension()>;
-    using TensorCoord = decltype(make_tensor_coordinate(TensorDesc{}, TensorIndex{}));
+    using TensorCoord = decltype(make_tensor_coordinate<LargeTensor_>(TensorDesc{}, TensorIndex{}));
     static constexpr auto DstInMemOp  = DstInMemOp_;
     static constexpr bool LargeTensor = LargeTensor_;
     using OffsetType                  = std::conditional_t<LargeTensor, long_index_t, index_t>;

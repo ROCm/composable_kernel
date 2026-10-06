@@ -30,10 +30,12 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 DISPATCHER_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(DISPATCHER_DIR / "python"))
+sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
 
 from gemm_utils import (  # noqa: E402
     GemmKernelConfig,
@@ -70,14 +72,6 @@ def _detect_arch():
     return None
 
 
-def _static_lib_present():
-    try:
-        import ctypes_utils as _cu
-        return (_cu.get_build_dir() / "libck_tile_dispatcher.a").exists()
-    except Exception:
-        return False
-
-
 def _max_rel_err(got: np.ndarray, ref: np.ndarray) -> float:
     g = got.astype(np.float32)
     r = ref.astype(np.float32)
@@ -86,28 +80,40 @@ def _max_rel_err(got: np.ndarray, ref: np.ndarray) -> float:
     return float(np.max(np.abs(g - r) / den))
 
 
+@pytest.mark.usefixtures("dispatcher_static_lib")
 class TestGroupedGemmGpu(unittest.TestCase):
     ARCH = _detect_arch()
 
     def setUp(self):
         if self.ARCH is None:
             self.skipTest("no GPU / rocminfo not available")
-        if not _static_lib_present():
-            self.skipTest(
-                "dispatcher static lib (libck_tile_dispatcher.a) not built; "
-                "grouped is registry-routed and needs it"
-            )
         if shutil.which("hipcc") is None and not Path("/opt/rocm/bin/hipcc").exists():
             self.skipTest("hipcc not found")
+        # grouped is registry-routed and links libck_tile_dispatcher.a. Build it
+        # here too: ctest runs this module through run_unittest_77.py, where the
+        # pytest dispatcher_static_lib fixture never fires.
+        from dispatcher_build import ensure_dispatcher_static_lib
+
+        try:
+            ensure_dispatcher_static_lib()
+        except RuntimeError as exc:
+            self.fail(str(exc))
 
     def _run_dtype(self, dtype: str):
+        from arch_specs_generated import get_warp_tile_combos
+
         layout = "rcr"  # grouped C is always row-major; rcr = A row, B col.
+        tiles = [tuple(t) for t in get_warp_tile_combos(
+            self.ARCH.split(":", 1)[0], f"{dtype}_{dtype}_fp32"
+        )]
+        self.assertTrue(tiles, f"No {dtype} warp tile for {self.ARCH}")
+        wm, wn, wk = (32, 32, 16) if (32, 32, 16) in tiles else tiles[0]
         cfg = GemmKernelConfig(
             dtype_a=dtype, dtype_b=dtype, dtype_c=dtype, dtype_acc="fp32",
             layout_a="row", layout_b="col", layout_c="row",
             tile_m=128, tile_n=128, tile_k=32,
             wave_m=2, wave_n=2, wave_k=1,
-            warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+            warp_tile_m=wm, warp_tile_n=wn, warp_tile_k=wk,
             pipeline="compv4", scheduler="intrawave", epilogue="cshuffle",
             pad_m=True, pad_n=True, pad_k=True, persistent=False,
             variant="grouped", gfx_arch=self.ARCH,

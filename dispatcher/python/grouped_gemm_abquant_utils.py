@@ -28,6 +28,7 @@ Usage:
   result = runner.run(A, B, AQ, BQ, ABQuantGemmProblem(M=128, N=128, K=128))
 """
 
+from dispatcher_common import unified_framework_flags
 import ctypes
 import json
 import logging
@@ -53,6 +54,11 @@ _codegen_dir = str(Path(__file__).parent.parent / "codegen")
 if _codegen_dir not in sys.path:
     sys.path.insert(0, _codegen_dir)
 from codegen_common import make_abquant_kernel_name  # noqa: E402
+
+_python_dir = str(Path(__file__).parent)
+if _python_dir not in sys.path:
+    sys.path.insert(0, _python_dir)
+from dispatcher_common import arch_feature_defines  # noqa: E402
 
 _DEFAULT_HIPCC    = "hipcc"
 _DEFAULT_GFX_ARCH = "gfx950"
@@ -546,9 +552,17 @@ def _compile_abquant_kernel(
 ) -> bool:
     ck_include = _get_ck_include_dir()
 
+    # Arch-specific defines: gfx950 uses OCP fp8 (not FNUZ) and native MX support.
+    # These mirror the CMakeLists.txt definitions that are normally injected by CMake
+    # but are absent in the standalone hipcc build path. Without them the host pass of
+    # config.hpp silently falls back to FNUZ while the device pass picks OCP.
+    arch_defines = arch_feature_defines(gfx_arch)
+
     cmd = [hipcc] + _HIPCC_BASE_FLAGS + [
         f"--offload-arch={gfx_arch}",
         f"-DGFX_ARCH=\"{gfx_arch}\"",
+        *unified_framework_flags(gfx_arch),
+        *arch_defines,
         "-include", str(hpp_path),
         str(_CTYPES_LIB_SRC),
         "-o", str(so_path),
@@ -592,6 +606,18 @@ def setup_multiple_abquant_dispatchers(
     """For each ABQuantKernelConfig: codegen -> hipcc compile -> .so path."""
     if not configs:
         return []
+
+    _ABQUANT_SUPPORTED_LAYOUTS = ("rcr",)
+    bad = [c for c in configs if c.layout not in _ABQUANT_SUPPORTED_LAYOUTS]
+    if bad:
+        raise ValueError(
+            f"grouped_gemm_abquant bridge only supports layouts "
+            f"{_ABQUANT_SUPPORTED_LAYOUTS}; "
+            f"got unsupported layouts: "
+            f"{sorted({c.layout for c in bad})}. "
+            f"Non-rcr layout support requires changes to the ctypes stride "
+            f"derivation in grouped_gemm_abquant_ctypes_lib.cpp (plan Step 7)."
+        )
 
     arch = gfx_arch or _detect_gpu_arch()
     base_dir = output_dir or Path(tempfile.mkdtemp(prefix="abquant_dispatcher_"))
@@ -855,5 +881,80 @@ def default_bf8_preshuffleb_config(
         transpose_c=True,
         double_smem_buffer=True,
         k_block_per_cu=2,
+        gfx_arch=gfx_arch,
+    )
+
+
+# =============================================================================
+# gfx1250 (MI400) default configs
+# =============================================================================
+# gfx1250 uses the standard CompV3 pipeline (NOT the gfx950-native eightwaves /
+# preshuffleb paths, which require CK_GFX950_SUPPORT and TransposeC=True).
+#
+# Empirically (on-GPU, MI400/gfx1250, HIP_VISIBLE_DEVICES=0, fp32-dequant
+# reference), the ABQuant CompV3 fp8/bf8 kernels are correct on gfx1250 only
+# with warp_tile_k=128 (the FlatMM tile). The gfx9 stock CompV3 default uses
+# warp_tile_k=32 (plain MFMA) which returns all-zeros on gfx1250; warp_tile_k=16
+# (gfx12 WMMA) also returns all-zeros. So the only correct gfx1250 override for
+# the CompV3 pipeline is 16x16x128 with transpose_c=False.
+#
+#   fp8: warp_tile 16x16x128 -> nonzero, max_rel_err ~3e-4  (PASS)
+#   bf8: warp_tile 16x16x128 -> nonzero, max_rel_err ~3e-4  (PASS)
+#
+# The compile path injects -DCK_USE_OCP_FP8 / -DCK_TILE_USE_OCP_FP8 for gfx12
+# archs, so fp8/bf8 use the OCP encoding on gfx1250.
+
+_GFX1250_ARCH = "gfx1250"
+
+
+def default_fp8_compv3_config_gfx1250(
+    quant_group_k: int = 128,
+    bquant_group_n: int = 1,
+    gfx_arch: str = _GFX1250_ARCH,
+) -> ABQuantKernelConfig:
+    """fp8 ABQuant CompV3 config for gfx1250 (FlatMM warp_tile_k=128, TransposeC=False).
+
+    GPU-verified on MI400/gfx1250: max_rel_err ~3e-4 vs. fp32 dequant reference.
+    warp_tile_k=32 (gfx9 stock) and warp_tile_k=16 (gfx12 WMMA) both zero out.
+    """
+    return ABQuantKernelConfig(
+        variant_key="fp8",
+        layout="rcr",
+        pipeline="compv3",
+        epilogue="cshuffle",
+        scheduler="intrawave",
+        tile_m=128, tile_n=128, tile_k=128,
+        warp_m=1, warp_n=4, warp_k=1,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        aquant_group_m=1, aquant_group_n=1, aquant_group_k=quant_group_k,
+        bquant_group_m=1, bquant_group_n=bquant_group_n, bquant_group_k=quant_group_k,
+        preshuffle_b=False, preshuffle_aq=False, preshuffle_bq=False,
+        transpose_c=False,
+        gfx_arch=gfx_arch,
+    )
+
+
+def default_bf8_compv3_config_gfx1250(
+    quant_group_k: int = 128,
+    bquant_group_n: int = 1,
+    gfx_arch: str = _GFX1250_ARCH,
+) -> ABQuantKernelConfig:
+    """bf8 ABQuant CompV3 config for gfx1250 (FlatMM warp_tile_k=128, TransposeC=False).
+
+    GPU-verified on MI400/gfx1250: max_rel_err ~3e-4 vs. fp32 dequant reference.
+    """
+    return ABQuantKernelConfig(
+        variant_key="bf8",
+        layout="rcr",
+        pipeline="compv3",
+        epilogue="cshuffle",
+        scheduler="intrawave",
+        tile_m=128, tile_n=128, tile_k=128,
+        warp_m=1, warp_n=4, warp_k=1,
+        warp_tile_m=16, warp_tile_n=16, warp_tile_k=128,
+        aquant_group_m=1, aquant_group_n=1, aquant_group_k=quant_group_k,
+        bquant_group_m=1, bquant_group_n=bquant_group_n, bquant_group_k=quant_group_k,
+        preshuffle_b=False, preshuffle_aq=False, preshuffle_bq=False,
+        transpose_c=False,
         gfx_arch=gfx_arch,
     )

@@ -31,6 +31,9 @@ struct TileGemmTraits
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = NumWaveGroups_;
+
+    // Required by GemmPipelineProblemBase; this traits set has no 64-bit addressing opt-in.
+    static constexpr bool LargeTensors = false;
 };
 
 template <bool kPadM_,

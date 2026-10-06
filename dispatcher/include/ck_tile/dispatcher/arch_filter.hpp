@@ -33,6 +33,7 @@
 
 #include "ck_tile/dispatcher/kernel_key.hpp"
 #include "ck_tile/dispatcher/arch_specs_generated.hpp"
+#include <algorithm>
 #include <array>
 #include <string>
 #include <vector>
@@ -353,16 +354,35 @@ class ArchFilter
         float elem_a = element_size(sig.dtype_a);
         float elem_b = element_size(sig.dtype_b);
 
+        // When the B cast policy runs before the LDS write, B is staged as
+        // ADataType rather than BDataType (GetSmemSizeB in
+        // gemm_universal_pipeline_ag_bg_cr_policy.hpp). Charging B at the wider
+        // of the two keeps a mixed-precision pair from being under-counted; for
+        // equal dtypes it is the same number.
+        float elem_b_staged = std::max(elem_a, elem_b);
+
         std::size_t matrix_a_size = alg.tile_shape.m * alg.tile_shape.k * elem_a;
-        std::size_t matrix_b_size = alg.tile_shape.n * alg.tile_shape.k * elem_b;
+        std::size_t matrix_b_size = alg.tile_shape.n * alg.tile_shape.k * elem_b_staged;
         std::size_t total_lds     = matrix_a_size + matrix_b_size;
 
-        std::size_t max_lds = get_lds_capacity(alg.pipeline);
+        // The budget depends on the target, not just the pipeline. Must stay in
+        // lockstep with _validate_lds_capacity in codegen/arch_filter.py; both
+        // are generated from arch_specs.json.
+        std::size_t max_lds = get_lds_capacity(arch_, alg.pipeline);
+
+        // Ping-pong staging allocates 2 * (A + B). For the pipelines that always
+        // double, that is already folded into the per-pipeline budget, so take
+        // the more restrictive of the two rather than halving twice.
+        if(alg.double_buffer)
+        {
+            max_lds = std::min(max_lds, get_lds_total_capacity(arch_) / 2);
+        }
 
         if(total_lds > max_lds)
         {
-            result.add_error("LDS capacity exceeded: " + std::to_string(total_lds) + " bytes > " +
-                             std::to_string(max_lds) + " bytes limit");
+            result.add_error("LDS capacity exceeded on " + arch_to_string(arch_) + ": " +
+                             std::to_string(total_lds) + " bytes > " + std::to_string(max_lds) +
+                             " bytes limit");
         }
     }
 

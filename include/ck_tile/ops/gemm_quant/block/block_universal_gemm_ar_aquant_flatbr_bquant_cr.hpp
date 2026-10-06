@@ -264,7 +264,13 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg : public BlockGemmQuantBase
                                CBlockTensor::PackedSize>{};
 
                     index_t reg_offset = [&]() {
-                        if constexpr(BQuantGroupSize::kN >= (NWarp * WG::kN))
+                        if constexpr(Traits::BPreshuffleQuant && BQuantGroupSize::kN < WG::kN)
+                        {
+                            // Fine-grained preshuffled scales carry the K-group
+                            // index in the lane, rather than in the register.
+                            return nIter;
+                        }
+                        else if constexpr(BQuantGroupSize::kN >= (NWarp * WG::kN))
                         {
                             return (nIter * NWarp * WG::kN) / BQuantGroupSize::kN * KPerBlockBQ +
                                    kQScale;
@@ -274,14 +280,49 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg : public BlockGemmQuantBase
                             return nIter * KPerBlockBQ + kQScale;
                         }
                     }();
-                    auto& scale_reg     = bq_block_tensor.get_thread_buffer()[reg_offset];
-                    float b_scale_reg_f = Base::cvt_scale_to_fp32<BQDataType>(scale_reg);
+                    auto& scale_reg           = bq_block_tensor.get_thread_buffer()[reg_offset];
+                    const float b_scale_reg_f = Base::cvt_scale_to_fp32<BQDataType>(scale_reg);
 
                     static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
+                        float b_scale_f = b_scale_reg_f;
+                        if constexpr(BQuantGroupSize::kN < WG::kN &&
+                                     (Traits::TransposeC || Traits::BPreshuffleQuant))
+                        {
+                            // A transposed accumulator distributes different N
+                            // columns across a lane's registers. BQ is loaded by
+                            // column across lanes, so gather the scale for this
+                            // C element instead of reusing the lane's scale for
+                            // every element. This is the N-side counterpart of
+                            // AQPickerCommon's non-transposed accumulator case.
+                            const index_t n_in_warp = [&]() {
+                                if constexpr(Traits::TransposeC)
+                                {
+                                    using Impl = typename WG::WarpGemmAttribute::Impl;
+                                    constexpr index_t n_group = (c_row / Impl::kCM1PerLane) *
+                                                                (WG::kCMLane * Impl::kCM1PerLane);
+                                    const index_t n_lane =
+                                        (get_lane_id() / WG::kM) * Impl::kCM1PerLane;
+                                    return n_group + n_lane + c_row % Impl::kCM1PerLane;
+                                }
+                                else
+                                {
+                                    return get_lane_id() % WG::kN;
+                                }
+                            }();
+                            index_t pull_from_lane =
+                                (n_in_warp / BQuantGroupSize::kN) * BQuantGroupSize::kN;
+                            if constexpr(Traits::BPreshuffleQuant)
+                            {
+                                pull_from_lane = pull_from_lane * KPerBlockBQ + kQScale;
+                            }
+                            const int gathered_scale = __builtin_amdgcn_ds_bpermute(
+                                pull_from_lane << 2, bit_cast<int>(b_scale_reg_f));
+                            b_scale_f = bit_cast<float>(gathered_scale);
+                        }
                         float a_scale_reg_f = aq_picker.template pick<c_row>();
                         auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
                         const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
-                        c_ref              = c_ref + acc_val * b_scale_reg_f * a_scale_reg_f;
+                        c_ref              = c_ref + acc_val * b_scale_f * a_scale_reg_f;
                     });
                 });
             });

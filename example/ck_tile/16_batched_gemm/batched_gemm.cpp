@@ -45,9 +45,9 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 #endif
     constexpr bool DoubleSmemBuffer = GemmConfig::DoubleSmemBuffer;
 
-    constexpr bool kPadM = false;
-    constexpr bool kPadN = false;
-    constexpr bool kPadK = false;
+    constexpr bool kPadM = GemmConfig::kPadM;
+    constexpr bool kPadN = GemmConfig::kPadN;
+    constexpr bool kPadK = GemmConfig::kPadK;
 
     constexpr bool TransposeC = false;
 
@@ -62,43 +62,64 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
     using TilePartitioner = ck_tile::
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
-                                                                 kPadN,
-                                                                 kPadK,
-                                                                 DoubleSmemBuffer,
-                                                                 ALayout,
-                                                                 BLayout,
-                                                                 CLayout,
-                                                                 TransposeC>;
-    constexpr auto scheduler  = GemmConfig::Scheduler;
+    using GemmUniversalTraits =
+        ck_tile::TileGemmUniversalTraits<kPadM,
+                                         kPadN,
+                                         kPadK,
+                                         DoubleSmemBuffer,
+                                         ALayout,
+                                         BLayout,
+                                         CLayout,
+                                         TransposeC,
+                                         /*UseStructuredSparsity=*/false,
+                                         /*UsePersistentKernel=*/false,
+                                         /*NumWaveGroups=*/1,
+                                         /*Preshuffle=*/false,
+                                         /*VectorSize=*/16,
+                                         ck_tile::DataCachePrefetchKind::None,
+                                         ck_tile::DataCachePrefetchKind::None,
+                                         /*Async=*/false,
+                                         GemmConfig::LargeTensors>;
+    constexpr auto scheduler = GemmConfig::Scheduler;
 
-    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                       BDataType,
-                                                                       AccDataType,
-                                                                       GemmShape,
-                                                                       GemmUniversalTraits,
-                                                                       scheduler>;
+    using UniversalGemmProblem =
+        ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                              BDataType,
+                                              AccDataType,
+                                              GemmShape,
+                                              GemmUniversalTraits,
+                                              scheduler,
+                                              ck_tile::element_wise::PassThrough,
+                                              ck_tile::element_wise::PassThrough,
+                                              ADataType,
+                                              BDataType,
+                                              GemmConfig::FixedVectorSize,
+                                              GemmConfig::VectorSizeA,
+                                              GemmConfig::VectorSizeB>;
 
     using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
         UniversalGemmProblem>;
 
-    using GemmEpilogue = ck_tile::CShuffleEpilogue<
-        ck_tile::CShuffleEpilogueProblem<ADataType,
-                                         BDataType,
-                                         DsDataType,
-                                         AccDataType,
-                                         CDataType,
-                                         DsLayout,
-                                         CLayout,
-                                         CDEElementWise,
-                                         TilePartitioner::MPerBlock,
-                                         TilePartitioner::NPerBlock,
-                                         M_Warp,
-                                         N_Warp,
-                                         M_Warp_Tile,
-                                         N_Warp_Tile,
-                                         K_Warp_Tile,
-                                         UniversalGemmProblem::TransposeC>>;
+    using GemmEpilogue =
+        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                                   BDataType,
+                                                                   DsDataType,
+                                                                   AccDataType,
+                                                                   CDataType,
+                                                                   DsLayout,
+                                                                   CLayout,
+                                                                   CDEElementWise,
+                                                                   TilePartitioner::MPerBlock,
+                                                                   TilePartitioner::NPerBlock,
+                                                                   M_Warp,
+                                                                   N_Warp,
+                                                                   M_Warp_Tile,
+                                                                   N_Warp_Tile,
+                                                                   K_Warp_Tile,
+                                                                   UniversalGemmProblem::TransposeC,
+                                                                   1, /*kNumWaveGroups_*/
+                                                                   GemmConfig::FixedVectorSize,
+                                                                   GemmConfig::VectorSizeC>>;
 
     using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
     auto kargs   = Kernel::MakeKernelArgs(args);

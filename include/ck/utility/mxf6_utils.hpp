@@ -7,7 +7,7 @@
 #include "ck/utility/numeric_limits.hpp"
 #include "ck/utility/mxfp_utils.hpp"
 
-#if CK_MX_ARCH_950 || CK_MX_ARCH_125
+#if CK_MX_ARCH_950 || CK_MX_ARCH_1250
 #define CK_MX_FP6_CVT_FAST_PATH 1
 #else
 #define CK_MX_FP6_CVT_FAST_PATH 0
@@ -721,7 +721,7 @@ inline __device__ T_F6 cast_to_f6_scaled(T x, float scale)
     }
 }
 
-#elif CK_MX_ARCH_125
+#elif CK_MX_ARCH_1250
 // from f6
 template <typename T, typename T_F6>
 inline __device__ enable_if_t<scalar_type<T>::vector_size == 1, T> cast_from_f6_scaled(T_F6 x,

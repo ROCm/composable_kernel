@@ -121,6 +121,13 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
 struct GemmABQuantPipelineAgBgCrAsyncPolicy : public GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 {
 
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr bool IsBQuantNGranularitySupported()
+    {
+        using WarpTile = typename Problem::BlockGemmShape::WarpTile;
+        return Problem::BQuantGroupSize::kN % WarpTile::at(I1) == 0;
+    }
+
 #define FORWARD_METHOD_(method)                                               \
     template <typename Problem, typename... Args>                             \
     CK_TILE_HOST_DEVICE static constexpr auto method(Args&&... args)          \
@@ -147,6 +154,16 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy : public GemmPipelineAgBgCrCompAsync
         using WarpTile = typename Problem::BlockGemmShape::WarpTile;
         static_assert(Problem::BQuantGroupSize::kK % WarpTile::at(I2) == 0,
                       "KPerWarpGemm must be a multiple of QuantGroupSize::kK!");
+        // This pipeline issues a single B-scale load per warp N-tile
+        // (GetInstCountBQ() == 1), so every N inside a warp tile must belong to
+        // the same quant group. A finer granularity is not merely unsupported:
+        // it silently applies one group's scale to all of them and returns
+        // wrong results with no diagnostic (measured on gfx950: kN=1 gives
+        // 80.5% of elements wrong, while the same shape at kN=128 is exact).
+        static_assert(IsBQuantNGranularitySupported<Problem>(),
+                      "QuantGroupSize::kN must be a multiple of NPerWarpGemm! A B-quant "
+                      "granularity finer than the warp N-tile (e.g. per-channel kN=1) cannot be "
+                      "represented by this pipeline and would produce silently wrong results.");
         static_assert(Problem::TransposeC, "Wrong!");
 
         using ADataType        = remove_cvref_t<typename Problem::ADataType>;

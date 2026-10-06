@@ -26,6 +26,7 @@ how it is compiled into a ``.so``.
 """
 
 from __future__ import annotations
+from dispatcher_common import unified_framework_flags, arch_feature_defines
 
 import ctypes
 import functools
@@ -50,7 +51,7 @@ _LAYOUT_WORD = {"r": "row", "c": "col"}
 
 # --- Bridge shared helpers (canonical superset; byte-identical across bridges) ---
 # Supported GPU architectures for the bridge (single source of truth).
-_SUPPORTED_ARCHES = ("gfx90a", "gfx942", "gfx950")
+_SUPPORTED_ARCHES = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 
 # Single source of truth for the preshuffle B-shuffle permutation used by the
 # bridge. The bridge codegen only emits the NON-permuteN preshuffle pipeline
@@ -66,11 +67,43 @@ BRIDGE_PERMUTE_N = False
 
 
 try:
-    # Reuse the single canonical amd-smi bridge instead of re-implementing it.
+    # Reuse the single canonical amd-smi bridge instead of re-implementing it,
+    # and the single source of truth for the fp8/bf8 encoding format per arch.
     from dispatcher_common import _detect_gpu_arch_via_amd_smi
+    from dispatcher_common import fp8_uses_ocp as _fp8_uses_ocp
+    from dispatcher_common import ocp_arch_defines as _ocp_arch_defines
 except Exception:  # noqa: BLE001 - standalone use without dispatcher_common on path
     def _detect_gpu_arch_via_amd_smi() -> Optional[str]:
         return None
+
+    def _fp8_uses_ocp(arch: Optional[str]) -> bool:
+        a = (arch or "").lower()
+        return a.startswith("gfx950") or a.startswith("gfx12")
+
+    def _ocp_arch_defines(arch: Optional[str]) -> List[str]:
+        if not _fp8_uses_ocp(arch):
+            return []
+        return ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"]
+
+
+def normalize_gfx_arch(arch: str) -> str:
+    """Strip feature suffixes from a gfx target string.
+
+    ``"gfx950:sramecc+:xnack-"`` -> ``"gfx950"``. Empty input passes through.
+
+    Delegates to ``codegen_common.normalize_gfx_arch``, the dispatcher tree's
+    single source of truth, whenever it can be imported. It usually cannot be at
+    this point: nothing has put the ``codegen`` dir on ``sys.path`` yet -- only
+    ``ctypes_utils.get_arch_filter_data()`` does that, and it may never be called --
+    so this module has to be able to answer without it, the same way it already
+    falls back for ``_detect_gpu_arch_via_amd_smi``. The two are pinned to identical
+    behaviour by tests/test_gemm_utils.py::TestArchNormalizationMatchesCodegen.
+    """
+    try:
+        from codegen_common import normalize_gfx_arch as _canonical  # noqa: WPS433
+    except ImportError:
+        return arch.split(":", 1)[0]
+    return _canonical(arch)
 
 
 @functools.lru_cache(maxsize=1)
@@ -105,29 +138,72 @@ def _get_arch() -> str:
             "gfx_arch (one of "
             f"{', '.join(_SUPPORTED_ARCHES)})."
         )
-    if detected not in _SUPPORTED_ARCHES:
+    return _validate_arch(detected)
+
+
+def _validate_arch(arch: str) -> str:
+    """Normalize a gfx target, then check it against ``_SUPPORTED_ARCHES``.
+
+    Normalization comes FIRST, and that ordering is the whole point -- but not
+    because autodetection produces suffixes. It does not. On a real device all
+    three autodetect sources report the BARE target: ``amd-smi``'s
+    ``TARGET_GRAPHICS_VERSION``, ``rocm_agent_enumerator``, and the agent
+    ``Name:`` line that ``_get_arch`` above parses all print ``gfx90a``
+    (measured on a gfx90a device). ``_get_arch`` could not return a suffixed
+    name even if rocminfo offered one: the only suffixed string in that output
+    is the ISA line, ``amdgcn-amd-amdhsa--gfx90a:sramecc+:xnack-``, which fails
+    the ``startswith("gfx")`` check after the split.
+
+    Suffixed names get here from CALLERS, not from detection, and they are real:
+
+      * this repository's own CMakeLists.txt sets, on the ASAN branch,
+        ``CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+;gfx950:xnack+"``;
+      * ``hipDeviceProp_t::gcnArchName`` returns ``gfx90a:sramecc+:xnack-``
+        (measured on the same device).
+
+    Either is a plausible thing to copy into ``--gfx-arch`` or an explicit
+    ``arch=``, and that value reaches this function unmodified. Validating it raw
+    rejected it:
+
+        gfx950:sramecc+:xnack-  -> ValueError
+
+    Bare targets were never the problem; they passed before this change and pass
+    now (tests/test_gemm_utils.py::test_bare_supported_arches_are_unchanged).
+    Normalizing first costs a supported bare name nothing and makes the suffixed
+    spellings above usable.
+
+    Every caller wants the bare target regardless. It is stamped onto
+    ``GemmKernelConfig.gfx_arch``, handed to ``--offload-arch``, and used as the key
+    into the warp tables, none of which know about suffixes.
+
+    The suffix is dropped, not carried through: ``--offload-arch=gfx90a`` rather
+    than ``gfx90a:xnack+``. That is not a regression -- it is the target string every
+    already-working path used, because a suffixed name could not get past this
+    function at all before. It does mean an xnack+ device is compiled for the bare
+    target; if a caller needs a specific xnack setting it has to pass the flag
+    itself, exactly as it had to before.
+    """
+    base = normalize_gfx_arch(arch)
+    if base not in _SUPPORTED_ARCHES:
         raise ValueError(
-            f"Unsupported GPU architecture {detected!r}; supported: "
-            f"{', '.join(_SUPPORTED_ARCHES)}."
+            f"Unsupported GPU architecture {arch!r}"
+            + (f" (normalized to {base!r})" if base != arch else "")
+            + f"; supported: {', '.join(_SUPPORTED_ARCHES)}."
         )
-    return detected
+    return base
 
 
 def _resolve_arch(arch: Optional[str]) -> str:
     """Resolve a possibly-``None`` arch to a validated, supported ``gfxNNN``.
 
-    ``None``/empty -> detect via :func:`_get_arch`. An explicit value is
-    validated against ``_SUPPORTED_ARCHES`` (raising ``ValueError`` if unknown)
-    so a typo can never silently reach the compiler.
+    ``None``/empty -> detect via :func:`_get_arch`. An explicit value is normalized
+    and then validated against ``_SUPPORTED_ARCHES`` (raising ``ValueError`` if
+    unknown) so a typo can never silently reach the compiler, while the suffixed
+    name a device actually reports resolves to its base.
     """
     if not arch:
         return _get_arch()
-    if arch not in _SUPPORTED_ARCHES:
-        raise ValueError(
-            f"Unsupported GPU architecture {arch!r}; supported: "
-            f"{', '.join(_SUPPORTED_ARCHES)}."
-        )
-    return arch
+    return _validate_arch(arch)
 
 
 def _cshuffle_store_ok(
@@ -179,11 +255,13 @@ _DTYPE_ALIASES = {
 }
 
 
-def numpy_dtype_for(dtype: str):
+def numpy_dtype_for(dtype: str, use_ocp: Optional[bool] = None):
     """Return the numpy dtype object used for host operands of ``dtype``.
 
     fp16 -> np.float16; bf16/fp8/bf8 require the ``ml_dtypes`` package (imported
-    lazily) and use FNUZ fp8 encodings for gfx942 parity.
+    lazily). The fp8/bf8 encoding follows the target arch: OCP (e4m3fn/e5m2) on
+    gfx950/gfx12, FNUZ (e4m3fnuz/e5m2fnuz) everywhere else. ``use_ocp=None``
+    resolves from the local GPU; pass it explicitly when building for another arch.
     """
     token = _DTYPE_ALIASES.get(str(dtype).lower())
     if token is None:
@@ -198,10 +276,11 @@ def numpy_dtype_for(dtype: str):
         ) from exc
     if token == "bf16":
         return np.dtype(ml_dtypes.bfloat16)
+    ocp = _resolve_use_ocp(use_ocp)
     if token == "fp8":
-        return np.dtype(ml_dtypes.float8_e4m3fnuz)
+        return np.dtype(ml_dtypes.float8_e4m3fn if ocp else ml_dtypes.float8_e4m3fnuz)
     if token == "bf8":
-        return np.dtype(ml_dtypes.float8_e5m2fnuz)
+        return np.dtype(ml_dtypes.float8_e5m2 if ocp else ml_dtypes.float8_e5m2fnuz)
     raise ValueError(f"Unsupported grouped GEMM dtype: {dtype!r}")  # pragma: no cover
 
 
@@ -225,14 +304,16 @@ def output_dtype_for(dtype: str) -> str:
     return CommonTypeMappings.get_output_dtype(token)
 
 
-def output_numpy_dtype_for(dtype: str):
+def output_numpy_dtype_for(dtype: str, use_ocp: Optional[bool] = None):
     """Numpy dtype of a kernel's OUTPUT buffer for input ``dtype``.
 
     Composition of :func:`output_dtype_for` + :func:`numpy_dtype_for`. For
     fp8/bf8 this resolves to ``np.float16`` (2 bytes) because the kernel's
-    ``CDataType`` is fp16; for fp16/bf16 it equals the input dtype.
+    ``CDataType`` is fp16; for fp16/bf16 it equals the input dtype. ``use_ocp``
+    is therefore inert today, but is threaded through so an fp8-output kernel
+    would not silently pick the wrong encoding.
     """
-    return numpy_dtype_for(output_dtype_for(dtype))
+    return numpy_dtype_for(output_dtype_for(dtype), use_ocp=use_ocp)
 
 
 # ============================================================================
@@ -278,6 +359,12 @@ class GemmKernelConfig:
     pad_n: bool = True
     pad_k: bool = True
     persistent: bool = False
+    # Fixed A/B/C global vector widths (elements). All 0 = native widths; else
+    # the canonical triple from codegen_common.resolve_gemm_vector_sizes (use
+    # with_vector_sizes() to set it so the name matches the codegen's).
+    vector_size_a: int = 0
+    vector_size_b: int = 0
+    vector_size_c: int = 0
 
     # No silent default: the arch must be resolved (rocminfo-detected or passed
     # explicitly) before this config feeds the compiler. expand_sweep /
@@ -357,6 +444,59 @@ class GemmKernelConfig:
         return f"{self.warp_tile_m}x{self.warp_tile_n}x{self.warp_tile_k}"
 
     @property
+    def vector_sizes(self) -> Tuple[int, int, int]:
+        return (self.vector_size_a, self.vector_size_b, self.vector_size_c)
+
+    def _vector_args(self) -> Dict[str, Any]:
+        return dict(
+            dtype_a=self.dtype_a,
+            dtype_b=self.dtype_b,
+            dtype_c=self.dtype_c,
+            layout=self.layout,
+            tile=(self.tile_m, self.tile_n, self.tile_k),
+            waves=(self.wave_m, self.wave_n, self.wave_k),
+            warp_tile=(self.warp_tile_m, self.warp_tile_n, self.warp_tile_k),
+            gfx_arch=self.gfx_arch,
+        )
+
+    @property
+    def effective_vector_sizes(self) -> Tuple[int, int, int]:
+        """A/B/C widths the kernel really uses (native ones when unset)."""
+        if any(self.vector_sizes):
+            return self.vector_sizes
+        return _codegen_common().gemm_native_vector_sizes(
+            **self._vector_args(), epilogue=self.epilogue
+        )
+
+    def with_vector_sizes(
+        self, requested: Tuple[int, int, int]
+    ) -> Tuple["GemmKernelConfig", Optional[str]]:
+        """Copy with ``requested`` widths resolved exactly as the codegen does.
+
+        Returns ``(config, reject_reason)``; the reason is None when legal.
+        """
+        if not any(requested):
+            return replace(self, vector_size_a=0, vector_size_b=0, vector_size_c=0), None
+        vec, reason = _codegen_common().resolve_gemm_vector_sizes(
+            **self._vector_args(),
+            requested=requested,
+            pipeline=self.pipeline,
+            epilogue=self.epilogue,
+            variant=self.variant,
+        )
+        if reason:
+            reason = (
+                f"{self.tile_str} {self.pipeline}/{self.epilogue} "
+                f"vec{'_'.join(map(str, vec))}: {reason}"
+            )
+        # Fixed widths only serve misaligned extents, which always need padding.
+        pads = dict(pad_m=True, pad_n=True, pad_k=True) if any(vec) else {}
+        cfg = replace(
+            self, vector_size_a=vec[0], vector_size_b=vec[1], vector_size_c=vec[2], **pads
+        )
+        return cfg, reason
+
+    @property
     def name(self) -> str:
         """Registry / runtime lookup key.
 
@@ -382,6 +522,8 @@ class GemmKernelConfig:
             f"_{_cap(self.persistent)}"
             f"_{self.tile_str}_{self.wave_str}_{self.warp_tile_str}"
         )
+        if any(self.vector_sizes):
+            name += _codegen_common().gemm_vector_size_suffix(self.vector_sizes)
         if self.variant == "preshuffle":
             name += "_preshuffle"
             if self.permute_n:
@@ -440,6 +582,9 @@ class GemmKernelConfig:
                 "pad_n": [self.pad_n],
                 "pad_k": [self.pad_k],
                 "persistent": [self.persistent],
+                "vector_size_a": [self.vector_size_a],
+                "vector_size_b": [self.vector_size_b],
+                "vector_size_c": [self.vector_size_c],
             },
             # Top-level knob read by unified_gemm_codegen for the preshuffle
             # variant (selects shuffle_b_permuteN vs shuffle_b). Harmless for
@@ -487,6 +632,7 @@ class GemmKernelConfig:
             "epilogue": self.epilogue,
             "pad": [self.pad_m, self.pad_n, self.pad_k],
             "persistent": self.persistent,
+            "vector_sizes": list(self.vector_sizes),
             "gfx_arch": self.gfx_arch,
             "variant": self.variant,
             "name": self.name,
@@ -579,6 +725,16 @@ class GroupedGemmProblem:
         return cls(groups=[(int(m), int(n), int(k)) for (m, n, k) in d["groups"]])
 
 
+# ctypes run() status codes (see bindings/ctypes/*_ctypes_lib.cpp).
+# STATUS_UNSUPPORTED (-3) is returned only when the selected kernel rejects the
+# problem (IsSupportedArgument throws "... not supported ..." inside run());
+# callers treat it as "not run" (skip, no verification). Every other negative
+# code (-1 host/HIP/launch error, -2 no suitable kernel) is a real failure.
+STATUS_OK = 0
+STATUS_NO_KERNEL = -2
+STATUS_UNSUPPORTED = -3
+
+
 @dataclass
 class GemmResult:
     output: np.ndarray
@@ -594,7 +750,13 @@ class GemmResult:
 
     @property
     def success(self) -> bool:
-        return self.status == 0
+        return self.status == STATUS_OK
+
+    @property
+    def unsupported(self) -> bool:
+        """True when the kernel did not run because run() returned
+        STATUS_UNSUPPORTED. success stays False; callers count it as a skip."""
+        return self.status == STATUS_UNSUPPORTED
 
 
 @dataclass
@@ -610,7 +772,13 @@ class GroupedGemmResult:
 
     @property
     def success(self) -> bool:
-        return self.status == 0
+        return self.status == STATUS_OK
+
+    @property
+    def unsupported(self) -> bool:
+        """True when the kernel did not run because run() returned
+        STATUS_UNSUPPORTED. success stays False; callers count it as a skip."""
+        return self.status == STATUS_UNSUPPORTED
 
 
 # ============================================================================
@@ -872,7 +1040,7 @@ def _bf16_u16_to_fp32(u16: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# fp8 (E4M3) / bf8 (E5M2) -- FNUZ ("NANOO") encoding used by gfx942/MI300.
+# fp8 (E4M3) / bf8 (E5M2) -- both the FNUZ and the OCP encoding.
 #
 # numpy has no native 8-bit float, and the C ABI only cares about the 1-byte
 # memory layout (sizeof(fp8_t) == sizeof(bf8_t) == 1). We carry the value as a
@@ -881,32 +1049,79 @@ def _bf16_u16_to_fp32(u16: np.ndarray) -> np.ndarray:
 # NumPy reference multiplies bit-for-bit what the GPU multiplies. The ENCODE only
 # needs to land on the nearest representable byte.
 #
-# FNUZ format (gfx942): bias = 2^(exp_bits-1); the all-1s exponent is a normal
-# number (no Inf), the sole NaN is the sign=1/exp=0/mant=0 byte (0x80), and there
-# is no negative zero. gfx950/MI350 uses the OCP fp8 format instead; this codec
-# targets the gfx942 default and the OCP path needs separate handling.
+# The two formats differ in exponent bias and in what the all-1s exponent means:
+#
+#   FNUZ ("NANOO", gfx942 and every non-gfx950/gfx12 arch)
+#     bias = 2^(exp_bits-1) (8 / 16); the all-1s exponent is an ordinary normal
+#     number (no Inf); the sole NaN is 0x80 (sign=1, exp=0, mant=0), so there is
+#     no negative zero. Max finite: 240 (e4m3fnuz) / 57344 (e5m2fnuz).
+#
+#   OCP (gfx950, gfx12)
+#     bias = 2^(exp_bits-1) - 1 (7 / 15); 0x80 is -0.0. e4m3fn has no Inf and
+#     reserves only exp=1111,mant=111 for NaN (max finite 448); e5m2 is IEEE-like,
+#     with Inf at exp=11111,mant=0 and NaN otherwise (max finite 57344).
+#
+# Which one applies is a property of the *target arch*, not of the header: the
+# host pass of config.hpp always resolves to FNUZ (see dispatcher_common), so the
+# selection must be made here, from the arch, and mirrored into the compile flags
+# via ocp_arch_defines(). Getting this wrong does not crash -- it silently shifts
+# every reference value by a factor of two.
 # ---------------------------------------------------------------------------
 
 
-@functools.lru_cache(maxsize=None)
-def _fnuz_decode_table(exp_bits: int, mant_bits: int) -> np.ndarray:
-    """Build the 256-entry byte -> fp32 value table for an 8-bit FNUZ float.
+@functools.lru_cache(maxsize=1)
+def _default_use_ocp() -> bool:
+    """Whether the host fp8/bf8 codec should emit OCP bytes for the local GPU.
 
-    The table is a pure function of (exp_bits, mant_bits), so it is cached; the
-    returned array is marked read-only because callers share the one instance.
+    Falls back to FNUZ when no arch can be detected -- that is CK's default for
+    every arch outside gfx950/gfx12, and matches what a header compiled without
+    an explicit -DCK_TILE_USE_OCP_FP8 would pick on the host pass.
     """
-    bias = (1 << (exp_bits - 1))
+    try:
+        return _fp8_uses_ocp(_get_arch())
+    except Exception:  # noqa: BLE001 - no GPU / unknown arch
+        return False
+
+
+def _resolve_use_ocp(use_ocp: Optional[bool]) -> bool:
+    return _default_use_ocp() if use_ocp is None else bool(use_ocp)
+
+
+@functools.lru_cache(maxsize=None)
+def _fp8_decode_table(exp_bits: int, mant_bits: int, use_ocp: bool) -> np.ndarray:
+    """Build the 256-entry byte -> fp32 value table for an 8-bit float format.
+
+    The table is a pure function of (exp_bits, mant_bits, use_ocp), so it is
+    cached; the returned array is marked read-only because callers share the one
+    instance.
+    """
+    bias = (1 << (exp_bits - 1)) - 1 if use_ocp else (1 << (exp_bits - 1))
     mant_max = 1 << mant_bits
     sign_shift = exp_bits + mant_bits
     exp_mask = (1 << exp_bits) - 1
+    # OCP e4m3fn has no Inf and steals only the all-1s mantissa for NaN; OCP e5m2
+    # is IEEE-like. FNUZ has neither -- its all-1s exponent is just a big normal.
+    ocp_has_inf = use_ocp and mant_bits == 2
     table = np.zeros(256, dtype=np.float32)
     for b in range(256):
         sign = (b >> sign_shift) & 1
         exp = (b >> mant_bits) & exp_mask
         mant = b & (mant_max - 1)
         if exp == 0 and mant == 0:
-            # +0 (0x00); the negative-zero slot (0x80) is the lone NaN.
-            table[b] = np.float32(np.nan) if sign else np.float32(0.0)
+            if use_ocp:
+                table[b] = np.float32(-0.0 if sign else 0.0)
+            else:
+                # +0 (0x00); the negative-zero slot (0x80) is the lone NaN.
+                table[b] = np.float32(np.nan) if sign else np.float32(0.0)
+            continue
+        if use_ocp and exp == exp_mask:
+            if ocp_has_inf:
+                val = np.inf if mant == 0 else np.nan
+            elif mant == mant_max - 1:
+                val = np.nan
+            else:
+                val = (1.0 + mant / mant_max) * (2.0 ** (exp - bias))
+            table[b] = np.float32(-val if (sign and val == val) else val)
             continue
         if exp == 0:
             val = (mant / mant_max) * (2.0 ** (1 - bias))  # subnormal
@@ -917,16 +1132,35 @@ def _fnuz_decode_table(exp_bits: int, mant_bits: int) -> np.ndarray:
     return table
 
 
-def _fnuz_encode(x: np.ndarray, exp_bits: int, mant_bits: int) -> np.ndarray:
-    """Encode fp32 -> nearest 8-bit FNUZ float, returned as a uint8 bit pattern."""
-    table = _fnuz_decode_table(exp_bits, mant_bits)
+def _fnuz_decode_table(exp_bits: int, mant_bits: int) -> np.ndarray:
+    """FNUZ-only view of :func:`_fp8_decode_table` (kept for existing callers)."""
+    return _fp8_decode_table(exp_bits, mant_bits, False)
+
+
+def _fp8_encode(
+    x: np.ndarray, exp_bits: int, mant_bits: int, use_ocp: Optional[bool] = None
+) -> np.ndarray:
+    """Encode fp32 -> nearest 8-bit float, returned as a uint8 bit pattern.
+
+    Rounding is round-to-nearest, ties-to-even -- the hardware convert's rule and
+    ml_dtypes'.  Saturation on overflow is deliberate and is where this encoder
+    *does* diverge from ml_dtypes: CK's convert clamps to the max finite value
+    (1e30 -> 448.0 for e4m3), while ``np.astype(ml_dtypes.float8_e4m3fn)``
+    produces NaN.  Matching the kernel is the point, so the divergence stays;
+    ``test_gemm_utils.TestFp8EncodeMatchesMlDtypes`` pins both halves of that.
+    """
+    use_ocp = _resolve_use_ocp(use_ocp)
+    table = _fp8_decode_table(exp_bits, mant_bits, use_ocp)
     sign_byte = np.uint8(1 << (exp_bits + mant_bits))  # 0x80
 
-    # Positive half (bytes 0..127) holds every non-negative magnitude, sorted.
+    # Positive half (bytes 0..127) holds every non-negative magnitude. Drop the
+    # non-finite slots (OCP NaN/Inf) so out-of-range inputs saturate to the max
+    # finite value instead of rounding to Inf, matching CK's saturating convert.
     # Compare in float64: for very large inputs the gap between the two top
     # magnitudes is below fp32 resolution, which would tie and mis-saturate.
     pos_mag = table[: int(sign_byte)].astype(np.float64)
-    order = np.argsort(pos_mag)
+    finite = np.flatnonzero(np.isfinite(pos_mag))
+    order = finite[np.argsort(pos_mag[finite])]
     sorted_mag = pos_mag[order]
     sorted_byte = order.astype(np.uint8)
 
@@ -937,35 +1171,79 @@ def _fnuz_encode(x: np.ndarray, exp_bits: int, mant_bits: int) -> np.ndarray:
     raw = np.searchsorted(sorted_mag, ax)
     hi = np.clip(raw, 0, sorted_mag.size - 1)
     lo = np.clip(raw - 1, 0, sorted_mag.size - 1)
-    pick_lo = np.abs(sorted_mag[lo] - ax) <= np.abs(sorted_mag[hi] - ax)
+    d_lo = np.abs(sorted_mag[lo] - ax)
+    d_hi = np.abs(sorted_mag[hi] - ax)
+    # Ties-to-even, not ties-toward-zero. Adjacent entries in `sorted_mag` are
+    # adjacent byte values (the positive half of both encodings is monotonic in
+    # the byte, subnormals through normals), so the mantissa LSB is just bit 0 of
+    # the byte. Breaking ties toward `lo` instead -- as this did -- biases the
+    # host reference low on exactly the midpoints and disagrees with both the
+    # hardware convert and ml_dtypes on 63 of 256 e4m3 values.
+    #
+    # The degenerate ends are unaffected: raw==0 and raw==size both give lo==hi,
+    # so the tie branch picks the same index either way and saturation holds.
+    lo_is_even = (sorted_byte[lo] & np.uint8(1)) == 0
+    pick_lo = np.where(d_lo == d_hi, lo_is_even, d_lo < d_hi)
     chosen = np.where(pick_lo, lo, hi)
     out = sorted_byte[chosen]
 
-    # Apply sign, but never the 0x80 (-0 == NaN) slot: zeros stay +0.
+    # Apply sign. Under FNUZ 0x80 is the NaN slot rather than -0, so zeros must
+    # stay positive there; under OCP -0.0 is representable but +0 is equivalent
+    # for every consumer here, so keep the same rule for both.
     is_zero = sorted_mag[chosen] == 0
     out = np.where((xf < 0) & ~is_zero, out | sign_byte, out)
-    out = np.where(np.isnan(xf), sign_byte, out)  # NaN inputs -> NaN byte
+    # NaN byte: 0x80 under FNUZ, all-1s exponent and mantissa under OCP.
+    nan_byte = np.uint8(((1 << exp_bits) - 1) << mant_bits | ((1 << mant_bits) - 1)) \
+        if use_ocp else sign_byte
+    out = np.where(np.isnan(xf), nan_byte, out)
     return out.astype(np.uint8).reshape(np.shape(x))
 
 
-def _fp32_to_fp8_u8(x: np.ndarray) -> np.ndarray:
-    """Encode fp32 -> fp8 E4M3 (FNUZ) bit pattern in a uint8 array."""
-    return _fnuz_encode(x, exp_bits=4, mant_bits=3)
+def _fp32_to_fp8_u8(x: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Encode fp32 -> fp8 E4M3 bit pattern in a uint8 array (arch-selected format)."""
+    return _fp8_encode(x, exp_bits=4, mant_bits=3, use_ocp=use_ocp)
 
 
-def _fp8_u8_to_fp32(u8: np.ndarray) -> np.ndarray:
-    """Decode an fp8 E4M3 (FNUZ) bit pattern back to fp32."""
-    return _fnuz_decode_table(4, 3)[u8.astype(np.intp)]
+def _fp8_u8_to_fp32(u8: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Decode an fp8 E4M3 bit pattern back to fp32 (arch-selected format)."""
+    return _fp8_decode_table(4, 3, _resolve_use_ocp(use_ocp))[u8.astype(np.intp)]
 
 
-def _fp32_to_bf8_u8(x: np.ndarray) -> np.ndarray:
-    """Encode fp32 -> bf8 E5M2 (FNUZ) bit pattern in a uint8 array."""
-    return _fnuz_encode(x, exp_bits=5, mant_bits=2)
+def _fp32_to_bf8_u8(x: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Encode fp32 -> bf8 E5M2 bit pattern in a uint8 array (arch-selected format)."""
+    return _fp8_encode(x, exp_bits=5, mant_bits=2, use_ocp=use_ocp)
 
 
-def _bf8_u8_to_fp32(u8: np.ndarray) -> np.ndarray:
-    """Decode a bf8 E5M2 (FNUZ) bit pattern back to fp32."""
-    return _fnuz_decode_table(5, 2)[u8.astype(np.intp)]
+def _bf8_u8_to_fp32(u8: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Decode a bf8 E5M2 bit pattern back to fp32 (arch-selected format)."""
+    return _fp8_decode_table(5, 2, _resolve_use_ocp(use_ocp))[u8.astype(np.intp)]
+
+
+def _fp32_to_fp8_ocp_u8(x):
+    """Encode fp32 -> fp8 E4M3 **OCP** (gfx950/gfx12xx) bit pattern (uint8)."""
+    import ml_dtypes
+    return np.ascontiguousarray(x, dtype=np.float32).astype(ml_dtypes.float8_e4m3fn).view(np.uint8)
+
+
+def _fp32_to_bf8_ocp_u8(x):
+    """Encode fp32 -> bf8 E5M2 **OCP** (gfx950/gfx12xx) bit pattern (uint8)."""
+    import ml_dtypes
+    return np.ascontiguousarray(x, dtype=np.float32).astype(ml_dtypes.float8_e5m2).view(np.uint8)
+
+
+_OCP_FP8_CACHE = {}
+
+
+def _use_ocp_fp8():
+    """True on archs whose device fp8_t is OCP (gfx950/MI350, gfx12xx/RDNA) rather
+    than the FNUZ encoding used by gfx942/MI300. Detected once via rocminfo."""
+    if "v" not in _OCP_FP8_CACHE:
+        try:
+            a = _get_arch()
+        except Exception:
+            a = ""
+        _OCP_FP8_CACHE["v"] = a.startswith("gfx12") or a == "gfx950"
+    return _OCP_FP8_CACHE["v"]
 
 
 # Output (C) element dtype for an A/B element dtype, mirroring the codegen's
@@ -1004,12 +1282,16 @@ class GpuGemmRunner:
     numpy arrays straight to the .so.
     """
 
-    def __init__(self, lib_path: Path):
+    def __init__(self, lib_path: Path, arch: Optional[str] = None):
         self.lib = GemmDispatcherLib(lib_path)
         if not self.lib.initialize():
             raise RuntimeError(f"Failed to initialize dispatcher .so: {lib_path}")
         names = self.lib.kernel_names
         self._kernel_name = names[0] if names else "unknown"
+        # fp8/bf8 encoding must match the arch the .so was compiled for. Running
+        # a .so requires the matching GPU, so the local arch is the right default;
+        # `arch` is the explicit pin for callers that already know it.
+        self._use_ocp = _fp8_uses_ocp(arch) if arch else None
 
     @property
     def kernel_name(self) -> str:
@@ -1047,11 +1329,11 @@ class GpuGemmRunner:
             A_h = _fp32_to_bf16_u16(A_lay)
             B_h = _fp32_to_bf16_u16(B_lay)
         elif dtype == "fp8":
-            A_h = _fp32_to_fp8_u8(A_lay)
-            B_h = _fp32_to_fp8_u8(B_lay)
+            A_h = _fp32_to_fp8_u8(A_lay, use_ocp=self._use_ocp)
+            B_h = _fp32_to_fp8_u8(B_lay, use_ocp=self._use_ocp)
         elif dtype == "bf8":
-            A_h = _fp32_to_bf8_u8(A_lay)
-            B_h = _fp32_to_bf8_u8(B_lay)
+            A_h = _fp32_to_bf8_u8(A_lay, use_ocp=self._use_ocp)
+            B_h = _fp32_to_bf8_u8(B_lay, use_ocp=self._use_ocp)
         elif dtype == "int8":
             A_h = np.ascontiguousarray(A_lay, dtype=np.int8)
             B_h = np.ascontiguousarray(B_lay, dtype=np.int8)
@@ -1111,7 +1393,13 @@ class GpuGroupedGemmRunner:
     overrun the host buffer (heap corruption). See :func:`output_numpy_dtype_for`.
     """
 
-    def __init__(self, lib_path: Path, dtype: str = "fp16", layout: str = "rcr"):
+    def __init__(
+        self,
+        lib_path: Path,
+        dtype: str = "fp16",
+        layout: str = "rcr",
+        arch: Optional[str] = None,
+    ):
         self.lib = GemmDispatcherLib(lib_path)
         if not self.lib.initialize():
             raise RuntimeError(
@@ -1120,10 +1408,13 @@ class GpuGroupedGemmRunner:
         names = self.lib.kernel_names
         self._kernel_name = names[0] if names else "unknown"
         self._dtype = dtype
+        # fp8/bf8 encoding must match the arch the .so was compiled for; see
+        # GpuGemmRunner.__init__. None -> resolve from the local GPU.
+        self._use_ocp = _fp8_uses_ocp(arch) if arch else None
         # A/B (input) codec vs C (output) codec: they differ for fp8/bf8
         # (output is fp16), so keep them distinct to size the C buffer correctly.
-        self._np_dtype = numpy_dtype_for(dtype)
-        self._c_np_dtype = output_numpy_dtype_for(dtype)
+        self._np_dtype = numpy_dtype_for(dtype, use_ocp=self._use_ocp)
+        self._c_np_dtype = output_numpy_dtype_for(dtype, use_ocp=self._use_ocp)
         if len(layout) != 3 or any(ch not in ("r", "c") for ch in layout):
             raise ValueError(f"layout must be a 3-char r/c string, got {layout!r}")
         self._layout = layout
@@ -1214,7 +1505,13 @@ class MultiDGemmResult:
 
     @property
     def success(self) -> bool:
-        return self.status == 0
+        return self.status == STATUS_OK
+
+    @property
+    def unsupported(self) -> bool:
+        """True when the kernel did not run because run() returned
+        STATUS_UNSUPPORTED. success stays False; callers count it as a skip."""
+        return self.status == STATUS_UNSUPPORTED
 
 
 def _multi_d_layout_from_kernel_name(name: str) -> str:
@@ -1862,6 +2159,10 @@ def _build_compile_jobs(
         "-D__HIP_PLATFORM_AMD__",
         f"--offload-arch={config.gfx_arch}",
         f'-DGFX_ARCH="{config.gfx_arch}"',
+        *unified_framework_flags(config.gfx_arch),
+        # Keep host/device fp8 encodings consistent and enable the target's
+        # WMMA/MX features, matching the CMake build.
+        *arch_feature_defines(config.gfx_arch),
         # Match Tile Engine's AMDGPU codegen flags exactly (see variant_flags /
         # _tile_engine_codegen_flags). Without them the kernel is compiled with
         # different inlining/register allocation, which changes occupancy;
@@ -1892,7 +2193,14 @@ def _build_compile_jobs(
     if not registry_bypass:
         link_cmd.append(str(static_lib))
     link_cmd += ["-o", str(lib_path)]
-    job = {"compile_cmd": compile_cmd, "link_cmd": link_cmd, "lib_path": str(lib_path)}
+    job = {
+        "compile_cmd": compile_cmd,
+        "link_cmd": link_cmd,
+        "lib_path": str(lib_path),
+        # Fixed-width instantiations of large tiles can exceed 600 seconds.
+        # Keep the native and linker limits unchanged.
+        "compile_timeout": 1200 if any(config.vector_sizes) else 300,
+    }
     return job, lib_path
 
 
@@ -1915,22 +2223,6 @@ def setup_multiple_gemm_dispatchers(
     if n == 0:
         return results
 
-    # Guard the compile path: every config's gfx_arch must be a concrete,
-    # supported arch before it reaches -DGFX_ARCH / --offload-arch / gpu_target.
-    # expand_sweep already resolves this, but a config built directly (gfx_arch
-    # left as None) would otherwise emit a literal "None" arch. Resolve/validate
-    # here too, defaulting a None to the rocminfo-detected arch (never gfx942).
-    _shared_arch: Optional[str] = None
-    resolved_configs: List[GemmKernelConfig] = []
-    for c in configs:
-        if c.gfx_arch:
-            resolved_configs.append(replace(c, gfx_arch=_resolve_arch(c.gfx_arch)))
-        else:
-            if _shared_arch is None:
-                _shared_arch = _get_arch()
-            resolved_configs.append(replace(c, gfx_arch=_shared_arch))
-    configs = resolved_configs
-
     # Hard-fail rather than build a runnable but WRONG kernel: a preshuffle config
     # with permute_n=True would compile a "_permuteN" kernel whose device pipeline
     # is not yet bridged (it mis-shuffles B -> wrong results; see BRIDGE_PERMUTE_N).
@@ -1948,6 +2240,22 @@ def setup_multiple_gemm_dispatchers(
                     f"that would mis-shuffle B ({c.name}). Flip BRIDGE_PERMUTE_N once "
                     "the permuteN pipeline is emitted in unified_gemm_codegen."
                 )
+
+    # Guard the compile path: every config's gfx_arch must be a concrete,
+    # supported arch before it reaches -DGFX_ARCH / --offload-arch / gpu_target.
+    # expand_sweep already resolves this, but a config built directly (gfx_arch
+    # left as None) would otherwise emit a literal "None" arch. Resolve/validate
+    # here too, defaulting a None to the rocminfo-detected arch (never gfx942).
+    _shared_arch: Optional[str] = None
+    resolved_configs: List[GemmKernelConfig] = []
+    for c in configs:
+        if c.gfx_arch:
+            resolved_configs.append(replace(c, gfx_arch=_resolve_arch(c.gfx_arch)))
+        else:
+            if _shared_arch is None:
+                _shared_arch = _get_arch()
+            resolved_configs.append(replace(c, gfx_arch=_shared_arch))
+    configs = resolved_configs
 
     max_workers = max_workers or min(multiprocessing.cpu_count(), 8)
 
@@ -2130,6 +2438,7 @@ _WARP_SUPPORTED_COMBINATIONS_FALLBACK = {
     "gfx90a": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx950": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+    "gfx1250": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1], [2, 1, 1], [1, 2, 2], [4, 1, 1], [1, 4, 1], [2, 2, 1]],
     "gfx1201": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
 }
 
@@ -2154,6 +2463,77 @@ def _warp_config_supported(wave_m: int, wave_n: int, wave_k: int, arch: str) -> 
     return [wave_m, wave_n, wave_k] in allowed
 
 
+# --- gfx1250 pipeline gate (parity with unified_gemm_codegen) --------------
+# Non-MX comp_async / comp_tdm / comp_tdm_v2 are only generated for gfx1250 by
+# unified_gemm_codegen. expand_sweep must drop the same combinations up front,
+# otherwise it hands back configs whose header is never emitted. The rules live
+# in codegen_common.gfx1250_pipeline_reject_reason (single source of truth
+# shared with the codegen and arch_filter); pipelines outside that set are
+# untouched.
+_CODEGEN_DIR = Path(__file__).resolve().parent.parent / "codegen"
+
+
+@functools.lru_cache(maxsize=1)
+def _codegen_common():
+    """The codegen_common module, importable regardless of whether a caller
+    already put the codegen dir on ``sys.path``."""
+    import sys  # noqa: WPS433 (local: only needed for this lazy import)
+
+    codegen_dir = str(_CODEGEN_DIR)
+    if codegen_dir not in sys.path:
+        sys.path.append(codegen_dir)
+    import codegen_common  # noqa: WPS433
+
+    return codegen_common
+
+
+def _gfx1250_reject_reason_fn():
+    return _codegen_common().gfx1250_pipeline_reject_reason
+
+
+def _gfx1250_pipeline_supported(
+    pipeline: str,
+    scheduler: str,
+    epilogue: str,
+    persistent: bool,
+    wave_m: int,
+    wave_n: int,
+    wave_k: int,
+    arch: str,
+    variant: str,
+    pad_m: bool = False,
+    pad_n: bool = False,
+    pad_k: bool = False,
+    layout: str = "",
+    dtype: str = "",
+    warp_tile_k: int = 0,
+) -> bool:
+    """False iff the (pipeline, epilogue) pair is a gfx1250 combination that
+    the codegen would reject for this arch/variant/trait.
+
+    ``layout`` is the A/B/C layout code (e.g. ``rcr``); empty skips the
+    comp_async layout rule. ``dtype``/``warp_tile_k`` feed the comp_async
+    8-bit warp_tile_k rule; an empty dtype skips it."""
+    if pipeline not in ("comp_async", "comp_tdm", "comp_tdm_v2") and epilogue != "tdm":
+        return True
+    reason = _gfx1250_reject_reason_fn()(
+        arch,
+        pipeline,
+        epilogue,
+        scheduler,
+        num_waves=wave_m * wave_n * wave_k,
+        warp_tile_k=warp_tile_k,
+        dtype_a=dtype,
+        dtype_b=dtype,
+        layout=layout,
+        variant_supported=variant in ("standard", "batched"),
+        variant_name=variant,
+        persistent=bool(persistent),
+        pads=(bool(pad_m), bool(pad_n), bool(pad_k)),
+    )
+    return not reason
+
+
 def expand_sweep(
     config_path: str,
     arch: Optional[str] = None,
@@ -2167,6 +2547,8 @@ def expand_sweep(
     b_elementwise_op: str = "PassThrough",
     cde_elementwise_op: str = "PassThrough",
     mabd_cli_overrides: Optional[Dict[str, Any]] = None,
+    vector_sizes: Optional[List[Tuple[int, int, int]]] = None,
+    rejects: Optional[Dict[str, int]] = None,
 ) -> List[GemmKernelConfig]:
     """Expand a Tile Engine GEMM JSON sweep config into GemmKernelConfig list.
 
@@ -2191,6 +2573,12 @@ def expand_sweep(
     carries a concrete, supported ``gfx_arch`` -- the compile command's
     ``-DGFX_ARCH`` / ``--offload-arch`` never see ``None``. An explicit,
     unsupported arch raises ``ValueError``.
+
+    ``vector_sizes`` lists requested A/B/C global vector widths (0 = native);
+    default is the ``trait_config`` ``vector_size_a/b/c`` product, else native
+    only. Each base config is emitted once per distinct resolved triple; a
+    triple that is illegal for the tile is dropped and its reason counted in
+    ``rejects`` (when given).
     """
     # Multi-ABD is fp16-only end-to-end (codegen, ctypes lib, and GpuMultiABDRunner
     # all assume fp16). Reject other dtypes here -- before any codegen/build -- so
@@ -2228,6 +2616,12 @@ def expand_sweep(
     pad_ns = _expand_values(tr.get("pad_n"), [False])
     pad_ks = _expand_values(tr.get("pad_k"), [False])
     persistents = _expand_values(tr.get("persistent"), [False])
+    if vector_sizes is None:
+        vector_sizes = list(
+            itertools.product(
+                *(_expand_values(tr.get(f"vector_size_{x}"), [0]) for x in "abc")
+            )
+        )
 
     # Preshuffle B-shuffle permutation knob -- pinned to the single source of
     # truth BRIDGE_PERMUTE_N (see its definition for the full rationale). We
@@ -2392,9 +2786,46 @@ def expand_sweep(
         # (WARP_SUPPORTED_COMBINATIONS[arch]); see _warp_config_supported.
         if not _warp_config_supported(wm, wn, wk, arch):
             continue
+        # gfx1250 correctness gate (ROCm/rocm-libraries#11161): the compv3
+        # intrawave pipeline is hand-scheduled for MFMA/CDNA (wave64) and
+        # miscompiles for 8-warp blocks (2x4x1 / 4x2x1) on gfx1250 (WMMA/wave32),
+        # producing wrong results (on-device max_rel 0.14-0.87 vs an fp32 CPU
+        # reference; <=4-warp compv3 and all compv4/mem/interwave kernels are
+        # bit-accurate). Gate it off until the pipeline is ported to wave32.
+        if (
+            arch == "gfx1250"
+            and pipe == "compv3"
+            and sched == "intrawave"
+            and wm * wn == 8
+        ):
+            continue
+        if not _gfx1250_pipeline_supported(
+            pipe,
+            sched,
+            epi,
+            bool(persist),
+            wm,
+            wn,
+            wk,
+            arch,
+            variant,
+            pad_m=bool(pm),
+            pad_n=bool(pn),
+            pad_k=bool(pk),
+            layout=layout,
+            dtype=dtype,
+            warp_tile_k=wtk,
+        ):
+            continue
         if epi == "cshuffle" and not _cshuffle_store_ok(
             tm // m_div, tn // n_div, wtm, wtn
         ):
+            continue
+        # Stream-K supports only the cshuffle epilogue, and the codegen skips
+        # anything else (unified_gemm_codegen.py, GemmVariant.STREAM_K branch).
+        # Without this gate expand_sweep hands back configs whose header is
+        # never emitted, which surfaces downstream as a spurious build failure.
+        if variant == "stream_k" and epi != "cshuffle":
             continue
 
         for (m_na, m_nb, m_nd, m_aop, m_bop, m_cdeop) in mabd_combos:
@@ -2437,12 +2868,20 @@ def expand_sweep(
                     elementwise_op=ew_op,
                     d_layout=d_layout_word,
                 )
-                if c.name in seen:
-                    continue
-                val = _cu.validate_kernel_config(c.to_ctypes_config())
-                if not val.is_valid:
-                    continue
-                seen.add(c.name)
-                configs.append(c)
+                val = None
+                for vec in vector_sizes:
+                    cv, reason = c.with_vector_sizes(tuple(vec))
+                    if reason:
+                        if rejects is not None:
+                            rejects[reason] = rejects.get(reason, 0) + 1
+                        continue
+                    if cv.name in seen:
+                        continue
+                    if val is None:
+                        val = _cu.validate_kernel_config(c.to_ctypes_config())
+                    if not val.is_valid:
+                        break
+                    seen.add(cv.name)
+                    configs.append(cv)
 
     return configs

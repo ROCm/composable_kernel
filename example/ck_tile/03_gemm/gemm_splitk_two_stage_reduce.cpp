@@ -911,6 +911,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(
             a_layout, b_layout, arg_parser);
     }
+#if !CK_TILE_USE_WMMA || defined(CK_USE_WMMA_FP8)
     else if(data_type == "fp8")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
@@ -925,6 +926,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
                                           ck_tile::bf8_t,
                                           ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
+#endif
     else if(data_type == "int8")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::int8_t>,

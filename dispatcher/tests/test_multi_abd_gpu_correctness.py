@@ -35,6 +35,7 @@ import numpy as np
 SCRIPT_DIR = Path(__file__).parent.resolve()
 DISPATCHER_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(DISPATCHER_DIR / "python"))
+sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
 
 from gemm_utils import (  # noqa: E402
     GemmKernelConfig,
@@ -70,9 +71,34 @@ def _detect_arch():
 class TestMultiAbdGemmGpu(unittest.TestCase):
     ARCH = _detect_arch()
 
+    @staticmethod
+    def _fp16_warp_tile(arch):
+        """Pick an fp16 warp tile valid for this arch.
+
+        This test used to hardcode 32x32x16 while passing the *detected* arch
+        through to codegen. 32x32x16 is an MFMA fragment, so on a wave32/WMMA
+        part (gfx1250 wants 16x16x32; gfx1200/gfx1201 want 16x16x16) the arch
+        filter dropped the config, no header was emitted, and
+        setup_multiple_gemm_dispatchers returned None -- surfacing as a build
+        failure rather than "this shape is not supported here".
+        """
+        from arch_specs_generated import get_warp_tile_combos
+
+        combos = [tuple(c) for c in
+                  get_warp_tile_combos(str(arch).split(":", 1)[0], "fp16_fp16_fp32")]
+        if not combos:
+            return None
+        # Keep the historical tile where it is still legal, so the arches this
+        # test already passes on (gfx942/gfx950, per the module docstring) are
+        # byte-identical to before; only the arches that could never run pick
+        # something new.
+        return (32, 32, 16) if (32, 32, 16) in combos else combos[0]
+
     def setUp(self):
         if self.ARCH is None:
             self.skipTest("no GPU / rocminfo not available")
+        if self._fp16_warp_tile(self.ARCH) is None:
+            self.skipTest(f"no supported fp16 warp tile for {self.ARCH}")
         if shutil.which("hipcc") is None and not Path("/opt/rocm/bin/hipcc").exists():
             self.skipTest("hipcc not found")
 
@@ -80,12 +106,13 @@ class TestMultiAbdGemmGpu(unittest.TestCase):
         # A/B groups summed (MultiDAdd), D tensors summed into the epilogue
         # (MultiDAdd) -- the fully-fused path, not a PassThrough no-op.
         na, nb, nd = 2, 2, 2
+        wt_m, wt_n, wt_k = self._fp16_warp_tile(self.ARCH)
         cfg = GemmKernelConfig(
             dtype_a="fp16", dtype_b="fp16", dtype_c="fp16", dtype_acc="fp32",
             layout_a="row", layout_b="col", layout_c="row", layout_d="row",
             tile_m=128, tile_n=128, tile_k=32,
             wave_m=2, wave_n=2, wave_k=1,
-            warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+            warp_tile_m=wt_m, warp_tile_n=wt_n, warp_tile_k=wt_k,
             pipeline="compv4", scheduler="intrawave", epilogue="cshuffle",
             pad_m=True, pad_n=True, pad_k=True, persistent=False,
             variant="multi_abd",

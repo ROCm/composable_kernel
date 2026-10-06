@@ -56,7 +56,7 @@ struct AsyncLDSKernel
 
     CK_TILE_DEVICE void operator()(const T* __restrict__ src, T* __restrict__ dst, int mask) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ T lds_buf[NUM_LANES];
 
         const int lane_id = threadIdx.x;
@@ -170,7 +170,7 @@ struct LDSVisibilityKernel
 
     CK_TILE_DEVICE void operator()(const T* __restrict__ src, T* __restrict__ dst, int mask) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ T lds_buf[NUM_LANES]; // 32 slots, loaded by wave 0's 32 lanes
 
         const int thread_id = threadIdx.x;
@@ -293,7 +293,7 @@ struct LDSStridedKernel
     CK_TILE_DEVICE void
     operator()(const int* __restrict__ src, int* __restrict__ dst, int mask) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ int lds_buf[NUM_LANES * LDSStridedKernel::kStride];
 
         const int lane_id = threadIdx.x;
@@ -391,7 +391,7 @@ struct AsyncLDSBroadcastKernel
                                    int* __restrict__ diag_ids,
                                    int num_wgs) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ T lds_buf[NUM_LANES];
 
         const int flat_id = __builtin_amdgcn_cluster_workgroup_flat_id();
@@ -496,7 +496,7 @@ struct AsyncLDS2DClusterKernel
                                    int* __restrict__ dst,
                                    int* __restrict__ flat_ids) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ int lds_buf[NUM_LANES];
 
         const int block_flat_id = blockIdx.x + blockIdx.y * gridDim.x;
@@ -614,7 +614,7 @@ struct ASYNCcntOrderingKernel
                                    int* __restrict__ dst_b,
                                    int mask) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ int lds_a[NUM_LANES];
         __shared__ int lds_b[NUM_LANES];
 
@@ -733,7 +733,7 @@ struct PartialBroadcastKernel
                                    int* __restrict__ dst,
                                    int mask) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ int lds_buf[NUM_LANES];
 
         const int flat_id = __builtin_amdgcn_cluster_workgroup_flat_id();
@@ -854,7 +854,7 @@ struct MultiWGPLDSVisibilityKernel
                                    int* __restrict__ diag_ids,
                                    int num_wgs) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ T lds_buf[NUM_LANES]; // 32 slots; all waves in WG share this
 
         const int flat_id   = __builtin_amdgcn_cluster_workgroup_flat_id();
@@ -991,7 +991,7 @@ struct ConcurrentGroupsLDSKernel
                                    T* __restrict__ dst,
                                    int* __restrict__ diag_ids) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ T lds_buf[NUM_LANES];
 
         const int flat_id = __builtin_amdgcn_cluster_workgroup_flat_id();
@@ -1134,7 +1134,7 @@ struct BufferViewBasicKernel
 
     CK_TILE_DEVICE void operator()(const int* src, int* dst, int mask) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ int lds_buf[NUM_LANES];
 
         const int lane_id = threadIdx.x;
@@ -1199,7 +1199,7 @@ struct BufferViewInstOffsetKernel
 
     CK_TILE_DEVICE void operator()(const int* src, int* dst, int mask) const
     {
-#ifdef __gfx1250__
+#ifdef __gfx125__
         __shared__ int lds_buf[2 * NUM_LANES];
 
         const int lane_id  = threadIdx.x;

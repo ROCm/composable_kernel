@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <string_view>
 #include <vector>
 
 #include "example/ck_tile/01_fmha/fmha_fwd.hpp"
@@ -45,6 +46,7 @@ struct TestConfigs
     static constexpr auto ModeValues        = std::array{mode_enum::batch, mode_enum::group};
     static constexpr auto IsVRowmajorValues = std::array{true};
     static constexpr auto qscale_str        = "n";
+    static constexpr auto QScaleValues      = std::array{"n"};
     static constexpr bool def_lse           = true;
     static constexpr bool def_is_v_rowmajor = true;
     static constexpr auto init_method       = "uf";
@@ -65,6 +67,7 @@ struct TestConfigs<FmhaFwdFp8Bf16>
     static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
     static constexpr auto IsVRowmajorValues  = std::array{true};
     static constexpr auto qscale_str         = "pt";
+    static constexpr auto QScaleValues       = std::array{"n", "pt", "ph", "bs"};
     static constexpr bool def_lse            = false;
     static constexpr bool def_is_v_rowmajor  = true;
     static constexpr auto init_method        = "3";
@@ -77,6 +80,37 @@ struct TestConfigs<FmhaFwdFp8Bf16>
     }
 };
 
+// d=128 is the only head dim the whole fp8 family shares; fp8fp32 has no d=64 tile. No
+// splitkv/appendkv instances are generated, and all four quantization scales exist here.
+struct Fp8FamilyTestConfigs
+{
+    static constexpr auto HDimValues         = std::array{std::tuple{128, -1}};
+    static constexpr auto SplitKVHDimValues  = std::array<std::tuple<int, int>, 0>{};
+    static constexpr auto AppendKVHDimValues = std::array<std::tuple<int, int>, 0>{};
+    static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
+    static constexpr auto IsVRowmajorValues  = std::array{true};
+    static constexpr auto qscale_str         = "pt";
+    static constexpr auto QScaleValues       = std::array{"n", "pt", "ph", "bs"};
+    static constexpr bool def_lse            = false;
+    static constexpr bool def_is_v_rowmajor  = true;
+    static constexpr auto init_method        = "3";
+    static int adjust_seqlen(int seqlen) { return seqlen; }
+    static int adjust_hdim(int hdim)
+    {
+        return hdim < 0 ? hdim : ck_tile::integer_least_multiple(hdim, 16);
+    }
+};
+
+template <>
+struct TestConfigs<FmhaFwdFp8> : Fp8FamilyTestConfigs
+{
+};
+
+template <>
+struct TestConfigs<FmhaFwdFp8Fp32> : Fp8FamilyTestConfigs
+{
+};
+
 template <>
 struct TestConfigs<FmhaFwdMxFp8>
 {
@@ -86,6 +120,7 @@ struct TestConfigs<FmhaFwdMxFp8>
     static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
     static constexpr auto IsVRowmajorValues  = std::array{false};
     static constexpr auto qscale_str         = "mx";
+    static constexpr auto QScaleValues       = std::array{"mx"};
     static constexpr bool def_lse            = true;
     static constexpr bool def_is_v_rowmajor  = false;
     static constexpr auto init_method        = "3";
@@ -105,6 +140,7 @@ struct TestConfigs<FmhaFwdMxFp4>
     static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
     static constexpr auto IsVRowmajorValues  = std::array{false};
     static constexpr auto qscale_str         = "mx";
+    static constexpr auto QScaleValues       = std::array{"mx"};
     static constexpr bool def_lse            = true;
     static constexpr bool def_is_v_rowmajor  = false;
     static constexpr auto init_method        = "3";
@@ -135,6 +171,7 @@ struct TestConfigs<FmhaFwdFp32>
     static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
     static constexpr auto IsVRowmajorValues  = std::array{true};
     static constexpr auto qscale_str         = "n";
+    static constexpr auto QScaleValues       = std::array{"n"};
     static constexpr bool def_lse            = true;
     static constexpr bool def_is_v_rowmajor  = true;
     static constexpr auto init_method        = "uf";
@@ -142,11 +179,14 @@ struct TestConfigs<FmhaFwdFp32>
     static int adjust_hdim(int hdim) { return hdim; }
 };
 
-static auto HDimValues           = ValuesIn(TestConfigs<DataTypeConfig>::HDimValues);
-static auto SplitKVHDimValues    = ValuesIn(TestConfigs<DataTypeConfig>::SplitKVHDimValues);
-static auto AppendKVHDimValues   = ValuesIn(TestConfigs<DataTypeConfig>::AppendKVHDimValues);
-static auto ModeValues           = ValuesIn(TestConfigs<DataTypeConfig>::ModeValues);
-static auto IsVRowmajorValues    = ValuesIn(TestConfigs<DataTypeConfig>::IsVRowmajorValues);
+static auto HDimValues         = ValuesIn(TestConfigs<DataTypeConfig>::HDimValues);
+static auto SplitKVHDimValues  = ValuesIn(TestConfigs<DataTypeConfig>::SplitKVHDimValues);
+static auto AppendKVHDimValues = ValuesIn(TestConfigs<DataTypeConfig>::AppendKVHDimValues);
+static auto ModeValues         = ValuesIn(TestConfigs<DataTypeConfig>::ModeValues);
+static auto IsVRowmajorValues  = ValuesIn(TestConfigs<DataTypeConfig>::IsVRowmajorValues);
+#ifdef CK_TILE_TEST_FMHA_QSCALE_SWEEP
+static auto QScaleValues = ValuesIn(TestConfigs<DataTypeConfig>::QScaleValues);
+#endif
 constexpr static auto qscale_str = TestConfigs<DataTypeConfig>::qscale_str;
 constexpr bool def_lse           = TestConfigs<DataTypeConfig>::def_lse;
 constexpr bool def_is_v_rowmajor = TestConfigs<DataTypeConfig>::def_is_v_rowmajor;
@@ -179,9 +219,11 @@ const ck_tile::stream_config stream_config{
     1,       // rotating_count_
 };
 
-#define COMMON_ARGS                                                                              \
-    init_method, static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))), 1, 0, \
-        1, stream_config
+#define COMMON_ARGS_INIT(init)                                                               \
+    init, static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))), 1, 0, 1, \
+        stream_config
+
+#define COMMON_ARGS COMMON_ARGS_INIT(init_method)
 
 auto EnableTestIf(bool condition)
 {
@@ -275,6 +317,192 @@ TEST_P(AllLong, DataTypeConfig)
     CHECK_RESULT(result);
 }
 
+TEST(TestCkTileFmhaFwd, QrTdmLdsArenaDecode)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm LDS arena is only supported on gfx1250";
+
+        std::string selected_kernel;
+        auto decode = fmha_fwd_run<DataTypeConfig>(mode_enum::batch,
+                                                   1,
+                                                   4,
+                                                   2,
+                                                   {127},
+                                                   {509},
+                                                   128,
+                                                   128,
+                                                   0,
+                                                   {-1},
+                                                   {-1},
+                                                   {},
+                                                   {},
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   0,
+                                                   true,
+                                                   false,
+                                                   0,
+                                                   false,
+                                                   "n",
+                                                   0.0f,
+                                                   0,
+                                                   0,
+                                                   false,
+                                                   "0",
+                                                   qscale_str,
+                                                   true,
+                                                   1,
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(decode, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_qr_tdm_"), std::string::npos);
+    }
+}
+
+TEST(TestCkTileFmhaFwd, QrTdmLdsArenaPrefill)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm LDS arena is only supported on gfx1250";
+
+        std::string selected_kernel;
+        auto result = fmha_fwd_run<DataTypeConfig>(mode_enum::batch,
+                                                   1,
+                                                   4,
+                                                   2,
+                                                   {2049},
+                                                   {2177},
+                                                   128,
+                                                   128,
+                                                   0,
+                                                   {-1},
+                                                   {-1},
+                                                   {},
+                                                   {},
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   false,
+                                                   "a:1",
+                                                   0.0f,
+                                                   0,
+                                                   0,
+                                                   false,
+                                                   "1",
+                                                   qscale_str,
+                                                   true,
+                                                   1,
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_qr_tdm_"), std::string::npos);
+    }
+}
+
+// gfx125x-only: qr_tdm correctness at the head dims this PR added but that the
+// generic General sweep does not cover -- (160,160) and (96,96). The generic
+// suite already exercises 32/64/128/192-128 through qr_tdm but never asserts
+// the pipeline, and never requests 160 or the true 96/96 tile. Non-multiple
+// seqlens select the seqlen-padded instances.
+//
+// In batch mode these cases also lock the bm0 crossover: seqlen_q below the
+// measured N=128 (see GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q in fmha_fwd.py)
+// must select the bm0=64 tile, and at/above N=128 the bm0=128 tile. seqlen_q=128
+// covers the boundary; 99/127 cover below it. Group mode keys dispatch on the
+// packed total q length, not this seqlen, so the bm0 assertion is batch-only.
+class QrTdmNewHeadDim
+    : public TestWithParam<std::tuple<mode_enum, std::tuple<int, int, int, int, const char*>>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    QrTdmNewHeadDim,
+    Combine(Values(mode_enum::batch, mode_enum::group),
+            Values(std::tuple{160, 160, 127, 509, "0"}, // 160 dense, seqlen-padded, bm0=64
+                   std::tuple{160, 160, 128, 256, "0"}, // 160 at N=128: bm0=128
+                   std::tuple{160, 160, 99, 256, "1"},  // 160 causal, bm0=64
+                   std::tuple{96, 96, 127, 509, "0"},   // 96/96 dense, bm0=64
+                   std::tuple{96, 96, 128, 256, "0"},   // 96/96 at N=128: bm0=128
+                   std::tuple{96, 96, 99, 256, "1"}))); // 96/96 causal, bm0=64
+
+TEST_P(QrTdmNewHeadDim, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm is only supported on gfx1250";
+
+        auto [mode, dims]                                   = GetParam();
+        auto [hdim_q, hdim_v, seqlen_q, seqlen_k, mask_str] = dims;
+
+        std::string selected_kernel;
+        auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                                   2,
+                                                   2,
+                                                   2,
+                                                   {adjust_seqlen(seqlen_q)},
+                                                   {adjust_seqlen(seqlen_k)},
+                                                   adjust_hdim(hdim_q),
+                                                   adjust_hdim(hdim_v),
+                                                   0,
+                                                   {-1},
+                                                   {-1},
+                                                   {},
+                                                   {},
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   0,
+                                                   true,
+                                                   false,
+                                                   0,
+                                                   false,
+                                                   "n",
+                                                   0.0f,
+                                                   0,
+                                                   0,
+                                                   false,
+                                                   mask_str,
+                                                   qscale_str,
+                                                   true,
+                                                   1,
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_qr_tdm_"), std::string::npos);
+
+        // bm0 crossover at max_seqlen_q == 128 (measured; see
+        // GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q in fmha_fwd.py). The tile is
+        // embedded in the kernel name as "_b<bm0>x<bn0>x...". Only assert in batch
+        // mode: there a.max_seqlen_q == seqlen_q, so the input directly drives tile
+        // selection. In group mode a.max_seqlen_q is the packed total q length across
+        // the batch (sum of per-sequence lengths), not the per-sequence seqlen, so a
+        // single input seqlen does not pin dispatch to one side of the crossover.
+        if(mode == mode_enum::batch)
+        {
+            if(seqlen_q >= 128)
+                EXPECT_NE(selected_kernel.find("_b128x"), std::string::npos) << selected_kernel;
+            else
+                EXPECT_NE(selected_kernel.find("_b64x"), std::string::npos) << selected_kernel;
+        }
+    }
+}
+
 class General
     : public TestWithParam<std::tuple<std::tuple<int, int>,
                                       bool,
@@ -338,6 +566,112 @@ TEST_P(General, DataTypeConfig)
                                                COMMON_ARGS);
     CHECK_RESULT(result);
 }
+
+// Every other suite pins the scale to TestConfigs<T>::qscale_str, leaving the rest untested.
+// Only gfx125x has more than one, so the sweep is compiled in there alone.
+#ifdef CK_TILE_TEST_FMHA_QSCALE_SWEEP
+enum class sink_kind
+{
+    none,
+    gptoss,
+    streamllm
+};
+
+// Full causal (left=-1) makes y == y_total, so x_start is 0 and the sink phase collapses.
+// This row checks that the has_sink instantiation matches the sinkless answer; the live
+// sink phase is carried by the local-window tuples below instead.
+constexpr auto kStreamLlmMask = "b:-1,0,2";
+
+class QuantScale
+    : public TestWithParam<std::tuple<mode_enum,
+                                      const char*,
+                                      sink_kind,
+                                      std::tuple<int, int, int, int, int, std::string>>>
+{
+};
+
+// hdim 128 is where perhead and blockscale exist. The non-multiple seqlens select the
+// seqlen-padded instances; the last tuple is a tile multiple so the unpadded pack-GQA path
+// is covered too. This sweep pins bias to "n"; fp8 bias + sink is carried by SinkWindowMask.
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    QuantScale,
+    Combine(ModeValues,
+            QScaleValues,
+            Values(sink_kind::none, sink_kind::gptoss, sink_kind::streamllm),
+            Values(std::tuple{2, 2, 1, 55, 256, "0"},   // GQA, seqlen_q << seqlen_k
+                   std::tuple{1, 3, -1, 100, 51, "0"},  // plain MHA, seqlen_q > seqlen_k
+                   std::tuple{2, 1, -1, 99, 256, "1"},  // causal
+                   std::tuple{1, 2, 1, 1024, 256, "2"}, // GQA, causal bottom-right
+                   std::tuple{1, 4, 2, 256, 256, "0"},  // Pack-GQA: ratio 2, no mask, s%128==0
+                   // The two local-window tuples below are the only non-empty sink phases
+                   // here; causal masks collapse it, and only then does the descale index
+                   // leave k_origin. sink=128 == kN0 is the prologue jump.
+                   std::tuple{1, 2, 1, 1024, 1024, "t:128,30,128"},
+                   // sink=512 gives num_sink_loop 4, reaching the mainloop jump that
+                   // sink <= kN0 never does; GQA ratio 2 crosses it with the descale stride.
+                   std::tuple{2, 4, 2, 1024, 1024, "t:128,30,512"})));
+
+// init=3 fills Q/K/V up to the fp8 maximum, which only stands for a real tensor when a
+// descale maps that maximum back to qkv_max. Without a descale the values stay at the fp8
+// scale, the logits reach ~3e5 in the exp2 domain and the softmax collapses to an argmax.
+// There half an fp32 ulp of the row max is worth 1% of the exponential, and the fp8 P
+// operand snaps that factor out of the numerator while the row sum keeps it, so the whole
+// row lands 1% off. Anchor the no-scale inputs on qkv_max, as the three descales do.
+const char* qscale_init_method(std::string_view qscale)
+{
+    return qscale == "n" ? "0" : init_method;
+}
+
+TEST_P(QuantScale, DataTypeConfig)
+{
+    auto [mode, qscale, sink, dims_mask]                       = GetParam();
+    auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
+
+    const std::string mask = sink == sink_kind::streamllm ? kStreamLlmMask : mask_str;
+    const int init_sink    = sink == sink_kind::gptoss ? 1 : 0;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(
+        mode,
+        batch,
+        nhead,
+        nhead_k,
+        {adjust_seqlen(seqlen_q)},
+        {adjust_seqlen(seqlen_k)},
+        adjust_hdim(128),
+        adjust_hdim(128),
+        0,    // seqlen_knew
+        {-1}, // seqlen_qpads
+        {-1}, // seqlen_kpads
+        {},   // q_eff_lens_per_batch
+        {},   // kv_eff_lens_per_batch
+        0,    // rotary_dim
+        true, // i_perm
+        true, // o_perm
+        0,    // scale_s
+        0,    // logits_soft_cap
+        def_is_v_rowmajor,
+        def_lse,
+        0,     // page_block_size
+        false, // use_cache_batch_idx
+        "n",   // bias_str
+        0.0f,  // p_drop
+        0,     // drop_seed
+        0,     // drop_offset
+        false, // drop_prefs
+        mask,
+        qscale,
+        true, // is_rotary_interleaved
+        1,    // num_splits
+        qscale_init_method(qscale),
+        static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+        1,         // do_validation
+        init_sink, // init_sink_value
+        1,         // pack_gqa
+        stream_config);
+    CHECK_RESULT(result);
+}
+#endif
 
 // ---------------------------------------------------------------
 // Negative tests: padding not supported with appendkv/splitkv/pagedkv
@@ -1341,6 +1675,9 @@ static const std::vector<SinkWindowParam> kSinkWindowParams = {
     // num_sink_loop == 0: sink pointer set, no sink columns, window mask
     {256, "n", 0.0f, 1024, "t:128,30", 1},
     {128, "e", 0.0f, 1024, "t:128,30", 1},
+    // On gfx1250 both bias rows reach qr_tdm, where m is already log2-domain and the sink
+    // pre-seed must carry scale_s. alibi has no fp8 instance, so only fp16/bf16 run it.
+    {128, "a", 0.0f, 1024, "t:128,30", 1},
     // dropout exercises the randval window, which each pipeline guards separately. hdim 128
     // with plain bias routes to async, hdim 256 keeps it on the non-async one.
     {128, "n", 0.2f, 1024, "t:128,30", 1},
@@ -1412,6 +1749,124 @@ TEST_P(SinkWindowMask, DataTypeConfig)
         stream_config);
     CHECK_RESULT(result);
 }
+
+// The tiny-scale_s rows below need the sink kept out of the fp8 P quantization frame,
+// which only the gfx125x qr_tdm pipeline does; every other target dispatches qr_async_vr
+// and still carries the systematic OUT gain. So the suite is compiled in there alone.
+#ifdef CK_TILE_TEST_FMHA_GPTOSS_SINK
+// ============================================================================
+// gptoss sink: one learnable logit per Q head, with no sink columns in the mask.
+// It only turns kHasSink on and never adds sink tiles (qr_ks_vs.hpp:791), so
+// num_sink_loop is always 0 and none of the window-jump guards SinkWindowMask
+// exists for are reached. What runs instead is:
+//
+//   - the m pre-seed, which branches on bias type: no bias takes
+//     sink_v * log2e, elementwise bias and alibi take sink_v * scale_s * log2e
+//     (qr_ks_vs.hpp:326, _async.hpp:325, _tdm.hpp:357 and :1050);
+//   - the LSE pre-seed, set_tile(lse, sink_v * scale_s), on the same four sites;
+//   - the per-head lookup sink_ptr[i_nhead] in the kernel.
+//
+// lse follows def_lse, so on the fp8 family only OUT is checked. That is enough
+// for the pre-seed rows, where a mis-seeded m collapses P and moves OUT, but not
+// for the head-lookup rows, which move LSE alone; those are carried by fp16/bf16.
+// ============================================================================
+
+enum class gqa_kind
+{
+    mha,        // nhead_k == nhead
+    gqa,        // ratio 4, packing left off
+    gqa_packed, // ratio 4, packing requested
+};
+
+// hdim, bias_str, seqlen_q, seqlen_k, gqa, scale_s
+using GptossSinkParam = std::tuple<int, std::string, int, int, gqa_kind, float>;
+
+static const std::vector<GptossSinkParam> kGptossSinkParams = {
+    // One row per branch of the sink's scale_s split, at a seqlen that keeps qr_tdm in
+    // run_decode.
+    {128, "n", 1024, 1024, gqa_kind::mha, 0.f},
+    {128, "e", 1024, 1024, gqa_kind::mha, 0.f},
+    {128, "a", 1024, 1024, gqa_kind::mha, 0.f},
+    // seqlen >= 2048 drops the kM0=64 tile, so kM0=128 makes PrefillCase true
+    // (fmha_fwd_kernel.hpp:2524) and qr_tdm runs run_prefill, which carries its own
+    // copy of the sink handling. Every init_sink=1 row in kSinkWindowParams is seqlen
+    // 1024, so that copy has never run with a finite sink.
+    {128, "n", 2048, 2048, gqa_kind::mha, 0.f},
+    {128, "e", 2048, 2048, gqa_kind::mha, 0.f},
+    // hdim 256 has no qr_tdm instance, so this keeps qr/qr_async covered.
+    {256, "n", 1024, 1024, gqa_kind::mha, 0.f},
+    // The kernel reads sink_ptr[i_nhead]. Pack-GQA folds the Q heads of a group into
+    // seqlen and sets nhead_q = nhead_k, so i_nhead becomes a K head while the sink is
+    // one value per logical Q head. scale_s is pinned small deliberately: at the
+    // default 1/sqrt(d) the other columns spread out, the sink's share of the row mass
+    // falls under the 1e-4 LSE check, and the mismatch is invisible.
+    //
+    // The same small scale_s makes these two the fp8 regression for the sink owning the P
+    // quantization frame. Let m sit on the sink and every column carries the same
+    // exp(s - sink) != 1 rather than an exactly representable 1.0; gemm_1 multiplies those
+    // rounded weights while l sums the unrounded ones, so the shared factor does not divide
+    // out and lands on OUT as a per-head gain.
+    {128, "n", 1024, 1024, gqa_kind::gqa, 3e-6f},
+    {128, "n", 1024, 1024, gqa_kind::gqa_packed, 3e-6f},
+};
+
+class GptossSink : public TestWithParam<std::tuple<mode_enum, GptossSinkParam>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         GptossSink,
+                         Combine(ModeValues, ValuesIn(kGptossSinkParams)));
+
+TEST_P(GptossSink, DataTypeConfig)
+{
+    auto [mode, sink_param]                                 = GetParam();
+    auto [hdim, bias_str, seqlen_q, seqlen_k, gqa, scale_s] = sink_param;
+
+    const int nhead_k  = (gqa == gqa_kind::mha ? -1 : 1);
+    const int pack_gqa = (gqa == gqa_kind::gqa_packed ? 1 : 0);
+
+    auto result = fmha_fwd_run<DataTypeConfig>(
+        mode,
+        2, // batch
+        4, // nhead
+        nhead_k,
+        {adjust_seqlen(seqlen_q)},
+        {adjust_seqlen(seqlen_k)},
+        adjust_hdim(hdim),
+        adjust_hdim(hdim),
+        0,    // seqlen_knew
+        {-1}, // seqlen_qpads
+        {-1}, // seqlen_kpads
+        {},   // q_eff_lens_per_batch
+        {},   // kv_eff_lens_per_batch
+        0,    // rotary_dim
+        true, // i_perm
+        true, // o_perm
+        scale_s,
+        0, // logits_soft_cap
+        def_is_v_rowmajor,
+        def_lse,
+        0,        // page_block_size
+        false,    // use_cache_batch_idx
+        bias_str, // bias_str
+        0.0f,     // p_drop
+        0,        // drop_seed
+        0,        // drop_offset
+        false,    // drop_prefs
+        "0",      // mask_str
+        qscale_str,
+        true, // is_rotary_interleaved
+        1,    // num_splits
+        init_method,
+        static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+        1,        // do_validation
+        1,        // init_sink_value
+        pack_gqa, // pack_gqa
+        stream_config);
+    CHECK_RESULT(result);
+}
+#endif
 
 // ============================================================================
 // Host-only unit tests for fmha_batch_prefill_select_kv_load_mode() (in

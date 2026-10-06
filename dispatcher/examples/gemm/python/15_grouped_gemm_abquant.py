@@ -41,6 +41,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "python"))
 
 from grouped_gemm_abquant_utils import (
+    _detect_gpu_arch,
     ABQuantKernelConfig,
     ABQuantGemmProblem,
     ABQuantGpuGemmRunner,
@@ -219,8 +220,10 @@ def main():
     parser.add_argument("--bquant-group-n", type=int, default=None)
     parser.add_argument("--no-verify", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=None)
-    parser.add_argument("--gfx-arch", type=str, default="gfx950")
+    parser.add_argument("--gfx-arch", type=str, default=None,
+                        help="GPU arch (default: auto-detect via rocm_agent_enumerator)")
     args = parser.parse_args()
+    args.gfx_arch = args.gfx_arch or _detect_gpu_arch()
 
     # Default M and N to the smallest valid multiples of the tile for each pipeline.
     # kPadM/kPadN are false for all ABQuant prefill configs, so M and N must be exact

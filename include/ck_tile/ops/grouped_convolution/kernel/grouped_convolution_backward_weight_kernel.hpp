@@ -1368,7 +1368,7 @@ struct GroupedConvolutionBackwardWeightKernel
     {
         if constexpr(IsStreamK)
         {
-#if !defined(__gfx1250__)
+#if !defined(__gfx125__)
             if constexpr(GemmPipeline_::Async)
             {
 #if defined(__gfx950__)

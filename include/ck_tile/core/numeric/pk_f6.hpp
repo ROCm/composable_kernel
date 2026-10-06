@@ -19,7 +19,7 @@
 #include <cmath>
 #include <type_traits>
 
-#if defined(__HIP_DEVICE_COMPILE__) && defined(__gfx125__)
+#if defined(__HIP_DEVICE_COMPILE__) && defined(__gfx1250__) && !defined(__gfx1250_strict__)
 #define CK_TILE_FP6_CVT_DEVICE 1
 #else
 #define CK_TILE_FP6_CVT_DEVICE 0
@@ -1431,7 +1431,11 @@ struct pk6scaled_type_convert_impl<Y, pk_fp6_t, Scale_sel>
 {
     CK_TILE_DEVICE static Y run(pk_fp6_t x, Packed4Scale_E8M0 scale)
     {
+#if defined(__gfx1250_strict__)
+        return scaled_type_convert<Y>(x, strict_packed_scale<Scale_sel, false>(scale));
+#else
         return impl::_from_fp6x16_pkscale<Y, Scale_sel>(x.get(), scale.data());
+#endif
     }
 };
 
@@ -1440,7 +1444,11 @@ struct pk6scaled_type_convert_impl<Y, pk_bf6_t, Scale_sel>
 {
     CK_TILE_DEVICE static Y run(pk_bf6_t x, Packed4Scale_E8M0 scale)
     {
+#if defined(__gfx1250_strict__)
+        return scaled_type_convert<Y>(x, strict_packed_scale<Scale_sel, false>(scale));
+#else
         return impl::_from_bf6x16_pkscale<Y, Scale_sel>(x.get(), scale.data());
+#endif
     }
 };
 #endif

@@ -22,6 +22,7 @@ v1 scope matches Old-TE gemm/batched_contraction argparse: dtype {fp16,bf16,fp32
 3-char a/b/e layout, num_dim_g/m/n/k, num_d_tensors == 0 (PassThrough).
 """
 
+from dispatcher_common import unified_framework_flags
 import concurrent.futures
 import ctypes
 import functools
@@ -105,7 +106,7 @@ def _tile_engine_codegen_flags() -> Tuple[str, ...]:
     return tuple(flags)
 
 
-_SUPPORTED_ARCHS = ("gfx90a", "gfx942", "gfx950")
+_SUPPORTED_ARCHS = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 
 _NP_DTYPE = {"fp16": np.float16, "bf16": None, "fp32": np.float32}  # bf16 filled lazily
 
@@ -557,7 +558,7 @@ def _compile_kernel(hpp: Path, so: Path, arch: str) -> bool:
         _HIPCC, "-c", "-fPIC", "-O3", "-std=c++17",
         f"-I{ck_root}/include", f"-I{ck_root}",
         "-DCK_TILE_SINGLE_KERNEL_INCLUDE", f"-include{hpp}",
-        "-D__HIP_PLATFORM_AMD__", f"--offload-arch={arch}", f'-DGFX_ARCH="{arch}"',
+        "-D__HIP_PLATFORM_AMD__", f"--offload-arch={arch}", f'-DGFX_ARCH="{arch}"', *unified_framework_flags(arch),
         # Match Tile Engine's AMDGPU codegen flags exactly so the bridge .so
         # produces the same machine code as Old-TE (inlining, register
         # allocation, occupancy).  Without these, persistent kernels size their
@@ -693,11 +694,40 @@ def expand_sweep(config: dict, dtype: str = "fp16", layout: str = "rcr") -> List
     return out
 
 
-def default_fp16_config(gfx_arch: Optional[str] = None) -> BatchedContractionKernelConfig:
+# Warp tile per dtype, chosen from the XDL allow-list in is_valid(). fp16 and
+# bf16 share the same MFMA shape; fp32 has no 32x32x16 instruction and needs
+# 32x32x8 instead. Picking a shape outside the allow-list is not an error you
+# would notice -- is_valid() just returns False and the config is silently
+# dropped from the sweep (test_batched_contraction_bridge.py asserts exactly
+# that), so a "default" config with the wrong tile would look like a dtype that
+# simply has no instances.
+_DEFAULT_WARP_TILE = {
+    "fp16": (32, 32, 16),
+    "bf16": (32, 32, 16),
+    "fp32": (32, 32, 8),
+}
+
+
+def default_config(
+    dtype: str = "fp16", gfx_arch: Optional[str] = None
+) -> BatchedContractionKernelConfig:
+    """A known-valid single config for ``dtype``, for smoke tests and defaults."""
+    try:
+        wt_m, wt_n, wt_k = _DEFAULT_WARP_TILE[dtype]
+    except KeyError:
+        raise ValueError(
+            f"no default warp tile for dtype {dtype!r}; "
+            f"known: {', '.join(sorted(_DEFAULT_WARP_TILE))}"
+        ) from None
     gfx_arch = _validate_arch(gfx_arch) if gfx_arch else _get_arch()
     return BatchedContractionKernelConfig(
-        dtype="fp16", layout="rcr", pipeline="compv3", epilogue="cshuffle", scheduler="intrawave",
+        dtype=dtype, layout="rcr", pipeline="compv3", epilogue="cshuffle", scheduler="intrawave",
         tile_m=128, tile_n=128, tile_k=64, warp_m=2, warp_n=2, warp_k=1,
-        warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+        warp_tile_m=wt_m, warp_tile_n=wt_n, warp_tile_k=wt_k,
         num_dim_g=1, num_dim_m=1, num_dim_n=1, num_dim_k=1, gfx_arch=gfx_arch,
     )
+
+
+def default_fp16_config(gfx_arch: Optional[str] = None) -> BatchedContractionKernelConfig:
+    """Thin alias kept for existing callers; prefer :func:`default_config`."""
+    return default_config("fp16", gfx_arch=gfx_arch)

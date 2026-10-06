@@ -72,7 +72,9 @@ numpy==1.26.2 \
 packaging==26.3 \
     --hash=sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79 \
     --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
-    # via vcs-versioning
+    # via
+    #   setuptools-scm
+    #   vcs-versioning
 pandas==3.0.3 \
     --hash=sha256:0383c72c75cdcca61a9e116e611143902dbfd08bff356829c2f6d1cf40a9ca8c \
     --hash=sha256:05f1f1752b8533ea03f7f39a9c15b1a058d067bb48f4748948e7a8691e0510f2 \
@@ -215,6 +217,10 @@ pyzmq==27.2.0 \
     --hash=sha256:fdaaa4ea3242f6ad298eb5177eb042aea5c73c30e76d20caee7b15af20d24ec2 \
     --hash=sha256:ff60f0f7ccfda0e303ac43bec7096007b7cdf2c41b3739d1ec667febe67acab3
     # via -r requirements-aiter.in
+setuptools-scm==10.3.0 \
+    --hash=sha256:6ba119665ae859783321da7654a9fa45eda6afe5b804ebf1a3da8682c5ffe6c6 \
+    --hash=sha256:7177457a181c3af30c1a524e6f919960665f9f153a39fe04906fe543c7eb5f80
+    # via -r requirements-aiter.in
 six==1.17.0 \
     --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 \
     --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81
@@ -223,7 +229,14 @@ tabulate==0.10.0 \
     --hash=sha256:e2cfde8f79420f6deeffdeda9aaec3b6bc5abce947655d17ac662b126e48a60d \
     --hash=sha256:f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3
     # via -r requirements-aiter.in
-vcs-versioning==2.3.1 \
-    --hash=sha256:806635bd0ea653c96af98a70624be758d408a989f2cd0b390e63474d99f96b63 \
-    --hash=sha256:a11299394e101569a62ab061375260d08bc56cd33d685b7067d85312368f4457
-    # via -r requirements-aiter.in
+vcs-versioning==2.4.0 \
+    --hash=sha256:874a70bcd196b956a105852074554f498554d75399904fb1024002af79ad396c \
+    --hash=sha256:cc4b66c02ae4cfb51e843910024f7142464c3391bb1f7e04608578b45046891b
+    # via
+    #   -r requirements-aiter.in
+    #   setuptools-scm
+
+# WARNING: The following packages were not pinned, but pip requires them to be
+# pinned when the requirements file includes hashes and the requirement is not
+# satisfied by a package already installed. Consider using the --allow-unsafe flag.
+# setuptools

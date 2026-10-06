@@ -1,0 +1,102 @@
+{
+    "tile_config": {
+        "tile_m": {
+            "max": 256,
+            "min": 64,
+            "step": 64
+        },
+        "tile_n": {
+            "max": 256,
+            "min": 64,
+            "step": 64
+        },
+        "tile_k": {
+            "max": 256,
+            "min": 64,
+            "step": 64
+        },
+        "warp_m": {
+            "values": [
+                4,
+                2,
+                1
+            ]
+        },
+        "warp_n": {
+            "values": [
+                4,
+                2,
+                1
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                32
+            ]
+        }
+    },
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "compv3",
+                "compv4",
+                "mem",
+                "comp_async",
+                "comp_tdm",
+                "comp_tdm_v2"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave",
+                "interwave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "cshuffle",
+                "default",
+                "tdm"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                false,
+                true
+            ]
+        },
+        "pad_n": {
+            "values": [
+                false,
+                true
+            ]
+        },
+        "pad_k": {
+            "values": [
+                false,
+                true
+            ]
+        },
+        "persistent": {
+            "values": [
+                false
+            ]
+        }
+    },
+    "k_block_per_cu": 1
+}

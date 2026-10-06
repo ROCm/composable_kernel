@@ -16,16 +16,17 @@
 
 namespace ck_tile {
 
-template <index_t NDimHidden, typename TopDimensionHiddenIds>
+template <index_t NDimHidden, typename TopDimensionHiddenIds, bool LargeOffset = false>
 struct tensor_coordinate
-    : public tensor_adaptor_coordinate<NDimHidden, sequence<0>, TopDimensionHiddenIds>
+    : public tensor_adaptor_coordinate<NDimHidden, sequence<0>, TopDimensionHiddenIds, LargeOffset>
 {
-    using Base = tensor_adaptor_coordinate<NDimHidden, sequence<0>, TopDimensionHiddenIds>;
+    using Base =
+        tensor_adaptor_coordinate<NDimHidden, sequence<0>, TopDimensionHiddenIds, LargeOffset>;
 
     // TODO make these private
     static constexpr index_t ndim_top_ = TopDimensionHiddenIds::size();
 
-    using HiddenIndex = multi_index<NDimHidden>;
+    using HiddenIndex = typename Base::HiddenIndex;
     using TopIndex    = multi_index<ndim_top_>;
 
     public:
@@ -56,15 +57,15 @@ struct tensor_coordinate
     CK_TILE_HOST_DEVICE auto& get_hidden_index() { return Base::get_hidden_index(); }
 };
 
-template <typename TensorDesc, typename TopIndex>
+template <bool LargeOffset = false, typename TensorDesc, typename TopIndex>
 CK_TILE_HOST_DEVICE constexpr auto make_tensor_coordinate(const TensorDesc& tensor_desc,
                                                           const TopIndex& idx_top)
 {
-    const auto adaptor_coord = make_tensor_adaptor_coordinate(tensor_desc, idx_top);
+    const auto adaptor_coord = make_tensor_adaptor_coordinate<LargeOffset>(tensor_desc, idx_top);
 
     return tensor_coordinate<TensorDesc::get_num_of_hidden_dimension(),
-                             remove_cvref_t<decltype(TensorDesc::get_top_dimension_hidden_ids())>>{
-        adaptor_coord};
+                             remove_cvref_t<decltype(TensorDesc::get_top_dimension_hidden_ids())>,
+                             LargeOffset>{adaptor_coord};
 }
 
 template <bool JudgeDoTransforms = true, typename TensorDesc, typename TensorCoord, typename Index>

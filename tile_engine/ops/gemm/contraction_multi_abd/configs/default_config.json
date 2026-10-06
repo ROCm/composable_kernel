@@ -34,6 +34,43 @@
             "values": [16, 8]
         }
     },
+    "arch_tile_config": {
+        "gfx1250": {
+            "tile_m": {
+                "max": 256,
+                "min": 64,
+                "step": 64
+            },
+            "tile_n": {
+                "max": 256,
+                "min": 64,
+                "step": 64
+            },
+            "tile_k": {
+                "max": 128,
+                "min": 64,
+                "step": 64
+            },
+            "warp_m": {
+                "values": [4, 2, 1]
+            },
+            "warp_n": {
+                "values": [4, 2, 1]
+            },
+            "warp_k": {
+                "values": [1]
+            },
+            "warp_tile_m": {
+                "values": [16]
+            },
+            "warp_tile_n": {
+                "values": [16]
+            },
+            "warp_tile_k": {
+                "values": [32]
+            }
+        }
+    },
     "trait_config": {
         "pipeline": {
             "values": ["compv3", "compv4", "mem"]

@@ -16,6 +16,12 @@
 #define CK_MX_ARCH_125 0
 #endif
 
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__) && __HIP_DEVICE_COMPILE__
+#define CK_MX_ARCH_1250 1
+#else
+#define CK_MX_ARCH_1250 0
+#endif
+
 #ifdef CK_CODE_GEN_RTC
 #define UINT_MAX 4294967295
 #endif

@@ -733,6 +733,23 @@ using int32x16_t = typename vector_type<int32_t, 16>::type;
 using int32x32_t = typename vector_type<int32_t, 32>::type;
 using int32x64_t = typename vector_type<int32_t, 64>::type;
 
+// i16: the bf16 matrix-core builtins take their operands as vectors of short, regardless of how
+// bhalf_t is spelled
+using int16x2_t  = NativeVectorT<int16_t, 2>;
+using int16x4_t  = NativeVectorT<int16_t, 4>;
+using int16x8_t  = NativeVectorT<int16_t, 8>;
+using int16x16_t = NativeVectorT<int16_t, 16>;
+
+// take native __bf16 regardless of whether bfloat16_t is spelled __bf16 or ushort
+using llvm_bf16x8_t  = NativeVectorT<__bf16, 8>;
+using llvm_bf16x16_t = NativeVectorT<__bf16, 16>;
+
+// u32
+using uint32x2_t  = typename vector_type<uint32_t, 2>::type;
+using uint32x4_t  = typename vector_type<uint32_t, 4>::type;
+using uint32x8_t  = typename vector_type<uint32_t, 8>::type;
+using uint32x16_t = typename vector_type<uint32_t, 16>::type;
+
 // i8
 using int8x2_t  = typename vector_type<int8_t, 2>::type;
 using int8x4_t  = typename vector_type<int8_t, 4>::type;

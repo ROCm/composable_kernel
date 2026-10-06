@@ -69,8 +69,16 @@ using fp16x16_t = _Float16 __attribute__((ext_vector_type(16)));
 using fp16x32_t = _Float16 __attribute__((ext_vector_type(32)));
 using fp16x64_t = _Float16 __attribute__((ext_vector_type(64)));
 
-using llvm_fp16x8_t  = __fp16 __attribute__((ext_vector_type(8)));
-using llvm_fp16x16_t = __fp16 __attribute__((ext_vector_type(16)));
+// Element type used to spell the operands of the AMDGPU f16 builtins.
+#if CK_TILE_USE_LLVM_BUILTIN_FLOAT16
+using llvm_fp16_t = _Float16;
+#else
+using llvm_fp16_t = __fp16;
+#endif
+
+using llvm_fp16x4_t  = llvm_fp16_t __attribute__((ext_vector_type(4)));
+using llvm_fp16x8_t  = llvm_fp16_t __attribute__((ext_vector_type(8)));
+using llvm_fp16x16_t = llvm_fp16_t __attribute__((ext_vector_type(16)));
 
 // bf16
 // using bf16_t = ...
@@ -80,6 +88,10 @@ using bf16x8_t  = bfloat16_t __attribute__((ext_vector_type(8)));
 using bf16x16_t = bfloat16_t __attribute__((ext_vector_type(16)));
 using bf16x32_t = bfloat16_t __attribute__((ext_vector_type(32)));
 using bf16x64_t = bfloat16_t __attribute__((ext_vector_type(64)));
+
+// take native __bf16 regardless of whether bfloat16_t is spelled __bf16 or ushort
+using llvm_bf16x8_t  = __bf16 __attribute__((ext_vector_type(8)));
+using llvm_bf16x16_t = __bf16 __attribute__((ext_vector_type(16)));
 
 // i32
 // using int32_t = ...

@@ -4,7 +4,7 @@
 #include "ck/utility/numeric_limits.hpp"
 #include "ck/utility/mxfp_utils.hpp"
 
-#if CK_MX_ARCH_950 || CK_MX_ARCH_125
+#if CK_MX_ARCH_950 || CK_MX_ARCH_1250
 #define CK_MX_FP8_CVT_FAST_PATH 1
 #else
 #define CK_MX_FP8_CVT_FAST_PATH 0
@@ -174,7 +174,7 @@ static __device__ fp8_storage_t cast_to_f8_from_f32_scaled(float v, unsigned int
     union
     {
         uint32_t ival;
-        vector_type<int16_t, 2>::type v2i16;
+        int16x2_t v2i16;
         fp8_storage_t v4i8[4];
     } ret{};
 
@@ -227,7 +227,7 @@ static __device__ fp8x2_storage_t cast_to_f8_from_f32_scaled(float2_t v,
     union
     {
         uint32_t ival;
-        vector_type<int16_t, 2>::type v2i16;
+        int16x2_t v2i16;
         StaticallyIndexedArray<fp8x2_storage_t, 2> v2f8x2;
     } ret{};
 
@@ -660,7 +660,7 @@ static __device__ fp8x8_storage_t cast_to_f8_from_bf16_scaled(bhalf8_t v,
     return ret.v8f8x1;
 }
 
-#elif CK_MX_ARCH_125
+#elif CK_MX_ARCH_1250
 
 // fp8 -> float 8
 template <ck_fp8_interpretation_t interpret, typename Ts, int Opsel>
@@ -1011,7 +1011,7 @@ static __device__ bhalf2_t cast_to_bf16_from_f8_scaled(float scale, fp8x2_storag
     out.v8x1 = cast_to_bf16_from_f8_scaled<interpret>(scale, v8);
     return out.v2x4[0];
 }
-#endif // CK_MX_ARCH_125
+#endif // CK_MX_ARCH_1250
 
 #endif // CK_MX_FP8_CVT_FAST_PATH
 

@@ -102,8 +102,10 @@ struct BlockFmhaBwdOGradDotO
 
         store_tile(d_dram_block_window_tmp, d);
 
-        // Sink gradient path: skipped entirely when atomic_sink_grad_ptr is nullptr
-        if(atomic_sink_grad_ptr != nullptr)
+        // Skipped when the sink is disabled: nullptr, or a -inf sink whose P_sink is 0.
+        // A fully masked row carries lse == -inf too, so letting the two meet would make
+        // exp2(-inf - -inf) = NaN and poison d_sink for the whole head.
+        if(atomic_sink_grad_ptr != nullptr && sink_value != -numeric<LSEDataType>::infinity())
         {
             // Load LSE only on the sink path to avoid unnecessary global memory reads
             constexpr auto lse_dstr =

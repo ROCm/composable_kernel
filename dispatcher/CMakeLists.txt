@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(ck_tile_dispatcher VERSION 1.0.0 LANGUAGES CXX)
+project(ck_tile_dispatcher VERSION 1.0.0 LANGUAGES CXX HIP)
 
 # C++17 required
 set(CMAKE_CXX_STANDARD 17)
@@ -17,12 +17,18 @@ if(NOT hip_FOUND)
     find_package(hip REQUIRED)
 endif()
 
-# Dispatcher library
+# Dispatcher library — fmha sources use <<<>>> kernel launch and __global__,
+# so they must be compiled as HIP.
 add_library(ck_tile_dispatcher
     src/registry.cpp
     src/dispatcher.cpp
     src/fmha_registry.cpp
     src/fmha_dispatcher.cpp
+)
+set_source_files_properties(
+    src/fmha_registry.cpp
+    src/fmha_dispatcher.cpp
+    PROPERTIES LANGUAGE HIP
 )
 
 # Enable PIC for Python bindings

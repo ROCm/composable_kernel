@@ -197,6 +197,30 @@ load_tile_tdm(const TDMConfig_& tdm_config,
     return tile_window.tdm_load_to_lds(tdm_config, lds_tile, gather_index_view, number<i_access>{});
 }
 
+// Explicit unchecked-bounds path for a caller-proven full tile. Every distributed
+// box (including every warp's origin) must lie within the actual global tensor.
+// Global strides, address calculation, LDS padding and synchronization are unchanged.
+template <typename TDMConfig_,
+          typename LdsTileWindow_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          index_t NumCoord_>
+CK_TILE_DEVICE auto
+load_tile_tdm_full_tile(const TDMConfig_& tdm_config,
+                        LdsTileWindow_&& lds_tile,
+                        const tile_window_with_static_distribution<BottomTensorView_,
+                                                                   WindowLengths_,
+                                                                   TileDistribution_,
+                                                                   NumCoord_>& tile_window)
+{
+    return tile_window.tdm_load_to_lds(tdm_config,
+                                       lds_tile,
+                                       null_tile_window<WindowLengths_>{},
+                                       number<-1>{},
+                                       bool_constant<true>{});
+}
+
 template <typename LdsTileWindow_,
           typename TileWindow_,
           index_t i_access           = -1,

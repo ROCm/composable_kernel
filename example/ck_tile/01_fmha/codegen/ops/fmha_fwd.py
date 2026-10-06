@@ -4,11 +4,12 @@
 import copy
 import fnmatch
 import itertools
+import json
 import os
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, ClassVar, Iterable, List, Optional, Tuple
+from typing import Callable, ClassVar, Dict, Iterable, List, Optional, Tuple
 
 from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
@@ -49,9 +50,17 @@ K0_MAX_SUBMAX_MAP = {
     80: 96,
     96: 128,
     128: 128,
+    160: 256,
     192: 192,
     256: 256,
 }
+
+# TDM stores the head dim at its true length (see tdm_ceil_to_qualified_tile_length
+# in tile_fmha_shape.hpp), so 96 and 160 map to themselves (not the shared rounded
+# 128 / 256) -- the dpad=f dcheck then reads hdim_q % 96 or % 160, letting those
+# head dims take the un-padded naive-load path. Only the qr_tdm dcheck/dvcheck use
+# this; the generic qr fallback keeps the shared rounded map above (160 -> 256).
+TDM_K0_MAX_SUBMAX_MAP = {**K0_MAX_SUBMAX_MAP, 96: 96, 160: 160}
 
 FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.\n
@@ -90,7 +99,8 @@ using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
                                           ck_tile::sequence<{F_wm0}, {F_wn0}, {F_wk0}>,
                                           ck_tile::sequence<{F_rm1}, {F_rn1}, {F_rk1}>,
                                           ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
-                                          {F_vlayout}>;
+                                          {F_vlayout},
+                                          {F_use_tdm_ceil}>;
 
 using fmha_traits = ck_tile::TileFmhaTraits<{F_spad},
                                             {F_skpad},
@@ -127,7 +137,9 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaPipelineProblem<
     fmha_variant,
     fmha_mask,
     {F_trload},
-    fmha_traits>;
+    fmha_traits,
+    {F_use_double_kv_lds_buffer},
+    {F_progressive_ds_load_k}>;
 
 using fmha_pipeline = {F_pipeline}<
     fmha_pipeline_problem>;
@@ -141,18 +153,37 @@ using fmha_kernel = {F_kernel}<fmha_pipeline, fmha_epilogue>;
 
 
 using trait = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}>;
+                        {F_pipeline_enum}, {F_logits}, fmha_mask, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}, {F_occupancy}>;
 
 template<>
 float fmha_fwd_<trait, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 {{
     using k_ = fmha_kernel;
+    if(a.selected_kernel_name != nullptr)
+        *a.selected_kernel_name = "{F_kname}";
     if(s.log_level_ > 0)
         std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids] = {F_kargs_creator}<k_>(a);
+    if(!k_::IsSupportedArgument(kargs))
+    {{
+        ck_tile::CK_TILE_ERROR("Arguments not supported! Skipping fmha_fwd!");
+        return -1;
+    }}
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs));
+}}
+
+#endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
+"""
+
+FMHA_FWD_KVSCALE_ALIGN_TEMPLATE = """
+#if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
+
+template<>
+ck_tile::index_t fmha_fwd_kvscale_align_<trait, {F_arch.tag}>()
+{{
+    return fmha_pipeline::kKVScaleAlign;
 }}
 
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
@@ -247,11 +278,33 @@ FMHA_FWD_API_PER_HDIM_CASE = """{F_if}(t.hdim_q <= {F_hdim} && t.hdim_v <= {F_hd
 }}
 """
 
+FMHA_FWD_TRAIT_TYPE = """fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}, {F_occupancy}>"""
+
 FMHA_FWD_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.qscale_type == {F_qscale_check}) && (t.skip_min_seqlen_q == {F_skip}) &&(t.has_sink == {F_sink}) &&
         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
-    using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}>;
+    using trait_ = {F_trait_type};
     return fmha_fwd_<trait_, {F_arch.tag}>(s, a);
 }}
+"""
+
+FMHA_FWD_API_KVSCALE_TEMPLATE = """
+ck_tile::index_t fmha_fwd_block_scale_size_kv([[maybe_unused]] const std::string& data_type, [[maybe_unused]] ck_tile::index_t hdim_q, [[maybe_unused]] ck_tile::index_t hdim_v) {{
+{F_lookup}    return fmha_fwd_largest_n_tile_size;
+}}
+"""
+
+FMHA_FWD_API_KVSCALE_LOOKUP = """    struct row {{ const char* arch; const char* data_type; ck_tile::index_t hdim_q, hdim_v, align; }};
+    static const row table[] = {{
+{F_rows}    }};
+
+    const std::string device_name = ck_tile::get_device_name();
+    for(const row& r : table)
+        if(device_name.rfind(r.arch, 0) == 0 && data_type == r.data_type && hdim_q <= r.hdim_q && hdim_v <= r.hdim_v)
+            return r.align;
+
+"""
+
+FMHA_FWD_API_KVSCALE_ROW = """        {{"{F_arch.name}", "{F_dtype_name}", {F_hdim}, {F_hdim_v}, fmha_fwd_kvscale_align_<{F_trait_type}, {F_arch.tag}>()}},
 """
 
 
@@ -297,7 +350,12 @@ class FmhaFwdApiTrait:
     skip: str
     tr_load: str
     sink: str
-    constraint: CppConstraint
+    # Metadata-only hint mapped onto fmha_fwd_traits_::kOccupancy. Its sole
+    # purpose here is to make otherwise-identical traits produce DISTINCT
+    # template instantiations of `fmha_fwd_<traits, arch>`, so multiple
+    # occupancy variants for the same tile can coexist in one shared object.
+    occupancy: int = -1
+    constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
 
     @property
     def name(self) -> str:
@@ -310,7 +368,12 @@ class FmhaFwdApiTrait:
     def scheck(self) -> str:
         if self.mode == "group":
             return "true/*group mode spad always true*/"  # group mode only generate spad/skpad == true
-        if self.pipeline_tag in ["qr_async", "qr_async_trload", "qr_async_trload_v3", "qr_tdm"]:
+        if self.pipeline_tag in [
+            "qr_async",
+            "qr_async_trload",
+            "qr_async_trload_v3",
+            "qr_tdm",
+        ]:
             if self.spad == "t":
                 return "true"  # always support
             else:
@@ -345,7 +408,12 @@ class FmhaFwdApiTrait:
                 return f"true /*a.seqlen_k % {self.bn0} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
             else:
                 return f"(a.cu_seqlen_k_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)"
-        elif self.pipeline_tag in ["qr_async_trload", "qr_async_trload_v3", "qr_tdm"]:
+        elif self.pipeline_tag == "qr_tdm":
+            if self.skpad == "t":
+                return "true"
+            else:
+                return f"(a.cu_seqlen_k_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)"
+        elif self.pipeline_tag in ["qr_async_trload", "qr_async_trload_v3"]:
             if self.skpad == "t":
                 return "true"
             else:
@@ -360,7 +428,17 @@ class FmhaFwdApiTrait:
                 return "a.hdim_q % 8 == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async", "qr_async_trload", "qr_async_trload_v3", "qr_tdm"]:
+        elif self.pipeline_tag == "qr_tdm":
+            if self.dpad == "t":
+                return "a.hdim_q % 8 == 0"
+            return f"a.hdim_q % {TDM_K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
+        elif self.pipeline_tag in [
+            "qr",
+            "qs",
+            "qr_async",
+            "qr_async_trload",
+            "qr_async_trload_v3",
+        ]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == "t":
                 return f"true /*a.hdim_q % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -376,7 +454,17 @@ class FmhaFwdApiTrait:
                 return "a.hdim_v % 8 == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async", "qr_async_trload", "qr_async_trload_v3", "qr_tdm"]:
+        elif self.pipeline_tag == "qr_tdm":
+            if self.dvpad == "t":
+                return "a.hdim_v % 8 == 0"
+            return f"a.hdim_v % {TDM_K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
+        elif self.pipeline_tag in [
+            "qr",
+            "qs",
+            "qr_async",
+            "qr_async_trload",
+            "qr_async_trload_v3",
+        ]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == "t":
                 return f"true /*a.hdim_v % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -405,6 +493,8 @@ class FmhaFwdPipeline:
     F_trload: str  # true/false
     F_sink: str  # true/false
     F_constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
+    F_use_double_kv_lds_buffer: str = "f"  # true/false
+    F_progressive_ds_load_k: str = "f"  # true/false
 
     @property
     def name(self) -> str:
@@ -474,12 +564,76 @@ class FmhaFwdPipeline:
             n += "_trload"
         else:
             n += "_ntrload"
+        if self.tag == "qr_tdm":
+            if (
+                self.F_progressive_ds_load_k == "t"
+                and self.F_use_double_kv_lds_buffer != "t"
+            ):
+                raise ValueError(
+                    "QR-TDM progressive K LDS loading requires K/V LDS prefetch (double buffering)"
+                )
+            if self.F_use_double_kv_lds_buffer == "t":
+                n += "_kvlp"
+            else:
+                n += "_nkvlp"
+            if self.F_progressive_ds_load_k == "t":
+                n += "_plk"
+            else:
+                n += "_nplk"
         if self.F_sink == "t":
             n += "_sink"
         else:
             n += "_nsink"
 
         return n
+
+
+def api_trait_fmt_args(arch, dtype, hdim, trait: FmhaFwdApiTrait, max_bm0: int) -> dict:
+    """Substitutions shared by every template that names a generated instance."""
+    return dict(
+        F_arch=arch,
+        F_mode=MODE_MAP[trait.mode],
+        F_vlayout=LAYOUT_MAP[trait.vlayout],
+        F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag],
+        F_logits=BOOL_MAP[trait.logits],
+        F_mask=get_mask_cpp_type(trait.mask),
+        F_mask_check=get_mask_cpp_check_expr(trait.mask),
+        F_bias_check=BIAS_CHECK_MAP[trait.bias],
+        F_bias=BIAS_MAP[trait.bias],
+        F_lse=BOOL_MAP[trait.lse],
+        F_dropout=BOOL_MAP[trait.dropout],
+        F_skip=BOOL_MAP[trait.skip],
+        F_trload=BOOL_MAP[trait.tr_load],
+        F_qscale_check=QSCALE_CHECK_MAP[trait.qscale],
+        F_qscale=QSCALE_MAP[trait.qscale],
+        F_sink=BOOL_MAP[trait.sink],
+        F_scheck=trait.scheck,
+        F_seqtune=trait.seqtune(max_bm0),
+        F_skcheck=trait.skcheck,
+        F_dcheck=trait.dcheck,
+        F_dvcheck=trait.dvcheck,
+        F_constraint=trait.constraint,
+        F_spad=BOOL_MAP[trait.spad],
+        F_skpad=BOOL_MAP[trait.skpad],
+        F_dpad=BOOL_MAP[trait.dpad],
+        F_dvpad=BOOL_MAP[trait.dvpad],
+        F_bm0=trait.bm0,
+        F_bn0=trait.bn0,
+        F_bk0=trait.bk0,
+        F_bn1=trait.bn1,
+        F_bk1=trait.bk1,
+        F_bk0max=trait.bk0max,
+        F_occupancy=trait.occupancy,
+        F_hdim=hdim,
+        F_dtype=FWD_DTYPE_MAP[dtype],
+    )
+
+
+KVSCALE_ALIGN_PIPELINE_TAGS = ("qr_tdm",)
+
+
+def emits_kvscale_align(pipeline_tag: str, qscale: str) -> bool:
+    return pipeline_tag in KVSCALE_ALIGN_PIPELINE_TAGS and qscale == "blockscale"
 
 
 class FmhaFwdApiPool:
@@ -550,42 +704,11 @@ class FmhaFwdApiPool:
                     for i_trait, trait in enumerate(
                         [trait for trait in pool_by_hdim if filter_fn(trait)]
                     ):
+                        fmt = api_trait_fmt_args(arch, dtype, hdim, trait, max_bm0)
                         inners += FMHA_FWD_API_INNER_DISPATCH.format(
                             F_if=if_(i_trait),
-                            F_arch=arch,
-                            F_mode=MODE_MAP[trait.mode],
-                            F_vlayout=LAYOUT_MAP[trait.vlayout],
-                            F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag],
-                            F_logits=BOOL_MAP[trait.logits],
-                            F_mask=get_mask_cpp_type(trait.mask),
-                            F_mask_check=get_mask_cpp_check_expr(trait.mask),
-                            F_bias_check=BIAS_CHECK_MAP[trait.bias],
-                            F_bias=BIAS_MAP[trait.bias],
-                            F_lse=BOOL_MAP[trait.lse],
-                            F_dropout=BOOL_MAP[trait.dropout],
-                            F_skip=BOOL_MAP[trait.skip],
-                            F_trload=BOOL_MAP[trait.tr_load],
-                            F_qscale_check=QSCALE_CHECK_MAP[trait.qscale],
-                            F_qscale=QSCALE_MAP[trait.qscale],
-                            F_sink=BOOL_MAP[trait.sink],
-                            F_scheck=trait.scheck,
-                            F_seqtune=trait.seqtune(max_bm0),
-                            F_skcheck=trait.skcheck,
-                            F_dcheck=trait.dcheck,
-                            F_dvcheck=trait.dvcheck,
-                            F_constraint=trait.constraint,
-                            F_spad=BOOL_MAP[trait.spad],
-                            F_skpad=BOOL_MAP[trait.skpad],
-                            F_dpad=BOOL_MAP[trait.dpad],
-                            F_dvpad=BOOL_MAP[trait.dvpad],
-                            F_bm0=trait.bm0,
-                            F_bn0=trait.bn0,
-                            F_bk0=trait.bk0,
-                            F_bn1=trait.bn1,
-                            F_bk1=trait.bk1,
-                            F_bk0max=trait.bk0max,
-                            F_hdim=hdim,
-                            F_dtype=FWD_DTYPE_MAP[dtype],
+                            F_trait_type=FMHA_FWD_TRAIT_TYPE.format(**fmt),
+                            **fmt,
                         )
                     per_hdim_case += FMHA_FWD_API_PER_HDIM_CASE.format(
                         F_if=if_(i_hdim),
@@ -603,6 +726,41 @@ class FmhaFwdApiPool:
             )
         return FMHA_FWD_API_FUNC_TEMPLATE.format(
             F_func_name=func_name, F_dispatch=indent(per_arch)
+        )
+
+    def render_block_scale_size_kv(self) -> str:
+        """Emit fmha_fwd_block_scale_size_kv(): a (arch, data type, head dims) ->
+        kKVScaleAlign table over the instances that resolve finer than an N tile."""
+        rows = str()
+        for arch, pool_by_arch in self.pool.items():
+            for dtype, pool_by_dtype in pool_by_arch.items():
+                for (hdim, hdim_v), pool_by_hdim in pool_by_dtype.items():
+                    traits = [
+                        trait
+                        for trait in pool_by_hdim
+                        if emits_kvscale_align(trait.pipeline_tag, trait.qscale)
+                    ]
+                    if not traits:
+                        continue
+                    tiles = {
+                        (t.bm0, t.bn0, t.bk0, t.bn1, t.bk1, t.bk0max) for t in traits
+                    }
+                    if len(tiles) != 1:
+                        raise ValueError(
+                            f"{arch.name}/{dtype}/d{hdim}x{hdim_v}: BLOCKSCALE instances of "
+                            f"{KVSCALE_ALIGN_PIPELINE_TAGS} disagree about the tile ({tiles}), "
+                            "so fmha_fwd_block_scale_size_kv() cannot tabulate them"
+                        )
+                    max_bm0 = max(t.bm0 for t in pool_by_hdim)
+                    fmt = api_trait_fmt_args(arch, dtype, hdim, traits[0], max_bm0)
+                    rows += FMHA_FWD_API_KVSCALE_ROW.format(
+                        F_dtype_name=dtype,
+                        F_hdim_v=hdim_v,
+                        F_trait_type=FMHA_FWD_TRAIT_TYPE.format(**fmt),
+                        **fmt,
+                    )
+        return FMHA_FWD_API_KVSCALE_TEMPLATE.format(
+            F_lookup=FMHA_FWD_API_KVSCALE_LOOKUP.format(F_rows=rows) if rows else ""
         )
 
 
@@ -673,7 +831,7 @@ class FmhaFwdKernel:
             return "fmha_fwd_create_kargs_and_grids"
 
     def render(self) -> str:
-        return type(self)._get_kernel_header(self.F_pipeline.tag) + type(
+        body = type(self)._get_kernel_header(self.F_pipeline.tag) + type(
             self
         )._KERNEL_BODY_TEMPLATE.format(
             F_kname=self.name,
@@ -699,6 +857,7 @@ class FmhaFwdKernel:
             F_wn1=self.F_tile.F_wn1,
             F_wk1=self.F_tile.F_wk1,
             F_vlayout=LAYOUT_MAP[self.F_pipeline.F_vlayout],
+            F_use_tdm_ceil=("true" if self.F_pipeline.tag == "qr_tdm" else "false"),
             F_spad=BOOL_MAP[self.F_pipeline.F_spad],
             F_skpad=BOOL_MAP[self.F_pipeline.F_skpad],
             F_dpad=BOOL_MAP[self.F_pipeline.F_dpad],
@@ -714,11 +873,18 @@ class FmhaFwdKernel:
             F_mask=get_mask_cpp_type(self.F_pipeline.F_mask),
             F_mode=MODE_MAP[self.F_mode],
             F_trload=BOOL_MAP[self.F_pipeline.F_trload],
+            F_use_double_kv_lds_buffer=BOOL_MAP[
+                self.F_pipeline.F_use_double_kv_lds_buffer
+            ],
+            F_progressive_ds_load_k=BOOL_MAP[self.F_pipeline.F_progressive_ds_load_k],
             F_pipeline=PIPELINE_MAP[self.F_pipeline.tag],
             F_kernel=self._get_cpp_kernel_class_name(self.F_pipeline.tag),
             F_kargs_creator=self._get_cpp_kargs_creator_func_name(self.F_pipeline.tag),
             F_sink=BOOL_MAP[self.F_pipeline.F_sink],
         )
+        if emits_kvscale_align(self.F_pipeline.tag, self.F_pipeline.F_qscale):
+            body += FMHA_FWD_KVSCALE_ALIGN_TEMPLATE.format(F_arch=self.F_arch)
+        return body
 
     @property
     def name(self) -> str:
@@ -761,6 +927,7 @@ class FmhaFwdKernel:
             skip=self.F_pipeline.F_skip,
             tr_load=self.F_pipeline.F_trload,
             sink=self.F_pipeline.F_sink,
+            occupancy=int(self.F_tile.F_occupancy),
             constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint,
         )
 
@@ -1329,6 +1496,44 @@ class KernelComponentFactoryGfx12(CompatibilityRuleFactory):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", "f"))  # fmt: skip
         return pipelines
 
+
+# Measured bm0=64 -> bm0=128 crossover max_seqlen_q on gfx1250 (fp16/bf16), per
+# head dim (hdim_q, hdim_v). Each value is an independent benchmark result, not a
+# shared symbol: they all happen to be 128 under the current double-buffer pipeline
+# but must be re-benchmarked (not inherited) when a head dim is added or the pipeline
+# changes.
+GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q = {
+    (32, 32): 128,
+    (64, 64): 128,
+    (96, 96): 128,
+    (128, 128): 128,
+    (160, 160): 128,
+    (192, 128): 128,
+}
+
+
+def _gfx125_qr_tdm_crossover_constraint(hdim):
+    return CppConstraint(
+        f"a.max_seqlen_q < {GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q[hdim]}"
+    )
+
+
+def _validate_qr_tdm_bm0_crossover_pairs(tile_dict):
+    # Dispatch matches the first tile whose constraint holds, so any non-final tile
+    # MUST carry a constraint; otherwise it is always-true and silently shadows every
+    # tile after it (e.g. a bm0=64 entry would hide its bm0=128 fallback). The shared
+    # bm0-monotonicity assert does not catch this, and it cannot live there because
+    # other factories legitimately gate non-final tiles by CU count instead of seqlen.
+    for (hdim, hdim_v), tiles in tile_dict.items():
+        for tile, next_tile in zip(tiles, tiles[1:]):
+            assert tile.F_constraint.bool_expr is not None, (
+                f"({hdim},{hdim_v}): bm0={tile.F_bm0} has no CppConstraint but is "
+                f"followed by bm0={next_tile.F_bm0} -- it would shadow every tile "
+                "after it in dispatch order"
+            )
+    return tile_dict
+
+
 class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
     arch = ArchTrait("gfx125")
 
@@ -1343,29 +1548,76 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
     @classmethod
     def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
         if dtype in cls._DT_FP16_BF16:
-            return {
+            # Short causal grids benefit from twice as many Q workgroups. Keep the
+            # d128 causal override while retaining develop's per-head-dim M64/M128
+            # crossover table for every other configuration.
+            m64_d128_constraint = (
+                f"a.max_seqlen_q < {GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q[(128, 128)]}"
+                " || (!t.is_group_mode && t.is_v_rowmajor"
+                " && !t.has_logits_soft_cap && !t.has_dropout"
+                " && !t.skip_min_seqlen_q"
+                " && (t.mask_type == mask_enum::mask_top_left || t.mask_type == mask_enum::mask_bottom_right)"
+                " && a.window_size_left < 0 && a.window_size_right == 0"
+                " && a.seqlen_q == a.seqlen_k && a.seqlen_q % 128 == 0"
+                " && a.hdim_q == 128 && a.hdim_v == 128"
+                " && a.stride_q == a.hdim_q && a.nhead_stride_q > a.hdim_q"
+                " && get_num_blocks(128) <= 2 * num_cus)"
+            )
+            # Most entries pair a bm0=64 tile guarded by the per-dim crossover
+            # constraint (see GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q) with a bm0=128
+            # fallback: the dispatcher picks bm0=64 below the crossover max_seqlen_q
+            # and bm0=128 at/above it. (256,256) is the exception -- a single unguarded
+            # bm0=64 tile with no fallback. _validate_qr_tdm_bm0_crossover_pairs enforces
+            # that any non-final tile keeps a constraint so a bm0=64 entry can never
+            # silently shadow its bm0=128 fallback in dispatch order.
+            return _validate_qr_tdm_bm0_crossover_pairs({
                 #                             bm0, bn0, bk0, bn1, bk1,
-                ( 32,  32) : [FmhaFwdTileSize( 64,  64,  32,  32,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-                ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-                (128, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint("a.max_seqlen_q < 2048")),
+                ( 32,  32) : [FmhaFwdTileSize( 64,  64,  32,  32,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint(( 32,  32))),
+                              FmhaFwdTileSize(128,  64,  32,  32,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint(( 64,  64))),
+                              FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                ( 96,  96) : [FmhaFwdTileSize( 64,  64,  32,  96,  32,   96,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint(( 96,  96))),
+                              FmhaFwdTileSize(128,  64,  32,  96,  32,   96,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                (128, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint(m64_d128_constraint)),
                               FmhaFwdTileSize(128,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-                (192, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                (160, 160) : [FmhaFwdTileSize( 64,  64,  32, 160,  32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint((160, 160))),
+                              FmhaFwdTileSize(128,  64,  32, 160,  32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                (192, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  192,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint((192, 128))),
+                              FmhaFwdTileSize(128,  64,  32, 128,  32,  192,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
                 (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-            }  # fmt: skip
+            })  # fmt: skip
         elif dtype in cls._DT_FP8_FP8BF16:
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
-                ( 64,  64) : [FmhaFwdTileSize(128,  64,  64,  64,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1)],
-                (128, 128) : [FmhaFwdTileSize( 64,  64,  64, 128,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1)],
+                ( 64,  64) : [FmhaFwdTileSize( 64, 128,  64,  64, 128,   64,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 128,  -1),
+                              FmhaFwdTileSize(128,  64,  64,  64,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1)],
+                (128, 128) : [FmhaFwdTileSize( 64, 128, 128, 128, 128,  128,  4, 1, 1,  4, 1, 1,  16, 16, 128,  16, 16, 128,  -1),
+                              FmhaFwdTileSize( 64,  64,  64, 128,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1)],
                 #(256, 256) : [FmhaFwdTileSize( 64,  32,  64, 256,  64,  256,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1)],
             }  # fmt: skip
         elif dtype in cls._DT_FP8FP32:
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
-                (128, 128) : [FmhaFwdTileSize( 64,  64,  64, 128,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1)],
+                (128, 128) : [FmhaFwdTileSize( 64, 128, 128, 128, 128,  128,  4, 1, 1,  4, 1, 1,  16, 16, 128,  16, 16, 128,  -1),
+                              FmhaFwdTileSize( 64,  64,  64, 128,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1)],
             }  # fmt: skip
         else:
             raise ValueError(f"unsupported dtype={dtype}")
+
+    @classmethod
+    def get_rules(cls) -> List[CompatibilityRule]:
+        def check_gemm0_k(
+            problem_ctx: ProblemContext, kernel_ctx: KernelContext
+        ) -> bool:
+            # qr's k0 prefetch needs >= 2 loops; qr_tdm has none and takes the 1-loop tile.
+            if problem_ctx.dtype not in cls._DT_FP8_FP8BF16 + cls._DT_FP8FP32:
+                return True
+            k0_loops = kernel_ctx.tile.F_bk0max // kernel_ctx.tile.F_bk0
+            if kernel_ctx.pipeline.tag == "qr_tdm":
+                return k0_loops == 1
+            return k0_loops >= 2
+
+        return [*super().get_rules(), check_gemm0_k]
 
     @classmethod
     def get_pipelines(
@@ -1377,18 +1629,43 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             # qr_tdm: gfx1250 TDM pipeline, preferred for d=128.
             # Emitted first so runtime dispatcher selects qr_tdm over qr
             # when both match (dispatch order = list order in generated code).
-            # NOTE: dropout is not yet implemented in qr_tdm — only emit
+            # NOTE: dropout is not yet implemented in qr_tdm - only emit
             # dropout="f" so dropout workloads fall through to qr.
-            if hdim == 128 and hdim_v == 128:
+            # Logits soft cap is not implemented either, so pin logits="f".
+            if (hdim, hdim_v) in {
+                (32, 32),
+                (64, 64),
+                (96, 96),
+                (128, 128),
+                (160, 160),
+                (192, 128),
+                (256, 256),
+            }:
+                tdm_masks = list(get_mask_map(mask_impl))
+                if mask_impl == "simplified":
+                    # Avoid carrying general-window mask state through the
+                    # causal main loop. Keep the simplified fallback for windows.
+                    tdm_masks.insert(0, "causal")
                 for logits, mask, bias, lse, sink in itertools.product(
-                    ["t", "f"],
-                    get_mask_map(mask_impl).keys(),
+                    ["f"],
+                    tdm_masks,
                     BIAS_MAP.keys(),
                     ["t", "f"],
                     ["t", "f"],
                 ):
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    mask_constraint = CppConstraint()
+                    if mask_impl == "simplified" and mask == "causal":
+                        if bias != "no" or lse != "f" or sink != "f":
+                            continue
+                        # Top-left/bottom-right also describe finite windows;
+                        # the causal kernel has no lower-bound mask check.
+                        mask_constraint = CppConstraint(
+                            "a.window_size_left < 0 && a.window_size_right == 0"
+                        )
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint, F_use_double_kv_lds_buffer="t", F_progressive_ds_load_k="t"))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint, F_use_double_kv_lds_buffer="t", F_progressive_ds_load_k="t"))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint, F_use_double_kv_lds_buffer="t", F_progressive_ds_load_k="t"))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint, F_use_double_kv_lds_buffer="t", F_progressive_ds_load_k="t"))  # fmt: skip
 
             # qr: generic pipeline fallback for trait combos not covered by
             # qr_tdm (e.g., bias, dropout, skip, d!=128).
@@ -1404,13 +1681,29 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
         elif dtype in cls._DT_FP8_FP8BF16 or dtype in cls._DT_FP8FP32:
-            # no need lse/dropout kernels
+            # no need dropout kernels. Alibi is held back: its near-one-hot P leaves a
+            # slope-dependent quantization bias the OUT gain check reads as a systematic error.
+            if (hdim, hdim_v) in ((128, 128), (64, 64)):
+                for logits, qscale, mask, bias, lse, sink in itertools.product(
+                    ["f"],
+                    ["no", "pertensor", "perhead", "blockscale"],
+                    get_mask_map(mask_impl).keys(),
+                    ["no", "bias"],
+                    ["f", "t"],
+                    ["f", "t"],
+                ):
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+
             for logits, qscale, mask, bias in itertools.product(
                 ["f"], ["no", "pertensor"], get_mask_map(mask_impl).keys(), ["no"]
             ):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f", "f"))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", "f"))  # fmt: skip
         return pipelines
+
 
 class CustomFactory(KernelComponentFactoryGfx9, CompatibilityRuleFactoryGfx9):
     @classmethod
@@ -1422,7 +1715,236 @@ class CustomFactory(KernelComponentFactoryGfx9, CompatibilityRuleFactoryGfx9):
         return result
 
 
+# ---------------------------------------------------------------------------
+# Custom tune-config driven factory
+#
+# When the env var CK_TILE_FMHA_FWD_CUSTOM_TUNE_CONFIG_FILE points to a JSON
+# file, `get_factory` will build a dynamic factory that:
+#   * inherits everything (arch, supported_dtypes, get_pipelines) from an
+#     arch base factory (selected via the JSON "target" field);
+#   * replaces `get_hdim_tile_size_dict` with the JSON-declared tile table,
+#     so that codegen ONLY emits kernels for the (hdim, hdim_v) keys the
+#     tuner asked for;
+#   * optionally drops `check_hdim_tile` rule (needed for arbitrary padded
+#     hdim combos such as (80, 96));
+#   * appends a "filters" compatibility rule that narrows pipelines to a
+#     concrete combo (mode / mask / bias / lse / dropout / logits / qscale /
+#     vlayout / skip / sink / trload / spad / skpad / dpad / dvpad).
+#
+# JSON schema (v1):
+# {
+#   "schema_version": 1,
+#   "target": "gfx942",
+#   "dtypes": ["bf16"],
+#   "tiles": {
+#     "bf16": {
+#       "80,96": [
+#         {"F_bm0":64,"F_bn0":64,"F_bk0":32,"F_bn1":96,"F_bk1":32,
+#          "F_bk0max":128,"F_rm0":4,"F_rn0":1,"F_rk0":1,
+#          "F_rm1":4,"F_rn1":1,"F_rk1":1,
+#          "F_wm0":16,"F_wn0":16,"F_wk0":32,
+#          "F_wm1":16,"F_wn1":16,"F_wk1":32,"F_occupancy":-1}
+#       ]
+#     }
+#   },
+#   "filters": {
+#     "mode": ["group"], "mask": ["mask_bottom_right"],
+#     "bias": ["no"], "lse": ["f"], "dropout": ["f"],
+#     "logits": ["f"], "qscale": ["no"], "vlayout": ["row"]
+#   },
+#   "relax_rules": {"disable_check_hdim_tile": false}
+# }
+# ---------------------------------------------------------------------------
+
+
+def _load_custom_tune_config() -> Optional[dict]:
+    path = os.environ.get("CK_TILE_FMHA_FWD_CUSTOM_TUNE_CONFIG_FILE", "").strip()
+    if not path:
+        return None
+    with open(path, "r") as f:
+        cfg = json.load(f)
+    return cfg
+
+
+def _tune_config_pick_base(target: str):
+    # Same dispatch as the tail of `get_factory` below, but consulted only
+    # to select the base class for a dynamic factory.
+    if target.startswith("gfx950"):
+        return KernelComponentFactoryGfx950
+    if target.startswith("gfx9"):
+        return KernelComponentFactoryGfx9
+    if target.startswith("gfx115"):
+        return KernelComponentFactoryGfx115
+    if target.startswith("gfx11"):
+        return KernelComponentFactoryGfx11
+    if target.startswith("gfx125"):
+        return KernelComponentFactoryGfx125
+    if target.startswith("gfx12"):
+        return KernelComponentFactoryGfx12
+    raise Exception(f"Unsupported device target {target} in tune config")
+
+
+def _parse_tune_config_tiles(
+    tiles_by_dtype_json: dict,
+) -> Dict[str, Dict[Tuple[int, int], List[FmhaFwdTileSize]]]:
+    result: Dict[str, Dict[Tuple[int, int], List[FmhaFwdTileSize]]] = {}
+    for dtype, hkey_map in tiles_by_dtype_json.items():
+        by_hkey: Dict[Tuple[int, int], List[FmhaFwdTileSize]] = {}
+        for hkey, tile_dicts in hkey_map.items():
+            parts = [p.strip() for p in str(hkey).split(",")]
+            if len(parts) != 2:
+                raise ValueError(
+                    f"[CustomTuneFactory] tile key '{hkey}' must be 'HDIM,HDIMV'"
+                )
+            hdim, hdim_v = int(parts[0]), int(parts[1])
+            tiles: List[FmhaFwdTileSize] = []
+            for td in tile_dicts:
+                # Optional runtime dispatch constraint (custom-tune JSON only).
+                # Kept purely as a string so it can carry arbitrary C++
+                # boolean expressions referring to fmha_fwd_args `a` and
+                # fmha_fwd_traits `t` (e.g. "a.max_seqlen_q < 704" or
+                # "(a.max_seqlen_q >= 704 && a.max_seqlen_q < 1344) || ...").
+                # Missing/empty -> keep default CppConstraint (== "true").
+                _cc = td.get("cpp_constraint")
+                _cc_str = str(_cc).strip() if _cc is not None else ""
+                _constraint = (
+                    CppConstraint(bool_expr=_cc_str) if _cc_str else CppConstraint()
+                )
+                tiles.append(
+                    FmhaFwdTileSize(
+                        F_bm0=int(td["F_bm0"]),
+                        F_bn0=int(td["F_bn0"]),
+                        F_bk0=int(td["F_bk0"]),
+                        F_bn1=int(td["F_bn1"]),
+                        F_bk1=int(td["F_bk1"]),
+                        F_bk0max=int(td["F_bk0max"]),
+                        F_rm0=int(td["F_rm0"]),
+                        F_rn0=int(td["F_rn0"]),
+                        F_rk0=int(td["F_rk0"]),
+                        F_rm1=int(td["F_rm1"]),
+                        F_rn1=int(td["F_rn1"]),
+                        F_rk1=int(td["F_rk1"]),
+                        F_wm0=int(td["F_wm0"]),
+                        F_wn0=int(td["F_wn0"]),
+                        F_wk0=int(td["F_wk0"]),
+                        F_wm1=int(td["F_wm1"]),
+                        F_wn1=int(td["F_wn1"]),
+                        F_wk1=int(td["F_wk1"]),
+                        F_occupancy=int(td["F_occupancy"]),
+                        F_constraint=_constraint,
+                    )
+                )
+            by_hkey[(hdim, hdim_v)] = tiles
+        result[dtype] = by_hkey
+    return result
+
+
+def _make_tune_filter_rule(filters: dict):
+    if not filters:
+        return None
+
+    allowed_mode = set(filters.get("mode", [])) or None
+    allowed_mask = set(filters.get("mask", [])) or None
+    allowed_bias = set(filters.get("bias", [])) or None
+    allowed_lse = set(filters.get("lse", [])) or None
+    allowed_dropout = set(filters.get("dropout", [])) or None
+    allowed_logits = set(filters.get("logits", [])) or None
+    allowed_qscale = set(filters.get("qscale", [])) or None
+    allowed_vlayout = set(filters.get("vlayout", [])) or None
+    allowed_skip = set(filters.get("skip", [])) or None
+    allowed_sink = set(filters.get("sink", [])) or None
+    allowed_trload = set(filters.get("trload", [])) or None
+    allowed_spad = set(filters.get("spad", [])) or None
+    allowed_skpad = set(filters.get("skpad", [])) or None
+    allowed_dpad = set(filters.get("dpad", [])) or None
+    allowed_dvpad = set(filters.get("dvpad", [])) or None
+
+    def tune_filter(problem_ctx: "ProblemContext", kernel_ctx: "KernelContext") -> bool:
+        p = kernel_ctx.pipeline
+        if allowed_mode is not None and problem_ctx.mode not in allowed_mode:
+            return False
+        if allowed_mask is not None and p.F_mask not in allowed_mask:
+            return False
+        if allowed_bias is not None and p.F_bias not in allowed_bias:
+            return False
+        if allowed_lse is not None and p.F_lse not in allowed_lse:
+            return False
+        if allowed_dropout is not None and p.F_dropout not in allowed_dropout:
+            return False
+        if allowed_logits is not None and p.F_logits not in allowed_logits:
+            return False
+        if allowed_qscale is not None and p.F_qscale not in allowed_qscale:
+            return False
+        if allowed_vlayout is not None and p.F_vlayout not in allowed_vlayout:
+            return False
+        if allowed_skip is not None and p.F_skip not in allowed_skip:
+            return False
+        if allowed_sink is not None and p.F_sink not in allowed_sink:
+            return False
+        if allowed_trload is not None and p.F_trload not in allowed_trload:
+            return False
+        if allowed_spad is not None and p.F_spad not in allowed_spad:
+            return False
+        if allowed_skpad is not None and p.F_skpad not in allowed_skpad:
+            return False
+        if allowed_dpad is not None and p.F_dpad not in allowed_dpad:
+            return False
+        if allowed_dvpad is not None and p.F_dvpad not in allowed_dvpad:
+            return False
+        return True
+
+    return tune_filter
+
+
+def _build_custom_tune_factory(cfg: dict):
+    target = cfg.get("target", "")
+    if not target:
+        raise ValueError("[CustomTuneFactory] JSON 'target' field is required")
+    base = _tune_config_pick_base(target)
+
+    tiles_by_dtype = _parse_tune_config_tiles(cfg.get("tiles", {}))
+    dtypes_whitelist = tuple(cfg.get("dtypes", ()))
+    extra_rule = _make_tune_filter_rule(cfg.get("filters", {}))
+    disable_hdim_rule = bool(
+        cfg.get("relax_rules", {}).get("disable_check_hdim_tile", False)
+    )
+
+    class CustomTuneFactory(base):
+        # arch inherited from base
+
+        @classmethod
+        def supported_dtypes(cls) -> Tuple[str]:
+            base_dt = base.supported_dtypes()
+            if dtypes_whitelist:
+                return tuple(d for d in base_dt if d in dtypes_whitelist)
+            # If not explicitly listed, restrict to dtypes appearing in tiles.
+            return tuple(d for d in base_dt if d in tiles_by_dtype)
+
+        @classmethod
+        def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
+            return tiles_by_dtype.get(dtype, None)
+
+        @classmethod
+        def get_rules(cls) -> List[CompatibilityRule]:
+            rules = list(base.get_rules())
+            if disable_hdim_rule:
+                rules = [
+                    r for r in rules if getattr(r, "__name__", "") != "check_hdim_tile"
+                ]
+            if extra_rule is not None:
+                rules.append(extra_rule)
+            return rules
+
+    CustomTuneFactory.__name__ = f"CustomTuneFactory_{base.__name__}"
+    return CustomTuneFactory
+
+
 def get_factory(target: str):
+    # Highest priority: JSON-driven tune-config factory.
+    tune_cfg = _load_custom_tune_config()
+    if tune_cfg is not None:
+        return _build_custom_tune_factory(tune_cfg)
+
     if os.environ.get("CK_TILE_FMHA_FWD_CUSTOM_FACTORY", "0") == "1":
         return CustomFactory
 
@@ -1598,6 +2120,9 @@ def get_fwd_blobs(
 
     for factory, dtype in ((f, t) for f in factories for t in f.supported_dtypes()):
         d = factory.get_hdim_tile_size_dict(dtype)
+        # CustomTuneFactory might return None
+        if not d:
+            continue
         # for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for ((hdim, hdim_v), tiles), mode in itertools.product(
             d.items(), MODE_MAP.keys()
@@ -1656,6 +2181,7 @@ def write_fwd_api(
             api_pool.render("fmha_fwd_v2", filter_fn=accept_only_v2),
             api_pool.render("fmha_fwd_v3", filter_fn=accept_only_v3),
             FMHA_FWD_API_FOOTER,
+            api_pool.render_block_scale_size_kv(),
         ]
     )
     update_file(autogen_dir / FMHA_FWD_API_FILENAME, content)

@@ -26,6 +26,12 @@ namespace wrapper {
 template <typename Shape, typename UnrolledDescriptorType>
 struct Layout
 {
+    // Both are stored as members below, so a reference type would silently turn
+    // the Layout into a non-owning alias of whatever it was built from.
+    static_assert(!std::is_reference_v<Shape> && !std::is_reference_v<UnrolledDescriptorType>,
+                  "Layout must own its shape and descriptor; strip references with "
+                  "remove_cvref_t before instantiating it.");
+
     // Disable from doxygen docs generation
     /// @cond INTERNAL
     private:

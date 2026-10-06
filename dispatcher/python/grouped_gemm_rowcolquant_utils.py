@@ -20,6 +20,7 @@ RowColQuant: A has per-row scales [M, 1], B has per-column scales [1, N].
 ADataType=BDataType=fp8/bf8; AQDataType=BQDataType=float; CDataType=half.
 """
 
+from dispatcher_common import unified_framework_flags
 import ctypes
 import json
 import logging
@@ -49,13 +50,38 @@ if _codegen_dir not in sys.path:
 # their name builders, and keeps the shared tile/trait defaults in one place so this
 # module's default_*_config() cannot drift from the codegen's _default_config().
 from codegen_common import (  # noqa: E402
-    ROWCOL_TENSOR_QUANT_DEFAULT_TILE,
     ROWCOL_TENSOR_QUANT_DEFAULT_TRAITS,
+    rowcol_tensor_quant_default_tile,
+    normalize_gfx_arch,
+    validate_rowcol_tensor_quant_gfx_arch,
     make_rowcolquant_kernel_name,
 )
 
+_python_dir = str(Path(__file__).parent)
+if _python_dir not in sys.path:
+    sys.path.insert(0, _python_dir)
+from dispatcher_common import arch_feature_defines  # noqa: E402
+
 _DEFAULT_HIPCC    = "hipcc"
 _DEFAULT_GFX_ARCH = "gfx950"
+
+# ABI revision of the compiled .so, folded into the artifact filename.
+#
+# setup_multiple_rowcolquant_dispatchers() reuses an existing .so when the name
+# matches, and callers that pass a persistent output_dir (the validation
+# harnesses do, precisely to get cache hits) can therefore be handed an artifact
+# built by an older revision of this module. The name used to be keyed on
+# (kernel name, arch) only, which does not describe the exported symbol set, so
+# a .so predating the dispatcher_get_tile_n()/dispatcher_get_pad_n() exports
+# would be selected and then fail at attribute-lookup time with a bare
+# "undefined symbol". Bump this whenever the exported C ABI of
+# bindings/ctypes/grouped_gemm_rowcolquant_ctypes_lib.cpp changes; the new name
+# simply cannot collide with the stale artifact, which is then ignored rather
+# than papered over with a runtime fallback.
+#   1 -> original export set
+#   2 -> added dispatcher_get_tile_n() / dispatcher_get_pad_n()
+#   3 -> require regenerated headers with build-target validation
+_SO_ABI = 3
 
 
 # =============================================================================
@@ -189,12 +215,14 @@ class RowColQuantDispatcherLib:
                                QK_A, QK_B, k_batch, *time_ms)
       char* dispatcher_get_kernel_name()
       int   dispatcher_get_kernel_count()
+      int   dispatcher_get_tile_n()
+      int   dispatcher_get_pad_n()
       void  dispatcher_cleanup()
     """
 
     def __init__(self, so_path: Path):
         self.so_path = Path(so_path)
-        self._cleaned_up = False
+        self._cleaned_up = True
         if not self.so_path.exists():
             raise FileNotFoundError(f"RowColQuant .so not found: {self.so_path}")
         self._lib = ctypes.CDLL(str(self.so_path))
@@ -202,6 +230,7 @@ class RowColQuantDispatcherLib:
         rc = self._lib.dispatcher_initialize()
         if rc != 0:
             raise RuntimeError(f"dispatcher_initialize() returned {rc}")
+        self._cleaned_up = False
 
     def _setup(self):
         lib = self._lib
@@ -235,6 +264,18 @@ class RowColQuantDispatcherLib:
 
         lib.dispatcher_get_kernel_count.restype  = ctypes.c_int
         lib.dispatcher_get_kernel_count.argtypes = []
+
+        # Direct callers can supply libraries outside the versioned cache.
+        try:
+            lib.dispatcher_get_tile_n.restype = ctypes.c_int
+            lib.dispatcher_get_tile_n.argtypes = []
+            lib.dispatcher_get_pad_n.restype = ctypes.c_int
+            lib.dispatcher_get_pad_n.argtypes = []
+        except AttributeError as exc:
+            raise RuntimeError(
+                f"Incompatible quant bridge ABI in {self.so_path}: missing TileN/PadN "
+                "exports (ABI 2 or newer required). Rebuild the library."
+            ) from exc
 
         lib.dispatcher_cleanup.restype  = None
         lib.dispatcher_cleanup.argtypes = []
@@ -306,6 +347,14 @@ class RowColQuantDispatcherLib:
     def get_kernel_count(self) -> int:
         return self._lib.dispatcher_get_kernel_count()
 
+    def get_tile_n(self) -> int:
+        """N-tile of the compiled kernel (SelectedKernel::TileN)."""
+        return self._lib.dispatcher_get_tile_n()
+
+    def get_pad_n(self) -> bool:
+        """True when the compiled kernel was generated with pad_n=true."""
+        return bool(self._lib.dispatcher_get_pad_n())
+
     def cleanup(self):
         if not self._cleaned_up:
             self._lib.dispatcher_cleanup()
@@ -337,6 +386,16 @@ class RowColQuantGpuGemmRunner:
     def kernel_name(self) -> str:
         return self._lib.get_kernel_name()
 
+    @property
+    def tile_n(self) -> int:
+        """N-tile of the compiled kernel, read from the .so (not hardcoded)."""
+        return self._lib.get_tile_n()
+
+    @property
+    def pad_n(self) -> bool:
+        """True when the compiled kernel pads N (the N % tile_n rule then lifts)."""
+        return self._lib.get_pad_n()
+
     def run(self, A, B, AQ, BQ, problem: RowColQuantGemmProblem, c_dtype=None) -> RowColQuantGemmResult:
         """
         Run RowColQuant Grouped GEMM.
@@ -347,6 +406,23 @@ class RowColQuantGpuGemmRunner:
         BQ      shape: (N,)       dtype: float    (per-col B scale)
         c_dtype numpy dtype for the output C buffer. Defaults to np.float16.
         Returns RowColQuantGemmResult with C shape (M, N).
+
+        Shape constraints enforced by the bridge (validated on gfx1250 with the
+        default config). Violations raise RuntimeError; no output is written:
+
+          K % 16 == 0     Required even though the default config sets pad_k=True --
+                          pad_k covers the K-loop tail, not the global-load vector
+                          width.
+          N % tile_n == 0 Required whenever the kernel was generated with pad_n=False,
+                          so N must be a whole number of N-tiles. tile_n is a property
+                          of the compiled kernel -- read `self.tile_n` rather than
+                          assuming the value of today's default config.
+          M % 4 == 0      gfx12 targets only. The per-row A-scale (AQ) tile window is
+                          built without a padding transform, so row M-1 of C comes
+                          back as zero while every other row is correct. The bridge
+                          refuses these shapes rather than returning a silently wrong
+                          result. gfx942/gfx950 are not restricted. TensorQuant uses
+                          scalar scales and has no M constraint.
         """
         import numpy as np
 
@@ -407,9 +483,23 @@ class RowColQuantGpuGemmRunner:
         )
 
         if rc != 0:
+            # rc alone is not actionable, and the C++ explanation goes to stderr, which
+            # a caller capturing only the exception never sees. Restate the constraints
+            # here so the traceback is self-contained. tile_n/pad_n come from the .so,
+            # so this message stays true if the compiled tile changes.
+            n_rule = (
+                "N is unconstrained (pad_n=True)"
+                if self.pad_n
+                else f"N % {self.tile_n} == 0 when pad_n=False"
+            )
             raise RuntimeError(
                 f"dispatcher_run_gemm failed with code {rc} "
-                f"for kernel {self.kernel_name}"
+                f"for kernel {self.kernel_name} at M={M} N={N} K={K}. "
+                f"(-1 = rejected by the bridge, -2 = rejected by the kernel, "
+                f"-3 = launch threw.) Shape constraints: K % 16 == 0 (required even "
+                f"with pad_k=True); {n_rule}; and on gfx12 targets "
+                f"M % 4 == 0, because the per-row AQ tile window is unpadded in M and "
+                f"would zero row M-1 of C. See stderr for the exact reason."
             )
 
         return RowColQuantGemmResult(C=C, time_ms=time_ms, kernel_name=self.kernel_name)
@@ -430,7 +520,11 @@ def _detect_gpu_arch() -> str:
         for line in result.stdout.splitlines():
             line = line.strip()
             if line.startswith("gfx") and line != "gfx000":
-                return line
+                # Strip feature suffixes ("gfx1250:xnack-") here so they never reach
+                # --offload-arch / -DGFX_ARCH. The C++ side prefix-matches the runtime
+                # device name against the compile-time GFX_ARCH, so the bare target
+                # still matches a device that reports suffixes.
+                return normalize_gfx_arch(line)
     except Exception as e:
         log.warning("rocm_agent_enumerator failed (%s); defaulting to %s", e, _DEFAULT_GFX_ARCH)
         return _DEFAULT_GFX_ARCH
@@ -461,6 +555,7 @@ def _generate_rowcolquant_kernel(
         str(_CODEGEN_SCRIPT),
         "--output-dir", str(output_dir),
         "--config-json", config_json,
+        "--gfx-arch", validate_rowcol_tensor_quant_gfx_arch(config.gfx_arch),
     ]
 
     try:
@@ -495,21 +590,28 @@ def _compile_rowcolquant_kernel(
     extra_include_dirs: Optional[List[str]] = None,
 ) -> bool:
     """Compile a generated .hpp into a .so via hipcc (compile then link)."""
+    # Normalize once, here at the boundary, so every downstream use -- the arch
+    # defines below and the --offload-arch/-DGFX_ARCH we hand to hipcc -- sees the
+    # bare target. A caller-supplied "gfx1250:xnack-" must not reach the compiler
+    # flags.
+    gfx_arch = validate_rowcol_tensor_quant_gfx_arch(gfx_arch)
+
     ck_include = _get_ck_include_dir()
     static_lib = _get_dispatcher_static_lib()
 
     obj_path = so_path.with_suffix(".o")
 
-    arch_defines = []
-    if "gfx12" in gfx_arch or "gfx950" in gfx_arch:
-        arch_defines += ["-DCK_USE_OCP_FP8", "-DCK_TILE_USE_OCP_FP8"]
-    if "gfx950" in gfx_arch:
-        arch_defines += ["-DCK_USE_NATIVE_MX_SUPPORT", "-DCK_GFX950_SUPPORT"]
+    arch_defines = arch_feature_defines(gfx_arch)
+    # Match top-level CK policy in both host and device compilation.
+    if gfx_arch == "gfx1250":
+        arch_defines.append("-DUSE_NEW_UNIFIED_FRAMEWORK=0")
 
     compile_cmd = [hipcc, "-c", "-fPIC", "-O3", "-std=c++17",
                    "-DCK_TILE_SINGLE_KERNEL_INCLUDE", "-w",
                    f"--offload-arch={gfx_arch}",
+                   f"-DCK_CMAKE_GPU_TARGET_IDS=0x{gfx_arch[3:]}",
                    f"-DGFX_ARCH=\"{gfx_arch}\"",
+                   *unified_framework_flags(gfx_arch),
                    *arch_defines,
                    "-include", str(hpp_path),
                    str(_CTYPES_LIB_SRC),
@@ -583,7 +685,17 @@ def setup_multiple_rowcolquant_dispatchers(
     if not configs:
         return []
 
-    arch = gfx_arch or _detect_gpu_arch()
+    # Normalize the explicit branch too, not just detection: an explicitly passed
+    # "gfx1250:xnack-" would otherwise flow into --offload-arch, -DGFX_ARCH and the
+    # .so cache name. _detect_gpu_arch() already normalizes.
+    arch = validate_rowcol_tensor_quant_gfx_arch(gfx_arch or _detect_gpu_arch())
+    for cfg in configs:
+        config_arch = validate_rowcol_tensor_quant_gfx_arch(cfg.gfx_arch)
+        if config_arch != arch:
+            raise ValueError(
+                f"Config architecture {cfg.gfx_arch!r} does not match build target {arch!r}. "
+                "Create configs for the selected build target."
+            )
     base_dir = output_dir or Path(tempfile.mkdtemp(prefix="rowcolquant_dispatcher_"))
     base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -608,7 +720,9 @@ def setup_multiple_rowcolquant_dispatchers(
         if hpp is None:
             return idx, None
 
-        so = so_dir / f"lib{cfg.name}_{arch}.so"
+        # Name carries the ABI revision: a pre-_SO_ABI artifact in a persistent
+        # output_dir can never be selected here (see _SO_ABI).
+        so = so_dir / f"lib{cfg.name}_{arch}_abi{_SO_ABI}.so"
         if so.exists():
             log.info("  [cached] %s", so.name)
             return idx, so
@@ -669,6 +783,10 @@ def _default_config(dtype: str, gfx_arch: str) -> RowColQuantKernelConfig:
     four pad/persistent flags) is forwarded from the shared dict; only block_size and
     k_block_per_cu are codegen-only and are left to the dataclass defaults.
     """
+    # Normalize at this boundary too: default_fp8_config()/default_bf8_config() are
+    # public entry points, so a caller-supplied "gfx1250:xnack-" must not be stored
+    # on the config and observed by later consumers.
+    gfx_arch = validate_rowcol_tensor_quant_gfx_arch(gfx_arch)
     traits = ROWCOL_TENSOR_QUANT_DEFAULT_TRAITS
     return RowColQuantKernelConfig(
         dtype=dtype,
@@ -676,7 +794,7 @@ def _default_config(dtype: str, gfx_arch: str) -> RowColQuantKernelConfig:
         pipeline=traits["pipeline"],
         epilogue=traits["epilogue"],
         scheduler=traits["scheduler"],
-        **ROWCOL_TENSOR_QUANT_DEFAULT_TILE,
+        **rowcol_tensor_quant_default_tile(gfx_arch),
         pad_m=traits["pad_m"],
         pad_n=traits["pad_n"],
         pad_k=traits["pad_k"],

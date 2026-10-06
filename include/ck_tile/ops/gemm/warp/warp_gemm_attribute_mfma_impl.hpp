@@ -129,6 +129,73 @@ struct WarpGemmAttributeMfmaImplF32F32F32M16N16K4
     }
 };
 
+// F64
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImplF64F64F64M16N16K4
+{
+    static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
+
+    using ADataType = fp64_t;
+    using BDataType = fp64_t;
+    using CDataType = fp64_t;
+
+    using AVecType = ext_vector_t<ADataType, 1>;
+    using BVecType = ext_vector_t<BDataType, 1>;
+    using CVecType = ext_vector_t<CDataType, 4>;
+
+    static constexpr index_t kM = 16;
+    static constexpr index_t kN = 16;
+    static constexpr index_t kK = 4;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
+    static constexpr index_t kAMLane     = 16;
+    static constexpr index_t kBNLane     = 16;
+    static constexpr index_t kABKLane    = 4;
+    static constexpr index_t kABKPerLane = 1;
+
+    // Unlike other MFMA instructions, f64 output does not use the 4-contiguous-row-per-lane
+    // block layout: MI300 ISA sec. 7.1.4.2 gives H=1 for f64, so row i lands in register
+    // i/4 of lane (i%4)*16+j, i.e. M = kCM0PerLane*4 + lane_m (not lane_m*4 + kCM1PerLane).
+    static constexpr index_t kCMLane     = 4;
+    static constexpr index_t kCNLane     = 16;
+    static constexpr index_t kCM0PerLane = 4;
+    static constexpr index_t kCM1PerLane = 1;
+
+    // c_vec += a_vec * b_vec
+    template <typename... Params>
+    CK_TILE_DEVICE void
+    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        DISPATCH_MFMA_CTRL_("v_mfma_f64_16x16x4f64", Ctrl)
+        else
+        {
+#if defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+            c_vec = __builtin_amdgcn_mfma_f64_16x16x4f64(a_vec[0], b_vec[0], c_vec, 0, 0, 0);
+#else
+            ck_tile::ignore = c_vec;
+            ck_tile::ignore = a_vec;
+            ck_tile::ignore = b_vec;
+#endif
+        }
+    }
+
+    // c_vec = a_vec * b_vec
+    template <typename... Params>
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f64_16x16x4f64(a_vec[0], b_vec[0], CVecType{0.}, 0, 0, 0));
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        return CVecType{0.};
+#endif
+    }
+};
+
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 struct WarpGemmAttributeMfmaImplF32F32F32M32N32K2
 {
@@ -750,9 +817,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
             static_for<0, 2, 1>{}([&](auto k) {
                 c_vec = __builtin_amdgcn_mfma_f32_32x32x4bf16(
                     reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     c_vec,
                     0,
                     0,
@@ -783,9 +850,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
         static_for<0, 2, 1>{}([&](auto k) {
             c_vec = __builtin_amdgcn_mfma_f32_32x32x4bf16(
                 reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 c_vec,
                 0,
                 0,
@@ -848,9 +915,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16
             static_for<0, 2, 1>{}([&](auto k) {
                 c_vec = __builtin_amdgcn_mfma_f32_16x16x8bf16(
                     reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     c_vec,
                     0,
                     0,
@@ -881,9 +948,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16
         static_for<0, 2, 1>{}([&](auto k) {
             c_vec = __builtin_amdgcn_mfma_f32_16x16x8bf16(
                 reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 c_vec,
                 0,
                 0,
@@ -948,9 +1015,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M4N64K4
             static_for<0, 2, 1>{}([&](auto k) {
                 c_vec = __builtin_amdgcn_mfma_f32_4x4x2bf16(
                     reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     c_vec,
                     0,
                     0,
@@ -981,9 +1048,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M4N64K4
         static_for<0, 2, 1>{}([&](auto k) {
             c_vec = __builtin_amdgcn_mfma_f32_4x4x2bf16(
                 reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 c_vec,
                 0,
                 0,
@@ -1048,9 +1115,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M64N4K4
             static_for<0, 2, 1>{}([&](auto k) {
                 c_vec = __builtin_amdgcn_mfma_f32_4x4x2bf16(
                     reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     c_vec,
                     0,
                     0,
@@ -1081,9 +1148,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M64N4K4
         static_for<0, 2, 1>{}([&](auto k) {
             c_vec = __builtin_amdgcn_mfma_f32_4x4x2bf16(
                 reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 c_vec,
                 0,
                 0,
@@ -1255,9 +1322,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K16
             static_for<0, 2, 1>{}([&](auto k) {
                 c_vec = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
                     reinterpret_cast<const thread_buffer<ADataType, 8>&>(a_vec)
-                        .template get_as<ext_vector_t<bf16_t, 4>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 4>>()[number<k>{}],
                     reinterpret_cast<const thread_buffer<BDataType, 8>&>(b_vec)
-                        .template get_as<ext_vector_t<bf16_t, 4>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 4>>()[number<k>{}],
                     c_vec,
                     0,
                     0,
@@ -1267,9 +1334,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K16
             static_for<0, 4, 1>{}([&](auto k) {
                 c_vec = __builtin_amdgcn_mfma_f32_32x32x4bf16(
                     reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                        .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                        .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                     c_vec,
                     0,
                     0,
@@ -1294,9 +1361,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K16
         static_for<0, 2, 1>{}([&](auto k) {
             c_vec = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
                 reinterpret_cast<const thread_buffer<ADataType, 8>&>(a_vec)
-                    .template get_as<ext_vector_t<bf16_t, 4>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 4>>()[number<k>{}],
                 reinterpret_cast<const thread_buffer<BDataType, 8>&>(b_vec)
-                    .template get_as<ext_vector_t<bf16_t, 4>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 4>>()[number<k>{}],
                 c_vec,
                 0,
                 0,
@@ -1308,9 +1375,9 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K16
         static_for<0, 4, 1>{}([&](auto k) {
             c_vec = __builtin_amdgcn_mfma_f32_32x32x4bf16(
                 reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 reinterpret_cast<const thread_buffer<BDataType, 4>&>(b_vec)
-                    .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
+                    .template get_as<ext_vector_t<short, 2>>()[number<k>{}],
                 c_vec,
                 0,
                 0,
@@ -1994,7 +2061,9 @@ struct WarpGemmAttributeMfmaImpl_i32_32x32x16_i8
                     type_convert<float>(reinterpret_cast<const thread_buffer<BDataType, 8>&>(b_vec)
                                             .template get_as<BDataType>()[number<k>{}]);
 
-                c_vec = __builtin_amdgcn_mfma_f32_32x32x2f32(a_f32, b_f32, c_vec, 0, 0, 0);
+                // this fallback accumulates an i32 C tile through the f32 MFMA
+                c_vec = bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_32x32x2f32(
+                    a_f32, b_f32, bit_cast<fp32x16_t>(c_vec), 0, 0, 0));
             });
 #else
             ck_tile::ignore = c_vec;
@@ -2110,7 +2179,8 @@ struct WarpGemmAttributeMfmaImpl_i32_16x16x64_i8
         else
         {
 #if defined(__gfx950__)
-            c_vec = __builtin_amdgcn_mfma_i32_16x16x64_i8(a_vec, b_vec, c_vec, 0, 0, 0);
+            c_vec = __builtin_amdgcn_mfma_i32_16x16x64_i8(
+                bit_cast<int32x4_t>(a_vec), bit_cast<int32x4_t>(b_vec), c_vec, 0, 0, 0);
 #else
             ck_tile::ignore = c_vec;
             ck_tile::ignore = a_vec;
@@ -2168,7 +2238,7 @@ struct WarpGemmAttributeMfmaImpl_i32_32x32x32_i8
         {
 #if defined(__gfx95__)
             c_vec = __builtin_amdgcn_mfma_i32_32x32x32_i8(
-                a_vec, bit_cast<int64_t>(b_vec), c_vec, 0, 0, 0);
+                bit_cast<int32x4_t>(a_vec), bit_cast<int32x4_t>(b_vec), c_vec, 0, 0, 0);
 #else
             ck_tile::ignore = c_vec;
             ck_tile::ignore = a_vec;

@@ -621,7 +621,10 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
                 constexpr auto found_y_index     = container_find(src_y_dims, uniformed_h_index);
                 constexpr auto y_to_h_dim_end    = src_y_prefix_sum[id + 1];
 
-                static_assert(found_y_index >= 0 && found_y_index < src_y_dims.size(),
+                constexpr bool dim_taken_whole =
+                    (x_slice_lengths[id] == container_reduce(h_len, multiplies<>{}, number<1>{}));
+                static_assert(dim_taken_whole ||
+                                  (found_y_index >= 0 && found_y_index < src_y_dims.size()),
                               "not sliced at y dim, please check");
 
                 {

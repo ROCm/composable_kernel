@@ -21,7 +21,7 @@ left_nav_title = f"Composable Kernel {version_number} Documentation"
 # for PDF output on Read the Docs
 project = "Composable Kernel Documentation"
 author = "Advanced Micro Devices, Inc."
-copyright = "Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved."
+copyright = "Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved."
 version = version_number
 release = version_number
 
@@ -64,3 +64,6 @@ bibtex_bibfiles = ["refs.bib"]
 
 cpp_id_attributes = ["__global__", "__device__", "__host__"]
 extensions = globals().get("extensions", []) + ["sphinxcontrib.datatemplates"]
+
+# Generate llms.txt
+rocm_docs_generate_llms = True

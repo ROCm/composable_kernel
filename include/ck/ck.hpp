@@ -51,12 +51,11 @@
 #endif
 
 // define general macros for various architectures
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
-    defined(__gfx9_4_generic__)
-#define __gfx9__
-#endif
 #if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
+#endif
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__)
+#define __gfx9__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__) || \
     defined(__gfx1013__) || defined(__gfx10_1_generic__)
@@ -72,15 +71,14 @@
     defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
-#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__) || \
-    defined(__gfx1250__)
-#define __gfx12__
-#endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
 #define __gfx120__
 #endif
-#if defined(__gfx1250__)
+#if defined(__gfx1250__) || defined(__gfx1250_strict__)
 #define __gfx125__
+#endif
+#if defined(__gfx120__) || defined(__gfx125__)
+#define __gfx12__
 #endif
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
@@ -96,19 +94,26 @@
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0
 #elif defined(__SPIRV__) // SPIR-V: dynamically select via ZCFS at runtime
 #define CK_BUFFER_RESOURCE_3RD_DWORD                                                               \
-    ((__builtin_amdgcn_processor_is("gfx1100") || __builtin_amdgcn_processor_is("gfx1101") ||      \
-      __builtin_amdgcn_processor_is("gfx1102") || __builtin_amdgcn_processor_is("gfx1103") ||      \
-      __builtin_amdgcn_processor_is("gfx1150") || __builtin_amdgcn_processor_is("gfx1151") ||      \
-      __builtin_amdgcn_processor_is("gfx1152") || __builtin_amdgcn_processor_is("gfx1153") ||      \
-      __builtin_amdgcn_processor_is("gfx1200") || __builtin_amdgcn_processor_is("gfx1201"))        \
-         ? 0x31004000                                                                              \
-         : ((__builtin_amdgcn_processor_is("gfx1030") ||                                           \
-             __builtin_amdgcn_processor_is("gfx1031") ||                                           \
-             __builtin_amdgcn_processor_is("gfx1032") ||                                           \
-             __builtin_amdgcn_processor_is("gfx1034") ||                                           \
-             __builtin_amdgcn_processor_is("gfx1035") || __builtin_amdgcn_processor_is("gfx1036")) \
-                ? 0x31014000                                                                       \
-                : 0x00020000))
+    (__builtin_amdgcn_processor_is("gfx1250")                                                      \
+         ? 0                                                                                       \
+         : ((__builtin_amdgcn_processor_is("gfx1100") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1101") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1102") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1103") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1150") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1151") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1152") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1153") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1200") || __builtin_amdgcn_processor_is("gfx1201")) \
+                ? 0x31004000                                                                       \
+                : ((__builtin_amdgcn_processor_is("gfx1030") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1031") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1032") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1034") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1035") ||                                    \
+                    __builtin_amdgcn_processor_is("gfx1036"))                                      \
+                       ? 0x31014000                                                                \
+                       : 0x00020000)))
 #else
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1 // Unknown device
 #endif
@@ -220,6 +225,12 @@
 #else
 #define CK_USE_LLVM_BUILTIN_BF16 0
 #endif
+#endif
+
+// LLVM is switching the AMDGPU f16 builtin signatures from __fp16 to _Float16.
+// Temporarily hardcode this macro to 0 until a reliable compiler signature is available.
+#ifndef CK_USE_LLVM_BUILTIN_FLOAT16
+#define CK_USE_LLVM_BUILTIN_FLOAT16 0
 #endif
 
 // hardware support _bf16 data type

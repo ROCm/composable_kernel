@@ -40,12 +40,15 @@ def _load_config(path: Path) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Batched-contraction bridge benchmark")
     ap.add_argument("--config", type=Path,
-                    default=_HERE.parent / "batched_contraction" / "configs" / "bridge_default_ci_config.json")
+                    default=_HERE.parent / "batched_contraction" / "configs" / "bridge_default_ci_config.json",
+                    help="TE sweep config JSON (default: bridge_default_ci_config.json; on "
+                    "gfx1250/MI400 pass bridge_default_ci_config_gfx1250.json for WMMA 16x16x32)")
     ap.add_argument("--dtype", default="fp16", choices=["fp16", "bf16", "fp32"])
     ap.add_argument("--layout", default="rcr")
     # Leave arch unset by default so setup resolves the visible GPU architecture
-    # via rocminfo; hardcoding gfx942 would compile the wrong ISA on gfx950.
-    ap.add_argument("--arch", default=None)
+    # via rocminfo; hardcoding gfx942 would compile the wrong ISA on gfx950/gfx1250.
+    ap.add_argument("--arch", default=None,
+                    help="GPU arch (gfx90a/gfx942/gfx950/gfx1250); default: auto-detect via rocminfo.")
     ap.add_argument("--output-dir", type=Path, default=Path("/tmp/bc_bridge_bench"))
     ap.add_argument("--g", type=int, default=8)
     ap.add_argument("--m", type=int, default=1024)

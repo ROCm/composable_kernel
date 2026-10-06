@@ -56,7 +56,7 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
             make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(YPerTile{}, XPerTile{}),
                              bq_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeBQDramTileDistribution<Problem>());
+                             Policy::template MakeBQDramTileDistribution<Problem, true>());
         return bq_copy_dram_window;
     }
 };

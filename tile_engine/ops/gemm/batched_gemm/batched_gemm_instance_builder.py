@@ -21,7 +21,41 @@ def _import_gemm_kernel_builder():
     return gemm_builder_module.GemmKernelBuilder
 
 
+def _import_split_trait():
+    """Import the trait-string splitter shared by the GEMM ops."""
+    module_path = Path(__file__).resolve().parent.parent / "trait_parse.py"
+
+    spec = importlib.util.spec_from_file_location("trait_parse", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load split_trait from {module_path}")
+
+    trait_parse_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(trait_parse_module)
+    return trait_parse_module.split_trait
+
+
 GemmKernelBuilder = _import_gemm_kernel_builder()
+split_trait = _import_split_trait()
+
+# BatchedGemmKernel advances the B pointer of each batch by batch_stride_B plus
+# the split-K offset of an unshuffled B. A weight-preshuffled (flat) B needs a
+# different offset, so the preshuffle pipelines are rejected for batched GEMM.
+BATCHED_GEMM_UNSUPPORTED_PIPELINES = (
+    "weight_preshuffle",
+    "preshufflev2",
+    "preshuffle_tdm",
+)
+BATCHED_GEMM_PRESHUFFLE_ERROR = (
+    "batched_gemm does not support weight-preshuffle pipelines: "
+    "batched_gemm_kernel.hpp offsets B per batch/split-K for an unshuffled B"
+)
+
+
+def check_batched_gemm_pipelines(pipelines):
+    """Raise ValueError if any weight-preshuffle pipeline is requested."""
+    rejected = [p for p in pipelines if p in BATCHED_GEMM_UNSUPPORTED_PIPELINES]
+    if rejected:
+        raise ValueError(f"{BATCHED_GEMM_PRESHUFFLE_ERROR}: {', '.join(rejected)}")
 
 
 class BatchedGemmKernelBuilder(GemmKernelBuilder):
@@ -56,6 +90,18 @@ class BatchedGemmKernelBuilder(GemmKernelBuilder):
 
     def list_kernels(self):
         self._list_kernels()
+
+    def _generate_trait_combinations(self):
+        """Reject weight-preshuffle pipelines in the config before listing kernels."""
+        trait_config = self.config["trait_config"]
+        check_batched_gemm_pipelines(
+            trait_config.get("pipeline", {}).get("values", []) or []
+        )
+        return super()._generate_trait_combinations()
+
+    def _check_pipeline_allowed_for_op(self, pipeline, epilogue, *pads):
+        check_batched_gemm_pipelines([pipeline])
+        super()._check_pipeline_allowed_for_op(pipeline, epilogue, *pads)
 
     def _generate_all_individual(self, num_workers=None):
         """Generate individual kernel files for separate compilation with parallel processing"""
@@ -157,11 +203,10 @@ class BatchedGemmKernelBuilder(GemmKernelBuilder):
             "warp_tile_k": int(warp_tile_dims[2]),
         }
 
-        trait_parts = trait_combo_str.split("_")
+        # Pipeline names such as comp_tdm_v2 contain "_"
+        trait_parts = split_trait(trait_combo_str)
         if len(trait_parts) != 6:
-            raise ValueError(
-                f"Unexpected batched GEMM trait combo: {trait_combo_str}"
-            )
+            raise ValueError(f"Unexpected batched GEMM trait combo: {trait_combo_str}")
         trait_combo = (
             trait_parts[0],
             trait_parts[1],
@@ -171,7 +216,9 @@ class BatchedGemmKernelBuilder(GemmKernelBuilder):
             self._bool_from_str(trait_parts[5]),
         )
 
-        generated_name, _ = self._generate_kernel_instance(tile_config, trait_combo)
+        generated_name, _ = self._generate_kernel_instance(
+            tile_config, trait_combo, validate=True
+        )
         if kernel_name and kernel_name != generated_name:
             raise ValueError(
                 f"Kernel name mismatch: expected {kernel_name}, generated {generated_name}"

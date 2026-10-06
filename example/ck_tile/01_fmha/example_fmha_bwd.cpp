@@ -88,6 +88,12 @@ auto create_args(int argc, char* argv[])
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic operation "
                 "will not be used")
         .insert("sink_grad", "0", "if set to 1, compute and validate sink token gradient")
+        .insert("sink_regime",
+                "sensitive",
+                "sink values used when sink_grad=1\n"
+                "  sensitive  - rand[-1,1], keeps d_sink dependent on the sink element read\n"
+                "  neutral    - -inf on every other head, pins the sink_ptr[nhead] contract\n"
+                "  saturated  - rand[30,60], exercises P_sink -> 1 and lse saturation")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
         .insert("jsonfile", "fmha_bwd.json", "json file name to dump results");
 
@@ -124,6 +130,19 @@ auto run(const ck_tile::ArgParser& arg_parser)
     std::string init_method  = arg_parser.get_str("init");
     uint32_t seed            = arg_parser.get_uint32("seed");
     bool sink_grad           = arg_parser.get_bool("sink_grad");
+
+    const std::string sink_regime_str = arg_parser.get_str("sink_regime");
+    sink_regime sink_values           = sink_regime::sensitive;
+    if(sink_regime_str == "neutral")
+        sink_values = sink_regime::neutral_heads;
+    else if(sink_regime_str == "saturated")
+        sink_values = sink_regime::saturated;
+    else if(sink_regime_str != "sensitive")
+    {
+        std::cerr << "unknown sink_regime '" << sink_regime_str
+                  << "', expected sensitive|neutral|saturated" << std::endl;
+        return bwd_result::invalid_args;
+    }
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -162,7 +181,8 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         seed,
                                         do_validation,
                                         stream_config,
-                                        json);
+                                        json,
+                                        sink_values);
 }
 
 int main(int argc, char* argv[])

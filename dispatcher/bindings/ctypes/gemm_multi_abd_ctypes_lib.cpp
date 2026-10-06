@@ -393,6 +393,10 @@ int dispatcher_run_multi_abd(const void** as_hosts,
         {
             *time_ms = -1.0f;
         }
+        if(std::string(e.what()).find("not supported") != std::string::npos)
+        {
+            return -3; // Arguments not supported by this kernel
+        }
         return -2;
     }
 

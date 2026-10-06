@@ -88,6 +88,7 @@ class GroupedRowColQuantGemmBenchmark(GemmBenchmark):
 
         for kernel_path in kernels:
             kernel_info = self.extract_kernel_info(kernel_path)
+            self.launch_attempted += 1
             result = benchmark_utils.run_kernel(
                 self.build_dir, kernel_path, params, verbose=self.verbose
             )
@@ -122,6 +123,8 @@ class GroupedRowColQuantGemmBenchmark(GemmBenchmark):
                         f"  {kernel_info['config_id']}: {structured_result['tflops']:.2f} TFLOPS, "
                         f"{structured_result['bandwidth_gb_s']:.2f} GB/s, {structured_result['time_ms']:.2f}ms"
                     )
+            else:
+                self.launch_failed += 1
 
         return results
 
@@ -301,6 +304,9 @@ class GroupedRowColQuantGemmBenchmark(GemmBenchmark):
                 ),
                 "successful_runs": len(successful_results),
                 "failed_runs": len(self.results) - len(successful_results),
+                "launches_attempted": self.launch_attempted,
+                "launches_succeeded": self.launch_attempted - self.launch_failed,
+                "launches_failed": self.launch_failed,
             },
             "performance_summary": {
                 "tflops_stats": {
@@ -474,9 +480,41 @@ def main():
         benchmark_utils.export_csv(benchmark.results, args.csv)
         benchmark_utils.export_best_kernels(best_kernels, args.best)
         if args.json:
-            benchmark_utils.export_json(benchmark.results, args.json, best_kernels)
+            benchmark_utils.export_json(
+                benchmark.results,
+                args.json,
+                best_kernels,
+                launch_counts={
+                    "attempted": benchmark.launch_attempted,
+                    "failed": benchmark.launch_failed,
+                },
+            )
 
     print("\nBenchmark complete!")
+
+    # Exiting 0 after every launch failed would leave the CI lane green with no signal
+    attempted = benchmark.launch_attempted
+    failed = benchmark.launch_failed
+    succeeded = attempted - failed
+    print(f"Launches: {attempted} attempted, {succeeded} succeeded, {failed} failed")
+
+    if attempted == 0:
+        print("No kernel launches were attempted - no kernels discovered")
+        return 1
+    if not benchmark.results:
+        print("No benchmark results were collected")
+        return 1
+    if failed > 0:
+        # A warning, not a failure: this sweep runs every generated config, and
+        # individual configs legitimately fail to launch (unsupported tile shape
+        # for the arch, workspace too large for the problem size). Making any
+        # single failure red would trade a permanently-green lane for a
+        # permanently-red one, which is no more informative. Total failure is
+        # already caught by the empty-result check above, and the per-run counts
+        # are in the JSON (launches_attempted/succeeded/failed) for anyone
+        # tracking the trend.
+        print(f"WARNING: {failed} of {attempted} kernel launch(es) failed")
+
     return 0
 
 

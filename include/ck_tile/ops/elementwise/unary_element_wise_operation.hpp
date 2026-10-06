@@ -648,6 +648,8 @@ CK_TILE_HOST_DEVICE bf16x8_t fp4x4_to_bf16x8_scale(const pk_fp4x4_t& src, const 
     y[5] = y2[1];
     y[6] = y3[0];
     y[7] = y3[1];
+#elif defined(__gfx125__)
+    y = pk_fp4_to_bf16x8(src, scale);
 #else
     static_for<0, 4, 1>{}([&](auto i) {
         auto yi            = pk_fp4_to_bf16x2(src[i.value], scale);
@@ -687,6 +689,8 @@ CK_TILE_HOST_DEVICE fp16x8_t fp4x4_to_fp16x8_scale(const pk_fp4x4_t& src, const 
     y[5] = y2[1];
     y[6] = y3[0];
     y[7] = y3[1];
+#elif defined(__gfx125__)
+    y = pk_fp4_to_fp16x8(src, scale);
 #else
     static_for<0, 4, 1>{}([&](auto i) {
         auto yi            = pk_fp4_to_fp16x2(src[i.value], scale);

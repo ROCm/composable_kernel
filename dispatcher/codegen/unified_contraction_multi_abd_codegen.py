@@ -58,6 +58,100 @@ _DTYPE_TO_CK: Dict[str, str] = {
     "bf8":  "ck_tile::bf8_t",
 }
 
+_DTYPE_ELEM_BITS: Dict[str, int] = {
+    "fp16": 16,
+    "bf16": 16,
+    "fp32": 32,
+    "fp8":  8,
+    "bf8":  8,
+}
+
+
+def normalize_gfx_arch(arch: str) -> str:
+    """Strip feature suffixes: 'gfx942:sramecc+:xnack-' -> 'gfx942'.
+
+    Both rocm_agent_enumerator and CMake hand back suffixed forms, and a bare
+    string comparison against them silently misses.
+    """
+    return (arch or "").split(":", 1)[0].strip()
+
+
+# Per-arch default warp tile for 16-bit inputs. gfx9 (CDNA) is wave64/MFMA and
+# takes 32x32x16; gfx1250 (MI400) is wave32 with RDNA-style WMMA and has only
+# 16x16x32 for 16-bit -- an MFMA tile does not exist there.
+_DEFAULT_WARP_TILE_BY_ARCH: Dict[str, Tuple[int, int, int]] = {
+    "gfx90a":  (32, 32, 16),
+    "gfx942":  (32, 32, 16),
+    "gfx950":  (32, 32, 16),
+    "gfx1250": (16, 16, 32),
+}
+
+
+def default_warp_tile_for_arch(arch: str) -> Tuple[int, int, int]:
+    """Default (warp_tile_m, warp_tile_n, warp_tile_k) for 16-bit on `arch`."""
+    return _DEFAULT_WARP_TILE_BY_ARCH[normalize_gfx_arch(arch)]
+
+
+# Warp tiles each arch can actually execute, keyed by element width in bits.
+#
+# Opt-in by design: an arch absent from this table is not filtered at all, which
+# is what keeps every gfx9 target byte-for-byte identical. An arch that IS
+# present is restricted to the listed tiles for the dtype's width; a width it
+# does not list yields the empty set -- a deliberate refusal rather than a
+# kernel nobody has validated.
+#
+# gfx1250 lists 16-bit only. Its 8-bit shape has never been established in
+# either direction for this operator, so emitting one would ship an untested
+# claim. Refusing is the honest default until it is measured.
+_ARCH_VALID_WARP_TILES: Dict[str, Dict[int, frozenset]] = {
+    "gfx1250": {
+        16: frozenset({(16, 16, 32)}),
+    },
+}
+
+
+# Dtype support is separate from warp-tile legality. gfx90a retains its
+# FP8/BF8 conversion fallback; this operator rejects FP8/BF8 only on gfx1250.
+_UNSUPPORTED_DTYPES_BY_ARCH = {
+    "gfx1250": frozenset({"fp8", "bf8"}),
+}
+
+
+def validate_dtype_for_arch(dtype: str, arch: str) -> None:
+    """Reject unsupported dtypes once the target architecture is known."""
+    arch = normalize_gfx_arch(arch)
+    if dtype in _UNSUPPORTED_DTYPES_BY_ARCH.get(arch, ()):
+        raise ValueError(
+            f"contraction_multi_abd: dtype {dtype!r} is currently not supported on {arch}. "
+            "Use fp16 or bf16 on this architecture."
+        )
+
+
+def validate_layout(layout: str) -> None:
+    """Only rcr is supported, independently of the target architecture."""
+    if layout != "rcr":
+        raise ValueError(
+            f"contraction_multi_abd: layout {layout!r} is not supported. "
+            "Only 'rcr' is supported on all architectures."
+        )
+
+
+def valid_warp_tiles_for_arch(arch: str, dtype: str) -> Optional[frozenset]:
+    """Warp tiles `arch` can execute for `dtype`, or None if unconstrained.
+
+    None means the dtype has no architecture-specific warp-tile constraint.
+    An empty frozenset means "this arch has no valid tile for this dtype",
+    which is a refusal, not an absence of information.
+    """
+    arch = normalize_gfx_arch(arch)
+    if dtype in _UNSUPPORTED_DTYPES_BY_ARCH.get(arch, ()):
+        return frozenset()
+    by_width = _ARCH_VALID_WARP_TILES.get(arch)
+    if by_width is None:
+        return None
+    return by_width.get(_DTYPE_ELEM_BITS.get(dtype, 0), frozenset())
+
+
 _LAYOUT_TO_CK: Dict[str, str] = {
     "r": "ck_tile::tensor_layout::gemm::RowMajor",
     "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
@@ -90,6 +184,7 @@ SUPPORTED_EPILOGUES = ("cshuffle", "default2d")
 
 def validate_contraction_multi_abd_params(
     *,
+    layout: str,
     epilogue: str,
     persistent: bool,
     num_a_tensor: int,
@@ -104,6 +199,7 @@ def validate_contraction_multi_abd_params(
 
     Raises ValueError on an unsupported combination.
     """
+    validate_layout(layout)
     if epilogue not in SUPPORTED_EPILOGUES:
         raise ValueError(
             f"Unsupported epilogue: {epilogue!r}. "
@@ -243,6 +339,7 @@ class ContractionMultiABDKernelSpec:
 
     def __post_init__(self):
         validate_contraction_multi_abd_params(
+            layout=self.layout,
             epilogue=self.epilogue,
             persistent=self.persistent,
             num_a_tensor=self.num_a_tensor,
@@ -578,7 +675,7 @@ static constexpr ck_tile::index_t NumDimsK = ns_{kernel_name}::NumDimK;
 # =============================================================================
 
 
-def _expand_nested_config(config: dict) -> dict:
+def _expand_nested_config(config: dict, gfx_arch: str = "") -> dict:
     """
     Convert the JSON file format (tile_config / trait_config nested keys) into
     the flat format that build_specs() reads (pipelines, tile_configs, etc.).
@@ -590,7 +687,8 @@ def _expand_nested_config(config: dict) -> dict:
     build_specs() expects flat keys: dtypes, layouts, pipelines, tile_configs, pad_options, etc.
     If neither nested format is present the dict is returned as-is (already flat).
     """
-    if "tile_config" not in config and "trait_config" not in config:
+    if ("tile_config" not in config and "trait_config" not in config
+            and "arch_tile_config" not in config):
         return config  # already flat (e.g., from to_codegen_config() or inline overrides)
 
     def _expand_range(spec: dict) -> List[int]:
@@ -601,7 +699,15 @@ def _expand_nested_config(config: dict) -> dict:
 
     flat = dict(config)  # shallow copy; keeps flat keys from CMake merge (dtypes, layouts, ...)
 
+    # An arch-scoped block replaces tile_config wholesale when the requested
+    # arch matches. tile_config itself is never modified, which is what keeps
+    # every other target byte-for-byte identical.
     tc = config.get("tile_config", {})
+    arch_key = normalize_gfx_arch(gfx_arch)
+    arch_blocks = config.get("arch_tile_config", {})
+    if arch_key and arch_key in arch_blocks:
+        tc = arch_blocks[arch_key]
+
     if tc:
         tile_dim_keys = ["tile_m", "tile_n", "tile_k",
                          "warp_m", "warp_n", "warp_k",
@@ -649,35 +755,47 @@ def _expand_nested_config(config: dict) -> dict:
         ]
 
     flat.pop("tile_config", None)
+    flat.pop("arch_tile_config", None)
     flat.pop("trait_config", None)
     return flat
 
 
-def build_specs(config: dict) -> List[ContractionMultiABDKernelSpec]:
-    """Enumerate all specs from a config dict."""
-    config = _expand_nested_config(config)
+def build_specs(config: dict, gfx_arch: str = "",
+                config_path: str = "") -> List[ContractionMultiABDKernelSpec]:
+    """Enumerate all specs from a config dict.
 
-    # dtypes/layouts accept anything _DTYPE_TO_CK and the layout decoder know,
-    # but not every value reaches a compiling kernel today. Measured on gfx942
-    # at 256x256x64 / compv3 / cshuffle: fp16, bf16, fp8 and bf8 build; fp32
-    # does not. Of the layouts only rcr builds -- rrr/ccr/crr trip the
-    # row-major-B static_assert in gemm_pipeline_ag_bg_cr_comp_v3.hpp, and that
-    # still fires with pad_k on, at 128x128x32, and on the mem pipeline, so it
-    # is not a tile-shape accident. These are left as values you may pass
-    # rather than hard errors because the constraint lives in the pipeline and
-    # may lift there; the support matrices record what is actually usable.
+    `gfx_arch` selects any arch-scoped tile block and enables the arch warp-tile
+    filter. Layout validation also applies when no architecture is supplied.
+    """
+    config = _expand_nested_config(config, gfx_arch)
+
+    # Layout support is operator-wide; dtype support additionally depends on
+    # the target. Validate the requested surface before filtering tile shapes
+    # so an unsupported request cannot silently disappear from a mixed config.
     dtypes     = config.get("dtypes",     ["fp16"])
     layouts    = config.get("layouts",    ["rcr"])
+    for layout in layouts:
+        validate_layout(layout)
+    for dtype in dtypes:
+        validate_dtype_for_arch(dtype, gfx_arch)
     pipelines  = config.get("pipelines",  ["compv3"])
     epilogues  = config.get("epilogues",  ["cshuffle"])
     schedulers = config.get("schedulers", ["intrawave"])
 
     pad_options = config.get("pad_options", [{"pad_m": False, "pad_n": False, "pad_k": False}])
 
+    # The built-in fallback used to carry a bare gfx9 literal, which followed
+    # the caller onto gfx1250 and answered wrongly there. With no arch supplied
+    # the gfx9 tuple is still what you get, so the no-arch path is unchanged.
+    _fallback_wt = (32, 32, 16)
+    if gfx_arch and normalize_gfx_arch(gfx_arch) in _DEFAULT_WARP_TILE_BY_ARCH:
+        _fallback_wt = default_warp_tile_for_arch(gfx_arch)
     tile_cfgs  = config.get("tile_configs", [
         {"tile_m": 256, "tile_n": 256, "tile_k": 64,
          "warp_m": 2,   "warp_n": 2,   "warp_k": 1,
-         "warp_tile_m": 32, "warp_tile_n": 32, "warp_tile_k": 16},
+         "warp_tile_m": _fallback_wt[0],
+         "warp_tile_n": _fallback_wt[1],
+         "warp_tile_k": _fallback_wt[2]},
     ])
 
     num_a_tensors = config.get("num_a_tensors", [1])
@@ -712,6 +830,17 @@ def build_specs(config: dict) -> List[ContractionMultiABDKernelSpec]:
         if not tc.is_valid():
             continue
 
+        # Arch filter. TileConfig.is_valid() above only checks that the block
+        # tile divides evenly by the warp tile -- it knows nothing about which
+        # MMA shapes the target actually has, so a gfx9 MFMA tile passes it and
+        # then emits a kernel gfx1250 compiles and answers wrongly. This is the
+        # pre-launch rejection for that case, before any header is written.
+        # Archs with no table entry return None and are not filtered at all.
+        allowed = valid_warp_tiles_for_arch(gfx_arch, dtype) if gfx_arch else None
+        if allowed is not None and (tc.warp_tile_m, tc.warp_tile_n,
+                                    tc.warp_tile_k) not in allowed:
+            continue
+
         specs.append(ContractionMultiABDKernelSpec(
             dtype=dtype,
             layout=layout,
@@ -739,6 +868,24 @@ def build_specs(config: dict) -> List[ContractionMultiABDKernelSpec]:
             cde_elementwise=cde_elementwise,
         ))
 
+    # An arch-aware expansion that matches nothing used to return [] and let the
+    # configure step report success, which is how a wrong-tile config produced a
+    # silent no-op build. Name the config and the valid tiles instead.
+    if not specs and gfx_arch:
+        allowed_by_dtype = {
+            d: valid_warp_tiles_for_arch(gfx_arch, d) for d in dtypes
+        }
+        raise ValueError(
+            f"contraction_multi_abd: no valid kernel spec for gfx_arch="
+            f"{gfx_arch!r} from this config"
+            + (f" ({config_path})" if config_path else "")
+            + f". dtypes={list(dtypes)}; warp tiles this arch accepts: "
+            + str({d: (sorted(v) if v else "none")
+                   for d, v in allowed_by_dtype.items()})
+            + ". Either the config carries no tile this arch can execute, or "
+              "the arch has no validated tile for these dtypes."
+        )
+
     return specs
 
 
@@ -756,14 +903,14 @@ def generate_one(spec: ContractionMultiABDKernelSpec, output_dir: Path) -> Optio
     return out_path
 
 
-def build_capped_specs(config: dict) -> List[ContractionMultiABDKernelSpec]:
+def build_capped_specs(config: dict, gfx_arch: str = "") -> List[ContractionMultiABDKernelSpec]:
     """Enumerate specs and apply the ``max_instances`` cap, if one is configured.
 
     Both the generator and ``--list-name`` go through here so the two always agree
     on the kernel set. Listing the uncapped names while generating a capped subset
     makes CMake expect headers that were never written.
     """
-    specs = build_specs(config)
+    specs = build_specs(config, gfx_arch)
 
     # Honor max_instances cap if set (from CONTRACTION_MULTI_ABD_MAX_INSTANCES CMake var).
     max_instances = config.get("max_instances", None)
@@ -780,12 +927,13 @@ def build_capped_specs(config: dict) -> List[ContractionMultiABDKernelSpec]:
     return specs
 
 
-def generate_kernels(output_dir: Path, config: dict, *, max_workers: int = 8) -> List[Path]:
+def generate_kernels(output_dir: Path, config: dict, *, gfx_arch: str = "",
+                     max_workers: int = 8) -> List[Path]:
     """Generate all kernel headers in parallel, return list of paths."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    specs = build_capped_specs(config)
+    specs = build_capped_specs(config, gfx_arch)
 
     log.info("Generating %d kernel headers in %s", len(specs), output_dir)
 
@@ -800,6 +948,8 @@ def generate_kernels(output_dir: Path, config: dict, *, max_workers: int = 8) ->
 # =============================================================================
 
 
+# Tile defaults are selected by build_specs() using gfx_arch. Keep them out
+# of the CLI defaults so an implicit gfx9 tile cannot override that selection.
 _DEFAULT_CONFIG: dict = {
     "dtypes":     ["fp16"],
     "layouts":    ["rcr"],
@@ -807,11 +957,6 @@ _DEFAULT_CONFIG: dict = {
     "epilogues":  ["cshuffle"],
     "schedulers": ["intrawave"],
     "pad_options": [{"pad_m": False, "pad_n": False, "pad_k": False}],
-    "tile_configs": [
-        {"tile_m": 256, "tile_n": 256, "tile_k": 64,
-         "warp_m": 2,   "warp_n": 2,   "warp_k": 1,
-         "warp_tile_m": 32, "warp_tile_n": 32, "warp_tile_k": 16},
-    ],
     "num_a_tensors": [1],
     "num_b_tensors": [1],
     "num_d_tensors": [1],
@@ -832,6 +977,10 @@ def _parse_args():
     p.add_argument("--config",     default=None,  help="JSON config file (optional)")
     p.add_argument("--list-name",  action="store_true",
                    help="Print the kernel name for the default config (for --list-name use)")
+    p.add_argument("--gfx-arch", default="",
+                   help="Target GPU arch (e.g. gfx942, gfx1250). Selects any "
+                        "arch-scoped tile block and enables the arch warp-tile "
+                        "filter. Omit to reproduce arch-agnostic behaviour.")
     p.add_argument("--max-workers", type=int, default=8, help="Codegen parallelism")
     return p.parse_args()
 
@@ -848,12 +997,14 @@ def main():
     if args.list_name:
         # Must use the same capped set the generator writes, otherwise CMake is
         # told to expect headers that generate_kernels() never produces.
-        specs = build_capped_specs(config)
+        specs = build_capped_specs(config, args.gfx_arch)
         for s in specs:
             print(s.name)
         return
 
-    paths = generate_kernels(Path(args.output_dir), config, max_workers=args.max_workers)
+    paths = generate_kernels(Path(args.output_dir), config,
+                             gfx_arch=args.gfx_arch,
+                             max_workers=args.max_workers)
     log.info("Wrote %d headers", len(paths))
 
 

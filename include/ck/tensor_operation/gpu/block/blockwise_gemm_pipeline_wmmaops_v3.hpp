@@ -33,8 +33,10 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC = false,
-          bool BSkipLDS   = false>
+          bool TransposeC       = false,
+          bool BSkipLDS         = false,
+          bool UseLdsTransposeA = false,
+          bool UseLdsTransposeB = false>
 struct BlockwiseGemmWmmaops_pipeline_v3
 {
 };
@@ -58,7 +60,9 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC>
+          bool TransposeC,
+          bool UseLdsTransposeA,
+          bool UseLdsTransposeB>
 struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                         BlockSize,
                                         ADataType,
@@ -80,7 +84,9 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                         KPack,
                                         KInner,
                                         TransposeC,
-                                        false>
+                                        false,
+                                        UseLdsTransposeA,
+                                        UseLdsTransposeB>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
@@ -100,7 +106,9 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                          NRepeat,
                                          KPack,
                                          KInner,
-                                         TransposeC>
+                                         TransposeC,
+                                         UseLdsTransposeA,
+                                         UseLdsTransposeB>
 {
     using Base = BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                                     ADataType,
@@ -121,7 +129,9 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                                     NRepeat,
                                                     KPack,
                                                     KInner,
-                                                    TransposeC>;
+                                                    TransposeC,
+                                                    UseLdsTransposeA,
+                                                    UseLdsTransposeB>;
     using Base::I0;
     using Base::I1;
     using Base::I2;

@@ -336,7 +336,8 @@ void run_mma_layout_test_single()
             const uint32_t k = (case_idx / MmaOp::kN) % MmaOp::kK;
             const uint32_t n = case_idx % MmaOp::kN;
 
-            EXPECT_EQ(h_errors[case_idx], 0u) << "Mismatch for m=" << m << " k=" << k << " n=" << n;
+            EXPECT_EQ(h_errors[case_idx], 0u)
+                << "Mismatch for SFactor=" << SFactor << " m=" << m << " k=" << k << " n=" << n;
         }
     }
     else

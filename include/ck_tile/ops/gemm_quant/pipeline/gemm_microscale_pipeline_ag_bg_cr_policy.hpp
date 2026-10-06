@@ -131,6 +131,12 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
                 Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>();
             constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
+            // Guard against a B tile access pattern these encodings never mirrored.
+            static_assert(getBTileAccessPattern() == tile_distribution_pattern::warp_raked ||
+                              getBTileAccessPattern() == tile_distribution_pattern::thread_raked,
+                          "BQuant tile distribution only mirrors the warp_raked and thread_raked "
+                          "B tile access patterns!");
+
             constexpr index_t warp_size  = get_warp_size();
             constexpr index_t num_warps  = BlockSize / get_warp_size();
             constexpr index_t LargestVec = (KPerBlock * NPerBlock) / (num_warps * warp_size);
@@ -149,17 +155,39 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
                     constexpr index_t K3 = KScale;
                     constexpr index_t K2 = 1;
 
-                    constexpr index_t N0 = num_warps / NumWaveGroups;
-                    constexpr index_t N1 = warp_size / K0;
-                    constexpr index_t N2 = NPerBlock / (N0 * N1);
+                    // B is ColumnMajor.
+                    // warp_raked defines as num_warps and thread_raked as num_warps /
+                    // NumWaveGroups. Asserting a single wave group pins the two to the same value,
+                    // and costs nothing today because TileGemmQuantTraits hardcodes NumWaveGroups
+                    // to 1.
+                    static_assert(NumWaveGroups == 1,
+                                  "BQuant tile distribution assumes a single wave group!");
+                    constexpr index_t NWarp = num_warps;
+                    constexpr index_t NLane = warp_size / K0;
+                    constexpr index_t NIter = NPerBlock / (NWarp * NLane);
 
-                    return make_static_tile_distribution(
-                        tile_distribution_encoding<sequence<K1>,
-                                                   tuple<sequence<N0, N1, N2>, sequence<K3, K2>>,
-                                                   tuple<sequence<1>, sequence<1, 2, 0>>,
-                                                   tuple<sequence<0>, sequence<1, 0, 0>>,
-                                                   sequence<1, 2>,
-                                                   sequence<2, 1>>{});
+                    if constexpr(getBTileAccessPattern() == tile_distribution_pattern::warp_raked)
+                    {
+                        return make_static_tile_distribution(
+                            tile_distribution_encoding<
+                                sequence<K1>,
+                                tuple<sequence<NWarp, NIter, NLane>, sequence<K3, K2>>,
+                                tuple<sequence<1>, sequence<1, 2, 0>>,
+                                tuple<sequence<0>, sequence<2, 0, 0>>,
+                                sequence<1, 2>,
+                                sequence<1, 1>>{});
+                    }
+                    else
+                    {
+                        return make_static_tile_distribution(
+                            tile_distribution_encoding<
+                                sequence<K1>,
+                                tuple<sequence<NWarp, NLane, NIter>, sequence<K3, K2>>,
+                                tuple<sequence<1>, sequence<1, 2, 0>>,
+                                tuple<sequence<0>, sequence<1, 0, 0>>,
+                                sequence<1, 2>,
+                                sequence<2, 1>>{});
+                    }
                 }
                 else
                 {
@@ -208,20 +236,39 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
                     constexpr index_t KRepeatInWave = Problem::BQuantGroupSize::kK / b_vec;
                     constexpr index_t K1            = KScale;
 
-                    constexpr index_t N0 = num_warps / NumWaveGroups;
-                    constexpr index_t N1 = warp_size / (KRepeatInWave * K1);
+                    // B is ColumnMajor.
+                    // warp_raked defines as num_warps and thread_raked as num_warps /
+                    // NumWaveGroups. Asserting a single wave group pins the two to the same value,
+                    // and costs nothing today because TileGemmQuantTraits hardcodes NumWaveGroups
+                    // to 1.
+                    static_assert(NumWaveGroups == 1,
+                                  "BQuant tile distribution assumes a single wave group!");
+                    constexpr index_t NWarp = num_warps;
+                    constexpr index_t NLane = warp_size / (KRepeatInWave * K1);
+                    constexpr index_t NIter = NPerBlock / (NWarp * NLane);
 
-                    // Number of contiguous elements in N dimension when reading B matrix
-                    // becomes the vector size of BQ
-                    constexpr index_t N2 = NPerBlock / (BlockSize / (KPerBlock / b_vec));
-
-                    return make_static_tile_distribution(
-                        tile_distribution_encoding<sequence<1, 1, KRepeatInWave>,
-                                                   tuple<sequence<1, K1, 1>, sequence<N0, N1, N2>>,
-                                                   tuple<sequence<1, 0, 2>, sequence<2, 0, 1, 0>>,
-                                                   tuple<sequence<0, 0, 0>, sequence<1, 1, 1, 2>>,
-                                                   sequence<1, 2>,
-                                                   sequence<2, 2>>{});
+                    if constexpr(getBTileAccessPattern() == tile_distribution_pattern::warp_raked)
+                    {
+                        return make_static_tile_distribution(
+                            tile_distribution_encoding<
+                                sequence<1, 1, KRepeatInWave>,
+                                tuple<sequence<1, K1, 1>, sequence<NWarp, NIter, NLane>>,
+                                tuple<sequence<1, 0, 2>, sequence<2, 0, 1, 0>>,
+                                tuple<sequence<0, 0, 0>, sequence<2, 1, 1, 2>>,
+                                sequence<1, 2>,
+                                sequence<2, 1>>{});
+                    }
+                    else
+                    {
+                        return make_static_tile_distribution(
+                            tile_distribution_encoding<
+                                sequence<1, 1, KRepeatInWave>,
+                                tuple<sequence<1, K1, 1>, sequence<NWarp, NLane, NIter>>,
+                                tuple<sequence<1, 0, 2>, sequence<2, 0, 1, 0>>,
+                                tuple<sequence<0, 0, 0>, sequence<1, 1, 1, 2>>,
+                                sequence<1, 2>,
+                                sequence<2, 2>>{});
+                    }
                 }
             }
         }

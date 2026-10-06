@@ -66,6 +66,7 @@ args:
                 bs or 2, block scale
                 kvbs or 3, Q per-tensor, K/V per-page block scale, only in batch_prefill
                 mx or 4, microscaling (exclusively for mxfp8/mxfp4)
+                ph or 5, per-head scale
       -iperm    permute input (default:1)
                 if true, will be b*h*s*d, else b*s*h*d
       -operm    permute output (default:1)
@@ -165,7 +166,7 @@ We support sequence padding and variable-length processing in both batch and gro
 Both approaches optimize memory access patterns while supporting flexible sequence length requirements commonly found in transformer inference scenarios.
 
 ## FP8 support
-FP8 FMHA kernels are supported on gfx942/gfx950 machines with ROCm 6.0+. Three fp8-based precision modes are available via `-prec`:
+FP8 FMHA kernels are supported on gfx942/gfx950/gfx1250 machines with ROCm 6.0+. Three fp8-based precision modes are available via `-prec`:
 
 | `-prec` value | Q/K/V input type | Output type | Description |
 |---|---|---|---|
@@ -182,5 +183,135 @@ The following quantization scale modes are available via `-qscale`:
 | `bs` or `2` | Per-block quantization scale — a scale factor is applied per block of elements |
 | `kvbs` or `3` | Q per-tensor + K/V per-page block scale (batch_prefill only) |
 | `mx` or `4` | Microscaling (MX format), exclusively for `mxfp8` and `mxfp4` data types |
+| `ph` or `5` | Per-head quantization scale — one scale factor per (batch, head) |
 
 Currently only `-vlayout=r` (`seqlen*hdim` for V matrix) is supported for fp8 data types.
+
+### V scale with `bs` on gfx1250
+
+The V scale must be a **power of two**. It rides an E8M0 scale operand and is truncated toward
+zero, so `1.9` is applied as `1.0`.
+
+Round the V scale up to a power of two **at quantization time** and quantize with that same
+value. This is not checked at runtime.
+
+## backward
+
+`tile_example_fmha_bwd` is the training-side example, implemented in `example_fmha_bwd.cpp`.
+Build it with `ninja tile_example_fmha_bwd`. Given `Q`, `K`, `V`, the forward output `O` and the
+forward `LSE`, it produces `dQ`, `dK`, `dV` (and optionally `dBias`) from an incoming `dO`.
+
+### kernels
+
+One backward call launches two or three kernels:
+
+| kernel | what it does |
+|---|---|
+| `fmha_bwd_dot_do_o` | `D[q] = rowsum(dO[q,:] * O[q,:])`, the softmax-Jacobian correction term. Also accumulates the sink gradient when enabled. |
+| `fmha_bwd_dq_dk_dv` | the main loop: recompute `P = exp(S - LSE)`, then `dV = P^T dO`, `dP = dO V^T`, `dS = P * (dP - D)`, `dK = scale * dS^T Q`, `dQ = scale * dS K` |
+| `fmha_bwd_convert_dq` | converts the fp32 `dq_acc` scratch to the output type |
+
+`P` is never stored by the forward kernel. It is recomputed from `S` and the saved `LSE`, which is
+exact rather than approximate: `LSE >= rowmax`, so `exp(S - LSE)` cannot overflow, and the row-max
+term that online softmax subtracted in the forward pass cancels.
+
+The third kernel exists because most pipelines split the grid along `seqlen_k`. Each block then
+owns a slice of the sum that forms `dQ`, so partial results are accumulated into an fp32 `dq_acc`
+workspace with `buffer_atomic_add_f32` and converted afterwards. Pipelines that keep `dQ` in
+registers for the whole `K` loop (the decode pipeline, `seqlen_q <= 32`) finish `dQ` in place and
+skip both the workspace and the convert kernel.
+
+### executable
+
+`./bin/tile_example_fmha_bwd -?` lists every argument. The shape, layout, mask, bias and dropout
+arguments match `tile_example_fmha_fwd`, with these differences:
+
+| difference | detail |
+|---|---|
+| `-scale` | named `-scale_s` in the forward example |
+| `-dbias` | `1` also produces the bias gradient (requires elementwise bias) |
+| `-p_drop` | dropout probability; the forward example has no dropout argument |
+| `-deterministic` | `1` reduces `dQ` through per-block buffers instead of atomics, making the result bit-reproducible |
+| `-sink_grad` | `1` computes and validates the attention-sink gradient (see below) |
+| absent | `-vlayout`, `-lse`, `-qscale`, `-num_splits`, `-q_eff_lens`, `-kv_eff_lens` |
+
+Example 1: `./bin/tile_example_fmha_bwd -b=1 -h=16 -s=4096 -d=128` runs batch mode, nhead=16,
+seqlen 4096, hdim 128, fp16.
+
+Example 2: `./bin/tile_example_fmha_bwd -mode=1 -b=2 -h=8 -h_k=2 -s=1024,2048 -d=64 -mask=1`
+runs group mode with GQA (8 query heads over 2 kv heads), per-batch seqlens, and a top-left causal
+mask.
+
+### attention sink gradient
+
+An attention sink is a learned per-head logit that joins the softmax denominator without
+contributing a value vector, so the attention weights over real tokens no longer sum to one. This
+is the mechanism used by gpt-oss. Setting `-sink_grad=1` gives every head a sink score and
+validates its gradient:
+
+```
+P_sink[h,q] = exp(sink[h] - LSE[h,q])
+d_sink[h]   = -sum_q P_sink[h,q] * D[h,q]
+```
+
+The sum runs over every query row of every batch, so `d_sink` has shape `[nhead]` and is
+accumulated with `atomicAdd` from `fmha_bwd_dot_do_o`. Two consequences follow:
+
+- **The caller must zero `d_sink_ptr` before the call.** The kernel only accumulates into it and
+  never initialises it.
+- `d_sink` is not bit-reproducible across runs even with `-deterministic=1`, because that flag
+  controls the `dQ` reduction only.
+
+The `LSE` handed to the backward call must be the **post-sink** `LSE`, that is
+`log(exp(LSE_nosink) + exp(sink))`, which is what the forward kernel writes when a sink is
+enabled. This matters for fully masked rows: with a sink their `LSE` is `sink` rather than `-inf`,
+which is what keeps `exp(sink - LSE)` finite.
+
+A head whose sink score is `-inf` is treated as having no sink and yields a `d_sink` of exactly
+zero. This is handled by skipping the head rather than by evaluating the formula, because a fully
+masked row carries `LSE = -inf` as well (bottom-right causal with `seqlen_q > seqlen_k` produces
+such rows) and `exp(-inf - -inf)` is `NaN`. Passing `sink_ptr = nullptr` disables the sink for the
+whole call and is equivalent for a head that is `-inf` everywhere.
+
+`D` is scaled by `p_undrop` before the sink path reads it, so dropout feeds the sink gradient
+correctly.
+
+The sink field of the mask string (`-mask=t:l,r,sink`, the StreamingLLM rolling-cache sink) is
+parsed but **ignored** by the backward kernel, which always builds its mask with `sink_size = 0`.
+That masking scheme is defined for inference only and has no published backward formulation.
+
+### what the example binary can and cannot run
+
+`CMakeLists.txt` generates the backward instances with `--receipt 3`, which is considerably
+narrower than what the kernel templates support. Combinations outside it print
+`no kernel found for given traits, skipping run` and are skipped, not failed:
+
+| restriction from receipt 3 | effect |
+|---|---|
+| `dtype in [fp16, bf16]` | `-prec=fp32` has no instance |
+| `bias in [no, alibi]` | `-bias=e` has no instance, so `-dbias=1` is unreachable |
+| `deterministic == f` | `-deterministic=1` has no instance |
+| `dpad == dvpad` | `-d` and `-d_v` must fall in the same padding class (both multiples of 8, or neither) |
+
+On gfx1250 the `dq_dk_dv` pipeline follows the tile the dispatcher picks, so `-d` and `-s`
+together select the tile and the tile carries the pipeline with it. Head dim buckets are
+tested in ascending order, and within a bucket the first matching row wins:
+
+| head dim | condition | tile | pipeline |
+|---|---|---|---|
+| `<= 32` | — | b64x128 | `TdmKRKTR` |
+| `(32, 64]` | `seqlen_q <= 32` and `batch * nhead >= 768` | b32x32 | `TrLoadQRQTRDOR` + TDM policy (decode; `dQ` stays in registers) |
+| `(32, 64]` | otherwise | b64x128 | `TdmKRKTR` |
+| `(64, 128]` | masked, `seqlen_q <= 32` and `batch * nhead >= 768` | b32x32 | `TrLoadQRQTRDOR` + TDM policy (decode) |
+| `(64, 128]` | `seqlen_q <= 32` | b32x64 | `TdmKRKTR` |
+| `(64, 128]` | otherwise | b64x128 | `TdmKRKTR` |
+| `(128, 256]` | — | b32x64 | `TdmKRKTR` |
+
+The decode rows additionally require `hdim % 8 == 0`. Head dims of 32 and below, and above
+128, have no decode tile, so a short `seqlen_q` there stays on `TdmKRKTR`. At head dim 128 the
+b64x128 tile runs a shallower Q/dO ring up to `seqlen_q` 2048 and the deeper one beyond it.
+
+`KRKTRVRIGLP`, `KRKTRVR` and `TrLoadKRKTRVR` are still compiled and still selected on other
+architectures.
+
+Pass `-kname=1` to print which instance was dispatched.

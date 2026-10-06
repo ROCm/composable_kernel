@@ -45,7 +45,7 @@ if (CK_USE_FNUZ_FP8)
   add_dependencies(test_fp8 test_bf8_fnuz)
 endif()
 
-if(GPU_TARGETS MATCHES "gfx950|gfx125")
+if(GPU_TARGETS MATCHES "gfx950|gfx125" AND NOT GPU_TARGETS MATCHES "gfx1250-strict")
   add_custom_target(test_mx_data_types)
 
   add_gtest_executable(test_fp4 test_fp4.cpp)
@@ -133,7 +133,7 @@ if(result EQUAL 0)
 endif()
 add_gtest_executable(test_pk_i4 test_pk_i4.cpp)
 
-if(GPU_TARGETS MATCHES "gfx1250")
+if(GPU_TARGETS MATCHES "gfx1250" AND NOT GPU_TARGETS MATCHES "gfx1250-strict")
   add_gtest_executable(test_mx_fp8_pk4scale test_mx_fp8_pk4scale.cpp)
   if(result EQUAL 0)
     target_link_libraries(test_mx_fp8_pk4scale PRIVATE utility)
