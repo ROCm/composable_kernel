@@ -56,131 +56,138 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 
     constexpr index_t LDS_size =
         GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
-    __shared__ char p_shared[LDS_size];
 
-    const index_t block_id_x = __builtin_amdgcn_readfirstlane(blockIdx.x);
-    const index_t g_idx      = __builtin_amdgcn_readfirstlane(blockIdx.y);
-    const index_t n_idx      = __builtin_amdgcn_readfirstlane(blockIdx.z);
-
-    const long_index_t a_group_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
-    const long_index_t b_group_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
-    const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
-    const long_index_t e_group_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
-
-    const long_index_t a_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
-    const long_index_t b_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetBPtrOffset(n_idx));
-    const auto& ds_n_offset = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
-    const long_index_t e_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
-
-    index_t left     = 0;
-    index_t right    = gemms_count;
-    index_t group_id = index_t((left + right) / 2);
-    while((!(block_id_x >= gemm_desc_kernel_args[group_id].BlockStart_ &&
-             block_id_x < gemm_desc_kernel_args[group_id].BlockEnd_)) &&
-          left <= right)
+    if constexpr(LDS_size <= get_lds_size(get_device_arch()))
     {
-        if(block_id_x < gemm_desc_kernel_args[group_id].BlockStart_)
+        __shared__ char p_shared[LDS_size];
+
+        const index_t block_id_x = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const index_t g_idx      = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t n_idx      = __builtin_amdgcn_readfirstlane(blockIdx.z);
+
+        const long_index_t a_group_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
+        const long_index_t b_group_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
+        const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
+        const long_index_t e_group_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
+
+        const long_index_t a_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+        const long_index_t b_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetBPtrOffset(n_idx));
+        const auto& ds_n_offset = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
+        const long_index_t e_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
+
+        index_t left     = 0;
+        index_t right    = gemms_count;
+        index_t group_id = index_t((left + right) / 2);
+        while((!(block_id_x >= gemm_desc_kernel_args[group_id].BlockStart_ &&
+                 block_id_x < gemm_desc_kernel_args[group_id].BlockEnd_)) &&
+              left <= right)
         {
-            right = group_id;
+            if(block_id_x < gemm_desc_kernel_args[group_id].BlockStart_)
+            {
+                right = group_id;
+            }
+            else
+            {
+                left = group_id;
+            }
+            group_id = index_t((left + right) / 2);
         }
-        else
+
+        const auto& gemm_arg  = gemm_desc_kernel_args[group_id];
+        const index_t block_x = block_id_x - gemm_arg.BlockStart_;
+
+        typename GridwiseGemm::AsGridPointer p_as_grid_;
+        static_for<0, GridwiseGemm::NumATensor, 1>{}([&](auto i) {
+            using ADataType_ =
+                remove_cvref_t<tuple_element_t<i.value, typename GemmArgs::AsDataType>>;
+            p_as_grid_(i) =
+                static_cast<const ADataType_*>(gemm_arg.a_ptrs_[i]) + a_group_offset + a_n_offset;
+        });
+
+        typename GridwiseGemm::BsGridPointer p_bs_grid_;
+        static_for<0, GridwiseGemm::NumBTensor, 1>{}([&](auto i) {
+            using BDataType_ =
+                remove_cvref_t<tuple_element_t<i.value, typename GemmArgs::BsDataType>>;
+            p_bs_grid_(i) =
+                static_cast<const BDataType_*>(gemm_arg.b_ptrs_[i]) + b_group_offset + b_n_offset;
+        });
+
+        typename GridwiseGemm::DsGridPointer p_ds_grid_;
+        static_for<0, GemmArgs::NumDTensor, 1>{}([&](auto i) {
+            using DDataType_ =
+                remove_cvref_t<tuple_element_t<i.value, typename GemmArgs::DsDataTypeTuple>>;
+            p_ds_grid_(i) = static_cast<const DDataType_*>(gemm_arg.ds_ptrs_[i]) +
+                            ds_group_offset[i] + ds_n_offset[i];
+        });
+
+        const auto as_grid_desc_ak0_m_ak1 = generate_tuple(
+            [&](auto) { return gemm_arg.a_grid_desc_; }, Number<GridwiseGemm::NumATensor>{});
+
+        const auto bs_grid_desc_bk0_n_bk1 = generate_tuple(
+            [&](auto) { return gemm_arg.b_grid_desc_; }, Number<GridwiseGemm::NumBTensor>{});
+
+        const auto& ds_grid_desc = gemm_arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_;
+        const auto& e_grid_desc  = gemm_arg.e_grid_desc_mblock_mperblock_nblock_nperblock_;
+
+        const auto block_2_ctile_map =
+            typename GridwiseGemm::Block2CTileMap{gemm_arg.M_, gemm_arg.N_, 4};
+        const auto block_work_idx =
+            block_2_ctile_map.CalculateBottomIndex(make_multi_index(block_x));
+
+        if(!block_2_ctile_map.ValidCTileIndex(
+               block_work_idx,
+               make_tuple(e_grid_desc.GetLength(Number<0>{}), e_grid_desc.GetLength(Number<2>{}))))
         {
-            left = group_id;
+            return;
         }
-        group_id = index_t((left + right) / 2);
+
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[Number<0>{}]);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[Number<1>{}]);
+
+        using AScale        = typename GridwiseGemm::BlockwiseGemmPipe::Empty;
+        auto a_scale_struct = AScale{};
+
+        using BScale        = typename GridwiseGemm::BlockwiseGemmPipe::Empty;
+        auto b_scale_struct = BScale{};
+
+        const index_t num_k_block_per_scale = GridwiseGemm::GetKBlockPerScale();
+
+        auto epilogue_args = SelectedEpilogue{};
+
+        GridwiseGemm::Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
+                                         decltype(bs_grid_desc_bk0_n_bk1),
+                                         decltype(ds_grid_desc),
+                                         decltype(e_grid_desc),
+                                         decltype(a_scale_struct),
+                                         decltype(b_scale_struct),
+                                         SelectedEpilogue,
+                                         HasMainKBlockLoop,
+                                         EGlobalMemoryDataOperation,
+                                         TailNum>(p_as_grid_,
+                                                  p_bs_grid_,
+                                                  p_ds_grid_,
+                                                  gemm_arg.e_ptr_ + e_group_offset + e_n_offset,
+                                                  p_shared,
+                                                  as_grid_desc_ak0_m_ak1,
+                                                  bs_grid_desc_bk0_n_bk1,
+                                                  ds_grid_desc,
+                                                  e_grid_desc,
+                                                  gemm_arg.a_element_op_,
+                                                  gemm_arg.b_element_op_,
+                                                  gemm_arg.cde_element_op_,
+                                                  block_m_id,
+                                                  block_n_id,
+                                                  num_k_block_per_scale,
+                                                  a_scale_struct,
+                                                  b_scale_struct,
+                                                  epilogue_args);
     }
-
-    const auto& gemm_arg  = gemm_desc_kernel_args[group_id];
-    const index_t block_x = block_id_x - gemm_arg.BlockStart_;
-
-    typename GridwiseGemm::AsGridPointer p_as_grid_;
-    static_for<0, GridwiseGemm::NumATensor, 1>{}([&](auto i) {
-        using ADataType_ = remove_cvref_t<tuple_element_t<i.value, typename GemmArgs::AsDataType>>;
-        p_as_grid_(i) =
-            static_cast<const ADataType_*>(gemm_arg.a_ptrs_[i]) + a_group_offset + a_n_offset;
-    });
-
-    typename GridwiseGemm::BsGridPointer p_bs_grid_;
-    static_for<0, GridwiseGemm::NumBTensor, 1>{}([&](auto i) {
-        using BDataType_ = remove_cvref_t<tuple_element_t<i.value, typename GemmArgs::BsDataType>>;
-        p_bs_grid_(i) =
-            static_cast<const BDataType_*>(gemm_arg.b_ptrs_[i]) + b_group_offset + b_n_offset;
-    });
-
-    typename GridwiseGemm::DsGridPointer p_ds_grid_;
-    static_for<0, GemmArgs::NumDTensor, 1>{}([&](auto i) {
-        using DDataType_ =
-            remove_cvref_t<tuple_element_t<i.value, typename GemmArgs::DsDataTypeTuple>>;
-        p_ds_grid_(i) = static_cast<const DDataType_*>(gemm_arg.ds_ptrs_[i]) + ds_group_offset[i] +
-                        ds_n_offset[i];
-    });
-
-    const auto as_grid_desc_ak0_m_ak1 = generate_tuple([&](auto) { return gemm_arg.a_grid_desc_; },
-                                                       Number<GridwiseGemm::NumATensor>{});
-
-    const auto bs_grid_desc_bk0_n_bk1 = generate_tuple([&](auto) { return gemm_arg.b_grid_desc_; },
-                                                       Number<GridwiseGemm::NumBTensor>{});
-
-    const auto& ds_grid_desc = gemm_arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_;
-    const auto& e_grid_desc  = gemm_arg.e_grid_desc_mblock_mperblock_nblock_nperblock_;
-
-    const auto block_2_ctile_map =
-        typename GridwiseGemm::Block2CTileMap{gemm_arg.M_, gemm_arg.N_, 4};
-    const auto block_work_idx = block_2_ctile_map.CalculateBottomIndex(make_multi_index(block_x));
-
-    if(!block_2_ctile_map.ValidCTileIndex(
-           block_work_idx,
-           make_tuple(e_grid_desc.GetLength(Number<0>{}), e_grid_desc.GetLength(Number<2>{}))))
-    {
-        return;
-    }
-
-    const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[Number<0>{}]);
-    const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[Number<1>{}]);
-
-    using AScale        = typename GridwiseGemm::BlockwiseGemmPipe::Empty;
-    auto a_scale_struct = AScale{};
-
-    using BScale        = typename GridwiseGemm::BlockwiseGemmPipe::Empty;
-    auto b_scale_struct = BScale{};
-
-    const index_t num_k_block_per_scale = GridwiseGemm::GetKBlockPerScale();
-
-    auto epilogue_args = SelectedEpilogue{};
-
-    GridwiseGemm::Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
-                                     decltype(bs_grid_desc_bk0_n_bk1),
-                                     decltype(ds_grid_desc),
-                                     decltype(e_grid_desc),
-                                     decltype(a_scale_struct),
-                                     decltype(b_scale_struct),
-                                     SelectedEpilogue,
-                                     HasMainKBlockLoop,
-                                     EGlobalMemoryDataOperation,
-                                     TailNum>(p_as_grid_,
-                                              p_bs_grid_,
-                                              p_ds_grid_,
-                                              gemm_arg.e_ptr_ + e_group_offset + e_n_offset,
-                                              p_shared,
-                                              as_grid_desc_ak0_m_ak1,
-                                              bs_grid_desc_bk0_n_bk1,
-                                              ds_grid_desc,
-                                              e_grid_desc,
-                                              gemm_arg.a_element_op_,
-                                              gemm_arg.b_element_op_,
-                                              gemm_arg.cde_element_op_,
-                                              block_m_id,
-                                              block_n_id,
-                                              num_k_block_per_scale,
-                                              a_scale_struct,
-                                              b_scale_struct,
-                                              epilogue_args);
 #else
     ignore = gemm_desc_kernel_args;
     ignore = gemms_count;

@@ -81,49 +81,54 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         const long_index_t e_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+        constexpr index_t LDS_size = GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch());
 
-        if constexpr(GridwiseGemm::DirectLoadEnabled)
+        if constexpr(LDS_size <= get_lds_size(get_device_arch()))
         {
+            __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+
+            if constexpr(GridwiseGemm::DirectLoadEnabled)
+            {
 #if defined(__gfx950__)
-            DispatchSplitKHack<GridwiseGemm,
-                               AGridDesc_AK0_M_K1,
-                               BGridDesc_BK0_N_K1,
-                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                               HasMainKBlockLoop,
-                               CGlobalMemoryDataOperation,
-                               TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
-                                        karg.p_b_grid + b_batch_offset + split_k_offset_b,
-                                        karg.p_c_grid + e_batch_offset,
-                                        p_shared,
-                                        karg,
-                                        a_grid_desc_ak0_m_ak1,
-                                        b_grid_desc_bk0_n_bk1,
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                        k_idx * num_k_per_block,
-                                        gridDim.y,
-                                        split_k_offset_hack);
+                DispatchSplitKHack<GridwiseGemm,
+                                   AGridDesc_AK0_M_K1,
+                                   BGridDesc_BK0_N_K1,
+                                   CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   HasMainKBlockLoop,
+                                   CGlobalMemoryDataOperation,
+                                   TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                            karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                            karg.p_c_grid + e_batch_offset,
+                                            p_shared,
+                                            karg,
+                                            a_grid_desc_ak0_m_ak1,
+                                            b_grid_desc_bk0_n_bk1,
+                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            k_idx * num_k_per_block,
+                                            gridDim.y,
+                                            split_k_offset_hack);
 #endif
-        }
-        else
-        {
-            DispatchSplitKHack<GridwiseGemm,
-                               AGridDesc_AK0_M_K1,
-                               BGridDesc_BK0_N_K1,
-                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                               HasMainKBlockLoop,
-                               CGlobalMemoryDataOperation,
-                               TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
-                                        karg.p_b_grid + b_batch_offset + split_k_offset_b,
-                                        karg.p_c_grid + e_batch_offset,
-                                        p_shared,
-                                        karg,
-                                        a_grid_desc_ak0_m_ak1,
-                                        b_grid_desc_bk0_n_bk1,
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                        k_idx * num_k_per_block,
-                                        gridDim.y,
-                                        split_k_offset_hack);
+            }
+            else
+            {
+                DispatchSplitKHack<GridwiseGemm,
+                                   AGridDesc_AK0_M_K1,
+                                   BGridDesc_BK0_N_K1,
+                                   CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   HasMainKBlockLoop,
+                                   CGlobalMemoryDataOperation,
+                                   TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                            karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                            karg.p_c_grid + e_batch_offset,
+                                            p_shared,
+                                            karg,
+                                            a_grid_desc_ak0_m_ak1,
+                                            b_grid_desc_bk0_n_bk1,
+                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            k_idx * num_k_per_block,
+                                            gridDim.y,
+                                            split_k_offset_hack);
+            }
         }
     }
 #else
@@ -182,29 +187,37 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         const long_index_t e_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
 
-        // Pass two lds pointer is the key to tell compiler that ds_read/write
-        // operate on different lds chunk at same time without order dependecy
-        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
-        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+        constexpr index_t LDS_size =
+            2 * GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch());
 
-        DispatchSplitKHack_2Lds<GridwiseGemm,
-                                AGridDesc_AK0_M_K1,
-                                BGridDesc_BK0_N_K1,
-                                CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                HasMainKBlockLoop,
-                                CGlobalMemoryDataOperation,
-                                TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
-                                         karg.p_b_grid + b_batch_offset + split_k_offset_b,
-                                         karg.p_c_grid + e_batch_offset,
-                                         p_shared_0,
-                                         p_shared_1,
-                                         karg,
-                                         a_grid_desc_ak0_m_ak1,
-                                         b_grid_desc_bk0_n_bk1,
-                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                         k_idx * num_k_per_block,
-                                         gridDim.y,
-                                         split_k_offset_hack);
+        if constexpr(LDS_size <= get_lds_size(get_device_arch()))
+        {
+            // Pass two lds pointer is the key to tell compiler that ds_read/write
+            // operate on different lds chunk at same time without order dependecy
+            __shared__ char
+                p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+            __shared__ char
+                p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+
+            DispatchSplitKHack_2Lds<GridwiseGemm,
+                                    AGridDesc_AK0_M_K1,
+                                    BGridDesc_BK0_N_K1,
+                                    CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                    HasMainKBlockLoop,
+                                    CGlobalMemoryDataOperation,
+                                    TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                             karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                             karg.p_c_grid + e_batch_offset,
+                                             p_shared_0,
+                                             p_shared_1,
+                                             karg,
+                                             a_grid_desc_ak0_m_ak1,
+                                             b_grid_desc_bk0_n_bk1,
+                                             c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                             k_idx * num_k_per_block,
+                                             gridDim.y,
+                                             split_k_offset_hack);
+        }
     }
 #else
     ignore = karg;
@@ -1437,6 +1450,31 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        constexpr index_t ldsBufferCount =
+            BlkGemmPipelineVer == BlockGemmPipelineVersion::v4 ? 2 : 1;
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                if(GridwiseGemm64::GetSharedMemoryNumberOfByteOnHost() * ldsBufferCount >
+                   get_lds_size())
+                {
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                if(GridwiseGemm64::GetSharedMemoryNumberOfByteOnHost() * ldsBufferCount >
+                   get_lds_size())
+                {
+                    return false;
+                }
+            }
+        }
+
         // Memory access runtime error on gfx1250 (inconsistent across runs)
         // TODO: need fix
         if constexpr(LargeTensors)

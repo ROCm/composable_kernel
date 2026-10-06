@@ -126,7 +126,6 @@ template <index_t NDimSpatial,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
 using device_grouped_conv_bwd_data_wmma_v3_bf16_large_tiles_instances = std::tuple<
-#if defined(CK_USE_GFX1250)
     // clang-format off
         // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle |    CShuffle |   CDEBlockTransfer| CDEBlockTransfer|
         // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN|       Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      MRepeat|    NRepeat  |  _MBlock_MPerBlock|  ScalarPerVector|
@@ -151,8 +150,7 @@ using device_grouped_conv_bwd_data_wmma_v3_bf16_large_tiles_instances = std::tup
         DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial,  ALayout, BLayout,   DsLayout, ELayout,  BF16,  BF16,     F32,     BF16, Empty_Tuple,  BF16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,         64,    64,    32,    32,   8,   8,   16,   16,       4,       1,        S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              8,         1,        S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,            1,            1,     S<1, 16, 1, 4>,         S<1,1,1>>,
         DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial,  ALayout, BLayout,   DsLayout, ELayout,  BF16,  BF16,     F32,     BF16, Empty_Tuple,  BF16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,         64,    64,    64,   128,   8,   8,   16,   16,       4,       2,       S<16, 4, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              8,         1,       S<16, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              8,              8,         1,            1,            1,     S<1, 16, 1, 4>,         S<8,8,8>>,
         DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3<NDimSpatial,  ALayout, BLayout,   DsLayout, ELayout,  BF16,  BF16,     F32,     BF16, Empty_Tuple,  BF16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,         64,   128,    64,    32,   8,   8,   16,   16,       8,       2,        S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              8,         1,        S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,            1,            1,     S<1, 16, 1, 4>,         S<8,8,8>>
-// clang-format on
-#endif
+    // clang-format on
     >;
 
 } // namespace instance

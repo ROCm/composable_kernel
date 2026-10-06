@@ -32,7 +32,7 @@ template <typename ABLayout,
           bool UseLdsTranspose>
 struct ABTransferThreadTiles
 {
-    __device__ static constexpr bool IsLDSNeeded() { return true; }
+    __host__ __device__ static constexpr bool IsLDSNeeded() { return true; }
 
     static constexpr auto ABK0Number = Number<KPerBlock / ABK1Value>{};
     static constexpr auto ABK1Number = Number<ABK1Value>{};
@@ -147,7 +147,7 @@ struct ABTransferThreadTiles
         }
     }
 
-    __device__ static constexpr auto GetBlockDescriptor()
+    __host__ __device__ static constexpr auto GetBlockDescriptor()
     {
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(UseBlockPaddingAB)
