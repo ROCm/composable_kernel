@@ -172,11 +172,8 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
         constexpr index_t m0_loops = Policy::template GetNumM0Loops<Problem>();
         constexpr index_t k1_loops = Policy::template GetNumK1Loops<Problem>();
 
-        constexpr auto NumQOGradPrefetches = 2;
+        constexpr auto NumQOGradPrefetches = min(m0_loops, 2);
         constexpr auto NumQOGradLdsBuffers = Policy::template GetNumQOGradLdsBuffers<Problem>();
-
-        static_assert(NumQOGradPrefetches <= m0_loops, "Check failed!");
-        static_assert(NumQOGradLdsBuffers <= m0_loops, "Check failed!");
 
         // ---- Tile type declarations ----
         using SaccBlockTileType      = decltype(gemm_0.template MakeCBlockTile<kM0Sub, kN0>());
@@ -300,7 +297,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
         using dot_lds_read_window_type = decltype(get_slice_tile(
             dot_lds_read_monolithic_window, sequence<0, 0>{}, sequence<kVHeaddim, kK1>{}));
         statically_indexed_array<dot_lds_read_window_type, k1_loops> dot_lds_read_windows;
-        static_for<0, m0_loops, 1>{}([&](auto i_buf) {
+        static_for<0, k1_loops, 1>{}([&](auto i_buf) {
             dot_lds_read_windows[i_buf] = get_slice_tile(dot_lds_read_monolithic_window,
                                                          sequence<0, i_buf * kK1>{},
                                                          sequence<kVHeaddim, (i_buf + 1) * kK1>{});
@@ -419,7 +416,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
         q_tiles[number<0>{}] = load_tile(q_dram_window);
         move_tile_window(q_dram_window, {kM0Sub, 0});
 
-        __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
         clear_tile(dk_acc);
         clear_tile(dv_acc);
@@ -427,7 +424,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
         do_tiles[number<0>{}] = load_tile(do_dram_window);
         move_tile_window(do_dram_window, {kM0Sub, 0});
 
-        __builtin_amdgcn_sched_barrier(0);
+        __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
         // Full [kM0] row-scalar tiles for LSE and delta
         using LSETileType   = decltype(block_tile_reduce<CompDataType>(
@@ -458,7 +455,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                 constexpr auto i_lds_buf_0    = number<i_m0 % NumQOGradLdsBuffers>{};
                 constexpr auto i_lds_buf_1    = i_m0;
 
-                // Store Q to q_lds and also to qt_lds (transposed, for Gemm3 dK)
+                // Store Q to q_lds
                 store_tile(q_lds_windows[i_lds_buf_0], q_tiles[i_current_buf], partition_index);
 
                 // Prefetch next Q tile while current stores are in flight
@@ -468,28 +465,20 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                     move_tile_window(q_dram_window, {kM0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
-                if constexpr(i_m0 == 0)
-                {
-                    // ensure LDS access of dO^T and Q^T in last iteration gemm_1 and gemm_3
-                    // finished before being stored
-                    block_sync_lds();
-                }
+                // Ensure all stores for q_lds are visible before Gemm0 reads
+                block_sync_lds();
 
-                store_tile(
-                    qt_lds_write_windows[i_lds_buf_1], q_tiles[i_current_buf], partition_index);
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
-
-                if constexpr(i_m0 > 0)
-                {
-                    // Ensure all LDS stores are visible before Gemm0 reads
-                    block_sync_lds();
-                }
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q_sub @ K
                 gemm_0(sacc_tile, q_lds_windows[i_lds_buf_0], k_tile);
+
+                // Store Q to qt_lds (transposed, for Gemm3 dK)
+                store_tile(
+                    qt_lds_write_windows[i_lds_buf_1], q_tiles[i_current_buf], partition_index);
+
                 auto s_tmp = cast_tile<CompDataType>(sacc_tile);
                 // Place the [kM0Sub, kN0] sub-tile into the combined [kM0, kN0] pcomp_tile by a
                 // direct thread-buffer copy. M (the sub-tiled dim) is the outermost Y-dim of the C
@@ -513,7 +502,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                 constexpr auto i_lds_buf_0    = number<i_m0 % NumQOGradLdsBuffers>{};
                 constexpr auto i_lds_buf_1    = i_m0;
 
-                // Store dO to do_lds and also to dot_lds (transposed, for Gemm1 dV)
+                // Store dO do_lds
                 store_tile(do_lds_windows[i_lds_buf_0], do_tiles[i_current_buf], partition_index);
 
                 // Prefetch next dO tile while current stores are in flight
@@ -523,17 +512,19 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                     move_tile_window(do_dram_window, {kM0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
-
-                store_tile(
-                    dot_lds_write_windows[i_lds_buf_1], do_tiles[i_current_buf], partition_index);
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 block_sync_lds();
 
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+
                 // Gemm2: dpacc_tile = dO_sub @ V
                 gemm_2(dpacc_tile, do_lds_windows[i_lds_buf_0], v_tile);
+
+                // Store dO dot_lds (transposed, for Gemm1 dV)
+                store_tile(
+                    dot_lds_write_windows[i_lds_buf_1], do_tiles[i_current_buf], partition_index);
+
                 auto dp_tmp = cast_tile<CompDataType>(dpacc_tile);
                 // Direct thread-buffer copy of the [kM0Sub, kN0] sub-tile into dscomp_tile (see the
                 // pcomp_tile note above for why set_slice_tile is not used).
@@ -544,7 +535,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                 });
             });
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
             // ---- Scale, optional bias, mask ----
             if constexpr(kHasBias)
@@ -692,6 +683,7 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
                 Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{}) == 32>(
                 pt_tile, p_gemm_tile);
 
+            // Ensure all stored data for qt_lds & dot_lds are visible for reading
             block_sync_lds();
 
             // =======================================================================
