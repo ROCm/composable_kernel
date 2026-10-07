@@ -157,7 +157,7 @@ struct batched_forward_dispatch
     template <typename HstuKernel>
     static void RunWithKernel(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
     {
-        const auto kargs = [&] {
+        auto kargs = [&] {
             return HstuKernel::MakeKargs(param.q_ptr,
                                          param.k_ptr,
                                          param.v_ptr,
@@ -198,6 +198,8 @@ struct batched_forward_dispatch
                                          param.philox_seed,
                                          param.philox_offset);
         }();
+
+        kargs.attn_scale_ptr = reinterpret_cast<const float*>(param.attn_scale_ptr);
 
         bool has_minfull_attn_seqlen           = (param.min_full_attn_seqlen > 0);
         dim3 kGridSize                         = HstuKernel::GridSize(param.num_batch,
