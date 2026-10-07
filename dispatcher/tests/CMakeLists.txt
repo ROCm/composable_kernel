@@ -151,6 +151,21 @@ set_tests_properties(dispatcher_test_codegen_common PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# UnifiedGemmCodegen resolves the arch-validation dtype triple exactly (fp32 is
+# validated as fp32) and raises on an unmapped --datatype instead of silently
+# validating it as fp16.
+add_test(
+    NAME dispatcher_test_codegen_dtype_resolution
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_codegen_dtype_resolution.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_codegen_dtype_resolution PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # Fixed global vector widths: per-problem gcd widths, canonical resolution, and
 # agreement between the bridge name, codegen naming and the generated kernel.
 add_test(
@@ -293,6 +308,21 @@ add_test(
 )
 
 set_tests_properties(dispatcher_test_gemm_result_status PROPERTIES
+    LABELS "dispatcher;python;gemm;validation"
+    TIMEOUT 60
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# fp32 through the tile_engine GEMM sweep driver: dtype choice, per-dtype CI
+# config and verify tolerance, per-arch rejection, 0-config error, and fp32
+# host buffers in GpuGemmRunner. Driver build and ctypes lib are mocked.
+add_test(
+    NAME dispatcher_test_gemm_driver_fp32
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_gemm_driver_fp32.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_gemm_driver_fp32 PROPERTIES
     LABELS "dispatcher;python;gemm;validation"
     TIMEOUT 60
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"

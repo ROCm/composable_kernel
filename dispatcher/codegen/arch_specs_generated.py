@@ -4,7 +4,7 @@
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2026-09-18T18:27:17.660727
+Generated at: 2026-10-01T04:39:38.061396
 
 To update this file:
 1. Edit arch_specs.json
@@ -107,6 +107,7 @@ WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
         "int8_int8_int32": [[16, 16, 16]],
     },
     "gfx1250": {
+        "fp32_fp32_fp32": [[16, 16, 4]],
         "fp16_fp16_fp32": [[16, 16, 32]],
         "bf16_bf16_fp32": [[16, 16, 32]],
         "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128]],

@@ -29,7 +29,9 @@ Examples:
         configs/default_config.json --devices 4 --csv out.csv
 
 When no config is given the driver uses the chosen variant's
-``configs/default_ci_config.json`` (a small CI-sized sweep);
+``configs/default_ci_config.json`` (a small CI-sized sweep), or
+``configs/default_ci_config_<dtype>.json`` when one exists for --dtype (fp32
+needs its own warp tiles);
 ``configs/default_config.json`` is the full sweep, and the JSON used by nightly
 tests is intended to drop into the same ``configs/`` directory.
 """
@@ -53,7 +55,12 @@ sys.path.insert(0, str(_DISPATCHER_ROOT / "codegen"))
 sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
-from gemm_utils import setup_multiple_gemm_dispatchers, expand_sweep  # noqa: E402
+from gemm_utils import (  # noqa: E402
+    _resolve_arch,
+    expand_sweep,
+    setup_multiple_gemm_dispatchers,
+)
+from ctypes_utils import listed_warp_tiles  # noqa: E402
 from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa: E402
 from smi_utils import detect_gpu_ids  # noqa: E402
 
@@ -72,7 +79,19 @@ VARIANT_CONFIGS = {
 }
 DEFAULT_VARIANT = "gemm_universal"
 
-CI_CONFIG_NAME = "default_ci_config.json"
+# CI sweep config lookup, most specific first. An arch or dtype whose warp
+# tiles or pipelines differ from the default CI sweep ships its own file next to
+# it (e.g. default_ci_config_gfx1250_fp32.json); adding one is a data-only change.
+CI_CONFIG_NAMES = (
+    "default_ci_config_{arch}_{dtype}.json",
+    "default_ci_config_{arch}.json",
+    "default_ci_config_{dtype}.json",
+    "default_ci_config.json",
+)
+# A dtype without a CI config of its own falls back to its family's file, tried
+# right after its own name at each level (bf8 lists the same warp tiles as fp8
+# on every arch, so default_ci_config_gfx1250_fp8.json serves bf8 too).
+CI_CONFIG_DTYPE_ALIAS = {"bf8": "fp8"}
 EXAMPLE_PROBLEMS_NAME = "example_problems.json"
 
 # Map the driver's --variant (a configs-dir selector) onto the single codegen/
@@ -87,9 +106,12 @@ CODEGEN_VARIANT = {
 }
 
 # Some variants only support a subset of dtypes/layouts. The preshuffle op
-# (tile_engine gemm_preshuffle) supports fp16/bf16/fp8/bf8 and rcr ONLY.
+# (tile_engine gemm_preshuffle) supports fp16/bf16/fp8/bf8 and rcr ONLY; the
+# multi_d / multi_abd bridge runners are fp16 only (gemm_utils rejects others).
 VARIANT_SUPPORTED_DTYPES = {
     "gemm_preshuffle": ("fp16", "bf16", "fp8", "bf8"),
+    "gemm_multi_d": ("fp16",),
+    "gemm_multi_abd": ("fp16",),
 }
 VARIANT_SUPPORTED_LAYOUTS = {
     "gemm_preshuffle": ("rcr",),
@@ -103,7 +125,16 @@ DEFAULT_PROBLEMS = [
     {"M": 257, "N": 257, "K": 257},
 ]
 
-SUPPORTED_DTYPES = ("fp16", "bf16", "fp8", "bf8")
+SUPPORTED_DTYPES = ("fp16", "bf16", "fp32", "fp8", "bf8")
+
+# --verify relative tolerance per dtype. fp32 is held to a few hundred fp32 ulps,
+# well below one fp16 ulp (2**-10), so a kernel that silently computes in a
+# narrower type fails verification instead of passing the fp16 tolerance.
+# The fp32 accumulation error grows about as sqrt(K): the worst max_rel at the
+# default problems (K <= 4096) is about 9x below the bound, which leaves room up
+# to K of roughly 256k; pass --verify-tol for larger K.
+DEFAULT_VERIFY_TOL = 2e-2
+VERIFY_TOL = {"fp32": 256 * 2.0**-23}
 # Row-major C only: ck_tile's universal GEMM rejects column-major C at build.
 # The 4-char codes (rcrr, ...) are the multi_abd A,B,E,D layouts; TE gemm_multi_abd
 # only supports rcrr today.
@@ -145,12 +176,16 @@ def resolve_devices(spec):
     return [spec]
 
 
-def resolve_configs(args):
+def resolve_configs(args, arch):
     """Resolve positional configs -> concrete list of config paths."""
     if args.configs:
         return args.configs
-    cfg = _THIS_DIR / VARIANT_CONFIGS[args.variant] / CI_CONFIG_NAME
-    return [str(cfg)]
+    cfg_dir = _THIS_DIR / VARIANT_CONFIGS[args.variant]
+    alias = CI_CONFIG_DTYPE_ALIAS.get(args.dtype, args.dtype)
+    names = [n.format(arch=arch, dtype=d)
+             for n in CI_CONFIG_NAMES for d in (args.dtype, alias)]
+    return [str(next((cfg_dir / n for n in names if (cfg_dir / n).exists()),
+                     cfg_dir / names[-1]))]
 
 
 def load_problems(path, variant):
@@ -374,13 +409,18 @@ def main():
     parser.add_argument(
         "--verify-tol",
         type=float,
-        default=2e-2,
-        help="Relative tolerance for --verify (default 2e-2, suits fp16)",
+        default=None,
+        help=f"Relative tolerance for --verify (default per dtype: {VERIFY_TOL}, "
+        f"else {DEFAULT_VERIFY_TOL}); the fp32 default holds up to K of about "
+        "256k, raise it for larger K",
     )
     add_vector_fallback_arg(parser)
     args = parser.parse_args()
+    if args.verify_tol is None:
+        args.verify_tol = VERIFY_TOL.get(args.dtype, DEFAULT_VERIFY_TOL)
 
-    config_paths = resolve_configs(args)
+    arch = _resolve_arch(args.arch)
+    config_paths = resolve_configs(args, arch)
     devices = resolve_devices(args.devices)
 
     # ========================================================================
@@ -444,6 +484,18 @@ def main():
         if args.multi_abd_cde_op is not None:
             mabd_kwargs["cde_elementwise_op"] = args.multi_abd_cde_op
 
+    # Reject a dtype the arch cannot generate with a clear message, instead of
+    # letting every config be silently dropped by the warp-tile validator.
+    dtype_key, table_key, warp_tiles = listed_warp_tiles(
+        arch, args.dtype, variant=codegen_variant
+    )
+    if not warp_tiles:
+        print(
+            f"  ERROR: dtype {args.dtype} is not supported on {arch} for variant "
+            f"{args.variant}: no warp tiles listed for {dtype_key} in {table_key}"
+        )
+        return 1
+
     problems = load_problems(args.problems, args.variant)
     vfb = VectorFallback(
         problems, args.layout, args.dtype, codegen_variant, args.no_vector_fallback,
@@ -455,7 +507,7 @@ def main():
         all_configs.extend(
             expand_sweep(
                 cfg_path,
-                args.arch,
+                arch,
                 dtype=args.dtype,
                 layout=sweep_layout,
                 variant=codegen_variant,
@@ -469,6 +521,14 @@ def main():
     all_configs = vfb.limit_base_kernels(all_configs, args.max_kernels)
 
     print(f"  Expanded configs: {len(all_configs)}")
+    if not all_configs:
+        print(
+            f"  ERROR: 0 configs expanded for dtype {args.dtype} on {arch} "
+            f"(layout {sweep_layout}); no config in {', '.join(config_paths)} "
+            f"passes the {arch} checks (listed {dtype_key} warp tiles: "
+            f"{warp_tiles}; pipeline, layout and tile-size gates)"
+        )
+        return 1
     print(f"  Build workers: {args.workers}")
 
     t0 = time.perf_counter()

@@ -260,6 +260,29 @@ class CommonTypeMappings:
         """
         return "int32" if dtype == "int8" else "fp32"
 
+    # A/B element dtypes whose (A, B, Acc) triple the GEMM arch validator can
+    # resolve. Anything else (e.g. pk_fp4) must fail loudly rather than be
+    # validated under another dtype's warp-tile and LDS rules.
+    ARCH_VALIDATION_DTYPES = ("fp16", "bf16", "fp32", "fp8", "bf8", "int8")
+
+    # Subset of ARCH_VALIDATION_DTYPES that must have an explicit warp-tile
+    # entry for the target arch. The arch filter treats a missing entry as
+    # "unknown, allow", which would let every warp tile through unchecked.
+    WARP_TILE_ENTRY_REQUIRED_DTYPES = ("fp32",)
+
+    @classmethod
+    def get_arch_dtype_triple(cls, dtype: str) -> Tuple[str, str, str]:
+        """Return the (A, B, Acc) dtype triple used for arch validation.
+
+        Raises ValueError naming *dtype* when it has no mapping.
+        """
+        if dtype not in cls.ARCH_VALIDATION_DTYPES:
+            raise ValueError(
+                f"Unsupported GEMM datatype {dtype!r} for arch validation; "
+                f"supported: {', '.join(cls.ARCH_VALIDATION_DTYPES)}"
+            )
+        return (dtype, dtype, cls.get_acc_dtype(dtype))
+
 
 # ============================================================================
 # Code Generation Helpers
@@ -1089,6 +1112,29 @@ GFX1250_COMP_ASYNC_LAYOUT_REJECT_REASON = (
     "comp_async on gfx1250 requires A row-major and B col-major (transpose-load "
     "path incompatible with WMMA 16x16x32 K distribution)"
 )
+GFX1250_TDM_FP32_LAYOUT_REJECT_REASON = (
+    "comp_tdm/comp_tdm_v2 with fp32 A/B on gfx1250 gives wrong results for "
+    "every layout but rcr, so fp32 TDM requires layout=rcr"
+)
+# fp32 C tile per lane (tile_m*tile_n / (num_waves*32)) at or above this
+# spills VGPRs on gfx1250 (256x256 on 4 waves: 512 acc/lane) and gives wrong
+# results; 256 acc/lane (256x128, 128x256) is correct.
+GFX1250_FP32_MAX_ACC_PER_LANE = 512
+GFX1250_FP32_ACC_REJECT_REASON = (
+    f"fp32 on gfx1250 spills VGPRs at >= {GFX1250_FP32_MAX_ACC_PER_LANE} "
+    "accumulators per lane (tile_m*tile_n/(num_waves*32)) and gives wrong results"
+)
+
+
+def gfx1250_fp32_tile_reject_reason(
+    gpu_target: str, dtype: str, tile_m: int, tile_n: int, num_waves: int
+) -> str:
+    """Why an fp32 GEMM tile is rejected on gfx1250 ("" when accepted)."""
+    if dtype != "fp32" or normalize_gfx_arch(gpu_target).lower() != GFX1250_ARCH:
+        return ""
+    if tile_m * tile_n >= GFX1250_FP32_MAX_ACC_PER_LANE * num_waves * 32:
+        return GFX1250_FP32_ACC_REJECT_REASON
+    return ""
 
 
 # The grouped quant GEMM kernels have no async (comp_async) or TDM (comp_tdm,
@@ -1161,6 +1207,8 @@ def gfx1250_pipeline_reject_reason(
             return TDM_PAD_REJECT_REASON
         if pipeline == "comp_tdm_v2" and num_waves != 4:
             return "comp_tdm_v2 requires exactly 4 waves"
+        if "fp32" in (dtype_a, dtype_b) and layout and layout != "rcr":
+            return GFX1250_TDM_FP32_LAYOUT_REJECT_REASON
         return ""
     # Only the cshuffle epilogue carries DoubleSmemBuffer, matching the Tile
     # Engine trait rules.

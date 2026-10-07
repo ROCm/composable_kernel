@@ -214,11 +214,17 @@
         "here; enabling them would newly generate kernels for combinations this",
         "bridge has never exercised, which needs its own device validation."
       ],
+      "_warp_tile_fp32_source": [
+        "fp32 is the WmmaTraits<gfx125_t, float, float, float, 16, 16, 4>",
+        "specialisation in warp_gemm_attribute_wmma_impl_highprec_traits.hpp, the",
+        "only fp32 WMMA shape on this target."
+      ],
       "_warp_tile_int8_source": [
         "Native WarpGemmWmma_i32_16x16x64_i8_i8 in warp_gemm_dispatcher.hpp.",
         "Validated with exact integer comparisons by test_gemm_parity.py on gfx1250."
       ],
       "warp_tile_combos": {
+        "fp32_fp32_fp32": [[16, 16, 4]],
         "fp16_fp16_fp32": [[16, 16, 32]],
         "bf16_bf16_fp32": [[16, 16, 32]],
         "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128]],
