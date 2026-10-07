@@ -424,7 +424,7 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeSwizzledNativeDesc()
             desc_split,
             make_tuple(make_pass_through_transform(number<NumBuffers>{}),
                        make_merge_transform_v3_division_mod(
-                           make_tuple(number<kN / NLdsLayer>{}, number<NLdsLayer>{})),
+                           make_tuple(number<NLdsLayer>{}, number<kN / NLdsLayer>{})),
                        make_merge_transform_v3_division_mod(
                            make_tuple(number<kK / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<0>{}, sequence<3, 1>{}, sequence<2, 4>{}),
