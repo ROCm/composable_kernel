@@ -767,11 +767,11 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
-        constexpr auto desc_native = detail::MakeWarpGemmAwareBLdsReadBlockNativeDesc<Problem,
-                                                                                      WG,
-                                                                                      NumBuffers,
-                                                                                      kNPerBlock,
-                                                                                      kKPerBlock>();
+        constexpr auto kSwizzleUnit = detail::GetSwizzleUnitForNormalRead<WG, false /*inputB*/>();
+
+        constexpr auto desc_native = detail::
+            MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kSwizzleUnit>();
+
         // the same native tensor desc as the ReadBlockDescriptor, but transposed tensor view
         return transform_tensor_descriptor(
             desc_native,
@@ -793,11 +793,10 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
-        constexpr auto desc_native = detail::MakeWarpGemmAwareBLdsReadBlockNativeDesc<Problem,
-                                                                                      WG,
-                                                                                      NumBuffers,
-                                                                                      kNPerBlock,
-                                                                                      kKPerBlock>();
+        constexpr auto kSwizzleUnit = detail::GetSwizzleUnitForNormalRead<WG, false /*inputB*/>();
+
+        constexpr auto desc_native = detail::
+            MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kSwizzleUnit>();
 
         // the same native tensor desc as the ReadBlockDescriptor, but transposed tensor view
         return transform_tensor_descriptor(
@@ -819,11 +818,10 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
-        constexpr auto desc_native = detail::MakeWarpGemmAwareBLdsReadBlockNativeDesc<Problem,
-                                                                                      WG,
-                                                                                      NumBuffers,
-                                                                                      kNPerBlock,
-                                                                                      kKPerBlock>();
+        constexpr auto kSwizzleUnit = detail::GetSwizzleUnitForNormalRead<WG, false /*inputB*/>();
+
+        constexpr auto desc_native = detail::
+            MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kSwizzleUnit>();
 
         // merge: NumK1Loops * [kQKHeaddim, kK1] -> [kQKHeaddim, kM0]
         return transform_tensor_descriptor(
@@ -847,11 +845,10 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
-        constexpr auto desc_native = detail::MakeWarpGemmAwareBLdsReadBlockNativeDesc<Problem,
-                                                                                      WG,
-                                                                                      NumBuffers,
-                                                                                      kNPerBlock,
-                                                                                      kKPerBlock>();
+        constexpr auto kSwizzleUnit = detail::GetSwizzleUnitForNormalRead<WG, false /*inputB*/>();
+
+        constexpr auto desc_native = detail::
+            MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kSwizzleUnit>();
 
         // merge: NumK1Loops * [kQKHeaddim, kK1] -> [kQKHeaddim, kM0]
         return transform_tensor_descriptor(
