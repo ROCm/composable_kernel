@@ -108,6 +108,9 @@ struct HstuAttentionFwdSplitKVKernel
         ck_tile::index_t contextual_seqlen;
         ck_tile::index_t window_size;
         ck_tile::index_t min_full_attn_seqlen;
+        // Device pointer to attn_scale; null means use the scale_p computed on the
+        // host. Dereferenced on the GPU so the host never blocks on a D2H copy.
+        const float* attn_scale_ptr = nullptr;
     };
 
     struct HstuAttentionNoGroupJaggedFwdBaseKargs
@@ -146,6 +149,9 @@ struct HstuAttentionFwdSplitKVKernel
         ck_tile::index_t contextual_seqlen;
         ck_tile::index_t window_size;
         ck_tile::index_t min_full_attn_seqlen;
+        // Device pointer to attn_scale; null means use the scale_p computed on the
+        // host. Dereferenced on the GPU so the host never blocks on a D2H copy.
+        const float* attn_scale_ptr = nullptr;
     };
 
     struct HstuAttentionGroupFwdBaseKargs
@@ -790,6 +796,20 @@ struct HstuAttentionFwdSplitKVKernel
             {
                 batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.seqlen_q *
                                        kargs.num_head * kargs.num_splits;
+            }
+        }
+
+        // Non-group: attn_scale may arrive as a device tensor so the host never
+        // blocks on a D2H copy to read it. MakeKargs already put the correct
+        // default in scale_p (the caller passes 0 for the scalar), so only a
+        // non-zero device value overrides it -- mirroring the group path above.
+        if constexpr(!kUseGroup)
+        {
+            if(kargs.attn_scale_ptr != nullptr)
+            {
+                const float s = *kargs.attn_scale_ptr;
+                if(s != 0.0f)
+                    kargs.scale_p = s;
             }
         }
 
