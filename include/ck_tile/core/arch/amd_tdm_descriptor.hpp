@@ -199,10 +199,18 @@ union TDM_GROUP1
         tensor_dim0_stride_hi = (value >> 32);
     }
 
+    /* The two dim strides are NOT encoded alike, which is the trap: dim0 is
+     * `lo` (a full 32-bit word) + `hi` (16 bits), so it splits at bit 32;
+     * dim1 is `lo` (16 bits) + `hi` (a full 32-bit word), so it splits at
+     * bit 16. Both fields are 48 bits wide in total. Splitting dim1 at 32 --
+     * the symmetric-looking choice -- leaves `lo` correct only by accidental
+     * truncation and silently drops bits [16:32] of the stride, which is
+     * masked while the stride stays below 2**16 and is a wild DMA address
+     * above it. */
     void CK_TILE_DEVICE tensorDim1Stride(uint64_t value)
     {
-        tensor_dim1_stride_lo = value & 0xFFFFFFFF;
-        tensor_dim1_stride_hi = (value >> 32);
+        tensor_dim1_stride_lo = value & 0xFFFF;
+        tensor_dim1_stride_hi = (value >> 16);
     }
 
     void CK_TILE_DEVICE tensorDim(uint32_t index, uint32_t value)
@@ -215,7 +223,11 @@ union TDM_GROUP1
         }
     }
 
-    void CK_TILE_DEVICE tensorDimStride(uint32_t index, uint32_t value)
+    /* `value` is uint64_t, not uint32_t: both stride fields are 48 bits wide,
+     * and the caller holds them as uint64_t (`m_globalStrides`). Narrowing
+     * here truncated every stride to 32 bits before the setter could place
+     * it, so the wider halves of the descriptor were unreachable. */
+    void CK_TILE_DEVICE tensorDimStride(uint32_t index, uint64_t value)
     {
         switch(index)
         {
