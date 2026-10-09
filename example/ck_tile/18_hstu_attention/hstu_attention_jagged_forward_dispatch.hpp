@@ -148,7 +148,7 @@ struct jagged_forward_dispatch
     {
         bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
 
-        auto kargs = [&] {
+        const auto kargs = [&] {
             return HstuKernel::MakeKargs(param.q_ptr,
                                          param.k_ptr,
                                          param.v_ptr,
@@ -164,6 +164,7 @@ struct jagged_forward_dispatch
                                          param.num_head,
                                          param.scale_s,
                                          param.attn_scale,
+                                         param.attn_scale_ptr,
                                          almost_invariant_seqlen,
                                          param.seq_stride_q,
                                          param.seq_stride_k,
@@ -185,8 +186,6 @@ struct jagged_forward_dispatch
                                          param.philox_seed,
                                          param.philox_offset);
         }();
-
-        kargs.attn_scale_ptr = reinterpret_cast<const float*>(param.attn_scale_ptr);
 
         bool has_minfull_attn_seqlen           = (param.min_full_attn_seqlen > 0);
         dim3 kGridSize                         = HstuKernel::GridSize(param.num_batch,

@@ -103,6 +103,9 @@ struct HstuAttentionFwdKernel
 
         ck_tile::index_t num_head;
         float scale_s; // scaling value exerted on the immediate Q@K result
+        // Device pointer to attn_scale; null means use the scale_p computed on the
+        // host. Dereferenced on the GPU so the host never blocks on a D2H copy.
+        const float* attn_scale_ptr;
         float scale_p; // scaling value exerted on the SiLU result
 
         bool almost_invariant_seqlen; // should always be true for batched mode
@@ -110,9 +113,6 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t contextual_seqlen;
         ck_tile::index_t window_size;
         ck_tile::index_t min_full_attn_seqlen;
-        // Device pointer to attn_scale; null means use the scale_p computed on the
-        // host. Dereferenced on the GPU so the host never blocks on a D2H copy.
-        const float* attn_scale_ptr = nullptr;
     };
 
     struct HstuAttentionNoGroupJaggedFwdBaseKargs
@@ -145,6 +145,9 @@ struct HstuAttentionFwdKernel
 
         ck_tile::index_t num_head;
         float scale_s; // scaling value exerted on the immediate Q@K result
+        // Device pointer to attn_scale; null means use the scale_p computed on the
+        // host. Dereferenced on the GPU so the host never blocks on a D2H copy.
+        const float* attn_scale_ptr;
         float scale_p; // scaling value exerted on the SiLU result
 
         bool almost_invariant_seqlen;
@@ -152,9 +155,6 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t contextual_seqlen;
         ck_tile::index_t window_size;
         ck_tile::index_t min_full_attn_seqlen;
-        // Device pointer to attn_scale; null means use the scale_p computed on the
-        // host. Dereferenced on the GPU so the host never blocks on a D2H copy.
-        const float* attn_scale_ptr = nullptr;
     };
 
     struct HstuAttentionGroupFwdBaseKargs
@@ -321,6 +321,7 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t num_head,
               float scale_s,
               float attn_scale,
+              const void* attn_scale_ptr,
               ck_tile::index_t seq_stride_q,
               ck_tile::index_t seq_stride_k,
               ck_tile::index_t seq_stride_v,
@@ -371,6 +372,7 @@ struct HstuAttentionFwdKernel
              seq_stride_o,
              num_head,
              scale_s,
+             reinterpret_cast<const float*>(attn_scale_ptr),
              attn_scale ? attn_scale : 1.0f / static_cast<float>(seqlen_q),
              true, // almost_invariant_seqlen
              contextual_seqlen,
@@ -419,6 +421,7 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t num_head,
               float scale_s,
               float attn_scale,
+              const void* attn_scale_ptr,
               bool almost_invariant_seqlen,
               ck_tile::index_t seq_stride_q,
               ck_tile::index_t seq_stride_k,
@@ -462,6 +465,7 @@ struct HstuAttentionFwdKernel
              -1, // seqlen_kv will be updated by another pointer
              num_head,
              scale_s,
+             reinterpret_cast<const float*>(attn_scale_ptr),
              attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen_q),
              almost_invariant_seqlen,
              contextual_seqlen,
@@ -796,6 +800,7 @@ struct HstuAttentionFwdKernel
             }
         }
 
+#if !defined(__hstu_gfx94__)
         // Non-group: attn_scale may arrive as a device tensor so the host never
         // blocks on a D2H copy to read it. MakeKargs already put the correct
         // default in scale_p (the caller passes 0 for the scalar), so only a
@@ -809,6 +814,7 @@ struct HstuAttentionFwdKernel
                     kargs.scale_p = s;
             }
         }
+#endif
 
         int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
 
