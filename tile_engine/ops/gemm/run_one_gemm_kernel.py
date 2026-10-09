@@ -62,7 +62,8 @@ def _run_one(
     the emitted ``verified`` field then reflects correctness, not just liveness
     (``non_zero``).
 
-    Standard path: reference is ``A @ B``. Multi-ABD path (B1): the reference is
+    Standard path: reference is ``A @ B`` on the kernel's quantized inputs
+    (``GpuGemmRunner.reference``). Multi-ABD path (B1): the reference is
     the full ``E = CDE( AB(As) @ BB(Bs), {Ds} )`` computed inside
     GpuMultiABDRunner (it owns the operands); the runner returns ``max_rel`` on
     the result. ``layout4`` and the per-group element-wise ops come from the
@@ -128,7 +129,10 @@ def _run_one(
                     out["max_rel"] = result.max_rel
                     out["verified"] = bool(result.max_rel <= verify_tol)
             elif verify and A is not None and B is not None:
-                ref = A.astype(np.float32) @ B.astype(np.float32)
+                # Reference uses the SAME quantized inputs the device sees, so the
+                # metric isolates compute error from input quantization (fp8/bf8
+                # rounding alone exceeds the default tolerance).
+                ref = runner.reference(A, B)
                 got = result.output.astype(np.float32)
                 denom = float(np.max(np.abs(ref))) or 1.0
                 max_rel = float(np.max(np.abs(got - ref)) / denom)

@@ -1,8 +1,8 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-set(BATCHED_GEMM_DATATYPE "fp16" CACHE STRING "List of datatypes for batched GEMM (semicolon-separated)")
-set(BATCHED_GEMM_LAYOUT "rcr" CACHE STRING "List of layouts for batched GEMM (semicolon-separated)")
+set(BATCHED_GEMM_DATATYPE "fp16" CACHE STRING "List of datatypes for batched GEMM (semicolon-separated): fp16;bf16;fp32;fp8;bf8")
+set(BATCHED_GEMM_LAYOUT "rcr" CACHE STRING "List of layouts for batched GEMM (semicolon-separated): rcr;rrr;crr;ccr")
 set(BATCHED_GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 set(BATCHED_GEMM_MAX_INSTANCES "" CACHE STRING "Max kernel instances per (dtype, layout) combo (empty = no cap)")
 

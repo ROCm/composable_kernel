@@ -56,12 +56,13 @@ GFX1250_LDS = 320 * 1024
 # Kernel counts per (dtype, layout) for the full gfx1250 config: total and per
 # new pipeline. Pins the sweep so any config or validator drift is noticed.
 # comp_async is rcr-only on gfx1250, so the rrr rows have no comp_async. The
-# pads sweep [false, true]: comp_async keeps only all-True, TDM only all-False,
-# and the legacy pipelines keep all 8 combos.
+# fp16/bf16 comp_async tiles with M+N=320, K=256 exceed LDS once the descriptor
+# padding is added. The pads sweep [false, true]: comp_async keeps only
+# all-True, TDM only all-False, and the legacy pipelines keep all 8 combos.
 FULL_COUNTS = {
-    ("fp16", "rcr"): (27525, 384, 174, 87),
+    ("fp16", "rcr"): (27489, 348, 174, 87),
     ("fp16", "rrr"): (27141, 0, 174, 87),
-    ("bf16", "rcr"): (27525, 384, 174, 87),
+    ("bf16", "rcr"): (27489, 348, 174, 87),
     ("bf16", "rrr"): (27141, 0, 174, 87),
     # fp8/bf8 comp_async keeps only warp_tile_k=128 (the 16x16x64 set is gated).
     ("fp8", "rcr"): (46908, 288, 360, 180),
@@ -103,10 +104,10 @@ def tearDownModule():
 class TestWarpTileRow(unittest.TestCase):
     def test_matches_dispatcher_arch_specs(self):
         row = WARP_TILE_SUPPORTED_COMBINATIONS["gfx1250"]
-        for dtype, tiles in gub.GFX1250_WARP_TILES.items():
-            key = f"{dtype}_{dtype}_fp32"
+        for dtype, tiles in vu.GFX1250_WARP_TILES.items():
+            (key,) = [k for k in row if k.startswith(f"{dtype}_{dtype}_")]
             self.assertEqual(sorted(map(list, tiles)), sorted(row[key]), dtype)
-        self.assertEqual({k.split("_")[0] for k in row}, set(gub.GFX1250_WARP_TILES))
+        self.assertEqual({k.split("_")[0] for k in row}, set(vu.GFX1250_WARP_TILES))
 
     def test_row_not_applied_to_other_arches(self):
         # 32x32x16 is not a gfx1250 WMMA tile but is valid on gfx942/gfx950.
@@ -154,7 +155,7 @@ class _ConfigLintMixin:
         name = k["name"]
         self.assertIn(
             [t["warp_tile_m"], t["warp_tile_n"], t["warp_tile_k"]],
-            list(gub.GFX1250_WARP_TILES[dtype]),
+            list(vu.GFX1250_WARP_TILES[dtype]),
             name,
         )
         self.assertTrue(

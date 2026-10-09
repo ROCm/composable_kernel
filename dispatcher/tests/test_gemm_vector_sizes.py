@@ -505,6 +505,8 @@ class TestExpandSweep(unittest.TestCase):
         self.assertTrue(aligned and not fixed & set(aligned))
         self.assertTrue(misaligned and set(misaligned) <= fixed)
         self.assertTrue(fixed <= set(untiled))
+        # An unpadded native never pairs with a K that is not a tile_k multiple.
+        self.assertTrue(all(self.cfgs[i].pad_k or 520 % self.cfgs[i].tile_k == 0 for i in untiled))
 
     def test_tune_c_keeps_c_widths_where_native_runs(self):
         from gemm_utils import expand_sweep

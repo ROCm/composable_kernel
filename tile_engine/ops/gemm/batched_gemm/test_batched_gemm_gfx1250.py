@@ -10,13 +10,17 @@ import os
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _GEMM_DIR = os.path.dirname(_HERE)
 sys.path.insert(0, _HERE)
 sys.path.insert(0, _GEMM_DIR)
+_CK_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_GEMM_DIR)))
+sys.path.append(os.path.join(_CK_ROOT, "dispatcher", "codegen"))
 
 import gemm_validation_utils as vu  # noqa: E402
+from arch_specs_generated import WARP_TILE_SUPPORTED_COMBINATIONS  # noqa: E402
 from batched_gemm_instance_builder import (  # noqa: E402
     BATCHED_GEMM_PRESHUFFLE_ERROR,
     BATCHED_GEMM_UNSUPPORTED_PIPELINES,
@@ -24,6 +28,7 @@ from batched_gemm_instance_builder import (  # noqa: E402
     check_batched_gemm_pipelines,
     split_trait,
 )
+from batched_gemm_benchmark import GemmBenchmark  # noqa: E402
 
 _CONFIG_DIR = os.path.join(_HERE, "configs")
 _FULL_CONFIG = os.path.join(_CONFIG_DIR, "default_config_gfx1250.json")
@@ -46,8 +51,8 @@ _GFX1250_WARP_LAYOUTS = {
 }
 
 
-def _builder(tmp, config_path, gpu_target="gfx1250"):
-    return BatchedGemmKernelBuilder(tmp, gpu_target, "fp16", "rcr", config_path)
+def _builder(tmp, config_path, gpu_target="gfx1250", dtype="fp16", layout="rcr"):
+    return BatchedGemmKernelBuilder(tmp, gpu_target, dtype, layout, config_path)
 
 
 def _write_config(tmp, pipelines, epilogues):
@@ -61,9 +66,29 @@ def _write_config(tmp, pipelines, epilogues):
     return path
 
 
-def _kernels(config_path, gpu_target="gfx1250"):
+def _write_tile_config(tmp, **values):
+    """CI config with the given tile_config entries replaced by value lists."""
+    with open(_CI_CONFIG) as f:
+        cfg = json.load(f)
+    for key, vals in values.items():
+        cfg["tile_config"][key] = {"values": list(vals)}
+    path = os.path.join(tmp, "tile_cfg.json")
+    with open(path, "w") as f:
+        json.dump(cfg, f)
+    return path
+
+
+def _kernels(config_path, gpu_target="gfx1250", dtype="fp16", layout="rcr"):
     with tempfile.TemporaryDirectory() as tmp:
-        return _builder(tmp, config_path, gpu_target)._get_sampled_kernel_list()
+        return _builder(
+            tmp, config_path, gpu_target, dtype, layout
+        )._get_sampled_kernel_list()
+
+
+def _warp_tiles(kernels):
+    return {
+        tuple(k["tile_config"][f"warp_tile_{d}"] for d in "mnk") for k in kernels
+    }
 
 
 class TestTraitParsing(unittest.TestCase):
@@ -84,6 +109,28 @@ class TestTraitParsing(unittest.TestCase):
             split_trait("comp_async_cshuffle_intrawave_false_false_false")[1],
             "cshuffle",
         )
+
+
+    def test_benchmark_driver_labels(self):
+        """The benchmark driver must not truncate multi-token pipeline names."""
+        driver = GemmBenchmark(".")
+        for pipeline, epilogue in (
+            ("compv4", "cshuffle"),
+            ("comp_async", "cshuffle"),
+            ("comp_tdm", "tdm"),
+            ("comp_tdm_v2", "tdm"),
+        ):
+            name = (
+                f"benchmark_batched_gemm_fp16_rcr_{pipeline}_{epilogue}_intrawave"
+                "_False_False_False_256x256x64_2x2x1_16x16x32"
+            )
+            info = driver.extract_kernel_info(Path(name))
+            self.assertEqual(
+                (info["pipeline"], info["epilogue"], info["scheduler"]),
+                (pipeline, epilogue, "intrawave"),
+                name,
+            )
+            self.assertIn(pipeline, info["config_id"])
 
 
 class TestPreshuffleRejection(unittest.TestCase):
@@ -203,7 +250,9 @@ class TestGfx1250Configs(unittest.TestCase):
             tc = json.load(f)["tile_config"]
         self.assertEqual(tc["warp_tile_m"]["values"], [16])
         self.assertEqual(tc["warp_tile_n"]["values"], [16])
-        self.assertEqual(tc["warp_tile_k"]["values"], [32])
+        # k=32 serves fp16/bf16 (16x16x32), k=4 fp32 (16x16x4), k=64 fp8/bf8
+        # (16x16x64); the builder keeps only the WMMA tile of the requested datatype.
+        self.assertEqual(tc["warp_tile_k"]["values"], [4, 32, 64])
 
     def test_schema_matches_ci(self):
         with open(_FULL_CONFIG) as f:
@@ -277,6 +326,150 @@ class TestOtherArchesUnaffected(unittest.TestCase):
                 set(traits["pipeline"]["values"]) & set(_NEW_PIPELINES), name
             )
             self.assertNotIn("tdm", traits["epilogue"]["values"], name)
+
+
+class TestDtypeLayoutCoverage(unittest.TestCase):
+    """fp16/bf16/fp32/fp8/bf8 x rcr/rrr/crr/ccr, each dtype on its own warp tiles."""
+
+    def test_op_warp_tile_allowed(self):
+        self.assertTrue(vu.op_warp_tile_allowed("gfx1250", "fp32", [16, 16, 4]))
+        self.assertFalse(vu.op_warp_tile_allowed("gfx1250", "fp32", [16, 16, 32]))
+        self.assertFalse(vu.op_warp_tile_allowed("gfx1250", "fp16", [16, 16, 4]))
+        self.assertTrue(vu.op_warp_tile_allowed("gfx942", "fp32", [32, 32, 8]))
+        self.assertFalse(vu.op_warp_tile_allowed("gfx950", "fp32", [16, 16, 32]))
+        # fp32 has no WMMA rows on gfx12 (gfx1201); a mixed target list must
+        # satisfy every target.
+        self.assertFalse(vu.op_warp_tile_allowed("gfx1201", "fp32", [16, 16, 4]))
+        self.assertFalse(
+            vu.op_warp_tile_allowed("gfx942;gfx1201", "fp32", [32, 32, 8])
+        )
+        self.assertTrue(vu.op_warp_tile_allowed("gfx942;gfx950", "fp32", [32, 32, 8]))
+        self.assertTrue(vu.op_warp_tile_allowed("gfx942;gfx1201", "fp16", [16, 16, 16]))
+        # gfx1201 WMMA has only 16x16x16 for bf16/fp8/bf8.
+        self.assertTrue(vu.op_warp_tile_allowed("gfx1201", "bf16", [16, 16, 16]))
+        self.assertFalse(vu.op_warp_tile_allowed("gfx1201", "fp8", [16, 32, 8]))
+        self.assertFalse(vu.op_warp_tile_allowed("gfx942;gfx1201", "bf16", [32, 32, 8]))
+        # Other (arch, dtype) pairs are left to the shared table.
+        self.assertTrue(vu.op_warp_tile_allowed("gfx942", "fp16", [16, 16, 4]))
+
+    def test_only_opted_in_ops_use_op_rows(self):
+        self.assertTrue(BatchedGemmKernelBuilder.USE_OP_WARP_TILE_ROWS)
+        self.assertFalse(BatchedGemmKernelBuilder.__bases__[0].USE_OP_WARP_TILE_ROWS)
+
+    def test_op_rows_match_dispatcher_arch_specs(self):
+        for arch, rows in vu.OP_ARCH_WARP_TILES.items():
+            spec = WARP_TILE_SUPPORTED_COMBINATIONS[arch]
+            for dtype, tiles in rows.items():
+                (key,) = [k for k in spec if k.startswith(f"{dtype}_{dtype}_")]
+                self.assertEqual(
+                    sorted(map(list, tiles)), sorted(spec[key]), (arch, dtype)
+                )
+
+    def test_gfx1201_keeps_only_16x16x16(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            # 2x4 waves: gfx1201 has no 2x2 warp layout.
+            path = _write_tile_config(
+                tmp,
+                warp_n=[4],
+                warp_tile_m=[16, 32],
+                warp_tile_n=[16, 32],
+                warp_tile_k=[8, 16, 32],
+            )
+            for dtype in ("fp16", "bf16", "fp8", "bf8"):
+                with self.subTest(dtype=dtype):
+                    tiles = _warp_tiles(_kernels(path, "gfx1201", dtype))
+                    self.assertEqual(tiles, {(16, 16, 16)})
+
+    def test_gfx1250_every_dtype_layout_keeps_its_wmma_tile(self):
+        for dtype, wmma in (("fp16", 32), ("bf16", 32), ("fp32", 4), ("fp8", 64), ("bf8", 64)):
+            for layout in ("rcr", "rrr", "crr", "ccr"):
+                with self.subTest(dtype=dtype, layout=layout):
+                    tiles = _warp_tiles(_kernels(_CI_CONFIG, "gfx1250", dtype, layout))
+                    self.assertEqual(tiles, {(16, 16, wmma)})
+
+    def test_gfx1250_fp32_tdm_rcr_only(self):
+        """fp32 comp_tdm / comp_tdm_v2 give wrong results off rcr on gfx1250."""
+        for layout in ("rcr", "rrr", "crr", "ccr"):
+            with self.subTest(layout=layout):
+                pipes = {
+                    k["trait_combo"][0]
+                    for k in _kernels(_CI_CONFIG, "gfx1250", "fp32", layout)
+                }
+                self.assertIn("compv3", pipes)
+                self.assertEqual(
+                    pipes & set(_TDM_PIPELINES),
+                    set(_TDM_PIPELINES) if layout == "rcr" else set(),
+                )
+        reason = vu.gfx1250_tdm_fp32_layout_reject_reason
+        self.assertEqual(reason("comp_tdm", "fp32", "fp32", "rcr"), "")
+        self.assertEqual(
+            reason("comp_tdm", "fp32", "fp32", "rrr"),
+            vu.GFX1250_TDM_FP32_LAYOUT_REJECT_REASON,
+        )
+        self.assertEqual(reason("comp_tdm_v2", "fp16", "fp16", "ccr"), "")
+        self.assertEqual(reason("compv3", "fp32", "fp32", "ccr"), "")
+
+    def test_gfx1250_fp32_accumulators_per_lane(self):
+        """fp32 tiles with >= 512 accumulators per lane spill on gfx1250."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write_tile_config(
+                tmp, tile_m=[128, 256], tile_n=[256], warp_m=[2, 4], warp_k=[1]
+            )
+            for arch, dtype in (("gfx1250", "fp32"), ("gfx1250", "fp16")):
+                tiles = {
+                    (
+                        k["tile_config"]["tile_m"],
+                        k["tile_config"]["tile_n"],
+                        k["tile_config"]["warp_m"] * k["tile_config"]["warp_n"],
+                    )
+                    for k in _kernels(path, arch, dtype)
+                }
+                with self.subTest(dtype=dtype):
+                    # 256 acc/lane (128x256 on 4 waves, 256x256 on 8) is kept.
+                    self.assertIn((128, 256, 4), tiles)
+                    self.assertIn((256, 256, 8), tiles)
+                    # 512 acc/lane (256x256 on 4 waves) only for non-fp32.
+                    self.assertEqual((256, 256, 4) in tiles, dtype != "fp32")
+        self.assertEqual(
+            vu.gfx1250_fp32_tile_reject_reason("gfx1250", "fp32", 256, 256, 4),
+            vu.GFX1250_FP32_ACC_REJECT_REASON,
+        )
+        self.assertEqual(
+            vu.gfx1250_fp32_tile_reject_reason("gfx942", "fp32", 256, 256, 4), ""
+        )
+
+    def test_gfx9_fp32_uses_fp32_mfma_tiles(self):
+        for arch in ("gfx942", "gfx950"):
+            with self.subTest(arch=arch):
+                tiles = _warp_tiles(
+                    _kernels(os.path.join(_CONFIG_DIR, "default_ci_config.json"), arch, "fp32")
+                )
+                self.assertTrue(tiles)
+                self.assertLessEqual(
+                    tiles, {tuple(t) for t in vu.GFX9_FP32_WARP_TILES}
+                )
+
+    def test_fp32_header_uses_float(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            b = _builder(tmp, _CI_CONFIG, dtype="fp32", layout="ccr")
+            k = b._get_sampled_kernel_list()[0]
+            _, code = b._generate_kernel_instance(k["tile_config"], k["trait_combo"])
+        for line in (
+            "using ADataType = float;",
+            "using CDataType = float;",
+            "using ALayout = ck_tile::tensor_layout::gemm::ColumnMajor;",
+            "using BLayout = ck_tile::tensor_layout::gemm::ColumnMajor;",
+        ):
+            self.assertIn(line, code)
+
+    def test_fp8_bf8_headers_accumulate_into_half(self):
+        for dtype, a_type in (("fp8", "ck_tile::fp8_t"), ("bf8", "ck_tile::bf8_t")):
+            with self.subTest(dtype=dtype), tempfile.TemporaryDirectory() as tmp:
+                b = _builder(tmp, _CI_CONFIG, dtype=dtype, layout="rcr")
+                k = b._get_sampled_kernel_list()[0]
+                _, code = b._generate_kernel_instance(k["tile_config"], k["trait_combo"])
+                self.assertIn(f"using ADataType = {a_type};", code)
+                self.assertIn("using CDataType = ck_tile::fp16_t;", code)
 
 
 class TestCMake(unittest.TestCase):

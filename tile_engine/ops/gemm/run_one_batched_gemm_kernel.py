@@ -12,12 +12,15 @@ Batched counterpart of run_one_gemm_kernel.py:
 Input JSON format:
     Single: {"so_path": "...",
              "problem": {"batch_count":.., "M":.., "N":.., "K":..},
-             "kernel_name": "..."}
+             "kernel_name": "...", "arch": "gfx942"}
     Batch:  {"items": [{...}, ...]}
 
+``arch`` (optional) is the target the .so was built for; it fixes the fp8/bf8
+host encoding instead of probing the local GPU.
+
 Optional top-level keys ``verify`` (bool) and ``verify_tol`` (float) enable an
-fp32 numpy reference check (per-batch A @ B); when set, each OK result also
-carries ``verified`` and ``max_rel``.
+fp32 reference check (per-batch A @ B on the inputs the kernel reads); when
+set, each OK result also carries ``verified`` and ``max_rel``.
 """
 
 import json
@@ -38,11 +41,14 @@ from batched_gemm_utils import (  # noqa: E402
 import numpy as np  # noqa: E402
 
 
-def _run_one(idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2):
+def _run_one(
+    idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2, arch=None
+):
     """Run a single batched kernel and emit its result as one JSON line.
 
-    When ``verify`` is set, the batched output is checked against an fp32 numpy
-    reference (per-batch ``A @ B``) using the global relative metric
+    When ``verify`` is set, the batched output is checked against
+    ``runner.reference`` (per-batch fp32 ``A @ B`` on the kernel's inputs) using
+    the global relative metric
     ``max|out - ref| / max|ref|``.
     """
     try:
@@ -66,7 +72,7 @@ def _run_one(idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2
         A, B = cache[key]
 
         # CRITICAL: load the library ONLY inside this subprocess.
-        runner = GpuBatchedGemmRunner(lib_path=so_path)
+        runner = GpuBatchedGemmRunner(lib_path=so_path, arch=arch)
         result = runner.run(A, B, problem)
 
         if result.success:
@@ -84,7 +90,7 @@ def _run_one(idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2
                 "kernel": kernel_name,
             }
             if verify:
-                ref = np.matmul(A.astype(np.float32), B.astype(np.float32))
+                ref = runner.reference(A, B)
                 got = result.output.astype(np.float32)
                 denom = float(np.max(np.abs(ref))) or 1.0
                 max_rel = float(np.max(np.abs(got - ref)) / denom)
@@ -136,6 +142,7 @@ def main():
                 item.get("kernel_name", "unknown"),
                 verify=verify,
                 verify_tol=verify_tol,
+                arch=item.get("arch"),
             )
     else:
         _run_one(
@@ -145,6 +152,7 @@ def main():
             d.get("kernel_name", "unknown"),
             verify=verify,
             verify_tol=verify_tol,
+            arch=d.get("arch"),
         )
 
 

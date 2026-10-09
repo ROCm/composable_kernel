@@ -32,7 +32,7 @@ byte-identical AMDGPU backend flags -- a prerequisite for fair A/B parity.
 """
 
 from __future__ import annotations
-from dispatcher_common import unified_framework_flags
+from dispatcher_common import unified_framework_flags, arch_feature_defines
 
 import ctypes
 import multiprocessing
@@ -103,7 +103,21 @@ _SUPPORTED_ARCHES: Tuple[str, ...] = ("gfx90a", "gfx942", "gfx950", "gfx1250")
 # device, so its element size must match these exactly -- see the F6 check in
 # GpuBatchedGemmRunner.run(). ck_tile bf16_t is a 2-byte type (mirrored on the
 # host by np.uint16); fp16 is 2 bytes; the int8 path accumulates into int32.
-_C_SIZEOF: Dict[str, int] = {"fp16": 2, "bf16": 2, "int32": 4}
+_C_SIZEOF: Dict[str, int] = {"fp16": 2, "bf16": 2, "fp32": 4, "int32": 4}
+
+# Batched GEMM dtype/layout set shared with the Old-TE batched_gemm instance
+# builder (--datatype/--layout choices) and the full benchmark CLI.
+BATCHED_SUPPORTED_DTYPES: Tuple[str, ...] = ("fp16", "bf16", "fp32", "fp8", "bf8")
+BATCHED_SUPPORTED_LAYOUTS: Tuple[str, ...] = ("rcr", "rrr", "crr", "ccr")
+# Default --verify relative tolerance (max|got-ref| / max|ref| against an fp32
+# reference on the unquantized inputs), sized to each dtype's input rounding.
+BATCHED_VERIFY_TOL: Dict[str, float] = {
+    "fp16": 2e-2,
+    "bf16": 5e-2,
+    "fp32": 1e-3,
+    "fp8": 6e-2,
+    "bf8": 1.2e-1,
+}
 
 
 def _get_arch() -> str:
@@ -372,21 +386,25 @@ class GpuBatchedGemmRunner:
     A/B/C are batched tensors laid out per the compiled kernel's layout. The C
     ABI takes HOST pointers and manages GPU memory internally, so this runner
     hands numpy arrays (in the kernel's element dtype + memory order) straight
-    to the .so. fp16/rcr is the only TE-supported batched signature today, but
-    the dtype-encode helpers are reused from gemm_utils so extending to more
-    dtypes only requires codegen support.
+    to the .so. The dtype encode/decode helpers are shared with gemm_utils, so
+    every BATCHED_SUPPORTED_DTYPES x BATCHED_SUPPORTED_LAYOUTS signature runs here.
     """
 
-    def __init__(self, lib_path: Path):
+    def __init__(self, lib_path: Path, arch: Optional[str] = None):
         self.lib = BatchedGemmDispatcherLib(lib_path)
         if not self.lib.initialize():
             raise RuntimeError(f"Failed to initialize batched dispatcher .so: {lib_path}")
         names = self.lib.kernel_names
         self._kernel_name = names[0] if names else "unknown"
+        # fp8/bf8 encoding must match the arch the .so was compiled for; `arch`
+        # pins it, otherwise the local GPU is probed (as in GpuGemmRunner).
+        self._use_ocp = _gu._fp8_uses_ocp(arch) if arch else None
 
     @property
     def kernel_name(self) -> str:
         return self._kernel_name
+
+    reference = _gu.GpuGemmRunner.reference
 
     def run(
         self,
@@ -449,38 +467,18 @@ class GpuBatchedGemmRunner:
         B_lay = B if lb == "r" else np.transpose(B, (0, 2, 1))
         C_shape = (batch, M, N) if lc == "r" else (batch, N, M)
 
-        if dtype == "bf16":
-            A_h = _gu._fp32_to_bf16_u16(A_lay)
-            B_h = _gu._fp32_to_bf16_u16(B_lay)
-        elif dtype == "fp8":
-            A_h = _gu._fp32_to_fp8_u8(A_lay)
-            B_h = _gu._fp32_to_fp8_u8(B_lay)
-        elif dtype == "bf8":
-            A_h = _gu._fp32_to_bf8_u8(A_lay)
-            B_h = _gu._fp32_to_bf8_u8(B_lay)
-        elif dtype == "int8":
-            A_h = np.ascontiguousarray(A_lay, dtype=np.int8)
-            B_h = np.ascontiguousarray(B_lay, dtype=np.int8)
-        else:  # fp16 (default / only TE batched dtype)
-            A_h = np.ascontiguousarray(A_lay, dtype=np.float16)
-            B_h = np.ascontiguousarray(B_lay, dtype=np.float16)
-
-        out_dtype = _gu._output_dtype(dtype)
-        _C_NP = {"fp16": np.float16, "bf16": np.uint16, "int32": np.int32}
-        if out_dtype not in _C_NP:
-            raise ValueError(
-                f"unsupported C dtype {out_dtype!r} (from input dtype {dtype!r}); "
-                "add it to _C_NP so the host buffer matches sizeof(CDataType)"
-            )
+        A_h = _gu._encode_operand(A_lay, dtype, self._use_ocp)
+        B_h = _gu._encode_operand(B_lay, dtype, self._use_ocp)
+        out_dtype, c_np = _gu._c_numpy_dtype(dtype)
         # F6: the host C buffer is memcpy'd byte-for-byte to/from the device
         # buffer the kernel writes as CDataType, so the numpy element size MUST
         # equal the C++ sizeof(CDataType). Assert it here so a future _C_NP edit
         # (e.g. mapping fp16 -> np.float32) fails loudly instead of silently
         # copying the wrong byte count.
-        if np.dtype(_C_NP[out_dtype]).itemsize != _C_SIZEOF[out_dtype]:
+        if np.dtype(c_np).itemsize != _C_SIZEOF[out_dtype]:
             raise ValueError(
                 f"host C dtype size mismatch for {out_dtype!r}: numpy "
-                f"{np.dtype(_C_NP[out_dtype]).itemsize} bytes != kernel "
+                f"{np.dtype(c_np).itemsize} bytes != kernel "
                 f"sizeof(CDataType) {_C_SIZEOF[out_dtype]} bytes"
             )
 
@@ -505,7 +503,7 @@ class GpuBatchedGemmRunner:
             for b in range(batch):
                 A_buf[b * bsa : b * bsa + slab_A] = A_flat[b]
                 B_buf[b * bsb : b * bsb + slab_B] = B_flat[b]
-            C_buf = np.zeros(bsc * batch, dtype=_C_NP[out_dtype])
+            C_buf = np.zeros(bsc * batch, dtype=c_np)
 
             status, time_ms = self.lib.run(
                 A_buf,
@@ -528,13 +526,13 @@ class GpuBatchedGemmRunner:
                 rotating_count,
             )
             # Gather the C slabs back out of their padded slots.
-            C_h = np.empty((batch, slab_C), dtype=_C_NP[out_dtype])
+            C_h = np.empty((batch, slab_C), dtype=c_np)
             for b in range(batch):
                 C_h[b] = C_buf[b * bsc : b * bsc + slab_C]
             C_h = C_h.reshape(C_shape)
         else:
             # PACKED: batch strides default (0) -> kernel/.so derive them.
-            C_h = np.zeros(C_shape, dtype=_C_NP[out_dtype])
+            C_h = np.zeros(C_shape, dtype=c_np)
             status, time_ms = self.lib.run(
                 A_h,
                 B_h,
@@ -550,10 +548,7 @@ class GpuBatchedGemmRunner:
                 rotating_count=rotating_count,
             )
 
-        if out_dtype == "bf16":
-            C_dec = _gu._bf16_u16_to_fp32(C_h)
-        else:
-            C_dec = C_h
+        C_dec = _gu._decode_c(C_h, out_dtype)
         C_out = C_dec if lc == "r" else np.transpose(C_dec, (0, 2, 1))
 
         tflops = (problem.flops / (time_ms * 1e-3)) / 1e12 if time_ms > 0 else 0.0
@@ -584,6 +579,9 @@ def _build_batched_compile_jobs(
     ctypes_source = root / "bindings" / "ctypes" / "batched_gemm_ctypes_lib.cpp"
 
     lib_path = build_dir / "examples" / f"lib{config.name}.so"
+    # Registry-bypass: no CMake dispatcher build is needed, so build/examples
+    # may not exist yet in a fresh checkout.
+    lib_path.parent.mkdir(parents=True, exist_ok=True)
     obj_file = lib_path.with_suffix(".o")
 
     # Never default to gfx942: resolve None via rocminfo (_get_arch) and validate
@@ -606,6 +604,9 @@ def _build_batched_compile_jobs(
         f"--offload-arch={gfx_arch}",
         f'-DGFX_ARCH="{gfx_arch}"',
         *unified_framework_flags(gfx_arch),
+        # Keep host/device fp8 encodings consistent and enable the target's
+        # WMMA/MX features, matching the CMake build and gemm_utils.
+        *arch_feature_defines(gfx_arch),
         # Byte-identical AMDGPU backend flags to the single-problem bridge and
         # Old-TE (see gemm_utils._tile_engine_codegen_flags) -- required for a
         # fair A/B parity comparison.
@@ -781,30 +782,28 @@ def expand_sweep(
     default. ``vector_kwargs`` (``vector_sizes``/``rejects``) is forwarded to
     gemm_utils.expand_sweep for misaligned-problem vector widths."""
     arch = _resolve_arch(arch)
-    # Match Old-TE's validated set EXACTLY: the batched_gemm instance builder
-    # (tile_engine/ops/gemm/batched_gemm/batched_gemm_instance_builder.py)
-    # declares --datatype choices=["fp16"] and --layout choices=["rcr"], so
-    # anything else would codegen/compile/launch a kernel Old-TE never validated
-    # (claimed parity != exercised parity). Reject it up front with a clear error
-    # rather than silently building an untested signature.
-    if dtype != "fp16":
-        raise ValueError(
-            f"batched_gemm bridge supports only dtype 'fp16' (Old-TE "
-            f"batched_gemm_instance_builder declares --datatype choices=['fp16']); "
-            f"got {dtype!r}"
-        )
-    if layout != "rcr":
-        raise ValueError(
-            f"batched_gemm bridge supports only layout 'rcr' (Old-TE "
-            f"batched_gemm_instance_builder declares --layout choices=['rcr']); "
-            f"got {layout!r}"
-        )
+    # Match Old-TE's validated set EXACTLY (the batched_gemm instance builder's
+    # --datatype/--layout choices, kept equal by a unit test) so the bridge never
+    # builds a signature Old-TE does not generate.
+    for name, value, supported in (
+        ("dtype", dtype, BATCHED_SUPPORTED_DTYPES),
+        ("layout", layout, BATCHED_SUPPORTED_LAYOUTS),
+    ):
+        if value not in supported:
+            raise ValueError(
+                f"batched_gemm bridge supports {name} {list(supported)}; got {value!r}"
+            )
     base_configs = _gu.expand_sweep(
         config_path, arch, dtype=dtype, layout=layout, variant="batched", **vector_kwargs
     )
     out: List[BatchedGemmKernelConfig] = []
     seen: set = set()
     for b in base_configs:
+        # Old-TE validate_dimension parity: the K tile must split evenly across
+        # wave_k x warp_tile_k. The shared gate checks only M/N, so an fp8/bf8
+        # 16x16x128 or 32x32x64 warp tile would otherwise pair with tile_k=64.
+        if b.tile_k % (b.wave_k * b.warp_tile_k):
+            continue
         # Old-TE IsSupportedArgument parity gate (issue #9684): drop the
         # odd-per-wave-repeat / 32-wide-warp-tile signature (e.g. tile=192 /
         # wave=2 / warp_tile=32 => repeat=3) that returns garbage. gemm_utils

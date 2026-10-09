@@ -1266,6 +1266,65 @@ def _output_dtype(dtype: str) -> str:
     return _OUTPUT_DTYPE.get(dtype, dtype)
 
 
+# numpy dtypes the runners hand straight across the C ABI. Host buffers are
+# memcpy'd verbatim, so each itemsize must equal the kernel's sizeof(ElementType);
+# bf16/fp8/bf8 inputs go through the encode helpers instead.
+_NATIVE_IN_NP = {"fp16": np.float16, "fp32": np.float32, "int8": np.int8}
+_C_NP = {"fp16": np.float16, "bf16": np.uint16, "fp32": np.float32, "int32": np.int32}
+
+
+def _native_codec(np_type):
+    return (
+        lambda x, ocp: np.ascontiguousarray(x, dtype=np_type),
+        lambda h, ocp: h.astype(np.float32),
+    )
+
+
+# Host codec for the A/B elements of a kernel dtype: (encode fp32 -> the host
+# buffer the kernel reads, decode that buffer -> fp32). The second argument is
+# the fp8/bf8 OCP flag (None -> local arch). run() and reference() share it.
+_INPUT_CODEC = {
+    **{d: _native_codec(t) for d, t in _NATIVE_IN_NP.items()},
+    "bf16": (lambda x, ocp: _fp32_to_bf16_u16(x), lambda h, ocp: _bf16_u16_to_fp32(h)),
+    "fp8": (_fp32_to_fp8_u8, _fp8_u8_to_fp32),
+    "bf8": (_fp32_to_bf8_u8, _bf8_u8_to_fp32),
+}
+
+
+def _input_codec(dtype: str):
+    """Return the (encode, decode) host codec of A/B ``dtype``; raise if unknown."""
+    if dtype not in _INPUT_CODEC:
+        raise ValueError(f"unsupported input dtype {dtype!r}; add it to _NATIVE_IN_NP")
+    return _INPUT_CODEC[dtype]
+
+
+def _encode_operand(x: np.ndarray, dtype: str, use_ocp: Optional[bool] = None) -> np.ndarray:
+    """Encode an A/B host operand into the kernel's element dtype; raise if unknown."""
+    return _input_codec(dtype)[0](x, use_ocp)
+
+
+def _c_numpy_dtype(dtype: str):
+    """Return (C dtype token, host numpy type) for input ``dtype``; raise if unknown.
+
+    fp8/bf8 accumulate into fp16 and int8 into int32, otherwise C is the input
+    dtype. A silent fallback would size the host C buffer wrong across the C ABI.
+    """
+    out_dtype = _output_dtype(dtype)
+    if out_dtype not in _C_NP:
+        raise ValueError(
+            f"unsupported C dtype {out_dtype!r} (from input dtype {dtype!r}); "
+            "add it to _C_NP so the host buffer matches sizeof(CDataType)"
+        )
+    return out_dtype, _C_NP[out_dtype]
+
+
+def _decode_c(C_h: np.ndarray, out_dtype: str) -> np.ndarray:
+    """Decode a host C buffer into a numerically comparable array; raise if unknown."""
+    if out_dtype not in _C_NP:
+        raise ValueError(f"unsupported C dtype {out_dtype!r}; add it to _C_NP")
+    return _bf16_u16_to_fp32(C_h) if out_dtype == "bf16" else C_h
+
+
 def _dtype_from_kernel_name(name: str) -> str:
     """Extract the dtype token from a kernel name like ``gemm_<dtype>_<layout>_...``."""
     parts = name.split("_")
@@ -1306,6 +1365,18 @@ class GpuGemmRunner:
     @property
     def kernel_name(self) -> str:
         return self._kernel_name
+
+    def reference(self, A: np.ndarray, B: np.ndarray) -> np.ndarray:
+        """fp32 ``A @ B`` on the values the kernel reads in run(A, B, ...).
+
+        A and B are rounded through the same host encoding run() uses (bf16,
+        fp8/bf8 in the arch's OCP or FNUZ format, fp16), so a verify metric
+        measures compute error, not input quantization. Leading batch axes
+        broadcast, so GpuBatchedGemmRunner shares this method.
+        """
+        encode, decode = _input_codec(_dtype_from_kernel_name(self._kernel_name))
+        Aq, Bq = (decode(encode(X, self._use_ocp), self._use_ocp) for X in (A, B))
+        return Aq @ Bq
 
     def run(
         self, A: np.ndarray, B: np.ndarray, problem: GemmProblem

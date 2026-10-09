@@ -148,11 +148,13 @@ class VectorFallback:
             pairs = []
             for prob, pv in zip(problems, self.prob_extents):
                 dims = dict(m=int(prob["M"]), n=int(prob["N"]), k=int(prob["K"]))
-                fits = [all(p % k == 0 for p, k in zip(pv, kv)) for kv in kernel_vecs]
-                served = {
-                    b for b, f, ok, cfg in zip(bases, fixed, fits, cfgs)
-                    if ok and not f and _tile_fits(cfg, dims)
-                }
+                # A kernel runs a problem only if its widths divide the contiguous
+                # extents and its unpadded contiguous extents are tile multiples.
+                fits = [
+                    all(p % k == 0 for p, k in zip(pv, kv)) and _tile_fits(cfg, dims)
+                    for kv, cfg in zip(kernel_vecs, cfgs)
+                ]
+                served = {b for b, f, ok in zip(bases, fixed, fits) if ok and not f}
                 idx = [i for i, ok in enumerate(fits) if ok and not (gated[i] and bases[i] in served)]
                 n_redundant += sum(fits) - len(idx)
                 pairs.append(idx)
@@ -163,7 +165,7 @@ class VectorFallback:
         print(f"  Problems: {len(problems)}")
         print(
             f"  Total measurements: {n_meas} "
-            f"({n_incompatible} vector-width-incompatible pairs skipped, "
+            f"({n_incompatible} vector-width or tile incompatible pairs skipped, "
             f"{n_redundant} fixed-width pairs skipped where the native kernel runs)"
         )
         for prob, pv, idx in zip(problems, self.prob_vecs, pairs):

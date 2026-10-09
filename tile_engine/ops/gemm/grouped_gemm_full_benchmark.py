@@ -320,7 +320,7 @@ def main():
     print(f"  Successful measurements: {total_measurements}")
     print(f"  Failed measurements: {total_failures}")
     print(f"  Output: {csv_path}")
-    return 0
+    return 1 if total_failures else 0
 
 
 if __name__ == "__main__":

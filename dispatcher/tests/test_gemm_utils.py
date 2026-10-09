@@ -44,6 +44,10 @@ from gemm_utils import (  # noqa: E402
     _dtype_from_kernel_name,
     _layout_from_kernel_name,
     _cshuffle_store_ok,
+    _C_NP,
+    _encode_operand,
+    _c_numpy_dtype,
+    _decode_c,
 )
 
 
@@ -468,6 +472,55 @@ class TestModuleImportsAndRunnerShape(unittest.TestCase):
             src,
             "GpuMultiABDRunner must not contain multi_d result code (merge slip)",
         )
+
+
+class TestHostBufferHelpers(unittest.TestCase):
+    """The runner's A/B encode and C sizing/decode must never fall back to fp16."""
+
+    def test_encode_native_dtypes(self):
+        x = np.asfortranarray(np.arange(6, dtype=np.float64).reshape(2, 3))
+        for dtype, np_type in (("fp16", np.float16), ("fp32", np.float32), ("int8", np.int8)):
+            with self.subTest(dtype=dtype):
+                enc = _encode_operand(x, dtype)
+                self.assertEqual(enc.dtype, np_type)
+                self.assertTrue(enc.flags.c_contiguous)
+                np.testing.assert_array_equal(enc.astype(np.float64), x)
+
+    def test_encode_bf16_is_u16_bits(self):
+        x = np.array([1.0, -2.5], dtype=np.float32)
+        enc = _encode_operand(x, "bf16")
+        self.assertEqual(enc.dtype, np.uint16)
+        np.testing.assert_array_equal(_bf16_u16_to_fp32(enc), x)
+
+    def test_encode_rejects_unknown(self):
+        with self.assertRaises(ValueError):
+            _encode_operand(np.zeros(2, dtype=np.float32), "xyz")
+
+    def test_c_numpy_dtype(self):
+        cases = {
+            "fp16": ("fp16", np.float16),
+            "bf16": ("bf16", np.uint16),
+            "fp32": ("fp32", np.float32),
+            "fp8": ("fp16", np.float16),
+            "int8": ("int32", np.int32),
+        }
+        for dtype, expected in cases.items():
+            with self.subTest(dtype=dtype):
+                self.assertEqual(_c_numpy_dtype(dtype), expected)
+        self.assertEqual(_C_NP["fp32"], np.float32)
+
+    def test_c_numpy_dtype_rejects_unknown(self):
+        with self.assertRaises(ValueError):
+            _c_numpy_dtype("xyz")
+
+    def test_decode_c(self):
+        x = np.array([1.0, 0.5], dtype=np.float32)
+        np.testing.assert_array_equal(_decode_c(_fp32_to_bf16_u16(x), "bf16"), x)
+        self.assertIs(_decode_c(x, "fp32"), x)
+
+    def test_decode_c_rejects_unknown(self):
+        with self.assertRaises(ValueError):
+            _decode_c(np.zeros(2, dtype=np.float32), "fp8")
 
 
 if __name__ == "__main__":

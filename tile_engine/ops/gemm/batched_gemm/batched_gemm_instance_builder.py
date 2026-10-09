@@ -37,6 +37,11 @@ def _import_split_trait():
 GemmKernelBuilder = _import_gemm_kernel_builder()
 split_trait = _import_split_trait()
 
+# Must match BATCHED_SUPPORTED_DTYPES/LAYOUTS in dispatcher batched_gemm_utils.py
+# (not imported here: that module pulls numpy/ctypes into CMake codegen).
+BATCHED_GEMM_SUPPORTED_DTYPES = ("fp16", "bf16", "fp32", "fp8", "bf8")
+BATCHED_GEMM_SUPPORTED_LAYOUTS = ("rcr", "rrr", "crr", "ccr")
+
 # BatchedGemmKernel advances the B pointer of each batch by batch_stride_B plus
 # the split-K offset of an unshuffled B. A weight-preshuffled (flat) B needs a
 # different offset, so the preshuffle pipelines are rejected for batched GEMM.
@@ -59,6 +64,9 @@ def check_batched_gemm_pipelines(pipelines):
 
 
 class BatchedGemmKernelBuilder(GemmKernelBuilder):
+    # bf16/fp32/fp8/bf8 reach gfx1250, gfx1201 and fp32 rows the shared table lacks.
+    USE_OP_WARP_TILE_ROWS = True
+
     def __init__(
         self,
         working_path,
@@ -272,13 +280,13 @@ def main():
     parser.add_argument(
         "--datatype",
         required=True,
-        choices=["fp16"],
+        choices=BATCHED_GEMM_SUPPORTED_DTYPES,
         help="Data type",
     )
     parser.add_argument(
         "--layout",
         required=True,
-        choices=["rcr"],
+        choices=BATCHED_GEMM_SUPPORTED_LAYOUTS,
         help="Matrix layout",
     )
     parser.add_argument("--config_json", required=True, help="Configuration JSON file")
@@ -333,9 +341,6 @@ def main():
     layout_parts = args.layout.lower()
     assert len(layout_parts) == 3, (
         f"Invalid layout string: {args.layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
-    )
-    assert layout_parts == "rcr", (
-        f"Invalid matrix_a layout : {args.layout} (batched GEMM only supports 'rcr' layout)"
     )
 
     builder = BatchedGemmKernelBuilder(

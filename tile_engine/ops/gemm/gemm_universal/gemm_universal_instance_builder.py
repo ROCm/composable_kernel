@@ -38,23 +38,11 @@ def _import_split_trait():
 GemmKernelBuilder = _import_gemm_kernel_builder()
 split_trait = _import_split_trait()
 
-# gfx1250 WMMA warp tiles per datatype (the gfx1250 row of the dispatcher
-# arch_specs). The shared tile-engine warp-tile table has no gfx1250 entry and
-# accepts any warp tile there, so gemm_universal applies this row itself. Only
-# gfx1250 targets consult it; every other arch is validated exactly as before.
-GFX1250_WARP_TILES = {
-    "fp16": ([16, 16, 32],),
-    "bf16": ([16, 16, 32],),
-    "fp8": ([16, 16, 64], [16, 16, 128]),
-    "bf8": ([16, 16, 64], [16, 16, 128]),
-}
-
-
-def _is_gfx1250_target(gpu_target):
-    return str(gpu_target).split(":", 1)[0] == "gfx1250"
-
 
 class GemmUniversalKernelBuilder(GemmKernelBuilder):
+    # gfx1250 WMMA rows (and gfx1201 bf16/fp8/bf8) are not in the shared table.
+    USE_OP_WARP_TILE_ROWS = True
+
     def __init__(
         self,
         kernel_name_prefix,
@@ -79,37 +67,6 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
             seed=seed,
             tier=tier,
             manifest_path=manifest_path,
-        )
-
-    def _validate_tile_config(
-        self,
-        tile_m,
-        tile_n,
-        tile_k,
-        warp_m,
-        warp_n,
-        warp_k,
-        warp_tile_m,
-        warp_tile_n,
-        warp_tile_k,
-        pipeline,
-    ):
-        """Restrict gfx1250 warp tiles to its WMMA row, then run the shared checks."""
-        if _is_gfx1250_target(self.gpu_target):
-            allowed = GFX1250_WARP_TILES.get(self.datatype, ())
-            if [warp_tile_m, warp_tile_n, warp_tile_k] not in allowed:
-                return False
-        return super()._validate_tile_config(
-            tile_m,
-            tile_n,
-            tile_k,
-            warp_m,
-            warp_n,
-            warp_k,
-            warp_tile_m,
-            warp_tile_n,
-            warp_tile_k,
-            pipeline,
         )
 
     def _generate_all_individual(self, num_workers=None):

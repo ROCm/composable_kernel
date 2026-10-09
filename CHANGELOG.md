@@ -12,6 +12,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added a batched contraction kernel with multiple ABD support to CK Tile.
 * Added CK Tile dispatcher support for more GEMM operators, including weight preshuffle GEMM, batched GEMM, batched contraction, grouped A-quantized and AB-quantized GEMM, grouped row-column and tensor quantized GEMM, and block scale quantized GEMM.
 * Added gfx1250 support to the CK Tile dispatcher GEMM operators, covering universal, grouped, multiple D, multiple ABD, batched, batched contraction, and grouped quantized GEMM.
+* Added bf16, fp32, fp8, and bf8 data types and the rrr, crr, and ccr layouts to the CK Tile Tile Engine batched GEMM and its dispatcher bridge.
 * Added gfx1250 WMMA instance support to the CK backend for PyTorch Inductor, covering universal GEMM, batched GEMM, and grouped convolution forward.
 * Added the tanh approximation of GELU to the XDL two-stage MoE GEMM epilogue.
 * Added double-precision buffer atomic add support on gfx1250.

@@ -468,7 +468,7 @@ def main():
     print(f"  Successful measurements: {stats['measurements']}")
     print(f"  Failed measurements: {stats['failures']}")
     print(f"  Output: {csv_path}")
-    return 0
+    return 1 if stats["failures"] else 0
 
 
 if __name__ == "__main__":

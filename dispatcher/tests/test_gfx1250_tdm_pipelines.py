@@ -233,6 +233,23 @@ class TestArchFilterGfx1250Rejects(unittest.TestCase):
                 self._valid(pipeline="compv3", layout=layout, **self.PADS_TTT), layout
             )
 
+    def test_tdm_fp32_rcr_only(self):
+        fp32 = dict(datatype_a="fp32", datatype_b="fp32", datatype_c="fp32")
+        fp32.update(warp_tile_k=4, epilogue="tdm", **self.PADS_FFF)
+        for pipe in ("comp_tdm", "comp_tdm_v2"):
+            self.assertTrue(self._valid(pipeline=pipe, layout="rcr", **fp32), pipe)
+            for layout in ("rrr", "crr", "ccr"):
+                self.assertFalse(
+                    self._valid(pipeline=pipe, layout=layout, **fp32), (pipe, layout)
+                )
+                # fp16 TDM keeps every layout.
+                self.assertTrue(
+                    self._valid(
+                        pipeline=pipe, layout=layout, epilogue="tdm", **self.PADS_FFF
+                    ),
+                    (pipe, layout),
+                )
+
     def test_comp_async_epilogue_and_scheduler(self):
         self.assertFalse(
             self._valid(pipeline="comp_async", epilogue="default", **self.PADS_TTT)

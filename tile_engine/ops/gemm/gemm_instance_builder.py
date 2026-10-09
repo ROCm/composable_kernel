@@ -54,6 +54,11 @@ def lookup_pipeline(pipeline_map, pipeline, what="pipeline"):
 
 
 class GemmKernelBuilder:
+    # Ops that generate (arch, dtype) pairs the shared warp-tile table does not
+    # cover (gfx1250, fp32, gfx1201 non-fp16) set this to True so their warp
+    # tiles are also checked against op_warp_tile_allowed().
+    USE_OP_WARP_TILE_ROWS = False
+
     def __init__(
         self,
         kernel_name_prefix,
@@ -500,6 +505,11 @@ class GemmKernelBuilder:
         pipeline,
     ):
         """Validate that tile configuration is reasonable"""
+        if self.USE_OP_WARP_TILE_ROWS and not _validation_utils.op_warp_tile_allowed(
+            self.gpu_target, self.datatype, (warp_tile_m, warp_tile_n, warp_tile_k)
+        ):
+            return False
+
         # Validate preshuffle specific constraints
         if (
             self.config.get("permute_n") is not None

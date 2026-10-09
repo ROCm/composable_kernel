@@ -69,6 +69,19 @@ GFX1250_COMP_ASYNC_8BIT_WARP_TILE_K_REJECT_REASON = (
     "warp_tile_k=128 (XOR-swizzled 8-bit async load), so it requires "
     "warp_tile_k >= 128"
 )
+# fp32 A/B on gfx1250. Same rules and text as the dispatcher codegen_common:
+# comp_tdm / comp_tdm_v2 give wrong results for every layout but rcr, and an
+# fp32 C tile of 512 or more accumulators per lane (tile_m*tile_n /
+# (num_waves*32), e.g. 256x256 on 4 waves) spills VGPRs and gives wrong results.
+GFX1250_TDM_FP32_LAYOUT_REJECT_REASON = (
+    "comp_tdm/comp_tdm_v2 with fp32 A/B on gfx1250 gives wrong results for "
+    "every layout but rcr, so fp32 TDM requires layout=rcr"
+)
+GFX1250_FP32_MAX_ACC_PER_LANE = 512
+GFX1250_FP32_ACC_REJECT_REASON = (
+    f"fp32 on gfx1250 spills VGPRs at >= {GFX1250_FP32_MAX_ACC_PER_LANE} "
+    "accumulators per lane (tile_m*tile_n/(num_waves*32)) and gives wrong results"
+)
 
 
 # Ops whose kernels have no async (comp_async) or TDM (comp_tdm, comp_tdm_v2 +
@@ -161,6 +174,26 @@ def gfx1250_comp_async_8bit_warp_tile_k_reject_reason(
     )
     if is_8bit and warp_tile_k < GFX1250_COMP_ASYNC_8BIT_MIN_WARP_TILE_K:
         return GFX1250_COMP_ASYNC_8BIT_WARP_TILE_K_REJECT_REASON
+    return ""
+
+
+def gfx1250_tdm_fp32_layout_reject_reason(pipeline, a_datatype, b_datatype, layout):
+    """Reason string if comp_tdm / comp_tdm_v2 has fp32 A or B on a layout other
+    than rcr, else "". An empty layout is not checked."""
+    if pipeline not in GEMM_TDM_PIPELINES or not layout:
+        return ""
+    if "fp32" in (a_datatype, b_datatype) and layout != "rcr":
+        return GFX1250_TDM_FP32_LAYOUT_REJECT_REASON
+    return ""
+
+
+def gfx1250_fp32_tile_reject_reason(gpu_target, datatype, tile_m, tile_n, num_waves):
+    """Reason string if an fp32 tile has too many accumulators per lane on
+    gfx1250 (every pipeline), else ""."""
+    if datatype != "fp32" or _base_gfx_arch(gpu_target) != GFX1250_ONLY_PIPELINE_ARCH:
+        return ""
+    if tile_m * tile_n >= GFX1250_FP32_MAX_ACC_PER_LANE * num_waves * 32:
+        return GFX1250_FP32_ACC_REJECT_REASON
     return ""
 
 
@@ -718,6 +751,54 @@ def validate_lds_capacity(
     return True, ""
 
 
+# Op-opt-in warp-tile rows the shared table above does not cover: it has no
+# gfx1250 entry, only an fp16 row for gfx1201 and no fp32 key, so
+# validate_gemm_warp_tile_combination accepts any warp tile there. Ops that
+# generate those signatures set GemmKernelBuilder.USE_OP_WARP_TILE_ROWS and
+# filter through op_warp_tile_allowed(); nothing else consults these rows. Every
+# row equals the dispatcher arch_specs.json row of that (arch, dtype).
+GFX1250_WARP_TILES = {
+    "fp16": ([16, 16, 32],),
+    "bf16": ([16, 16, 32],),
+    "fp32": ([16, 16, 4],),
+    "fp8": ([16, 16, 64], [16, 16, 128]),
+    "bf8": ([16, 16, 64], [16, 16, 128]),
+    "int8": ([16, 16, 64],),
+}
+GFX9_FP32_WARP_TILES = ([16, 16, 4], [16, 16, 8], [16, 16, 16], [32, 32, 4], [32, 32, 8])
+# A (arch, dtype) with no row is left to the shared table (gfx1201 fp16 is
+# covered there), except fp32 and gfx1250, which the shared table lacks.
+OP_ARCH_WARP_TILES = {
+    "gfx908": {"fp32": GFX9_FP32_WARP_TILES},
+    "gfx90a": {"fp32": GFX9_FP32_WARP_TILES},
+    "gfx942": {"fp32": GFX9_FP32_WARP_TILES},
+    "gfx950": {"fp32": GFX9_FP32_WARP_TILES},
+    "gfx1201": {dtype: ([16, 16, 16],) for dtype in ("bf16", "fp8", "bf8")},
+    "gfx1250": GFX1250_WARP_TILES,
+}
+
+
+def op_warp_tile_allowed(gpu_target, datatype, warp_tile):
+    """False if ``warp_tile`` [m, n, k] is missing from the OP_ARCH_WARP_TILES row
+    of ``datatype`` on any target, or if a target has no such row and is gfx1250
+    or ``datatype`` is fp32 (e.g. gfx1201 has no fp32 WMMA).
+
+    ``gpu_target`` may be a ';'-separated list (CMake builds one kernel for all
+    of them); the rows are then checked against every target. Any other
+    (arch, dtype) returns True and is left to the shared checks.
+    """
+    warp_tile = list(warp_tile)
+    for target in str(gpu_target).split(";"):
+        arch = _base_gfx_arch(target.strip())
+        row = OP_ARCH_WARP_TILES.get(arch, {})
+        if datatype in row:
+            if warp_tile not in row[datatype]:
+                return False
+        elif datatype == "fp32" or arch == "gfx1250":
+            return False
+    return True
+
+
 def validate_gemm_warp_tile_combination(
     warp_tile_m: int,
     warp_tile_n: int,
@@ -983,6 +1064,13 @@ def is_tile_config_valid(
         logging.debug(f"LDS validation failed: {lds_error}")
         return False
 
+    fp32_reason = gfx1250_fp32_tile_reject_reason(
+        gpu_target, a_datatype, tile_m, tile_n, warp_m * warp_n * warp_k
+    )
+    if fp32_reason:
+        logging.debug(f"Tile validation failed: {fp32_reason}")
+        return False
+
     if _uses_gfx1250_gemm_pipeline(pipeline, kernel_name_prefix):
         # Non-MX comp_async / comp_tdm*: route on the op, not on the pipeline
         # string, so these never reach the MX-only validate_gemm_mx rules.
@@ -1004,11 +1092,13 @@ def is_tile_config_valid(
         if not gfx1250_valid:
             logging.debug(f"gfx1250 pipeline validation failed: {gfx1250_error}")
             return False
-        warp_tile_k_reason = gfx1250_comp_async_8bit_warp_tile_k_reject_reason(
+        dtype_reason = gfx1250_comp_async_8bit_warp_tile_k_reject_reason(
             pipeline, a_datatype, b_datatype, warp_tile_k
+        ) or gfx1250_tdm_fp32_layout_reject_reason(
+            pipeline, a_datatype, b_datatype, layout
         )
-        if warp_tile_k_reason:
-            logging.debug(f"gfx1250 pipeline validation failed: {warp_tile_k_reason}")
+        if dtype_reason:
+            logging.debug(f"gfx1250 pipeline validation failed: {dtype_reason}")
             return False
 
         gemm_valid, gemm_valid_error = validate_gemm(
