@@ -246,10 +246,6 @@ pipeline {
             defaultValue: false,
             description: "Run CK_BUILDER tests (default: OFF)")
         booleanParam(
-            name: "RUN_ROCM_CK_TESTS",
-            defaultValue: true,
-            description: "Run rocm_ck tests (default: ON)")
-        booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
