@@ -26,19 +26,25 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
     {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        return 2;
+#else
         constexpr index_t n0_loops =
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kN0Sub;
-
         return min(n0_loops, 2);
+#endif
     }
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumVLdsBuffers()
     {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        return 2;
+#else
         constexpr index_t k1_loops =
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kK1;
-
         return min(k1_loops, 2);
+#endif
     }
 
     template <typename Problem>
