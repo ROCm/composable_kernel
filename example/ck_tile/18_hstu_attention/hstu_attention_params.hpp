@@ -89,6 +89,11 @@ struct HstuAttentionNoGroupFwdParams
     uint64_t philox_offset;
 
     HstuWorkspaceAllocator workspace_allocator;
+
+    // Device pointer to attn_scale, when the caller supplied it as a Tensor.
+    // Reading it on the device avoids a blocking D2H copy per call; the scalar
+    // `attn_scale` above stays as the fallback when this is null.
+    const void* attn_scale_ptr = nullptr;
 };
 
 struct HstuAttentionGroupFwdParams
