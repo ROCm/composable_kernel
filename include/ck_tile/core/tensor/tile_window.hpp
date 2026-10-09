@@ -396,22 +396,28 @@ struct tile_window_with_static_distribution
                 constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
                 if constexpr(Begin <= iAccess && iAccess < End)
                 {
-                    constexpr auto idx_ys_start      = SFC_Ys::get_index(iAccess);
-                    constexpr auto lds_access_offset = [&]() {
+                    constexpr auto idx_ys_start     = SFC_Ys::get_index(iAccess);
+                    const index_t lds_access_offset = [&]() {
                         constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
                         constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
                             tile_dstr.get_ps_ys_to_xs_adaptor(),
                             container_concat(array<index_t, Base::NDimP>{0},
                                              to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
-                        constexpr auto coord_ys_offset = make_tensor_coordinate(
-                            typename Base::BottomTensorView{}.get_tensor_descriptor(),
+                        // The ys index step is compile-time, but the descriptor's lengths and
+                        // strides are not necessarily so. A default-constructed BottomTensorView
+                        // has zero strides, which resolves every access past the first to offset
+                        // 0 whenever the descriptor is built from runtime extents; take the
+                        // offset from the real descriptor instead.
+                        const auto coord_ys_offset = make_tensor_coordinate(
+                            this->get_bottom_tensor_view().get_tensor_descriptor(),
                             adapter_ys_offset.get_bottom_index());
                         return coord_ys_offset.get_offset();
                     }();
                     const vector_t vec_value =
-                        this->get_bottom_tensor_view()
-                            .template get_vectorized_elements<vector_t, lds_access_offset>(
-                                bottom_tensor_thread_coord, linear_off, bool_constant<true>{});
+                        this->get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                            bottom_tensor_thread_coord,
+                            linear_off + lds_access_offset,
+                            bool_constant<true>{});
                     static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
                         constexpr auto idx_ys = generate_tuple(
                             [&](auto jj) {
@@ -493,26 +499,30 @@ struct tile_window_with_static_distribution
                     // data index [y0, y1, ...]
                     constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
-                    // Compute compile-time offset from access 0 to current access
-                    constexpr auto lds_access_offset = [&]() {
+                    // offset from access 0 to current access
+                    const index_t lds_access_offset = [&]() {
                         constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
                         constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
                             tile_dstr.get_ps_ys_to_xs_adaptor(),
                             container_concat(array<index_t, Base::NDimP>{0},
                                              to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
-                        constexpr auto coord_ys_offset = make_tensor_coordinate(
-                            typename Base::BottomTensorView{}.get_tensor_descriptor(),
+                        // The ys index step is compile-time, but the descriptor's lengths and
+                        // strides are not necessarily so. A default-constructed BottomTensorView
+                        // has zero strides, which resolves every access past the first to offset
+                        // 0 whenever the descriptor is built from runtime extents; take the
+                        // offset from the real descriptor instead.
+                        const auto coord_ys_offset = make_tensor_coordinate(
+                            this->get_bottom_tensor_view().get_tensor_descriptor(),
                             adapter_ys_offset.get_bottom_index());
                         return coord_ys_offset.get_offset();
                     }();
 
-                    // read from bottom tensor with compile-time offset
+                    // read from bottom tensor
                     const vector_t vec_value =
-                        this->get_bottom_tensor_view()
-                            .template get_vectorized_elements<vector_t, lds_access_offset>(
-                                bottom_tensor_thread_coord,
-                                linear_off,
-                                bool_constant<oob_conditional_check>{});
+                        this->get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                            bottom_tensor_thread_coord,
+                            linear_off + lds_access_offset,
+                            bool_constant<oob_conditional_check>{});
                     // write into distributed tensor
                     static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
                         constexpr auto idx_ys = generate_tuple(
