@@ -131,6 +131,9 @@ WMMA_SCALE32_IMPL(pk_fp4_t,    pk_fp4_t,    1, 1)
 
 #undef WMMA_SCALE32_IMPL
 
+// The calls below to __builtin_amdgcn_wmma_f32_16x16x128_f8f6f4 do not depend on CompilerTarget, so
+// compilers without the gfx1250 builtins reject it even when no gfx1250 target is built.
+#if defined(__gfx1250__)
 // Some type combinations already have a DENSE specialisation with a dedicated builtin. 
 // Here, we provide remaining no-scale specialisations because for gfx1250 WMMA,
 // the caller wants to use an actual no-scale instruction.
@@ -176,6 +179,7 @@ WMMA_UNSCALED_IMPL(pk_fp4_t,    pk_fp6x16_t, 1, 1)
 WMMA_UNSCALED_IMPL(pk_fp4_t,    pk_bf6x16_t, 1, 1)
 
 #undef WMMA_UNSCALED_IMPL
+#endif // __gfx1250__
 
 WMMA_SCALE16_IMPL(fp8_t,       fp8_t,       1, 1)
 WMMA_SCALE16_IMPL(fp8_t,       bf8_t,       1, 1)
