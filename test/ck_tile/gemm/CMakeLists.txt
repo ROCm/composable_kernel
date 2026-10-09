@@ -27,6 +27,13 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_compv3_tail_dispatch)
 
     if(GPU_TARGETS MATCHES "gfx94|gfx95")
+        # This synthetic argument-validation fixture models the XDL pipeline
+        # interface; keep it out of the gfx11/gfx12 WMMA build.
+        add_gtest_executable(test_ck_tile_universal_gemm_argument_validation
+            test_universal_gemm_argument_validation.cpp)
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_universal_gemm_argument_validation)
+
         add_gtest_executable(test_ck_tile_gemm_pipeline_mem test_gemm_pipeline_mem.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv3 test_gemm_pipeline_compv3.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv4 test_gemm_pipeline_compv4.cpp)
