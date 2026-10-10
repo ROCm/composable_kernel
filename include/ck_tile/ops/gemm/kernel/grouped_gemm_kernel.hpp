@@ -14,6 +14,8 @@
 
 #include <hip/hip_runtime.h>
 
+#include <cstddef>
+
 #if __clang_major__ >= 23
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
@@ -105,19 +107,29 @@ struct GemmTransKernelArg
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GroupedGemmKernel
+    : public UniversalGemmKernel<
+          TilePartitioner_,
+          GemmPipeline_,
+          EpiloguePipeline_,
+          GroupedGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>>
 {
     /// @brief Inject the UniversalGemmKernel base class to support execution of all necessary
     /// functions.
-    using Base = UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    using Base =
+        UniversalGemmKernel<TilePartitioner_,
+                            GemmPipeline_,
+                            EpiloguePipeline_,
+                            GroupedGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>>;
 
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
     //// @brief Specify the layout configurations for A, B, C/E
-    using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using BLayout = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using CLayout = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using ALayout  = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using BLayout  = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using DsLayout = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    using CLayout  = remove_cvref_t<typename GemmPipeline::CLayout>;
 
     /// @brief Specify the data type configurations for A, B, C/E
     using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
@@ -289,10 +301,28 @@ struct GroupedGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void Run(const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
+    // Full grouped A, D, and E views can exceed the signed index_t descriptor limit or 32-bit
+    // buffer byte range even when one M tile remains addressable. Their bases can move to the tile
+    // only when every M-indexed tensor is row-major; B has no M dimension.
+    CK_TILE_HOST_DEVICE static constexpr bool IsLargeTensorMOffsettingSupported()
+    {
+        bool suitable = std::is_same_v<tensor_layout::gemm::RowMajor, ALayout>;
+        static_for<0, NumDTensor_, 1>{}([&](auto i) {
+            using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+            suitable       = suitable && std::is_same_v<tensor_layout::gemm::RowMajor, DiLayout>;
+        });
+        suitable = suitable && std::is_same_v<tensor_layout::gemm::RowMajor, CLayout>;
+        return suitable;
+    }
+
+    CK_TILE_DEVICE void Run(UniversalGemmKernelArgs<1, 1, NumDTensor_> kargs,
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
+        if(!Base::IsArgumentAddressable(kargs))
+        {
+            __hip_assert(false && "A grouped GEMM tensor view exceeds 32-bit buffer addressing");
+        }
 
         static_assert(GemmPipeline::DoubleSmemBuffer || !GemmPipeline::Preshuffle,
                       "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
@@ -310,6 +340,30 @@ struct GroupedGemmKernel
                                  splitk_batch_offset.bs_k_split_offset[0];
         CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
 
+        std::array<const void*, NumDTensor_> ds_ptr = kargs.ds_ptr;
+
+        if constexpr(IsLargeTensorMOffsettingSupported())
+        {
+            a_ptr += static_cast<std::ptrdiff_t>(i_m) * kargs.stride_As[0];
+            static_for<0, NumDTensor_, 1>{}([&](auto i) {
+                using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+                // A zero leading stride represents an N-element D value broadcast across M, so
+                // its base remains fixed while non-broadcast D tensors move to the current tile.
+                if(kargs.stride_Ds[i] != 0)
+                {
+                    ds_ptr[i] =
+                        static_cast<const char*>(ds_ptr[i]) +
+                        sizeof(DDataType_) * static_cast<std::ptrdiff_t>(i_m) * kargs.stride_Ds[i];
+                }
+            });
+            c_ptr += static_cast<std::ptrdiff_t>(i_m) * kargs.stride_E;
+
+            kargs.M = Base::ClampMToOffsettedTile(kargs.M, i_m);
+        }
+
+        constexpr bool use_m_tile_offset = IsLargeTensorMOffsettingSupported();
+        const index_t local_i_m          = use_m_tile_offset ? 0 : i_m;
+
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
@@ -318,7 +372,7 @@ struct GroupedGemmKernel
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
             RunGemmWithPipelineSelection2LDS(
-                a_ptr, b_ptr, c_ptr, kargs.ds_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+                a_ptr, b_ptr, c_ptr, ds_ptr, smem_ptr, kargs, splitk_batch_offset, local_i_m, i_n);
         }
         else // SingleSmemBuffer
         {
@@ -327,24 +381,24 @@ struct GroupedGemmKernel
             {
                 RunGemmWithPipelineSelection(a_ptr,
                                              b_ptr,
-                                             kargs.ds_ptr,
+                                             ds_ptr,
                                              c_ptr,
                                              smem_ptr,
                                              kargs,
                                              splitk_batch_offset,
-                                             i_m,
+                                             local_i_m,
                                              i_n);
             }
             else // Non-persistent kernel
             {
                 Base::RunGemm({a_ptr},
                               {b_ptr},
-                              kargs.ds_ptr,
+                              ds_ptr,
                               c_ptr,
                               smem_ptr,
                               kargs,
                               splitk_batch_offset,
-                              i_m,
+                              local_i_m,
                               i_n);
             }
         }
