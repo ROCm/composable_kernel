@@ -57,10 +57,28 @@ python3 data_pipeline.py ck_tile_testrun_2.log \
 python3 train.py \
     --data_dir data/ \
     --out_dir models/gemm_universal_fp8_gfx950 \
-    --op gemm_universal --dtype fp8 --arch gfx950
+    --operation gemm_universal --dtype fp8 --arch gfx950
 ```
 
 **Note**: Trained models are automatically compressed to `.lgbm.gz` format to save space (~67% reduction). The Python tools automatically decompress them on first use and cache the decompressed version. For warm-start training, decompression happens automatically.
+
+#### Data that varies the fixed vector widths
+
+For kernels with fixed A/B/C global vector widths, train with the engine in
+`feature_engine_vec.py`, which adds six features:
+
+```bash
+python3 train.py \
+    --data_dir data/ \
+    --out_dir models/gemm_universal_vec_bf16_gfx950 \
+    --operation gemm_universal_vec --dtype bf16 --arch gfx950
+```
+
+It reads `gemm_universal` data. Rows need non-null `vec_a/b/c`, `arch`,
+`epilogue` and the nine tile, warps-per-block and warp-tile columns. Only
+`data_pipeline.py` fills `vec_a/b/c`; no in-tree tool converts
+`gemm_full_benchmark.py`'s CSV into such a parquet. `search.py` and the C++
+path (`ml_heuristic.hpp`) support only the base engine.
 
 ### 3. Evaluate
 
@@ -111,7 +129,7 @@ cd dispatcher/build
 Problem (M, N, K, dtype, layout)
     |
     v
-FeatureEngine.extract_batch()    <-- 55 features: problem, kernel, interaction, hardware
+FeatureEngine.extract_batch()    <-- 72 features: problem, kernel, interaction, hardware
     |
     v
 LGBMRegressor.predict()          <-- predicts TFLOPS for each candidate kernel
@@ -135,7 +153,8 @@ Three models are trained per (op, dtype, arch):
 | `generate_benchmark_data.py` | Build and run benchmarks across ~25 diverse problem sizes, output JSON |
 | `convert_json_to_parquet.py` | Convert benchmark JSON to parquet training format, fix `_mem` pad flags |
 | `data_pipeline.py` | Parse raw benchmark logs into canonical parquet datasets |
-| `feature_engine.py` | 55-feature extraction: problem, kernel, interaction, hardware profile |
+| `feature_engine.py` | 72-feature extraction: problem, kernel, interaction, hardware profile |
+| `feature_engine_vec.py` | Adds six fixed-vector-width features (78 total) |
 | `train.py` | Multi-target LGBMRegressor training with GroupKFold CV, IHEM, warm-start |
 | `predict.py` | Predictor class: predict TFLOPS/latency/bandwidth, rank kernels |
 | `evaluate.py` | Full evaluation: global metrics, per-shape/layout/pipeline slices |
@@ -145,13 +164,13 @@ Three models are trained per (op, dtype, arch):
 | `DATA_GENERATION.md` | Detailed guide for building binaries and generating data |
 | `plan.md` | Full design plan with architecture, milestones, and rationale |
 
-## Features Used (55 total)
+## Features Used (72 total)
 
 ### Problem features (13)
 `M, N, K, split_k, log2(M), log2(N), log2(K), log2(MNK),
 arithmetic_intensity, aspect_ratio_mn, aspect_ratio_mk, aspect_ratio_nk, layout`
 
-### Kernel features (17)
+### Kernel features
 `tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n,
 warp_tile_k, pipeline, scheduler, epilogue, pad_m, pad_n, pad_k, persistent,
 num_warps, tile_volume, tile_mn, lds_usage_estimate, lds_usage_ratio`
@@ -159,6 +178,18 @@ num_warps, tile_volume, tile_mn, lds_usage_estimate, lds_usage_ratio`
 ### Interaction features (9)
 `num_tiles_m, num_tiles_n, num_tiles_k, total_output_tiles,
 tile_eff_m, tile_eff_n, tile_eff_k, overall_tile_efficiency, cu_utilization`
+
+### Problem-fit and padding features
+`ratio_M_to_tile_m, ratio_N_to_tile_n, ratio_K_to_tile_k,
+problem_smaller_than_tile_m, problem_smaller_than_tile_n,
+problem_smaller_than_tile_k, any_dim_too_small,
+needs_padding_m, needs_padding_n, needs_padding_k,
+has_padding_when_needed_m, has_padding_when_needed_n, has_padding_when_needed_k,
+missing_required_padding_m, missing_required_padding_n,
+missing_required_padding_k, missing_any_required_padding`
+
+These test all three dimensions, unlike `gemm_tile_divides_problem`, so
+`missing_any_required_padding` can be 1 for a kernel that launches.
 
 ### Hardware profile features (12)
 `hw_num_cus, hw_simds_per_cu, hw_total_simds, hw_shader_engines,
@@ -239,14 +270,17 @@ Adding support for a new operation (e.g., `gemm_streamk`, `grouped_conv`):
 1. **Build binaries**: `ninja -C build benchmark_gemm_streamk_fp8_rcr`
 2. **Subclass `FeatureEngine`**: add op-specific features (e.g., StreamK split factor)
 3. **Generate data**: run benchmarks across diverse shapes
-4. **Train**: `python3 train.py --op gemm_streamk --dtype fp8 --data_dir data/ --out_dir models/`
+4. **Train**: `python3 train.py --operation gemm_streamk --dtype fp8 --data_dir data/ --out_dir models/`
 
-The training, evaluation, prediction, and search infrastructure is fully
-op-agnostic -- only the feature engine needs a new subclass.
+A new op needs a feature engine and an entry in each of `FEATURE_ENGINES` and
+`OPERATION_ENGINES` (`feature_engine.py`), and `--operation`'s `choices`,
+`TARGET_COLUMNS`, `compute_group_keys` and `compute_tflops_efficiency`
+(`train.py`). A variant of an existing op, like `gemm_universal_vec`, replaces
+the last three with an `ENGINE_VARIANTS` entry.
 
 ## Tests
 
-102 tests covering all modules:
+Tests cover all modules:
 
 ```bash
 python3 -m pytest tests/ -v
@@ -329,6 +363,10 @@ Each contains:
 - `cv_metrics_tflops.json` - Cross-validation metrics
 - `feature_importances_tflops.json` - Feature importance rankings
 
+`feature_spec.json` also records `feature_engine` (the engine class),
+`feature_encoding_version` (its `ENCODING_VERSION`) and `hardware` (its
+hardware constants).
+
 Models are automatically decompressed on first use.
 
 ### Usage
@@ -379,20 +417,20 @@ python3 validate_ml_vs_oracle.py --variant bwd_weight
 ### Solution Architecture (Grouped Conv)
 
 ```
-Problem Config → Feature Engineering (83 features) → LightGBM Model → Predict TFLOPS → Select Best Kernel
-     ↓              - Problem features (38)             ↓                    ↓
-(N,C,K,G,H,W,Y,X)   - Kernel features (12)         Trained on          <1ms total
-                    - Interactions (21)            48K samples          latency
-                    - Hardware (12)                1372 shapes
+Problem Config → Feature Engineering (97 features) → LightGBM Model → Predict TFLOPS → Select Best Kernel
+     ↓              - Problem features                  ↓                    ↓
+(N,C,K,G,H,W,Y,X)   - Kernel features              Trained on          <1ms total
+                    - Interactions                 48K samples          latency
+                    - Hardware                     1372 shapes
 ```
 
 ### Feature Engineering (`feature_engine_grouped_conv.py`)
 
-**83 engineered features**:
-- **Problem Features (38)**: Raw params (N,C,K,G,Hi,Wi,Y,X,strides,pads), derived (Ho,Wo), log-scale transforms, arithmetic intensity, aspect ratios, channel/group metrics
-- **Kernel Features (12)**: Block size, GEMM tiles (M,N), pipeline type, num warps, tile volume, LDS usage
-- **Interaction Features (21)**: Tile efficiency (M,N,K), block-tile ratios, CU utilization, problem-tile comparisons, output tile counts
-- **Hardware Features (12)**: GFX950 specs - CUs (304), SIMDs, clocks, wavefront size, cache sizes (L1/L2/L3), XCD count
+**97 engineered features** in four groups:
+- **Problem features**: raw params (N,C,K,G,Hi,Wi,Y,X,strides,pads), derived (Ho,Wo), log-scale transforms, arithmetic intensity, aspect ratios, channel/group metrics
+- **Kernel features**: block size, GEMM tiles (M,N), pipeline type, num warps, tile volume, LDS usage
+- **Interaction features**: tile efficiency (M,N,K), block-tile ratios, CU utilization, problem-tile comparisons, output tile counts
+- **Hardware features**: gfx950 specs - CUs (304), SIMDs, clocks, wavefront size, cache sizes (L1/L2/L3), XCD count
 
 ### Latency
 
@@ -482,7 +520,7 @@ result = registry.run(problem, input_tensor, weight_tensor)
 
 ### Key Innovations
 
-1. **Comprehensive Feature Engineering**: 83 features capture problem-kernel-hardware interactions
+1. **Comprehensive Feature Engineering**: 97 features capture problem-kernel-hardware interactions
 2. **Tier-1 Extended Training**: 1,372 shapes (vs 185 baseline) for better edge case coverage
 3. **Compressed Models**: LGBM.gz reduces size 8-10× without accuracy loss
 4. **Operation-Specific Models**: Separate optimizations for forward/backward passes
@@ -632,7 +670,7 @@ A new model passes quality validation if:
 #### Different Predictions on Same Model
 
 **Unlikely** - If the same model file produces different predictions, check:
-- Feature engine version (should be 83 features)
+- Feature names: the engine must supply every name in `feature_spec.json`
 - Problem encoding (verify problem_to_dict matches)
 - Predictor initialization (check log transform handling)
 

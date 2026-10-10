@@ -15,11 +15,17 @@ Supports:
 import json
 import re
 import subprocess
+import sys
 import hashlib
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "codegen"))
+
+from arch_specs_generated import LDS_TOTAL_CAPACITY_BY_ARCH  # noqa: E402
+from codegen_common import normalize_gfx_arch  # noqa: E402
 
 
 CANONICAL_COLUMNS = [
@@ -52,6 +58,10 @@ CANONICAL_COLUMNS = [
     "pad_n",
     "pad_k",
     "persistent",
+    # Parsed from the kernel name's _vecA_B_C suffix.
+    "vec_a",
+    "vec_b",
+    "vec_c",
     "run_id",
 ]
 
@@ -60,19 +70,30 @@ def parse_kernel_name(name: str) -> dict:
     """Extract kernel config fields from a gemm_universal kernel name.
 
     Name format:
-      gemm_universal_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}
+      gemm[_universal]_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}
       _{padM}_{padN}_{padK}_{persistent}_{tileM}x{tileN}x{tileK}
       _{warpM}x{warpN}x{warpK}_{warpTileM}x{warpTileN}x{warpTileK}
+      [_vec{A}_{B}_{C}]
     """
     result = {}
     try:
+        # Not end-anchored: variant suffixes may follow it.
+        vec_match = re.search(r"_vec(\d+)_(\d+)_(\d+)(?=_|$)", name)
+        if vec_match:
+            vec = tuple(int(g) for g in vec_match.groups())
+            name = name[: vec_match.start()] + name[vec_match.end() :]
+        elif re.search(r"_vec\d", name):
+            return result
+        else:
+            vec = (0, 0, 0)
         prefix_match = re.match(
-            r"gemm_universal_(\w+?)_((?:rcr|rrr|crr|ccr))_(.*)", name
+            r"gemm(?:_universal)?_(\w+?)_((?:rcr|rrr|crr|ccr))_(.*)", name
         )
         if not prefix_match:
             return result
         result["dtype"] = prefix_match.group(1)
         result["layout"] = prefix_match.group(2)
+        result["vec_a"], result["vec_b"], result["vec_c"] = vec
         remainder = prefix_match.group(3)
 
         parts = remainder.split("_")
@@ -239,6 +260,21 @@ def parse_streaming_log(
     return df
 
 
+def check_capture_hw_arch(hw: dict, arch: str) -> None:
+    """Raise if the profile's gfx target differs from ``arch``; pass if it has none."""
+    local = re.search(r"(gfx[0-9a-f]+)", str(hw.get("gfx_name", "")))
+    if not local:
+        return
+    local_arch = local.group(1)
+    if normalize_gfx_arch(str(arch)) != local_arch:
+        raise SystemExit(
+            f"--capture_hw reads this node's hardware ({local_arch}) but "
+            f"--arch says {arch}. Run the conversion on a {arch} node, or drop "
+            "--capture_hw and let the engine use its own defaults rather than "
+            "another part's constants."
+        )
+
+
 def get_hardware_profile() -> dict:
     """Capture GPU hardware profile from rocminfo."""
     profile = {}
@@ -309,6 +345,13 @@ def get_hardware_profile() -> dict:
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
 
+    # rocminfo reports no LDS capacity: look it up by the gfx token in Name.
+    match = re.search(r"(gfx[0-9a-f]+)", str(profile.get("gfx_name", "")))
+    if match:
+        gfx = match.group(1)
+        if gfx in LDS_TOTAL_CAPACITY_BY_ARCH:
+            profile["lds_capacity"] = LDS_TOTAL_CAPACITY_BY_ARCH[gfx]
+
     return profile
 
 
@@ -347,7 +390,8 @@ def build_training_dataset(
     return pd.concat(frames, ignore_index=True)
 
 
-if __name__ == "__main__":
+def main(argv=None):
+    """Command-line entry point."""
     import argparse
     import time
 
@@ -361,7 +405,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Capture hardware profile from rocminfo",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     input_path = Path(args.input)
 
@@ -386,9 +430,14 @@ if __name__ == "__main__":
 
     if args.capture_hw:
         hw = get_hardware_profile()
+        check_capture_hw_arch(hw, args.arch)
         print(f"  Hardware profile: {hw}")
         for k, v in hw.items():
             df[f"hw_{k}"] = v
 
     save_parquet(df, args.output)
     print(f"Saved to {args.output}")
+
+
+if __name__ == "__main__":
+    main()

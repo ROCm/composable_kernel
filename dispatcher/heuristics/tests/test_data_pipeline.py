@@ -364,5 +364,299 @@ class TestParquetIO:
         assert path.exists()
 
 
+class TestVectorWidthSuffix:
+    BASE = "gemm_universal_bf16_rcr_compv3_default_intrawave_False_False_False_True_128x128x128_2x2x1_32x32x16"
+
+    def test_native_kernel_reports_zero(self):
+        r = parse_kernel_name(self.BASE)
+        assert (r["vec_a"], r["vec_b"], r["vec_c"]) == (0, 0, 0)
+
+    def test_suffix_is_parsed(self):
+        r = parse_kernel_name(self.BASE + "_vec4_4_8")
+        assert (r["vec_a"], r["vec_b"], r["vec_c"]) == (4, 4, 8)
+
+    def test_suffix_does_not_disturb_the_rest_of_the_name(self):
+        plain = parse_kernel_name(self.BASE)
+        vec = parse_kernel_name(self.BASE + "_vec8_1_1")
+        for key in (
+            "tile_m",
+            "tile_n",
+            "tile_k",
+            "warp_tile_k",
+            "pipeline",
+            "persistent",
+        ):
+            assert plain[key] == vec[key], key
+
+    def test_columns_are_canonical(self):
+        for c in ("vec_a", "vec_b", "vec_c"):
+            assert c in CANONICAL_COLUMNS
+
+    def test_vec_is_parsed_when_further_suffixes_follow(self):
+        r = parse_kernel_name(self.BASE + "_vec4_4_8_preshuffle")
+        assert (r["vec_a"], r["vec_b"], r["vec_c"]) == (4, 4, 8)
+        assert r["tile_m"] == 128, "stripping the suffix must not shift the split"
+
+    def test_a_longer_width_is_not_truncated(self):
+        r = parse_kernel_name(self.BASE + "_vec4_4_80")
+        assert r["vec_c"] == 80
+
+    def test_malformed_width_suffix_is_rejected_not_read_as_native(self):
+        assert parse_kernel_name(self.BASE + "_vec4_4") == {}
+
+    def test_a_non_width_vec_token_is_not_treated_as_a_suffix(self):
+        r = parse_kernel_name(self.BASE + "_vecnative")
+        assert (r["vec_a"], r["vec_b"], r["vec_c"]) == (0, 0, 0)
+        assert r["tile_m"] == 128, "the rest of the name must still parse"
+
+    def test_the_bridge_short_prefix_parses(self):
+        short = self.BASE.replace("gemm_universal_", "gemm_", 1)
+        r = parse_kernel_name(short + "_vec4_4_8")
+        assert (r["vec_a"], r["vec_b"], r["vec_c"]) == (4, 4, 8)
+        assert r["dtype"] == "bf16" and r["layout"] == "rcr"
+        assert (r["tile_m"], r["tile_n"], r["tile_k"]) == (128, 128, 128)
+        assert r["pipeline"] == "compv3" and r["persistent"] is True
+
+    def test_both_prefixes_agree_field_for_field(self):
+        long_r = parse_kernel_name(self.BASE)
+        short_r = parse_kernel_name(self.BASE.replace("gemm_universal_", "gemm_", 1))
+        assert long_r == short_r
+
+    def test_a_trailing_non_separator_is_not_a_width_suffix(self):
+        assert parse_kernel_name(self.BASE + "_vec4_4_8x") == {}
+
+    def test_single_digit_and_multi_digit_widths_both_parse(self):
+        assert parse_kernel_name(self.BASE + "_vec16_2_16")["vec_a"] == 16
+
+
+class TestHardwareProfileLdsCapacity:
+    @pytest.mark.parametrize(
+        "reported,expected",
+        [
+            ("amdgcn-amd-amdhsa--gfx950:sramecc+:xnack-", 163840),
+            ("amdgcn-amd-amdhsa--gfx90a:sramecc+:xnack-", 65536),
+            ("amdgcn-amd-amdhsa--gfx1250", 327680),
+            ("gfx950", 163840),
+            ("gfx950:xnack-", 163840),
+        ],
+    )
+    def test_the_capacity_is_resolved_from_the_reported_name(
+        self, reported, expected, monkeypatch
+    ):
+        import subprocess
+
+        import data_pipeline as dp
+
+        def fake_run(*a, **k):
+            class R:
+                stdout = (
+                    "  Device Type:             GPU\n"
+                    f"  Name:                    {reported}\n"
+                    "  Compute Unit:            256\n"
+                )
+
+            return R()
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        assert dp.get_hardware_profile()["lds_capacity"] == expected
+
+    def test_an_unrecognised_name_omits_the_key(self, monkeypatch):
+        import subprocess
+
+        import data_pipeline as dp
+
+        def fake_run(*a, **k):
+            class R:
+                stdout = "  Device Type:   GPU\n  Name:   not-a-target\n"
+
+            return R()
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        assert "lds_capacity" not in dp.get_hardware_profile()
+
+    def test_every_profile_matches_the_arch_table(self):
+        from convert_csv_to_parquet import HW_PROFILES
+
+        from arch_specs_generated import LDS_TOTAL_CAPACITY_BY_ARCH
+
+        assert HW_PROFILES, "no hardware profiles"
+        for arch, profile in HW_PROFILES.items():
+            assert arch in LDS_TOTAL_CAPACITY_BY_ARCH, arch
+            assert profile["hw_lds_capacity"] == LDS_TOTAL_CAPACITY_BY_ARCH[arch], arch
+
+    def test_the_profiles_are_sourced_not_restated(self, monkeypatch):
+        import importlib
+
+        import arch_specs_generated as specs
+        import convert_csv_to_parquet as cc
+
+        monkeypatch.setitem(specs.LDS_TOTAL_CAPACITY_BY_ARCH, "gfx950", 12345)
+        try:
+            reloaded = importlib.reload(cc)
+            assert reloaded.HW_PROFILES["gfx950"]["hw_lds_capacity"] == 12345, (
+                "the profile did not follow the arch table, so the value is "
+                "restated rather than sourced"
+            )
+        finally:
+            monkeypatch.undo()
+            importlib.reload(cc)
+
+    #: gfx1250 constants measured from rocminfo's GPU agent.
+    MEASURED_GFX1250 = {
+        "hw_num_cus": 256,
+        "hw_simds_per_cu": 4,
+        "hw_max_clock_mhz": 2400,
+        "hw_wavefront_size": 32,
+    }
+
+    def test_the_measured_gfx1250_constants(self):
+        from convert_csv_to_parquet import HW_PROFILES
+
+        got = HW_PROFILES["gfx1250"]
+        for key, want in self.MEASURED_GFX1250.items():
+            assert got[key] == want, (
+                f"gfx1250 {key} is {got[key]}, measured value is {want}"
+            )
+
+    def test_gfx1250_carries_no_unmeasured_constant(self):
+        from convert_csv_to_parquet import HW_PROFILES
+
+        assert set(HW_PROFILES["gfx1250"]) == set(self.MEASURED_GFX1250) | {
+            "hw_lds_capacity"
+        }
+
+    def test_gfx950_num_cus(self):
+        from convert_csv_to_parquet import HW_PROFILES
+
+        assert HW_PROFILES["gfx950"]["hw_num_cus"] == 256
+        assert HW_PROFILES["gfx950"]["hw_wavefront_size"] == 64
+
+    def test_the_profiles_are_not_interchangeable(self):
+        from convert_csv_to_parquet import HW_PROFILES
+
+        caps = {a: p["hw_lds_capacity"] for a, p in HW_PROFILES.items()}
+        assert len(set(caps.values())) > 1, caps
+        assert caps["gfx1250"] != caps["gfx950"]
+
+    def test_an_unknown_arch_emits_no_hardware_columns(self, tmp_path):
+        import pandas as pd
+
+        from convert_csv_to_parquet import HW_PROFILES, convert_csv_to_parquet
+
+        assert "gfx1250" in HW_PROFILES, (
+            "gfx1250 must have its own profile; it has 320 KB and would "
+            "otherwise be stamped with gfx950's 160 KB"
+        )
+        csv = tmp_path / "in.csv"
+        csv.write_text(
+            "kernel,problem_idx,M,N,K,device,latency_ms,tflops,"
+            "non_zero,max_rel,verified\n"
+            "gemm_bf16_rcr_compv3_cshuffle_intrawave_0_0_0_0_"
+            "128x128x64_2x2x1_32x32x16,0,512,1024,1024,0,0.5,4.3,1,1e-3,True\n"
+        )
+        out = tmp_path / "out.parquet"
+        convert_csv_to_parquet(csv, out, arch="gfx_not_a_real_target")
+        hw_cols = [c for c in pd.read_parquet(out).columns if c.startswith("hw_")]
+        assert hw_cols == [], (
+            f"an unknown arch was given another part's constants: {hw_cols}"
+        )
+
+    def test_a_known_arch_does_emit_them(self, tmp_path):
+        import pandas as pd
+
+        from convert_csv_to_parquet import convert_csv_to_parquet
+
+        csv = tmp_path / "in.csv"
+        csv.write_text(
+            "kernel,problem_idx,M,N,K,device,latency_ms,tflops,"
+            "non_zero,max_rel,verified\n"
+            "gemm_bf16_rcr_compv3_cshuffle_intrawave_0_0_0_0_"
+            "128x128x64_2x2x1_32x32x16,0,512,1024,1024,0,0.5,4.3,1,1e-3,True\n"
+        )
+        out = tmp_path / "out.parquet"
+        convert_csv_to_parquet(csv, out, arch="gfx950")
+        df = pd.read_parquet(out)
+        assert df["hw_lds_capacity"].iloc[0] == 163840
+
+    def test_capture_hw_refuses_a_foreign_arch(self):
+        from data_pipeline import check_capture_hw_arch
+
+        gfx950_node = {"gfx_name": "amdgcn-amd-amdhsa--gfx950:sramecc+:xnack-"}
+        with pytest.raises(SystemExit, match="gfx1250"):
+            check_capture_hw_arch(gfx950_node, "gfx1250")
+
+    def test_capture_hw_accepts_a_matching_arch(self):
+        from data_pipeline import check_capture_hw_arch
+
+        node = {"gfx_name": "amdgcn-amd-amdhsa--gfx950:sramecc+:xnack-"}
+        assert check_capture_hw_arch(node, "gfx950") is None
+        assert check_capture_hw_arch(node, "gfx950:xnack-") is None
+
+    def test_capture_hw_allows_an_unidentifiable_node(self):
+        from data_pipeline import check_capture_hw_arch
+
+        assert check_capture_hw_arch({"gfx_name": "not-a-target"}, "gfx1250") is None
+        assert check_capture_hw_arch({}, "gfx1250") is None
+
+    #: A streaming log that parses to one row.
+    LOG = (
+        "Shape 1: M=512 N=1024 K=1024 dtype=bf16 layout=rcr\n"
+        "{\n"
+        '  "name": "gemm_universal_bf16_rcr_compv3_cshuffle_intrawave_'
+        '0_0_0_0_128x128x64_2x2x1_32x32x16",\n'
+        '  "perf_result": { "latency(ms)": 0.5, "tflops(TFlops)": 4.3,\n'
+        '                   "bandwidth(GB/s)": 100.0 }\n'
+        "}\n"
+    )
+
+    def test_the_log_fixture_parses_to_a_real_row(self, tmp_path):
+        from data_pipeline import parse_streaming_log
+
+        log = tmp_path / "run.log"
+        log.write_text(self.LOG)
+        assert len(parse_streaming_log(log, arch="gfx950")) >= 1
+
+    def test_main_actually_invokes_the_arch_check(self, tmp_path, monkeypatch):
+        import data_pipeline as dp
+
+        log = tmp_path / "run.log"
+        log.write_text(self.LOG)
+        out = tmp_path / "out.parquet"
+        monkeypatch.setattr(
+            dp,
+            "get_hardware_profile",
+            lambda: {
+                "gfx_name": "amdgcn-amd-amdhsa--gfx950:xnack-",
+                "num_cus": 256,
+                "lds_capacity": 163840,
+            },
+        )
+        with pytest.raises(SystemExit, match="gfx1250"):
+            dp.main([str(log), "-o", str(out), "--arch", "gfx1250", "--capture_hw"])
+        assert not out.exists(), "the parquet was written before the guard ran"
+
+    def test_main_writes_the_profile_when_the_arch_matches(self, tmp_path, monkeypatch):
+        import pandas as pd
+
+        import data_pipeline as dp
+
+        log = tmp_path / "run.log"
+        log.write_text(self.LOG)
+        out = tmp_path / "out.parquet"
+        monkeypatch.setattr(
+            dp,
+            "get_hardware_profile",
+            lambda: {
+                "gfx_name": "amdgcn-amd-amdhsa--gfx950:xnack-",
+                "num_cus": 256,
+                "lds_capacity": 163840,
+            },
+        )
+        dp.main([str(log), "-o", str(out), "--arch", "gfx950", "--capture_hw"])
+        assert out.exists()
+        df = pd.read_parquet(out)
+        assert df["hw_lds_capacity"].iloc[0] == 163840
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

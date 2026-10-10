@@ -469,8 +469,8 @@ def generate_problem_shapes(num_shapes: int = 1024) -> List[Tuple[int, int, int]
     return valid_shapes
 
 
-def spec_to_feature_dict(spec: KernelSpec, dtype: str, layout: str) -> dict:
-    """Convert KernelSpec to feature dict for ML predictor"""
+def spec_to_feature_dict(spec: KernelSpec, dtype: str, layout: str, arch: str) -> dict:
+    """Convert KernelSpec to feature dict for ML predictor."""
     return {
         "kernel_name": spec.name,
         "tile_m": spec.tile_m,
@@ -491,6 +491,11 @@ def spec_to_feature_dict(spec: KernelSpec, dtype: str, layout: str) -> dict:
         "persistent": False,
         "dtype": dtype,
         "layout": layout,
+        # KERNEL_POOL has no fixed-width kernels.
+        "arch": arch,
+        "vec_a": 0,
+        "vec_b": 0,
+        "vec_c": 0,
     }
 
 
@@ -523,7 +528,14 @@ def spec_to_kernel_config(
 
 
 def ml_select_kernel(
-    predictor, pool: List[KernelSpec], M: int, N: int, K: int, dtype: str, layout: str
+    predictor,
+    pool: List[KernelSpec],
+    M: int,
+    N: int,
+    K: int,
+    dtype: str,
+    layout: str,
+    arch: str,
 ) -> Tuple[KernelSpec, float]:
     """Use ML model to select best kernel"""
     if not HAS_ML or predictor is None:
@@ -531,7 +543,7 @@ def ml_select_kernel(
         return pool[0], 0.0
 
     problem = {"m": M, "n": N, "k": K, "dtype": dtype, "layout": layout, "split_k": 1}
-    kernel_dicts = [spec_to_feature_dict(s, dtype, layout) for s in pool]
+    kernel_dicts = [spec_to_feature_dict(s, dtype, layout, arch) for s in pool]
 
     ranked = predictor.rank_kernels(problem, kernel_dicts)
     if not ranked:
@@ -557,7 +569,7 @@ def run_single_gemm(
     # Select kernel via ML heuristic
     t0 = time.time()
     best_spec, pred_tflops = ml_select_kernel(
-        predictor, KERNEL_POOL, M, N, K, dtype, "rcr"
+        predictor, KERNEL_POOL, M, N, K, dtype, "rcr", arch
     )
     select_time_ms = (time.time() - t0) * 1000
 
@@ -622,7 +634,9 @@ def run_single_gemm(
                 -1: "GPU/HIP error (check permissions, memory, or kernel validity)",
                 -2: "No suitable kernel found for this problem size",
             }
-            error_msg = status_messages.get(exec_result.status, f"Unknown error (status={exec_result.status})")
+            error_msg = status_messages.get(
+                exec_result.status, f"Unknown error (status={exec_result.status})"
+            )
             result["status"] = "RUN_FAIL"
             result["error"] = f"{error_msg} (status_code={exec_result.status})"
 

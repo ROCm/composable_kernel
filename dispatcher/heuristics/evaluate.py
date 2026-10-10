@@ -27,6 +27,10 @@ from predict import Predictor
 from train import compute_tflops_efficiency
 
 
+#: The only operation this module evaluates.
+_OPERATION = "gemm_universal"
+
+
 def classify_shape_family(m: int, n: int, k: int) -> str:
     """Classify a GEMM shape into a family for sliced evaluation.
 
@@ -63,7 +67,7 @@ def classify_k_regime(k: int) -> str:
 def evaluate_model(
     predictor: Predictor,
     df: pd.DataFrame,
-    feature_engine: GemmUniversalFeatureEngine,
+    feature_engine: GemmUniversalFeatureEngine = None,
 ) -> dict:
     """Run full evaluation on a dataset. Returns a metrics dictionary.
 
@@ -73,8 +77,8 @@ def evaluate_model(
         Trained predictor with at least a TFLOPS model loaded.
     df : pd.DataFrame
         Benchmark data in canonical schema.
-    feature_engine : GemmUniversalFeatureEngine
-        Feature engine matching the trained model.
+    feature_engine : GemmUniversalFeatureEngine, optional
+        Ignored; the predictor's engine is used.
 
     Returns
     -------
@@ -84,10 +88,12 @@ def evaluate_model(
     valid = df[df["is_valid"].fillna(False) & (df["measured_tflops"] > 0)].copy()
     valid = valid.reset_index(drop=True)
 
-    X = feature_engine.extract_batch(valid)
+    X = predictor.feature_engine.extract_batch(valid)
     model = predictor._load_model("tflops")
     if model is None:
         raise FileNotFoundError("No TFLOPS model found")
+
+    X = predictor.select_features(X)
 
     # Predict and apply inverse log transform if model was trained in log-space
     raw_pred = model.predict(X)
@@ -106,7 +112,7 @@ def evaluate_model(
     rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
     mae = np.mean(np.abs(y_true - y_pred))
 
-    eff_df = compute_tflops_efficiency(valid, "pred_tflops")
+    eff_df = compute_tflops_efficiency(valid, _OPERATION, "pred_tflops")
 
     ndcg1_count = 0
     total_shapes = 0
@@ -150,7 +156,7 @@ def evaluate_model(
     def _slice_efficiency(slice_df):
         if len(slice_df) == 0:
             return {"count": 0}
-        eff = compute_tflops_efficiency(slice_df, "pred_tflops")
+        eff = compute_tflops_efficiency(slice_df, _OPERATION, "pred_tflops")
         if len(eff) == 0:
             return {"count": 0}
         return {
@@ -189,23 +195,38 @@ def evaluate_model(
     }
 
 
-def main():
+def build_arg_parser() -> argparse.ArgumentParser:
+    """The command-line parser."""
     parser = argparse.ArgumentParser(description="Evaluate CK Tile performance model")
     parser.add_argument(
         "--model_dir", required=True, help="Directory with trained models"
     )
     parser.add_argument("--data_dir", required=True, help="Directory with parquet data")
-    parser.add_argument("--op", default="gemm_universal")
+    parser.add_argument(
+        "--op",
+        default=_OPERATION,
+        choices=[_OPERATION],
+        help=(
+            f"Operation type. Only {_OPERATION} is supported: this module groups "
+            "shapes by (m, n, k) throughout, so another operation would load its "
+            "data and then fail on a missing column rather than say so."
+        ),
+    )
     parser.add_argument("--dtype", default="fp8")
     parser.add_argument("--output", "-o", help="Output JSON path for metrics")
+    return parser
+
+
+def main():
+    parser = build_arg_parser()
     args = parser.parse_args()
 
     print(f"Loading data from {args.data_dir}...")
     df = build_training_dataset(args.data_dir, op_type=args.op, dtype=args.dtype)
     print(f"  {len(df)} rows, {df.groupby(['m', 'n', 'k']).ngroups} shapes")
 
-    fe = GemmUniversalFeatureEngine()
-    predictor = Predictor(args.model_dir, feature_engine=fe)
+    predictor = Predictor(args.model_dir)
+    fe = predictor.feature_engine
 
     print("Evaluating...")
     results = evaluate_model(predictor, df, fe)

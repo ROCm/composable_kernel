@@ -234,9 +234,10 @@ Every parquet file follows this schema:
 | `warp_tile_m/n/k` | int | Warp tile dimensions |
 | `pipeline` | str | `compv3`, `compv4`, `mem`, etc. |
 | `scheduler` | str | `intrawave`, `interwave` |
-| `epilogue` | str | `cshuffle`, `default` |
+| `epilogue` | str | `cshuffle`, `default`, `tdm` |
 | `pad_m`, `pad_n`, `pad_k` | bool | Padding flags |
 | `persistent` | bool | Persistent kernel flag |
+| `vec_a/b/c` | int | Fixed A/B/C global vector width, in elements; 0 if none |
 | `run_id` | str | Unique collection run identifier |
 
 ## Shape Selection Guidelines
@@ -318,9 +319,11 @@ To generate benchmark data for a new operation (e.g., `gemm_streamk`):
        -o data/gemm_streamk_fp8_gfx950.parquet --arch gfx950
    ```
 
-4. **Train**:
+4. **Register the op**; see "Extending to New Ops" in `README.md`.
+
+5. **Train**:
    ```bash
-   python3 train.py --op gemm_streamk --dtype fp8 --arch gfx950 \
+   python3 train.py --operation gemm_streamk --dtype fp8 --arch gfx950 \
        --data_dir data/ --out_dir models/gemm_streamk_fp8_gfx950
    ```
 

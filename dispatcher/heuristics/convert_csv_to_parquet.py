@@ -46,8 +46,13 @@ Features:
 import argparse
 import re
 import pandas as pd
+import sys
 from pathlib import Path
 from typing import Dict, Any, Optional, Set
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "codegen"))
+
+from arch_specs_generated import LDS_TOTAL_CAPACITY_BY_ARCH  # noqa: E402
 
 
 # Known metric/metadata columns (will be excluded from problem features)
@@ -67,14 +72,14 @@ METRIC_COLUMNS: Set[str] = {
 
 # Hardware profiles for different architectures
 HW_PROFILES = {
-    "gfx950": {  # MI300 series
+    "gfx950": {  # MI350 series (MI350X / MI355X)
         "hw_num_cus": 256,
         "hw_simds_per_cu": 4,
         "hw_shader_engines": 32,
         "hw_max_clock_mhz": 2400,
         "hw_max_waves_per_cu": 32,
         "hw_wavefront_size": 64,
-        "hw_lds_capacity": 65536,
+        "hw_lds_capacity": LDS_TOTAL_CAPACITY_BY_ARCH["gfx950"],
         "hw_l1_cache_kb": 32,
         "hw_l2_cache_kb": 4096,
         "hw_l3_cache_kb": 262144,
@@ -87,7 +92,7 @@ HW_PROFILES = {
         "hw_max_clock_mhz": 2100,
         "hw_max_waves_per_cu": 32,
         "hw_wavefront_size": 64,
-        "hw_lds_capacity": 65536,
+        "hw_lds_capacity": LDS_TOTAL_CAPACITY_BY_ARCH["gfx942"],
         "hw_l1_cache_kb": 32,
         "hw_l2_cache_kb": 4096,
         "hw_l3_cache_kb": 262144,
@@ -100,11 +105,20 @@ HW_PROFILES = {
         "hw_max_clock_mhz": 1700,
         "hw_max_waves_per_cu": 32,
         "hw_wavefront_size": 64,
-        "hw_lds_capacity": 65536,
+        "hw_lds_capacity": LDS_TOTAL_CAPACITY_BY_ARCH["gfx90a"],
         "hw_l1_cache_kb": 16,
         "hw_l2_cache_kb": 8192,
         "hw_l3_cache_kb": 131072,
         "hw_num_xcd": 1,
+    },
+    "gfx1250": {
+        # Measured values only; other constants are omitted, so the engine
+        # uses its defaults for them.
+        "hw_num_cus": 256,
+        "hw_simds_per_cu": 4,
+        "hw_max_clock_mhz": 2400,
+        "hw_wavefront_size": 32,
+        "hw_lds_capacity": LDS_TOTAL_CAPACITY_BY_ARCH["gfx1250"],
     },
 }
 
@@ -290,11 +304,14 @@ def convert_csv_to_parquet(
     print(f"  Parsed {len(kernel_configs)} unique kernels")
     print()
 
-    # Get hardware profile
     hw_profile = HW_PROFILES.get(arch, {})
     if not hw_profile:
-        print(f"Warning: No hardware profile for {arch}, using defaults")
-        hw_profile = HW_PROFILES["gfx950"]
+        print(
+            f"Warning: no hardware profile for {arch}; emitting no hw_ columns. "
+            "The feature engine will use its built-in defaults, which may not "
+            f"describe {arch}. Add it to HW_PROFILES to train against real "
+            "constants."
+        )
 
     # Build parquet rows
     rows = []

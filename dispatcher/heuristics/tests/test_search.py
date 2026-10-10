@@ -188,5 +188,88 @@ class TestSearchEdgeCases:
             assert s1_ == pytest.approx(s2_)
 
 
+class TestTheSearchEngineMatchesTheModel:
+    #: Needs 128 KB of LDS: rejected at 64 KB, accepted at 160 KB.
+    BIG_TILE = dict(
+        tile_m=256,
+        tile_n=256,
+        tile_k=256,
+        warp_m=2,
+        warp_n=2,
+        warp_k=1,
+        warp_tile_m=32,
+        warp_tile_n=32,
+        warp_tile_k=16,
+        pipeline="compv3",
+    )
+
+    @pytest.fixture
+    def big_lds_model(self, tmp_path):
+        fe = GemmUniversalFeatureEngine()
+        n = len(fe.get_feature_names())
+        np.random.seed(0)
+        model = lgb.LGBMRegressor(n_estimators=5, verbose=-1)
+        model.fit(np.random.rand(50, n), np.random.rand(50))
+        model.booster_.save_model(str(tmp_path / "model_tflops.lgbm"))
+        (tmp_path / "feature_spec.json").write_text(
+            json.dumps(
+                {
+                    "feature_names": fe.get_feature_names(),
+                    "categorical_features": fe.get_categorical_features(),
+                    "hardware": {"lds_capacity": 163840},
+                }
+            )
+        )
+        return tmp_path
+
+    def test_the_config_discriminates(self):
+        assert not GemmUniversalFeatureEngine().validate_config(self.BIG_TILE)
+        assert GemmUniversalFeatureEngine(lds_capacity=163840).validate_config(
+            self.BIG_TILE
+        )
+
+    def test_the_search_filter_uses_the_models_constants(self, big_lds_model):
+        search = SurrogateSearch(Predictor(big_lds_model))
+        assert search._fe.validate_config(self.BIG_TILE), (
+            "the search engine was built bare, so it filters candidates at the "
+            "64 KB default while the predictor scores at the model's 160 KB"
+        )
+
+    def test_an_explicitly_passed_engine_is_not_replaced(self, big_lds_model):
+        mine = GemmUniversalFeatureEngine()
+        search = SurrogateSearch(Predictor(big_lds_model), feature_engine=mine)
+        assert search._fe is mine
+
+    def test_a_falsy_engine_is_still_honoured(self, big_lds_model):
+        class FalsyEngine(GemmUniversalFeatureEngine):
+            def __bool__(self):
+                return False
+
+        mine = FalsyEngine()
+        assert not mine
+        search = SurrogateSearch(Predictor(big_lds_model), feature_engine=mine)
+        assert search._fe is mine, (
+            "a falsy engine was discarded, so the resolution is testing "
+            "truthiness instead of presence"
+        )
+
+    def test_a_falsy_engine_from_the_predictor_is_still_honoured(self):
+        class FalsyEngine(GemmUniversalFeatureEngine):
+            def __bool__(self):
+                return False
+
+        class StubPredictor:
+            def __init__(self, engine):
+                self.feature_engine = engine
+
+        engine = FalsyEngine()
+        search = SurrogateSearch(StubPredictor(engine))
+        assert search._fe is engine, (
+            "the predictor's engine was discarded because it is falsy, so the "
+            "search filters on default constants while the model scores on its "
+            "own"
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

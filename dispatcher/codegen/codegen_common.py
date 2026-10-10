@@ -506,9 +506,15 @@ def make_quant_kernel_name(
     pipeline: str,
     epilogue: str,
     scheduler: str,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
     group_segments: Sequence[str] = (),
     flags: Sequence[Tuple[bool, str]] = (),
 ) -> str:
@@ -567,7 +573,10 @@ def bquant_effective_epilogue(
     Returns "permute_n" when PermuteNEpilogue is selected, "cshuffle" otherwise.
     """
     return quant_effective_epilogue(
-        tile_n, warp_n, warp_tile_n, quant_group_n,
+        tile_n,
+        warp_n,
+        warp_tile_n,
+        quant_group_n,
         tiled_mma_permute_n=preshuffle_b,
     )
 
@@ -596,9 +605,15 @@ def make_bquant_kernel_name(
     pipeline: str,
     epilogue: str,
     scheduler: str,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
     quant_group_m: int,
     quant_group_n: int,
     quant_group_k: int,
@@ -622,8 +637,13 @@ def make_bquant_kernel_name(
     """
     effective_epilogue = (
         gemm_bquant_effective_epilogue(
-            tile_n, warp_n, warp_tile_n, quant_group_n,
-            pipeline=pipeline, requested_epilogue=epilogue, preshuffle_b=preshuffle_b,
+            tile_n,
+            warp_n,
+            warp_tile_n,
+            quant_group_n,
+            pipeline=pipeline,
+            requested_epilogue=epilogue,
+            preshuffle_b=preshuffle_b,
         )
         if name_prefix == "gemm_bquant"
         else bquant_effective_epilogue(
@@ -637,9 +657,15 @@ def make_bquant_kernel_name(
         pipeline=pipeline,
         epilogue=effective_epilogue,
         scheduler=scheduler,
-        tile_m=tile_m, tile_n=tile_n, tile_k=tile_k,
-        warp_m=warp_m, warp_n=warp_n, warp_k=warp_k,
-        warp_tile_m=warp_tile_m, warp_tile_n=warp_tile_n, warp_tile_k=warp_tile_k,
+        tile_m=tile_m,
+        tile_n=tile_n,
+        tile_k=tile_k,
+        warp_m=warp_m,
+        warp_n=warp_n,
+        warp_k=warp_k,
+        warp_tile_m=warp_tile_m,
+        warp_tile_n=warp_tile_n,
+        warp_tile_k=warp_tile_k,
         group_segments=(f"qg{quant_group_m}x{quant_group_n}x{quant_group_k}",),
         flags=(
             (preshuffle_b, "preshuffleb"),
@@ -668,9 +694,15 @@ def make_gemm_rowcolquant_kernel_name(
     pipeline: str,
     epilogue: str,
     scheduler: str,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
 ) -> str:
     """Return the canonical RowColQuant kernel name used as KERNEL_NAME in headers.
 
@@ -689,9 +721,15 @@ def make_gemm_rowcolquant_kernel_name(
         pipeline=pipeline,
         epilogue=epilogue,
         scheduler=scheduler,
-        tile_m=tile_m, tile_n=tile_n, tile_k=tile_k,
-        warp_m=warp_m, warp_n=warp_n, warp_k=warp_k,
-        warp_tile_m=warp_tile_m, warp_tile_n=warp_tile_n, warp_tile_k=warp_tile_k,
+        tile_m=tile_m,
+        tile_n=tile_n,
+        tile_k=tile_k,
+        warp_m=warp_m,
+        warp_n=warp_n,
+        warp_k=warp_k,
+        warp_tile_m=warp_tile_m,
+        warp_tile_n=warp_tile_n,
+        warp_tile_k=warp_tile_k,
     )
 
 
@@ -751,11 +789,20 @@ VECTOR_SIZE_VARIANTS: FrozenSet[str] = frozenset(
 )
 
 _VEC_ELEMENT_BYTES = {
-    "fp16": 2, "bf16": 2, "fp32": 4, "fp64": 8, "fp8": 1, "bf8": 1, "int8": 1, "int32": 4
+    "fp16": 2,
+    "bf16": 2,
+    "fp32": 4,
+    "fp64": 8,
+    "fp8": 1,
+    "bf8": 1,
+    "int8": 1,
+    "int32": 4,
 }
 
 
-def _native_ab_vector_size(elem: int, mn_per_block: int, x_per_tile: int, tile_k: int, block_size: int) -> int:
+def _native_ab_vector_size(
+    elem: int, mn_per_block: int, x_per_tile: int, tile_k: int, block_size: int
+) -> int:
     """Mirror of ``GetGlobalVectorLoadSize`` in the universal GEMM policy.
 
     Like CK, the 4- and 2-byte steps are only tried for elements at least that
@@ -792,7 +839,11 @@ def gemm_vector_size_suffix(vec: Sequence[int]) -> str:
 
 
 def gemm_lockstep_vector_bytes(
-    vec: Sequence[int], dtype_a: str, dtype_b: str, layout: str = "rc", gpu_target: str = ""
+    vec: Sequence[int],
+    dtype_a: str,
+    dtype_b: str,
+    layout: str = "rc",
+    gpu_target: str = "",
 ) -> int:
     """``TileGemmUniversalTraits::_VectorSize`` (bytes) for a fixed width triple.
 
@@ -807,7 +858,10 @@ def gemm_lockstep_vector_bytes(
     other operand is narrowed (lowering it breaks the transpose read).
     """
     tr_load = normalize_gfx_arch(gpu_target) == GFX1250_ARCH
-    operands = ((vec[0], dtype_a, layout[0] == "c"), (vec[1], dtype_b, layout[1] == "r"))
+    operands = (
+        (vec[0], dtype_a, layout[0] == "c"),
+        (vec[1], dtype_b, layout[1] == "r"),
+    )
     if tr_load and any(t and _VEC_ELEMENT_BYTES[d] <= 2 for _, d, t in operands):
         return 16
     return min(v * _VEC_ELEMENT_BYTES[d] for v, d, _ in operands)
@@ -827,19 +881,37 @@ def gemm_vector_size_sweep(
     """
     full = tuple(16 // _VEC_ELEMENT_BYTES[d] for d in (dtype_a, dtype_b, dtype_c))
     axes = [
-        [f] if v >= f and not (tune_c and i == 2) else [1 << j for j in range(v.bit_length())]
+        [f]
+        if v >= f and not (tune_c and i == 2)
+        else [1 << j for j in range(v.bit_length())]
         for i, (v, f) in enumerate(zip(vec, full))
     ]
-    sweep = [(a, b, c) for a in axes[0] for b in axes[1] for c in axes[2] if (a, b, c) != full]
+    sweep = [
+        (a, b, c)
+        for a in axes[0]
+        for b in axes[1]
+        for c in axes[2]
+        if (a, b, c) != full
+    ]
     return sweep or [(0, 0, 0)]
+
+
+#: The eight layouts gemm_contiguous_dims resolves: A, B and C each r or c.
+_GEMM_LAYOUTS = frozenset(a + b + c for a in "rc" for b in "rc" for c in "rc")
 
 
 def gemm_contiguous_dims(layout: str) -> Tuple[str, str, str]:
     """Contiguous dim (``"m"``/``"n"``/``"k"``) of A/B/C for a layout like ``"rcr"``."""
-    return ("k" if layout[0] == "r" else "m", "n" if layout[1] == "r" else "k", "n" if layout[2] == "r" else "m")
+    return (
+        "k" if layout[0] == "r" else "m",
+        "n" if layout[1] == "r" else "k",
+        "n" if layout[2] == "r" else "m",
+    )
 
 
-def gemm_problem_vector_sizes(m: int, n: int, k: int, layout: str, dtype_a: str, dtype_b: str, dtype_c: str) -> Tuple[int, int, int]:
+def gemm_problem_vector_sizes(
+    m: int, n: int, k: int, layout: str, dtype_a: str, dtype_b: str, dtype_c: str
+) -> Tuple[int, int, int]:
     """Widest width per operand that divides the problem's contiguous extent.
 
     ``layout`` is the A/B/C layout string (e.g. ``"rcr"``). A kernel whose
@@ -847,7 +919,65 @@ def gemm_problem_vector_sizes(m: int, n: int, k: int, layout: str, dtype_a: str,
     """
     extents = tuple(dict(m=m, n=n, k=k)[d] for d in gemm_contiguous_dims(layout))
     dtypes = (dtype_a, dtype_b, dtype_c)
-    return tuple(math.gcd(e, 16 // _VEC_ELEMENT_BYTES[d]) for e, d in zip(extents, dtypes))
+    return tuple(
+        math.gcd(e, 16 // _VEC_ELEMENT_BYTES[d]) for e, d in zip(extents, dtypes)
+    )
+
+
+def gemm_tile_divides_problem(
+    m: int,
+    n: int,
+    k: int,
+    layout: str,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    *,
+    pad_m: bool,
+    pad_n: bool,
+    pad_k: bool,
+    k_batch: int = 1,
+) -> bool:
+    """Does the tile divide the problem as ``IsSupportedArgument`` requires?
+
+    Each tensor is checked on its contiguous dimension only, and only when that
+    dimension's pad flag is false::
+
+        A RowMajor  K % (KPerBlock * k_batch)   A ColMajor  M % MPerBlock
+        B RowMajor  N % NPerBlock               B ColMajor  K % (KPerBlock * k_batch)
+        C RowMajor  N % NPerBlock               C ColMajor  M % MPerBlock
+
+    so ``rcr``/``rrr`` check {k, n}, ``crr`` {m, n} and ``ccr`` {m, n, k}.
+
+    The vector-size, split-K warp-tile and D-tensor checks are not modelled:
+    ``True`` is necessary for a launch to be accepted, not sufficient.
+    """
+    if k_batch < 1:
+        raise ValueError(f"k_batch must be >= 1, got {k_batch}")
+    if layout not in _GEMM_LAYOUTS:
+        raise ValueError(
+            f"unknown layout {layout!r}; expected one of {sorted(_GEMM_LAYOUTS)}"
+        )
+    for name, extent in (("m", m), ("n", n), ("k", k)):
+        if extent is None or extent < 1:
+            raise ValueError(f"problem extent {name} must be >= 1, got {extent}")
+    for tile in (tile_m, tile_n, tile_k):
+        if tile is None or tile <= 0:
+            raise ValueError(
+                f"tile extents must be positive, got "
+                f"({tile_m}, {tile_n}, {tile_k}) -- a falsy tile would otherwise "
+                f"silently accept every problem"
+            )
+    extents = {
+        "m": (m, tile_m, pad_m),
+        "n": (n, tile_n, pad_n),
+        "k": (k, tile_k * k_batch, pad_k),
+    }
+    for d in set(gemm_contiguous_dims(layout)):
+        extent, tile, padded = extents[d]
+        if not padded and extent % tile != 0:
+            return False
+    return True
 
 
 def gemm_default_epilogue_vector_size(dtype_a, layout, gfx_arch):
@@ -868,8 +998,17 @@ def gemm_default_epilogue_vector_size(dtype_a, layout, gfx_arch):
     return 4
 
 
-def _vector_geometry(dtype_a, dtype_b, dtype_c, layout, tile, waves, warp_tile, gfx_arch,
-                     epilogue="cshuffle"):
+def _vector_geometry(
+    dtype_a,
+    dtype_b,
+    dtype_c,
+    layout,
+    tile,
+    waves,
+    warp_tile,
+    gfx_arch,
+    epilogue="cshuffle",
+):
     """Shared derivation for the vector-size helpers below.
 
     Returns ``(native, a_yx, b_yx, c_row, block_size, warp_size, elem_bytes)``;
@@ -888,7 +1027,9 @@ def _vector_geometry(dtype_a, dtype_b, dtype_c, layout, tile, waves, warp_tile, 
     elif epilogue == "tdm":
         native_c = 1  # TdmEpilogue::GetVectorSizeC
     else:
-        native_c = min((warp_tile[1] * warp_n) if c_row else (warp_tile[0] * warp_m), 16 // ec)
+        native_c = min(
+            (warp_tile[1] * warp_n) if c_row else (warp_tile[0] * warp_m), 16 // ec
+        )
     native = (
         _native_ab_vector_size(ea, tile_m, a_yx[1], tile_k, block_size),
         _native_ab_vector_size(eb, tile_n, b_yx[1], tile_k, block_size),
@@ -897,10 +1038,22 @@ def _vector_geometry(dtype_a, dtype_b, dtype_c, layout, tile, waves, warp_tile, 
     return native, a_yx, b_yx, c_row, block_size, warp_size, (ea, eb, ec)
 
 
-def gemm_native_vector_sizes(*, dtype_a, dtype_b, dtype_c, layout, tile, waves, warp_tile, gfx_arch,
-                             epilogue="cshuffle") -> Tuple[int, int, int]:
+def gemm_native_vector_sizes(
+    *,
+    dtype_a,
+    dtype_b,
+    dtype_c,
+    layout,
+    tile,
+    waves,
+    warp_tile,
+    gfx_arch,
+    epilogue="cshuffle",
+) -> Tuple[int, int, int]:
     """A/B/C global vector widths a kernel uses when no widths are fixed."""
-    return _vector_geometry(dtype_a, dtype_b, dtype_c, layout, tile, waves, warp_tile, gfx_arch, epilogue)[0]
+    return _vector_geometry(
+        dtype_a, dtype_b, dtype_c, layout, tile, waves, warp_tile, gfx_arch, epilogue
+    )[0]
 
 
 def resolve_gemm_vector_sizes(
@@ -937,7 +1090,10 @@ def resolve_gemm_vector_sizes(
 
     for name, width, elem in zip("ABC", eff, (ea, eb, ec)):
         if width < 1 or width & (width - 1) or width * elem > 16:
-            return eff, f"vector_size_{name.lower()}={width} is not a power of two <= 16 bytes"
+            return (
+                eff,
+                f"vector_size_{name.lower()}={width} is not a power of two <= 16 bytes",
+            )
     if variant not in VECTOR_SIZE_VARIANTS:
         return eff, f"variant {variant} does not support fixed vector sizes"
     if pipeline not in VECTOR_SIZE_PIPELINES:
@@ -946,7 +1102,10 @@ def resolve_gemm_vector_sizes(
         return eff, f"epilogue {epilogue} cannot use fixed vector sizes"
     # Stream-K reduces partial C tiles with buffer atomics, which need >= 4 bytes.
     if variant == "stream_k" and eff[2] * ec < 4:
-        return eff, f"stream_k atomic C store needs >= 4 bytes, got vector_size_c={eff[2]}"
+        return (
+            eff,
+            f"stream_k atomic C store needs >= 4 bytes, got vector_size_c={eff[2]}",
+        )
     # K-major-in-LDS operands (col-major A / row-major B) on wave64 need
     # (tile_k / Y2) >= warp_size / warp_tile_mn in the LDS descriptor.
     for name, width, (y, x), xdl, k_out in (
@@ -954,17 +1113,29 @@ def resolve_gemm_vector_sizes(
         ("B", eff[1], b_yx, warp_tile_n, layout[1] == "r"),
     ):
         if warp_tile_k % width:
-            return eff, f"warp_tile_k={warp_tile_k} not divisible by vector_size_{name.lower()}={width}"
+            return (
+                eff,
+                f"warp_tile_k={warp_tile_k} not divisible by vector_size_{name.lower()}={width}",
+            )
         y2 = _pattern_2d_y2(y, x, width, block_size, warp_size)
         if not y2:
-            return eff, f"{name} tile {y}x{x} cannot be distributed with vector_size_{name.lower()}={width}"
+            return (
+                eff,
+                f"{name} tile {y}x{x} cannot be distributed with vector_size_{name.lower()}={width}",
+            )
         if k_out and warp_size == 64 and (y // y2) < warp_size // xdl:
-            return eff, f"{name} LDS layout needs more warps for vector_size_{name.lower()}={width}"
+            return (
+                eff,
+                f"{name} LDS layout needs more warps for vector_size_{name.lower()}={width}",
+            )
     per_thread = warp_tile_m * warp_tile_n // warp_size
     if per_thread > eff[2]:
         shuffles = per_thread // eff[2]
         if per_thread % eff[2] or (tile_m if c_row else tile_n) % shuffles:
-            return eff, f"CShuffle cannot split {per_thread} elements/thread by vector_size_c={eff[2]}"
+            return (
+                eff,
+                f"CShuffle cannot split {per_thread} elements/thread by vector_size_c={eff[2]}",
+            )
 
     # The sweep's ctypes validator checks warp/trait legality, not LDS capacity.
     # Reject over-budget fixed widths here so they are counted before codegen
@@ -1309,10 +1480,17 @@ def quant_decode_default_config(*, warp_tile_k: int, **overrides) -> dict:
         "scheduler": "intrawave",
         "tile_configs": [
             # GemmConfigQuantDecode<fp8_t>: M=16, N=64, K=256/sizeof(8bit)=256
-            {"tile_m": 16, "tile_n": 64, "tile_k": 256,
-             "warp_m": 1, "warp_n": 4, "warp_k": 1,
-             "warp_tile_m": 16, "warp_tile_n": 16,
-             "warp_tile_k": warp_tile_k},
+            {
+                "tile_m": 16,
+                "tile_n": 64,
+                "tile_k": 256,
+                "warp_m": 1,
+                "warp_n": 4,
+                "warp_k": 1,
+                "warp_tile_m": 16,
+                "warp_tile_n": 16,
+                "warp_tile_k": warp_tile_k,
+            },
         ],
         "pad_m": False,
         "pad_n": False,
@@ -1348,7 +1526,11 @@ def aquant_effective_epilogue(
     as-is -- see TestQuantEffectiveEpilogue, which pins the asymmetry.
     """
     return quant_effective_epilogue(
-        tile_n, warp_n, warp_tile_n, quant_group_n, tiled_mma_permute_n=True,
+        tile_n,
+        warp_n,
+        warp_tile_n,
+        quant_group_n,
+        tiled_mma_permute_n=True,
     )
 
 
@@ -1358,9 +1540,15 @@ def make_aquant_kernel_name(
     pipeline: str,
     epilogue: str,  # ignored — actual epilogue is computed from tile params
     scheduler: str,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
     quant_group_m: int,
     quant_group_n: int,
     quant_group_k: int,
@@ -1378,9 +1566,15 @@ def make_aquant_kernel_name(
         pipeline=pipeline,
         epilogue=aquant_effective_epilogue(tile_n, warp_n, warp_tile_n, quant_group_n),
         scheduler=scheduler,
-        tile_m=tile_m, tile_n=tile_n, tile_k=tile_k,
-        warp_m=warp_m, warp_n=warp_n, warp_k=warp_k,
-        warp_tile_m=warp_tile_m, warp_tile_n=warp_tile_n, warp_tile_k=warp_tile_k,
+        tile_m=tile_m,
+        tile_n=tile_n,
+        tile_k=tile_k,
+        warp_m=warp_m,
+        warp_n=warp_n,
+        warp_k=warp_k,
+        warp_tile_m=warp_tile_m,
+        warp_tile_n=warp_tile_n,
+        warp_tile_k=warp_tile_k,
         group_segments=(f"aqg{quant_group_m}x{quant_group_n}x{quant_group_k}",),
         flags=((preshuffle_aq, "preshuffleaq"),),
     )
@@ -1407,7 +1601,10 @@ def abquant_effective_epilogue(
     in the C++ test fixtures for both GemmConfigEightWaves and GemmConfigPreshuffleB_ABQuant_Prefill).
     """
     return quant_effective_epilogue(
-        tile_n, warp_n, warp_tile_n, bquant_group_n,
+        tile_n,
+        warp_n,
+        warp_tile_n,
+        bquant_group_n,
         tiled_mma_permute_n=pipeline not in ("eightwaves", "preshuffleb"),
     )
 
@@ -1418,9 +1615,15 @@ def make_abquant_kernel_name(
     pipeline: str,
     epilogue: str,  # ignored — actual epilogue is computed from tile params
     scheduler: str,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
     aquant_group_m: int,
     aquant_group_n: int,
     aquant_group_k: int,
@@ -1446,9 +1649,15 @@ def make_abquant_kernel_name(
             tile_n, warp_n, warp_tile_n, bquant_group_n, pipeline
         ),
         scheduler=scheduler,
-        tile_m=tile_m, tile_n=tile_n, tile_k=tile_k,
-        warp_m=warp_m, warp_n=warp_n, warp_k=warp_k,
-        warp_tile_m=warp_tile_m, warp_tile_n=warp_tile_n, warp_tile_k=warp_tile_k,
+        tile_m=tile_m,
+        tile_n=tile_n,
+        tile_k=tile_k,
+        warp_m=warp_m,
+        warp_n=warp_n,
+        warp_k=warp_k,
+        warp_tile_m=warp_tile_m,
+        warp_tile_n=warp_tile_n,
+        warp_tile_k=warp_tile_k,
         group_segments=(
             f"aqg{aquant_group_m}x{aquant_group_n}x{aquant_group_k}",
             f"bqg{bquant_group_m}x{bquant_group_n}x{bquant_group_k}",
@@ -1504,9 +1713,15 @@ ROWCOL_TENSOR_QUANT_SUPPORTED_LAYOUTS = ("rcr",)
 # Mirrors tile_engine/ops/gemm/grouped_gemm_quant/grouped_gemm_{rowcolquant,
 # tensorquant}/configs/default_ci_config.json.
 ROWCOL_TENSOR_QUANT_DEFAULT_TILE = {
-    "tile_m": 128, "tile_n": 128, "tile_k": 64,
-    "warp_m": 2, "warp_n": 2, "warp_k": 1,
-    "warp_tile_m": 32, "warp_tile_n": 32, "warp_tile_k": 16,
+    "tile_m": 128,
+    "tile_n": 128,
+    "tile_k": 64,
+    "warp_m": 2,
+    "warp_n": 2,
+    "warp_k": 1,
+    "warp_tile_m": 32,
+    "warp_tile_n": 32,
+    "warp_tile_k": 16,
 }
 
 # gfx1250 (RDNA-style WMMA, MI400) cannot use the tile above: it is sized
@@ -1514,9 +1729,15 @@ ROWCOL_TENSOR_QUANT_DEFAULT_TILE = {
 # kernel compiles but produces all-zero output. The 8-bit WMMA fragment is 16x16x128,
 # and the FlatMM 8-bit tile below is the shape validated against it.
 ROWCOL_TENSOR_QUANT_DEFAULT_TILE_GFX1250 = {
-    "tile_m": 16, "tile_n": 64, "tile_k": 256,
-    "warp_m": 1, "warp_n": 4, "warp_k": 1,
-    "warp_tile_m": 16, "warp_tile_n": 16, "warp_tile_k": 128,
+    "tile_m": 16,
+    "tile_n": 64,
+    "tile_k": 256,
+    "warp_m": 1,
+    "warp_n": 4,
+    "warp_k": 1,
+    "warp_tile_m": 16,
+    "warp_tile_n": 16,
+    "warp_tile_k": 128,
 }
 
 
@@ -1562,7 +1783,9 @@ def validate_gfx1250_quant_warp_tile(
         )
 
 
-def validate_abquant_eight_waves_target(pipeline, eight_waves, gfx_arch, *, bridge="ABQuant"):
+def validate_abquant_eight_waves_target(
+    pipeline, eight_waves, gfx_arch, *, bridge="ABQuant"
+):
     """Reject the ABQuant EightWaves pipeline on any target other than gfx950.
 
     ABQuantGemmPipelineAgBgCrEightWaves is only available under ``__gfx950__``;
@@ -1578,8 +1801,14 @@ def validate_abquant_eight_waves_target(pipeline, eight_waves, gfx_arch, *, brid
 
 
 def validate_quant_codegen_target(
-    config, gfx_arch, build_specs, *, bridge, supported_archs,
-    gfx1250_unsupported_variants=(), gfx950_only_variants=(),
+    config,
+    gfx_arch,
+    build_specs,
+    *,
+    bridge,
+    supported_archs,
+    gfx1250_unsupported_variants=(),
+    gfx950_only_variants=(),
 ):
     """Target check for a block-scale quant codegen CLI before any header is written.
 
@@ -1610,12 +1839,17 @@ def validate_quant_codegen_target(
                 f"{bridge} variant {spec.variant_key!r} requires gfx950; got {gfx_arch!r}."
             )
         validate_gfx1250_quant_warp_tile(
-            spec.tile.warp_tile_m, spec.tile.warp_tile_n, spec.tile.warp_tile_k,
-            target, bridge=bridge,
+            spec.tile.warp_tile_m,
+            spec.tile.warp_tile_n,
+            spec.tile.warp_tile_k,
+            target,
+            bridge=bridge,
         )
 
 
-def validate_rowcol_tensor_quant_gfx_arch(gfx_arch: str, *, require_explicit: bool = False) -> str:
+def validate_rowcol_tensor_quant_gfx_arch(
+    gfx_arch: str, *, require_explicit: bool = False
+) -> str:
     """Normalize and check a caller-supplied gfx target; return the bare target.
 
     Raises ``ValueError`` for anything outside
@@ -1673,9 +1907,15 @@ def _make_rowcol_tensor_quant_kernel_name(
     pad_n: bool,
     pad_k: bool,
     persistent: bool,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
 ) -> str:
     """Shared implementation behind make_{rowcolquant,tensorquant}_kernel_name."""
     tile_str = (
@@ -1700,9 +1940,15 @@ def make_rowcolquant_kernel_name(
     pad_n: bool,
     pad_k: bool,
     persistent: bool,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
 ) -> str:
     """Return the canonical RowColQuant kernel name used as KERNEL_NAME.
 
@@ -1712,11 +1958,25 @@ def make_rowcolquant_kernel_name(
     tile_engine/.../grouped_gemm_rowcolquant_instance_builder.py.
     """
     return _make_rowcol_tensor_quant_kernel_name(
-        "rowcolquant", dtype, layout, pipeline, epilogue, scheduler,
-        pad_m, pad_n, pad_k, persistent,
-        tile_m, tile_n, tile_k,
-        warp_m, warp_n, warp_k,
-        warp_tile_m, warp_tile_n, warp_tile_k,
+        "rowcolquant",
+        dtype,
+        layout,
+        pipeline,
+        epilogue,
+        scheduler,
+        pad_m,
+        pad_n,
+        pad_k,
+        persistent,
+        tile_m,
+        tile_n,
+        tile_k,
+        warp_m,
+        warp_n,
+        warp_k,
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
     )
 
 
@@ -1730,22 +1990,41 @@ def make_tensorquant_kernel_name(
     pad_n: bool,
     pad_k: bool,
     persistent: bool,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
 ) -> str:
     """Return the canonical TensorQuant kernel name used as KERNEL_NAME.
 
     See make_rowcolquant_kernel_name; the two differ only in the operator segment.
     """
     return _make_rowcol_tensor_quant_kernel_name(
-        "tensorquant", dtype, layout, pipeline, epilogue, scheduler,
-        pad_m, pad_n, pad_k, persistent,
-        tile_m, tile_n, tile_k,
-        warp_m, warp_n, warp_k,
-        warp_tile_m, warp_tile_n, warp_tile_k,
+        "tensorquant",
+        dtype,
+        layout,
+        pipeline,
+        epilogue,
+        scheduler,
+        pad_m,
+        pad_n,
+        pad_k,
+        persistent,
+        tile_m,
+        tile_n,
+        tile_k,
+        warp_m,
+        warp_n,
+        warp_k,
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
     )
-
 
 
 # Non-grouped gemm_aquant kernel name construction
@@ -1787,9 +2066,15 @@ def make_gemm_aquant_kernel_name(
     pipeline: str,
     epilogue: str,  # "cshuffle" or "default" -- sweep epilogue trait, mirrors Old-TE
     scheduler: str,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
     quant_group_m: int,
     quant_group_n: int,
     quant_group_k: int,
@@ -1818,9 +2103,15 @@ def make_gemm_aquant_kernel_name(
             tile_n, warp_n, warp_tile_n, quant_group_n, requested_epilogue=epilogue
         ),
         scheduler=scheduler,
-        tile_m=tile_m, tile_n=tile_n, tile_k=tile_k,
-        warp_m=warp_m, warp_n=warp_n, warp_k=warp_k,
-        warp_tile_m=warp_tile_m, warp_tile_n=warp_tile_n, warp_tile_k=warp_tile_k,
+        tile_m=tile_m,
+        tile_n=tile_n,
+        tile_k=tile_k,
+        warp_m=warp_m,
+        warp_n=warp_n,
+        warp_k=warp_k,
+        warp_tile_m=warp_tile_m,
+        warp_tile_n=warp_tile_n,
+        warp_tile_k=warp_tile_k,
         group_segments=(f"qg{quant_group_m}x{quant_group_n}x{quant_group_k}",),
         flags=((preshuffle_aquant, "preshufflequant"),),
     )
@@ -1858,9 +2149,15 @@ def make_gemm_abquant_kernel_name(
     pipeline: str,
     epilogue: str,
     scheduler: str,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
     aquant_group_k: int,
     bquant_group_n: int,
     bquant_group_k: int,
@@ -1897,7 +2194,12 @@ def make_gemm_abquant_kernel_name(
     # this family. Pinned by TestQuantKernelNames.
     # test_gemm_abquant_never_emits_permute_n; fixing it changes emitted kernel
     # names and needs its own commit, not this refactor.
-    if epilogue == "default" and pipeline == "compv3" and not preshuffle_b and not eight_waves:
+    if (
+        epilogue == "default"
+        and pipeline == "compv3"
+        and not preshuffle_b
+        and not eight_waves
+    ):
         # Native CompV3 instance builders emit DefaultGemm2DEpilogue for this
         # explicit trait; its name must remain distinct from CShuffle.
         effective_epilogue = "default"
@@ -1914,9 +2216,15 @@ def make_gemm_abquant_kernel_name(
         pipeline=pipeline,
         epilogue=effective_epilogue,
         scheduler=scheduler,
-        tile_m=tile_m, tile_n=tile_n, tile_k=tile_k,
-        warp_m=warp_m, warp_n=warp_n, warp_k=warp_k,
-        warp_tile_m=warp_tile_m, warp_tile_n=warp_tile_n, warp_tile_k=warp_tile_k,
+        tile_m=tile_m,
+        tile_n=tile_n,
+        tile_k=tile_k,
+        warp_m=warp_m,
+        warp_n=warp_n,
+        warp_k=warp_k,
+        warp_tile_m=warp_tile_m,
+        warp_tile_n=warp_tile_n,
+        warp_tile_k=warp_tile_k,
         group_segments=(
             f"aqg1x1x{aquant_group_k}",
             f"bqg1x{bquant_group_n}x{bquant_group_k}",
@@ -1948,7 +2256,11 @@ def tensor_quant_effective_epilogue(tile_n: int, warp_n: int, warp_tile_n: int) 
     # quant_group_n is fixed at 1 for TensorQuant (a single scalar scale), and
     # tiled_mma_permute_n=False short-circuits the parity check regardless.
     return quant_effective_epilogue(
-        tile_n, warp_n, warp_tile_n, quant_group_n=1, tiled_mma_permute_n=False,
+        tile_n,
+        warp_n,
+        warp_tile_n,
+        quant_group_n=1,
+        tiled_mma_permute_n=False,
     )
 
 
@@ -1958,9 +2270,15 @@ def make_tensor_quant_kernel_name(
     pipeline: str,
     epilogue: str,  # ignored -- actual epilogue computed via tensor_quant_effective_epilogue
     scheduler: str,
-    tile_m: int, tile_n: int, tile_k: int,
-    warp_m: int, warp_n: int, warp_k: int,
-    warp_tile_m: int, warp_tile_n: int, warp_tile_k: int,
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
 ) -> str:
     """Return the canonical TensorQuant kernel name used as KERNEL_NAME.
 
@@ -1976,9 +2294,15 @@ def make_tensor_quant_kernel_name(
         pipeline=pipeline,
         epilogue=tensor_quant_effective_epilogue(tile_n, warp_n, warp_tile_n),
         scheduler=scheduler,
-        tile_m=tile_m, tile_n=tile_n, tile_k=tile_k,
-        warp_m=warp_m, warp_n=warp_n, warp_k=warp_k,
-        warp_tile_m=warp_tile_m, warp_tile_n=warp_tile_n, warp_tile_k=warp_tile_k,
+        tile_m=tile_m,
+        tile_n=tile_n,
+        tile_k=tile_k,
+        warp_m=warp_m,
+        warp_n=warp_n,
+        warp_k=warp_k,
+        warp_tile_m=warp_tile_m,
+        warp_tile_n=warp_tile_n,
+        warp_tile_k=warp_tile_k,
     )
 
 
@@ -1994,7 +2318,9 @@ def make_tensor_quant_kernel_name(
 # epilogue / QuantType) and the per-op config sweep stay in the per-op scripts.
 
 
-def emit_generated_header_preamble(title: str, module_name: str, extra: str = "") -> str:
+def emit_generated_header_preamble(
+    title: str, module_name: str, extra: str = ""
+) -> str:
     """Emit the shared auto-generated-header prologue: license, DO-NOT-EDIT line,
     ``#pragma once`` and the four ck_tile includes every quant kernel header needs.
 
@@ -2092,7 +2418,9 @@ def emit_quant_epilogue_block(kind: str, ns: str) -> str:
         raise ValueError(
             f"unknown epilogue kind {kind!r}; expected 'default', 'cshuffle', or 'permute_n'"
         ) from None
-    cls = {"default": "DefaultGemm2D", "cshuffle": "CShuffle", "permute_n": "PermuteN"}[kind]
+    cls = {"default": "DefaultGemm2D", "cshuffle": "CShuffle", "permute_n": "PermuteN"}[
+        kind
+    ]
     geometry = "kPadM, kPadN" if kind == "default" else "WarpM, WarpN"
     return f"""\
             using GemmEpilogue = ck_tile::{cls}Epilogue<
@@ -2128,7 +2456,9 @@ def emit_quant_tile_dims(tile: Any, *, block_size: int, k_block_per_cu: int) -> 
     static constexpr int               kBlockPerCu = {k_block_per_cu};"""
 
 
-def emit_quant_tile_shape(partitioner: str = "ck_tile::GemmTile1DPartitioner<TileShape>") -> str:
+def emit_quant_tile_shape(
+    partitioner: str = "ck_tile::GemmTile1DPartitioner<TileShape>",
+) -> str:
     """Emit the ``TileShape`` / ``TilePartitioner`` aliases.
 
     ``TileShape`` is identical in every operator. ``partitioner`` is the only
@@ -2267,7 +2597,9 @@ def generate_kernels_generic(
         )
         return []
 
-    log.info("Generating %d %s kernel headers into %s", len(specs), op_label, output_dir)
+    log.info(
+        "Generating %d %s kernel headers into %s", len(specs), op_label, output_dir
+    )
     generated: List[Path] = []
 
     def _generate_one(spec: Any) -> Path:
@@ -2319,28 +2651,34 @@ def run_codegen_cli(
     """
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
-        "--output-dir", type=Path,
-        help="Directory to write generated .hpp files (required unless --list-names)")
+        "--output-dir",
+        type=Path,
+        help="Directory to write generated .hpp files (required unless --list-names)",
+    )
     parser.add_argument(
-        "--config", type=Path,
-        help="JSON config file (defaults to built-in sweep)")
+        "--config", type=Path, help="JSON config file (defaults to built-in sweep)"
+    )
+    parser.add_argument("--config-json", type=str, help="Inline JSON config string")
     parser.add_argument(
-        "--config-json", type=str,
-        help="Inline JSON config string")
+        "--no-parallel", action="store_true", help="Disable parallel generation"
+    )
     parser.add_argument(
-        "--no-parallel", action="store_true",
-        help="Disable parallel generation")
-    parser.add_argument(
-        "--list-names", action="store_true",
-        help="Print kernel names that would be generated and exit")
+        "--list-names",
+        action="store_true",
+        help="Print kernel names that would be generated and exit",
+    )
     if arch_aware:
         parser.add_argument(
-            "--gfx-arch", type=str,
+            "--gfx-arch",
+            type=str,
             default=None if validate_target_config is not None else default_gfx_arch,
-            help=("Target GPU arch; validates explicit JSON configs as well as defaults."
-                  if validate_target_config is not None else
-                  "Target GPU arch for the built-in default config's arch-derived "
-                  "WarpTileK. Ignored when --config/--config-json is given."))
+            help=(
+                "Target GPU arch; validates explicit JSON configs as well as defaults."
+                if validate_target_config is not None
+                else "Target GPU arch for the built-in default config's arch-derived "
+                "WarpTileK. Ignored when --config/--config-json is given."
+            ),
+        )
     args = parser.parse_args()
 
     cfg: Optional[dict] = None
@@ -2355,8 +2693,11 @@ def run_codegen_cli(
             cfg = json.load(f)
 
     if validate_target_config is not None:
-        target = (getattr(args, "gfx_arch", None)
-                  or (cfg or {}).get("gfx_arch") or default_gfx_arch)
+        target = (
+            getattr(args, "gfx_arch", None)
+            or (cfg or {}).get("gfx_arch")
+            or default_gfx_arch
+        )
         if cfg is None:
             cfg = default_config(target) if arch_aware else default_config()
         try:
@@ -2366,8 +2707,12 @@ def run_codegen_cli(
             return 1
 
     if args.list_names:
-        list_cfg = (cfg if validate_target_config is not None else
-                    cfg or (default_config(args.gfx_arch) if arch_aware else default_config()))
+        list_cfg = (
+            cfg
+            if validate_target_config is not None
+            else cfg
+            or (default_config(args.gfx_arch) if arch_aware else default_config())
+        )
         for s in build_specs(list_cfg):
             print(s.name)
         return 0
@@ -2375,7 +2720,9 @@ def run_codegen_cli(
     if args.output_dir is None:
         parser.error("--output-dir is required unless --list-names is given")
 
-    specs = build_specs(cfg if validate_target_config is not None else cfg or default_config())
+    specs = build_specs(
+        cfg if validate_target_config is not None else cfg or default_config()
+    )
     paths = generate_kernels_generic(
         op_label=op_label,
         generator=make_generator(),

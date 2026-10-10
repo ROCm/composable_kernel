@@ -27,6 +27,7 @@ Usage:
     best_spec = heuristic(M=1024, N=1024, K=1024, kernel_pool=KERNEL_POOL)
 """
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -34,6 +35,10 @@ from typing import Optional
 
 from data_pipeline import parse_kernel_name
 from predict import Predictor
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "codegen"))
+
+from codegen_common import normalize_gfx_arch  # noqa: E402
 
 
 LAYOUT_TO_DISPATCHER = {
@@ -43,6 +48,8 @@ LAYOUT_TO_DISPATCHER = {
     "ccr": ("col", "col", "row"),
 }
 
+
+#: A/B dtype -> C operand dtype. bf8 and int8 fall through to the input dtype.
 DTYPE_TO_C_DTYPE = {
     "fp8": "fp16",
     "fp16": "fp16",
@@ -92,15 +99,40 @@ def kernel_config_to_feature_dict(kernel_name: str) -> dict:
     return parsed
 
 
+def _fixed_widths(feat: dict) -> tuple:
+    """The three fixed widths as ints; null or empty means 0 (native)."""
+    out = []
+    for key in ("vec_a", "vec_b", "vec_c"):
+        value = feat.get(key)
+        if value is None or value == "" or value != value:  # NaN != NaN
+            out.append(0)
+        else:
+            out.append(int(float(value)))
+    return tuple(out)
+
+
+def _reject_fixed_widths(feat: dict, target: str) -> None:
+    """Raise if the kernel fixes any global vector width.
+
+    Neither MLKernelSpec nor the dispatcher KernelConfig dict carries fixed
+    widths, so the converted kernel would be native-width under the fixed-width
+    kernel's name.
+    """
+    widths = _fixed_widths(feat)
+    if any(widths):
+        raise ValueError(
+            f"kernel {feat.get('kernel_name', '<unnamed>')!r} fixes its global "
+            f"vector widths {widths}, which {target} cannot represent; "
+            "converting it would build a native-width kernel under this "
+            "kernel's name. Filter fixed-width kernels out of the pool, or "
+            "extend the spec to carry the widths."
+        )
+
+
 def feature_dict_to_dispatcher_config(
     feat: dict, dtype: str = "fp8", arch: str = "gfx950"
 ) -> dict:
-    """Convert a feature-engine kernel dict to dispatcher KernelConfig fields.
-
-    Handles the naming inversion:
-        feature engine warp_m   -> KernelConfig wave_m  (warps per block)
-        feature engine warp_tile_m -> KernelConfig warp_m (elements per warp)
-    """
+    _reject_fixed_widths(feat, "the dispatcher KernelConfig dict")
     layout = feat.get("layout", "rcr")
     la, lb, lc = LAYOUT_TO_DISPATCHER.get(layout, ("row", "col", "row"))
     c_dtype = DTYPE_TO_C_DTYPE.get(dtype, dtype)
@@ -134,6 +166,7 @@ def feature_dict_to_dispatcher_config(
 
 def feature_dict_to_ml_spec(feat: dict, predicted_tflops: float = 0.0) -> MLKernelSpec:
     """Convert a feature-engine kernel dict + prediction to an MLKernelSpec."""
+    _reject_fixed_widths(feat, "MLKernelSpec")
     return MLKernelSpec(
         kernel_name=feat.get("kernel_name", "unknown"),
         predicted_tflops=predicted_tflops,
@@ -172,10 +205,67 @@ def load_kernel_pool_from_binaries(bin_dir: str | Path) -> list[dict]:
     return configs
 
 
+#: Problem-only keys; rank_kernels merges each kernel_pool entry over the problem.
+_PROBLEM_KEYS = ("m", "n", "k", "split_k")
+
+
+def _same_arch(a, b) -> bool:
+    """Whether two targets match once feature suffixes are stripped."""
+    return normalize_gfx_arch(str(a)) == normalize_gfx_arch(str(b))
+
+
+def _resolve_arch(predictor, arch: Optional[str], kernel_pool: list) -> Optional[str]:
+    """The arch to extract features for: ``arch``, else the model's, else None.
+
+    Raises if ``arch`` disagrees with the model's recorded arch, or if a
+    ``kernel_pool`` entry carries a problem-only key or a conflicting arch.
+    """
+    spec_arch = predictor.spec.get("arch") if hasattr(predictor, "spec") else None
+    if spec_arch and arch and not _same_arch(spec_arch, arch):
+        raise ValueError(
+            f"arch={arch!r} disagrees with the model, which feature_spec.json "
+            f"records as {spec_arch!r}. Native vector widths depend on the "
+            "wavefront size, so extracting under another architecture scores "
+            "the pool against a distribution this model was not fitted on. "
+            "Pass the matching arch, or omit it to use the model's."
+        )
+    resolved = arch or spec_arch
+    shadowed = sorted(
+        {k for kc in kernel_pool for k in _PROBLEM_KEYS if kc.get(k) is not None}
+    )
+    if shadowed:
+        raise ValueError(
+            f"kernel_pool entries carry problem keys {shadowed}, which would "
+            "override the query: rank_kernels merges {**problem, **kernel} with "
+            "the kernel winning, so every shape would be ranked against the "
+            "pool's values. Strip these keys from the pool entries."
+        )
+    conflicting = sorted(
+        {
+            str(kc["arch"])
+            for kc in kernel_pool
+            if kc.get("arch") is not None and not _same_arch(kc["arch"], resolved)
+        }
+    )
+    if conflicting and resolved is None:
+        raise ValueError(
+            f"no architecture was resolved -- neither the caller nor the model "
+            f"supplies one -- but kernel_pool entries carry {conflicting}. Pass "
+            "it explicitly rather than relying on the merge."
+        )
+    if conflicting:
+        raise ValueError(
+            f"kernel_pool entries carry arch {conflicting}, which would "
+            f"override arch={resolved!r} by the same merge. Strip arch from the "
+            "pool entries, or pass the matching arch."
+        )
+    return resolved
+
+
 def create_ml_heuristic(
     model_dir: str | Path,
     dtype: str = "fp8",
-    arch: str = "gfx950",
+    arch: Optional[str] = None,
     layout: str = "rcr",
     kernel_pool: Optional[list[dict]] = None,
     bin_dir: Optional[str | Path] = None,
@@ -218,6 +308,8 @@ def create_ml_heuristic(
             "No kernel configs found. Check bin_dir or provide kernel_pool."
         )
 
+    resolved_arch = _resolve_arch(predictor, arch, kernel_pool)
+
     def heuristic(M: int, N: int, K: int) -> MLKernelSpec:
         problem = {
             "m": M,
@@ -227,6 +319,8 @@ def create_ml_heuristic(
             "layout": layout,
             "split_k": 1,
         }
+        if resolved_arch is not None:
+            problem["arch"] = resolved_arch
 
         ranked = predictor.rank_kernels(problem, kernel_pool)
 
@@ -247,7 +341,7 @@ def create_ml_heuristic(
 def create_ranked_heuristic(
     model_dir: str | Path,
     dtype: str = "fp8",
-    arch: str = "gfx950",
+    arch: Optional[str] = None,
     layout: str = "rcr",
     kernel_pool: Optional[list[dict]] = None,
     bin_dir: Optional[str | Path] = None,
@@ -269,6 +363,7 @@ def create_ranked_heuristic(
         kernel_pool = load_kernel_pool_from_binaries(bin_dir)
 
     name_to_feat = {kp.get("kernel_name", ""): kp for kp in kernel_pool}
+    resolved_arch = _resolve_arch(predictor, arch, kernel_pool)
 
     def heuristic(M: int, N: int, K: int) -> list[MLKernelSpec]:
         problem = {
@@ -279,6 +374,8 @@ def create_ranked_heuristic(
             "layout": layout,
             "split_k": 1,
         }
+        if resolved_arch is not None:
+            problem["arch"] = resolved_arch
 
         ranked = predictor.rank_kernels(problem, kernel_pool)
         results = []

@@ -40,8 +40,44 @@ SCHEDULER_MAP = {"intrawave": 0, "interwave": 1}
 EPILOGUE_MAP = {"default": 0, "cshuffle": 1}
 
 
+#: ``_hw`` keys computed from other constants, which ``__init__`` does not take.
+_DERIVED_HW = frozenset({"total_simds"})
+
+
 class FeatureEngine(ABC):
     """Abstract base for per-op feature extraction."""
+
+    #: Bumped when a feature's values change meaning under an unchanged name.
+    ENCODING_VERSION = 0
+
+    @property
+    def hardware_config(self) -> dict:
+        """The constructor's hardware constants, as keyword arguments.
+
+        Raises ``TypeError`` if they cannot be resolved from the ``__init__``
+        signature, or if ``_hw`` holds a key that is neither accepted nor in
+        ``_DERIVED_HW``.
+        """
+        import inspect
+
+        params = inspect.signature(type(self).__init__).parameters
+        if any(p.kind in (p.VAR_KEYWORD, p.VAR_POSITIONAL) for p in params.values()):
+            raise TypeError(
+                f"{type(self).__name__}.__init__ takes *args/**kwargs, so its "
+                "hardware constants cannot be resolved from the signature. "
+                "Declare them explicitly, or override hardware_config."
+            )
+        accepted = set(params) - {"self"}
+        hw = getattr(self, "_hw", {})
+        dropped = set(hw) - accepted - _DERIVED_HW
+        if dropped:
+            raise TypeError(
+                f"{type(self).__name__} stores hardware values {sorted(dropped)} "
+                "that __init__ does not accept and that are not registered as "
+                "derived in _DERIVED_HW. Silently dropping them would rebuild "
+                "the engine on defaults for those constants."
+            )
+        return {k: v for k, v in hw.items() if k in accepted}
 
     @abstractmethod
     def get_feature_names(self) -> list[str]:
@@ -599,3 +635,40 @@ class GemmUniversalFeatureEngine(FeatureEngine):
             return (wm * wn * wk) in [2, 4, 8]
 
         return [_lds_constraint, _warp_constraint]
+
+
+#: Engines a feature_spec.json may name: class name -> (module, attribute).
+FEATURE_ENGINES = {
+    "GemmUniversalFeatureEngine": ("feature_engine", "GemmUniversalFeatureEngine"),
+    "GemmUniversalVecFeatureEngine": (
+        "feature_engine_vec",
+        "GemmUniversalVecFeatureEngine",
+    ),
+    "GroupedConvFeatureEngine": (
+        "feature_engine_grouped_conv",
+        "GroupedConvFeatureEngine",
+    ),
+}
+
+#: Operation -> engine class name.
+OPERATION_ENGINES = {
+    "gemm_universal": "GemmUniversalFeatureEngine",
+    "gemm_universal_vec": "GemmUniversalVecFeatureEngine",
+    "grouped_conv": "GroupedConvFeatureEngine",
+}
+
+
+def feature_engine_class(name: str):
+    """Import and return a feature engine class by its class name."""
+    import importlib
+
+    try:
+        module, attr = FEATURE_ENGINES[name]
+    except KeyError:
+        raise ValueError(
+            f"unknown feature engine {name!r}; known engines are "
+            f"{sorted(FEATURE_ENGINES)}. A model recording a name absent from "
+            "this table was trained with code that is not present here; update "
+            "this checkout, or pass the engine explicitly."
+        ) from None
+    return getattr(importlib.import_module(module), attr)
