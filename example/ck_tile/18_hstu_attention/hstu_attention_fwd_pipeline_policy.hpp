@@ -306,7 +306,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #endif
     }
 
-    template <typename Problem, bool kPipelineUseTrLoad = false>
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
@@ -873,12 +873,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
-    template <typename Problem, bool kPipelineUseTrLoad = false>
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeK()
     {
-        constexpr auto actual_bytes =
-            MakeKLdsBlockDescriptor<Problem, kPipelineUseTrLoad>().get_element_space_size() *
-            sizeof(typename Problem::QKVDataType);
+        constexpr auto actual_bytes = MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
+                                      sizeof(typename Problem::QKVDataType);
 
         return (actual_bytes + 63) / 64 * 64;
     };
@@ -936,8 +935,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return GetSmemSizeK<Problem, kPipelineUseTrLoad>() +
-               GetSmemSizeV<Problem, kPipelineUseTrLoad>() + GetSmemSizeDropout<Problem>();
+        return GetSmemSizeK<Problem>() + GetSmemSizeV<Problem, kPipelineUseTrLoad>() +
+               GetSmemSizeDropout<Problem>();
     }
 #endif
 

@@ -240,13 +240,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
         // K tile in LDS
         QKVDataType* k_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
         auto k_lds             = make_tensor_view<address_space_enum::lds>(
-            k_lds_ptr,
-            Policy::template MakeKLdsBlockDescriptor<Problem, true /*kPipelineUseTrLoad*/>());
+            k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
         auto k_lds_monolithic_window = make_tile_window(
-            k_lds,
-            Policy::template MakeKLdsBlockDescriptor<Problem, true /*kPipelineUseTrLoad*/>()
-                .get_lengths(),
-            {0, 0});
+            k_lds, Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         static_assert(
             Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
@@ -270,9 +266,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<QKVDataType*>(
-                reinterpret_cast<char*>(smem_ptr) +
-                Policy::template GetSmemSizeK<Problem, true /*kPipelineUseTrLoad*/>()),
+            reinterpret_cast<QKVDataType*>(reinterpret_cast<char*>(smem_ptr) +
+                                           Policy::template GetSmemSizeK<Problem>()),
             Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>());
         auto v_lds_monolithic_window = make_tile_window(
             v_lds,
@@ -529,8 +524,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             if constexpr(kHasDropout)
             {
                 auto randval_lds_ptr =
-                    reinterpret_cast<char*>(smem_ptr) +
-                    Policy::template GetSmemSizeK<Problem, true /*kPipelineUseTrLoad*/>() +
+                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
                     Policy::template GetSmemSizeV<Problem, true /*kPipelineUseTrLoad*/>();
 
                 dropout.template Run<decltype(gemm_0), CompDataType, uint8_t>(
