@@ -23,6 +23,8 @@
 #include "hstu_attention_no_softmax_fwd_pipeline.hpp"
 #include "hstu_attention_with_softmax_fwd_trload_pipeline.hpp"
 #include "hstu_attention_no_softmax_fwd_trload_pipeline.hpp"
+#include "hstu_attention_with_softmax_fwd_direct_lds_trload_pipeline.hpp"
+#include "hstu_attention_no_softmax_fwd_direct_lds_trload_pipeline.hpp"
 #include "hstu_attention_with_softmax_fwd_tdm_pipeline.hpp"
 #include "hstu_attention_no_softmax_fwd_tdm_pipeline.hpp"
 #include "hstu_attention_no_softmax_fwd_splitkv_combine_pipeline.hpp"
@@ -165,19 +167,57 @@ struct batched_forward_splitkv_dispatch
                         }
                         else
                         {
-                            using HstuPipeline = std::conditional_t<
-                                kUseSoftmax,
-                                ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad<
-                                    HstuPipelineProblem,
-                                    HstuTraits>,
-                                ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad<
-                                    HstuPipelineProblem,
-                                    HstuTraits>>;
+                            // we only use async_load_tile() for K/V when its maximum vector_size is
+                            //  dwordx4 (ToDO: use dwordx3 when hdim is 96)
+                            constexpr ck_tile::index_t k_vector_bytes =
+                                HstuPipelineProblem::GetKDramTileAccessMaxVectorSize(
+                                    ck_tile::bool_constant<true>{}) *
+                                sizeof(InOutDataType);
+                            constexpr ck_tile::index_t v_vector_bytes =
+                                HstuPipelineProblem::GetVDramTileAccessMaxVectorSize(
+                                    ck_tile::bool_constant<true>{}) *
+                                sizeof(InOutDataType);
 
-                            using HstuKernel =
-                                ck_tile::HstuAttentionFwdSplitKVKernel<HstuPipeline, HstuEpilogue>;
+                            constexpr bool kKAbleUseDirectLds =
+                                (k_vector_bytes == 4 * sizeof(int)) && !kPadHeadDimQK;
+                            constexpr bool kVAbleUseDirectLds =
+                                (v_vector_bytes == 4 * sizeof(int)) && !kPadHeadDimV;
 
-                            RunWithFwdSplitKVKernel<HstuKernel>(param, ws, stream);
+                            if constexpr(kKAbleUseDirectLds && kVAbleUseDirectLds)
+                            {
+                                using HstuPipeline = std::conditional_t<
+                                    kUseSoftmax,
+                                    ck_tile::
+                                        HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad<
+                                            HstuPipelineProblem,
+                                            HstuTraits>,
+                                    ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad<
+                                        HstuPipelineProblem,
+                                        HstuTraits>>;
+
+                                using HstuKernel =
+                                    ck_tile::HstuAttentionFwdSplitKVKernel<HstuPipeline,
+                                                                           HstuEpilogue>;
+
+                                RunWithFwdSplitKVKernel<HstuKernel>(param, ws, stream);
+                            }
+                            else
+                            {
+                                using HstuPipeline = std::conditional_t<
+                                    kUseSoftmax,
+                                    ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad<
+                                        HstuPipelineProblem,
+                                        HstuTraits>,
+                                    ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad<
+                                        HstuPipelineProblem,
+                                        HstuTraits>>;
+
+                                using HstuKernel =
+                                    ck_tile::HstuAttentionFwdSplitKVKernel<HstuPipeline,
+                                                                           HstuEpilogue>;
+
+                                RunWithFwdSplitKVKernel<HstuKernel>(param, ws, stream);
+                            }
                         };
                     });
                 });

@@ -48,6 +48,23 @@ struct has_use_tdm_flag<
 template <typename T>
 static inline constexpr bool is_using_tdm_v = has_use_tdm_flag<T>::value;
 
+// A helper struct for detection
+template <typename T, typename = void>
+struct has_direct_lds_pipeline_flag : std::false_type
+{
+};
+
+template <typename T>
+struct has_direct_lds_pipeline_flag<
+    T,
+    std::enable_if_t<std::is_convertible_v<decltype(T::kUseDirectLds), bool> && T::kUseDirectLds>>
+    : std::true_type
+{
+};
+
+template <typename T>
+static inline constexpr bool is_direct_lds_pipeline_v = has_direct_lds_pipeline_flag<T>::value;
+
 // scale is uniform (scalar register), c is per-lane (vector register)
 // GFX9 VOP2: V_MUL_F32 VDST, SRC0, SRC1 - SRC0 can be SGPR, SRC1 must be VGPR
 
