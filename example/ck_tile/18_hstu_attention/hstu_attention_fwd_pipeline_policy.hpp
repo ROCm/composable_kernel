@@ -26,9 +26,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
     {
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-        return 2;
-#else
         constexpr index_t n0_loops =
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kN0Sub;
 
@@ -36,15 +33,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             return n0_loops;
         else
             return min(n0_loops, 2);
-#endif
     }
 
     template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_DEVICE static constexpr auto GetNumVLdsBuffers()
     {
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-        return 2;
-#else
         constexpr index_t k1_loops =
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kK1;
 
@@ -52,7 +45,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             return k1_loops;
         else
             return min(k1_loops, 2);
-#endif
     }
 
     template <typename Problem>
@@ -246,14 +238,16 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #endif
     }
 
-    // Reader-side descriptor for a Tdm staged K buffer.
+    // Reader-side descriptor for one Tdm staged K tile, i.e. kN0 rows as n0_loops slices of
+    // kN0Sub. The Tdm pipelines allocate two of these (see GetSmemSizePlain()).
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsPlainBlockDescriptor()
     {
 #if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-        constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
-        constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN0Sub;
-        constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t n0_loops =
+            Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -263,7 +257,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             detail::GetTdmLdsPaddingConfigForNormalRead<WG, false /*inputB*/, kKPerBlock>();
 
         return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
-                                                            NumKLdsBuffers,
+                                                            n0_loops,
                                                             kNPerBlock,
                                                             kKPerBlock,
                                                             pad_config.at(number<0>{}),
@@ -276,17 +270,19 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #endif
     }
 
-    // Reader-side descriptor for a Tdm staged V buffer. V is always read back with
-    // ds_read_tr, so the pad is the wider tr-load one. kNPerBlock (= kN1) is the row length
-    // of the V buffer, i.e. the descriptor's Cols, which is what the pad interval has to be
-    // derived from.
-    template <typename Problem>
+    // Reader-side descriptor for NumCopies Tdm staged V tiles stacked along the rows, i.e.
+    // NumCopies * kN0 rows, each copy as k1_loops slices of kK1. V is always read back with
+    // ds_read_tr, so the pad is the wider tr-load one. kNPerBlock (= kN1) is the row length of
+    // the V tile, i.e. the descriptor's Cols, which is what the pad interval has to be derived
+    // from.
+    template <typename Problem, index_t NumCopies = 1>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsPlainBlockDescriptor()
     {
 #if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-        constexpr index_t NumVLdsBuffers = GetNumVLdsBuffers<Problem>();
-        constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN1;
-        constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t k1_loops =
+            Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
         using BlockGemm = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, true /*kUseTrLoad*/>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -296,8 +292,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             detail::GetTdmLdsPaddingConfigForTrLoadRead<WG, false /*inputB*/, kNPerBlock>();
 
         return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
-                                                            NumVLdsBuffers,
-                                                            kKPerBlock,
+                                                            1,
+                                                            NumCopies * k1_loops * kKPerBlock,
                                                             kNPerBlock,
                                                             pad_config.at(number<0>{}),
                                                             pad_config.at(number<1>{})>();
@@ -1063,7 +1059,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 #endif
 
-    // Lds sizes for the Tdm staged buffers. Same rounding as GetSmemSizeK/V(), over the
+    // Lds sizes for one Tdm staged K/V tile. Same rounding as GetSmemSizeK/V(), over the
     // plain descriptors.
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeKPlain()
@@ -1085,11 +1081,28 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return (actual_bytes + 63) / 64 * 64;
     };
 
+    // Lds layout of the Tdm pipelines: [K copy 0 | K copy 1 | V copy 0 | V copy 1 | dropout].
+    // Each copy holds one whole kv-tile; one copy is read by the gemms of the current iteration
+    // while Tdm fills the other with the next kv-tile.
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizePlain()
     {
-        return GetSmemSizeKPlain<Problem>() + GetSmemSizeVPlain<Problem>() +
+        return GetSmemSizeKPlain<Problem>() * 2 + GetSmemSizeVPlain<Problem>() * 2 +
                GetSmemSizeDropout<Problem>();
+    }
+
+    // Element offset of V copy 1 in the NumCopies = 2 V descriptor, i.e. where its row kN0 starts
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetVLdsCopy1Offset()
+    {
+        constexpr index_t offset = MakeVLdsPlainBlockDescriptor<Problem, 2>().calculate_offset(
+            make_multi_index(Problem::HstuAttentionTileSetting::kN0, 0));
+
+        static_assert(offset * sizeof(typename Problem::QKVDataType) ==
+                          GetSmemSizeVPlain<Problem>(),
+                      "V copy 1 must start where GetSmemSizePlain() puts it");
+
+        return offset;
     }
 };
 

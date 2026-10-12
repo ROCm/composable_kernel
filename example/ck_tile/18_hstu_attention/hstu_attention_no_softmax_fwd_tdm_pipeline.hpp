@@ -169,9 +169,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm
 
         static_assert(n0_loops == k1_loops, "n0_loops == k1_loops required by this pipeline");
 
-        constexpr auto NumKLdsBuffers = Policy::template GetNumKLdsBuffers<Problem>();
-        constexpr auto NumVLdsBuffers = Policy::template GetNumVLdsBuffers<Problem>();
-
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetPVTBlockGemm<Problem, true /*kUseTrLoad*/>();
@@ -232,16 +229,24 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm
         // provide partition_index for LDS tile window so that warp_id is in vgpr
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
 
+        // Lds layout: see Policy::GetSmemSizePlain()
+        constexpr index_t k_smem_size = Policy::template GetSmemSizeKPlain<Problem>();
+        constexpr index_t v_smem_size = Policy::template GetSmemSizeVPlain<Problem>();
+
         // K tile in LDS
         QKVDataType* k_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
         auto k_lds             = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsPlainBlockDescriptor<Problem>());
-        auto k_lds_monolithic_window = make_tile_window(
+        auto k_lds_monolithic_window_0 = make_tile_window(
             k_lds, Policy::template MakeKLdsPlainBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
+        auto k_lds_monolithic_window_1 = k_lds_monolithic_window_0;
+        k_lds_monolithic_window_1.set_bottom_tensor_view_data_ptr(
+            k_lds_ptr + k_smem_size / sizeof(QKVDataType));
 
         static_assert(
             Policy::template MakeKLdsPlainBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
-                NumKLdsBuffers * kN0Sub,
+                kN0,
             "Check failed!");
         static_assert(
             Policy::template MakeKLdsPlainBlockDescriptor<Problem>().get_lengths()[number<1>{}] ==
@@ -249,27 +254,36 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm
             "Check failed!");
 
         using k_lds_window_type = decltype(get_slice_tile(
-            k_lds_monolithic_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
+            k_lds_monolithic_window_0, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
 
-        statically_indexed_array<k_lds_window_type, NumKLdsBuffers> k_lds_windows;
+        statically_indexed_array<k_lds_window_type, n0_loops> k_lds_windows_0;
+        statically_indexed_array<k_lds_window_type, n0_loops> k_lds_windows_1;
 
-        static_for<0, NumKLdsBuffers, 1>{}([&](auto i_buf) {
-            k_lds_windows[i_buf] = get_slice_tile(k_lds_monolithic_window,
-                                                  sequence<i_buf * kN0Sub, 0>{},
-                                                  sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
+        static_for<0, n0_loops, 1>{}([&](auto i_n0) {
+            k_lds_windows_0[i_n0] = get_slice_tile(k_lds_monolithic_window_0,
+                                                   sequence<i_n0 * kN0Sub, 0>{},
+                                                   sequence<(i_n0 + 1) * kN0Sub, kQKHeaddim>{});
+            k_lds_windows_1[i_n0] = get_slice_tile(k_lds_monolithic_window_1,
+                                                   sequence<i_n0 * kN0Sub, 0>{},
+                                                   sequence<(i_n0 + 1) * kN0Sub, kQKHeaddim>{});
         });
 
-        // V tile in LDS
-        auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<QKVDataType*>(reinterpret_cast<char*>(smem_ptr) +
-                                           Policy::template GetSmemSizeKPlain<Problem>()),
-            Policy::template MakeVLdsPlainBlockDescriptor<Problem>());
-        auto v_lds_monolithic_window = make_tile_window(
-            v_lds, Policy::template MakeVLdsPlainBlockDescriptor<Problem>().get_lengths(), {0, 0});
+        // V tile in LDS. Unlike K, one view spans both V copies: viewing one copy and moving
+        // the pointer by v_smem_size left two extra VGPR spill reloads in the mask sweep of the
+        // no_softmax M128 kernel on gfx1250 (~10% slower at seqlen 4k).
+        QKVDataType* v_lds_ptr =
+            reinterpret_cast<QKVDataType*>(reinterpret_cast<char*>(smem_ptr) + k_smem_size * 2);
+        constexpr auto v_lds_desc = Policy::template MakeVLdsPlainBlockDescriptor<Problem, 2>();
+        auto v_lds = make_tensor_view<address_space_enum::lds>(v_lds_ptr, v_lds_desc);
+        auto v_lds_monolithic_window_0 = make_tile_window(v_lds, v_lds_desc.get_lengths(), {0, 0});
+
+        auto v_lds_monolithic_window_1 = v_lds_monolithic_window_0;
+        v_lds_monolithic_window_1.set_bottom_tensor_view_data_ptr(
+            v_lds_ptr + Policy::template GetVLdsCopy1Offset<Problem>());
 
         static_assert(
             Policy::template MakeVLdsPlainBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
-                NumVLdsBuffers * kK1,
+                kN0,
             "Check failed!");
         static_assert(
             Policy::template MakeVLdsPlainBlockDescriptor<Problem>().get_lengths()[number<1>{}] ==
@@ -278,14 +292,18 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm
 
         // v_lds is written by Tdm and read back with ds_read_tr
         using v_lds_trload_window_type = decltype(get_slice_tile(
-            v_lds_monolithic_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
+            v_lds_monolithic_window_0, sequence<0, 0>{}, sequence<kK1, kN1>{}));
 
-        statically_indexed_array<v_lds_trload_window_type, NumVLdsBuffers> v_lds_trload_windows;
+        statically_indexed_array<v_lds_trload_window_type, k1_loops> v_lds_windows_0;
+        statically_indexed_array<v_lds_trload_window_type, k1_loops> v_lds_windows_1;
 
-        static_for<0, NumVLdsBuffers, 1>{}([&](auto i_buf) {
-            v_lds_trload_windows[i_buf] = get_slice_tile(v_lds_monolithic_window,
-                                                         sequence<i_buf * kK1, 0>{},
-                                                         sequence<(i_buf + 1) * kK1, kN1>{});
+        static_for<0, k1_loops, 1>{}([&](auto i_k1) {
+            v_lds_windows_0[i_k1] = get_slice_tile(v_lds_monolithic_window_0,
+                                                   sequence<i_k1 * kK1, 0>{},
+                                                   sequence<(i_k1 + 1) * kK1, kN1>{});
+            v_lds_windows_1[i_k1] = get_slice_tile(v_lds_monolithic_window_1,
+                                                   sequence<i_k1 * kK1, 0>{},
+                                                   sequence<(i_k1 + 1) * kK1, kN1>{});
         });
 
         auto v_dram_window =
@@ -347,38 +365,36 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm
         // flight for the whole of every iteration. On a standalone Tdm micro-benchmark going
         // from one to two outstanding descriptors nearly doubled the transfer rate (+79%
         // cache-resident, +99% Dram-bound).
-        static_assert(NumKLdsBuffers >= 2 && NumVLdsBuffers >= 2,
-                      "the Tdm pipeline needs K and V to be at least double-buffered");
-
-        auto k_lds_cur  = k_lds_windows[number<0>{}];
-        auto k_lds_next = k_lds_windows[number<1>{}];
-        auto v_lds_cur  = v_lds_trload_windows[number<0>{}];
-        auto v_lds_next = v_lds_trload_windows[number<1>{}];
-
         // prologue: issue the first kv-tile
-        load_tile_tdm(tdm_config_k, k_lds_cur, k_dram_window);
+        load_tile_tdm(tdm_config_k, k_lds_windows_0[number<0>{}], k_dram_window);
         move_tile_window(k_dram_window, {kN0Sub, 0});
-        load_tile_tdm(tdm_config_v, v_lds_cur, v_dram_window);
+        load_tile_tdm(tdm_config_v, v_lds_windows_0[number<0>{}], v_dram_window);
         move_tile_window(v_dram_window, {kK1, 0});
+
+        // the gemms read the cur copies while Tdm fills the next ones
+        auto k_lds_cur  = k_lds_windows_0;
+        auto k_lds_next = k_lds_windows_1;
+        auto v_lds_cur  = v_lds_windows_0;
+        auto v_lds_next = v_lds_windows_1;
 
         do
         {
             // STAGE 1, Gemm_0 ( S = Q@K )
             static_for<0, n0_loops, 1>{}([&](auto i_n0) {
                 // Retire the K[t]/V[t] copies issued one kv-tile ago. This is the only
-                // barrier of the iteration: every reader of the spare half is a gemm of
+                // barrier of the iteration: every reader of the other copy is a gemm of
                 // iteration t-1, so it is also the WAR fence for the writes issued below.
                 s_wait_tensorcnt_barrier<0>();
 
-                // issue the next kv-tile into the spare half
-                load_tile_tdm(tdm_config_k, k_lds_next, k_dram_window);
+                // issue the next kv-tile into the other copy, then run gemm_0 on this one
+                load_tile_tdm(tdm_config_k, k_lds_next[i_n0], k_dram_window);
                 move_tile_window(k_dram_window, {kN0Sub, 0});
-                load_tile_tdm(tdm_config_v, v_lds_next, v_dram_window);
+                load_tile_tdm(tdm_config_v, v_lds_next[i_n0], v_dram_window);
                 move_tile_window(v_dram_window, {kK1, 0});
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
-                gemm_0(sacc_tile, q_tile, k_lds_cur);
+                gemm_0(sacc_tile, q_tile, k_lds_cur[i_n0]);
 
                 auto tmp_tile = cast_tile<CompDataType>(sacc_tile);
 
@@ -450,9 +466,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm
 
             if constexpr(kHasDropout)
             {
-                auto randval_lds_ptr = reinterpret_cast<char*>(smem_ptr) +
-                                       Policy::template GetSmemSizeKPlain<Problem>() +
-                                       Policy::template GetSmemSizeVPlain<Problem>();
+                auto randval_lds_ptr =
+                    reinterpret_cast<char*>(smem_ptr) + k_smem_size * 2 + v_smem_size * 2;
 
                 dropout.template Run<decltype(gemm_0), CompDataType, uint8_t>(
                     randval_lds_ptr, seqlen_k_curr, pcomp_tile, null_randval_window);
@@ -467,10 +482,10 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm
                 gemm_1(
                     o_acc,
                     get_slice_tile(p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                    v_lds_cur);
+                    v_lds_cur[i_k1]);
             });
 
-            // the half just consumed becomes the Tdm target for the round after next
+            // the copy just consumed becomes the Tdm target for the kv-tile after next
             auto k_lds_tmp = k_lds_cur;
             k_lds_cur      = k_lds_next;
             k_lds_next     = k_lds_tmp;
