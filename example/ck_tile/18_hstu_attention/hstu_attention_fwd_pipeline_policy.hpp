@@ -23,7 +23,7 @@ namespace ck_tile {
 
 struct HstuAttentionFwdPipelineQRKSVSPolicy
 {
-    template <typename Problem>
+    template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
     {
 #if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
@@ -31,11 +31,15 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #else
         constexpr index_t n0_loops =
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kN0Sub;
-        return min(n0_loops, 2);
+
+        if constexpr(kUseDirectLds)
+            return n0_loops;
+        else
+            return min(n0_loops, 2);
 #endif
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_DEVICE static constexpr auto GetNumVLdsBuffers()
     {
 #if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
@@ -43,7 +47,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #else
         constexpr index_t k1_loops =
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kK1;
-        return min(k1_loops, 2);
+
+        if constexpr(kUseDirectLds)
+            return k1_loops;
+        else
+            return min(k1_loops, 2);
 #endif
     }
 
@@ -132,10 +140,10 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return max(GetQKWarpGemmBScalarPerVector<Problem>(), GetAlignmentK<Problem>());
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentK()
     {
-        return Problem::GetKDramTileAccessMaxVectorSize();
+        return Problem::GetKDramTileAccessMaxVectorSize(bool_constant<kUseDirectLds>{});
     }
 
     template <typename Problem, bool kUseTrLoad = false>
@@ -145,12 +153,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                    GetAlignmentV<Problem, kUseTrLoad>());
     }
 
-    template <typename Problem, bool kUseTrLoad = false>
+    template <typename Problem, bool kUseTrLoad = false, bool kUseDirectLds = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
     {
-        // special consideration when shuffling is required before storing V to LDS
         if constexpr(!kUseTrLoad)
-        {
+        { // special consideration when shuffling is required before storing V to LDS
             using VDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
             constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -174,7 +181,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else
         {
-            return Problem::GetVDramTileAccessMaxVectorSize();
+            return Problem::GetVDramTileAccessMaxVectorSize(bool_constant<kUseDirectLds>{});
         };
     }
 
@@ -306,16 +313,46 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #endif
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseDirectLds = false, bool kUseXor = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
-        constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
+        constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem, kUseDirectLds>();
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t kKVector       = GetAlignmentK<Problem>();
+        constexpr index_t kKVector       = GetAlignmentK<Problem, kUseDirectLds>();
 
+        if constexpr(kUseDirectLds)
+        {
+            if constexpr(kUseXor) // true, used for reading from Lds
+            {
+                constexpr index_t kSwizzleUnit = kKVector;
+
+                // On gfx950, GetAlignmentK and ScalePerVector (normal read size) are actually same
+                static_assert(kSwizzleUnit >= GetQKWarpGemmBScalarPerVector<Problem>(),
+                              "Check failed!");
+
+                constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
+                                                                                  NumKLdsBuffers,
+                                                                                  kNPerBlock,
+                                                                                  kKPerBlock,
+                                                                                  kSwizzleUnit>();
+
+                return transform_tensor_descriptor(
+                    desc_native,
+                    make_tuple(make_merge_transform(
+                                   make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{})),
+                               make_pass_through_transform(number<kKPerBlock>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else // false, used for direct-lds writing to Lds
+            {
+                return detail::
+                    MakeRowMajorLdsPlainBlockDescriptor<NumKLdsBuffers, kNPerBlock, kKPerBlock>();
+            }
+        }
+        else if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         // for hdim96 and hdim160, use simplest layout
-        if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
             constexpr index_t SingleBufferSize = kNPerBlock * kKPerBlock;
 
@@ -491,21 +528,18 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             bool_constant<true>{});                            // IsWarpLevelParallelOnly
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_DEVICE static constexpr auto MakeKDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
-        constexpr index_t kKVector = GetAlignmentK<Problem>();
+        constexpr index_t kKVector = GetAlignmentK<Problem, kUseDirectLds>();
         constexpr index_t OtherK   = kKPerBlock / kKVector;
 
-        if constexpr(detail::IsPerfectHeaddimSize(kKPerBlock))
-        // for kKPerBlock=32,64,128,256
-        {
-            static_assert((OtherK & (OtherK - 1)) == 0, "Check failed!");
-
+        if constexpr((OtherK & (OtherK - 1)) == 0)
+        { // for kKPerBlock=32,64,128,256 or kKPerBlock=96 && kKVector=6
             constexpr index_t KPerThread = kKVector;
             constexpr index_t KThreads   = OtherK;
 
@@ -522,10 +556,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                                            sequence<1, 2>,
                                            sequence<0, 1>>{});
         }
-        else // for kKPerBlock=96,160
-        {
-            static_assert((OtherK & (OtherK - 1)) != 0, "Check failed!");
-
+        else
+        { // for kKPerBlock=160 or kKPerBlock=96 && kKVector=1/2/4/8
+            constexpr index_t KPerThread    = kKVector;
             constexpr index_t KRepPerThread = (OtherK % 3 == 0) ? 3 : 5;
             constexpr index_t KThreads      = OtherK / KRepPerThread;
 
@@ -533,26 +566,80 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             constexpr index_t NumWarps       = kBlockSize / get_warp_size();
             constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
 
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
-                                                 sequence<KRepPerThread, KThreads, kKVector>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 1>>,
-                                           sequence<1, 2, 2>,
-                                           sequence<0, 0, 2>>{});
+            if constexpr(kUseDirectLds)
+            {
+                // [KThreadPerWarp, NThreads] should be contiguous dims on the 2D space
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
+                                                     sequence<KThreads, KRepPerThread, kKVector>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<1>, sequence<2, 0>>,
+                                               sequence<1, 2, 2>,
+                                               sequence<0, 1, 2>>{});
+            }
+            else
+            { // depending on the actual performance result, this branch might not be needed
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
+                                                     sequence<KRepPerThread, KThreads, KPerThread>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<1>, sequence<2, 1>>,
+                                               sequence<1, 2, 2>,
+                                               sequence<0, 0, 2>>{});
+            }
         };
     }
 
-    template <typename Problem, bool kUseTrLoad = false>
+    template <typename Problem,
+              bool kUseTrLoad    = false,
+              bool kUseDirectLds = false,
+              bool kUseXor       = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
-        constexpr index_t NumVLdsBuffers = GetNumVLdsBuffers<Problem>();
+        constexpr index_t NumVLdsBuffers = GetNumVLdsBuffers<Problem, kUseDirectLds>();
         constexpr index_t kBlockSize     = Problem::kBlockSize;
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kK1;
 
-        if constexpr(!kUseTrLoad)
+        if constexpr(kUseDirectLds)
+        {
+            static_assert(kUseTrLoad, "Check failed!");
+
+            if constexpr(kUseXor) // true, used for reading from Lds
+            {
+                constexpr index_t kSwizzleUnit =
+                    GetAlignmentV<Problem, true /*kUseTrLoad */, true /*kUseDirectLds */>();
+
+                // On gfx950, AlignmentV is actually bigger than ScalePerVector (trload read size),
+                // but we have to use AlignmentV as swizzle unit
+                static_assert(kSwizzleUnit >= GetPVTWarpGemmBScalarPerVector<Problem>(),
+                              "Check failed!");
+
+                constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
+                                                                                  NumVLdsBuffers,
+                                                                                  kKPerBlock, // kN
+                                                                                  kNPerBlock, // kK
+                                                                                  kSwizzleUnit>();
+
+                // merge: NumVLdsBuffers * [kK1, kVHeaddim] -> [kN0, kVHeaddim]
+                return transform_tensor_descriptor(
+                    desc_native,
+                    make_tuple(make_merge_transform(
+                                   make_tuple(number<NumVLdsBuffers>{}, number<kKPerBlock>{})),
+                               make_pass_through_transform(number<kNPerBlock>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else // false, used for direct-lds writing to Lds
+            {
+                return detail::MakeRowMajorLdsPlainBlockDescriptor<NumVLdsBuffers,
+                                                                   kKPerBlock, // kN
+                                                                   kNPerBlock /* kK */>();
+            }
+        }
+        else if constexpr(!kUseTrLoad)
         {
             constexpr index_t N1 = GetAlignmentV<Problem>();
 
@@ -613,16 +700,18 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
-    template <typename Problem, bool kUseTrLoad = false>
+    template <typename Problem, bool kUseTrLoad = false, bool kUseDirectLds = false>
     CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
+        constexpr index_t kVector = GetAlignmentV<Problem, kUseTrLoad, kUseDirectLds>();
+
         if constexpr(!kUseTrLoad)
         {
-            constexpr index_t NPerThread = GetAlignmentV<Problem>();
+            constexpr index_t NPerThread = kVector;
             constexpr index_t NThreads   = kNPerBlock / NPerThread;
 
             constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
@@ -642,23 +731,62 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else
         {
-            constexpr index_t NPerThread = GetAlignmentV<Problem, true>();
-            constexpr index_t NThreads   = kNPerBlock / NPerThread;
+            constexpr index_t OtherN = kNPerBlock / kVector;
 
-            constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
+            if constexpr((OtherN & (OtherN - 1)) == 0)
+            { // for kNPerBlock=32,64,128,256 or kNPerBlock=96 && kVector=6
+                constexpr index_t NPerThread = kVector;
+                constexpr index_t NThreads   = OtherN;
 
-            constexpr index_t KPerThread     = ElemPerThread / NPerThread;
-            constexpr index_t KThreadPerWarp = get_warp_size() / NThreads;
-            constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+                constexpr index_t KThreadPerWarp = get_warp_size() / NThreads;
+                constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+                constexpr index_t KPerThread     = kKPerBlock / (KThreadPerWarp * NumWarps);
 
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<NumWarps, KThreadPerWarp, KPerThread>,
-                                                 sequence<NThreads, NPerThread>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<0>, sequence<1, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<2, 1>>{});
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<KPerThread, NumWarps, KThreadPerWarp>,
+                                                     sequence<NThreads, NPerThread>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<1>, sequence<2, 0>>,
+                                               sequence<1, 2>,
+                                               sequence<0, 1>>{});
+            }
+            else
+            { // for kNPerBlock=160 or kNPerBlock=96 && kVector=1/2/4/8
+                constexpr index_t NPerThread    = kVector;
+                constexpr index_t NRepPerThread = (OtherN % 3 == 0) ? 3 : 5;
+                constexpr index_t NThreads      = OtherN / NRepPerThread;
+
+                constexpr index_t KThreadPerWarp = get_warp_size() / NThreads;
+                constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+                constexpr index_t KPerThread     = kKPerBlock / (KThreadPerWarp * NumWarps);
+
+                if constexpr(kUseDirectLds)
+                {
+                    // [KThreadPerWarp, NThreads] should be contiguous dims on the 2D space
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<
+                            sequence<1>,
+                            tuple<sequence<KPerThread, NumWarps, KThreadPerWarp>,
+                                  sequence<NThreads, NRepPerThread, NPerThread>>,
+                            tuple<sequence<1>, sequence<1, 2>>,
+                            tuple<sequence<1>, sequence<2, 0>>,
+                            sequence<1, 2, 2>,
+                            sequence<0, 1, 2>>{});
+                }
+                else
+                { // depending on the actual performance result, this branch might not be needed
+                    return make_static_tile_distribution(
+                        tile_distribution_encoding<
+                            sequence<1>,
+                            tuple<sequence<KPerThread, NumWarps, KThreadPerWarp>,
+                                  sequence<NRepPerThread, NThreads, NPerThread>>,
+                            tuple<sequence<1>, sequence<1, 2>>,
+                            tuple<sequence<1>, sequence<2, 1>>,
+                            sequence<1, 2, 2>,
+                            sequence<0, 0, 2>>{});
+                }
+            };
         };
     }
 
@@ -873,20 +1001,22 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeK()
     {
-        constexpr auto actual_bytes = MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
-                                      sizeof(typename Problem::QKVDataType);
+        constexpr auto actual_bytes =
+            MakeKLdsBlockDescriptor<Problem, kUseDirectLds>().get_element_space_size() *
+            sizeof(typename Problem::QKVDataType);
 
         return (actual_bytes + 63) / 64 * 64;
     };
 
-    template <typename Problem, bool kPipelineUseTrLoad = false>
+    template <typename Problem, bool kPipelineUseTrLoad = false, bool kUseDirectLds = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeV()
     {
         constexpr auto actual_bytes =
-            MakeVLdsBlockDescriptor<Problem, kPipelineUseTrLoad>().get_element_space_size() *
+            MakeVLdsBlockDescriptor<Problem, kPipelineUseTrLoad, kUseDirectLds>()
+                .get_element_space_size() *
             sizeof(typename Problem::QKVDataType);
 
         return (actual_bytes + 63) / 64 * 64;
@@ -932,10 +1062,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                GetSmemSizeDropout<Problem>();
     }
 #else
-    template <typename Problem, bool kPipelineUseTrLoad = false>
+    template <typename Problem, bool kPipelineUseTrLoad = false, bool kUseDirectLds = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return GetSmemSizeK<Problem>() + GetSmemSizeV<Problem, kPipelineUseTrLoad>() +
+        return GetSmemSizeK<Problem, kUseDirectLds>() +
+               GetSmemSizeV<Problem, kPipelineUseTrLoad, kUseDirectLds>() +
                GetSmemSizeDropout<Problem>();
     }
 #endif

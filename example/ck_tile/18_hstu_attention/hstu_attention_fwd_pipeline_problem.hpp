@@ -49,11 +49,10 @@ CK_TILE_HOST_DEVICE static constexpr auto GetMaxVectorSize()
 {
     if constexpr(std::is_same_v<DataType, half_t> || std::is_same_v<DataType, bf16_t>)
     {
-        // ToDo: need support in ck_tile for using buffer_load_dwordx3
-        // if constexpr(ElemPerThread % 6 == 0)
-        //    return 6;
         if constexpr(ElemPerThread % 8 == 0)
             return 8;
+        // else if constexpr(ElemPerThread % 6 == 0)
+        //     return 6;
         else if constexpr(ElemPerThread % 4 == 0)
             return 4;
         else if constexpr(ElemPerThread % 2 == 0)
@@ -62,11 +61,10 @@ CK_TILE_HOST_DEVICE static constexpr auto GetMaxVectorSize()
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {
-        // ToDo: need support in ck_tile for using buffer_load_dwordx3
-        // if constexpr(ElemPerThread % 3 == 0)
-        //    return 3;
         if constexpr(ElemPerThread % 4 == 0)
             return 4;
+        // else if constexpr(ElemPerThread % 3 == 0)
+        //     return 3;
         else if constexpr(ElemPerThread % 2 == 0)
             return 2;
         return 1;
@@ -75,15 +73,54 @@ CK_TILE_HOST_DEVICE static constexpr auto GetMaxVectorSize()
         static_assert(false, "The data type is not supported!");
 };
 
+template <typename DataType, index_t ElemPerThread>
+CK_TILE_HOST_DEVICE static constexpr auto GetDirectLdsMaxVectorSize()
+{
+    if constexpr(std::is_same_v<DataType, half_t> || std::is_same_v<DataType, bf16_t>)
+    {
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
+        if constexpr(ElemPerThread % 8 == 0)
+            return 8;
+        // else if constexpr(ElemPerThread % 6 == 0)
+        //     return 6;
+        else if constexpr(ElemPerThread % 2 == 0)
+            return 2;
+        return 1;
+#else
+        if constexpr(ElemPerThread % 2 == 0)
+            return 2;
+        return 1;
+#endif
+    }
+    else if constexpr(std::is_same_v<DataType, float>)
+    {
+#if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
+        if constexpr(ElemPerThread % 4 == 0)
+            return 4;
+        // else if constexpr(ElemPerThread % 3 == 0)
+        //     return 3;
+        return 1;
+#else
+        return 1;
+#endif
+    }
+    else
+        static_assert(false, "The data type is not supported!");
+};
+
 template <typename DataType,
           index_t kThreadBlockSize,
           index_t kHigherDimSize,
-          index_t kLowerDimSize>
+          index_t kLowerDimSize,
+          bool kUseDirectLds = false>
 CK_TILE_HOST_DEVICE static constexpr auto GetDramTileAccessMaxVectorSize()
 {
     constexpr index_t ElemPerThread = (kHigherDimSize * kLowerDimSize) / kThreadBlockSize;
 
-    return GetMaxVectorSize<DataType, ElemPerThread>();
+    if constexpr(kUseDirectLds)
+        return GetDirectLdsMaxVectorSize<DataType, ElemPerThread>();
+    else
+        return GetMaxVectorSize<DataType, ElemPerThread>();
 }
 
 }; // namespace detail
@@ -150,22 +187,32 @@ struct HstuAttentionFwdPipelineProblem
             GetDramTileAccessMaxVectorSize<QKVDataType, kBlockSize, kMPerBlock, kKPerBlock>();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto GetKDramTileAccessMaxVectorSize()
+    template <bool kUseDirectLds = false>
+    CK_TILE_HOST_DEVICE static constexpr auto
+    GetKDramTileAccessMaxVectorSize(bool_constant<kUseDirectLds> = {})
     {
         constexpr index_t kNPerBlock = HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock = HstuAttentionTileSetting::kQKHeaddim;
 
-        return detail::
-            GetDramTileAccessMaxVectorSize<QKVDataType, kBlockSize, kNPerBlock, kKPerBlock>();
+        return detail::GetDramTileAccessMaxVectorSize<QKVDataType,
+                                                      kBlockSize,
+                                                      kNPerBlock,
+                                                      kKPerBlock,
+                                                      kUseDirectLds>();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto GetVDramTileAccessMaxVectorSize()
+    template <bool kUseDirectLds = false>
+    CK_TILE_HOST_DEVICE static constexpr auto
+    GetVDramTileAccessMaxVectorSize(bool_constant<kUseDirectLds> = {})
     {
         constexpr index_t kNPerBlock = HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock = HstuAttentionTileSetting::kK1;
 
-        return detail::
-            GetDramTileAccessMaxVectorSize<QKVDataType, kBlockSize, kNPerBlock, kKPerBlock>();
+        return detail::GetDramTileAccessMaxVectorSize<QKVDataType,
+                                                      kBlockSize,
+                                                      kKPerBlock, // HigerDim
+                                                      kNPerBlock, // LowerDim
+                                                      kUseDirectLds>();
     };
 };
 

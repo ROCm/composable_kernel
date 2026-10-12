@@ -19,11 +19,8 @@ struct HstuAttentionFwdSplitKVCombinePipelinePolicy
         constexpr index_t KVector = GetAlignmentOacc<Problem>();
         constexpr index_t OtherK  = kKPerBlock / KVector;
 
-        if constexpr(kKPerBlock == Problem::kSubOHeaddim)
-        // for kKPerBlock=32,64,128,256
-        {
-            static_assert((OtherK & (OtherK - 1)) == 0, "Check failed!");
-
+        if constexpr((OtherK & (OtherK - 1)) == 0)
+        { // for kKPerBlock=32,64,128,256 or kKPerBlock=96 && kKVector=6
             constexpr index_t KPerThread = KVector;
 
             if constexpr(OtherK < get_warp_size())
@@ -61,11 +58,8 @@ struct HstuAttentionFwdSplitKVCombinePipelinePolicy
                                                sequence<0, 0, 2>>{});
             };
         }
-        else // for kKPerBlock=96,160
-        {
-            static_assert((OtherK & (OtherK - 1)) != 0, "Check failed!");
-
-            // ensure KThreads be power-of-2 integer
+        else
+        { // for kKPerBlock=160 or kKPerBlock=96 && kKVector=1/2/4/8
             constexpr index_t KRepPerThread = (OtherK % 3 == 0) ? 3 : 5;
             constexpr index_t KThreads      = OtherK / KRepPerThread;
 
