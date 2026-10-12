@@ -256,6 +256,14 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr auto pad_config =
             detail::GetTdmLdsPaddingConfigForNormalRead<WG, false /*inputB*/, kKPerBlock>();
 
+        // The Tdm writer counts the pad interval from the Lds origin of each wave's own write
+        // (see MakeKDramTdmTileDistribution()), so every wave has to start on the pad grid.
+        constexpr index_t kNumWarps = Problem::kBlockSize / get_warp_size();
+        static_assert(kNPerBlock / kNumWarps * kKPerBlock * sizeof(typename Problem::QKVDataType) %
+                              pad_config.at(number<0>{}) ==
+                          0,
+                      "each wave's Tdm K write must start on the Lds pad grid");
+
         return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
                                                             n0_loops,
                                                             kNPerBlock,
@@ -290,6 +298,14 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
         constexpr auto pad_config =
             detail::GetTdmLdsPaddingConfigForTrLoadRead<WG, false /*inputB*/, kNPerBlock>();
+
+        // As for K: each wave writes kKPerBlock / kNumWarps rows of the V tile (see
+        // MakeVDramTdmTileDistribution()) and has to start on the pad grid.
+        constexpr index_t kNumWarps = Problem::kBlockSize / get_warp_size();
+        static_assert(kKPerBlock / kNumWarps * kNPerBlock * sizeof(typename Problem::QKVDataType) %
+                              pad_config.at(number<0>{}) ==
+                          0,
+                      "each wave's Tdm V write must start on the Lds pad grid");
 
         return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
                                                             1,

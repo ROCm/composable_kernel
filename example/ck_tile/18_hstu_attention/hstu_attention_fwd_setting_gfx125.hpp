@@ -41,7 +41,8 @@ using HstuAttentionFwdBlockTile_Hdim256_M128_N0_64_Sub32_K1_32 =
 
 // Tdm block tiles. The Tdm pipelines need kN0 == kN0Sub == kK1 -- one n0/k1 sub-loop, with
 // K and V double-buffered across kv-tiles instead of within one -- which none of the trload
-// tiles above satisfies. Only MaxK == 128 is gated to Tdm, so only those two rows exist.
+// tiles above satisfies. Only the MaxK buckets that get_hstu_fwd_pipeline_kind() maps to Tdm
+// have rows here.
 using HstuAttentionFwdBlockTile_Hdim128_M64_N0_32_Sub32_K1_32_Tdm =
     ck_tile::sequence<64, 32, 32, 128, 32, 128>;
 using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub64_K1_64_Tdm =
