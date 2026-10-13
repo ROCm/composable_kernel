@@ -34,6 +34,7 @@ i.e. 1/sqrt(hdim)); a large alpha makes softmax one-hot, so only the diagonal kv
 would be checked.
 
     bucket  worst baseline  min mutant  MAX_ERR   runtime
+    64      2.93e-3         0.328       1e-2      3 min (222 runs, gfx1250)
     128     1.95e-3         0.152       5e-3      4 min (190 runs, gfx1250)
 
 Mutants (applied out of tree to the Tdm pipelines and rebuilt for the jagged bf16 lse=false
@@ -41,13 +42,14 @@ instances only, so they show on the bf16 training=0 runs of the m64_*, m128_* an
 cross_attention cases; the group cases have their own instances): K or V read from the
 wrong copy, a single Lds copy, one kv-tile too many (split-kv runs only), the K or V Tdm
 pad disabled, and the K or V head-dim view shortened by 8 (padded pairs only). Largest max
-error per mutant on bucket 128, and where it fails:
+error per mutant, and the runs it fails on:
 
-    K, V from the wrong copy; single copy  1.59, 3.5e36, 2     all 38 of those runs
-    K, V pad disabled                      1.7e35, inf         all 38 of those runs
-    one kv-tile too many                   0.227               split-kv runs only (m64_*,
-                                                               cross_attention; splitkv=auto)
-    K, V view shortened by 8               0.152, 0.996        (112, 128) resp. (128, 112) only
+    bucket                       128                   64
+    K, V wrong copy; one copy    1.59, 3.5e36, 2       inf, 2.0e36, 1.98     all of those runs
+    K, V pad disabled            1.7e35, inf           2.6e35, inf           all of those runs
+    one kv-tile too many         0.227                 0.328                 split-kv runs only
+    K, V view shortened by 8     0.152, 0.996          0.425, 1              pairs with a padded
+                                                                             qk resp. v only
 
 Kernel check. With rocprofv3 every run is traced. Only Tdm kernels may run, and each one
 must have its bucket's tile (EXPECTED_TDM_TILES), MaxK == bucket, kN0 == kN0Sub == kK1 and
@@ -72,18 +74,22 @@ EXE = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 # Tdm tile per bucket and MTile slot, as (M, N0, N0Sub, N1, K1, MaxK). Mirrors the Tdm rows of
 # hstu_attention_fwd_setting_gfx125.hpp; change both together.
 EXPECTED_TDM_TILES = {
+    64: {64: (64, 32, 32, 64, 32, 64), 128: (128, 64, 64, 64, 64, 64)},
     128: {64: (64, 32, 32, 128, 32, 128), 128: (128, 64, 64, 128, 64, 128)},
 }
 
 # See the docstring for how these are chosen.
-MAX_ERR = {128: 5e-3}
+MAX_ERR = {64: 1e-2, 128: 5e-3}
 
 # Padded or asymmetric (hdim_qk, hdim_v) pairs per bucket, all multiples of 8. The pairs with
 # qk != v are where a V-side mistake shows: the example fills Q, K and V from one seed, so K
 # and V are equal when qk == v.
-PAIRS = {128: [(128, 112), (112, 128)]}
+PAIRS = {
+    64: [(64, 48), (48, 64), (32, 32)],
+    128: [(128, 112), (112, 128)],
+}
 
-DEFAULT_HDIMS = [128]
+DEFAULT_HDIMS = [64, 128]
 
 BUCKETS = (64, 96, 128, 256)
 

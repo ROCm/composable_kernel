@@ -61,6 +61,8 @@ constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
     // setting (the Tdm pipelines need kN0 == kN0Sub == kK1). Every other MaxK keeps trload.
     if constexpr(MaxK == 128)
         return HstuFwdPipelineKind::Tdm;
+    else if constexpr(MaxK == 64)
+        return HstuFwdPipelineKind::Tdm;
     else
         return HstuFwdPipelineKind::TrLoad;
 #elif HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
