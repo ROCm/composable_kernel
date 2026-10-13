@@ -134,23 +134,10 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return min(MaxVectorSize, WG::kK / WG::WarpGemmAttribute::Impl::kABKLane);
     }
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
-    {
-        return max(GetQKWarpGemmBScalarPerVector<Problem>(), GetAlignmentK<Problem>());
-    }
-
     template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentK()
     {
         return Problem::GetKDramTileAccessMaxVectorSize(bool_constant<kUseDirectLds>{});
-    }
-
-    template <typename Problem, bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
-    {
-        return max(GetPVTWarpGemmBScalarPerVector<Problem, kUseTrLoad>(),
-                   GetAlignmentV<Problem, kUseTrLoad>());
     }
 
     template <typename Problem, bool kUseTrLoad = false, bool kUseDirectLds = false>
