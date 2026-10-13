@@ -51,6 +51,8 @@ using HstuAttentionFwdBlockTile_Hdim128_M64_N0_32_Sub32_K1_32_Tdm =
     ck_tile::sequence<64, 32, 32, 128, 32, 128>;
 using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub64_K1_64_Tdm =
     ck_tile::sequence<128, 64, 64, 128, 64, 128>;
+using HstuAttentionFwdBlockTile_Hdim256_M128_N0_32_Sub32_K1_32_Tdm =
+    ck_tile::sequence<128, 32, 32, 256, 32, 256>;
 
 template <ck_tile::index_t MaxK,
           ck_tile::index_t ExpectedMTile,
@@ -196,12 +198,24 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
     }
     else if constexpr(MaxK == 256)
     {
-        return ck_tile::HstuAttentionFwdTileSettingClass<
-            HstuAttentionFwdBlockTile_Hdim256_M128_N0_64_Sub32_K1_32,
-            HstuAttentionFwdGemm0Warps,
-            WarpTile_16x16x32,
-            HstuAttentionFwdGemm1Warps,
-            WarpTile_16x16x32>{};
+        if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+        {
+            return ck_tile::HstuAttentionFwdTileSettingClass<
+                HstuAttentionFwdBlockTile_Hdim256_M128_N0_32_Sub32_K1_32_Tdm,
+                HstuAttentionFwdGemm0Warps,
+                WarpTile_16x16x32,
+                HstuAttentionFwdGemm1Warps,
+                WarpTile_16x16x32>{};
+        }
+        else
+        {
+            return ck_tile::HstuAttentionFwdTileSettingClass<
+                HstuAttentionFwdBlockTile_Hdim256_M128_N0_64_Sub32_K1_32,
+                HstuAttentionFwdGemm0Warps,
+                WarpTile_16x16x32,
+                HstuAttentionFwdGemm1Warps,
+                WarpTile_16x16x32>{};
+        }
     }
     else
     {

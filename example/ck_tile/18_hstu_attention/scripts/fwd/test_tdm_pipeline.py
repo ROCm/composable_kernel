@@ -36,20 +36,25 @@ would be checked.
     bucket  worst baseline  min mutant  MAX_ERR   runtime
     64      2.93e-3         0.328       1e-2      3 min (222 runs, gfx1250)
     128     1.95e-3         0.152       5e-3      4 min (190 runs, gfx1250)
+    256     1.46e-3         0.129       5e-3      5.5 min (222 runs, gfx1250)
+
+The runtime is that of the whole bucket with the kernel check. The slowest single run took
+4.9 s (bucket 256; 6.8 s while the machine was busy compiling); --timeout defaults to 30 s.
 
 Mutants (applied out of tree to the Tdm pipelines and rebuilt for the jagged bf16 lse=false
 instances only, so they show on the bf16 training=0 runs of the m64_*, m128_* and
 cross_attention cases; the group cases have their own instances): K or V read from the
 wrong copy, a single Lds copy, one kv-tile too many (split-kv runs only), the K or V Tdm
 pad disabled, and the K or V head-dim view shortened by 8 (padded pairs only). Largest max
-error per mutant, and the runs it fails on:
+error per mutant:
 
-    bucket                       128                   64
-    K, V wrong copy; one copy    1.59, 3.5e36, 2       inf, 2.0e36, 1.98     all of those runs
-    K, V pad disabled            1.7e35, inf           2.6e35, inf           all of those runs
-    one kv-tile too many         0.227                 0.328                 split-kv runs only
-    K, V view shortened by 8     0.152, 0.996          0.425, 1              pairs with a padded
-                                                                             qk resp. v only
+    bucket  K, V wrong copy; one copy  K, V pad disabled  one kv-tile more  K, V view - 8
+    64      inf, 2.0e36, 1.98          2.6e35, inf        0.328             0.425, 1
+    128     1.59, 3.5e36, 2            1.7e35, inf        0.227             0.152, 0.996
+    256     1.77, 5.1e35, 2            1.1e35, inf        0.21              0.129, 1
+
+Each one fails on all of those runs, except one kv-tile more (split-kv runs only) and the
+shortened views (only the pairs with a padded qk resp. v).
 
 Kernel check. With rocprofv3 every run is traced. Only Tdm kernels may run, and each one
 must have its bucket's tile (EXPECTED_TDM_TILES), MaxK == bucket, kN0 == kN0Sub == kK1 and
@@ -76,10 +81,11 @@ EXE = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 EXPECTED_TDM_TILES = {
     64: {64: (64, 32, 32, 64, 32, 64), 128: (128, 64, 64, 64, 64, 64)},
     128: {64: (64, 32, 32, 128, 32, 128), 128: (128, 64, 64, 128, 64, 128)},
+    256: {64: (128, 32, 32, 256, 32, 256), 128: (128, 32, 32, 256, 32, 256)},
 }
 
 # See the docstring for how these are chosen.
-MAX_ERR = {64: 1e-2, 128: 5e-3}
+MAX_ERR = {64: 1e-2, 128: 5e-3, 256: 5e-3}
 
 # Padded or asymmetric (hdim_qk, hdim_v) pairs per bucket, all multiples of 8. The pairs with
 # qk != v are where a V-side mistake shows: the example fills Q, K and V from one seed, so K
@@ -87,9 +93,10 @@ MAX_ERR = {64: 1e-2, 128: 5e-3}
 PAIRS = {
     64: [(64, 48), (48, 64), (32, 32)],
     128: [(128, 112), (112, 128)],
+    256: [(256, 192), (160, 256), (200, 192)],
 }
 
-DEFAULT_HDIMS = [64, 128]
+DEFAULT_HDIMS = [64, 128, 256]
 
 BUCKETS = (64, 96, 128, 256)
 
@@ -259,7 +266,7 @@ def main():
                         help="comma-separated buckets to run (default: %(default)s)")
     parser.add_argument("--max-err", default=None,
                         help="override MAX_ERR for every bucket; 'inf' only reports")
-    parser.add_argument("--timeout", type=float, default=600, help="seconds per run")
+    parser.add_argument("--timeout", type=float, default=30, help="seconds per run")
     parser.add_argument("--no-kernel-check", action="store_true",
                         help="do not run under rocprofv3 to check which kernels ran")
     parser.add_argument("--list", action="store_true", help="list the run labels and exit")
