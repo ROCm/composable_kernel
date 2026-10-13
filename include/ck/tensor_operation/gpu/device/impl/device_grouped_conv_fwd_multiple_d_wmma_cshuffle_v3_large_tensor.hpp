@@ -55,7 +55,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
     using SelectedEpilogue = get_epilogue_t<EpilogueType::CShuffle, GridwiseGemm>;
 
     constexpr index_t LDS_size =
-        GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
+        GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>(get_device_arch());
 
     if constexpr(LDS_size <= get_lds_size(get_device_arch()))
     {

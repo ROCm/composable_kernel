@@ -74,7 +74,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     using SelectedEpilogue = get_epilogue_t<epilogue_type, GridwiseGemm>;
 
     constexpr index_t LDS_size =
-        GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
+        GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>(get_device_arch());
     __shared__ uint8_t p_shared[LDS_size];
 
     const auto gemm_desc_ptr =

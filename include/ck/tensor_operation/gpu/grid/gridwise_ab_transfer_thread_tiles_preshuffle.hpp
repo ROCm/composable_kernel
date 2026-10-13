@@ -60,7 +60,8 @@ struct ABTransferThreadTilesPreShuffle
                        I1));
     }
 
-    __host__ __device__ static constexpr auto GetBlockDescriptor()
+    template <typename DeviceArch>
+    __host__ __device__ static constexpr auto GetBlockDescriptor(DeviceArch)
     {
         constexpr auto MNRepeat = MNPerBlock / MNPerWmma / MNWave;
         return make_naive_tensor_descriptor_packed(make_tuple(KSubtileRepeat,
@@ -75,7 +76,7 @@ struct ABTransferThreadTilesPreShuffle
     template <index_t MNRepeat, index_t MNWaves>
     __host__ __device__ static constexpr auto MakeWmmaTileDescriptor()
     {
-        return GetBlockDescriptor();
+        return GetBlockDescriptor(get_device_arch());
     }
 
     template <typename GridDescriptor,

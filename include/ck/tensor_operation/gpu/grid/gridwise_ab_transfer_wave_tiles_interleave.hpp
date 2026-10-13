@@ -162,7 +162,8 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
         }
     }
 
-    __device__ static constexpr auto GetBlockDescriptor()
+    template <typename DeviceArch>
+    __device__ static constexpr auto GetBlockDescriptor(DeviceArch)
     {
         // LDS memory layouts:
         // lanes within tiles stored contiguously in chunks of 8 elements

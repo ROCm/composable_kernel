@@ -12,13 +12,14 @@ namespace {
 namespace ckr = ck_tile::reflect;
 
 // Use the first instance from
-// device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_f16_instances
+// device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_instances
 using InstanceTuple = ck::tensor_operation::device::instance::
-    device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_f16_instances<
+    device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_instances<
         2,                                     // NDimSpatial
         ck::tensor_layout::convolution::GNHWC, // ALayout (InLayout)
         ck::tensor_layout::convolution::GKYXC, // BLayout (WeiLayout)
         ck::tensor_layout::convolution::GNHWK, // ELayout (OutLayout)
+        ck::half_t,
         ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization::Default,
         ck::BlockGemmPipelineScheduler::Intrawave,
         ck::BlockGemmPipelineVersion::v1>;

@@ -219,7 +219,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     static constexpr bool UseDirectStore            = false;
 #endif
 
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
     static constexpr bool UseLdsTransposeA =
         UseLdsTranspose && !is_same_v<ALayout, tensor_layout::gemm::RowMajor>;
     static constexpr bool UseLdsTransposeB =
@@ -872,7 +872,16 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             ThisThreadBlock,
             BlockwiseGemmPipe>;
 
-        return GetSharedMemoryNumberOfByte<EpilogueCShuffle>();
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
+        if(is_gfx125_supported())
+        {
+            return GetSharedMemoryNumberOfByte<EpilogueCShuffle>(gfx125_t{});
+        }
+        else
+#endif
+        {
+            return GetSharedMemoryNumberOfByte<EpilogueCShuffle>(gfx_invalid_t{});
+        }
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -1193,12 +1202,12 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return BlockwiseGemmPipe::BlockLoopTailNum(num_loop);
     }
 
-    template <typename Epilogue>
-    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
+    template <typename Epilogue, typename DeviceArch>
+    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte(DeviceArch)
     {
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_desc_ak0_m_ak1 = ATransfer::GetBlockDescriptor();
-        constexpr auto b_block_desc_bk0_n_bk1 = BTransfer::GetBlockDescriptor();
+        constexpr auto a_block_desc_ak0_m_ak1 = ATransfer::GetBlockDescriptor(DeviceArch{});
+        constexpr auto b_block_desc_bk0_n_bk1 = BTransfer::GetBlockDescriptor(DeviceArch{});
 
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
@@ -1291,10 +1300,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_ak0_m_ak1 = ATransfer::GetBlockDescriptor();
+        constexpr auto a_block_desc_ak0_m_ak1 = ATransfer::GetBlockDescriptor(get_device_arch());
 
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_bk0_n_bk1 = BTransfer::GetBlockDescriptor();
+        constexpr auto b_block_desc_bk0_n_bk1 = BTransfer::GetBlockDescriptor(get_device_arch());
 
         // A matrix blockwise copy
         auto a_blockwise_copy =

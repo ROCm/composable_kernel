@@ -76,7 +76,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         auto epilogue_args            = SelectedEpilogue{};
 
         constexpr index_t LDS_size =
-            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>(get_device_arch());
         if constexpr(LDS_size <= get_lds_size(get_device_arch()))
         {
             __shared__ char p_shared[LDS_size];
