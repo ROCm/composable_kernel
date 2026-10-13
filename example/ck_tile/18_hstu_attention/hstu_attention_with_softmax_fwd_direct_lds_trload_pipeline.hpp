@@ -117,6 +117,79 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
             template GetSmemSize<Problem, true /*kPipelineUseTrLoad*/, true /*kUseDirectLds*/>();
     }
 
+    // async_load_tile_raw() with offset (elements) added to every thread's dram offset: the DMA
+    // fills lds_tile, an [issue, warp, lane] LDS window, from dram_window
+    template <typename LdsTileWindow, typename DramTileWindow, typename LaneOffsets>
+    CK_TILE_DEVICE static void AsyncLoadTileRawWithOffset(const LdsTileWindow& lds_tile,
+                                                          const DramTileWindow& dram_window,
+                                                          index_t offset,
+                                                          const LaneOffsets& lane_offsets)
+    {
+        using LdsDataType  = typename LdsTileWindow::DataType;
+        using WindowTraits = typename DramTileWindow::Traits;
+        using vector_t     = typename WindowTraits::vector_t;
+        using SFC_Ys       = typename WindowTraits::SFC_Ys;
+
+        constexpr index_t NumAccess = DramTileWindow::NumAccessPerCoord;
+
+        static_assert(LdsTileWindow::get_num_of_dimension() == 3 &&
+                          NumAccess == WindowTraits::NumAccess,
+                      "Check failed!");
+
+        const auto lds_desc = lds_tile.get_bottom_tensor_view().get_tensor_descriptor();
+
+        const index_t size_per_buf =
+            lds_desc.calculate_offset(make_tuple(number<0>{}, number<0>{}, number<0>{})) *
+            sizeof(LdsDataType);
+        const index_t size_per_wave =
+            lds_desc.calculate_offset(make_tuple(number<0>{}, number<1>{}, number<0>{})) *
+                sizeof(LdsDataType) -
+            size_per_buf;
+        const index_t size_per_issue =
+            lds_desc.calculate_offset(make_tuple(number<1>{}, number<0>{}, number<0>{})) *
+                sizeof(LdsDataType) -
+            size_per_buf;
+
+        m0_set_with_memory(amd_wave_read_first_lane(
+            size_per_buf + size_per_wave * get_warp_id(bool_constant<false>{})));
+
+        LdsDataType* smem = lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_;
+
+        const auto tile_dstr = dram_window.get_tile_distribution();
+        const auto coords    = dram_window.prepare_coords(dram_window.get_bottom_tensor_view(),
+                                                       dram_window.get_window_origin(),
+                                                       tile_dstr,
+                                                       get_partition_index(tile_dstr));
+
+        auto window_adaptor_thread_coord = coords[number<0>{}][number<0>{}];
+        auto bottom_tensor_thread_coord  = coords[number<0>{}][number<1>{}];
+
+        static_for<0, NumAccess, 1>{}([&](auto i_access) {
+            constexpr index_t i = decltype(i_access)::value;
+
+            dram_window.get_bottom_tensor_view()
+                .template async_get_vectorized_elements_raw<vector_t>(
+                    smem,
+                    bottom_tensor_thread_coord,
+                    offset + lane_offsets[i_access],
+                    0,
+                    bool_constant<i == 0>{} /*pre_nop*/);
+
+            if constexpr(i != NumAccess - 1)
+            {
+                constexpr auto idx_diff_ps_ys =
+                    container_concat(generate_tuple([&](auto) { return number<0>{}; },
+                                                    number<DramTileWindow::NDimP>{}),
+                                     SFC_Ys::get_forward_step(i_access));
+
+                dram_window.move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+
+                m0_inc_with_memory(size_per_issue);
+            }
+        });
+    }
+
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -230,11 +303,35 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
 
         const auto q_origin = q_dram_window.get_window_origin();
 
-        auto k_dram_window = make_tile_window(
+        // K/V are DMAed from fixed dram windows at the sequence start; the row offset and the
+        // per-lane offset that writes the XOR-swizzled LDS layout go in as the dram offset
+        const auto k_dram_window = make_tile_window_raw(
             k_dram_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<kN0Sub>{}, number<kQKHeaddim>{}),
-            {seqlen_k_start, 0},
+            {0, 0},
             Policy::template MakeKDramTileDistribution<Problem, true /*kUseDirectLds*/>());
+
+        const auto& k_dram_desc =
+            k_dram_block_window_tmp.get_bottom_tensor_view().get_tensor_descriptor();
+        const index_t k_row_stride = k_dram_desc.calculate_offset(make_tuple(1, 0)) -
+                                     k_dram_desc.calculate_offset(make_tuple(0, 0));
+        const auto k_lane_offsets = generate_tuple(
+            [&](auto i_issue) {
+                return Policy::template GetKDirectLdsSwizzleOffset<Problem, i_issue>();
+            },
+            number<remove_cvref_t<decltype(k_dram_window)>::NumAccessPerCoord>{});
+        index_t k_row_next = seqlen_k_start;
+
+        auto k_raw_store_windows = generate_tuple(
+            [&](auto i_buf) {
+                constexpr auto desc =
+                    Policy::template MakeKLdsRawStoreBlockDescriptor<Problem>(i_buf);
+                return make_tile_window(make_tensor_view<address_space_enum::lds>(
+                                            static_cast<QKVDataType*>(smem_ptr), desc),
+                                        desc.get_lengths(),
+                                        {0, 0, 0});
+            },
+            number<n0_loops>{});
 
         __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
@@ -296,8 +393,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
         });
 
         static_for<0, n0_loops, 1>{}([&](auto i_n0) {
-            async_load_tile(k_lds_write_windows[i_n0], k_dram_window);
-            move_tile_window(k_dram_window, {kN0Sub, 0});
+            AsyncLoadTileRawWithOffset(k_raw_store_windows(number<i_n0>{}),
+                                       k_dram_window,
+                                       k_row_next * k_row_stride,
+                                       k_lane_offsets);
+            k_row_next += kN0Sub;
         });
 
         __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
@@ -367,13 +467,35 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
                                                          sequence<(i_buf + 1) * kK1, kN1>{});
         });
 
-        auto v_dram_window =
-            make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
-                             v_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0},
-                             Policy::template MakeVDramTileDistribution<Problem,
-                                                                        true /*kUseTrLoad*/,
-                                                                        true /*kUseDirectLds*/>());
+        const auto v_dram_window = make_tile_window_raw(
+            v_dram_block_window_tmp.get_bottom_tensor_view(),
+            v_dram_block_window_tmp.get_window_lengths(),
+            {0, 0},
+            Policy::template MakeVDramTileDistribution<Problem,
+                                                       true /*kUseTrLoad*/,
+                                                       true /*kUseDirectLds*/>());
+
+        const auto& v_dram_desc =
+            v_dram_block_window_tmp.get_bottom_tensor_view().get_tensor_descriptor();
+        const index_t v_row_stride = v_dram_desc.calculate_offset(make_tuple(1, 0)) -
+                                     v_dram_desc.calculate_offset(make_tuple(0, 0));
+        const auto v_lane_offsets = generate_tuple(
+            [&](auto i_issue) {
+                return Policy::template GetVDirectLdsSwizzleOffset<Problem, i_issue>();
+            },
+            number<remove_cvref_t<decltype(v_dram_window)>::NumAccessPerCoord>{});
+        index_t v_row_next = seqlen_k_start;
+
+        auto v_raw_store_windows = generate_tuple(
+            [&](auto i_buf) {
+                constexpr auto desc =
+                    Policy::template MakeVLdsRawStoreBlockDescriptor<Problem>(i_buf);
+                return make_tile_window(make_tensor_view<address_space_enum::lds>(
+                                            static_cast<QKVDataType*>(smem_ptr), desc),
+                                        desc.get_lengths(),
+                                        {0, 0, 0});
+            },
+            number<k1_loops>{});
 
         [[maybe_unused]] const auto f_exp = [&](CompDataType x) {
             if constexpr(std::is_same_v<CompDataType, float>)
@@ -439,8 +561,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
                     static_for<0, k1loops_per_n0sub, 1>{}([&](auto j) {
                         constexpr index_t i_k1 = i_n0 * k1loops_per_n0sub + j;
 
-                        async_load_tile(v_lds_write_windows[number<i_k1>{}], v_dram_window);
-                        move_tile_window(v_dram_window, {kK1, 0});
+                        AsyncLoadTileRawWithOffset(v_raw_store_windows(number<i_k1>{}),
+                                                   v_dram_window,
+                                                   v_row_next * v_row_stride,
+                                                   v_lane_offsets);
+                        v_row_next += kK1;
                     });
                 }
                 else
@@ -449,8 +574,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
                     {
                         constexpr index_t i_k1 = (i_n0 + 1) / n0loops_per_k1 - 1;
 
-                        async_load_tile(v_lds_write_windows[number<i_k1>{}], v_dram_window);
-                        move_tile_window(v_dram_window, {kK1, 0});
+                        AsyncLoadTileRawWithOffset(v_raw_store_windows(number<i_k1>{}),
+                                                   v_dram_window,
+                                                   v_row_next * v_row_stride,
+                                                   v_lane_offsets);
+                        v_row_next += kK1;
                     }
                 }
 
@@ -598,8 +726,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
                     {
                         constexpr index_t i_n0 = (i_k1 + 1) / k1loops_per_n0sub - 1;
 
-                        async_load_tile(k_lds_write_windows[number<i_n0>{}], k_dram_window);
-                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                        AsyncLoadTileRawWithOffset(k_raw_store_windows(number<i_n0>{}),
+                                                   k_dram_window,
+                                                   k_row_next * k_row_stride,
+                                                   k_lane_offsets);
+                        k_row_next += kN0Sub;
                     }
                 }
                 else
@@ -607,8 +738,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
                     static_for<0, n0loops_per_k1, 1>{}([&](auto j) {
                         constexpr index_t i_n0 = i_k1 * n0loops_per_k1 + j;
 
-                        async_load_tile(k_lds_write_windows[number<i_n0>{}], k_dram_window);
-                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                        AsyncLoadTileRawWithOffset(k_raw_store_windows(number<i_n0>{}),
+                                                   k_dram_window,
+                                                   k_row_next * k_row_stride,
+                                                   k_lane_offsets);
+                        k_row_next += kN0Sub;
                     });
                 }
 
