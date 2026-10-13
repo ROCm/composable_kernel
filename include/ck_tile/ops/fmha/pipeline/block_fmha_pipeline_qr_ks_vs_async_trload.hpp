@@ -125,7 +125,8 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
         }
     }();
 
-    static constexpr const char* name = "qr_async_trload";
+    static constexpr const char* name                  = "qr_async_trload";
+    static constexpr bool kUsesUntransposedVKernelPath = true;
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {

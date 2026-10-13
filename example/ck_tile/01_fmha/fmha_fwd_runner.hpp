@@ -1463,7 +1463,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
             args.lse_ptr  = lse_buf.GetDeviceBuffer();
             args.o_ptr    = o_buf.GetDeviceBuffer();
 
-            args.seqlen_k     = shape_seqlen_k;     // unused in group mode (or kvcache enabled)
+            // Batch: per-sequence K; group: total physical K, a sched selector hint.
+            args.seqlen_k     = shape_seqlen_k;
             args.max_seqlen_q = pack_gqa_seqlen_q_; // use packed seqlen for grid size
 
             args.scale_s = scale_s;

@@ -153,6 +153,102 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
         test_ck_tile_fmha_qr_tdm_row_reduce)
 endif()
 
+# Scheduled FMHA tests share the existing FMHA gate and umbrella.
+set(FMHA_QR_TDM_SCHED_TEST_TARGETS)
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
+    set(FMHA_QR_TDM_SCHED_GPU_TARGETS ${SUPPORTED_GPU_TARGETS})
+    list(FILTER FMHA_QR_TDM_SCHED_GPU_TARGETS INCLUDE REGEX "^gfx125")
+
+    function(add_qr_tdm_sched_gtest target source)
+        add_gtest_executable(${target} ${source})
+        if(TARGET ${target})
+            target_link_libraries(${target} PRIVATE utility)
+            target_compile_definitions(${target} PRIVATE CK_TILE_FMHA_FWD_FAST_EXP2=1)
+            set_property(TARGET ${target} PROPERTY HIP_ARCHITECTURES
+                ${FMHA_QR_TDM_SCHED_GPU_TARGETS})
+            get_test_property(${target} LABELS common_labels)
+            set_tests_properties(${target} PROPERTIES
+                LABELS "${common_labels};${TEST_NAME};CK_TILE_FMHA_TESTS")
+            set(FMHA_QR_TDM_SCHED_TEST_TARGETS
+                ${FMHA_QR_TDM_SCHED_TEST_TARGETS} ${target} PARENT_SCOPE)
+        endif()
+    endfunction()
+
+    add_qr_tdm_sched_gtest(test_ck_tile_fmha_qr_tdm_sched_config
+        test_qr_tdm_sched_config.cpp)
+    add_qr_tdm_sched_gtest(test_ck_tile_fmha_qr_tdm_sched_schedule
+        test_qr_tdm_sched_schedule.cpp)
+
+    add_test(NAME test_ck_tile_fmha_qr_tdm_sched_read_first
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test_qr_tdm_sched_read_first.py
+            --compiler=${CMAKE_HIP_COMPILER}
+            --ck-root=${PROJECT_SOURCE_DIR}
+            --ck-build=${PROJECT_BINARY_DIR} -v)
+    set_tests_properties(test_ck_tile_fmha_qr_tdm_sched_read_first PROPERTIES
+        LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS;CK_TILE_FMHA_CODEGEN_TESTS"
+        TIMEOUT 180)
+
+    foreach(dtype IN ITEMS bf16 fp16)
+        if(TARGET ${FMHA_FWD_INSTANCES})
+            set(target test_ck_tile_fmha_qr_tdm_sched_fwd_${dtype})
+            add_qr_tdm_sched_gtest(${target} test_qr_tdm_sched_fwd.cpp)
+            target_link_libraries(${target} PRIVATE ${FMHA_FWD_INSTANCES})
+            if(dtype STREQUAL "fp16")
+                target_compile_definitions(${target} PRIVATE DataTypeConfig=FmhaFwdFp16)
+            else()
+                target_compile_definitions(${target} PRIVATE DataTypeConfig=FmhaFwdBf16)
+            endif()
+            target_compile_options(${target} PRIVATE -Wno-float-equal)
+        endif()
+        set(target test_ck_tile_fmha_qr_tdm_sched_layout_${dtype})
+        add_qr_tdm_sched_gtest(${target} test_qr_tdm_sched_layout.cpp)
+        if(dtype STREQUAL "fp16")
+            target_compile_definitions(${target} PRIVATE CK_TILE_FMHA_TDM_V128_TEST_FP16=1)
+        endif()
+    endforeach()
+
+    add_qr_tdm_sched_gtest(test_ck_tile_fmha_qr_tdm_sched_softmax
+        test_qr_tdm_sched_softmax.cpp)
+    target_compile_options(test_ck_tile_fmha_qr_tdm_sched_softmax PRIVATE -Wno-float-equal)
+    add_qr_tdm_sched_gtest(test_ck_tile_fmha_qr_tdm_sched_fragments
+        test_qr_tdm_sched_fragments.cpp)
+    target_compile_options(test_ck_tile_fmha_qr_tdm_sched_fragments PRIVATE -Wno-float-equal)
+
+    foreach(geometry IN ITEMS d128_n128 d192_n64 d192_n128)
+        if(geometry MATCHES "d128")
+            set(head_dim 128)
+        else()
+            set(head_dim 192)
+        endif()
+        if(geometry MATCHES "n64$")
+            set(tile_n 64)
+        else()
+            set(tile_n 128)
+        endif()
+        foreach(dtype IN ITEMS bf16 fp16)
+            set(target test_ck_tile_fmha_qr_tdm_sched_sink_${geometry}_${dtype})
+            add_qr_tdm_sched_gtest(${target} test_qr_tdm_sched_sink.cpp)
+            target_compile_definitions(${target} PRIVATE
+                CK_TILE_FMHA_SINK_TEST_HEAD_DIM=${head_dim}
+                CK_TILE_FMHA_SINK_TEST_TILE_N=${tile_n})
+            if(dtype STREQUAL "fp16")
+                target_compile_definitions(${target} PRIVATE CK_TILE_FMHA_SINK_TEST_FP16=1)
+            endif()
+            target_compile_options(${target} PRIVATE -Wno-float-equal
+                -mllvm -amdgpu-expert-scheduling-mode -fgpu-flush-denormals-to-zero)
+        endforeach()
+    endforeach()
+endif()
+
+# The independent arithmetic reference is a host test on every FMHA architecture.
+add_gtest_executable(test_ck_tile_fmha_reference test_fmha_reference.cpp)
+target_compile_options(test_ck_tile_fmha_reference PRIVATE -Wno-float-equal)
+get_test_property(test_ck_tile_fmha_reference LABELS FMHA_REFERENCE_COMMON_LABELS)
+set_tests_properties(test_ck_tile_fmha_reference PROPERTIES
+    LABELS "${FMHA_REFERENCE_COMMON_LABELS};${TEST_NAME};CK_TILE_FMHA_TESTS")
+list(APPEND FMHA_QR_TDM_SCHED_TEST_TARGETS test_ck_tile_fmha_reference)
+
 # Python integration test for the fmha_fwd codegen path.
 #
 # Drives the real `generate.py` with a JSON tune-config
@@ -188,11 +284,20 @@ add_test(
 set_tests_properties(${FMHA_BWD_CODEGEN_PY_TEST}
     PROPERTIES LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS")
 
+# Codegen and compiled host-dispatch regression tests require no GPU.
+add_test(
+    NAME test_ck_tile_fmha_fwd_codegen
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_fmha_fwd_codegen.py -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+set_tests_properties(test_ck_tile_fmha_fwd_codegen PROPERTIES
+    LABELS "${TEST_NAME};CK_TILE_FMHA_TESTS;CK_TILE_FMHA_CODEGEN_TESTS")
+
 # Umbrella target to build and run all ck_tile fmha tests
 # Usage: ninja ck_tile_fmha_tests
 add_custom_target(ck_tile_fmha_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_FMHA_TESTS"
-    DEPENDS ${TEST_NAME} ${FMHA_QR_TDM_TEST_TARGETS}
+    DEPENDS ${TEST_NAME} ${FMHA_QR_TDM_TEST_TARGETS} ${FMHA_QR_TDM_SCHED_TEST_TARGETS}
     USES_TERMINAL
     COMMENT "Running all ck_tile fmha tests..."
 )

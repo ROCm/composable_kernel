@@ -37,6 +37,99 @@ There are 2 template parameters for this kernel template.
 ## codegen
 To speed up compile time, we instantiate the kernels into separate file. In this way we can benefit from parallel building from CMake/Make system. This is achieved by `generate.py` script. Besides, you can look into this script to learn how to instantiate a kernel instance step by step, which is described in `FMHA_FWD_KERNEL_BODY` variable.
 
+### Scheduled TDM forward pipeline
+
+`qr_tdm_sched` shares the gfx125 TDM architecture requirements with `qr_tdm`.
+Its generated configurations use FP16 or BF16 Q/K/V with D64/V64, D128/V128,
+or D192/V128, and row-major V. They use no bias, dropout, logits
+soft cap, quantization, or sink tokens; LSE output is optional. Other configurations retain
+the existing pipeline candidates.
+Generated `qr_tdm_sched` requires a null runtime `sink_ptr`; a finite virtual-sink
+logit uses the existing `qr_tdm` fallback. This runtime pointer is independent
+of the compile-time sink-token flag.
+
+The generated API tries matching scheduled traits first. D64/V64 uses a
+128-by-64 Q/K sequence tile, matching the existing `qr_tdm` M128 geometry and
+compiler minimum-waves-per-EU hint of three. The launch API retains the
+historical `MinBlockPerCu` name; this hint does not establish achieved workgroup
+residency. Aligned batch K lengths use unpadded
+sequence traits; tails and group mode use padded traits. D64 uses compiler-scheduled
+softmax maximum chains and places each next-stage LDS read before the current
+WMMA, preserving read counts and stage-tail waits. Generated D64/D128/D192
+scheduled sources enable expert scheduling mode. D128 uses a
+128-by-128 Q/K sequence tile. D192 tries a 128-by-128 tile when average K length
+is at least 512, the Q grid fits within the CU count, logical length pointers
+are absent, and the mask is dense or square causal. Otherwise it uses a
+128-by-64 tile. Group mode compares packed K length against 512 times the batch
+count; its square-causal check compares packed Q/K totals. When
+`max_seqlen_q` is below 128, the existing fallback candidates are used.
+
+WG indexing follows the existing shared kernel rules. For batch BHSD square
+causal attention with one V tile and no dropout, sched D64/D128 visit the longest
+Q tile across heads within each batch first. Sched D192 keeps the existing
+head-major remap; group mode does not enter this batch-local branch. The XCC
+mode 5/tm5r experiment remains disabled unless `CK_TILE_FMHA_PAIRED_XCC_ORDER`
+is explicitly defined to a nonzero value. Its eight-XCC mapping assumptions
+must be checked on the target hardware before enabling it.
+
+The implementation separates tile selection, data operations, and placement:
+
+```text
+fmha_fwd.py: tile/pipeline compatibility + runtime constraints
+    -> generated Problem and BlockFmhaShape
+    -> FmhaTdmSchedPolicyFor<Problem>
+         Geometry: dtype, tile shape, WMMA decomposition, LDS layout
+         Tuning:   tensor waits, DS tail counts, compiler launch hint
+         Schedule: tile phase order and local instruction placement
+    -> BlockFmhaPipelineQRKSVSTdmSched<Problem, Policy>
+         owns tensors, TDM loads, synchronization, and operation callbacks
+    -> Schedule::Run(ops)
+         Begin -> QK -> Score -> Softmax -> NextK -> PV -> Advance
+    -> Policy stage operations + FmhaTdmSchedPlacementExecutor
+         execute local WMMA/read/fence/rescale callbacks
+```
+
+The shared pipeline body covers all three head dimensions. Geometry derives the
+number of QK/PV stages and LDS reads; default tuning derives its DS tail counts
+from those values. A specific tuning can override them without duplicating the
+pipeline. The LDS arena packs K0, K1, V0, and V1 in order. Q uses the K arena
+during the prologue before the synchronization that permits K reuse.
+
+The default tile schedule is `FmhaTdmSchedSequentialTileSchedule`. D64 uses
+`FmhaTdmSchedReadFirstPlacement`, which issues each row's reads and fences before
+its WMMA. D128/D192 use `FmhaTdmSchedWmmaFirstPlacement`, with a leading read on
+selected D128 stages. Each row divides its reads into two groups around a fence.
+BF16 D192/N128 uses `FmhaTdmSchedExplicitRowReadSchedule` with a concrete read
+placement and streams output rescale through the first PV stage. The other
+geometries use `FmhaTdmSchedEvenlyInterleavedReadSchedule`, which distributes
+the fixed read count across WMMA rows. In particular, FP16 D192/N128 uses evenly
+interleaved reads and rescales after softmax; it does not select the BF16
+explicit placement or streaming rescale. `DeferTensorReady` moves the V prefetch
+tensor wait from the score phase to after split softmax Part01 and before Part2.
+It applies to D128 batch/group kernels, including masked kernels, and to BF16
+D192/N64 dense batch/group kernels. LSE does not change this choice; sink-token
+and bias problems are excluded. D64, FP16 D192/N64, and both D192/N128 dtypes
+retain the score-phase wait. D128 rescales output before Part2; BF16 D192/N128
+streams rescale through the first PV stage; the remaining geometries rescale
+after Part2. Compile-time checks enforce matching geometry, stage counts, WMMA
+counts, and rescale modes.
+
+For a new placement, supply a policy's third template argument (the tile
+schedule) and implement its local callbacks. The executor executes those
+callbacks directly. TDM loads and hardware synchronization remain explicit
+pipeline phase boundaries. The pipeline and policy reject attention bias;
+other pipelines provide its existing dispatch fallback. Sink operations remain
+for the shared kernel entry. A runtime sink logit is independent of the
+compile-time sink-token flag.
+
+`test/ck_tile/fmha` contains the scheduled pipeline's layout, schedule,
+representation, sink, generated dispatch, and independent reference tests.
+The independent reference retains unquantized FP32 probabilities and reports
+both strict cosine diagnostics and the dtype component budget; see
+[`accuracy_contract.md`](../../../test/ck_tile/fmha/accuracy_contract.md).
+`test/ck_tile/tdm` retains the general TDM tests. The optional tm5r XCC ordering path remains guarded
+by `CK_TILE_FMHA_PAIRED_XCC_ORDER` and is disabled when the macro is absent.
+
 ## executable
 `tile_example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/tile_example_fmha_fwd -?` to list all the arguments. Below is an example of the output (may subject to change)
 ```

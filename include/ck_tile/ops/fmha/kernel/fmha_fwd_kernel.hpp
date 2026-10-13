@@ -121,6 +121,40 @@ struct has_use_trload_flag<
 template <typename T>
 static inline constexpr bool is_using_trload_v = has_use_trload_flag<T>::value;
 
+template <typename T>
+using has_untransposed_v_kernel_path = decltype(T::kUsesUntransposedVKernelPath);
+
+template <typename T>
+using has_tdm_affine_dram_path = decltype(T::kUsesTdmAffineDramPath);
+
+template <typename T>
+using has_fixed_segmented_lds_arena = decltype(T::kUsesFixedSegmentedLdsArena);
+
+// qr_tdm used these kernel paths before opt-in markers were introduced.
+template <typename T>
+static inline constexpr bool uses_untransposed_v_kernel_path_v = []() {
+    if constexpr(is_detected<has_untransposed_v_kernel_path, T>::value)
+        return static_cast<bool>(T::kUsesUntransposedVKernelPath);
+    else
+        return std::string_view{T::name} == "qr_tdm";
+}();
+
+template <typename T>
+static inline constexpr bool uses_tdm_affine_dram_path_v = []() {
+    if constexpr(is_detected<has_tdm_affine_dram_path, T>::value)
+        return static_cast<bool>(T::kUsesTdmAffineDramPath);
+    else
+        return std::string_view{T::name} == "qr_tdm";
+}();
+
+template <typename T>
+static inline constexpr bool uses_fixed_segmented_lds_arena_v = []() {
+    if constexpr(is_detected<has_fixed_segmented_lds_arena, T>::value)
+        return static_cast<bool>(T::kUsesFixedSegmentedLdsArena);
+    else
+        return false;
+}();
+
 } // namespace detail
 
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
@@ -162,6 +196,12 @@ struct FmhaFwdKernel
     static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
     static constexpr bool kSkipMinSeqlenQ   = FmhaPipeline::Problem::kSkipMinSeqlenQ;
     static constexpr bool kHasSink          = FmhaPipeline::kHasSink;
+    static constexpr bool kUsesUntransposedVKernelPath =
+        detail::uses_untransposed_v_kernel_path_v<FmhaPipeline>;
+    static constexpr bool kUsesTdmAffineDramPath =
+        detail::uses_tdm_affine_dram_path_v<FmhaPipeline>;
+    static constexpr bool kUsesFixedSegmentedLdsArena =
+        detail::uses_fixed_segmented_lds_arena_v<FmhaPipeline>;
 
     static constexpr std::string_view kPipelineName = FmhaPipeline::name;
 
@@ -174,6 +214,23 @@ struct FmhaFwdKernel
 
     static constexpr bool kUseAsyncCopy = FmhaPipeline::Policy::AsyncCopy;
     static constexpr bool kUseTrLoad    = detail::is_using_trload_v<FmhaPipeline>;
+    static constexpr bool kIsTdmSchedD128 =
+        kPipelineName == "qr_tdm_sched" && FmhaPipeline::BlockFmhaShape::kQKHeaddim == 128;
+    // Match qr_tdm plus the validated sched D64/D128 variants. Sched D192 keeps
+    // the existing head-major remap. GetTileIndex additionally requires batch
+    // BHSD, square causal attention, one V tile, and no dropout for this order.
+    static constexpr bool kUseBatchLocalCausalOrder =
+        detail::uses_qr_tdm_lds_arena_v<FmhaPipeline> || kIsTdmSchedD128 ||
+        (kPipelineName == "qr_tdm_sched" && FmhaPipeline::BlockFmhaShape::kQKHeaddim == 64);
+
+#if defined(CK_TILE_FMHA_PAIRED_XCC_ORDER) && CK_TILE_FMHA_PAIRED_XCC_ORDER
+    // Experimental mode 5/tm5r assumes eight XCCs and a specific WG-to-WGP mapping.
+    // Recheck those hardware assumptions before enabling this path on a target machine.
+    static constexpr index_t kPairedXccCount             = 8;
+    static constexpr index_t kPairedXccWgpsPerXcc        = 32;
+    static constexpr index_t kPairedXccFullWgsPerXcc     = 512;
+    static constexpr index_t kPairedXccFullStreamsPerXcc = 8;
+#endif
 
 #if defined(__gfx950__)
     static constexpr bool kIsAvailable = true;
@@ -1425,6 +1482,18 @@ struct FmhaFwdKernel
 
     CK_TILE_HOST static bool IsSupportedArgument([[maybe_unused]] const Kargs& kargs)
     {
+        if constexpr(kPipelineName == "qr_tdm_sched")
+        {
+            // The generated no-virtual-sink specialization omits the finite
+            // sink normalization. kHasSink controls retained mask tokens and
+            // cannot be used to infer whether sink_ptr is present.
+            if constexpr(!FmhaPipeline::kEnableVirtualSink)
+            {
+                if(kargs.sink_ptr != nullptr)
+                    return false;
+            }
+        }
+
         if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
         {
             const bool log = ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING));
@@ -1504,9 +1573,100 @@ struct FmhaFwdKernel
         if constexpr(kIsGroupMode)
             has_padded_seqlen_k = (kargs.seqlen_k_ptr != nullptr);
 
+#if defined(CK_TILE_FMHA_PAIRED_XCC_ORDER) && CK_TILE_FMHA_PAIRED_XCC_ORDER && defined(__gfx1250__)
+        if constexpr(kHasMask)
+        {
+            // Heads vary fastest so concurrent GQA workgroups still share K/V.
+            if(ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1) == 1)
+            {
+                const index_t num_tile_m = has_padded_seqlen_k ? gridDim.z : gridDim.y;
+                const index_t num_batch  = has_padded_seqlen_k ? gridDim.y : gridDim.z;
+                const index_t num_head   = gridDim.x;
+                const index_t linear_id =
+                    blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z);
+                if constexpr(!kIsGroupMode && kIsTdmSchedD128 &&
+                             std::is_same_v<QDataType, ck_tile::bf16_t> &&
+                             FmhaPipeline::BlockFmhaShape::kQKHeaddim == 128 && !kHasDropout &&
+                             !kHasSink && !kHasLogitsSoftCap &&
+                             BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
+                             QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE)
+                {
+                    constexpr index_t kNumXcc  = kPairedXccCount;
+                    constexpr index_t kXccWgps = kPairedXccWgpsPerXcc;
+                    static_assert((kNumXcc & (kNumXcc - 1)) == 0, "NUM_XCC must be a power of two");
+                    // Rows are (batch, q head), batch-major, so a kv head's q heads are adjacent.
+                    const index_t num_row = num_batch * num_head;
+                    // gcd(num_row, kNumXcc): every XCC gets num_row / gcd rows and one of
+                    // `parts` pair stripes of each of them.
+                    const index_t gcd   = ck_tile::min(kNumXcc, num_row & -num_row);
+                    const index_t parts = kNumXcc / gcd;
+                    if(num_tile_m % (2 * parts) == 0)
+                    {
+                        const index_t xcc    = linear_id % kNumXcc;
+                        const index_t slot   = linear_id / kNumXcc;
+                        const index_t rows   = num_row / gcd;
+                        const index_t pairs  = num_tile_m / (2 * parts); // per row and XCC
+                        const index_t deep   = rows * pairs;
+                        const index_t tiles  = 2 * deep;
+                        const index_t first  = xcc * rows;
+                        const index_t stripe = first / num_row;
+                        const index_t row0   = first - stripe * num_row;
+                        // Complementary tile ranks (num_tile_m - 1 - q, q), where
+                        // q = stripe + k * parts, cost num_tile_m + 1 together.
+                        index_t row_off;
+                        index_t k;
+                        bool shallow;
+                        if(tiles <= kPairedXccFullWgsPerXcc &&
+                           rows <= kPairedXccFullStreamsPerXcc * kargs.nhead_ratio_qk)
+                        {
+                            // All of the XCC's tiles, deepest first. If they fit in one fill
+                            // (kXccWgps WGPs x 2 workgroups), queue items s and s + kXccWgps share
+                            // a WGP, so put the shallowest tiles, ascending, after the kXccWgps
+                            // deepest: each deep tile shares its WGP with a short one.
+                            index_t rank = slot;
+                            if(tiles <= 2 * kXccWgps && slot >= kXccWgps)
+                                rank = tiles - 1 - (slot - kXccWgps);
+                            shallow            = rank >= deep;
+                            const index_t r    = shallow ? rank - deep : rank;
+                            const index_t step = r / rows;
+                            row_off            = r - step * rows;
+                            k                  = shallow ? pairs - 1 - step : step;
+                        }
+                        else
+                        {
+                            // One row at a time, deepest first: bounds the concurrent K/V set.
+                            row_off         = slot / (2 * pairs);
+                            const index_t r = slot - row_off * 2 * pairs;
+                            shallow         = r >= pairs;
+                            k               = shallow ? 2 * pairs - 1 - r : r;
+                        }
+                        const index_t q       = stripe + k * parts;
+                        const index_t row     = row0 + row_off;
+                        const index_t i_batch = row / num_head;
+                        const index_t i_nhead = row - i_batch * num_head;
+                        // The divisions above are lowered to VALU; pin the results to SGPRs so
+                        // values derived from them in the main loop stay scalar.
+                        return ck_tile::make_tuple(
+                            amd_wave_read_first_lane(shallow ? q : num_tile_m - 1 - q),
+                            index_t{0},
+                            amd_wave_read_first_lane(i_nhead),
+                            amd_wave_read_first_lane(i_batch));
+                    }
+                    // Plain grid order, deepest tile first. Not the bhsd head-major remap below:
+                    // with num_tile_m % 8 == 0 that one puts equal-depth tiles of different heads
+                    // on the same WGP.
+                    return ck_tile::make_tuple(num_tile_m - 1 - static_cast<index_t>(blockIdx.y),
+                                               index_t{0},
+                                               static_cast<index_t>(blockIdx.x),
+                                               static_cast<index_t>(blockIdx.z));
+                }
+            }
+        }
+#endif
+
 #if CK_TILE_FMHA_FORCE_HEAD_MAJOR
-            // compiler-workaround gate (ROCm 7.1 + gfx12).
-            // Keep head-major enabled for all unaffected kernels.
+        // compiler-workaround gate (ROCm 7.1 + gfx12).
+        // Keep head-major enabled for all unaffected kernels.
 #if defined(__gfx12__) && (HIP_VERSION_MAJOR == 7) && (HIP_VERSION_MINOR == 1)
         constexpr bool kSkipHeadMajor = kIsGroupMode && kHasMask && !kHasDropout &&
                                         (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS) &&
@@ -1528,12 +1688,10 @@ struct FmhaFwdKernel
             {
                 const index_t num_tile_n1 =
                     ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
-                if constexpr(kHasMask && detail::uses_qr_tdm_lds_arena_v<FmhaPipeline> &&
-                             !kIsGroupMode && !kHasDropout)
+                if constexpr(kHasMask && !kIsGroupMode && !kHasDropout && kUseBatchLocalCausalOrder)
                 {
                     // Square causal tiles have monotonically increasing work along Q.
-                    // Visit the longest tiles across all heads first instead of restarting
-                    // the long-to-short sequence at each head. Dense keeps head-major order.
+                    // Visit the longest tiles across all heads within each batch first.
                     if(kargs.seqlen_q == kargs.seqlen_k && kargs.window_size_left < 0 &&
                        kargs.window_size_right == 0 && num_tile_n1 == 1)
                     {
@@ -1701,17 +1859,16 @@ struct FmhaFwdKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         if constexpr(kIsAvailable)
+        {
             run_(std::move(kargs));
+        }
     }
 
     CK_TILE_DEVICE void run_(Kargs kargs) const
     {
-        // qr_tdm shares the same V dram layout convention as qr_async_trload
-        // (V window shape = (kK1, kN1) = (seqlen, hdim_v), no explicit dram
-        // transpose) -- its pipeline expects the else-branch layout. Without
-        // this guard, qr_tdm wrongly falls into the standard transposed path
-        // and PV computes garbage output.
-        if constexpr(kPipelineName != "qr_async_trload" && kPipelineName != "qr_tdm")
+        // Pipelines with native row-major V consume (seqlen, hdim_v) windows
+        // without the explicit DRAM transpose used by the generic path.
+        if constexpr(!kUsesUntransposedVKernelPath)
         {
             // allocate LDS
             __shared__ char smem_ptr[GetSmemSize()];
@@ -2541,9 +2698,8 @@ struct FmhaFwdKernel
                 FmhaPipeline::kM0 > 64 && FmhaPipeline::BlockFmhaShape::kQKHeaddim < 256;
             // divide problem
             const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
-
-            const index_t i_m0 = i_tile_m * FmhaPipeline::kM0;
-            const index_t i_n1 = i_tile_n * FmhaPipeline::kN1;
+            const index_t i_m0                                = i_tile_m * FmhaPipeline::kM0;
+            const index_t i_n1                                = i_tile_n * FmhaPipeline::kN1;
 
             long_index_t batch_offset_q    = 0;
             long_index_t batch_offset_k    = 0; // unused for paged-kvcache
@@ -2694,7 +2850,7 @@ struct FmhaFwdKernel
                         sequence<false, kPadHeadDimQ>{});
 
                     // TDM box-major DMA cannot honor a software XOR layout
-                    // on the dram side, so the qr_tdm pipeline must consume
+                    // on the dram side, so affine-TDM pipelines must consume
                     // an affine pad-only view. Bypass the unmerge/xor/merge_v3
                     // chain below: that chain (i) is dead code for TDM (TDM
                     // box write can't produce XOR'd LDS -- see
@@ -2706,7 +2862,7 @@ struct FmhaFwdKernel
                     // to read garbage rows. Returning the affine naive view
                     // (no head-dim pad) keeps get_lengths()[hdim] at the true
                     // head-dim so the TDM box clamp zero-fills the OOB tail.
-                    if constexpr(kPipelineName == "qr_tdm")
+                    if constexpr(kUsesTdmAffineDramPath)
                     {
                         return q_dram_naive;
                     }
@@ -2836,14 +2992,14 @@ struct FmhaFwdKernel
                     make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                     sequence<false, kPadHeadDimQ>{});
 
-                // Same rationale as the qr_tdm dispatch in make_q_dram above:
+                // Same rationale as the affine-TDM dispatch in make_q_dram above:
                 // TDM box-major DMA can't honor software XOR'd dram views,
                 // the unmerge/xor/merge_v3 chain below is dead code for TDM,
                 // and calculate_offset(unit_vec) would otherwise produce an
                 // XOR-polluted stride. Return the affine naive view (no
                 // head-dim pad) so get_lengths()[hdim] stays at the true
                 // head-dim and the TDM box clamp zero-fills the OOB tail.
-                if constexpr(kPipelineName == "qr_tdm")
+                if constexpr(kUsesTdmAffineDramPath)
                 {
                     return k_dram_naive;
                 }
@@ -2993,14 +3149,10 @@ struct FmhaFwdKernel
                     make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
                     sequence<kPadSeqLenK, false>{});
 
-                // Same rationale as the qr_tdm dispatch in make_q_dram and
-                // make_k_dram above: TDM box-major DMA can't honor software
-                // XOR'd dram views, the unmerge/xor/merge_v3 chain below is
-                // dead code for TDM, and calculate_offset(unit_vec) would
-                // otherwise produce an XOR-polluted stride. Return the naive
-                // view: a pad transform reports the pad rows as real and the
-                // DMA reads past the end of V.
-                if constexpr(kPipelineName == "qr_tdm")
+                // TDM needs affine DRAM strides and the logical sequence bounds;
+                // software padding would make invalid V rows readable by DMA.
+                // LDS padding is configured separately by the pipeline policy.
+                if constexpr(kUsesTdmAffineDramPath)
                 {
                     return v_dram_naive;
                 }
@@ -3098,7 +3250,7 @@ struct FmhaFwdKernel
                             make_tuple(sequence<0>{}, sequence<1, 2>{}),
                             make_tuple(sequence<0>{}, sequence<1>{}));
                     }
-                } // end else (qr_tdm dispatch above returns v_dram_naive early)
+                } // end else (affine-TDM dispatch above returns v_dram_naive early)
             };
 
             const auto v_dram = [&]() {
@@ -3320,7 +3472,26 @@ struct FmhaFwdKernel
             auto o_acc_tile = [&]() {
                 if constexpr(PrefillCase)
                 {
-                    if constexpr(detail::uses_qr_tdm_lds_arena_v<FmhaPipeline>)
+                    if constexpr(kUsesFixedSegmentedLdsArena)
+                    {
+                        using Policy = typename FmhaPipeline::Policy;
+                        static_assert(FmhaPipeline::GetSmemSize() == Policy::GetLdsArenaSize());
+                        __shared__ char smem_arena[Policy::GetLdsArenaSize()];
+                        return invoke_fmha_pipeline(q_dram_window,
+                                                    k_dram_window,
+                                                    v_dram_window,
+                                                    bias_dram_window,
+                                                    lse_dram_window,
+                                                    mask,
+                                                    position_encoding,
+                                                    scale_s,
+                                                    sink_value,
+                                                    smem_arena + Policy::GetLdsOffsetK0(),
+                                                    smem_arena + Policy::GetLdsOffsetK1(),
+                                                    smem_arena + Policy::GetLdsOffsetV0(),
+                                                    smem_arena + Policy::GetLdsOffsetV1());
+                    }
+                    else if constexpr(detail::uses_qr_tdm_lds_arena_v<FmhaPipeline>)
                     {
                         using Layout = typename FmhaPipeline::Policy::template LdsArenaLayout<
                             typename FmhaPipeline::Problem>;
@@ -3424,7 +3595,6 @@ struct FmhaFwdKernel
                 o_dram,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                 {i_m0, i_n1});
-
             EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
         }
     }
