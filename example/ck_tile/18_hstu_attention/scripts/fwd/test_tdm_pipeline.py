@@ -35,11 +35,12 @@ would be checked.
 
     bucket  worst baseline  min mutant  MAX_ERR   runtime
     64      2.93e-3         0.328       1e-2      3 min (222 runs, gfx1250)
+    96      2.93e-3         0.189       7e-3      4 min (222 runs, gfx1250)
     128     1.95e-3         0.152       5e-3      4 min (190 runs, gfx1250)
     256     1.46e-3         0.129       5e-3      5.5 min (222 runs, gfx1250)
 
 The runtime is that of the whole bucket with the kernel check. The slowest single run took
-4.9 s (bucket 256; 6.8 s while the machine was busy compiling); --timeout defaults to 30 s.
+about 5 s (bucket 256; 6.8 s while the machine was busy compiling); --timeout defaults to 30 s.
 
 Mutants (applied out of tree to the Tdm pipelines and rebuilt for the jagged bf16 lse=false
 instances only, so they show on the bf16 training=0 runs of the m64_*, m128_* and
@@ -50,6 +51,7 @@ error per mutant:
 
     bucket  K, V wrong copy; one copy  K, V pad disabled  one kv-tile more  K, V view - 8
     64      inf, 2.0e36, 1.98          2.6e35, inf        0.328             0.425, 1
+    96      420, 4.4e36, 1.98          5.5e35, inf        0.264             0.189, 1
     128     1.59, 3.5e36, 2            1.7e35, inf        0.227             0.152, 0.996
     256     1.77, 5.1e35, 2            1.1e35, inf        0.21              0.129, 1
 
@@ -80,23 +82,25 @@ EXE = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 # hstu_attention_fwd_setting_gfx125.hpp; change both together.
 EXPECTED_TDM_TILES = {
     64: {64: (64, 32, 32, 64, 32, 64), 128: (128, 64, 64, 64, 64, 64)},
+    96: {64: (64, 32, 32, 96, 32, 96), 128: (128, 64, 64, 96, 64, 96)},
     128: {64: (64, 32, 32, 128, 32, 128), 128: (128, 64, 64, 128, 64, 128)},
     256: {64: (128, 32, 32, 256, 32, 256), 128: (128, 32, 32, 256, 32, 256)},
 }
 
 # See the docstring for how these are chosen.
-MAX_ERR = {64: 1e-2, 128: 5e-3, 256: 5e-3}
+MAX_ERR = {64: 1e-2, 96: 7e-3, 128: 5e-3, 256: 5e-3}
 
 # Padded or asymmetric (hdim_qk, hdim_v) pairs per bucket, all multiples of 8. The pairs with
 # qk != v are where a V-side mistake shows: the example fills Q, K and V from one seed, so K
 # and V are equal when qk == v.
 PAIRS = {
     64: [(64, 48), (48, 64), (32, 32)],
+    96: [(96, 80), (72, 96), (80, 72)],
     128: [(128, 112), (112, 128)],
     256: [(256, 192), (160, 256), (200, 192)],
 }
 
-DEFAULT_HDIMS = [64, 128, 256]
+DEFAULT_HDIMS = [64, 96, 128, 256]
 
 BUCKETS = (64, 96, 128, 256)
 

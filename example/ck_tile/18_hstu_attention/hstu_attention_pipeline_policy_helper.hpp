@@ -41,12 +41,13 @@ CK_TILE_HOST_DEVICE constexpr bool IsTdmPaddingValid()
     // requirement -- neither is derivable from anything in this tree, unlike the two above,
     // which come straight from the descriptor's pad_interval:3 / pad_amount:7 bitfields.
     //
-    // is_interval_copyable assumes the engine moves whole 128-byte chunks, so that a padded
-    // interval has to be a whole number of them. No source for the 128 was found in the
-    // descriptor header, the toolchain, or upstream ck_tile; treat it as unconfirmed. It
-    // cannot fire here regardless: GetTdmLdsPaddingConfigFor*Read() below all compute
-    // max(kKBytesPerBlock, BankSpanBytes) with BankSpanBytes = 256, so the interval is always
-    // a power of two >= 256.
+    // is_interval_copyable keeps intervals to whole 64-byte chunks. It used to ask for 128 bytes,
+    // an assumption about how the engine moves data for which no source was found in the
+    // descriptor header, the toolchain, or upstream ck_tile; the hdim96 K interval of 64 bytes
+    // (see GetTdmPadIntervalBytes()) was validated on gfx1250. What reaches it from the callers
+    // below: power-of-two rows give a power of two >= 256, and 192-byte rows (hdim96) give 64
+    // for K and 256 for V. Rows of 80/144/160/224 bytes would give 16 or 32 for K and still
+    // trip it.
     //
     // is_length_aligned restates a property the derivation already guarantees rather than
     // establishing one: PadLengthBytes is ScalarPerVector * sizeof(T), i.e. exactly one Lds
@@ -55,7 +56,7 @@ CK_TILE_HOST_DEVICE constexpr bool IsTdmPaddingValid()
     // literal 16 holds for fp16/bf16 (the only types hstu instantiates); fp32 and
     // non-mixed-precision fp8/bf8 would give 8 and be rejected. Widen or drop this if hstu
     // ever gains those.
-    constexpr bool is_interval_copyable = PadIntervalBytes >= 128 && PadIntervalBytes % 128 == 0;
+    constexpr bool is_interval_copyable = PadIntervalBytes >= 64 && PadIntervalBytes % 64 == 0;
     constexpr bool is_length_aligned    = PadLengthBytes % 16 == 0;
 
     return is_interval_valid && is_length_valid && is_interval_copyable && is_length_aligned;
@@ -73,12 +74,24 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmRawPaddingConfig()
     return make_tuple(number<raw_pad_interval>{}, number<raw_pad_length>{});
 };
 
+// Lds pad interval for one Tdm-staged row of kRowBytes. Power-of-two rows (hdim 64/128/256) keep
+// max(row, bank span). Other rows (hdim96: 192 B) are padded every lowest-set-bit bytes when read
+// as a normal gemm operand (K): measured on gfx1250, a 256 B K interval (and the Lds layout it
+// implies) was up to 19% slower than 64 B. The ds_read_tr side (V) keeps the bank-span rule; 64 B
+// there moved times by <= 1.1%.
+template <index_t kRowBytes, bool kIsNormalRead>
+CK_TILE_HOST_DEVICE constexpr index_t GetTdmPadIntervalBytes()
+{
+    constexpr index_t BankSpanBytes = 64 * 4; // gfx1250 has 64 banks
+    if constexpr(is_power_of_two_integer(kRowBytes) || !kIsNormalRead)
+        return max(kRowBytes, BankSpanBytes);
+    else
+        return kRowBytes & (-kRowBytes);
+}
+
 template <typename WarpGemm, bool IsGemmInputA, index_t kKPerBlock>
 CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForNormalRead()
 {
-    // Tdm only supported by gfx1250, which has 64 banks
-    constexpr index_t BankSpanBytes = 64 * 4;
-
     if constexpr(IsGemmInputA)
     { // access gemm inputA from LDS
         using AEncoding = typename WarpGemm::AWarpDstrEncoding;
@@ -87,7 +100,7 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForNormalRead()
         constexpr index_t ScalarPerVector = AEncoding::detail::ys_lengths_[AEncoding::NDimY - 1];
 
         constexpr index_t kKBytesPerBlock  = kKPerBlock * sizeof(ADataType);
-        constexpr index_t PadIntervalBytes = max(kKBytesPerBlock, BankSpanBytes);
+        constexpr index_t PadIntervalBytes = GetTdmPadIntervalBytes<kKBytesPerBlock, true>();
         constexpr index_t PadLengthBytes   = ScalarPerVector * sizeof(ADataType);
 
         return make_tuple(number<PadIntervalBytes>{}, number<PadLengthBytes>{});
@@ -100,7 +113,7 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForNormalRead()
         constexpr index_t ScalarPerVector = BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
 
         constexpr index_t kKBytesPerBlock  = kKPerBlock * sizeof(BDataType);
-        constexpr index_t PadIntervalBytes = max(kKBytesPerBlock, BankSpanBytes);
+        constexpr index_t PadIntervalBytes = GetTdmPadIntervalBytes<kKBytesPerBlock, true>();
         constexpr index_t PadLengthBytes   = ScalarPerVector * sizeof(BDataType);
 
         return make_tuple(number<PadIntervalBytes>{}, number<PadLengthBytes>{});
@@ -110,9 +123,6 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForNormalRead()
 template <typename WarpGemm, bool IsGemmInputA, index_t kKPerBlock>
 CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForTrLoadRead()
 {
-    // Tdm only supported by gfx1250, which has 64 banks
-    constexpr index_t BankSpanBytes = 64 * 4;
-
     if constexpr(IsGemmInputA)
     { // access gemm inputA from LDS
         using ADataType = typename WarpGemm::ADataType;
@@ -126,7 +136,7 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForTrLoadRead()
         constexpr index_t kAKLane = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
         constexpr index_t kKBytesPerBlock  = kKPerBlock * sizeof(ADataType);
-        constexpr index_t PadIntervalBytes = max(kKBytesPerBlock, BankSpanBytes);
+        constexpr index_t PadIntervalBytes = GetTdmPadIntervalBytes<kKBytesPerBlock, false>();
         constexpr index_t PadLengthBytes   = kAKLane * ScalarPerVector * sizeof(ADataType);
 
         return make_tuple(number<PadIntervalBytes>{}, number<PadLengthBytes>{});
@@ -144,7 +154,7 @@ CK_TILE_HOST_DEVICE constexpr auto GetTdmLdsPaddingConfigForTrLoadRead()
         constexpr index_t kBKLane = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
         constexpr index_t kKBytesPerBlock  = kKPerBlock * sizeof(BDataType);
-        constexpr index_t PadIntervalBytes = max(kKBytesPerBlock, BankSpanBytes);
+        constexpr index_t PadIntervalBytes = GetTdmPadIntervalBytes<kKBytesPerBlock, false>();
         constexpr index_t PadLengthBytes   = kBKLane * ScalarPerVector * sizeof(BDataType);
 
         return make_tuple(number<PadIntervalBytes>{}, number<PadLengthBytes>{});

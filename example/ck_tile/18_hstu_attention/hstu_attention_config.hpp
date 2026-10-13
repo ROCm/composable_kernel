@@ -65,6 +65,8 @@ constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
         return HstuFwdPipelineKind::Tdm;
     else if constexpr(MaxK == 256)
         return HstuFwdPipelineKind::Tdm;
+    else if constexpr(MaxK == 96)
+        return HstuFwdPipelineKind::Tdm;
     else
         return HstuFwdPipelineKind::TrLoad;
 #elif HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
