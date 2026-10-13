@@ -55,6 +55,128 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #endif
     }
 
+    // Per-lane dram offset (elements, within a row) with which a raw (inline-asm) direct-to-LDS
+    // DMA issue kIssue writes the XOR-swizzled LDS layout through a linear [issue, warp, lane]
+    // store: thread t loads the vector that the swizzle puts at its LDS slot. The LDS layout
+    // swizzles on the row within a buffer, so the offset does not depend on the buffer.
+    template <index_t kBlockSize,
+              index_t kRowLength,
+              index_t kVector,
+              index_t kSwizzleUnit,
+              index_t kIssue>
+    CK_TILE_DEVICE static index_t GetDirectLdsSwizzleOffset()
+    {
+        constexpr index_t kThreadsPerRow = kRowLength / kVector;
+        constexpr index_t kGroups        = kRowLength / kSwizzleUnit;
+        constexpr index_t kRowsPerIssue  = kBlockSize / kThreadsPerRow;
+
+        static_assert(kSwizzleUnit % kVector == 0, "Check failed!");
+
+        const uint32_t tid   = get_thread_id();
+        const uint32_t row   = kIssue * kRowsPerIssue + tid / kThreadsPerRow;
+        const index_t group  = tid % kThreadsPerRow * kVector / kSwizzleUnit;
+        const index_t sgroup = group ^ static_cast<index_t>(row % kGroups);
+
+        return (sgroup - group) * kSwizzleUnit;
+    }
+
+    template <typename Problem, index_t kIssue>
+    CK_TILE_DEVICE static index_t GetKDirectLdsSwizzleOffset()
+    {
+        constexpr index_t kRowLength = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        return GetDirectLdsSwizzleOffset<Problem::kBlockSize,
+                                         kRowLength,
+                                         GetAlignmentK<Problem, true /*kUseDirectLds*/>(),
+                                         GetAlignmentK<Problem>(),
+                                         kIssue>();
+    }
+
+    template <typename Problem, index_t kIssue>
+    CK_TILE_DEVICE static index_t GetVDirectLdsSwizzleOffset()
+    {
+        constexpr index_t kRowLength = Problem::HstuAttentionTileSetting::kN1;
+
+        return GetDirectLdsSwizzleOffset<
+            Problem::kBlockSize,
+            kRowLength,
+            GetAlignmentV<Problem, true /*kUseTrLoad*/, true /*kUseDirectLds*/>(),
+            GetAlignmentV<Problem, true /*kUseTrLoad*/>(),
+            kIssue>();
+    }
+
+    // [issues, warps, lanes * vector] view of one LDS buffer of kRows x kRowLength elements
+    // starting at element kOffset of the LDS: the form the raw DMA takes to step M0.
+    template <index_t kBlockSize,
+              index_t kRows,
+              index_t kRowLength,
+              index_t kVector,
+              index_t kOffset>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeDirectLdsRawStoreDescriptor()
+    {
+        constexpr index_t kWarpSize   = get_warp_size();
+        constexpr index_t NumWarps    = kBlockSize / kWarpSize;
+        constexpr index_t LanesPerRow = kRowLength / kVector;
+        constexpr index_t RowsPerWarp = kWarpSize / LanesPerRow;
+        constexpr index_t NumIssues   = kRows / (RowsPerWarp * NumWarps);
+
+        static_assert(NumIssues * RowsPerWarp * NumWarps == kRows, "Check failed!");
+
+        constexpr auto desc_0 = make_naive_tensor_descriptor_with_offset(
+            make_tuple(number<NumIssues>{},
+                       number<NumWarps>{},
+                       number<RowsPerWarp>{},
+                       number<LanesPerRow>{},
+                       number<kVector>{}),
+            make_tuple(number<NumWarps * RowsPerWarp * kRowLength>{},
+                       number<RowsPerWarp * kRowLength>{},
+                       number<kRowLength>{},
+                       number<kVector>{},
+                       number<1>{}),
+            number<kOffset>{},
+            number<kVector>{},
+            number<1>{});
+
+        return transform_tensor_descriptor(
+            desc_0,
+            make_tuple(make_pass_through_transform(number<NumIssues>{}),
+                       make_pass_through_transform(number<NumWarps>{}),
+                       make_merge_transform(make_tuple(
+                           number<RowsPerWarp>{}, number<LanesPerRow>{}, number<kVector>{}))),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+    }
+
+    template <typename Problem, index_t i_buf>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsRawStoreBlockDescriptor(number<i_buf>)
+    {
+        constexpr index_t kN0Sub     = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kQKHeaddim = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        return MakeDirectLdsRawStoreDescriptor<Problem::kBlockSize,
+                                               kN0Sub,
+                                               kQKHeaddim,
+                                               GetAlignmentK<Problem, true /*kUseDirectLds*/>(),
+                                               i_buf * kN0Sub * kQKHeaddim>();
+    }
+
+    // the V buffers follow the K buffers
+    template <typename Problem, index_t i_buf>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsRawStoreBlockDescriptor(number<i_buf>)
+    {
+        constexpr index_t kK1 = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kN1 = Problem::HstuAttentionTileSetting::kN1;
+
+        return MakeDirectLdsRawStoreDescriptor<
+            Problem::kBlockSize,
+            kK1,
+            kN1,
+            GetAlignmentV<Problem, true /*kUseTrLoad*/, true /*kUseDirectLds*/>(),
+            GetSmemSizeK<Problem, true /*kUseDirectLds*/>() /
+                    sizeof(typename Problem::QKVDataType) +
+                i_buf * kK1 * kN1>();
+    }
+
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeQRegTileDistribution()
     {

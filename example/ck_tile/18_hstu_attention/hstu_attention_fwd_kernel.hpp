@@ -914,47 +914,7 @@ struct HstuAttentionFwdKernel
                                                number<HstuAttentionPipeline::kQKHeaddim>{}),
                                     sequence<false, kPadHeadDimQK>{});
 
-                if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionPipeline>)
-                {
-                    constexpr index_t kSwizzleUnit =
-                        lcm(HstuAttentionPipeline::Policy::template GetAlignmentK<
-                                typename HstuAttentionPipeline::Problem,
-                                true /*kUseDirectLds*/>(),
-                            HstuAttentionPipeline::Policy::template GetQKWarpGemmBScalarPerVector<
-                                typename HstuAttentionPipeline::Problem>());
-
-                    auto padded_seqlen_k =
-                        k_dram_pad.get_tensor_descriptor().get_lengths()[number<0>{}];
-
-                    const auto k_dram_unmerged = transform_tensor_view(
-                        k_dram_pad,
-                        make_tuple(make_pass_through_transform(padded_seqlen_k),
-                                   make_unmerge_transform(make_tuple(
-                                       number<HstuAttentionPipeline::kQKHeaddim / kSwizzleUnit>{},
-                                       number<kSwizzleUnit>{}))),
-                        make_tuple(sequence<0>{}, sequence<1>{}),
-                        make_tuple(sequence<0>{}, sequence<1, 2>{}));
-
-                    const auto k_dram_permuted = transform_tensor_view(
-                        k_dram_unmerged,
-                        make_tuple(make_xor_transform(make_tuple(
-                                       padded_seqlen_k,
-                                       number<HstuAttentionPipeline::kQKHeaddim / kSwizzleUnit>{})),
-                                   make_pass_through_transform(number<kSwizzleUnit>{})),
-                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
-
-                    return transform_tensor_view(
-                        k_dram_permuted,
-                        make_tuple(make_pass_through_transform(padded_seqlen_k),
-                                   make_merge_transform_v3_division_mod(make_tuple(
-                                       number<HstuAttentionPipeline::kQKHeaddim / kSwizzleUnit>{},
-                                       number<kSwizzleUnit>{}))),
-                        make_tuple(sequence<0>{}, sequence<1, 2>{}),
-                        make_tuple(sequence<0>{}, sequence<1>{}));
-                }
-                else
-                    return k_dram_pad;
+                return k_dram_pad;
             }
         }();
         const auto v_dram = [&]() {
@@ -992,48 +952,7 @@ struct HstuAttentionFwdKernel
                                                number<HstuAttentionPipeline::kN1>{}),
                                     sequence<false, kPadHeadDimV>{});
 
-                if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionPipeline>)
-                {
-                    constexpr index_t kSwizzleUnit =
-                        lcm(HstuAttentionPipeline::Policy::template GetAlignmentV<
-                                typename HstuAttentionPipeline::Problem,
-                                true /*kUseTrLoad */,
-                                true /* kUseDirectLds */>(),
-                            HstuAttentionPipeline::Policy::template GetPVTWarpGemmBScalarPerVector<
-                                typename HstuAttentionPipeline::Problem>());
-
-                    auto padded_seqlen_v =
-                        v_dram_pad.get_tensor_descriptor().get_lengths()[number<0>{}];
-
-                    const auto v_dram_unmerged = transform_tensor_view(
-                        v_dram_pad,
-                        make_tuple(make_pass_through_transform(padded_seqlen_v),
-                                   make_unmerge_transform(make_tuple(
-                                       number<HstuAttentionPipeline::kN1 / kSwizzleUnit>{},
-                                       number<kSwizzleUnit>{}))),
-                        make_tuple(sequence<0>{}, sequence<1>{}),
-                        make_tuple(sequence<0>{}, sequence<1, 2>{}));
-
-                    const auto v_dram_permuted = transform_tensor_view(
-                        v_dram_unmerged,
-                        make_tuple(make_xor_transform(make_tuple(
-                                       padded_seqlen_v,
-                                       number<HstuAttentionPipeline::kN1 / kSwizzleUnit>{})),
-                                   make_pass_through_transform(number<kSwizzleUnit>{})),
-                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
-
-                    return transform_tensor_view(
-                        v_dram_permuted,
-                        make_tuple(make_pass_through_transform(padded_seqlen_v),
-                                   make_merge_transform_v3_division_mod(make_tuple(
-                                       number<HstuAttentionPipeline::kN1 / kSwizzleUnit>{},
-                                       number<kSwizzleUnit>{}))),
-                        make_tuple(sequence<0>{}, sequence<1, 2>{}),
-                        make_tuple(sequence<0>{}, sequence<1>{}));
-                }
-                else
-                    return v_dram_pad;
+                return v_dram_pad;
             };
         }();
 
