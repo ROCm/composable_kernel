@@ -25,11 +25,12 @@ void add_device_grouped_conv2d_bwd_weight_two_stage_wmma_nhwgc_gkyxc_nhwgk_f16_p
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_f16_instances<
+        device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_instances<
             2,
             NHWGC,
             GKYXC,
             NHWGK,
+            F16,
             ConvBwdWeightDefault,
             BlockGemmPipelineScheduler::Intrawave,
             BlockGemmPipelineVersion::v1>{});

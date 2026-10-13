@@ -72,7 +72,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         using SelectedEpilogue = get_epilogue_t<EpilogueType::CShuffle, GridwiseGemm>;
 
         constexpr index_t LDS_size =
-            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>(get_device_arch());
         __shared__ char p_shared[LDS_size];
 
         const auto block_2_ctile_map_ = typename GridwiseGemm::Block2CTileMap{karg.M, karg.N, 4};
