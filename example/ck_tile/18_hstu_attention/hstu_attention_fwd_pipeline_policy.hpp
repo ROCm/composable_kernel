@@ -312,11 +312,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         {
             if constexpr(kUseXor) // true, used for reading from Lds
             {
-                constexpr index_t kSwizzleUnit = kKVector;
-
                 // On gfx950, GetAlignmentK and ScalePerVector (normal read size) are actually same
-                static_assert(kSwizzleUnit >= GetQKWarpGemmBScalarPerVector<Problem>(),
-                              "Check failed!");
+                constexpr index_t kSwizzleUnit =
+                    lcm(kKVector, GetQKWarpGemmBScalarPerVector<Problem>());
 
                 constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
                                                                                   NumKLdsBuffers,
@@ -596,13 +594,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             if constexpr(kUseXor) // true, used for reading from Lds
             {
-                constexpr index_t kSwizzleUnit =
-                    GetAlignmentV<Problem, true /*kUseTrLoad */, true /*kUseDirectLds */>();
-
                 // On gfx950, AlignmentV is actually bigger than ScalePerVector (trload read size),
-                // but we have to use AlignmentV as swizzle unit
-                static_assert(kSwizzleUnit >= GetPVTWarpGemmBScalarPerVector<Problem>(),
-                              "Check failed!");
+                // thus we have to use AlignmentV as swizzle unit
+                constexpr index_t kSwizzleUnit =
+                    lcm(GetAlignmentV<Problem, true /*kUseTrLoad */, true /*kUseDirectLds */>(),
+                        GetPVTWarpGemmBScalarPerVector<Problem>());
 
                 constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
                                                                                   NumVLdsBuffers,

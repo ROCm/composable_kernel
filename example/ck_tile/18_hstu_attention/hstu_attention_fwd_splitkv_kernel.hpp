@@ -913,8 +913,11 @@ struct HstuAttentionFwdSplitKVKernel
                 if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionPipeline>)
                 {
                     constexpr index_t kSwizzleUnit =
-                        HstuAttentionPipeline::Policy::template GetAlignmentK<
-                            typename HstuAttentionPipeline::Problem>();
+                        lcm(HstuAttentionPipeline::Policy::template GetAlignmentK<
+                                typename HstuAttentionPipeline::Problem,
+                                true /*kUseDirectLds*/>(),
+                            HstuAttentionPipeline::Policy::template GetQKWarpGemmBScalarPerVector<
+                                typename HstuAttentionPipeline::Problem>());
 
                     auto padded_seqlen_k =
                         k_dram_pad.get_tensor_descriptor().get_lengths()[number<0>{}];
@@ -988,9 +991,12 @@ struct HstuAttentionFwdSplitKVKernel
                 if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionPipeline>)
                 {
                     constexpr index_t kSwizzleUnit =
-                        HstuAttentionPipeline::Policy::template GetAlignmentV<
-                            typename HstuAttentionPipeline::Problem,
-                            true /*kUseTrLoad */>();
+                        lcm(HstuAttentionPipeline::Policy::template GetAlignmentV<
+                                typename HstuAttentionPipeline::Problem,
+                                true /*kUseTrLoad */,
+                                true /* kUseDirectLds */>(),
+                            HstuAttentionPipeline::Policy::template GetPVTWarpGemmBScalarPerVector<
+                                typename HstuAttentionPipeline::Problem>());
 
                     auto padded_seqlen_v =
                         v_dram_pad.get_tensor_descriptor().get_lengths()[number<0>{}];
