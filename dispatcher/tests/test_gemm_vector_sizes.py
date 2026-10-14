@@ -185,12 +185,39 @@ class TestResolution(unittest.TestCase):
 
     def test_rejects_unsupported_scope(self):
         for kw, word in [
-            (dict(pipeline="comp_async"), "pipeline"),
-            (dict(epilogue="default"), "epilogue"),
+            (dict(pipeline="preshufflev2"), "pipeline"),
             (dict(variant="grouped_quant"), "variant"),
             (dict(variant="preshuffle", pipeline="preshufflev2"), "variant"),
         ]:
             self.assertIn(word, _resolve("rcr", (1, 1, 8), **kw)[1], kw)
+
+    def test_default_epilogue_narrows_ab_only(self):
+        # Fixed A/B widths live in the pipeline problem; the default epilogue keeps
+        # its own C width (1 for row-major C), so only a narrower C is refused.
+        self.assertEqual(
+            _resolve("rcr", (1, 1, 8), epilogue="default"), ((1, 1, 1), None)
+        )
+        self.assertEqual(
+            _resolve("rrr", (8, 2, 8), epilogue="default"), ((8, 2, 1), None)
+        )
+        self.assertIn(
+            "vector_size_c", _resolve("rcc", (8, 2, 2), epilogue="default")[1]
+        )
+
+    def test_comp_async_widths_follow_the_async_copy(self):
+        # amd_async_global_load_to_lds moves 4/8/12/16 bytes, or 1 byte for 8-bit types.
+        self.assertEqual(
+            _resolve("rcr", (2, 4, 8), pipeline="comp_async"), ((2, 4, 8), None)
+        )
+        self.assertIn(
+            "async copy", _resolve("rcr", (1, 8, 8), pipeline="comp_async")[1]
+        )
+        self.assertIn(
+            "async copy", _resolve("rcr", (8, 1, 8), pipeline="comp_async")[1]
+        )
+        fp8 = dict(dtype_a="fp8", dtype_b="fp8", dtype_c="fp16", pipeline="comp_async")
+        self.assertIsNone(_resolve("rcr", (1, 4, 8), **fp8)[1])
+        self.assertIn("async copy", _resolve("rcr", (2, 16, 8), **fp8)[1])
 
     def test_native_width_skips_sub_element_steps(self):
         # Like CK: fp16 never uses the 4-byte (2-wide) step.
@@ -641,10 +668,12 @@ class TestExpandSweep(unittest.TestCase):
         native = [c for c in cfgs if not any(c.vector_sizes)]
         fixed = [c for c in cfgs if any(c.vector_sizes)]
         self.assertTrue(native and fixed)
-        self.assertTrue(all(c.epilogue == "cshuffle" for c in fixed))
-        self.assertTrue(all(c.name.endswith("_vec1_1_8") for c in fixed))
-        # The CI config also sweeps the default epilogue, which cannot take fixed widths.
-        self.assertTrue(any("epilogue default" in r for r in rejects))
+        # CShuffle narrows only what the problem needs; the default epilogue (also in
+        # the CI config) takes the A/B widths and keeps its own C width, 1 for row C.
+        suffix = {"cshuffle": "_vec1_1_8", "default": "_vec1_1_1"}
+        self.assertEqual({c.epilogue for c in fixed}, set(suffix))
+        self.assertTrue(all(c.name.endswith(suffix[c.epilogue]) for c in fixed))
+        self.assertFalse(any("epilogue default" in r for r in rejects))
         self.assertEqual(len({c.name for c in cfgs}), len(cfgs))
 
     def test_max_kernels_keeps_fixed_width_variants(self):
