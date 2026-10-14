@@ -36,7 +36,9 @@ from arch_specs_generated import get_lds_limit  # noqa: E402
 from codegen_common import (  # noqa: E402
     CommonTypeMappings,
     GFX1250_COMP_ASYNC_PAD_REJECT_REASON,
+    GFX1250_COMPV5_REJECT_REASON,
     gfx1250_comp_async_8bit_warp_tile_k_rejected,
+    gfx1250_pipeline_reject_reason,
 )
 
 TE_GEMM_DIR = DISPATCHER_DIR.parent / "tile_engine" / "ops" / "gemm"
@@ -218,6 +220,31 @@ class TestArchFilterGfx1250Rejects(unittest.TestCase):
                 self.assertFalse(
                     self._valid(arch, pipeline=pipe, epilogue="tdm"), (arch, pipe)
                 )
+
+    def test_compv5_rejected_on_gfx1250_only(self):
+        # compv5 reads BlockGemm::Traits::KPack, which its block GEMM lacks: no build.
+        for epi in ("cshuffle", "default"):
+            self.assertFalse(self._valid(pipeline="compv5", epilogue=epi), epi)
+            self.assertEqual(
+                gfx1250_pipeline_reject_reason(
+                    "gfx1250", "compv5", epi, "intrawave", 4, 32, "bf16", "bf16", "rcr"
+                ),
+                GFX1250_COMPV5_REJECT_REASON,
+            )
+        self.assertEqual(
+            gfx1250_pipeline_reject_reason(
+                "gfx950",
+                "compv5",
+                "cshuffle",
+                "intrawave",
+                4,
+                16,
+                "bf16",
+                "bf16",
+                "rcr",
+            ),
+            "",
+        )
 
     def test_comp_async_layout(self):
         self.assertTrue(
@@ -753,6 +780,45 @@ class TestGemmUtilsSweepGate(unittest.TestCase):
         self.assertEqual(pads, {(True, True, True)})
         self.assertFalse(any(c.pipeline == "comp_async" for c in rrr))
         self.assertTrue(any(c.pipeline == "comp_tdm" for c in rrr))
+
+
+class TestExpandSweepGfx1250Waves(unittest.TestCase):
+    def test_compv3_offers_eight_waves(self):
+        # The 8-warp compv3 miscompile (#11161) was fixed in C++ (#11175), and a gfx12
+        # build without CK_TILE_USE_WMMA fails a static_assert instead of running wrong.
+        import gemm_utils
+
+        tile = {
+            "tile_m": [128],
+            "tile_n": [128],
+            "tile_k": [64],
+            "warp_m": [2, 4],
+            "warp_n": [2, 4],
+            "warp_k": [1],
+            "warp_tile_m": [16],
+            "warp_tile_n": [16],
+            "warp_tile_k": [32],
+        }
+        trait = {
+            "pipeline": ["compv3", "compv5"],
+            "epilogue": ["cshuffle"],
+            "scheduler": ["intrawave"],
+            "pad_m": [True],
+            "pad_n": [True],
+            "pad_k": [True],
+            "persistent": [False],
+        }
+        cfg = {
+            "tile_config": {k: {"values": v} for k, v in tile.items()},
+            "trait_config": {k: {"values": v} for k, v in trait.items()},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "cfg.json"
+            path.write_text(json.dumps(cfg))
+            got = gemm_utils.expand_sweep(str(path), "gfx1250", "bf16", "rcr")
+        waves = {(c.wave_m, c.wave_n, c.wave_k) for c in got if c.pipeline == "compv3"}
+        self.assertTrue({(2, 4, 1), (4, 2, 1)} <= waves, waves)
+        self.assertFalse(any(c.pipeline == "compv5" for c in got))
 
 
 _CPP_PROBE = r"""

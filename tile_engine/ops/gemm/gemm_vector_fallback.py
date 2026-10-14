@@ -21,6 +21,7 @@ from codegen_common import (
     CommonTypeMappings,
     VECTOR_SIZE_VARIANTS,
     gemm_contiguous_dims,
+    gemm_pipeline_skips_launch_checks,
     gemm_problem_vector_sizes,
     gemm_tile_divides_problem,
     gemm_vector_size_sweep,
@@ -58,7 +59,12 @@ def _base_key(cfg):
 
 
 def _tile_fits(cfg, dims):
-    """Mirrors the kernel's check: an unpadded contiguous extent must be a tile multiple."""
+    """Mirrors the kernel's check: an unpadded contiguous extent must be a tile multiple.
+
+    Pipelines that skip the kernel's launch checks (TDM) clip instead and fit any shape.
+    """
+    if gemm_pipeline_skips_launch_checks(cfg.pipeline):
+        return True
     return gemm_tile_divides_problem(
         m=dims["m"],
         n=dims["n"],

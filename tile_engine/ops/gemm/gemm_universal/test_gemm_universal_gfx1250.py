@@ -311,7 +311,9 @@ class TestTileEngineGolden(unittest.TestCase):
 
     def test_tdm_with_pad_raises(self):
         for pipeline in TDM_PIPELINES:
-            with self.assertRaisesRegex(ValueError, "TDM bounds-clips"):
+            with self.assertRaisesRegex(
+                ValueError, "padded TDM kernel would duplicate"
+            ):
                 self._instance(pipeline, "tdm", pad=True)
 
     def test_comp_async_non_rc_layout_raises(self):

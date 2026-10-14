@@ -1022,10 +1022,14 @@ def _vector_geometry(
     a_row, b_row, c_row = (ch == "r" for ch in layout[:3])
     a_yx = (tile_m, tile_k) if a_row else (tile_k, tile_m)
     b_yx = (tile_k, tile_n) if b_row else (tile_n, tile_k)
+    if epilogue == "tdm":
+        # The tdm epilogue implies a TDM pipeline (gfx1250_pipeline_reject_reason).
+        # TDM moves A/B/C with the Tensor Data Mover, not per-thread vector loads:
+        # GetVectorSizeA/B/C all return 1, so no extent needs alignment.
+        native = (1, 1, 1)
+        return native, a_yx, b_yx, c_row, block_size, warp_size, (ea, eb, ec)
     if epilogue == "default":
         native_c = gemm_default_epilogue_vector_size(dtype_a, layout, gfx_arch)
-    elif epilogue == "tdm":
-        native_c = 1  # TdmEpilogue::GetVectorSizeC
     else:
         native_c = min(
             (warp_tile[1] * warp_n) if c_row else (warp_tile[0] * warp_m), 16 // ec
@@ -1274,10 +1278,31 @@ def gfx1250_comp_async_8bit_warp_tile_k_rejected(dtype_a, dtype_b, warp_tile_k) 
 # separate kernel family and is not gated here).
 GFX1250_ARCH = "gfx1250"
 TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2")
+
+
+def gemm_pipeline_skips_launch_checks(pipeline: str) -> bool:
+    """Mirror of a pipeline's ``skipCheckValidLaunchParams`` (the TDM pipelines).
+
+    For these ``UniversalGemmKernel::IsSupportedArgument`` accepts every problem
+    without checking tile divisibility or vector alignment: TDM clips each box to
+    the tensor's real extent and moves A/B/C at width 1, so an unpadded kernel
+    serves any M, N, K. Pairing and the dispatcher's own gate follow the kernel.
+    """
+    return pipeline in TDM_PIPELINES
+
+
 GFX1250_ONLY_PIPELINES = ("comp_async",) + TDM_PIPELINES
 TDM_PAD_REJECT_REASON = (
-    "TDM bounds-clips on real descriptor extents; kPad right-pad transforms "
-    "inflate them, so TDM requires pad_m=pad_n=pad_k=False"
+    "TDM clips every box to the pre-pad extent (tdm_real_lengths), so kPad is a "
+    "no-op and a padded TDM kernel would duplicate the unpadded one, which already "
+    "serves every shape: TDM requires pad_m=pad_n=pad_k=False"
+)
+# GemmPipelineAgBgCrCompV5 sizes its C LDS view with BlockGemm::Traits::KPack, but
+# its block GEMM (BlockGemmARegBRegCRegV1) defines only KPackA/KPackB, so no compv5
+# kernel compiles. Verified on gfx1250; the block GEMM is the same on every arch.
+GFX1250_COMPV5_REJECT_REASON = (
+    "compv5 does not compile on gfx1250: its pipeline reads BlockGemm::Traits::KPack, "
+    "which BlockGemmARegBRegCRegV1 does not define"
 )
 GFX1250_COMP_ASYNC_LAYOUT_REJECT_REASON = (
     "comp_async on gfx1250 requires A row-major and B col-major (transpose-load "
@@ -1345,7 +1370,7 @@ def gfx1250_pipeline_reject_reason(
     persistent: bool = False,
     pads: Optional[Tuple[bool, bool, bool]] = None,
 ) -> str:
-    """Why a comp_async / comp_tdm* / tdm-epilogue GEMM config is rejected.
+    """Why a comp_async / comp_tdm* / tdm-epilogue (or gfx1250 compv5) GEMM config is rejected.
 
     Single source of truth for the non-MX GEMM rules shared by
     unified_gemm_codegen, arch_filter and python/gemm_utils. Returns "" when
@@ -1359,6 +1384,8 @@ def gfx1250_pipeline_reject_reason(
     warp_tile_k rule.
     """
     is_tdm = pipeline in TDM_PIPELINES
+    if pipeline == "compv5" and normalize_gfx_arch(gpu_target).lower() == GFX1250_ARCH:
+        return GFX1250_COMPV5_REJECT_REASON
     if pipeline not in GFX1250_ONLY_PIPELINES and epilogue != "tdm":
         return ""
     if epilogue == "tdm" and not is_tdm:
