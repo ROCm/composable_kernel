@@ -165,12 +165,54 @@ def test_worker_verifies_an_exact_kernel(monkeypatch, capsys, kind, dtype, use_o
     worker, cls, problem = WORKERS[kind]
     runner = _runner(dtype, use_ocp, cls=cls)
     monkeypatch.setattr(worker, cls.__name__, lambda **kw: runner)
-    if hasattr(worker._run_one, "_ab_cache"):
-        monkeypatch.delattr(worker._run_one, "_ab_cache")
+    for cache in ("_ab_cache", "_ref_cache"):
+        if hasattr(worker._run_one, cache):
+            monkeypatch.delattr(worker._run_one, cache)
     worker._run_one(0, "fake.so", problem, runner.kernel_name, verify=True)
     out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert out["ok"] and out["verified"], out
     assert out["max_rel"] < _c_eps(dtype)
+
+
+def test_gemm_worker_reuses_the_reference_per_shape_and_encoding(monkeypatch, capsys):
+    # The host matmul depends only on the shape's inputs and their encoding
+    # (dtype, fp8 format), never on the kernel, so a sweep computes it once per
+    # shape. Kernels with another layout reuse it; the batch below also mixes
+    # encodings, which a real sweep never does, to show those are kept apart.
+    worker = run_one_gemm_kernel
+    for cache in ("_ab_cache", "_ref_cache"):
+        if hasattr(worker._run_one, cache):
+            monkeypatch.delattr(worker._run_one, cache)
+    calls = []
+    reference = GpuGemmRunner.reference
+    monkeypatch.setattr(
+        GpuGemmRunner,
+        "reference",
+        lambda self, A, B: calls.append(self.kernel_name) or reference(self, A, B),
+    )
+    other = {"M": 32, "N": 64, "K": 128}
+    items = [
+        (_runner("bf16", None), PROBLEM),
+        (_runner("bf16", None, layout="crr"), PROBLEM),
+        (_runner("fp8", False), PROBLEM),
+        (_runner("fp8", True), PROBLEM),
+        (_runner("bf16", None), other),
+        (_runner("bf16", None, layout="ccr"), PROBLEM),
+    ]
+    for idx, (runner, problem) in enumerate(items):
+        monkeypatch.setattr(worker, "GpuGemmRunner", lambda **kw: runner)
+        worker._run_one(idx, "fake.so", problem, runner.kernel_name, verify=True)
+    outs = [json.loads(line) for line in capsys.readouterr().out.strip().splitlines()]
+    assert len(outs) == len(items)
+    for out, (runner, _) in zip(outs, items):
+        assert out["ok"] and out["verified"], out
+        assert out["max_rel"] < _c_eps(_dtype_of(runner)), out
+    # bf16 on PROBLEM, fp8 FNUZ, fp8 OCP, bf16 on the other shape
+    assert len(calls) == 4, calls
+
+
+def _dtype_of(runner):
+    return runner.kernel_name.split("_")[1]
 
 
 # ------------------------------------------------------------- exit code
