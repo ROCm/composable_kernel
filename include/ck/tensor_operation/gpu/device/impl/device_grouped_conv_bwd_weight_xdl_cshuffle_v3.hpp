@@ -1577,7 +1577,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 const auto num_k_loop = gemm_arg.AK0 / (K0PerBlock / K1);
                 if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
                 {
-                    if(num_k_loop <= GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages)
+                    if(num_k_loop <= GridwiseGemm32::BlockwiseGemmPipe::PrefetchStages)
                     {
                         return false;
                     }
