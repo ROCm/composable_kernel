@@ -164,6 +164,15 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             if constexpr(kVecLoad == 4 * (ElemPerThread / kVecLoad))
                 return kVecLoad / 2;
 
+            // special treatment for hdim96
+            if constexpr((std::is_same_v<VDataType, half_t> || std::is_same_v<VDataType, bf16_t>) &&
+                         kNPerBlock == 96)
+            {
+                // VectorSize 3 not permitted since buffer_load_dword requires a multiplier of dword
+                if(kVecLoad == 3)
+                    return 6;
+            }
+
             return kVecLoad;
         }
         else
