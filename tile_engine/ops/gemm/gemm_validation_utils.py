@@ -46,8 +46,9 @@ GEMM_PIPELINES_BY_ARCH = {
 GFX1250_ONLY_PIPELINE_ARCH = "gfx1250"
 
 TDM_PAD_REJECT_REASON = (
-    "TDM bounds-clips on real descriptor extents; kPad right-pad transforms "
-    "inflate them, so TDM requires pad_m=pad_n=pad_k=False"
+    "TDM clips every box to the pre-pad extent (tdm_real_lengths), so kPad is a "
+    "no-op and a padded TDM kernel would duplicate the unpadded one, which already "
+    "serves every shape: TDM requires pad_m=pad_n=pad_k=False"
 )
 GFX1250_COMP_ASYNC_LAYOUT_REJECT_REASON = (
     "comp_async on gfx1250 requires A row-major and B col-major (transpose-load "
@@ -563,7 +564,8 @@ def is_trait_combination_valid(
             if pipeline in GEMM_TDM_PIPELINES:
                 # TDM: intrawave only, TdmEpilogue only, no persistent kernel
                 # (TdmEpilogue has no split-K / persistent write path), and no
-                # padding (see TDM_PAD_REJECT_REASON).
+                # padding, which would only duplicate the unpadded kernel (see
+                # TDM_PAD_REJECT_REASON).
                 if tdm_pad_reject_reason(pipeline, epilogue, pad_m, pad_n, pad_k):
                     logging.debug(f"{pipeline}: {TDM_PAD_REJECT_REASON}")
                     return False

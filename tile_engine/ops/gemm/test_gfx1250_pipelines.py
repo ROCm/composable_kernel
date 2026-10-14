@@ -507,7 +507,9 @@ class TestBuilderGolden(_BuilderCase):
                     (False, True, False),
                     (False, False, True),
                 ):
-                    with self.assertRaisesRegex(ValueError, "TDM bounds-clips"):
+                    with self.assertRaisesRegex(
+                        ValueError, "padded TDM kernel would duplicate"
+                    ):
                         self._gen(prefix, pipeline, "tdm", pads=pads)
             # comp_async requires full padding.
             code = self._gen(prefix, "comp_async", "cshuffle", pads=(True,) * 3)

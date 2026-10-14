@@ -286,6 +286,67 @@ class TestNativeEpilogueWidths(unittest.TestCase):
         self.assertEqual(fallback.pairs(problems, [(cfg, Path("built.so"))]), [[0], []])
 
 
+class TestTdmWidthsAndPairing(unittest.TestCase):
+    """TDM moves A/B/C at width 1 and clips to real extents (skipCheckValidLaunchParams)."""
+
+    def _tdm(self, pipeline="comp_tdm"):
+        cfg, _ = _bridge_config(vec=(0, 0, 0), pipeline=pipeline)
+        return replace(
+            cfg,
+            epilogue="tdm",
+            pad_m=False,
+            pad_n=False,
+            pad_k=False,
+            gfx_arch="gfx1250",
+            warp_tile_m=16,
+            warp_tile_n=16,
+            warp_tile_k=32,
+        )
+
+    def test_tdm_native_widths_are_one(self):
+        for layout in ("rcr", "rrr", "crr", "ccr"):
+            got = gemm_native_vector_sizes(
+                dtype_a="bf16",
+                dtype_b="bf16",
+                dtype_c="bf16",
+                layout=layout,
+                gfx_arch="gfx1250",
+                epilogue="tdm",
+                **TILE,
+            )
+            self.assertEqual(got, (1, 1, 1), layout)
+        self.assertEqual(self._tdm().effective_vector_sizes, (1, 1, 1))
+
+    def test_tdm_requested_widths_canonicalize_to_native(self):
+        vec, reason = _resolve(
+            "rcr", (1, 1, 8), epilogue="tdm", pipeline="comp_tdm", gfx_arch="gfx1250"
+        )
+        self.assertEqual((vec, reason), ((0, 0, 0), None))
+
+    def test_unpadded_tdm_pairs_every_shape(self):
+        problems = [
+            {"M": 512, "N": 512, "K": 512},
+            {"M": 513, "N": 515, "K": 517},
+            {"M": 1031, "N": 1, "K": 777},
+            {"M": 777, "N": 1031, "K": 1},
+        ]
+        for pipeline in ("comp_tdm", "comp_tdm_v2"):
+            cfg = self._tdm(pipeline)
+            for p in problems:
+                self.assertTrue(
+                    _tile_fits(cfg, {d.lower(): p[d] for d in "MNK"}), (pipeline, p)
+                )
+            fallback = VectorFallback(problems, "rcr", "bf16", "standard")
+            self.assertEqual(
+                fallback.pairs(problems, [(cfg, Path("built.so"))]), [[0]] * 4
+            )
+
+    def test_non_tdm_still_needs_tile_multiples(self):
+        cfg, _ = _bridge_config(vec=(0, 0, 0))
+        cfg = replace(cfg, pad_m=False, pad_n=False, pad_k=False)
+        self.assertFalse(_tile_fits(cfg, {"m": 256, "n": 256, "k": 520}))
+
+
 class TestFixedWidthLdsCapacity(unittest.TestCase):
     def test_gfx950_reported_tiles(self):
         # The reported cutoff is the 160 KiB gfx950 capacity, not a tile-size
@@ -790,7 +851,9 @@ class TestTileFitsDelegation(unittest.TestCase):
     def _cfg(self, **over):
         pads = dict(pad_m=True, pad_n=False, pad_k=False)
         pads.update(over)
-        return SimpleNamespace(layout=self.LAYOUT, **self.TILE, **pads)
+        return SimpleNamespace(
+            layout=self.LAYOUT, pipeline="compv3", **self.TILE, **pads
+        )
 
     def test_baseline_is_false_on_the_k_check(self):
         self.assertFalse(_tile_fits(self._cfg(), self.DIMS))
