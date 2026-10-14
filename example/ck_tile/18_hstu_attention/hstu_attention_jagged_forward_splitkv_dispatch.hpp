@@ -60,6 +60,15 @@ struct jagged_forward_splitkv_dispatch
     using HstuAttentionFwdTileSetting =
         decltype(GetHstuAttentionFwdTileSetting<MaxK, MTile, kUseSoftmax, kUseCausal>());
 #endif
+
+    // Tile setting of the direct-to-LDS pipeline instance (see
+    // GetHstuAttentionFwdDirectLdsTileSetting)
+#if defined(__hstu_gfx95__)
+    using HstuAttentionFwdTileSettingDirectLds =
+        decltype(GetHstuAttentionFwdDirectLdsTileSetting<MaxK, MTile, kUseSoftmax, kUseCausal>());
+#else
+    using HstuAttentionFwdTileSettingDirectLds = HstuAttentionFwdTileSetting;
+#endif
     using HstuAttentionCombineTileSetting =
         decltype(GetHstuAttentionFwdSplitKVCombineTileSetting<MaxK>());
 
@@ -78,6 +87,22 @@ struct jagged_forward_splitkv_dispatch
         kUseSoftmax,
         kStoreLSE,
         HstuAttentionFwdTileSetting>;
+
+    template <bool kIsCrossAttention>
+    using HstuFwdPipelineProblemDirectLdsTemp = ck_tile::HstuAttentionFwdPipelineProblem<
+        InOutDataType,
+        typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType,
+        typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType,
+        typename HstuAttentionFwdTypeConfig<InOutDataType>::BiasDataType,
+        kIsCrossAttention,
+        false, // kUseGroup
+        true,  // kIsJagged
+        kHasBias,
+        kHasDropout,
+        kUseCausal,
+        kUseSoftmax,
+        kStoreLSE,
+        HstuAttentionFwdTileSettingDirectLds>;
 
     using OaccDataType = HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType;
     using ODataType    = HstuAttentionFwdTypeConfig<InOutDataType>::ODataType;
@@ -127,6 +152,8 @@ struct jagged_forward_splitkv_dispatch
 
                 BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
                     using HstuPipelineProblem = HstuFwdPipelineProblemTemp<kIsCrossAttention>;
+                    using HstuDirectLdsPipelineProblem =
+                        HstuFwdPipelineProblemDirectLdsTemp<kIsCrossAttention>;
 
                     if constexpr(kPipelineKind == HstuFwdPipelineKind::Default)
                     {
@@ -162,11 +189,11 @@ struct jagged_forward_splitkv_dispatch
                         // we only use async_load_tile() for K/V when its maximum vector_size is
                         //  dwordx4 (ToDO: use dwordx3 when hdim is 96)
                         constexpr ck_tile::index_t k_vector_bytes =
-                            HstuPipelineProblem::GetKDramTileAccessMaxVectorSize(
+                            HstuDirectLdsPipelineProblem::GetKDramTileAccessMaxVectorSize(
                                 ck_tile::bool_constant<true>{}) *
                             sizeof(InOutDataType);
                         constexpr ck_tile::index_t v_vector_bytes =
-                            HstuPipelineProblem::GetVDramTileAccessMaxVectorSize(
+                            HstuDirectLdsPipelineProblem::GetVDramTileAccessMaxVectorSize(
                                 ck_tile::bool_constant<true>{}) *
                             sizeof(InOutDataType);
 
@@ -184,10 +211,10 @@ struct jagged_forward_splitkv_dispatch
                             using HstuPipeline = std::conditional_t<
                                 kUseSoftmax,
                                 ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad<
-                                    HstuPipelineProblem,
+                                    HstuDirectLdsPipelineProblem,
                                     HstuTraits>,
                                 ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad<
-                                    HstuPipelineProblem,
+                                    HstuDirectLdsPipelineProblem,
                                     HstuTraits>>;
 
                             using HstuKernel =
