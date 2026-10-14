@@ -1109,6 +1109,7 @@ llvm_amdgcn_raw_buffer_load_i32x2(int32x4_t srsrc,
 union dwordx3_union
 {
     int32_t as_i32[3];
+    float as_fp32[3];
     fp16_t as_fp16[6];
     bf16_t as_bf16[6];
 };
@@ -1243,6 +1244,25 @@ llvm_amdgcn_raw_buffer_store_i32x2(int32x2_t vdata,
                                    index_t voffset,
                                    index_t soffset,
                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i32");
+
+CK_TILE_DEVICE_EXTERN void
+llvm_amdgcn_raw_buffer_store_i32x3_(int32x3_t vdata,
+                                    int32x4_t rsrc,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v3i32");
+
+CK_TILE_DEVICE_EXTERN void llvm_amdgcn_raw_buffer_store_i32x3(dwordx3_union vdata,
+                                                              int32x4_t rsrc,
+                                                              index_t voffset,
+                                                              index_t soffset)
+{
+    int32x3_t v_reg;
+    v_reg[0] = vdata.as_i32[0];
+    v_reg[1] = vdata.as_i32[1];
+    v_reg[2] = vdata.as_i32[2];
+    llvm_amdgcn_raw_buffer_store_i32x3_(v_reg, rsrc, voffset, soffset, 0);
+};
 
 CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_i32x4(int32x4_t vdata,
@@ -1521,7 +1541,8 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
 {
     static_assert(
         (std::is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-            (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same<T, float>::value &&
+             (N == 1 || N == 2 || N == 3 || N == 4 || N == 6 || N == 8 || N == 16)) ||
             (std::is_same<T, tf32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp16_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 6 || N == 8 || N == 16 || N == 32)) ||
@@ -1561,6 +1582,26 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                    src_wave_addr_offset,
                                                    static_cast<index_t>(coherence)));
         }
+        else if constexpr(N == 3)
+        {
+            // N = 3: load as dwordx3 (12 bytes = 3 fp32), using buffer_load_dwordx3 instruction
+            int32x3_t tmp_i32x3 =
+                llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset,
+                                                  static_cast<index_t>(coherence));
+
+            // Use union to reinterpret int32x3 as fp32x3
+            dwordx3_union tmp_union;
+            tmp_union.as_i32[0] = tmp_i32x3[0];
+            tmp_union.as_i32[1] = tmp_i32x3[1];
+            tmp_union.as_i32[2] = tmp_i32x3[2];
+
+            thread_buffer<float, N> result;
+            static_for<0, N, 1>{}([&](auto i) { result[i] = tmp_union.as_fp32[i]; });
+
+            return result;
+        }
         else if constexpr(N == 4)
         {
             return bit_cast<rtn_type>(
@@ -1568,6 +1609,38 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                    src_thread_addr_offset,
                                                    src_wave_addr_offset,
                                                    static_cast<index_t>(coherence)));
+        }
+        else if constexpr(N == 6)
+        {
+            // N = 6: load as two dwordx3 (12 bytes = 3 fp32 each), using buffer_load_dwordx3
+            // instruction. Implementing N = 6 as N = 3 + N = 3 avoids the unaligned fp32x4
+            // reinterpretation of thread_buffer<float, 6> (24 is not a multiple of 16).
+            int32x3_t tmp_i32x3_lo =
+                llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset,
+                                                  static_cast<index_t>(coherence));
+
+            int32x3_t tmp_i32x3_hi =
+                llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset + 3 * sizeof(float),
+                                                  static_cast<index_t>(coherence));
+
+            // Use union to reinterpret each int32x3 as fp32x3
+            dwordx3_union tmp_union_lo, tmp_union_hi;
+            static_for<0, 3, 1>{}([&](auto i) {
+                tmp_union_lo.as_i32[i] = tmp_i32x3_lo[i.value];
+                tmp_union_hi.as_i32[i] = tmp_i32x3_hi[i.value];
+            });
+
+            thread_buffer<float, N> result;
+            static_for<0, 3, 1>{}([&](auto i) {
+                result[i]                     = tmp_union_lo.as_fp32[i];
+                result[number<i.value + 3>{}] = tmp_union_hi.as_fp32[i];
+            });
+
+            return result;
         }
         else if constexpr(N == 8)
         {
@@ -2060,9 +2133,12 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
 {
     static_assert(
         (std::is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-            (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, fp16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, bf16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same<T, float>::value &&
+             (N == 1 || N == 2 || N == 3 || N == 4 || N == 6 || N == 8 || N == 16)) ||
+            (std::is_same<T, fp16_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 6 || N == 8 || N == 16)) ||
+            (std::is_same<T, bf16_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 6 || N == 8 || N == 16)) ||
             (std::is_same<T, int32_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
@@ -2091,6 +2167,14 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
                                                 dst_wave_addr_offset,
                                                 static_cast<index_t>(coherence));
         }
+        else if constexpr(N == 3)
+        {
+            // N = 3: store as dwordx3 (12 bytes = 3 fp32), using buffer_store_dwordx3 instruction
+            llvm_amdgcn_raw_buffer_store_i32x3(bit_cast<dwordx3_union>(src_thread_data),
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset);
+        }
         else if constexpr(N == 4)
         {
             llvm_amdgcn_raw_buffer_store_fp32x4(bit_cast<fp32x4_t>(src_thread_data),
@@ -2098,6 +2182,26 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset,
                                                 static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 6)
+        {
+            // N = 6: store as two dwordx3 (12 bytes = 3 fp32 each), using buffer_store_dwordx3
+            // instruction. Implementing N = 6 as N = 3 + N = 3 avoids the unaligned fp32x4
+            // reinterpretation of thread_buffer<float, 6> (24 is not a multiple of 16).
+            dwordx3_union tmp_union_lo, tmp_union_hi;
+            static_for<0, 3, 1>{}([&](auto i) {
+                tmp_union_lo.as_fp32[i] = src_thread_data[i];
+                tmp_union_hi.as_fp32[i] = src_thread_data[number<i.value + 3>{}];
+            });
+
+            llvm_amdgcn_raw_buffer_store_i32x3(tmp_union_lo,
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset);
+            llvm_amdgcn_raw_buffer_store_i32x3(tmp_union_hi,
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset + 3 * sizeof(float));
         }
         else if constexpr(N == 8)
         {
@@ -2141,6 +2245,14 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
                                                 dst_wave_addr_offset,
                                                 static_cast<index_t>(coherence));
         }
+        else if constexpr(N == 6)
+        {
+            // N = 6: store as dwordx3 (12 bytes = 6 fp16), using buffer_store_dwordx3 instruction
+            llvm_amdgcn_raw_buffer_store_i32x3(bit_cast<dwordx3_union>(src_thread_data),
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset);
+        }
         else if constexpr(N == 8)
         {
             llvm_amdgcn_raw_buffer_store_fp32x4(bit_cast<fp32x4_t>(src_thread_data),
@@ -2175,6 +2287,14 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
                                                dst_thread_addr_offset,
                                                dst_wave_addr_offset,
                                                static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 6)
+        {
+            // N = 6: store as dwordx3 (12 bytes = 6 bf16), using buffer_store_dwordx3 instruction
+            llvm_amdgcn_raw_buffer_store_i32x3(bit_cast<dwordx3_union>(src_thread_data),
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset);
         }
         else if constexpr(N == 8)
         {
