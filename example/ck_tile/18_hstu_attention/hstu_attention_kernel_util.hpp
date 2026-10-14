@@ -48,7 +48,8 @@ struct has_use_tdm_flag<
 template <typename T>
 static inline constexpr bool is_using_tdm_v = has_use_tdm_flag<T>::value;
 
-// A helper struct for detection
+// A helper struct for detecting kUseDirectLds (the direct-to-LDS pipelines).
+// T is the pipeline class used by the kernel instance
 template <typename T, typename = void>
 struct has_direct_lds_pipeline_flag : std::false_type
 {
@@ -64,6 +65,39 @@ struct has_direct_lds_pipeline_flag<
 
 template <typename T>
 static inline constexpr bool is_direct_lds_pipeline_v = has_direct_lds_pipeline_flag<T>::value;
+
+// [rows, kRowLength] view with the kSwizzleUnit-element groups of row r XORed by
+// r % (kRowLength / kSwizzleUnit). The direct-to-LDS pipelines write LDS linearly and read it
+// through the same XOR swizzle (MakeSimplySwizzledNativeDesc), so their K/V dram views apply the
+// XOR on the way in.
+template <index_t kRowLength, index_t kSwizzleUnit, typename TensorView>
+CK_TILE_DEVICE auto make_direct_lds_xor_dram_view(const TensorView& view)
+{
+    constexpr index_t kGroups = kRowLength / kSwizzleUnit;
+
+    const auto rows = view.get_tensor_descriptor().get_lengths()[number<0>{}];
+
+    const auto unmerged = transform_tensor_view(
+        view,
+        make_tuple(make_pass_through_transform(rows),
+                   make_unmerge_transform(make_tuple(number<kGroups>{}, number<kSwizzleUnit>{}))),
+        make_tuple(sequence<0>{}, sequence<1>{}),
+        make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+    const auto permuted =
+        transform_tensor_view(unmerged,
+                              make_tuple(make_xor_transform(make_tuple(rows, number<kGroups>{})),
+                                         make_pass_through_transform(number<kSwizzleUnit>{})),
+                              make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                              make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+    return transform_tensor_view(permuted,
+                                 make_tuple(make_pass_through_transform(rows),
+                                            make_merge_transform_v3_division_mod(make_tuple(
+                                                number<kGroups>{}, number<kSwizzleUnit>{}))),
+                                 make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                                 make_tuple(sequence<0>{}, sequence<1>{}));
+}
 
 // scale is uniform (scalar register), c is per-lane (vector register)
 // GFX9 VOP2: V_MUL_F32 VDST, SRC0, SRC1 - SRC0 can be SGPR, SRC1 must be VGPR

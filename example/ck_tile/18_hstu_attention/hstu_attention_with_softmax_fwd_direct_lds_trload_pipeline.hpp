@@ -119,11 +119,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
 
     // Per-issue state of a raw direct-to-LDS DMA into lds_tile (an [issue, warp, lane] LDS window)
     // from dram_window, computed once: each issue's M0 (the wave's LDS destination) and its
-    // per-lane dram element offset, lane_offsets (the swizzle) included.
-    template <typename LdsTileWindow, typename DramTileWindow, typename LaneOffsets>
+    // per-lane dram element offset. The kernel's K/V dram views are XOR-swizzled
+    // (make_direct_lds_xor_dram_view), so these offsets already write the swizzled LDS layout.
+    template <typename LdsTileWindow, typename DramTileWindow>
     CK_TILE_DEVICE static auto MakeDirectLdsIssues(const LdsTileWindow& lds_tile,
-                                                   const DramTileWindow& dram_window,
-                                                   const LaneOffsets& lane_offsets)
+                                                   const DramTileWindow& dram_window)
     {
         using LdsDataType  = typename LdsTileWindow::DataType;
         using WindowTraits = typename DramTileWindow::Traits;
@@ -168,7 +168,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
             constexpr index_t i = decltype(i_access)::value;
 
             m0(i_access)      = m0_base + i * size_per_issue;
-            voffset(i_access) = bottom_tensor_thread_coord.get_offset() + lane_offsets[i_access];
+            voffset(i_access) = bottom_tensor_thread_coord.get_offset();
 
             if constexpr(i != NumAccess - 1)
             {
@@ -320,8 +320,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
 
         const auto q_origin = q_dram_window.get_window_origin();
 
-        // K/V are DMAed from fixed dram windows at the sequence start; the row offset and the
-        // per-lane offset that writes the XOR-swizzled LDS layout go in as the dram offset
+        // K/V are DMAed from fixed dram windows at the sequence start, the row offset going in as a
+        // scalar dram offset: the XOR of the dram view is on the row within the window, i.e. the
+        // row within an LDS buffer
         const auto k_dram_window = make_tile_window_raw(
             k_dram_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<kN0Sub>{}, number<kQKHeaddim>{}),
@@ -330,20 +331,24 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
 
         const auto& k_dram_desc =
             k_dram_block_window_tmp.get_bottom_tensor_view().get_tensor_descriptor();
-        const index_t k_row_stride = k_dram_desc.calculate_offset(make_tuple(1, 0)) -
+        // the dram view is XOR-swizzled per row: group 1 of row 1 maps back to group 0, so the
+        // row stride is its offset
+        constexpr index_t kKSwizzleUnit = Policy::template GetKDirectLdsSwizzleUnit<Problem>();
+        static_assert(kQKHeaddim / kKSwizzleUnit >= 2, "Check failed!");
+        const index_t k_row_stride = k_dram_desc.calculate_offset(make_tuple(1, kKSwizzleUnit)) -
                                      k_dram_desc.calculate_offset(make_tuple(0, 0));
-        const auto k_lane_offsets = generate_tuple(
-            [&](auto i_issue) {
-                return Policy::template GetKDirectLdsSwizzleOffset<Problem, i_issue>();
-            },
-            number<remove_cvref_t<decltype(k_dram_window)>::NumAccessPerCoord>{});
+        // elements per DMA of each thread: the KPerThread of the K dram tile distribution
+        constexpr index_t kKDmaVector =
+            remove_cvref_t<decltype(k_dram_window)>::Traits::ScalarPerVector;
+        static_assert(kKDmaVector * sizeof(QKVDataType) == 4 * sizeof(int32_t),
+                      "the raw direct-to-LDS DMA moves dwordx4");
         index_t k_row_offset     = amd_wave_read_first_lane(seqlen_k_start * k_row_stride);
         const index_t k_row_step = kN0Sub * k_row_stride;
 
         auto k_raw_store_windows = generate_tuple(
             [&](auto i_buf) {
                 constexpr auto desc =
-                    Policy::template MakeKLdsRawStoreBlockDescriptor<Problem>(i_buf);
+                    Policy::template MakeKLdsRawStoreBlockDescriptor<Problem, kKDmaVector>(i_buf);
                 return make_tile_window(make_tensor_view<address_space_enum::lds>(
                                             static_cast<QKVDataType*>(smem_ptr), desc),
                                         desc.get_lengths(),
@@ -353,8 +358,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
 
         const auto k_issues = generate_tuple(
             [&](auto i_buf) {
-                return MakeDirectLdsIssues(
-                    k_raw_store_windows(i_buf), k_dram_window, k_lane_offsets);
+                return MakeDirectLdsIssues(k_raw_store_windows(i_buf), k_dram_window);
             },
             number<n0_loops>{});
 
@@ -502,20 +506,24 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
 
         const auto& v_dram_desc =
             v_dram_block_window_tmp.get_bottom_tensor_view().get_tensor_descriptor();
-        const index_t v_row_stride = v_dram_desc.calculate_offset(make_tuple(1, 0)) -
+        // the dram view is XOR-swizzled per row: group 1 of row 1 maps back to group 0, so the
+        // row stride is its offset
+        constexpr index_t kVSwizzleUnit = Policy::template GetVDirectLdsSwizzleUnit<Problem>();
+        static_assert(kN1 / kVSwizzleUnit >= 2, "Check failed!");
+        const index_t v_row_stride = v_dram_desc.calculate_offset(make_tuple(1, kVSwizzleUnit)) -
                                      v_dram_desc.calculate_offset(make_tuple(0, 0));
-        const auto v_lane_offsets = generate_tuple(
-            [&](auto i_issue) {
-                return Policy::template GetVDirectLdsSwizzleOffset<Problem, i_issue>();
-            },
-            number<remove_cvref_t<decltype(v_dram_window)>::NumAccessPerCoord>{});
+        // elements per DMA of each thread: the NPerThread of the V dram tile distribution
+        constexpr index_t kVDmaVector =
+            remove_cvref_t<decltype(v_dram_window)>::Traits::ScalarPerVector;
+        static_assert(kVDmaVector * sizeof(QKVDataType) == 4 * sizeof(int32_t),
+                      "the raw direct-to-LDS DMA moves dwordx4");
         index_t v_row_offset     = amd_wave_read_first_lane(seqlen_k_start * v_row_stride);
         const index_t v_row_step = kK1 * v_row_stride;
 
         auto v_raw_store_windows = generate_tuple(
             [&](auto i_buf) {
                 constexpr auto desc =
-                    Policy::template MakeVLdsRawStoreBlockDescriptor<Problem>(i_buf);
+                    Policy::template MakeVLdsRawStoreBlockDescriptor<Problem, kVDmaVector>(i_buf);
                 return make_tile_window(make_tensor_view<address_space_enum::lds>(
                                             static_cast<QKVDataType*>(smem_ptr), desc),
                                         desc.get_lengths(),
@@ -525,8 +533,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
 
         const auto v_issues = generate_tuple(
             [&](auto i_buf) {
-                return MakeDirectLdsIssues(
-                    v_raw_store_windows(i_buf), v_dram_window, v_lane_offsets);
+                return MakeDirectLdsIssues(v_raw_store_windows(i_buf), v_dram_window);
             },
             number<k1_loops>{});
 
