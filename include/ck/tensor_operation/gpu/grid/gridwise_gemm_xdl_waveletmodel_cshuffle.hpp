@@ -277,7 +277,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
     {
         const index_t num_loop = K / KPerBlock;
 
-        return GridwiseGemmMath::CalculateHasMainLoop(num_loop);
+        return num_loop > 1;
     }
 
     // return block_id to E matrix tile idx (m0, n0) mapping

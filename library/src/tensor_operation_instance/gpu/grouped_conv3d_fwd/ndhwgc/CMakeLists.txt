@@ -57,6 +57,8 @@ set(GROUPED_CONV3D_FWD_NDHWGC
    xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
    xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instance.cpp
    xdl/wavelet/device_grouped_conv3d_fwd_xdl_wavelet_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
+   xdl/wavelet/device_grouped_conv3d_fwd_xdl_wavelet_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
+   xdl/wavelet/device_grouped_conv3d_fwd_xdl_wavelet_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
 )
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)

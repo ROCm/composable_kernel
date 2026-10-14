@@ -44,7 +44,9 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           typename ComputeTypeA = FloatA,
-          typename ComputeTypeB = FloatB>
+          typename ComputeTypeB = FloatB,
+          bool DirectLoad       = false,
+          bool TransposeC       = false>
 struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -74,7 +76,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr auto xdlops_gemm =
-        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB, false, false>{};
+        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB, TransposeC>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
 
@@ -189,6 +191,20 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         }
     }
 
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
+    __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
+    {
+        constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
+
+        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
+        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
+
+        return make_naive_tensor_descriptor_packed(
+            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, N, M0, M1, M2));
+    }
+
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
     {
         constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
@@ -213,6 +229,20 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
+    }
+
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
+    {
+        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
+                                                           Number<NRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
+
+        return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(c_block_desc_m0_n0_m1_n1_m2_n2);
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -280,32 +310,82 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             c_grid_desc_g_m0_n0_m1_n1_m2_n2);
     }
 
-    __host__ __device__ static constexpr auto MakeABlockDescriptor_M0_M1_M2_K()
+    template <typename DeviceArch>
+    __host__ __device__ static constexpr auto MakeABlockDescriptor_M0_M1_M2_K(DeviceArch)
     {
-        return transform_tensor_descriptor(
-            AK0MK1BlockDesc{},
-            make_tuple(
-                make_merge_transform_v3_division_mod(make_tuple(Number<A_K0>{}, Number<A_K1>{})),
-                make_unmerge_transform(
-                    make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerXDL>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+        if constexpr(!DirectLoad || !is_same_v<DeviceArch, gfx950_t>)
+        {
+            return transform_tensor_descriptor(
+                AK0MK1BlockDesc{},
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(Number<A_K0>{}, Number<A_K1>{})),
+                           make_unmerge_transform(
+                               make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerXDL>{}))),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+                make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+        }
+        else
+        {
+            constexpr index_t M = AK0MK1BlockDesc{}.GetLength(Number<1>{});
+
+            constexpr auto desc = transform_tensor_descriptor(
+                AK0MK1BlockDesc{},
+                make_tuple(make_xor_with_modulo_transform(make_tuple(Number<M>{}, Number<A_K0>{})),
+                           make_pass_through_transform(Number<A_K1>{})),
+                make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
+                make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
+
+            return transform_tensor_descriptor(
+                desc,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(Number<A_K0>{}, Number<A_K1>{})),
+                           make_unmerge_transform(
+                               make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerXDL>{}))),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+                make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+        }
     }
 
-    __host__ __device__ static constexpr auto MakeBBlockDescriptor_N0_N1_N2_K()
+    template <typename DeviceArch>
+    __host__ __device__ static constexpr auto MakeBBlockDescriptor_N0_N1_N2_K(DeviceArch)
     {
-        return transform_tensor_descriptor(
-            BK0NK1BlockDesc{},
-            make_tuple(
-                make_merge_transform_v3_division_mod(make_tuple(Number<B_K0>{}, Number<B_K1>{})),
-                make_unmerge_transform(
-                    make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerXDL>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+        if constexpr(!DirectLoad || !is_same_v<DeviceArch, gfx950_t>)
+        {
+            return transform_tensor_descriptor(
+                BK0NK1BlockDesc{},
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(Number<B_K0>{}, Number<B_K1>{})),
+                           make_unmerge_transform(
+                               make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerXDL>{}))),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+                make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+        }
+        else
+        {
+            constexpr index_t N = BK0NK1BlockDesc{}.GetLength(Number<1>{});
+
+            constexpr auto desc = transform_tensor_descriptor(
+                BK0NK1BlockDesc{},
+                make_tuple(make_xor_with_modulo_transform(make_tuple(Number<N>{}, Number<B_K0>{})),
+                           make_pass_through_transform(Number<B_K1>{})),
+                make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
+                make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
+
+            return transform_tensor_descriptor(
+                desc,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(Number<B_K0>{}, Number<B_K1>{})),
+                           make_unmerge_transform(
+                               make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerXDL>{}))),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+                make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+        }
     }
 
-    static constexpr auto a_block_desc_m0_m1_m2_k = MakeABlockDescriptor_M0_M1_M2_K();
-    static constexpr auto b_block_desc_n0_n1_n2_k = MakeBBlockDescriptor_N0_N1_N2_K();
+    static constexpr auto a_block_desc_m0_m1_m2_k =
+        MakeABlockDescriptor_M0_M1_M2_K(get_device_arch());
+    static constexpr auto b_block_desc_n0_n1_n2_k =
+        MakeBBlockDescriptor_N0_N1_N2_K(get_device_arch());
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
@@ -413,6 +493,191 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
     BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
+};
+
+// Different Run method to reuse registers (MRepeat inner loop)
+// It's using MRepeat as inner loop and not NRepeat to get consistent behavior and
+// register usage between RDNA and CDNA (on RDNA the NRepeat is halved,
+// while MRepeat stays the same for 16x16 wave tile)
+// It also avoids registers dependency and delays in wmma instructions issuing
+// observed when KRepeat is inner loop
+template <index_t BlockSize,
+          typename FloatA,
+          typename FloatB,
+          typename FloatAcc,
+          typename AK0MK1BlockDesc,
+          typename BK0NK1BlockDesc,
+          index_t MPerXDL,
+          index_t NPerXDL,
+          index_t MRepeat,
+          index_t NRepeat,
+          index_t KPack,
+          typename ComputeTypeA = FloatA,
+          typename ComputeTypeB = FloatB,
+          bool DirectLoad       = false,
+          bool TransposeC       = false>
+struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_loop_knm_v1
+    : BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                          FloatA,
+                                                          FloatB,
+                                                          FloatAcc,
+                                                          AK0MK1BlockDesc,
+                                                          BK0NK1BlockDesc,
+                                                          MPerXDL,
+                                                          NPerXDL,
+                                                          MRepeat,
+                                                          NRepeat,
+                                                          KPack,
+                                                          ComputeTypeA,
+                                                          ComputeTypeB,
+                                                          DirectLoad,
+                                                          TransposeC>
+{
+    using Base = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                                     FloatA,
+                                                                     FloatB,
+                                                                     FloatAcc,
+                                                                     AK0MK1BlockDesc,
+                                                                     BK0NK1BlockDesc,
+                                                                     MPerXDL,
+                                                                     NPerXDL,
+                                                                     MRepeat,
+                                                                     NRepeat,
+                                                                     KPack,
+                                                                     ComputeTypeA,
+                                                                     ComputeTypeB,
+                                                                     DirectLoad,
+                                                                     TransposeC>;
+
+    using Base::a_block_desc_m0_m1_m2_k;
+    using Base::A_K1;
+    using Base::b_block_desc_n0_n1_n2_k;
+    using Base::B_K1;
+    using Base::I0;
+    using Base::I1;
+    using Base::KPerThread;
+    using Base::xdlops_gemm;
+    using typename Base::ElementDataTypeA;
+    using typename Base::ElementDataTypeB;
+
+    static constexpr index_t KRepeat = math::max(KPerThread / KPack, 1);
+
+    template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
+    __device__ void Run(const ABlockBuffer& a_block_buf,
+                        const BBlockBuffer& b_block_buf,
+                        CThreadBuffer& c_thread_buf) const
+    {
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ElementDataTypeA>(
+            a_thread_desc_.GetElementSpaceSize());
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ElementDataTypeB>(
+            b_thread_desc_.GetElementSpaceSize());
+
+        static_ford<Sequence<KRepeat, NRepeat>>{}([&](auto kn) {
+            constexpr auto k  = Number<kn[Number<0>{}]>{};
+            constexpr auto n0 = Number<kn[Number<1>{}]>{};
+            // read B
+            b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                               make_tuple(n0, I0, I0, Number<k * KPack>{}),
+                               b_block_buf,
+                               b_thread_desc_,
+                               make_tuple(n0, I0, k, I0),
+                               b_thread_buf);
+
+            if constexpr(n0 == 0)
+            {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    // read A
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                       make_tuple(m0, I0, I0, Number<k * KPack>{}),
+                                       a_block_buf,
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, k, I0),
+                                       a_thread_buf);
+                });
+            }
+
+            wait_dscnt();
+            __builtin_amdgcn_sched_barrier(0);
+
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                vector_type<ElementDataTypeA, KPack> a_thread_vec;
+                vector_type<ElementDataTypeB, KPack> b_thread_vec;
+
+                auto loadA =
+                    thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                             decltype(a_thread_buf),
+                                             decltype(a_thread_desc_),
+                                             ElementDataTypeA,
+                                             Number<m0>,
+                                             Number<0>,
+                                             decltype(k),
+                                             index_expression::Ik>{a_thread_vec, a_thread_buf};
+                auto loadB =
+                    thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                             decltype(b_thread_buf),
+                                             decltype(b_thread_desc_),
+                                             ElementDataTypeB,
+                                             Number<n0>,
+                                             Number<0>,
+                                             decltype(k),
+                                             index_expression::Ik>{b_thread_vec, b_thread_buf};
+
+                static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB));
+
+                using mfma_input_type_a =
+                    typename vector_type<ElementDataTypeA, xdlops_gemm.K1PerXdlops>::type;
+                using mfma_input_type_b =
+                    typename vector_type<ElementDataTypeB, xdlops_gemm.K1PerXdlops>::type;
+
+                constexpr index_t c_offset = c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type_a>(),
+                                b_thread_vec.template AsType<mfma_input_type_b>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+            });
+            __builtin_amdgcn_sched_barrier(0);
+        });
+    }
+
+    protected:
+    // A[M0, M1, M2, KPerThread]
+    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
+        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
+        make_tuple(
+            Number<KPack>{}, Number<KRepeat * MRepeat * KPack>{}, Number<MRepeat * KPack>{}, I1));
+
+    // B[N0, N1, N2, KPack]
+    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
+        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
+        make_tuple(
+            Number<KPack>{}, Number<KRepeat * NRepeat * KPack>{}, Number<NRepeat * KPack>{}, I1));
+
+    // C[M, N, NumRegXdlops]
+    static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
+
+    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatA,
+                                                         ElementDataTypeA,
+                                                         decltype(a_block_desc_m0_m1_m2_k),
+                                                         decltype(a_thread_desc_),
+                                                         Sequence<1, 1, 1, KPack>,
+                                                         Sequence<0, 1, 2, 3>,
+                                                         3,
+                                                         A_K1,
+                                                         A_K1>;
+
+    using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatB,
+                                                         ElementDataTypeB,
+                                                         decltype(b_block_desc_n0_n1_n2_k),
+                                                         decltype(b_thread_desc_),
+                                                         Sequence<1, 1, 1, KPack>,
+                                                         Sequence<0, 1, 2, 3>,
+                                                         3,
+                                                         B_K1,
+                                                         B_K1>;
+
+    AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex()};
+    BThreadCopy b_thread_copy_{Base::CalculateBThreadOriginDataIndex()};
 };
 
 // Note: To facilitate the inter-wave loop scheduler, we need to explicitly set the macro
