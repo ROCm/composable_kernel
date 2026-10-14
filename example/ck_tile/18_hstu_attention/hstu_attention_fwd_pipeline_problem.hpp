@@ -51,8 +51,8 @@ CK_TILE_HOST_DEVICE static constexpr auto GetMaxVectorSize()
     {
         if constexpr(ElemPerThread % 8 == 0)
             return 8;
-        // else if constexpr(ElemPerThread % 6 == 0)
-        //     return 6;
+        else if constexpr(ElemPerThread % 6 == 0)
+            return 6;
         else if constexpr(ElemPerThread % 4 == 0)
             return 4;
         else if constexpr(ElemPerThread % 2 == 0)
@@ -61,10 +61,12 @@ CK_TILE_HOST_DEVICE static constexpr auto GetMaxVectorSize()
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {
-        if constexpr(ElemPerThread % 4 == 0)
+        if constexpr(ElemPerThread % 6 == 0)
+            return 6;
+        else if constexpr(ElemPerThread % 4 == 0)
             return 4;
-        // else if constexpr(ElemPerThread % 3 == 0)
-        //     return 3;
+        else if constexpr(ElemPerThread % 3 == 0)
+            return 3;
         else if constexpr(ElemPerThread % 2 == 0)
             return 2;
         return 1;
@@ -253,8 +255,19 @@ struct HstuAttentionFwdSplitKVCombinePipelineProblem
         constexpr index_t kMPerBlock = kM;
         constexpr index_t kKPerBlock = kOHeaddim;
 
-        return detail::
+        constexpr auto VectorSize = detail::
             GetDramTileAccessMaxVectorSize<OaccDataType, kBlockSize, kMPerBlock, kKPerBlock>();
+
+        if constexpr(std::is_same_v<OaccDataType, float>)
+        {
+            // since o_acc_tile[] is element-wisely converted to o_tile[] in the Default2DEpilogue
+            // , they have the same distrbitution, so we should restrict the VectorSize since
+            // fp16/bf16 could not use VectorSize 3
+            static_assert(VectorSize != 3,
+                          "VectorSize 3 shall not be used for accessing o_acc_tile!");
+        }
+
+        return VectorSize;
     };
 
     CK_TILE_HOST_DEVICE static constexpr auto GetODramTileAccessMaxVectorSize()

@@ -23,7 +23,7 @@ using HstuAttentionFwdBlockTile_Hdim64_M128_N0_32_Sub16_K1_32 =
     ck_tile::sequence<128, 32, 16, 64, 32, 64>;
 
 using HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub32_K1_32 =
-    ck_tile::sequence<128, 64, 32, 128, 32, 96>;
+    ck_tile::sequence<128, 64, 32, 96, 32, 96>;
 
 // used by silu/softmax + causal mask/no causal mask situation
 using HstuAttentionFwdBlockTile_Hdim128_M64_N0_128_Sub64_K1_32 =
