@@ -76,17 +76,20 @@ struct HstuFwdCallFeatures
 
 // The rule fitted to recorded production calls swept over every (mtile, split count, grid order)
 // config: on gfx950 hdim-128 non-causal cross-attention, mtile 128 and the length-aware grid won
-// 107 of 108 calls and about three waves of Q tiles picked the split count.
+// 107 of 108 calls and about three waves of Q tiles picked the split count. A split workgroup's
+// fixed cost (Q tile, prologue, partial store, combine read) is worth several KV tiles, so each
+// split keeps at least 16 KV tiles of the average sequence.
 inline const HstuFwdStrategy& default_hstu_fwd_strategy()
 {
     static const HstuFwdStrategy strategy = [] {
         HstuFwdStrategyRule rule;
-        rule.cross      = 1;
-        rule.causal     = 0;
-        rule.windowed   = 0;
-        rule.hdim_qk    = {128, 128};
-        rule.hdim_v     = {128, 128};
-        rule.grid_order = 0;
+        rule.cross              = 1;
+        rule.causal             = 0;
+        rule.windowed           = 0;
+        rule.hdim_qk            = {128, 128};
+        rule.hdim_v             = {128, 128};
+        rule.grid_order         = 0;
+        rule.kv_tiles_per_split = 16;
         return HstuFwdStrategy{"default", "gfx950", {rule}};
     }();
     return strategy;
