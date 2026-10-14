@@ -34,7 +34,12 @@ if gemm_pypath:
         if p and p not in sys.path:
             sys.path.insert(0, p)
 
-from gemm_utils import GemmProblem, GpuGemmRunner, GpuMultiABDRunner  # noqa: E402
+from gemm_utils import (  # noqa: E402
+    GemmProblem,
+    GpuGemmRunner,
+    GpuMultiABDRunner,
+    _dtype_from_kernel_name,
+)
 import numpy as np  # noqa: E402
 
 
@@ -131,10 +136,21 @@ def _run_one(
             elif verify and A is not None and B is not None:
                 # Reference uses the SAME quantized inputs the device sees, so the
                 # metric isolates compute error from input quantization (fp8/bf8
-                # rounding alone exceeds the default tolerance).
-                ref = runner.reference(A, B)
+                # rounding alone exceeds the default tolerance). It depends only on
+                # the cached inputs and their host encoding, so batch mode computes
+                # the host matmul once per shape and encoding, not once per kernel.
+                refs = getattr(_run_one, "_ref_cache", {})
+                ref_key = (
+                    key,
+                    _dtype_from_kernel_name(runner.kernel_name),
+                    runner._use_ocp,
+                )
+                if ref_key not in refs:
+                    ref = runner.reference(A, B)
+                    refs[ref_key] = (ref, float(np.max(np.abs(ref))) or 1.0)
+                    _run_one._ref_cache = refs
+                ref, denom = refs[ref_key]
                 got = result.output.astype(np.float32)
-                denom = float(np.max(np.abs(ref))) or 1.0
                 max_rel = float(np.max(np.abs(got - ref)) / denom)
                 out["max_rel"] = max_rel
                 out["verified"] = bool(max_rel <= verify_tol)
