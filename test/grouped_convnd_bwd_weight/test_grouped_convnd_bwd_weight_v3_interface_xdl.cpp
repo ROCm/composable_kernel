@@ -54,8 +54,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     ck::utils::conv::ConvParam conv_param;
     std::vector<ck::index_t> split_ks{-1, 2};
 
-    template <ck::index_t NDimSpatial>
-    bool Run()
+    template <typename DeviceInstance, ck::index_t NDimSpatial>
+    bool RunInstance()
     {
 
         const auto in_g_n_c_wis_desc =
@@ -94,7 +94,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         range_copy(conv_param.input_left_pads_, begin(input_left_pads));
         range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
-        auto conv = GroupedConvBwdWeightDeviceInstance{};
+        auto conv = DeviceInstance{};
 
         bool is_supported = true;
 
@@ -121,6 +121,37 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         }
         return is_supported;
     }
+
+    template <ck::index_t NDimSpatial>
+    bool Run()
+    {
+        return RunInstance<GroupedConvBwdWeightDeviceInstance, NDimSpatial>();
+    }
+};
+
+template <typename Tuple, ConvolutionBackwardWeightSpecialization ConvSpec>
+class TestGroupedConvndBwdWeightInstanceV2 : public TestGroupedConvndBwdWeight<Tuple, ConvSpec>
+{
+    using Base = TestGroupedConvndBwdWeight<Tuple, ConvSpec>;
+    // clang-format off
+    using GroupedConvBwdWeightDeviceInstance =
+    ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
+        <Base::NDimSpatial,  typename Base::InLayout, typename Base::WeiLayout, typename Base::OutLayout,
+        F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough, ConvSpec,
+        64,    32,    32,     32,   8,   32,   32,    1,    1,
+        S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>, 1, 2, 2, false,
+        S<4, 16, 1>, S<2, 0, 1>,  S<1, 0, 2>, 1, 2, 2, false,
+        1, 1, S<1, 8, 1, 8>, 2,
+        ck::BlockGemmPipelineScheduler::Intrawave,
+        ck::BlockGemmPipelineVersion::v2>;
+    // clang-format on
+
+    protected:
+    template <ck::index_t NDimSpatial>
+    bool Run()
+    {
+        return this->template RunInstance<GroupedConvBwdWeightDeviceInstance, NDimSpatial>();
+    }
 };
 
 using GNHWC = ck::tensor_layout::convolution::GNHWC;
@@ -135,21 +166,28 @@ using KernelTypes =
     ::testing::Types<std::tuple<GNHWK, GKYXC, GNHWC>, std::tuple<NHWGK, GKYXC, NHWGC>>;
 
 template <typename Tuple>
-class TestGroupedConvndBwdWeightV3Default
+class TestGroupedConvndBwdWeightV3DefaultPipeV1
     : public TestGroupedConvndBwdWeight<Tuple, ConvBwdWeightDefault>
 {
 };
 
 template <typename Tuple>
-class TestGroupedConvndBwdWeightV3Filter1x1
+class TestGroupedConvndBwdWeightV3Filter1x1PipeV1
     : public TestGroupedConvndBwdWeight<Tuple, Filter1x1Stride1Pad0>
 {
 };
 
-TYPED_TEST_SUITE(TestGroupedConvndBwdWeightV3Default, KernelTypes);
-TYPED_TEST_SUITE(TestGroupedConvndBwdWeightV3Filter1x1, KernelTypes);
+template <typename Tuple>
+class TestGroupedConvndBwdWeightV3DefaultPipeV2
+    : public TestGroupedConvndBwdWeightInstanceV2<Tuple, ConvBwdWeightDefault>
+{
+};
 
-TYPED_TEST(TestGroupedConvndBwdWeightV3Filter1x1, SpecializationCheck)
+TYPED_TEST_SUITE(TestGroupedConvndBwdWeightV3DefaultPipeV1, KernelTypes);
+TYPED_TEST_SUITE(TestGroupedConvndBwdWeightV3DefaultPipeV2, KernelTypes);
+TYPED_TEST_SUITE(TestGroupedConvndBwdWeightV3Filter1x1PipeV1, KernelTypes);
+
+TYPED_TEST(TestGroupedConvndBwdWeightV3Filter1x1PipeV1, SpecializationCheck)
 {
     // Check filter 3,3 instead of 1,1
     this->conv_param  = {2, 2, 4, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
@@ -172,7 +210,7 @@ TYPED_TEST(TestGroupedConvndBwdWeightV3Filter1x1, SpecializationCheck)
     EXPECT_FALSE(is_supported);
 }
 
-TYPED_TEST(TestGroupedConvndBwdWeightV3Default, VectorLoadCheck)
+TYPED_TEST(TestGroupedConvndBwdWeightV3DefaultPipeV1, VectorLoadCheck)
 {
     // vector load for A
     this->conv_param  = {2, 2, 128, 129, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
@@ -182,4 +220,20 @@ TYPED_TEST(TestGroupedConvndBwdWeightV3Default, VectorLoadCheck)
     this->conv_param = {2, 2, 128, 128, 257, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
     is_supported     = this->template Run<2>();
     EXPECT_FALSE(is_supported);
+}
+
+TYPED_TEST(TestGroupedConvndBwdWeightV3DefaultPipeV2, PrefetchStagesCheck)
+{
+    this->conv_param = {2, 1, 8, 120, 120, {3, 3}, {24, 24}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
+    this->split_ks   = {64};
+
+    bool is_supported = this->template Run<2>();
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        EXPECT_FALSE(is_supported);
+    }
+    else
+    {
+        EXPECT_TRUE(is_supported);
+    }
 }
