@@ -914,7 +914,13 @@ struct HstuAttentionFwdKernel
                                                number<HstuAttentionPipeline::kQKHeaddim>{}),
                                     sequence<false, kPadHeadDimQK>{});
 
-                return k_dram_pad;
+                if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionPipeline>)
+                    return detail::make_direct_lds_xor_dram_view<
+                        HstuAttentionPipeline::kQKHeaddim,
+                        HstuAttentionPipeline::Policy::template GetKDirectLdsSwizzleUnit<
+                            typename HstuAttentionPipeline::Problem>()>(k_dram_pad);
+                else
+                    return k_dram_pad;
             }
         }();
         const auto v_dram = [&]() {
@@ -952,7 +958,13 @@ struct HstuAttentionFwdKernel
                                                number<HstuAttentionPipeline::kN1>{}),
                                     sequence<false, kPadHeadDimV>{});
 
-                return v_dram_pad;
+                if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionPipeline>)
+                    return detail::make_direct_lds_xor_dram_view<
+                        HstuAttentionPipeline::kN1,
+                        HstuAttentionPipeline::Policy::template GetVDirectLdsSwizzleUnit<
+                            typename HstuAttentionPipeline::Problem>()>(v_dram_pad);
+                else
+                    return v_dram_pad;
             };
         }();
 
