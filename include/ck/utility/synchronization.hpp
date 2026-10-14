@@ -13,6 +13,17 @@ __device__ void llvm_amdgcn_s_wait_dscnt(short cnt) __asm("llvm.amdgcn.s.wait.ds
 #endif
 #endif
 
+__device__ void wait_dscnt()
+{
+#if defined(__gfx12__)
+    llvm_amdgcn_s_wait_dscnt(0);
+#elif defined(__gfx11__)
+    __builtin_amdgcn_s_waitcnt(0xfc07);
+#else
+    __builtin_amdgcn_s_waitcnt(0xc07f);
+#endif
+}
+
 __device__ void block_sync_lds()
 {
 #if CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
