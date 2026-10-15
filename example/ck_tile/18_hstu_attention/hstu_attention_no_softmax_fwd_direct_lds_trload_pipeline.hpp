@@ -337,32 +337,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
 
         // K tile in LDS
         QKVDataType* k_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
-        auto k_lds_write_view  = make_tensor_view<address_space_enum::lds>(
-            k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem, true /*kUseDirectLds*/>());
-        auto k_lds_write_monolithic_window = make_tile_window(
-            k_lds_write_view,
-            Policy::template MakeKLdsBlockDescriptor<Problem, true /*kUseDirectLds*/>()
-                .get_lengths(),
-            {0, 0});
-
-        static_assert(Policy::template MakeKLdsBlockDescriptor<Problem, true /*kUseDirectLds*/>()
-                              .get_lengths()[number<0>{}] == n0_loops * kN0Sub,
-                      "Check failed!");
-        static_assert(Policy::template MakeKLdsBlockDescriptor<Problem, true /*kUseDreictLds*/>()
-                              .get_lengths()[number<1>{}] == kQKHeaddim,
-                      "Check failed!");
-
-        using k_lds_write_window_type = decltype(get_slice_tile(
-            k_lds_write_monolithic_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
-
-        statically_indexed_array<k_lds_write_window_type, n0_loops> k_lds_write_windows;
-
-        static_for<0, n0_loops, 1>{}([&](auto i_buf) {
-            k_lds_write_windows[i_buf] =
-                get_slice_tile(k_lds_write_monolithic_window,
-                               sequence<i_buf * kN0Sub, 0>{},
-                               sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
-        });
 
         auto k_lds_read_view = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr,
@@ -403,40 +377,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
         QKVDataType* v_lds_ptr = reinterpret_cast<QKVDataType*>(
             reinterpret_cast<char*>(smem_ptr) +
             Policy::template GetSmemSizeK<Problem, true /*kUseDirectLds*/>());
-        auto v_lds_write_view = make_tensor_view<address_space_enum::lds>(
-            v_lds_ptr,
-            Policy::template MakeVLdsBlockDescriptor<Problem,
-                                                     true /*kUseTrLoad*/,
-                                                     true /*kUseDirectLds*/>());
-        auto v_lds_write_monolithic_window =
-            make_tile_window(v_lds_write_view,
-                             Policy::template MakeVLdsBlockDescriptor<Problem,
-                                                                      true /*kUseTrLoad*/,
-                                                                      true /*kUseDirectLds*/>()
-                                 .get_lengths(),
-                             {0, 0});
-
-        static_assert(Policy::template MakeVLdsBlockDescriptor<Problem,
-                                                               true /*kUseTrLoad*/,
-                                                               true /*kUseDirectLds*/>()
-                              .get_lengths()[number<0>{}] == k1_loops * kK1,
-                      "Check failed!");
-        static_assert(Policy::template MakeVLdsBlockDescriptor<Problem,
-                                                               true /*kUseTrLoad*/,
-                                                               true /*kUseDirectLds*/>()
-                              .get_lengths()[number<1>{}] == kN1,
-                      "Check failed!");
-
-        using v_lds_write_window_type = decltype(get_slice_tile(
-            v_lds_write_monolithic_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
-
-        statically_indexed_array<v_lds_write_window_type, k1_loops> v_lds_write_windows;
-
-        static_for<0, k1_loops, 1>{}([&](auto i_buf) {
-            v_lds_write_windows[i_buf] = get_slice_tile(v_lds_write_monolithic_window,
-                                                        sequence<i_buf * kK1, 0>{},
-                                                        sequence<(i_buf + 1) * kK1, kN1>{});
-        });
 
         auto v_lds_trload_view = make_tensor_view<address_space_enum::lds>(
             v_lds_ptr,
