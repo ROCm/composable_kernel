@@ -56,8 +56,10 @@ using HstuAttentionFwdBlockTile_Hdim128_M64_N0_32_Sub32_K1_32_Tdm =
     ck_tile::sequence<64, 32, 32, 128, 32, 128>;
 using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub64_K1_64_Tdm =
     ck_tile::sequence<128, 64, 64, 128, 64, 128>;
-using HstuAttentionFwdBlockTile_Hdim256_M128_N0_32_Sub32_K1_32_Tdm =
-    ck_tile::sequence<128, 32, 32, 256, 32, 256>;
+// hdim256 uses this 64-row tile for both MTile slots: with 128 rows a wave needs more than 512
+// VGPRs (one workgroup per CU), with 64 rows about 336 (three workgroups per CU).
+using HstuAttentionFwdBlockTile_Hdim256_M64_N0_32_Sub32_K1_32_Tdm =
+    ck_tile::sequence<64, 32, 32, 256, 32, 256>;
 
 template <ck_tile::index_t MaxK,
           ck_tile::index_t ExpectedMTile,
@@ -230,7 +232,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
         if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
         {
             return ck_tile::HstuAttentionFwdTileSettingClass<
-                HstuAttentionFwdBlockTile_Hdim256_M128_N0_32_Sub32_K1_32_Tdm,
+                HstuAttentionFwdBlockTile_Hdim256_M64_N0_32_Sub32_K1_32_Tdm,
                 HstuAttentionFwdGemm0Warps,
                 WarpTile_16x16x32,
                 HstuAttentionFwdGemm1Warps,
