@@ -178,7 +178,7 @@ struct jagged_forward_splitkv_dispatch
                                                              v_vector_bytes == 4 * sizeof(int)) &&
                                                             !kPadHeadDimV;
 
-                        if constexpr(kKAbleUseDirectLds && kVAbleUseDirectLds)
+                        if constexpr(kKAbleUseDirectLds && kVAbleUseDirectLds && MaxK != 96)
                         {
                             using HstuPipeline = std::conditional_t<
                                 kUseSoftmax,
