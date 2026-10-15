@@ -55,6 +55,98 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 #endif
     }
 
+    // XOR swizzle unit (elements) of the direct-to-LDS K and V LDS layouts: the LDS read views
+    // (MakeK/VLdsBlockDescriptor with kUseXor) and the kernels' K/V dram views
+    // (make_direct_lds_xor_dram_view) use the same one
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetKDirectLdsSwizzleUnit()
+    {
+        // On gfx950, GetAlignmentK and ScalePerVector (normal read size) are actually same
+        return lcm(GetAlignmentK<Problem, true /*kUseDirectLds*/>(),
+                   GetQKWarpGemmBScalarPerVector<Problem>());
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetVDirectLdsSwizzleUnit()
+    {
+        // On gfx950, AlignmentV is actually bigger than ScalePerVector (trload read size)
+        return lcm(GetAlignmentV<Problem, true /*kUseTrLoad*/, true /*kUseDirectLds*/>(),
+                   GetPVTWarpGemmBScalarPerVector<Problem>());
+    }
+
+    // [issues, warps, lanes * vector] view of one LDS buffer of kRows x kRowLength elements
+    // starting at element kOffset of the LDS: the form the raw DMA takes to step M0.
+    template <index_t kBlockSize,
+              index_t kRows,
+              index_t kRowLength,
+              index_t kVector,
+              index_t kOffset>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeDirectLdsRawStoreDescriptor()
+    {
+        constexpr index_t kWarpSize   = get_warp_size();
+        constexpr index_t NumWarps    = kBlockSize / kWarpSize;
+        constexpr index_t LanesPerRow = kRowLength / kVector;
+        constexpr index_t RowsPerWarp = kWarpSize / LanesPerRow;
+        constexpr index_t NumIssues   = kRows / (RowsPerWarp * NumWarps);
+
+        static_assert(NumIssues * RowsPerWarp * NumWarps == kRows, "Check failed!");
+
+        constexpr auto desc_0 = make_naive_tensor_descriptor_with_offset(
+            make_tuple(number<NumIssues>{},
+                       number<NumWarps>{},
+                       number<RowsPerWarp>{},
+                       number<LanesPerRow>{},
+                       number<kVector>{}),
+            make_tuple(number<NumWarps * RowsPerWarp * kRowLength>{},
+                       number<RowsPerWarp * kRowLength>{},
+                       number<kRowLength>{},
+                       number<kVector>{},
+                       number<1>{}),
+            number<kOffset>{},
+            number<kVector>{},
+            number<1>{});
+
+        return transform_tensor_descriptor(
+            desc_0,
+            make_tuple(make_pass_through_transform(number<NumIssues>{}),
+                       make_pass_through_transform(number<NumWarps>{}),
+                       make_merge_transform(make_tuple(
+                           number<RowsPerWarp>{}, number<LanesPerRow>{}, number<kVector>{}))),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+    }
+
+    // kVector: the elements per DMA of each thread, i.e. the KPerThread of the K dram tile
+    // distribution
+    template <typename Problem, index_t kVector, index_t i_buf>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsRawStoreBlockDescriptor(number<i_buf>)
+    {
+        constexpr index_t kN0Sub     = Problem::HstuAttentionTileSetting::kN0Sub;
+        constexpr index_t kQKHeaddim = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        return MakeDirectLdsRawStoreDescriptor<Problem::kBlockSize,
+                                               kN0Sub,
+                                               kQKHeaddim,
+                                               kVector,
+                                               i_buf * kN0Sub * kQKHeaddim>();
+    }
+
+    // the V buffers follow the K buffers; kVector is the NPerThread of the V dram tile distribution
+    template <typename Problem, index_t kVector, index_t i_buf>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsRawStoreBlockDescriptor(number<i_buf>)
+    {
+        constexpr index_t kK1 = Problem::HstuAttentionTileSetting::kK1;
+        constexpr index_t kN1 = Problem::HstuAttentionTileSetting::kN1;
+
+        return MakeDirectLdsRawStoreDescriptor<Problem::kBlockSize,
+                                               kK1,
+                                               kN1,
+                                               kVector,
+                                               GetSmemSizeK<Problem, true /*kUseDirectLds*/>() /
+                                                       sizeof(typename Problem::QKVDataType) +
+                                                   i_buf * kK1 * kN1>();
+    }
+
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeQRegTileDistribution()
     {
@@ -321,9 +413,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         {
             if constexpr(kUseXor) // true, used for reading from Lds
             {
-                // On gfx950, GetAlignmentK and ScalePerVector (normal read size) are actually same
-                constexpr index_t kSwizzleUnit =
-                    lcm(kKVector, GetQKWarpGemmBScalarPerVector<Problem>());
+                constexpr index_t kSwizzleUnit = GetKDirectLdsSwizzleUnit<Problem>();
 
                 constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
                                                                                   NumKLdsBuffers,
@@ -603,11 +693,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
             if constexpr(kUseXor) // true, used for reading from Lds
             {
-                // On gfx950, AlignmentV is actually bigger than ScalePerVector (trload read size),
-                // thus we have to use AlignmentV as swizzle unit
-                constexpr index_t kSwizzleUnit =
-                    lcm(GetAlignmentV<Problem, true /*kUseTrLoad */, true /*kUseDirectLds */>(),
-                        GetPVTWarpGemmBScalarPerVector<Problem, true /*kUseTrLoad */>());
+                constexpr index_t kSwizzleUnit = GetVDirectLdsSwizzleUnit<Problem>();
 
                 constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
                                                                                   NumVLdsBuffers,
