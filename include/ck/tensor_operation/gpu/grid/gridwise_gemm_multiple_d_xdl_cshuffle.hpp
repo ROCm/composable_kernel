@@ -415,7 +415,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
-#if defined(__gfx11__) || defined(__gfx120__)
+#if defined(__gfx11__) || defined(__gfx120__) || defined(__gfx117__)
         if constexpr(is_same_v<AComputeDataType_, float>)
         {
 
@@ -492,7 +492,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 #ifndef __HIPCC_RTC__
         if constexpr(KPerBlock < 16)
         {
-            if(ck::is_gfx12_supported() || ck::is_gfx11_supported())
+            if(ck::is_gfx12_supported() || ck::is_gfx117_supported() || ck::is_gfx11_supported())
             {
                 return false;
             }

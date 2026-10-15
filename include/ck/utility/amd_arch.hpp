@@ -20,6 +20,9 @@ struct gfx103_t
 struct gfx11_t
 {
 };
+struct gfx117_t
+{
+};
 struct gfx12_t
 {
 };
@@ -43,6 +46,8 @@ static constexpr auto get_device_arch()
     return gfx103_t{};
 #elif defined(__gfx11__)
     return gfx11_t{};
+#elif defined(__gfx117__)
+    return gfx117_t{};
 #elif defined(__gfx125__)
     return gfx125_t{};
 #elif defined(__gfx12__)

@@ -96,33 +96,36 @@ namespace core::arch {
  */
 enum struct amdgcn_target_id
 {
-    GFX908         = 0x0908, // MI-100...
-    GFX90A         = 0x090A,
-    GFX942         = 0x0942,
-    GFX950         = 0x0950,
-    GFX1030        = 0x1030,
-    GFX1031        = 0x1031,
-    GFX1032        = 0x1032,
-    GFX1033        = 0x1033,
-    GFX1034        = 0x1034,
-    GFX1035        = 0x1035,
-    GFX1036        = 0x1036,
-    GFX103_GENERIC = 0x103F,
-    GFX1100        = 0x1100,
-    GFX1101        = 0x1101,
-    GFX1102        = 0x1102,
-    GFX1103        = 0x1103,
-    GFX1150        = 0x1150,
-    GFX1151        = 0x1151,
-    GFX1152        = 0x1152,
-    GFX1153        = 0x1153,
-    GFX11_GENERIC  = 0x11FF,
-    GFX1200        = 0x1200,
-    GFX1201        = 0x1201,
-    GFX12_GENERIC  = 0x12FF,
-    GFX1250        = 0x1250,
-    AMDGCN_SPIRV   = 0xFFFF, // Target-agnostic SPIR-V (JIT to native at runtime)
-    HOST           = 0x0000,
+    GFX908          = 0x0908, // MI-100...
+    GFX90A          = 0x090A,
+    GFX942          = 0x0942,
+    GFX950          = 0x0950,
+    GFX1030         = 0x1030,
+    GFX1031         = 0x1031,
+    GFX1032         = 0x1032,
+    GFX1033         = 0x1033,
+    GFX1034         = 0x1034,
+    GFX1035         = 0x1035,
+    GFX1036         = 0x1036,
+    GFX103_GENERIC  = 0x103F,
+    GFX1100         = 0x1100,
+    GFX1101         = 0x1101,
+    GFX1102         = 0x1102,
+    GFX1103         = 0x1103,
+    GFX1150         = 0x1150,
+    GFX1151         = 0x1151,
+    GFX1152         = 0x1152,
+    GFX1153         = 0x1153,
+    GFX11_GENERIC   = 0x11FF,
+    GFX1170         = 0x1170,
+    GFX1171         = 0x1171,
+    GFX11_7_GENERIC = 0x117F,
+    GFX1200         = 0x1200,
+    GFX1201         = 0x1201,
+    GFX12_GENERIC   = 0x12FF,
+    GFX1250         = 0x1250,
+    AMDGCN_SPIRV    = 0xFFFF, // Target-agnostic SPIR-V (JIT to native at runtime)
+    HOST            = 0x0000,
 };
 
 // to_string methods for enum classes
@@ -151,6 +154,9 @@ CK_TILE_HOST_DEVICE constexpr const char* to_string(amdgcn_target_id target_id)
     case amdgcn_target_id::GFX1152: return "GFX1152";
     case amdgcn_target_id::GFX1153: return "GFX1153";
     case amdgcn_target_id::GFX11_GENERIC: return "GFX11_GENERIC";
+    case amdgcn_target_id::GFX1170: return "GFX1170";
+    case amdgcn_target_id::GFX1171: return "GFX1171";
+    case amdgcn_target_id::GFX11_7_GENERIC: return "GFX11_7_GENERIC";
     case amdgcn_target_id::GFX1200: return "GFX1200";
     case amdgcn_target_id::GFX1201: return "GFX1201";
     case amdgcn_target_id::GFX12_GENERIC: return "GFX12_GENERIC";
@@ -166,6 +172,7 @@ enum struct amdgcn_target_family_id
     GFX9    = 0x09,
     GFX10_3 = 0x10,
     GFX11   = 0x11,
+    GFX117  = 0x117,
     GFX12   = 0x12,
     // GFX1250 is its own standalone family. Although it shares the RDNA architecture with the
     // GFX12 family, its MMA builtins and data-type ABI differ, so it must not be treated as a
@@ -182,6 +189,7 @@ CK_TILE_HOST_DEVICE constexpr const char* to_string(amdgcn_target_family_id fami
     case amdgcn_target_family_id::GFX9: return "GFX9";
     case amdgcn_target_family_id::GFX10_3: return "GFX10_3";
     case amdgcn_target_family_id::GFX11: return "GFX11";
+    case amdgcn_target_family_id::GFX117: return "GFX117";
     case amdgcn_target_family_id::GFX12: return "GFX12";
     case amdgcn_target_family_id::GFX1250: return "GFX1250";
     case amdgcn_target_family_id::HOST: return "HOST";
@@ -271,6 +279,15 @@ static constexpr auto make_amdgcn_gfx11_target()
 }
 
 template <amdgcn_target_id targetId>
+static constexpr auto make_amdgcn_gfx117_target()
+{
+    return amdgcn_target<targetId,
+                         amdgcn_target_family_id::GFX117,
+                         amdgcn_target_arch_id::RDNA,
+                         amdgcn_target_wave_size_id::WAVE32>{};
+}
+
+template <amdgcn_target_id targetId>
 static constexpr auto make_amdgcn_gfx12_target()
 {
     return amdgcn_target<targetId,
@@ -326,6 +343,15 @@ template <typename CompilerTarget>
 static constexpr bool is_target_family_gfx11()
 {
     return CompilerTarget::FAMILY_ID == amdgcn_target_family_id::GFX11;
+}
+
+template <typename CompilerTarget>
+static constexpr bool is_target_family_gfx117()
+{
+    return is_target_id_any_of<CompilerTarget,
+                               amdgcn_target_id::GFX1170,
+                               amdgcn_target_id::GFX1171,
+                               amdgcn_target_id::GFX11_7_GENERIC>();
 }
 
 template <typename CompilerTarget>
@@ -429,6 +455,9 @@ constexpr auto get_compiler_target()
     MAP_COMPILER_STATE_TO_GFX11_TARGET(CK_TILE_ARCH_GFX1152, GFX1152);
     MAP_COMPILER_STATE_TO_GFX11_TARGET(CK_TILE_ARCH_GFX1153, GFX1153);
     MAP_COMPILER_STATE_TO_GFX11_TARGET(CK_TILE_ARCH_GFX11_GENERIC, GFX11_GENERIC);
+    MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX1170, GFX1170);
+    MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX1171, GFX1171);
+    MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX11_7_GENERIC, GFX11_7_GENERIC);
     MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX1200, GFX1200);
     MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX1201, GFX1201);
     MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX12_GENERIC, GFX12_GENERIC);
@@ -500,8 +529,9 @@ static constexpr auto getCMakeCompilerTarget()
     {
         return make_amdgcn_gfx11_target<id>();
     }
-    else if constexpr(id == amdgcn_target_id::GFX1200 || id == amdgcn_target_id::GFX1201 ||
-                      id == amdgcn_target_id::GFX12_GENERIC)
+    else if constexpr(id == amdgcn_target_id::GFX1170 || id == amdgcn_target_id::GFX1171 ||
+                      id == amdgcn_target_id::GFX11_7_GENERIC || id == amdgcn_target_id::GFX1200 ||
+                      id == amdgcn_target_id::GFX1201 || id == amdgcn_target_id::GFX12_GENERIC)
     {
         return make_amdgcn_gfx12_target<id>();
     }
@@ -582,6 +612,9 @@ CK_TILE_HOST auto hip_device_prop_gcn_arch_name_to_amdgcn_target_id(char const* 
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx1152", GFX1152);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx1153", GFX1153);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx11_generic", GFX11_GENERIC);
+    MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx1170", GFX1170);
+    MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx1171", GFX1171);
+    MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx11_7_generic", GFX11_7_GENERIC);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx1200", GFX1200);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx1201", GFX1201);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_TARGET_ID("gfx12_generic", GFX12_GENERIC);
@@ -660,6 +693,14 @@ using enable_if_target_family_gfx10_3_t =
 template <typename CompilerTarget>
 using enable_if_target_family_gfx11_t =
     enable_if_target_family_id_t<CompilerTarget, amdgcn_target_family_id::GFX11>;
+
+/**
+ * @brief SFINAE enabler for GFX117 family targets
+ * @tparam CompilerTarget The compiler target to check
+ */
+template <typename CompilerTarget>
+using enable_if_target_family_gfx117_t =
+    enable_if_target_family_id_t<CompilerTarget, amdgcn_target_family_id::GFX117>;
 
 /**
  * @brief SFINAE enabler for GFX12 family targets
@@ -757,6 +798,14 @@ static constexpr auto make_amdgcn_gfx11_target(amdgcn_target_id targetId)
                          .WAVE_SIZE_ID = amdgcn_target_wave_size_id::WAVE32};
 }
 
+static constexpr auto make_amdgcn_gfx117_target(amdgcn_target_id targetId)
+{
+    return amdgcn_target{.TARGET_ID    = targetId,
+                         .FAMILY_ID    = amdgcn_target_family_id::GFX117,
+                         .ARCH_ID      = amdgcn_target_arch_id::RDNA,
+                         .WAVE_SIZE_ID = amdgcn_target_wave_size_id::WAVE32};
+}
+
 static constexpr auto make_amdgcn_gfx12_target(amdgcn_target_id targetId)
 {
     return amdgcn_target{.TARGET_ID    = targetId,
@@ -786,6 +835,11 @@ static constexpr bool is_target_family_gfx10_3(amdgcn_target target)
 static constexpr bool is_target_family_gfx11(amdgcn_target target)
 {
     return target.FAMILY_ID == amdgcn_target_family_id::GFX11;
+}
+
+static constexpr bool is_target_family_gfx117(amdgcn_target target)
+{
+    return target.FAMILY_ID == amdgcn_target_family_id::GFX117;
 }
 
 static constexpr bool is_target_family_gfx12(amdgcn_target target)
@@ -876,6 +930,9 @@ CK_TILE_HOST_DEVICE constexpr auto get_compiler_target()
     MAP_COMPILER_STATE_TO_GFX11_TARGET(CK_TILE_ARCH_GFX1152, GFX1152);
     MAP_COMPILER_STATE_TO_GFX11_TARGET(CK_TILE_ARCH_GFX1153, GFX1153);
     MAP_COMPILER_STATE_TO_GFX11_TARGET(CK_TILE_ARCH_GFX11_GENERIC, GFX11_GENERIC);
+    MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX1170, GFX1170);
+    MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX1171, GFX1171);
+    MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX11_7_GENERIC, GFX11_7_GENERIC);
     MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX1200, GFX1200);
     MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX1201, GFX1201);
     MAP_COMPILER_STATE_TO_GFX12_TARGET(CK_TILE_ARCH_GFX12_GENERIC, GFX12_GENERIC);
@@ -967,6 +1024,9 @@ CK_TILE_HOST auto hip_device_prop_gcn_arch_name_to_amdgcn_target(char const* tes
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX11_TARGET("gfx1152", GFX1152);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX11_TARGET("gfx1153", GFX1153);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX11_TARGET("gfx11_generic", GFX11_GENERIC);
+    MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX12_TARGET("gfx1170", GFX1170);
+    MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX12_TARGET("gfx1171", GFX1171);
+    MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX12_TARGET("gfx11_7_generic", GFX11_7_GENERIC);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX12_TARGET("gfx1200", GFX1200);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX12_TARGET("gfx1201", GFX1201);
     MAP_HIP_DEVICE_PROP_GCN_ARCH_NAME_STRING_TO_GFX12_TARGET("gfx12_generic", GFX12_GENERIC);
@@ -1047,6 +1107,14 @@ using enable_if_target_family_gfx10_3_t =
 template <amdgcn_target CompilerTarget>
 using enable_if_target_family_gfx11_t =
     enable_if_target_family_id_t<CompilerTarget, amdgcn_target_family_id::GFX11>;
+
+/**
+ * @brief SFINAE enabler for GFX117 family targets
+ * @tparam CompilerTarget The compiler target to check
+ */
+template <amdgcn_target CompilerTarget>
+using enable_if_target_family_gfx117_t =
+    enable_if_target_family_id_t<CompilerTarget, amdgcn_target_family_id::GFX117>;
 
 /**
  * @brief SFINAE enabler for GFX12 family targets
@@ -1532,6 +1600,9 @@ struct gfx11_t
 struct gfx115_t
 {
 };
+struct gfx117_t
+{
+};
 struct gfx12_t
 {
 };
@@ -1553,6 +1624,8 @@ CK_TILE_DEVICE static constexpr auto get_device_arch()
     return gfx103_t{};
 #elif defined(__gfx11__)
     return gfx11_t{};
+#elif defined(__gfx117__)
+    return gfx117_t{};
 #elif defined(__gfx125__)
     return gfx125_t{};
 #elif defined(__gfx950__)
@@ -1575,6 +1648,8 @@ CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx11_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx115_t) { return 32; }
 
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx117_t) { return 32; }
+
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx120_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx125_t) { return 64; }
@@ -1590,6 +1665,8 @@ CK_TILE_DEVICE static constexpr auto get_max_vgpr_count(gfx103_t) { return 256; 
 
 CK_TILE_DEVICE static constexpr auto get_max_vgpr_count(gfx11_t) { return 256; }
 
+CK_TILE_DEVICE static constexpr auto get_max_vgpr_count(gfx117_t) { return 256; }
+
 CK_TILE_DEVICE static constexpr auto get_max_vgpr_count(gfx120_t) { return 256; }
 
 CK_TILE_DEVICE static constexpr auto get_max_vgpr_count(gfx125_t) { return 1024; }
@@ -1604,6 +1681,8 @@ CK_TILE_DEVICE static constexpr auto get_lds_size(gfx9_t) { return 64 * 1024; }
 CK_TILE_DEVICE static constexpr auto get_lds_size(gfx103_t) { return 64 * 1024; }
 
 CK_TILE_DEVICE static constexpr auto get_lds_size(gfx11_t) { return 64 * 1024; }
+
+CK_TILE_DEVICE static constexpr auto get_lds_size(gfx117_t) { return 64 * 1024; }
 
 CK_TILE_DEVICE static constexpr auto get_lds_size(gfx120_t) { return 64 * 1024; }
 

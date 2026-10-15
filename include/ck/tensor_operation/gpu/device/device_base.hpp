@@ -218,7 +218,7 @@ template <index_t BlockSize,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
 __device__ static bool constexpr IsValidGemmCompilationParameter()
 {
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(MPerXdl != 16 || NPerXdl != 16)
     {
         return false;

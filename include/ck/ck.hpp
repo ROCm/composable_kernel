@@ -71,6 +71,9 @@
     defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
+#if defined(__gfx1170__) || defined(__gfx1171__) || defined(__gfx11_7_generic__)
+#define __gfx117__
+#endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
 #define __gfx120__
 #endif
@@ -88,7 +91,7 @@
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx101__) || defined(__gfx103__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__) || defined(__gfx120__)
+#elif defined(__gfx11__) || defined(__gfx120__) || defined(__gfx117__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #elif defined(__gfx125__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0
@@ -104,6 +107,8 @@
              __builtin_amdgcn_processor_is("gfx1151") ||                                           \
              __builtin_amdgcn_processor_is("gfx1152") ||                                           \
              __builtin_amdgcn_processor_is("gfx1153") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1170") ||                                           \
+             __builtin_amdgcn_processor_is("gfx1171") ||                                           \
              __builtin_amdgcn_processor_is("gfx1200") || __builtin_amdgcn_processor_is("gfx1201")) \
                 ? 0x31004000                                                                       \
                 : ((__builtin_amdgcn_processor_is("gfx1030") ||                                    \
@@ -127,7 +132,7 @@
 #define CK_USE_AMD_V_DOT4_I32_I8
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx90c__) || defined(__gfx101__)
 #define CK_USE_AMD_V_MAC_F32
-#elif defined(__gfx11__) || defined(__gfx120__)
+#elif defined(__gfx11__) || defined(__gfx117__) || defined(__gfx120__)
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8_GFX11
