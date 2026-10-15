@@ -75,6 +75,9 @@ else()
                 -Wno-sign-conversion
                 -Wno-unknown-warning-option
                 -Wno-unused-command-line-argument
+                # glibc's Clang fortify wrappers carry an unused attribute,
+                # causing valid calls to trigger -Wused-but-marked-unused.
+                -Wno-used-but-marked-unused
                 -Wno-weak-vtables
                 -Wno-covered-switch-default
                 -Wno-unsafe-buffer-usage
