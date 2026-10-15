@@ -82,8 +82,6 @@ CK_TILE_HOST_DEVICE static constexpr auto GetDirectLdsMaxVectorSize()
 #if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
         if constexpr(ElemPerThread % 8 == 0)
             return 8;
-        // else if constexpr(ElemPerThread % 6 == 0)
-        //     return 6;
         else if constexpr(ElemPerThread % 2 == 0)
             return 2;
         return 1;
@@ -98,9 +96,8 @@ CK_TILE_HOST_DEVICE static constexpr auto GetDirectLdsMaxVectorSize()
 #if defined(__hstu_gfx95__) || defined(__hstu_gfx125__)
         if constexpr(ElemPerThread % 4 == 0)
             return 4;
-        // else if constexpr(ElemPerThread % 3 == 0)
-        //     return 3;
-        return 1;
+        else
+            return 1;
 #else
         return 1;
 #endif
