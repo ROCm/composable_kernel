@@ -169,10 +169,14 @@ struct jagged_forward_splitkv_dispatch
                                 ck_tile::bool_constant<true>{}) *
                             sizeof(InOutDataType);
 
-                        constexpr bool kKAbleUseDirectLds =
-                            (k_vector_bytes == 4 * sizeof(int)) && !kPadHeadDimQK;
-                        constexpr bool kVAbleUseDirectLds =
-                            (v_vector_bytes == 4 * sizeof(int)) && !kPadHeadDimV;
+                        constexpr bool kKAbleUseDirectLds = (k_vector_bytes == 1 * sizeof(int) ||
+                                                             k_vector_bytes == 3 * sizeof(int) ||
+                                                             k_vector_bytes == 4 * sizeof(int)) &&
+                                                            !kPadHeadDimQK;
+                        constexpr bool kVAbleUseDirectLds = (v_vector_bytes == 1 * sizeof(int) ||
+                                                             v_vector_bytes == 3 * sizeof(int) ||
+                                                             v_vector_bytes == 4 * sizeof(int)) &&
+                                                            !kPadHeadDimV;
 
                         if constexpr(kKAbleUseDirectLds && kVAbleUseDirectLds)
                         {
