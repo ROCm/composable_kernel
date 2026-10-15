@@ -66,10 +66,14 @@ CANONICAL_COLUMNS = [
 ]
 
 
+#: The tile token of a kernel name; parse_kernel_name locates fields from it.
+_TILE_RE = re.compile(r"^\d+x\d+x\d+$")
+
+
 def parse_kernel_name(name: str) -> dict:
     """Extract kernel config fields from a gemm_universal kernel name.
 
-    Name format:
+    Name format ({pipeline} may itself contain "_", e.g. comp_tdm_v2):
       gemm[_universal]_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}
       _{padM}_{padN}_{padK}_{persistent}_{tileM}x{tileN}x{tileK}
       _{warpM}x{warpN}x{warpK}_{warpTileM}x{warpTileN}x{warpTileK}
@@ -100,17 +104,23 @@ def parse_kernel_name(name: str) -> dict:
         if len(parts) < 10:
             return result
 
-        result["pipeline"] = parts[0]
-        result["epilogue"] = parts[1]
-        result["scheduler"] = parts[2]
-        result["pad_m"] = parts[3] == "True"
-        result["pad_n"] = parts[4] == "True"
-        result["pad_k"] = parts[5] == "True"
-        result["persistent"] = parts[6] == "True"
+        # Pipeline names may contain "_" (basic_v1, gfx1250's comp_async,
+        # comp_tdm, comp_tdm_v2), so the fields are located backwards from the
+        # tile, the first MxNxK token; neither the pipeline nor the scheduler
+        # vocabulary is needed ("default" is both a scheduler and an epilogue).
+        # Without a tile token, the one-token positions apply.
+        tile = next((i for i, p in enumerate(parts) if i >= 6 and _TILE_RE.match(p)), 7)
+        result["pipeline"] = "_".join(parts[: tile - 6])
+        result["epilogue"] = parts[tile - 6]
+        result["scheduler"] = parts[tile - 5]
+        result["pad_m"] = parts[tile - 4] == "True"
+        result["pad_n"] = parts[tile - 3] == "True"
+        result["pad_k"] = parts[tile - 2] == "True"
+        result["persistent"] = parts[tile - 1] == "True"
 
-        tile_dims = parts[7].split("x")
-        warp_dims = parts[8].split("x")
-        warp_tile_dims = parts[9].split("x")
+        tile_dims = parts[tile].split("x")
+        warp_dims = parts[tile + 1].split("x")
+        warp_tile_dims = parts[tile + 2].split("x")
 
         result["tile_m"] = int(tile_dims[0])
         result["tile_n"] = int(tile_dims[1])
@@ -275,72 +285,58 @@ def check_capture_hw_arch(hw: dict, arch: str) -> None:
         )
 
 
+def _gpu_agent_block(output: str) -> str:
+    """The first GPU agent's own lines of rocminfo output, before its ISA list.
+
+    rocminfo prints an agent's ``Name`` before its ``Device Type``, and lists
+    ISA names (``Name: amdgcn-amd-amdhsa--...``) after ``ISA Info:``. On
+    gfx1250 the last ISA is the generic ``gfx12-5-generic``, so reading
+    ``Name`` from anywhere but the agent's own line yields the wrong target.
+    Output without agent separators is read as one block.
+    """
+    blocks = re.split(r"^\*+\s*\n\s*Agent \d+\s*\n\*+[ \t]*$", output, flags=re.M)
+    for block in blocks:
+        if re.search(r"^\s*Device Type:\s*GPU\b", block, re.M):
+            return block.split("ISA Info:")[0]
+    return ""
+
+
 def get_hardware_profile() -> dict:
-    """Capture GPU hardware profile from rocminfo."""
+    """Capture GPU hardware profile from rocminfo (the first GPU agent)."""
     profile = {}
     try:
         result = subprocess.run(
             ["rocminfo"], capture_output=True, text=True, timeout=30
         )
-        output = result.stdout
+        block = _gpu_agent_block(result.stdout)
 
-        gpu_section = False
-        for line in output.split("\n"):
-            line = line.strip()
-            if "Device Type:" in line and "GPU" in line:
-                gpu_section = True
+        mapping = {
+            "Name": "gfx_name",
+            "Marketing Name": "marketing_name",
+            "Compute Unit": "num_cus",
+            "SIMDs per CU": "simds_per_cu",
+            "Shader Engines": "shader_engines",
+            "Shader Arrs. per Eng.": "shader_arrays_per_engine",
+            "Max Clock Freq. (MHz)": "max_clock_mhz",
+            "Wavefront Size": "wavefront_size",
+            "Max Waves Per CU": "max_waves_per_cu",
+            "Chip ID": "chip_id",
+        }
+        caches = {"L1": "l1_cache_kb", "L2": "l2_cache_kb", "L3": "l3_cache_kb"}
+        for line in block.split("\n"):
+            key, sep, val = line.strip().partition(":")
+            if not sep:
                 continue
-            if gpu_section and "Device Type:" in line and "GPU" not in line:
-                break
-            if not gpu_section:
-                continue
-
-            if ":" not in line:
-                continue
-            key, _, val = line.partition(":")
             key = key.strip()
-            val = val.strip()
-
-            mapping = {
-                "Name": "gfx_name",
-                "Marketing Name": "marketing_name",
-                "Compute Unit": "num_cus",
-                "SIMDs per CU": "simds_per_cu",
-                "Shader Engines": "shader_engines",
-                "Shader Arrs. per Eng.": "shader_arrays_per_engine",
-                "Max Clock Freq. (MHz)": "max_clock_mhz",
-                "Wavefront Size": "wavefront_size",
-                "Max Waves Per CU": "max_waves_per_cu",
-                "Chip ID": "chip_id",
-            }
-
-            if key in mapping:
-                raw = val.split("(")[0].strip()
-                try:
-                    profile[mapping[key]] = int(raw)
-                except ValueError:
-                    profile[mapping[key]] = raw
-
-        for line in output.split("\n"):
-            line = line.strip()
-            if line.startswith("L1:") and "num_cus" in profile:
-                raw = line.split(":")[1].strip().split("(")[0].strip()
-                try:
-                    profile["l1_cache_kb"] = int(raw)
-                except ValueError:
-                    pass
-            elif line.startswith("L2:"):
-                raw = line.split(":")[1].strip().split("(")[0].strip()
-                try:
-                    profile["l2_cache_kb"] = int(raw)
-                except ValueError:
-                    pass
-            elif line.startswith("L3:"):
-                raw = line.split(":")[1].strip().split("(")[0].strip()
-                try:
-                    profile["l3_cache_kb"] = int(raw)
-                except ValueError:
-                    pass
+            raw = val.strip().split("(")[0].strip()
+            field = mapping.get(key) or caches.get(key)
+            if field is None or field in profile:
+                continue
+            try:
+                profile[field] = int(raw)
+            except ValueError:
+                if field in mapping.values():
+                    profile[field] = raw
 
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
