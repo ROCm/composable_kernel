@@ -85,6 +85,11 @@ inline bool is_gfx11_supported()
            ck::get_device_name() == "gfx1152" || ck::get_device_name() == "gfx1153";
 }
 
+inline bool is_gfx117_supported()
+{
+    return ck::get_device_name() == "gfx1170" || ck::get_device_name() == "gfx1171";
+}
+
 inline bool is_gfx101_supported()
 {
     return ck::get_device_name() == "gfx1010" || ck::get_device_name() == "gfx1011" ||
@@ -126,7 +131,7 @@ inline bool is_xdl_wmma_supported()
     {
         return true;
     }
-    else if(is_gfx120_supported() || is_gfx11_supported())
+    else if(is_gfx120_supported() || is_gfx117_supported() || is_gfx11_supported())
     {
         if constexpr((MPerXDL32 != 16) || (NPerXDL32 != 16))
         {
@@ -176,7 +181,7 @@ inline bool is_xdl_wmma_k_supported()
         }
         return true;
     }
-    else if(is_gfx120_supported())
+    else if(is_gfx120_supported() || is_gfx117_supported())
     {
         return (KPerBlock % 16 == 0) && (KPack % 8 == 0);
     }

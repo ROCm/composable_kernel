@@ -34,6 +34,9 @@
     defined(__gfx1103__) || defined(__gfx115__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
+#if defined(__gfx1170__) || defined(__gfx1171__) || defined(__gfx11_7_generic__)
+#define __gfx117__
+#endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
 #define __gfx120__
 #endif
@@ -292,7 +295,7 @@
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx101__) || defined(__gfx103__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__) || defined(__gfx120__)
+#elif defined(__gfx11__) || defined(__gfx120__) || defined(__gfx117__)
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #elif defined(__gfx125__)
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x0
@@ -604,6 +607,25 @@ struct amdgcn_compiler_target_state
     static constexpr bool CK_TILE_ARCH_GFX11_GENERIC = false;
 #endif // __gfx11_generic__
 
+    // GFX11.7
+#if defined(__gfx1170__)
+    static constexpr bool CK_TILE_ARCH_GFX1170 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1170 = false;
+#endif // __gfx1170__
+
+#if defined(__gfx1171__)
+    static constexpr bool CK_TILE_ARCH_GFX1171 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1171 = false;
+#endif // __gfx1171_
+
+#if defined(__gfx11_7_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX11_7_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX11_7_GENERIC = false;
+#endif // __gfx11_7_generic__
+
     // GFX12
 #if defined(__gfx1200__)
     static constexpr bool CK_TILE_ARCH_GFX1200 = true;
@@ -687,6 +709,9 @@ CK_TILE_HOST_DEVICE static constexpr std::uint32_t count_values_of(T search, Ts.
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1152,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1153,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX11_GENERIC,   \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1170,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1171,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX11_7_GENERIC, \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1200,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1201,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX12_GENERIC,   \

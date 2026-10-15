@@ -282,7 +282,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         // K0_MN_K1 -> K0_MNRepeat_MNWaves_KRow_MNPerWmma_K1
         constexpr auto K0 = BlockDesc{}.GetLength(I0);
         constexpr auto K1 = BlockDesc{}.GetLength(I2);
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
         constexpr auto KRow = I2;
 #else
         constexpr auto KRow = I1;
@@ -411,7 +411,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             // BL0_N_BL1 -> BL0_NRepeat_Nwaves_NPerWmma_BL1
             constexpr auto B_L0 = B1BlockDesc_{}.GetLength(I0);
             constexpr auto B_L1 = B1BlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
             constexpr auto B_LRow = I2;
 #else
             constexpr auto B_LRow = I1;

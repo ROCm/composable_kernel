@@ -37,7 +37,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     kernel_contraction_multiple_d_wmma_cshuffle_v3(typename DeviceOp::Argument karg)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     static constexpr index_t NumDTensor = GridwiseOp::NumDTensor;
 
     const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
@@ -831,7 +831,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -840,7 +840,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
             return false;
         }
 
-        if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(arg.M, arg.K))
+        if((ck::is_gfx12_supported() || ck::is_gfx117_supported()) &&
+           !GridwiseGemm::CheckValidityAWaveTransfer(arg.M, arg.K))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -850,7 +851,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
             return false;
         }
 
-        if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityBWaveTransfer(arg.N, arg.K))
+        if((ck::is_gfx12_supported() || ck::is_gfx117_supported()) &&
+           !GridwiseGemm::CheckValidityBWaveTransfer(arg.N, arg.K))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

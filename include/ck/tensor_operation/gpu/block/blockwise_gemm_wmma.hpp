@@ -17,7 +17,7 @@
 #endif
 namespace ck {
 
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
 template <index_t BlockSize,
           typename FloatA,
           typename FloatB,

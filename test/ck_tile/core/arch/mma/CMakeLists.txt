@@ -77,14 +77,26 @@ if(GPU_TARGETS MATCHES "gfx950|amdgcnspirv")
     set_mma_test_arch_define(test_amdgcn_mma_layout_gfx950)
 endif()
 
-if(GPU_TARGETS MATCHES "gfx11|amdgcnspirv")
+# gfx117x (gfx1170/gfx1171/gfx11-7-generic) is named like gfx11 but uses the gfx12 WMMA
+# ISA, so it exercises the gfx12 intrinsic builtins, not the gfx11 ones. Split the per-target
+# compile archs accordingly so a target only builds the mma_layout test it can actually compile.
+set(MMA_GFX11_TARGETS ${SUPPORTED_GPU_TARGETS})
+list(FILTER MMA_GFX11_TARGETS INCLUDE REGEX "gfx11|amdgcnspirv")
+list(FILTER MMA_GFX11_TARGETS EXCLUDE REGEX "gfx117|gfx11-7")
+
+set(MMA_GFX12_TARGETS ${SUPPORTED_GPU_TARGETS})
+list(FILTER MMA_GFX12_TARGETS INCLUDE REGEX "gfx120|gfx117|gfx11-7|amdgcnspirv")
+
+if(MMA_GFX11_TARGETS)
     _add_mma_gtest(test_amdgcn_mma_layout_gfx11 test_amdgcn_mma_layout_gfx11.cpp)
     target_compile_options(test_amdgcn_mma_layout_gfx11 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    set_property(TARGET test_amdgcn_mma_layout_gfx11 PROPERTY HIP_ARCHITECTURES ${MMA_GFX11_TARGETS})
 endif()
 
-if(GPU_TARGETS MATCHES "gfx120|amdgcnspirv")
+if(MMA_GFX12_TARGETS)
     _add_mma_gtest(test_amdgcn_mma_layout_gfx12 test_amdgcn_mma_layout_gfx12.cpp)
     target_compile_options(test_amdgcn_mma_layout_gfx12 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    set_property(TARGET test_amdgcn_mma_layout_gfx12 PROPERTY HIP_ARCHITECTURES ${MMA_GFX12_TARGETS})
 endif()
 
 if(GPU_TARGETS MATCHES "gfx1250")

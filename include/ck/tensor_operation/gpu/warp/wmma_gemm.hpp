@@ -443,7 +443,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f8f8_gfx12,
         static_assert(wave_size == 32, "only support wave32 for gfx12 wmma");
         if constexpr(wave_size == 32)
         {
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
             intrin_wmma_f32_16x16x16_f8f8_w32_gfx12<MPerWmma, NPerWmma>::Run(a, b, reg_c);
 #else
             ignore = a;
@@ -479,7 +479,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f8bf8_gfx12,
         static_assert(wave_size == 32, "only support wave32 for gfx12 wmma");
         if constexpr(wave_size == 32)
         {
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
             intrin_wmma_f32_16x16x16_f8bf8_w32_gfx12<MPerWmma, NPerWmma>::Run(a, b, reg_c);
 #else
             ignore = a;
@@ -551,7 +551,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_bf8bf8_gfx12,
         static_assert(wave_size == 32, "only support wave32 for gfx12 wmma");
         if constexpr(wave_size == 32)
         {
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
             intrin_wmma_f32_16x16x16_bf8bf8_w32_gfx12<MPerWmma, NPerWmma>::Run(a, b, reg_c);
 #else
             ignore = a;
@@ -911,7 +911,7 @@ struct WmmaSelector
     template <>
     constexpr auto GetWmma<half_t, half_t, float, 16, 16>()
     {
-#if defined(__gfx120__)
+#if defined(__gfx120__) || defined(__gfx117__)
         return WmmaInstr::wmma_f32_16x16x16_f16_gfx12;
 #elif defined(__gfx125__)
         return WmmaInstr::wmma_f32_16x16x32_f16_gfx12;
@@ -923,7 +923,7 @@ struct WmmaSelector
     template <>
     constexpr auto GetWmma<bhalf_t, bhalf_t, float, 16, 16>()
     {
-#if defined(__gfx120__)
+#if defined(__gfx120__) || defined(__gfx117__)
         return WmmaInstr::wmma_f32_16x16x16_bf16_gfx12;
 #elif defined(__gfx125__)
         return WmmaInstr::wmma_f32_16x16x32_bf16_gfx12;
@@ -955,7 +955,7 @@ struct WmmaSelector
     template <>
     constexpr auto GetWmma<int8_t, int8_t, int, 16, 16>()
     {
-#if defined(__gfx120__)
+#if defined(__gfx120__) || defined(__gfx117__)
         return WmmaInstr::wmma_i32_16x16x16_iu8_gfx12;
 #elif defined(__gfx125__)
         return WmmaInstr::wmma_i32_16x16x64_iu8_gfx12;

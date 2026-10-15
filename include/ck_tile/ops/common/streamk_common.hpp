@@ -36,7 +36,8 @@ struct StreamKReductionOps
                                                core::arch::amdgcn_target_id::GFX1200,
                                                core::arch::amdgcn_target_id::GFX1201,
                                                core::arch::amdgcn_target_id::GFX12_GENERIC>() ||
-               core::arch::is_target_family_gfx11<CompilerTarget_>();
+               core::arch::is_target_family_gfx11<CompilerTarget_>() ||
+               core::arch::is_target_family_gfx117<CompilerTarget_>();
     }
 
     /**
@@ -76,7 +77,8 @@ struct StreamKReductionOps
                                         core::arch::amdgcn_target_id::GFX1200,
                                         core::arch::amdgcn_target_id::GFX1201,
                                         core::arch::amdgcn_target_id::GFX12_GENERIC>() ||
-        core::arch::is_target_family_gfx11<CompilerTarget_>()>
+        core::arch::is_target_family_gfx11<CompilerTarget_>() ||
+        core::arch::is_target_family_gfx117<CompilerTarget_>()>
     SignalStorePartialDone(const KernelArgs_& kargs, index_t cta_idx) const
     {
         auto* sk_flags_ptr                = static_cast<index_t*>(kargs.workspace_ptr);
@@ -158,10 +160,9 @@ struct StreamKReductionOps
     }
 
     template <typename CompilerTarget_ = CompilerTarget>
-    CK_TILE_DEVICE
-        core::arch::enable_if_target_family_id_t<CompilerTarget_,
-                                                 core::arch::amdgcn_target_family_id::GFX11>
-        WaitStorePartialDone(const KernelArgs_& kargs, index_t cta_idx) const
+    CK_TILE_DEVICE std::enable_if_t<core::arch::is_target_family_gfx11<CompilerTarget_>() ||
+                                    core::arch::is_target_family_gfx117<CompilerTarget_>()>
+    WaitStorePartialDone(const KernelArgs_& kargs, index_t cta_idx) const
     {
         auto* sk_flags_ptr = static_cast<index_t*>(kargs.workspace_ptr);
         index_t result;
