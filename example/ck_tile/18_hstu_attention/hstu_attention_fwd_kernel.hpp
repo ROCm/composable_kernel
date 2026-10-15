@@ -1000,7 +1000,8 @@ struct HstuAttentionFwdKernel
                                 true /*kUseTrLoad */,
                                 true /* kUseDirectLds */>(),
                             HstuAttentionPipeline::Policy::template GetPVTWarpGemmBScalarPerVector<
-                                typename HstuAttentionPipeline::Problem>());
+                                typename HstuAttentionPipeline::Problem,
+                                true /*kUseTrLoad */>());
 
                     auto padded_seqlen_v =
                         v_dram_pad.get_tensor_descriptor().get_lengths()[number<0>{}];

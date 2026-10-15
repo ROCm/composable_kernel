@@ -607,7 +607,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                 // thus we have to use AlignmentV as swizzle unit
                 constexpr index_t kSwizzleUnit =
                     lcm(GetAlignmentV<Problem, true /*kUseTrLoad */, true /*kUseDirectLds */>(),
-                        GetPVTWarpGemmBScalarPerVector<Problem>());
+                        GetPVTWarpGemmBScalarPerVector<Problem, true /*kUseTrLoad */>());
 
                 constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
                                                                                   NumVLdsBuffers,
