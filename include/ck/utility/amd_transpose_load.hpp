@@ -34,7 +34,7 @@ __device__ auto amd_global_load_transpose_to_vgpr(const T* in_ptr)
 }
 #endif
 
-#if defined(__gfx1250__)
+#if defined(__gfx125__)
 template <typename T>
 __device__ auto amd_lds_load_transpose_to_vgpr(const T* __restrict__ in_ptr)
 {
