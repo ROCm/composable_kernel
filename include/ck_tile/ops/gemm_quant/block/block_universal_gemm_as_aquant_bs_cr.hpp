@@ -569,7 +569,7 @@ struct AQuantBlockUniversalGemmAsBsCr
         block_gemm_impl_(c_block_tensor, aq_block_tensor, a_block_window, b_block_window);
     }
 
-    private:
+    protected:
     BlockGemmImpl<Scheduler, Traits> block_gemm_impl_{};
 };
 

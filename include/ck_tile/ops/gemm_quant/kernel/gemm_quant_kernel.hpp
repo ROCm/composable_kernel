@@ -1378,15 +1378,22 @@ struct QuantGemmMultiDKernel
     // Whether the compile-time LargeTensors opt-in is active and the configuration is one
     // the global load/store path supports.  Read on the RowColQuant path (plain gemm pipeline)
     // and on the BQuant preshuffle-B path (WP pipeline); both expose LargeTensors.
+    // Not every pipeline exposes LargeTensors (e.g. the TDM pipelines); treat absent as false.
+    template <typename T>
+    using pipeline_large_tensors_t              = decltype(T::LargeTensors);
+    static constexpr bool kPipelineLargeTensors = []() {
+        if constexpr(is_detected<pipeline_large_tensors_t, GemmPipeline>{})
+            return GemmPipeline::LargeTensors;
+        else
+            return false;
+    }();
+
     CK_TILE_HOST_DEVICE static constexpr bool UseLargeTensorGlobalLoad()
     {
-        if constexpr(kQuantType == QuantType::RowColQuant)
+        if constexpr(kQuantType == QuantType::RowColQuant ||
+                     (kQuantType == QuantType::BQuantGrouped && PreshuffleB))
         {
-            return GemmPipeline::LargeTensors && IsLargeTensorGlobalLoadSupported();
-        }
-        else if constexpr(kQuantType == QuantType::BQuantGrouped && PreshuffleB)
-        {
-            return GemmPipeline::LargeTensors && IsLargeTensorGlobalLoadSupported();
+            return kPipelineLargeTensors && IsLargeTensorGlobalLoadSupported();
         }
         else
         {
@@ -1989,7 +1996,21 @@ struct QuantGemmMultiDKernel
             else if constexpr(kQuantType == QuantType::RowColQuant ||
                               kQuantType == QuantType::TensorQuant)
             {
-                return GemmPipeline{}(a_block_window, b_block_window, num_loop, smem_ptr);
+                if constexpr(PreshuffleB)
+                {
+                    return GemmPipeline{}(a_block_window, b_block_window, num_loop, smem_ptr);
+                }
+                else
+                {
+                    // Scales are applied in the epilogue, so any plain GEMM pipeline works here.
+                    // Use the tuple form: the TDM pipelines accept only tuple windows.
+                    return GemmPipeline{}(ck_tile::make_tuple(a_block_window),
+                                          element_wise::PassThrough{},
+                                          ck_tile::make_tuple(b_block_window),
+                                          element_wise::PassThrough{},
+                                          num_loop,
+                                          smem_ptr);
+                }
             }
         }();
 

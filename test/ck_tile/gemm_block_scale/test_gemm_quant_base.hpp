@@ -122,7 +122,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 #if defined(CK_USE_GFX1250)
     static constexpr bool is_8bit = !(std::is_same_v<ComputeDataType, ck_tile::fp16_t> ||
                                       std::is_same_v<ComputeDataType, ck_tile::bf16_t>);
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<is_8bit, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        is_8bit ? ck_tile::max(get_k_warp_tile<true, M_Warp_Tile>(), GemmConfig::MinKWarpTile8Bit)
+                : get_k_warp_tile<false, M_Warp_Tile>();
 #else
     static constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
 #endif

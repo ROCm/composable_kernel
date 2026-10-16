@@ -102,7 +102,8 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                   typename BElementFunction,
                   typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 is_detected<is_tuple, BsDramBlockWindowTmp>::value,
-                                            bool>* = nullptr>
+                                            bool>* = nullptr,
+                  typename BlockGemmT              = BlockGemm>
         CK_TILE_DEVICE auto
         wave_specialized_func(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                               const AElementFunction& a_element_func,
@@ -110,7 +111,8 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                               const BElementFunction& b_element_func,
                               index_t num_loop,
                               void* __restrict__ p_smem,
-                              index_t warp_id) const
+                              index_t warp_id,
+                              BlockGemmT block_gemm = {}) const
         {
             auto&& [a_lds_block_views, b_lds_block_views] =
                 this->template GetABLdsTensorViews<num_lds_buffers>(static_cast<char*>(p_smem));
@@ -298,9 +300,6 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 Base::GlobalPrefetchTDM(
                     tdm_config_b[1], b_copy_lds_windows[number<1>{}], b_copy_dram_window);
             }
-
-            // initialize block gemm
-            auto block_gemm = BlockGemm();
 
             // initialize C block tile
             auto c_block_tile = block_gemm.MakeCBlockTile();
@@ -694,13 +693,15 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                   typename BElementFunction,
                   typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 is_detected<is_tuple, BsDramBlockWindowTmp>::value,
-                                            bool>* = nullptr>
+                                            bool>* = nullptr,
+                  typename BlockGemmT              = BlockGemm>
         CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* __restrict__ p_smem) const
+                                       void* __restrict__ p_smem,
+                                       BlockGemmT block_gemm = {}) const
         {
             const index_t warp_id = get_warp_id();
 
@@ -710,7 +711,8 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                                                               b_element_func,
                                                               num_loop,
                                                               p_smem,
-                                                              warp_id);
+                                                              warp_id,
+                                                              block_gemm);
         }
 
         template <

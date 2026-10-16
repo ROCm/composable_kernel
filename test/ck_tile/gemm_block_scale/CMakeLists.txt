@@ -270,6 +270,24 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_tensor PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    # All gfx1250 GEMM pipelines per quant type
+    if(GPU_TARGETS MATCHES "gfx1250")
+        add_gtest_executable(test_tile_gemm_quant_pipelines_gfx1250
+            test_gemm_quant_pipelines_gfx1250.cpp
+        )
+        if(TARGET test_tile_gemm_quant_pipelines_gfx1250)
+            target_compile_options(test_tile_gemm_quant_pipelines_gfx1250 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+            # The source name carries no "_wmma" tag, so add_gtest_executable leaves every
+            # supported target in place; this file instantiates the gfx125-only CompAsync and
+            # TDM pipelines, so keep just the gfx125 targets.
+            get_target_property(_quant_pipelines_archs
+                test_tile_gemm_quant_pipelines_gfx1250 HIP_ARCHITECTURES)
+            list(FILTER _quant_pipelines_archs INCLUDE REGEX "^gfx125")
+            set_property(TARGET test_tile_gemm_quant_pipelines_gfx1250
+                PROPERTY HIP_ARCHITECTURES ${_quant_pipelines_archs})
+        endif()
+    endif()
+
     # Collect all test targets for umbrella label
     set(CK_TILE_GEMM_BLOCK_SCALE_TEST_TARGETS
         # AQuant tests
@@ -322,6 +340,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_tile_gemm_quant_rowcol_large_tensor
         test_tile_gemm_quant_tensor
     )
+
+    # gfx1250-only pipeline matrix test, added when its target was created above.
+    if(TARGET test_tile_gemm_quant_pipelines_gfx1250)
+        list(APPEND CK_TILE_GEMM_BLOCK_SCALE_TEST_TARGETS test_tile_gemm_quant_pipelines_gfx1250)
+    endif()
 
     # Label all ck_tile gemm_block_scale tests with CK_TILE_GEMM_BLOCK_SCALE_TESTS for selective execution
     foreach(test_target ${CK_TILE_GEMM_BLOCK_SCALE_TEST_TARGETS})

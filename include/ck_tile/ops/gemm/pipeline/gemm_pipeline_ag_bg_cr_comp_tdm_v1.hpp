@@ -313,7 +313,8 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                   typename BLdsGemmWindows,
                   typename TDMConfigA,
                   typename TDMConfigB,
-                  typename std::enable_if_t<NumLdsBuffers == 2, bool> = true>
+                  typename std::enable_if_t<NumLdsBuffers == 2, bool> = true,
+                  typename BlockGemmT                                 = BlockGemm>
         CK_TILE_DEVICE auto RunPipelineLoop(ACopyDramWindow& a_copy_dram_window,
                                             BCopyDramWindow& b_copy_dram_window,
                                             ACopyLdsWindows& a_copy_lds_windows,
@@ -324,7 +325,8 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                                             TDMConfigB& tdm_config_b,
                                             index_t num_loop,
                                             bool data_cache_prefetch_a,
-                                            bool data_cache_prefetch_b) const
+                                            bool data_cache_prefetch_b,
+                                            BlockGemmT block_gemm = {}) const
         {
             // initialize DRAM window steps, used to advance the DRAM windows
             using ADramTileWindowStep = typename ACopyDramWindow::BottomTensorIndex;
@@ -358,9 +360,6 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                                     b_copy_lds_windows[I0{}],
                                     b_copy_dram_window,
                                     b_dram_tile_window_step);
-
-            // initialize block gemm
-            auto block_gemm = BlockGemm();
 
             // initialize C block tile
             auto c_block_tile = block_gemm.MakeCBlockTile();
@@ -1072,13 +1071,15 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                   typename BElementFunction,
                   typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 is_detected<is_tuple, BsDramBlockWindowTmp>::value,
-                                            bool>* = nullptr>
+                                            bool>* = nullptr,
+                  typename BlockGemmT              = BlockGemm>
         CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* __restrict__ p_smem) const
+                                       void* __restrict__ p_smem,
+                                       BlockGemmT block_gemm = {}) const
         {
             // TODO: tdm config will update with problem and policy; currently use default value
             TDMConfig tdm_config_a;
@@ -1204,7 +1205,8 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                                                     tdm_config_b,
                                                     num_loop,
                                                     data_cache_prefetch_a,
-                                                    data_cache_prefetch_b);
+                                                    data_cache_prefetch_b,
+                                                    block_gemm);
         }
 
         template <

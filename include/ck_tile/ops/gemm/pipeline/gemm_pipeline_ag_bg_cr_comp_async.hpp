@@ -222,6 +222,8 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
     // Packed scale dimensions
     static constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleBlockSize / KXdlPackEff;
+    // Takes per-K-block scale DRAM windows in its tuple call (see PipelineImpl below)
+    static constexpr bool HasScaleWindowPath = true;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
     {
@@ -432,8 +434,17 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             ScaleBTileType scale_b_tile_ping, scale_b_tile_pong;
 
             // initialize Scale DRAM window steps, used to advance the Scale DRAM windows
-            constexpr auto scale_a_dram_tile_window_step = make_array(0, ScaleKDimPerBlock);
-            constexpr auto scale_b_dram_tile_window_step = make_array(0, ScaleKDimPerBlock);
+            constexpr auto scale_dram_tile_window_steps = [] {
+                if constexpr(has_scale_dram_tile_window_steps_v<Policy, Problem>)
+                    return Policy::template GetScaleDramTileWindowSteps<Problem>();
+                else
+                    return make_tuple(make_array(0, ScaleKDimPerBlock),
+                                      make_array(0, ScaleKDimPerBlock));
+            }();
+            constexpr auto scale_a_dram_tile_window_step =
+                scale_dram_tile_window_steps[number<0>{}];
+            constexpr auto scale_b_dram_tile_window_step =
+                scale_dram_tile_window_steps[number<1>{}];
 
             // Helper function to load scales
             auto load_scales_from_dram = [&](auto& scale_a, auto& scale_b) {
@@ -713,24 +724,31 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        // Scale tensor views and base origins for creating tile windows per iteration
-        const auto& scale_a_tensor_view = scale_a_window[number<0>{}].get_bottom_tensor_view();
-        const auto& scale_b_tensor_view = scale_b_window[number<0>{}].get_bottom_tensor_view();
-        auto scale_a_base_origin        = scale_a_window[number<0>{}].get_window_origin();
-        auto scale_b_base_origin        = scale_b_window[number<0>{}].get_window_origin();
-
-        // Create scale windows with packed int32_t dimensions
-        auto scale_a_dram_window = make_tile_window(
-            scale_a_tensor_view,
-            make_tuple(number<MPerBlock / MXdlPackEff>{}, number<ScaleKDimPerBlock>{}),
-            scale_a_base_origin,
-            Policy::template MakeMX_ScaleA_DramTileDistribution<Problem>());
-
-        auto scale_b_dram_window = make_tile_window(
-            scale_b_tensor_view,
-            make_tuple(number<NPerBlock / NXdlPackEff>{}, number<ScaleKDimPerBlock>{}),
-            scale_b_base_origin,
-            Policy::template MakeMX_ScaleB_DramTileDistribution<Problem>());
+        // Scale windows are either supplied ready-to-load by the policy's owner, or built here
+        // as MX scale windows with packed int32_t dimensions.
+        auto make_scale_windows = [&]() {
+            if constexpr(has_scale_dram_tile_window_steps_v<Policy, Problem>)
+            {
+                return make_tuple(scale_a_window[number<0>{}], scale_b_window[number<0>{}]);
+            }
+            else
+            {
+                return make_tuple(
+                    make_tile_window(
+                        scale_a_window[number<0>{}].get_bottom_tensor_view(),
+                        make_tuple(number<MPerBlock / MXdlPackEff>{}, number<ScaleKDimPerBlock>{}),
+                        scale_a_window[number<0>{}].get_window_origin(),
+                        Policy::template MakeMX_ScaleA_DramTileDistribution<Problem>()),
+                    make_tile_window(
+                        scale_b_window[number<0>{}].get_bottom_tensor_view(),
+                        make_tuple(number<NPerBlock / NXdlPackEff>{}, number<ScaleKDimPerBlock>{}),
+                        scale_b_window[number<0>{}].get_window_origin(),
+                        Policy::template MakeMX_ScaleB_DramTileDistribution<Problem>()));
+            }
+        };
+        auto scale_windows       = make_scale_windows();
+        auto scale_a_dram_window = scale_windows[number<0>{}];
+        auto scale_b_dram_window = scale_windows[number<1>{}];
 
         const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
