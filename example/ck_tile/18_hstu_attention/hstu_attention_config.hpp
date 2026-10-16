@@ -57,9 +57,15 @@ template <bool kUseSoftmax, ck_tile::index_t MaxK>
 constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
 {
 #if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-    // Tdm covers hdim128 only: those are the tile shapes the Tdm pipelines have
-    // (kN0 == kN0Sub == kK1). Everything else keeps using trload.
+    // Tdm is selected per MaxK, for the buckets that have Tdm tile rows in the gfx125 tile
+    // setting (the Tdm pipelines need kN0 == kN0Sub == kK1). Every other MaxK keeps trload.
     if constexpr(MaxK == 128)
+        return HstuFwdPipelineKind::Tdm;
+    else if constexpr(MaxK == 64)
+        return HstuFwdPipelineKind::Tdm;
+    else if constexpr(MaxK == 256)
+        return HstuFwdPipelineKind::Tdm;
+    else if constexpr(MaxK == 96)
         return HstuFwdPipelineKind::Tdm;
     else
         return HstuFwdPipelineKind::TrLoad;

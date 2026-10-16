@@ -14,7 +14,8 @@ using WarpTile_16x16x32 = ck_tile::sequence<16, 16, 32>;
 using HstuAttentionFwdGemm0Warps = ck_tile::sequence<4, 1, 1>;
 using HstuAttentionFwdGemm1Warps = ck_tile::sequence<4, 1, 1>;
 
-// Tile-sizes: M N0 N0Sub N1 K1 MaxK (MaxK % N1 == 0, N0 % K1 == 0)
+// Tile-sizes: M N0 N0Sub N1 K1 MaxK (N0 % K1 == 0, and MaxK % N1 == 0 except in the trload
+// hdim96 rows, whose N1 128 is larger than MaxK)
 //
 // TrLoad block tiles
 using HstuAttentionFwdBlockTile_Hdim64_M64_N0_128_Sub32_K1_32 =
@@ -41,11 +42,24 @@ using HstuAttentionFwdBlockTile_Hdim256_M128_N0_64_Sub32_K1_32 =
 
 // Tdm block tiles. The Tdm pipelines need kN0 == kN0Sub == kK1 -- one n0/k1 sub-loop, with
 // K and V double-buffered across kv-tiles instead of within one -- which none of the trload
-// tiles above satisfies. Only MaxK == 128 is gated to Tdm, so only those two rows exist.
+// tiles above satisfies. Only the MaxK buckets that get_hstu_fwd_pipeline_kind() maps to Tdm
+// have rows here.
+using HstuAttentionFwdBlockTile_Hdim64_M64_N0_32_Sub32_K1_32_Tdm =
+    ck_tile::sequence<64, 32, 32, 64, 32, 64>;
+using HstuAttentionFwdBlockTile_Hdim64_M128_N0_64_Sub64_K1_64_Tdm =
+    ck_tile::sequence<128, 64, 64, 64, 64, 64>;
+using HstuAttentionFwdBlockTile_Hdim96_M64_N0_32_Sub32_K1_32_Tdm =
+    ck_tile::sequence<64, 32, 32, 96, 32, 96>;
+using HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub64_K1_64_Tdm =
+    ck_tile::sequence<128, 64, 64, 96, 64, 96>;
 using HstuAttentionFwdBlockTile_Hdim128_M64_N0_32_Sub32_K1_32_Tdm =
     ck_tile::sequence<64, 32, 32, 128, 32, 128>;
 using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub64_K1_64_Tdm =
     ck_tile::sequence<128, 64, 64, 128, 64, 128>;
+// hdim256 uses this 64-row tile for both MTile slots: with 128 rows a wave needs more than 512
+// VGPRs (one workgroup per CU), with 64 rows about 336 (three workgroups per CU).
+using HstuAttentionFwdBlockTile_Hdim256_M64_N0_32_Sub32_K1_32_Tdm =
+    ck_tile::sequence<64, 32, 32, 256, 32, 256>;
 
 template <ck_tile::index_t MaxK,
           ck_tile::index_t ExpectedMTile,
@@ -56,44 +70,92 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
 {
     if constexpr(MaxK == 64)
     {
-        if constexpr(ExpectedMTile == 64)
+        if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
         {
-            return ck_tile::HstuAttentionFwdTileSettingClass<
-                HstuAttentionFwdBlockTile_Hdim64_M64_N0_128_Sub32_K1_32,
-                HstuAttentionFwdGemm0Warps,
-                WarpTile_16x16x32,
-                HstuAttentionFwdGemm1Warps,
-                WarpTile_16x16x32>{};
+            if constexpr(ExpectedMTile == 64)
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim64_M64_N0_32_Sub32_K1_32_Tdm,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x32,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x32>{};
+            }
+            else
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim64_M128_N0_64_Sub64_K1_64_Tdm,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x32,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x32>{};
+            }
         }
         else
         {
-            return ck_tile::HstuAttentionFwdTileSettingClass<
-                HstuAttentionFwdBlockTile_Hdim64_M128_N0_128_Sub32_K1_32,
-                HstuAttentionFwdGemm0Warps,
-                WarpTile_16x16x32,
-                HstuAttentionFwdGemm1Warps,
-                WarpTile_16x16x32>{};
+            if constexpr(ExpectedMTile == 64)
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim64_M64_N0_128_Sub32_K1_32,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x32,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x32>{};
+            }
+            else
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim64_M128_N0_128_Sub32_K1_32,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x32,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x32>{};
+            }
         }
     }
     else if constexpr(MaxK == 96)
     {
-        if constexpr(kUseSoftmax)
+        if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
         {
-            return ck_tile::HstuAttentionFwdTileSettingClass<
-                HstuAttentionFwdBlockTile_Hdim96_M128_N0_128_Sub32_K1_32,
-                HstuAttentionFwdGemm0Warps,
-                WarpTile_16x16x32,
-                HstuAttentionFwdGemm1Warps,
-                WarpTile_16x16x32>{};
+            if constexpr(ExpectedMTile == 64)
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim96_M64_N0_32_Sub32_K1_32_Tdm,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x32,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x32>{};
+            }
+            else
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub64_K1_64_Tdm,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x32,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x32>{};
+            }
         }
         else
         {
-            return ck_tile::HstuAttentionFwdTileSettingClass<
-                HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub32_K1_32,
-                HstuAttentionFwdGemm0Warps,
-                WarpTile_16x16x32,
-                HstuAttentionFwdGemm1Warps,
-                WarpTile_16x16x32>{};
+            if constexpr(kUseSoftmax)
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim96_M128_N0_128_Sub32_K1_32,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x32,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x32>{};
+            }
+            else
+            {
+                return ck_tile::HstuAttentionFwdTileSettingClass<
+                    HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub32_K1_32,
+                    HstuAttentionFwdGemm0Warps,
+                    WarpTile_16x16x32,
+                    HstuAttentionFwdGemm1Warps,
+                    WarpTile_16x16x32>{};
+            }
         }
     }
     else if constexpr(MaxK == 128)
@@ -167,12 +229,24 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
     }
     else if constexpr(MaxK == 256)
     {
-        return ck_tile::HstuAttentionFwdTileSettingClass<
-            HstuAttentionFwdBlockTile_Hdim256_M128_N0_64_Sub32_K1_32,
-            HstuAttentionFwdGemm0Warps,
-            WarpTile_16x16x32,
-            HstuAttentionFwdGemm1Warps,
-            WarpTile_16x16x32>{};
+        if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+        {
+            return ck_tile::HstuAttentionFwdTileSettingClass<
+                HstuAttentionFwdBlockTile_Hdim256_M64_N0_32_Sub32_K1_32_Tdm,
+                HstuAttentionFwdGemm0Warps,
+                WarpTile_16x16x32,
+                HstuAttentionFwdGemm1Warps,
+                WarpTile_16x16x32>{};
+        }
+        else
+        {
+            return ck_tile::HstuAttentionFwdTileSettingClass<
+                HstuAttentionFwdBlockTile_Hdim256_M128_N0_64_Sub32_K1_32,
+                HstuAttentionFwdGemm0Warps,
+                WarpTile_16x16x32,
+                HstuAttentionFwdGemm1Warps,
+                WarpTile_16x16x32>{};
+        }
     }
     else
     {
