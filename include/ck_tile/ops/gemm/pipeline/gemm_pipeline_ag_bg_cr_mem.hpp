@@ -258,13 +258,15 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                   typename BElementFunction,
                   typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 is_detected<is_tuple, BsDramBlockWindowTmp>::value,
-                                            bool>* = nullptr>
+                                            bool>* = nullptr,
+                  typename BlockGemmT              = BlockGemm>
         CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* p_smem) const
+                                       void* p_smem,
+                                       BlockGemmT block_gemm = {}) const
         {
             using ADramBlockWindowTmp =
                 remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
@@ -331,7 +333,6 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             auto& b_lds_gemm_window  = b_windows.at(I2{});
 
             // Block GEMM
-            auto block_gemm   = BlockGemm();
             auto c_block_tile = block_gemm.MakeCBlockTile();
 
             using ABlockTileDistr =
@@ -570,13 +571,15 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                   typename BElementFunction,
                   typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 is_detected<is_tuple, BsDramBlockWindowTmp>::value,
-                                            bool>* = nullptr>
+                                            bool>* = nullptr,
+                  typename BlockGemmT              = BlockGemm>
         CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* p_smem) const
+                                       void* p_smem,
+                                       BlockGemmT block_gemm = {}) const
         {
             using ADramBlockWindowTmp =
                 remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
@@ -643,7 +646,6 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             auto& b_lds_gemm_window  = b_windows.at(I2{});
 
             // Block GEMM
-            auto block_gemm   = BlockGemm();
             auto c_block_tile = block_gemm.MakeCBlockTile();
 
             using ABlockTileDistr =

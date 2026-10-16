@@ -47,11 +47,79 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<false>();
+    // Lower bound on the gfx1250 8-bit K warp tile (0 = arch default); comp_async needs 128.
+    static constexpr ck_tile::index_t MinKWarpTile8Bit = 0;
 
     // Opt-in to the 64-bit global load/store path for tensors whose single-dimension
     // byte extent exceeds the 2GB buffer-addressing limit. Off by default.
     static constexpr bool LargeTensors = false;
+
+    // Plain GEMM pipeline used by the epilogue-scaled quant types (RowColQuant, TensorQuant).
+    template <typename Problem>
+    using BasePipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<Problem>;
+    template <typename Problem>
+    using Pipeline = ck_tile::GemmPipelineAgBgCrCompV3<Problem>;
 };
+
+// gfx1250 plain-pipeline sweep for the epilogue-scaled quant types: 2x2 waves (comp_tdm_v2
+// needs exactly 4), no padding and k_batch == 1 (TDM constraints), double LDS buffer for the
+// prefetching pipelines.
+template <template <typename> class BasePipeline_,
+          template <typename>
+          class Pipeline_,
+          bool DoubleSmemBuffer_,
+          ck_tile::index_t MinKWarpTile8Bit_ = 0>
+struct GemmConfigPipeline : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t MinKWarpTile8Bit = MinKWarpTile8Bit_;
+
+    static constexpr ck_tile::index_t M_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 128;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+
+    static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
+
+    template <typename Problem>
+    using BasePipeline = BasePipeline_<Problem>;
+    template <typename Problem>
+    using Pipeline = Pipeline_<Problem>;
+};
+
+using GemmConfigMem =
+    GemmConfigPipeline<ck_tile::BaseGemmPipelineAgBgCrMem, ck_tile::GemmPipelineAgBgCrMem, false>;
+using GemmConfigCompV3    = GemmConfigPipeline<ck_tile::BaseGemmPipelineAgBgCrCompV3,
+                                               ck_tile::GemmPipelineAgBgCrCompV3,
+                                               false>;
+using GemmConfigCompV4    = GemmConfigPipeline<ck_tile::BaseGemmPipelineAgBgCrCompV4,
+                                               ck_tile::GemmPipelineAgBgCrCompV4,
+                                               true>;
+using GemmConfigCompAsync = GemmConfigPipeline<ck_tile::BaseGemmPipelineAgBgCrCompAsync,
+                                               ck_tile::GemmPipelineAgBgCrCompAsync,
+                                               true,
+                                               128>;
+using GemmConfigCompTDMV1 = GemmConfigPipeline<ck_tile::BaseGemmPipelineAgBgCrCompTDM,
+                                               ck_tile::GemmPipelineAgBgCrCompTDMV1,
+                                               true>;
+using GemmConfigCompTDMV2 = GemmConfigPipeline<ck_tile::BaseGemmPipelineAgBgCrCompTDM,
+                                               ck_tile::GemmPipelineAgBgCrCompTDMV2,
+                                               true>;
+
+// Group-quant pipeline for GemmConfig: QuantPipeline itself under the default CompV3 config,
+// otherwise QuantPipeline running on GemmConfig's plain pipeline.
+template <typename GemmConfig,
+          ck_tile::QuantType QT,
+          typename QuantPipeline,
+          typename Problem = typename ck_tile::rebind_policy<QuantPipeline, void>::problem>
+using QuantPipelineFor = std::conditional_t<
+    std::is_same_v<typename GemmConfig::template Pipeline<Problem>,
+                   ck_tile::GemmPipelineAgBgCrCompV3<Problem>>,
+    QuantPipeline,
+    ck_tile::GemmQuantOnBasePipeline<QT,
+                                     QuantPipeline,
+                                     typename GemmConfig::template Pipeline<Problem>>>;
 
 // Enables the large-tensor (64-bit global load/store) code path. Same tile shape as the
 // base config; only the LargeTensors opt-in differs.
@@ -415,7 +483,8 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                                                      ComputeDataType,
                                                                      ComputeDataType>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+        using BaseGemmPipeline =
+            typename Base::GemmConfig::template BasePipeline<GemmPipelineProblem>;
 
         constexpr auto K1 = CodegenGemmShape::WarpTile::at(ck_tile::number<2>{});
         const ck_tile::index_t K_split =
@@ -444,7 +513,10 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                                    has_hot_loop_v,
                                                    tail_number_v>;
 
-            using GemmPipeline = ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+            using GemmPipeline =
+                QuantPipelineFor<typename Base::GemmConfig,
+                                 ck_tile::QuantType::AQuantGrouped,
+                                 ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
@@ -1090,7 +1162,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         using BaseGemmPipeline = std::conditional_t<
             PreshuffleB == false,
-            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+            typename GemmConfig::template BasePipeline<GemmPipelineProblem>,
             ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>;
 
         constexpr auto K1 = CodegenGemmShape::WarpTile::at(ck_tile::number<2>{});
@@ -1124,9 +1196,12 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
             using GemmPipeline = std::conditional_t<
                 PreshuffleB == false,
-                std::conditional_t<std::is_same_v<QDataType, ck_tile::e8m0_t>,
-                                   ck_tile::MicroscaleGemmPipelineAgBgCrCompV3<PipelineProblem>,
-                                   ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>,
+                std::conditional_t<
+                    std::is_same_v<QDataType, ck_tile::e8m0_t>,
+                    ck_tile::MicroscaleGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                    QuantPipelineFor<GemmConfig,
+                                     ck_tile::QuantType::BQuantGrouped,
+                                     ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>,
                 ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>>;
 
             // clang-format off
@@ -1487,7 +1562,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
             else if constexpr(IS_FP8BLOCKSCALE)
                 return ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>{};
             else
-                return ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>{};
+                return typename GemmConfig::template BasePipeline<GemmPipelineProblem>{};
         }();
         using BaseGemmPipeline = std::decay_t<decltype(base_gemm_pipeline)>;
 
@@ -1522,9 +1597,12 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
             using GemmPipeline = std::conditional_t<
                 eight_waves,
                 ck_tile::ABQuantGemmPipelineAgBgCrEightWaves<PipelineProblem>,
-                std::conditional_t<PreshuffleB,
-                                   ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
-                                   ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
+                std::conditional_t<
+                    PreshuffleB,
+                    ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
+                    QuantPipelineFor<GemmConfig,
+                                     ck_tile::QuantType::ABQuantGrouped,
+                                     ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
 
             using GemmEpilogue = std::conditional_t<
                 TiledMMAPermuteN,
@@ -2140,7 +2218,7 @@ class TestCkTileGemmRowColQuant
         using BaseGemmPipeline = std::conditional_t<
             PreshuffleB,
             ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+            typename GemmConfig::template BasePipeline<GemmPipelineProblem>>;
 
         constexpr auto K1 = CodegenGemmShape::WarpTile::at(ck_tile::number<2>{});
         const ck_tile::index_t K_split =
@@ -2171,7 +2249,7 @@ class TestCkTileGemmRowColQuant
             using GemmPipeline = std::conditional_t<
                 PreshuffleB,
                 ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>,
-                ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>>;
+                typename GemmConfig::template Pipeline<PipelineProblem>>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
@@ -2230,6 +2308,7 @@ class TestCkTileGemmTensorQuant
     using typename Base::CDataType;
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
+    using typename Base::GemmConfig;
     using typename Base::QDataType;
     using typename Base::QuantGroupSize;
 
@@ -2361,7 +2440,7 @@ class TestCkTileGemmTensorQuant
                                                                      ComputeDataType,
                                                                      ComputeDataType>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+        using BaseGemmPipeline = typename GemmConfig::template BasePipeline<GemmPipelineProblem>;
 
         constexpr auto K1 = CodegenGemmShape::WarpTile::at(ck_tile::number<2>{});
         const ck_tile::index_t K_split =
@@ -2389,7 +2468,7 @@ class TestCkTileGemmTensorQuant
                 has_hot_loop_v,
                 tail_number_v>;
 
-            using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
+            using GemmPipeline = typename GemmConfig::template Pipeline<PipelineProblem>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
