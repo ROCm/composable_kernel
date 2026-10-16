@@ -37,13 +37,14 @@ template <typename InOutDataType,
           bool kHasBias,
           bool kHasDropout,
           ck_tile::index_t MaxK,
+          bool kHdimPadded,
           ck_tile::index_t MTile>
 struct jagged_forward_dispatch
 {
     // The pipeline kind is resolved first: the tile setting depends on it, because the Tdm
     // pipelines need a block tile the trload ones cannot use.
     static constexpr HstuFwdPipelineKind kPipelineKind =
-        get_hstu_fwd_pipeline_kind<kUseSoftmax, MaxK>();
+        get_hstu_fwd_pipeline_kind<kUseSoftmax, MaxK, kHdimPadded>();
 
 #if defined(__hstu_gfx125__)
     using HstuAttentionTileSetting = decltype(GetHstuAttentionFwdTileSetting<MaxK,
@@ -256,71 +257,80 @@ void run_jagged_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStream
     int mtile_size = get_hstu_attention_fwd_mtile(
         param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv);
 
-    if(!param.is_cross_attention && mtile_size == 128)
-        jagged_forward_dispatch<InOutDataType,
-                                kUseCausal,
-                                kUseSoftmax,
-                                kStoreLSE,
-                                kHasBias,
-                                kHasDropout,
-                                MaxK,
-                                128>::Run(param, stream);
-    else
-    {
-        // for cross-attention, we should give more opportunity to use split-kv since the seqlen_kv
-        // is usually much bigger than seqlen_q, so the main-loop along the seqlen_kv have enough
-        // iterations to counter-act the cost brought by splitting
+    const bool hdim_padded = (param.hdim_qk < MaxK && param.hdim_v < MaxK);
 
-        const bool disable_fwd_splitkv = []() {
-            const char* env_p = std::getenv("HSTU_DISABLE_SPLITKV");
-            if(env_p == nullptr)
-                return false;
-            return static_cast<bool>(atoi(env_p));
-        }();
-
-        if(!disable_fwd_splitkv &&
-           shall_use_splitkv(
-               param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv))
-        {
-            if(mtile_size == 128)
-                jagged_forward_splitkv_dispatch<InOutDataType,
-                                                kUseCausal,
-                                                kUseSoftmax,
-                                                kStoreLSE,
-                                                kHasBias,
-                                                kHasDropout,
-                                                MaxK,
-                                                128>::Run(param, stream);
-            else
-                jagged_forward_splitkv_dispatch<InOutDataType,
-                                                kUseCausal,
-                                                kUseSoftmax,
-                                                kStoreLSE,
-                                                kHasBias,
-                                                kHasDropout,
-                                                MaxK,
-                                                64>::Run(param, stream);
-        }
+    BOOL_SWITCH(hdim_padded, kHdimPadded, [&] {
+        if(!param.is_cross_attention && mtile_size == 128)
+            jagged_forward_dispatch<InOutDataType,
+                                    kUseCausal,
+                                    kUseSoftmax,
+                                    kStoreLSE,
+                                    kHasBias,
+                                    kHasDropout,
+                                    MaxK,
+                                    kHdimPadded,
+                                    128>::Run(param, stream);
         else
         {
-            if(mtile_size == 128)
-                jagged_forward_dispatch<InOutDataType,
-                                        kUseCausal,
-                                        kUseSoftmax,
-                                        kStoreLSE,
-                                        kHasBias,
-                                        kHasDropout,
-                                        MaxK,
-                                        128>::Run(param, stream);
+            // for cross-attention, we should give more opportunity to use split-kv since the
+            // seqlen_kv is usually much bigger than seqlen_q, so the main-loop along the seqlen_kv
+            // have enough iterations to counter-act the cost brought by splitting
+
+            const bool disable_fwd_splitkv = []() {
+                const char* env_p = std::getenv("HSTU_DISABLE_SPLITKV");
+                if(env_p == nullptr)
+                    return false;
+                return static_cast<bool>(atoi(env_p));
+            }();
+
+            if(!disable_fwd_splitkv &&
+               shall_use_splitkv(
+                   param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv))
+            {
+                if(mtile_size == 128)
+                    jagged_forward_splitkv_dispatch<InOutDataType,
+                                                    kUseCausal,
+                                                    kUseSoftmax,
+                                                    kStoreLSE,
+                                                    kHasBias,
+                                                    kHasDropout,
+                                                    MaxK,
+                                                    kHdimPadded,
+                                                    128>::Run(param, stream);
+                else
+                    jagged_forward_splitkv_dispatch<InOutDataType,
+                                                    kUseCausal,
+                                                    kUseSoftmax,
+                                                    kStoreLSE,
+                                                    kHasBias,
+                                                    kHasDropout,
+                                                    MaxK,
+                                                    kHdimPadded,
+                                                    64>::Run(param, stream);
+            }
             else
-                jagged_forward_dispatch<InOutDataType,
-                                        kUseCausal,
-                                        kUseSoftmax,
-                                        kStoreLSE,
-                                        kHasBias,
-                                        kHasDropout,
-                                        MaxK,
-                                        64>::Run(param, stream);
-        }
-    };
+            {
+                if(mtile_size == 128)
+                    jagged_forward_dispatch<InOutDataType,
+                                            kUseCausal,
+                                            kUseSoftmax,
+                                            kStoreLSE,
+                                            kHasBias,
+                                            kHasDropout,
+                                            MaxK,
+                                            kHdimPadded,
+                                            128>::Run(param, stream);
+                else
+                    jagged_forward_dispatch<InOutDataType,
+                                            kUseCausal,
+                                            kUseSoftmax,
+                                            kStoreLSE,
+                                            kHasBias,
+                                            kHasDropout,
+                                            MaxK,
+                                            kHdimPadded,
+                                            64>::Run(param, stream);
+            }
+        };
+    });
 };

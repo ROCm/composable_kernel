@@ -45,15 +45,17 @@ enum class HstuFwdPipelineKind
     // member is itself declared under #if !HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE in
     // hstu_attention_fwd_pipeline_policy.hpp -- so returning Default on an arch that has
     // ds_read_tr is a hard template error several headers down, not a fallback.
-    Default, // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVS
-    TrLoad,  // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTrLoad
-    Tdm,     // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTdm, gfx1250 only
+    Default,         // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVS
+    TrLoad,          // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTrLoad
+    DirectLdsTrLoad, // // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSDirectLdsTrLoad, gfx950
+                     // only
+    Tdm,             // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTdm, gfx1250 only
 };
 
 // The choice depends only on the build arch and on values known before the tile setting is
 // selected, so a dispatch site is free to query it first and feed the answer into the tile
 // setting. Keep it that way.
-template <bool kUseSoftmax, ck_tile::index_t MaxK>
+template <bool kUseSoftmax, ck_tile::index_t MaxK, bool kHdimPadded>
 constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
 {
 #if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
@@ -70,7 +72,10 @@ constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
     else
         return HstuFwdPipelineKind::TrLoad;
 #elif HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
-    return HstuFwdPipelineKind::TrLoad;
+    if constexpr(!kHdimPadded && MaxK != 96)
+        return HstuFwdPipelineKind::DirectLdsTrLoad;
+    else
+        return HstuFwdPipelineKind::TrLoad;
 #else
     return HstuFwdPipelineKind::Default;
 #endif
