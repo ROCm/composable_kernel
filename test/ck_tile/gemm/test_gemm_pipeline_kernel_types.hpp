@@ -18,11 +18,12 @@ using Intrawave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
                                              ck_tile::GemmPipelineScheduler::Interwave>;
 
-using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
-using CompV3    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
-using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
-using CompV6    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV6>;
-using CompAsync = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsync>;
+using Mem         = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
+using CompV3      = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
+using CompV4      = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
+using CompV6      = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV6>;
+using CompAsync   = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsync>;
+using CompAsyncV2 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsyncV2>;
 using CompAsyncEightWaves =
     ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsyncEightWaves>;
 using CompTDMV1 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompTDMV1>;
@@ -325,6 +326,10 @@ using KernelTypesCompAsyncWmma = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompAsync, Persistent>
 >;
 
+using KernelTypesCompAsyncV2Wmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,      CompAsyncV2>
+>;
+
 // clang-format on
 template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
 using CompAsyncConfig = std::tuple<ALayout,
@@ -341,6 +346,25 @@ using CompAsyncConfig = std::tuple<ALayout,
                                    I32,       // NWarpTileSize
                                    Intrawave,
                                    CompAsync>;
+
+// 128x128 block tile: the 256x256x64 tile used by CompAsyncConfig produces wrong
+// results with CompAsyncV2 on gfx95 for every K (independent of the tail handling
+// covered here), which is tracked separately.
+template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
+using CompAsyncV2Config = std::tuple<ALayout,
+                                     BLayout,
+                                     CLayout,
+                                     InputType, // AType
+                                     InputType, // BType
+                                     F32,       // AccType
+                                     F16,       // OutputType
+                                     I128,      // MBlockTileSize
+                                     I128,      // NBlockTileSize
+                                     I64,       // KBlockTileSize
+                                     I32,       // MWarpTileSize
+                                     I32,       // NWarpTileSize
+                                     Intrawave,
+                                     CompAsyncV2>;
 
 template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
 using CompAsyncConfig16x16x128 = std::tuple<ALayout,
@@ -430,6 +454,9 @@ using KernelTypesCompAsync = ::testing::Types<CompAsyncConfig<Row, Row, Row, F16
                                               CompAsyncConfig<Row, Col, Row, F8>,
                                               CompAsyncConfig<Col, Row, Row, F8>,
                                               CompAsyncConfig<Col, Col, Row, F8>>;
+
+using KernelTypesCompAsyncV2 =
+    ::testing::Types<CompAsyncV2Config<Row, Col, Row, F16>, CompAsyncV2Config<Row, Row, Row, F16>>;
 
 using KernelTypesCompAsync16x16x128 = ::testing::Types<CompAsyncConfig16x16x128<Row, Col, Row, F4>,
                                                        CompAsyncConfig16x16x128<Row, Col, Row, F8>>;

@@ -10,6 +10,7 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/epilogue/tdm_epilogue.hpp"
 #include "ck_tile/host.hpp"
 
 #include <hip/hip_runtime.h>
@@ -145,15 +146,36 @@ struct GroupedGemmKernel
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
 
-    static constexpr index_t kBlockSize       = GemmPipeline::BlockSize;
-    static constexpr bool UsePersistentKernel = GemmPipeline::UsePersistentKernel;
+    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
+    // Same detection as the base kernel: equals GemmPipeline::UsePersistentKernel when the
+    // pipeline defines it, false otherwise (the TDM pipelines do not define it).
+    static constexpr bool UsePersistentKernel = Base::PersistentKernel;
+
+    /// @brief True for the gfx125 TDM pipelines (see UniversalGemmKernel::kIsTdmPipeline).
+    /// A misdetected non-TDM pipeline cannot silently take the TDM path: it would also need
+    /// a TdmEpilogue to pass the static_asserts below.
+    static constexpr bool kIsTdmPipeline = Base::kIsTdmPipeline;
+
+    static_assert(!kIsTdmPipeline || !UsePersistentKernel,
+                  "TDM grouped GEMM: persistent/tile-loop not supported yet");
+    static_assert(!kIsTdmPipeline || !Base::ClusterLaunch,
+                  "TDM grouped GEMM: cluster launch unsupported (1-D group-offset grid)");
+    static_assert(!kIsTdmPipeline || NumDTensor_ == 0,
+                  "TDM grouped GEMM: TdmEpilogue supports no D tensors");
+    static_assert(!kIsTdmPipeline || is_tdm_epilogue_v<EpiloguePipeline>,
+                  "TDM grouped GEMM requires TdmEpilogue");
+    // TDM clips A/B/E against the tensor-view extents, so padded views would move the clip
+    // bound past the real M/N/K and let tail tiles touch adjacent data.
+    static_assert(!kIsTdmPipeline ||
+                      (!GemmPipeline::kPadM && !GemmPipeline::kPadN && !GemmPipeline::kPadK),
+                  "TDM grouped GEMM requires kPadM, kPadN and kPadK == false");
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
         using P_ = GemmPipeline;
 
-        return concat('_', "gemm_grouped", gemm_prec_str<ADataType, BDataType>(),
+        auto name = concat('_', "gemm_grouped", gemm_prec_str<ADataType, BDataType>(),
                       concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK),
@@ -161,6 +183,11 @@ struct GroupedGemmKernel
                       (NumDTensor_ == 2 ? "MultiD" : "NoMultiD"),
                       (GemmPipeline::DoubleSmemBuffer ? "DoubleSmemBuffer" : "SingleSmemBuffer"));
         // clang-format on
+        if constexpr(kIsTdmPipeline)
+        {
+            name += "_tdm";
+        }
+        return name;
     }
 
     CK_TILE_HOST static auto
@@ -274,6 +301,25 @@ struct GroupedGemmKernel
     CK_TILE_HOST static bool
     IsSupportedArgument(const std::vector<GemmTransKernelArg<NumDTensor_>>& kargs)
     {
+        if constexpr(kIsTdmPipeline)
+        {
+            // Base::IsSupportedArgument returns true unconditionally for TDM pipelines, so the
+            // TDM-specific constraints are checked here, before querying the device, so invalid
+            // arguments are rejected deterministically on any host.
+            for(const auto& karg : kargs)
+            {
+                const auto& g = karg.group_karg;
+                if(!Base::IsTdmArgumentSupported(
+                       "grouped GEMM", g.k_batch, g.K, g.as_ptr[0], g.bs_ptr[0], g.e_ptr))
+                {
+                    return false;
+                }
+            }
+            if(!Base::IsTdmDeviceSupported("grouped GEMM"))
+            {
+                return false;
+            }
+        }
         for(const auto& karg : kargs)
         {
             if(!Base::IsSupportedArgument(karg.group_karg))
@@ -315,7 +361,28 @@ struct GroupedGemmKernel
 
         // TO DO:
         // Can we simplify this branching logic?
-        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
+        if constexpr(kIsTdmPipeline)
+        {
+            // TDM pipelines only accept tuple A/B windows, which Base::RunGemm builds. The host
+            // rejects k_batch != 1; trap here rather than silently producing wrong results.
+            // Note: a_ptr/b_ptr above use SplitKBatchOffset, whose K offset for packed types
+            // differs from the non-grouped path (APackedSize). Do not relax the k_batch == 1
+            // restriction for packed types without revisiting that offset.
+            if(kargs.k_batch != 1)
+            {
+                __builtin_trap();
+            }
+            Base::RunGemm({a_ptr},
+                          {b_ptr},
+                          kargs.ds_ptr,
+                          c_ptr,
+                          smem_ptr,
+                          kargs,
+                          splitk_batch_offset,
+                          i_m,
+                          i_n);
+        }
+        else if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
             RunGemmWithPipelineSelection2LDS(
                 a_ptr, b_ptr, c_ptr, kargs.ds_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);

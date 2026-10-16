@@ -170,6 +170,9 @@ struct BatchedContractionMultiABDKernel
 
     using InnerKernel =
         BatchedContractionKernel<InnerProblem, TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    static_assert(!InnerKernel::kIsTdmPipeline || (NumATensor == 1 && NumBTensor == 1),
+                  "TDM batched contraction multi-ABD: TdmEpilogue overwrites E, so multi-ABD "
+                  "accumulation is unsupported");
 
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
