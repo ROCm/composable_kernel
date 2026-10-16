@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/batched_contraction/pipeline/batched_contraction_problem.hpp"
 #include "ck_tile/ops/batched_contraction/utils/tensor_descriptor_utils.hpp"
+#include "ck_tile/ops/epilogue/tdm_epilogue.hpp"
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
 
 #if __clang_major__ >= 23
@@ -313,6 +314,10 @@ struct BatchedContractionKernel
     static constexpr ck_tile::index_t kBlockSize =
         UniversalGemmKernel::kBlockSize; ///< GPU block size inherited from GEMM kernel
 
+    /// True when GemmPipeline is a TDM (tensor data mover) pipeline. TDM pipelines load A/B and
+    /// store E through hardware tensor descriptors, so they take a dedicated RunGemmTdm path.
+    static constexpr bool kIsTdmPipeline = UniversalGemmKernel::kIsTdmPipeline;
+
     // Tensor descriptor utilities with vectorization support
     using DescriptorUtils = TensorDescriptorUtils<NumDimG,
                                                   NumDimM,
@@ -340,8 +345,22 @@ struct BatchedContractionKernel
     /// @param kargs Kernel arguments to validate
     /// @return True if arguments are supported, false otherwise
     /// @details Checks underlying GEMM kernel support and ensures valid batch dimensions
-    CK_TILE_HOST static constexpr bool IsSupportedArguments(const KernelArgs& kargs)
+    CK_TILE_HOST static bool IsSupportedArguments(const KernelArgs& kargs)
     {
+        if constexpr(kIsTdmPipeline)
+        {
+            if(!UniversalGemmKernel::IsTdmArgumentSupported("batched contraction",
+                                                            kargs.k_batch,
+                                                            kargs.K_total,
+                                                            kargs.a_ptr,
+                                                            kargs.b_ptr,
+                                                            kargs.e_ptr) ||
+               !UniversalGemmKernel::IsTdmDeviceSupported("batched contraction"))
+            {
+                return false;
+            }
+        }
+
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{kargs.a_ptr},
                                                             {kargs.b_ptr},
                                                             kargs.ds_ptr,
@@ -474,6 +493,143 @@ struct BatchedContractionKernel
         EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_windows, smem_ptr);
     }
 
+    /// @brief TDM variant of RunGemm.
+    ///
+    /// @details TDM pipelines move whole tiles through hardware tensor descriptors derived from
+    ///          the (merged) grid descriptors, clip out-of-bounds accesses in hardware and do not
+    ///          use padding. The pipeline consumes tuples of A/B windows and the TdmEpilogue
+    ///          overwrites E. The host side (MakeKernelArgs) guarantees that every merged
+    ///          dimension group is affinely collapsible, which TDM addressing requires.
+    CK_TILE_DEVICE static void RunGemmTdm(const ADataType* a_ptr,
+                                          const BDataType* b_ptr,
+                                          const std::array<const void*, NumDTensor>& ds_ptr,
+                                          EDataType* e_ptr,
+                                          void* smem_ptr,
+                                          const KernelArgs& kargs,
+                                          const index_t k_size,
+                                          const index_t i_m,
+                                          const index_t i_n)
+    {
+        static_assert(is_tdm_epilogue_v<EpiloguePipeline>,
+                      "TDM batched contraction requires TdmEpilogue");
+        static_assert(NumDTensor == 0, "TDM batched contraction does not support D tensors");
+        static_assert(!GemmPipeline::kPadK && !GemmPipeline::kPadN,
+                      "TDM batched contraction requires kPadK == false and kPadN == false");
+        static_assert(!UniversalGemmKernel::ClusterLaunch && !GemmPipeline::UseClusterLaunch,
+                      "TDM batched contraction does not support cluster launch");
+        static_assert(std::is_same_v<typename GemmPipeline::ALayout, tensor_layout::gemm::RowMajor>,
+                      "TDM batched contraction requires a RowMajor (M x K) A layout");
+        static_assert(
+            std::is_same_v<typename GemmPipeline::BLayout, tensor_layout::gemm::ColumnMajor>,
+            "TDM batched contraction requires a ColumnMajor (N x K) B layout");
+        static_assert(
+            std::is_same_v<typename EpiloguePipeline::ELayout, tensor_layout::gemm::RowMajor>,
+            "TDM batched contraction requires a RowMajor (M x N) E layout");
+        static_assert(
+            std::is_same_v<typename EpiloguePipeline::CDElementwise, element_wise::PassThrough>,
+            "TDM batched contraction requires a PassThrough CDE elementwise op");
+
+        // TDM clips in hardware: tensor views are used directly, without padding.
+        auto a_tensor_view =
+            make_tensor_view<address_space_enum::global>(a_ptr, kargs.a_grid_desc_m_k);
+        auto b_tensor_view =
+            make_tensor_view<address_space_enum::global>(b_ptr, kargs.b_grid_desc_n_k);
+        auto e_tensor_view =
+            make_tensor_view<address_space_enum::global>(e_ptr, kargs.e_grid_desc_m_n);
+
+        auto a_block_window = make_tile_window(
+            a_tensor_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
+            {i_m, 0});
+
+        auto b_block_window = make_tile_window(
+            b_tensor_view,
+            make_tuple(number<TilePartitioner::NPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
+            {i_n, 0});
+
+        auto e_block_window = make_tile_window(
+            e_tensor_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            {i_m, i_n});
+
+        const index_t num_loop =
+            __builtin_amdgcn_readfirstlane(TilePartitioner::GetLoopNum(k_size));
+
+        using AElementWise = remove_cvref_t<typename GemmPipeline::AElementWise>;
+        using BElementWise = remove_cvref_t<typename GemmPipeline::BElementWise>;
+
+        const auto& c_block_tile = GemmPipeline{}(make_tuple(a_block_window),
+                                                  AElementWise{},
+                                                  make_tuple(b_block_window),
+                                                  BElementWise{},
+                                                  num_loop,
+                                                  smem_ptr);
+
+        ignore                      = ds_ptr;
+        const auto ds_block_windows = make_tuple();
+
+        EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_windows, smem_ptr);
+    }
+
+    /// @brief Host check that a group of dimensions merged into one GEMM dimension can be
+    ///        addressed by TDM with a single stride.
+    /// @details TDM derives one stride per merged dimension (the stride of its fastest non-unit
+    ///          sub-dimension), so consecutive non-unit sub-dimensions must satisfy
+    ///          stride[i] == stride[j] * length[j]. When innermost_unit is true the fastest
+    ///          non-unit sub-dimension must also have stride 1 (contiguous dimension).
+    ///          Non-unit sub-dimensions with a zero (broadcast) or negative stride are rejected.
+    CK_TILE_HOST static bool IsTdmAffineCollapsible(const std::vector<index_t>& lengths,
+                                                    const std::vector<index_t>& strides,
+                                                    const index_t begin,
+                                                    const index_t count,
+                                                    const bool innermost_unit)
+    {
+        int64_t expected_stride = -1; // stride required for the next slower non-unit dim
+        for(index_t i = begin + count - 1; i >= begin; --i)
+        {
+            if(lengths[i] == 1)
+            {
+                continue;
+            }
+            const int64_t s = strides[i];
+            if(s <= 0)
+            {
+                return false;
+            }
+            if(expected_stride < 0)
+            {
+                if(innermost_unit && s != 1)
+                {
+                    return false;
+                }
+            }
+            else if(s != expected_stride)
+            {
+                return false;
+            }
+            expected_stride = s * static_cast<int64_t>(lengths[i]);
+        }
+        return true;
+    }
+
+    /// @brief Host helper: stride of the fastest G dimension with length > 1.
+    /// @details The flat batch index walks the non-unit G dimensions only, so this is the stride
+    ///          that advances one batch. Length-1 G dimensions (whose stride is arbitrary) are
+    ///          ignored. When every G dimension has length 1 there is a single batch and the
+    ///          stride of the last G dimension is returned (it is never multiplied by i > 0).
+    CK_TILE_HOST static index_t TdmBatchStride(const std::vector<index_t>& lengths,
+                                               const std::vector<index_t>& strides)
+    {
+        for(index_t i = NumDimG - 1; i >= 0; --i)
+        {
+            if(lengths[i] != 1)
+            {
+                return strides[i];
+            }
+        }
+        return strides[NumDimG - 1];
+    }
+
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const BatchedContractionHostArgs<NumDTensor>& host_args)
     {
@@ -506,6 +662,46 @@ struct BatchedContractionKernel
             }
         }
 
+        if constexpr(kIsTdmPipeline)
+        {
+            constexpr index_t G = NumDimG;
+            constexpr index_t M = NumDimM;
+            constexpr index_t N = NumDimN;
+            constexpr index_t K = NumDimK;
+            const auto& ad      = host_args.A_dims;
+            const auto& as      = host_args.A_strides;
+            const auto& bd      = host_args.B_dims;
+            const auto& bs      = host_args.B_strides;
+            const auto& ed      = host_args.E_dims;
+            const auto& es      = host_args.E_strides;
+            // The batch offset uses one stride (see TdmBatchStride below), so the non-unit G
+            // dimensions must collapse affinely.
+            if(!IsTdmAffineCollapsible(ad, as, 0, G, false) ||
+               !IsTdmAffineCollapsible(bd, bs, 0, G, false) ||
+               !IsTdmAffineCollapsible(ed, es, 0, G, false))
+            {
+                throw std::invalid_argument("TDM batched contraction: G dims must be packed");
+            }
+            if(!IsTdmAffineCollapsible(ad, as, G, M, false) ||
+               !IsTdmAffineCollapsible(ad, as, G + M, K, true))
+            {
+                throw std::invalid_argument(
+                    "TDM batched contraction: A M/K dim groups must be packed, K innermost");
+            }
+            if(!IsTdmAffineCollapsible(bd, bs, G, N, false) ||
+               !IsTdmAffineCollapsible(bd, bs, G + N, K, true))
+            {
+                throw std::invalid_argument(
+                    "TDM batched contraction: B N/K dim groups must be packed, K innermost");
+            }
+            if(!IsTdmAffineCollapsible(ed, es, G, M, false) ||
+               !IsTdmAffineCollapsible(ed, es, G + M, N, true))
+            {
+                throw std::invalid_argument(
+                    "TDM batched contraction: E M/N dim groups must be packed, N innermost");
+            }
+        }
+
         KernelArgs kargs;
         kargs.a_ptr   = host_args.a_ptr;
         kargs.b_ptr   = host_args.b_ptr;
@@ -532,6 +728,14 @@ struct BatchedContractionKernel
         kargs.batch_stride_A = host_args.A_strides[NumDimG - 1];
         kargs.batch_stride_B = host_args.B_strides[NumDimG - 1];
         kargs.batch_stride_E = host_args.E_strides[NumDimG - 1];
+        if constexpr(kIsTdmPipeline)
+        {
+            // The G group check above skips length-1 G dimensions, whose stride may be
+            // arbitrary; take the batch stride from the fastest non-unit G dimension instead.
+            kargs.batch_stride_A = TdmBatchStride(host_args.A_dims, host_args.A_strides);
+            kargs.batch_stride_B = TdmBatchStride(host_args.B_dims, host_args.B_strides);
+            kargs.batch_stride_E = TdmBatchStride(host_args.E_dims, host_args.E_strides);
+        }
 
         for(ck_tile::index_t i = 0; i < NumDimM; ++i)
         {
@@ -675,15 +879,30 @@ struct BatchedContractionKernel
         const ADataType* a_ptr_split = a_ptr + splitk_batch_offset.as_k_split_offset[0];
         const BDataType* b_ptr_split = b_ptr + splitk_batch_offset.bs_k_split_offset[0];
 
-        RunGemm(a_ptr_split,
-                b_ptr_split,
-                ds_batch_ptr,
-                e_ptr,
-                smem_ptr,
-                kargs,
-                splitk_batch_offset.splitted_k,
-                i_m,
-                i_n);
+        if constexpr(kIsTdmPipeline)
+        {
+            RunGemmTdm(a_ptr_split,
+                       b_ptr_split,
+                       ds_batch_ptr,
+                       e_ptr,
+                       smem_ptr,
+                       kargs,
+                       splitk_batch_offset.splitted_k,
+                       i_m,
+                       i_n);
+        }
+        else
+        {
+            RunGemm(a_ptr_split,
+                    b_ptr_split,
+                    ds_batch_ptr,
+                    e_ptr,
+                    smem_ptr,
+                    kargs,
+                    splitk_batch_offset.splitted_k,
+                    i_m,
+                    i_n);
+        }
     }
 };
 

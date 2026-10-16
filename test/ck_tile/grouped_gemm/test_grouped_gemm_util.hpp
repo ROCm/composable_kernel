@@ -14,6 +14,18 @@
 #include "ck_tile/ops/gemm/kernel/grouped_gemm_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
+// Block pipeline used by the non-persistent grouped GEMM invoker. CompV3 is the default and
+// the only choice for the persistent invoker; the TDM variants are gfx1250-only.
+enum class GroupedGemmPipelineType
+{
+    CompV3,
+    CompTDMV1,
+    CompTDMV2
+};
+
+template <GroupedGemmPipelineType PT>
+using GroupedGemmPipelineTypeConstant = std::integral_constant<GroupedGemmPipelineType, PT>;
+
 template <typename Tuple>
 class TestCkTileGroupedGemm : public ::testing::Test
 {
@@ -31,6 +43,17 @@ class TestCkTileGroupedGemm : public ::testing::Test
     // Get the persistent value from ck_tile::bool_constant
     using PersistentType             = std::tuple_element_t<7, Tuple>;
     static constexpr bool Persistent = PersistentType::value;
+
+    // Optional 9th tuple element selects the block pipeline; defaults to CompV3 so existing
+    // type lists are unchanged.
+    static constexpr GroupedGemmPipelineType PipelineType = ck_tile::tuple_element_or_default_t<
+        Tuple,
+        8,
+        GroupedGemmPipelineTypeConstant<GroupedGemmPipelineType::CompV3>>::value;
+    static constexpr bool IsTdmPipeline = PipelineType == GroupedGemmPipelineType::CompTDMV1 ||
+                                          PipelineType == GroupedGemmPipelineType::CompTDMV2;
+    static_assert(!(IsTdmPipeline && Persistent),
+                  "TDM grouped GEMM tests support only the non-persistent kernel");
 
     struct GroupedGemKernelParam_Mfma
     {
@@ -67,12 +90,39 @@ class TestCkTileGroupedGemm : public ::testing::Test
             ck_tile::get_k_warp_tile<ADataType, M_Warp_Tile>();
     };
 
+    // TDM (gfx1250) config: no padding (TDM clips out-of-bounds A/B/C in hardware), 2x2x1 waves
+    // (required by the V2 pipeline), 16x16 WMMA warp tiles.
+    struct GroupedGemKernelParam_TdmWmma
+    {
+        static const bool kPadM = false;
+        static const bool kPadN = false;
+        static const bool kPadK = false;
+
+        static const int kBlockPerCu         = 1;
+        static const ck_tile::index_t M_Tile = 64;
+        static const ck_tile::index_t N_Tile = 64;
+        static const ck_tile::index_t K_Tile =
+            (sizeof(ADataType) == 1 || sizeof(BDataType) == 1) ? 128 : 32;
+
+        static const ck_tile::index_t M_Warp = 2;
+        static const ck_tile::index_t N_Warp = 2;
+        static const ck_tile::index_t K_Warp = 1;
+
+        static const ck_tile::index_t M_Warp_Tile = 16;
+        static const ck_tile::index_t N_Warp_Tile = 16;
+        static constexpr ck_tile::index_t K_Warp_Tile =
+            ck_tile::max(ck_tile::get_k_warp_tile<ADataType, M_Warp_Tile>(),
+                         ck_tile::get_k_warp_tile<BDataType, N_Warp_Tile>());
+    };
+
     // Selects the same config the two invocation sites below instantiate the kernel with.
     // Tests that need to respect a kernel constraint must read it from here so they cannot
     // drift from the launched config.
 #if CK_TILE_USE_WMMA
-    using ActiveKernelParam = GroupedGemKernelParam_Wmma;
+    using ActiveKernelParam = std::
+        conditional_t<IsTdmPipeline, GroupedGemKernelParam_TdmWmma, GroupedGemKernelParam_Wmma>;
 #else
+    static_assert(!IsTdmPipeline, "TDM grouped GEMM tests require the WMMA path");
     using ActiveKernelParam = GroupedGemKernelParam_Mfma;
 #endif
 
@@ -148,6 +198,153 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
         // Use the filtered kargs (zero-dim groups are excluded by MakeKargs) to derive
         // the correct grid size and group count - not the raw gemm_descs vector.
+        const dim3 blocks = Kernel::BlockSize();
+        if(kargs.empty())
+            return;
+
+        const dim3 grids = dim3(kargs.back().block_end, 1, 1);
+
+        ck_tile::hip_check_error(
+            hipMemcpyWithStream(kargs_ptr,
+                                kargs.data(),
+                                kargs.size() * sizeof(ck_tile::GemmTransKernelArg<>),
+                                hipMemcpyHostToDevice,
+                                s.stream_id_));
+
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
+                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
+                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
+        }
+
+        ck_tile::ignore =
+            ck_tile::launch_kernel(s,
+                                   ck_tile::make_kernel<GroupedGemKernelParam::kBlockPerCu>(
+                                       Kernel{},
+                                       grids,
+                                       blocks,
+                                       0,
+                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                                       kargs.size()));
+    }
+
+    // Kernel type for the TDM pipelines (CompTDMV1 / CompTDMV2) paired with TdmEpilogue.
+    template <typename GroupedGemKernelParam, typename ALayout, typename BLayout, typename CLayout>
+    struct TdmGroupedGemmKernelBuilder
+    {
+        static constexpr bool DoubleSmemBuffer = true; // TDM pipelines ping-pong LDS
+#if defined(CK_USE_GFX1250)
+        // Same rule as the gemm TDM tests: transpose C when C is RowMajor and the warp tile is
+        // square.
+        static constexpr bool TransposeC =
+            std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+            GroupedGemKernelParam::M_Warp_Tile == GroupedGemKernelParam::N_Warp_Tile;
+#else
+        static constexpr bool TransposeC = false;
+#endif
+        static constexpr bool StructuredSparsity       = false;
+        static constexpr ck_tile::index_t NumWaveGroup = 1;
+        static constexpr bool UsePersistent            = false;
+        static constexpr bool Preshuffle               = false;
+        static constexpr ck_tile::index_t VectorSize   = 16;
+
+        static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+        static constexpr ck_tile::index_t TileParitionerM01      = 4;
+
+        using GemmShape =
+            ck_tile::TileGemmShape<ck_tile::sequence<GroupedGemKernelParam::M_Tile,
+                                                     GroupedGemKernelParam::N_Tile,
+                                                     GroupedGemKernelParam::K_Tile>,
+                                   ck_tile::sequence<GroupedGemKernelParam::M_Warp,
+                                                     GroupedGemKernelParam::N_Warp,
+                                                     GroupedGemKernelParam::K_Warp>,
+                                   ck_tile::sequence<GroupedGemKernelParam::M_Warp_Tile,
+                                                     GroupedGemKernelParam::N_Warp_Tile,
+                                                     GroupedGemKernelParam::K_Warp_Tile>>;
+        using TilePartitioner = ck_tile::
+            GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
+
+        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
+                                                                     GroupedGemKernelParam::kPadN,
+                                                                     GroupedGemKernelParam::kPadK,
+                                                                     DoubleSmemBuffer,
+                                                                     ALayout,
+                                                                     BLayout,
+                                                                     CLayout,
+                                                                     TransposeC,
+                                                                     StructuredSparsity,
+                                                                     UsePersistent,
+                                                                     NumWaveGroup,
+                                                                     Preshuffle,
+                                                                     VectorSize>;
+
+        using AComputeDataType = ADataType;
+        using BComputeDataType = BDataType;
+
+        static constexpr auto scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
+        using UniversalGemmProblem =
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  scheduler,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  AComputeDataType,
+                                                  BComputeDataType>;
+
+        using GemmPipeline =
+            std::conditional_t<PipelineType == GroupedGemmPipelineType::CompTDMV2,
+                               ck_tile::GemmPipelineAgBgCrCompTDMV2<UniversalGemmProblem>,
+                               ck_tile::GemmPipelineAgBgCrCompTDMV1<UniversalGemmProblem>>;
+
+        using GemmEpilogue = ck_tile::TdmEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             DsLayout,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             GroupedGemKernelParam::M_Warp,
+                                             GroupedGemKernelParam::N_Warp,
+                                             GroupedGemKernelParam::M_Warp_Tile,
+                                             GroupedGemKernelParam::N_Warp_Tile,
+                                             GroupedGemKernelParam::K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC,
+                                             1,                /*kNumWaveGroups_*/
+                                             false,            /*FixedVectorSize_*/
+                                             1,                /*VectorSizeC_*/
+                                             1,                /*BlockedXDLN_PerWarp_*/
+                                             DoubleSmemBuffer, /*DoubleSmemBuffer*/
+                                             AComputeDataType, /*AComputeDataType_*/
+                                             BComputeDataType /*BComputeDataType_*/>>;
+
+        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    };
+
+    template <typename GroupedGemKernelParam, typename ALayout, typename BLayout, typename CLayout>
+    void invoke_grouped_gemm_tdm(const std::vector<grouped_gemm_kargs>& gemm_descs,
+                                 const ck_tile::stream_config& s,
+                                 void* kargs_ptr)
+    {
+        using Kernel =
+            typename TdmGroupedGemmKernelBuilder<GroupedGemKernelParam, ALayout, BLayout, CLayout>::
+                Kernel;
+        static_assert(Kernel::kIsTdmPipeline, "expected a TDM grouped GEMM kernel");
+
+        auto kargs           = Kernel::MakeKargs(gemm_descs);
+        const bool supported = Kernel::IsSupportedArgument(kargs);
+        EXPECT_TRUE(supported) << "Kernel " << Kernel::GetName()
+                               << " rejected the arguments (set CK_TILE_LOGGING=1 for details)";
+        if(!supported)
+            return;
+
         const dim3 blocks = Kernel::BlockSize();
         if(kargs.empty())
             return;
@@ -297,6 +494,18 @@ class TestCkTileGroupedGemm : public ::testing::Test
     }
 
     public:
+    // Host-only check: build the TDM kernel args for the given problem descriptors and return
+    // Kernel::IsSupportedArgument. Device pointers are not dereferenced.
+    bool IsTdmArgumentSupported(const std::vector<grouped_gemm_kargs>& gemm_descs)
+    {
+        static_assert(IsTdmPipeline, "IsTdmArgumentSupported requires a TDM pipeline type");
+        using Kernel =
+            typename TdmGroupedGemmKernelBuilder<ActiveKernelParam, ALayout, BLayout, CLayout>::
+                Kernel;
+        const auto kargs = Kernel::MakeKargs(gemm_descs);
+        return Kernel::IsSupportedArgument(kargs);
+    }
+
     void Run(const std::vector<int>& Ms,
              const std::vector<int>& Ns,
              const std::vector<int>& Ks,
@@ -446,6 +655,13 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                     stream.stream_id_));
             invoke_grouped_gemm_persistent<ActiveKernelParam, ALayout, BLayout, CLayout>(
                 stream, group_count, kargs_ptr);
+        }
+        else if constexpr(IsTdmPipeline)
+        {
+            invoke_grouped_gemm_tdm<ActiveKernelParam, ALayout, BLayout, CLayout>(
+                gemm_descs,
+                ck_tile::stream_config{nullptr, false, 1},
+                gemm_workspace.GetDeviceBuffer());
         }
         else
         {

@@ -188,7 +188,19 @@ CK_TILE_DEVICE auto tdm_row_major_lds_view(void* p)
     return make_tensor_view<address_space_enum::lds>(static_cast<ODataType*>(p), desc);
 }
 
+template <typename Problem>
+constexpr bool is_tdm_epilogue(const TdmEpilogue<Problem>*)
+{
+    return true;
+}
+constexpr bool is_tdm_epilogue(const void*) { return false; }
+
 } // namespace impl
+
+/// True for TdmEpilogue and for epilogues derived from it (e.g. TdmMultiDEpilogue).
+template <typename Epilogue>
+inline constexpr bool is_tdm_epilogue_v =
+    impl::is_tdm_epilogue(static_cast<const remove_cvref_t<Epilogue>*>(nullptr));
 
 template <typename ODataType,
           index_t kBlockSize,

@@ -14,4 +14,6 @@ TYPED_TEST_SUITE(TestCkTileGemmPipelineCompAsyncWmma, KernelTypesCompAsyncWmma);
 
 #include "test_gemm_pipeline_ut_cases.inc"
 
+#include "test_gemm_pipeline_comp_async_tail_cases.inc"
+
 #undef TEST_SUITE_NAME

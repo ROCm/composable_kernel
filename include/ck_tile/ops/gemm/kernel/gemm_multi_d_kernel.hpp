@@ -9,6 +9,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/core/utility/env.hpp"
@@ -135,6 +136,25 @@ struct GemmKernelMultiD
     static constexpr index_t NumBTensor = 1;
     static constexpr index_t NumDTensor = DsDataType::size();
 
+    /// @brief True for the gfx125 TDM pipelines (see UniversalGemmKernel::kIsTdmPipeline).
+    static constexpr bool kIsTdmPipeline = UniversalGemmKernel::kIsTdmPipeline;
+
+    template <typename T>
+    using has_tdm_multi_d_epilogue_marker = decltype(T::kIsTdmMultiDEpilogue);
+
+    static_assert(!kIsTdmPipeline ||
+                      is_detected<has_tdm_multi_d_epilogue_marker, EpiloguePipeline>::value,
+                  "MultiD GEMM with a TDM pipeline requires TdmMultiDEpilogue");
+    static_assert(!kIsTdmPipeline || std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>,
+                  "MultiD GEMM with a TDM pipeline supports only row-major E");
+    static_assert(!kIsTdmPipeline || !UniversalGemmKernel::ClusterLaunch,
+                  "MultiD GEMM with a TDM pipeline does not support cluster launch");
+    // TDM clips A/B/E against the tensor-view extents, so padded views would move the clip
+    // bound past the real M/N/K and let tail tiles touch adjacent data.
+    static_assert(!kIsTdmPipeline ||
+                      (!GemmPipeline::kPadM && !GemmPipeline::kPadN && !GemmPipeline::kPadK),
+                  "MultiD GEMM with a TDM pipeline requires kPadM, kPadN and kPadK == false");
+
     CK_TILE_HOST static auto GetName() -> const std::string
     {
         return UniversalGemmKernel::GetName();
@@ -183,6 +203,22 @@ struct GemmKernelMultiD
         if(kargs.k_batch > 1)
         {
             return false;
+        }
+
+        if constexpr(kIsTdmPipeline)
+        {
+            // The universal check returns early for TDM pipelines; the D tensor layouts are
+            // checked at compile time by TdmMultiDEpilogue.
+            if(!UniversalGemmKernel::IsTdmArgumentSupported("MultiD GEMM",
+                                                            kargs.k_batch,
+                                                            kargs.K,
+                                                            kargs.as_ptr[0],
+                                                            kargs.bs_ptr[0],
+                                                            kargs.e_ptr) ||
+               !UniversalGemmKernel::IsTdmDeviceSupported("MultiD GEMM"))
+            {
+                return false;
+            }
         }
 
         return UniversalGemmKernel::IsSupportedArgument(kargs);

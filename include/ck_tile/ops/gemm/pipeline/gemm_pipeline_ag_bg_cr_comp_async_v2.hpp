@@ -78,7 +78,7 @@ struct BaseGemmPipelineAgBgCrCompAsyncV2
         __builtin_unreachable();
 #else
         throw std::logic_error(
-            "Invalid TailNumber: Only TailNumber::Three and TailNumber::Two are supported");
+            "Invalid TailNumber: Only TailNumber::One and TailNumber::Two are supported");
 #endif
     }
 };
@@ -92,7 +92,7 @@ struct BaseGemmPipelineAgBgCrCompAsyncV2
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncDefaultPolicy<true>>
 struct GemmPipelineAgBgCrCompAsyncV2 : public BaseGemmPipelineAgBgCrCompAsyncV2<Problem>
 {
-    using Base             = BaseGemmPipelineAgBgCrCompAsync<Problem>;
+    using Base             = BaseGemmPipelineAgBgCrCompAsyncV2<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
@@ -292,6 +292,10 @@ struct GemmPipelineAgBgCrCompAsyncV2 : public BaseGemmPipelineAgBgCrCompAsyncV2<
                                        index_t num_loop,
                                        void* __restrict__ p_smem) const
         {
+            // the V2 base only dispatches tail One (odd num_loop) or Two (even num_loop);
+            // any other tail would skip the final K tile(s)
+            static_assert(TailNum == TailNumber::One || TailNum == TailNumber::Two,
+                          "CompAsyncV2 supports only TailNumber::One and TailNumber::Two");
             // TODO support multi-ABD
             static_assert(1 == std::tuple_size_v<AsDramBlockWindowTmp>);
             static_assert(1 == std::tuple_size_v<BsDramBlockWindowTmp>);
@@ -404,11 +408,15 @@ struct GemmPipelineAgBgCrCompAsyncV2 : public BaseGemmPipelineAgBgCrCompAsyncV2<
             clear_tile(c_block_tile);
 
             // read A(1), B(1) from DRAM to LDS window(1)
-            // and advance the DRAM windows
-            Base::GlobalPrefetchAsync(
-                a_copy_lds_windows[I1{}], a_tile_windows[number<0>{}], a_dram_tile_window_step);
-            Base::GlobalPrefetchAsync(
-                b_copy_lds_windows[I1{}], b_tile_windows[number<0>{}], b_dram_tile_window_step);
+            // and advance the DRAM windows;
+            // with a single K tile there is no tile 1, loading it would read past the K extent
+            if constexpr(HasHotLoop || TailNum == TailNumber::Two)
+            {
+                Base::GlobalPrefetchAsync(
+                    a_copy_lds_windows[I1{}], a_tile_windows[number<0>{}], a_dram_tile_window_step);
+                Base::GlobalPrefetchAsync(
+                    b_copy_lds_windows[I1{}], b_tile_windows[number<0>{}], b_dram_tile_window_step);
+            }
 
             using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
             using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
@@ -432,6 +440,38 @@ struct GemmPipelineAgBgCrCompAsyncV2 : public BaseGemmPipelineAgBgCrCompAsyncV2<
             constexpr index_t AB_Async_Load_Inst_Num =
                 MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA()) +
                 NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
+            // The hot loop waits until only the loads of the newest window are in flight. On
+            // gfx125 a lane whose element is out of bounds does not issue its async load (it
+            // zero-fills LDS instead), so a wave can issue fewer than AB_Async_Load_Inst_Num loads
+            // and the partial wait would leave loads of the window about to be read in flight.
+            // Drain fully whenever a window can reach past its tensor: in a padded tile, or when
+            // the farthest element the block reads over the K loop is out of bounds (e.g. the
+            // last block of an M or N tail). The check is block uniform.
+#if defined(__gfx125__)
+            const auto reaches_past_end = [&](const auto& window, const auto& step) {
+                auto idx = window.get_window_origin();
+                static_for<0, 2, 1>{}([&](auto d) {
+                    idx(d) += window.get_window_lengths()[d] - 1 + (num_loop - 1) * step[d];
+                });
+                const auto& desc = window.get_bottom_tensor_view().get_tensor_descriptor();
+                return desc.calculate_offset(idx) >= desc.get_element_space_size();
+            };
+            const bool drain_async_loads =
+                kPadM || kPadN || kPadK ||
+                amd_wave_read_first_lane(
+                    static_cast<index_t>(reaches_past_end(a_dram_block_window_tmp[number<0>{}],
+                                                          a_dram_tile_window_step) ||
+                                         reaches_past_end(b_dram_block_window_tmp[number<0>{}],
+                                                          b_dram_tile_window_step))) != 0;
+#else
+            constexpr bool drain_async_loads = false;
+#endif
+            const auto wait_async_loads = [&]() {
+                if(drain_async_loads)
+                    block_sync_lds_direct_load<0>();
+                else
+                    block_sync_lds_direct_load<AB_Async_Load_Inst_Num>();
+            };
 
             __builtin_amdgcn_sched_barrier(0);
             if(HasHotLoop)
@@ -475,7 +515,7 @@ struct GemmPipelineAgBgCrCompAsyncV2 : public BaseGemmPipelineAgBgCrCompAsyncV2<
                         Base::GlobalPrefetchAsync(b_copy_lds_windows[I0{}],
                                                   b_tile_windows[number<0>{}],
                                                   b_dram_tile_window_step);
-                        block_sync_lds_direct_load<AB_Async_Load_Inst_Num>();
+                        wait_async_loads();
 
                         constexpr index_t final_prefetch_idx = sub_tile_num % 2;
                         constexpr index_t final_compute_idx  = (sub_tile_num - 1) % 2;
@@ -519,16 +559,27 @@ struct GemmPipelineAgBgCrCompAsyncV2 : public BaseGemmPipelineAgBgCrCompAsyncV2<
 
                         // LDS window(0) contents are overwritten by global prefetch, need to sync
                         block_sync_lds();
-                        // read A(i+1), B(i+1) from DRAM to LDS window(0)
-                        // and advance the DRAM windows
-                        Base::GlobalPrefetchAsync(a_copy_lds_windows[I1{}],
-                                                  a_tile_windows[number<0>{}],
-                                                  a_dram_tile_window_step);
-                        Base::GlobalPrefetchAsync(b_copy_lds_windows[I1{}],
-                                                  b_tile_windows[number<0>{}],
-                                                  b_dram_tile_window_step);
-
-                        block_sync_lds_direct_load<AB_Async_Load_Inst_Num>();
+                        // read A(i+1), B(i+1) from DRAM to LDS window(1)
+                        // and advance the DRAM windows; with an odd num_loop (tail One) the
+                        // last pong would fetch tile num_loop, past the K extent, so skip it.
+                        // With tail Two num_loop is even and i+1 < num_loop always holds, so
+                        // the check is folded away and the hot loop stays a single block.
+                        if(TailNum == TailNumber::Two || i_global_read + 1 < num_loop)
+                        {
+                            Base::GlobalPrefetchAsync(a_copy_lds_windows[I1{}],
+                                                      a_tile_windows[number<0>{}],
+                                                      a_dram_tile_window_step);
+                            Base::GlobalPrefetchAsync(b_copy_lds_windows[I1{}],
+                                                      b_tile_windows[number<0>{}],
+                                                      b_dram_tile_window_step);
+                            // write to LDS window(0) must complete before the local prefetch
+                            wait_async_loads();
+                        }
+                        else
+                        {
+                            // no newer load in flight: drain all to cover LDS window(0)
+                            block_sync_lds_direct_load<0>();
+                        }
                         constexpr index_t final_prefetch_idx = 0;
                         constexpr index_t final_compute_idx  = 1;
 

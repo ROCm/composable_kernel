@@ -9,6 +9,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/core/utility/env.hpp"
@@ -463,6 +464,60 @@ struct UniversalGemmKernel
         }();
     };
 
+    /// True for the gfx125 TDM pipelines (CompTDM V1, and V2 through inheritance): they expose
+    /// skipCheckValidLaunchParams, consume tuples of A/B windows and need a TDM epilogue.
+    /// Kernels that host them take a dedicated TDM path.
+    static constexpr bool kIsTdmPipeline = has_skip_check_valid_launch_params::value;
+
+    /// @brief Host checks shared by the kernels that host a TDM pipeline.
+    /// @details The TDM epilogues overwrite E, so split-K is not possible, and the pipelines
+    ///          need at least one K tile. TDM addresses global memory in elements from a byte
+    ///          base address, so A, B and E must be aligned to their element size.
+    ///          IsSupportedArgument returns true for TDM pipelines, so each hosting kernel calls
+    ///          this (and IsTdmDeviceSupported) instead.
+    CK_TILE_HOST static bool IsTdmArgumentSupported(const char* op_name,
+                                                    index_t k_batch,
+                                                    index_t K,
+                                                    const void* a_ptr,
+                                                    const void* b_ptr,
+                                                    const void* e_ptr)
+    {
+        const auto aligned = [](const void* p, std::size_t elem_size) {
+            return reinterpret_cast<std::uintptr_t>(p) % elem_size == 0;
+        };
+        if(k_batch != 1)
+        {
+            return RejectTdm(op_name, "does not support split-K (k_batch != 1)");
+        }
+        if(K <= 0)
+        {
+            return RejectTdm(op_name, "requires K > 0");
+        }
+        if(!aligned(a_ptr, sizeof(ADataType)) || !aligned(b_ptr, sizeof(BDataType)) ||
+           !aligned(e_ptr, sizeof(EDataType)))
+        {
+            return RejectTdm(op_name, "requires element-aligned A/B/E pointers");
+        }
+        return true;
+    }
+
+    /// @brief The TDM pipelines only exist on gfx125.
+    CK_TILE_HOST static bool IsTdmDeviceSupported(const char* op_name)
+    {
+        return is_gfx125_supported() || RejectTdm(op_name, "requires a gfx125 device");
+    }
+
+    private:
+    CK_TILE_HOST static bool RejectTdm(const char* op_name, const char* reason)
+    {
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            CK_TILE_ERROR(op_name, " with a TDM pipeline ", reason, "!");
+        }
+        return false;
+    }
+
+    public:
     // Large single-dimension support (a byte extent exceeding the 2GB buffer-addressing limit)
     // is routed through 64-bit global load/store instead of buffer addressing. Two B layouts are
     // excluded: PermuteB addresses B through a merged K0/K1 transform chain, and Preshuffle uses
@@ -1166,6 +1221,13 @@ struct UniversalGemmKernel
     {
         // Route Ds through 64-bit global load/store when the large-tensor global path is active.
         [[maybe_unused]] constexpr bool kDGlobalLoad = UseLargeTensorGlobalLoad();
+        // TDM pipelines run with kPadM/kPadN = false (TDM clips A/B/E in hardware), but D tensors
+        // are still read with regular tile loads in the epilogue. The TDM path only accepts
+        // row-major D, so force the contiguous (N) pad: a partial N tile then reads zeros instead
+        // of running past the row end into the next row. Rows past M are already outside the
+        // buffer range and read as zero. Only TDM kernels with Ds are affected.
+        constexpr bool kTdmD  = has_skip_check_valid_launch_params::value && NumDTensor > 0;
+        constexpr bool kPadDN = GemmPipeline::kPadN || kTdmD;
 
         // Step 1: Create tensor views
         const auto& ds_tensor_view = generate_tuple(
@@ -1189,7 +1251,7 @@ struct UniversalGemmKernel
                         ds_tensor_view[i],
                         make_tuple(number<TilePartitioner::MPerBlock>{},
                                    number<TilePartitioner::NPerBlock>{}),
-                        MakeBlockPadSequence<kDGlobalLoad, true, GemmPipeline::kPadN, false>());
+                        MakeBlockPadSequence<kDGlobalLoad, true, kPadDN, false>());
                 }
                 else
                 {
