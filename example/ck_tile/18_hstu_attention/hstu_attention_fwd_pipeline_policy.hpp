@@ -71,7 +71,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     {
         // On gfx950, AlignmentV is actually bigger than ScalePerVector (trload read size)
         return lcm(GetAlignmentV<Problem, true /*kUseTrLoad*/, true /*kUseDirectLds*/>(),
-                   GetPVTWarpGemmBScalarPerVector<Problem>());
+                   GetPVTWarpGemmBScalarPerVector<Problem, true /*kUseTrLoad*/>());
     }
 
     // [issues, warps, lanes * vector] view of one LDS buffer of kRows x kRowLength elements
