@@ -40,13 +40,14 @@ template <typename InOutDataType,
           bool kHasBias,
           bool kHasDropout,
           ck_tile::index_t MaxK,
+          bool kHdimPadded,
           ck_tile::index_t MTile>
 struct batched_forward_splitkv_dispatch
 {
     // The pipeline kind is resolved first: the tile setting depends on it, because the Tdm
     // pipelines need a block tile the trload ones cannot use.
     static constexpr HstuFwdPipelineKind kPipelineKind =
-        get_hstu_fwd_pipeline_kind<kUseSoftmax, MaxK>();
+        get_hstu_fwd_pipeline_kind<kUseSoftmax, MaxK, kHdimPadded>();
 
 #if defined(__hstu_gfx125__)
     using HstuAttentionFwdTileSetting = decltype(GetHstuAttentionFwdTileSetting<MaxK,
