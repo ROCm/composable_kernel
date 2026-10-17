@@ -46,7 +46,11 @@ using HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub32_K1_16_softmax =
 using HstuAttentionFwdBlockTile_Hdim256_M128_N0_32_Sub16_K1_16 =
     ck_tile::sequence<128, 32, 16, 256, 16, 256>;
 
-template <ck_tile::index_t MaxK, ck_tile::index_t ExpectedMTile, bool kUseSoftmax, bool kUseCausal>
+template <ck_tile::index_t MaxK,
+          ck_tile::index_t ExpectedMTile,
+          bool kUseSoftmax,
+          bool kUseCausal,
+          HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::Default>
 static constexpr auto GetHstuAttentionFwdTileSetting()
 {
     if constexpr(MaxK == 64)
