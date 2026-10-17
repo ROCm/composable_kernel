@@ -1074,7 +1074,7 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
         )
         self.assertIsNotNone(gfx125_dims)
         common_dims = list(map(int, gfx125_dims[1].split(",")))
-        self.assertEqual(common_dims, [32, 64, 96, 128, 160, 192, 256])
+        self.assertEqual(common_dims, [32, 64, 96, 128, 160, 192, 256, 512])
         for receipt in (0, 100, 200, 600):
             for optdims in ([128], [192], [256], [-1], common_dims):
                 with self.subTest(receipt=receipt, optdims=optdims):

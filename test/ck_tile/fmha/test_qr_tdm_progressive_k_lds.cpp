@@ -33,11 +33,30 @@ using TestFmhaTraits = ck_tile::TileFmhaTraits<false,
                                                false,
                                                ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE>;
 
+// StreamLLM sink tokens. Sink only changes the pipeline when the mask has a
+// bounded left window, so the sink problems below pair it with a real mask.
+using TestFmhaSinkTraits = ck_tile::TileFmhaTraits<false,
+                                                   false,
+                                                   false,
+                                                   false,
+                                                   false,
+                                                   ck_tile::BlockAttentionBiasEnum::NO_BIAS,
+                                                   false,
+                                                   false,
+                                                   false,
+                                                   ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE,
+                                                   -1,
+                                                   false,
+                                                   /*kHasSink_=*/true>;
+
+using TestCausalMask = ck_tile::SimplifiedGenericAttentionMask<true>;
+
 template <ck_tile::index_t M,
           bool UseDoubleKVLdsBuffer = false,
           bool ProgressiveDsLoadK   = false,
           typename DataType         = ck_tile::half_t,
-          typename Mask             = ck_tile::SimplifiedGenericAttentionMask<false>>
+          typename Mask             = ck_tile::SimplifiedGenericAttentionMask<false>,
+          typename Traits           = TestFmhaTraits>
 using TestFmhaProblem = ck_tile::BlockFmhaPipelineProblem<DataType,
                                                           DataType,
                                                           DataType,
@@ -54,7 +73,7 @@ using TestFmhaProblem = ck_tile::BlockFmhaPipelineProblem<DataType,
                                                           ck_tile::ComposedAttention<0>,
                                                           Mask,
                                                           false,
-                                                          TestFmhaTraits,
+                                                          Traits,
                                                           UseDoubleKVLdsBuffer,
                                                           ProgressiveDsLoadK>;
 
@@ -67,6 +86,14 @@ using TestFmhaShapeD64 = ck_tile::TileFmhaShape<ck_tile::sequence<128, 64, 32, 3
                                                 true>;
 
 using TestFmhaShapeD256 = ck_tile::TileFmhaShape<ck_tile::sequence<64, 64, 32, 256, 32, 256>,
+                                                 ck_tile::sequence<4, 1, 1>,
+                                                 ck_tile::sequence<16, 16, 32>,
+                                                 ck_tile::sequence<4, 1, 1>,
+                                                 ck_tile::sequence<16, 16, 32>,
+                                                 true,
+                                                 true>;
+
+using TestFmhaShapeD512 = ck_tile::TileFmhaShape<ck_tile::sequence<64, 64, 32, 512, 32, 512>,
                                                  ck_tile::sequence<4, 1, 1>,
                                                  ck_tile::sequence<16, 16, 32>,
                                                  ck_tile::sequence<4, 1, 1>,
@@ -99,16 +126,31 @@ using TestFmhaProblemForShape = ck_tile::BlockFmhaPipelineProblem<DataType,
                                                                   UseDoubleKVLdsBuffer,
                                                                   ProgressiveDsLoadK>;
 
-using SingleBufferM64Problem    = TestFmhaProblem<64>;
-using DoubleBufferM64Problem    = TestFmhaProblem<64, true>;
-using ProgressiveM64Problem     = TestFmhaProblem<64, true, true>;
-using DoubleBufferM128Problem   = TestFmhaProblem<128, true>;
-using ProgressiveM128Problem    = TestFmhaProblem<128, true, true>;
-using ProgressiveM128D64Problem = TestFmhaProblemForShape<TestFmhaShapeD64, true, true>;
-using ProgressiveM64D256Problem = TestFmhaProblemForShape<TestFmhaShapeD256, true, true>;
+using SingleBufferM64Problem = TestFmhaProblem<64>;
+// Progressive K reload on the single-buffer path: the combination the codegen
+// used to reject, and the one d256 and d512 run in production.
+using SingleBufferProgressiveM64Problem = TestFmhaProblem<64, false, true>;
+using DoubleBufferM64Problem            = TestFmhaProblem<64, true>;
+using ProgressiveM64Problem             = TestFmhaProblem<64, true, true>;
+using DoubleBufferM128Problem           = TestFmhaProblem<128, true>;
+using ProgressiveM128Problem            = TestFmhaProblem<128, true, true>;
+using ProgressiveM128D64Problem         = TestFmhaProblemForShape<TestFmhaShapeD64, true, true>;
+using ProgressiveM64D256Problem         = TestFmhaProblemForShape<TestFmhaShapeD256, true, true>;
+using SingleBufferSinkM64Problem =
+    TestFmhaProblem<64, false, false, ck_tile::half_t, TestCausalMask, TestFmhaSinkTraits>;
+using DoubleBufferSinkM64Problem =
+    TestFmhaProblem<64, true, false, ck_tile::half_t, TestCausalMask, TestFmhaSinkTraits>;
+// The shipped d256 and d512 configurations: single-V/double-K buffers, progressive
+// reload, and the plain single-buffer counterpart to cross-check them against.
+using SingleBufferD256Problem            = TestFmhaProblemForShape<TestFmhaShapeD256>;
+using SingleBufferProgressiveD256Problem = TestFmhaProblemForShape<TestFmhaShapeD256, false, true>;
+using SingleBufferD512Problem            = TestFmhaProblemForShape<TestFmhaShapeD512>;
+using SingleBufferProgressiveD512Problem = TestFmhaProblemForShape<TestFmhaShapeD512, false, true>;
 
 static_assert(!SingleBufferM64Problem::kUseDoubleKVLdsBuffer);
 static_assert(!SingleBufferM64Problem::kProgressiveDsLoadK);
+static_assert(!SingleBufferProgressiveM64Problem::kUseDoubleKVLdsBuffer);
+static_assert(SingleBufferProgressiveM64Problem::kProgressiveDsLoadK);
 static_assert(DoubleBufferM64Problem::kUseDoubleKVLdsBuffer);
 static_assert(!DoubleBufferM64Problem::kProgressiveDsLoadK);
 static_assert(ProgressiveM64Problem::kUseDoubleKVLdsBuffer);
@@ -117,11 +159,25 @@ static_assert(DoubleBufferM128Problem::kUseDoubleKVLdsBuffer);
 static_assert(!DoubleBufferM128Problem::kProgressiveDsLoadK);
 static_assert(ProgressiveM128Problem::kUseDoubleKVLdsBuffer);
 static_assert(ProgressiveM128Problem::kProgressiveDsLoadK);
+static_assert(!SingleBufferSinkM64Problem::kUseDoubleKVLdsBuffer);
+static_assert(DoubleBufferSinkM64Problem::kUseDoubleKVLdsBuffer);
+static_assert(SingleBufferSinkM64Problem::FmhaMask::IsMasking);
 
 template <typename Problem>
 using TestPipeline = ck_tile::BlockFmhaPipelineQRKSVSTdm<Problem>;
 
-static_assert(!TestPipeline<SingleBufferM64Problem>::kKLoadOnce);
+static_assert(TestPipeline<SingleBufferSinkM64Problem>::kHasSink);
+static_assert(TestPipeline<DoubleBufferSinkM64Problem>::kHasSink);
+
+// Every path stages K as a whole tile now, which is what the progressive reload
+// needs; the single-buffer one still never reaches the K-pair staging variant,
+// whose shape requirements no qr_tdm single-buffer tile satisfies.
+static_assert(TestPipeline<SingleBufferM64Problem>::kKLoadOnce);
+static_assert(TestPipeline<SingleBufferProgressiveM64Problem>::kKLoadOnce);
+static_assert(!TestPipeline<SingleBufferProgressiveM64Problem>::kStagedKPairs);
+static_assert(!TestPipeline<SingleBufferProgressiveD256Problem>::kStagedKPairs);
+static_assert(!TestPipeline<SingleBufferProgressiveD512Problem>::kStagedKPairs);
+static_assert(TestPipeline<SingleBufferProgressiveD512Problem>::kKLoadOnce);
 static_assert(TestPipeline<DoubleBufferM64Problem>::kKLoadOnce);
 static_assert(TestPipeline<DoubleBufferM128Problem>::kKLoadOnce);
 static_assert(TestPipeline<ProgressiveM64Problem>::kKLoadOnce);
@@ -186,40 +242,47 @@ run_kernel(const ck_tile::DeviceMem& q_device,
            ck_tile::index_t seqlen_q,
            ck_tile::index_t seqlen_k = kSeqlenK,
            ck_tile::GenericAttentionMaskEnum mask_type =
-               ck_tile::GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT)
+               ck_tile::GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT,
+           ck_tile::index_t window_size_left = -1,
+           ck_tile::index_t sink_size        = 0,
+           const void* sink_ptr              = nullptr)
 {
     using Kernel   = TestKernel<Problem>;
     using DataType = typename Problem::ODataType;
 
-    std::vector<DataType> output(kBatch * kHeads * seqlen_q * kHeadDim);
+    // Derived from the problem, so head dims other than 128 reuse this harness.
+    constexpr ck_tile::index_t hdim_q = Problem::BlockFmhaShape::kQKHeaddim;
+    constexpr ck_tile::index_t hdim_v = Problem::BlockFmhaShape::kN1;
+
+    std::vector<DataType> output(kBatch * kHeads * seqlen_q * hdim_v);
     ck_tile::DeviceMem output_device(output.size() * sizeof(DataType));
     output_device.SetBytePattern(0x7f);
 
     typename Kernel::Kargs args{};
-    args.q_ptr              = q_device.GetDeviceBuffer();
-    args.k_ptr              = k_device.GetDeviceBuffer();
-    args.v_ptr              = v_device.GetDeviceBuffer();
-    args.o_ptr              = output_device.GetDeviceBuffer();
-    args.seqlen_q           = seqlen_q;
-    args.seqlen_k           = seqlen_k;
-    args.hdim_q             = kHeadDim;
-    args.hdim_v             = kHeadDim;
-    args.num_head_q         = kHeads;
-    args.nhead_ratio_qk     = 1;
-    constexpr float scale_s = 0.08838834764831843f; // 1 / sqrt(128)
+    args.q_ptr          = q_device.GetDeviceBuffer();
+    args.k_ptr          = k_device.GetDeviceBuffer();
+    args.v_ptr          = v_device.GetDeviceBuffer();
+    args.o_ptr          = output_device.GetDeviceBuffer();
+    args.seqlen_q       = seqlen_q;
+    args.seqlen_k       = seqlen_k;
+    args.hdim_q         = hdim_q;
+    args.hdim_v         = hdim_v;
+    args.num_head_q     = kHeads;
+    args.nhead_ratio_qk = 1;
+    const float scale_s = static_cast<float>(1.0 / std::sqrt(static_cast<double>(hdim_q)));
 #if CK_TILE_FMHA_FWD_FAST_EXP2
     args.scale_s = scale_s * ck_tile::log2e_v<>;
 #else
     args.scale_s = scale_s;
 #endif
-    args.stride_q         = kHeadDim;
-    args.stride_k         = kHeadDim;
-    args.stride_v         = kHeadDim;
-    args.stride_o         = kHeadDim;
-    args.nhead_stride_q   = seqlen_q * kHeadDim;
-    args.nhead_stride_k   = seqlen_k * kHeadDim;
-    args.nhead_stride_v   = seqlen_k * kHeadDim;
-    args.nhead_stride_o   = seqlen_q * kHeadDim;
+    args.stride_q         = hdim_q;
+    args.stride_k         = hdim_q;
+    args.stride_v         = hdim_v;
+    args.stride_o         = hdim_v;
+    args.nhead_stride_q   = seqlen_q * hdim_q;
+    args.nhead_stride_k   = seqlen_k * hdim_q;
+    args.nhead_stride_v   = seqlen_k * hdim_v;
+    args.nhead_stride_o   = seqlen_q * hdim_v;
     args.num_head_q_total = kHeads;
     args.batch_stride_q   = kHeads * args.nhead_stride_q;
     args.batch_stride_k   = kHeads * args.nhead_stride_k;
@@ -228,16 +291,18 @@ run_kernel(const ck_tile::DeviceMem& q_device,
 
     if constexpr(Problem::FmhaMask::IsMasking)
     {
-        args.window_size_left  = -1;
+        args.window_size_left  = window_size_left;
         args.window_size_right = 0;
         args.mask_type         = mask_type;
+        args.sink_size         = sink_size;
     }
+    args.sink_ptr = sink_ptr;
 
     const ck_tile::stream_config stream{};
     ck_tile::launch_kernel(stream,
                            ck_tile::make_kernel<Kernel::kBlockPerCu, ck_tile::gfx125_t>(
                                Kernel{},
-                               Kernel::GridSize(kBatch, kHeads, seqlen_q, kHeadDim),
+                               Kernel::GridSize(kBatch, kHeads, seqlen_q, hdim_v),
                                Kernel::BlockSize(),
                                0,
                                args));
@@ -295,6 +360,213 @@ TEST(QrTdmProgressiveKLds, M64BufferingModesProduceEquivalentOutput)
     expect_finite_nonzero(progressive);
     expect_close(baseline, single, "M64 double-buffer baseline differs from single-buffer output");
     expect_close(progressive, single, "M64 progressive output differs from single-buffer output");
+}
+
+// The single-buffer main loop is unrolled by two so that each K LDS buffer is
+// named at compile time, and the last iteration re-issues its K prefetch onto a
+// parked window to keep the number of in-flight TDM loads constant. Sweep one
+// to three K tiles, with and without a partial last tile, so both the odd and
+// the even tail run.
+TEST(QrTdmProgressiveKLds, SingleBufferTileCountParity)
+{
+    if(!ck_tile::is_gfx125_supported())
+        GTEST_SKIP() << "QR-TDM progressive K LDS is only supported on gfx1250";
+
+    constexpr ck_tile::index_t seqlen_q     = 64;
+    constexpr ck_tile::index_t max_seqlen_k = 192;
+
+    const auto q = make_input(kBatch * kHeads * seqlen_q * kHeadDim, 13, 29, 14, 0.03125f);
+    const auto k = make_input(kBatch * kHeads * max_seqlen_k * kHeadDim, 7, 31, 15, 0.025f);
+    const auto v = make_input(kBatch * kHeads * max_seqlen_k * kHeadDim, 11, 37, 18, 0.02f);
+    const ck_tile::DeviceMem q_device(q.size() * sizeof(ck_tile::half_t));
+    const ck_tile::DeviceMem k_device(k.size() * sizeof(ck_tile::half_t));
+    const ck_tile::DeviceMem v_device(v.size() * sizeof(ck_tile::half_t));
+    q_device.ToDevice(q.data());
+    k_device.ToDevice(k.data());
+    v_device.ToDevice(v.data());
+
+    for(const ck_tile::index_t seqlen_k : {64, 65, 128, 129, 192})
+    {
+        const auto single =
+            run_kernel<SingleBufferM64Problem>(q_device, k_device, v_device, seqlen_q, seqlen_k);
+        const auto baseline =
+            run_kernel<DoubleBufferM64Problem>(q_device, k_device, v_device, seqlen_q, seqlen_k);
+
+        expect_finite_nonzero(single);
+        expect_close(single,
+                     baseline,
+                     "single-buffer output differs from the double-buffer baseline at seqlen_k=" +
+                         std::to_string(seqlen_k));
+    }
+}
+
+// With sink tokens the mainloop first walks [0, sink_seq_end) and then jumps
+// the K/V windows to the sliding-window range. K is prefetched one iteration
+// ahead of V, so the K window has to jump one iteration earlier than the V and
+// bias windows do -- an off-by-one there silently feeds gemm0 the wrong tile.
+// Sizes are picked so that a q tile really has both phases: kM0 is 64, so the
+// last q tile starts at row 192, a 64-wide left window puts its key range at
+// [128, 256), and 64 sink tokens round up to a sink range of [0, 64).
+TEST(QrTdmProgressiveKLds, SingleBufferSinkWindowJump)
+{
+    if(!ck_tile::is_gfx125_supported())
+        GTEST_SKIP() << "QR-TDM progressive K LDS is only supported on gfx1250";
+
+    constexpr ck_tile::index_t seqlen_q         = 256;
+    constexpr ck_tile::index_t seqlen_k         = 256;
+    constexpr ck_tile::index_t window_size_left = 63;
+    constexpr ck_tile::index_t sink_size        = 64;
+
+    const auto q = make_input(kBatch * kHeads * seqlen_q * kHeadDim, 13, 29, 14, 0.03125f);
+    const auto k = make_input(kBatch * kHeads * seqlen_k * kHeadDim, 7, 31, 15, 0.025f);
+    const auto v = make_input(kBatch * kHeads * seqlen_k * kHeadDim, 11, 37, 18, 0.02f);
+    const ck_tile::DeviceMem q_device(q.size() * sizeof(ck_tile::half_t));
+    const ck_tile::DeviceMem k_device(k.size() * sizeof(ck_tile::half_t));
+    const ck_tile::DeviceMem v_device(v.size() * sizeof(ck_tile::half_t));
+    q_device.ToDevice(q.data());
+    k_device.ToDevice(k.data());
+    v_device.ToDevice(v.data());
+
+    const std::vector<float> sink(kHeads, 0.5f);
+    const ck_tile::DeviceMem sink_device(sink.size() * sizeof(float));
+    sink_device.ToDevice(sink.data());
+
+    const auto single = run_kernel<SingleBufferSinkM64Problem>(
+        q_device,
+        k_device,
+        v_device,
+        seqlen_q,
+        seqlen_k,
+        ck_tile::GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT,
+        window_size_left,
+        sink_size,
+        sink_device.GetDeviceBuffer());
+    const auto baseline = run_kernel<DoubleBufferSinkM64Problem>(
+        q_device,
+        k_device,
+        v_device,
+        seqlen_q,
+        seqlen_k,
+        ck_tile::GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT,
+        window_size_left,
+        sink_size,
+        sink_device.GetDeviceBuffer());
+
+    expect_finite_nonzero(single);
+    expect_close(
+        single, baseline, "sink single-buffer output differs from the double-buffer baseline");
+}
+
+// Progressive reload changes when K fragments are pulled out of LDS, not what
+// they contain, so the single-buffer path must agree with itself without the
+// reload and with the double-buffer baseline. Same odd/even tile counts as
+// above, since the reload is issued from inside the unrolled body.
+TEST(QrTdmProgressiveKLds, SingleBufferProgressiveMatchesBaseline)
+{
+    if(!ck_tile::is_gfx125_supported())
+        GTEST_SKIP() << "QR-TDM progressive K LDS is only supported on gfx1250";
+
+    constexpr ck_tile::index_t seqlen_q     = 64;
+    constexpr ck_tile::index_t max_seqlen_k = 192;
+
+    const auto q = make_input(kBatch * kHeads * seqlen_q * kHeadDim, 13, 29, 14, 0.03125f);
+    const auto k = make_input(kBatch * kHeads * max_seqlen_k * kHeadDim, 7, 31, 15, 0.025f);
+    const auto v = make_input(kBatch * kHeads * max_seqlen_k * kHeadDim, 11, 37, 18, 0.02f);
+    const ck_tile::DeviceMem q_device(q.size() * sizeof(ck_tile::half_t));
+    const ck_tile::DeviceMem k_device(k.size() * sizeof(ck_tile::half_t));
+    const ck_tile::DeviceMem v_device(v.size() * sizeof(ck_tile::half_t));
+    q_device.ToDevice(q.data());
+    k_device.ToDevice(k.data());
+    v_device.ToDevice(v.data());
+
+    for(const ck_tile::index_t seqlen_k : {64, 65, 128, 129, 192})
+    {
+        const auto progressive = run_kernel<SingleBufferProgressiveM64Problem>(
+            q_device, k_device, v_device, seqlen_q, seqlen_k);
+        const auto single =
+            run_kernel<SingleBufferM64Problem>(q_device, k_device, v_device, seqlen_q, seqlen_k);
+        const auto baseline =
+            run_kernel<DoubleBufferM64Problem>(q_device, k_device, v_device, seqlen_q, seqlen_k);
+
+        const std::string suffix = " at seqlen_k=" + std::to_string(seqlen_k);
+        expect_finite_nonzero(progressive);
+        expect_close(progressive, single, "progressive output differs from single-buffer" + suffix);
+        expect_close(progressive,
+                     baseline,
+                     "progressive output differs from double-buffer baseline" + suffix);
+    }
+}
+
+// Cross-check the progressive reload against the plain single-buffer path at a
+// head dim other than 128, over the caller's K tile counts.
+template <typename BaseProblem, typename ProgressiveProblem>
+void expect_progressive_matches_single_buffer(const std::string& label,
+                                              const std::vector<ck_tile::index_t>& seqlen_ks)
+{
+    static_assert(std::is_same_v<typename BaseProblem::BlockFmhaShape,
+                                 typename ProgressiveProblem::BlockFmhaShape>);
+    static_assert(!BaseProblem::kUseDoubleKVLdsBuffer);
+    static_assert(!BaseProblem::kProgressiveDsLoadK);
+    static_assert(!ProgressiveProblem::kUseDoubleKVLdsBuffer);
+    static_assert(ProgressiveProblem::kProgressiveDsLoadK);
+
+    using DataType                      = typename BaseProblem::QDataType;
+    constexpr ck_tile::index_t hdim     = BaseProblem::BlockFmhaShape::kQKHeaddim;
+    constexpr ck_tile::index_t seqlen_q = 64;
+
+    ck_tile::index_t max_seqlen_k = 0;
+    for(const ck_tile::index_t seqlen_k : seqlen_ks)
+        max_seqlen_k = ck_tile::max(max_seqlen_k, seqlen_k);
+
+    const auto q = make_input<DataType>(kBatch * kHeads * seqlen_q * hdim, 13, 29, 14, 0.03125f);
+    const auto k = make_input<DataType>(
+        static_cast<std::size_t>(kBatch * kHeads * max_seqlen_k * hdim), 7, 31, 15, 0.025f);
+    const auto v = make_input<DataType>(
+        static_cast<std::size_t>(kBatch * kHeads * max_seqlen_k * hdim), 11, 37, 18, 0.02f);
+    const ck_tile::DeviceMem q_device(q.size() * sizeof(DataType));
+    const ck_tile::DeviceMem k_device(k.size() * sizeof(DataType));
+    const ck_tile::DeviceMem v_device(v.size() * sizeof(DataType));
+    q_device.ToDevice(q.data());
+    k_device.ToDevice(k.data());
+    v_device.ToDevice(v.data());
+
+    for(const ck_tile::index_t seqlen_k : seqlen_ks)
+    {
+        const auto baseline =
+            run_kernel<BaseProblem>(q_device, k_device, v_device, seqlen_q, seqlen_k);
+        const auto progressive =
+            run_kernel<ProgressiveProblem>(q_device, k_device, v_device, seqlen_q, seqlen_k);
+
+        expect_finite_nonzero(progressive);
+        expect_close(progressive,
+                     baseline,
+                     label + " progressive output differs from the single-buffer baseline at" +
+                         " seqlen_k=" + std::to_string(seqlen_k));
+    }
+}
+
+// Three and four K tiles put the x2-unrolled mainloop through a full steady
+// state -- parity 0, parity 1, then wrapping back to parity 0 -- instead of
+// stopping inside the first unrolled pair the way 64/65 do.
+TEST(QrTdmProgressiveKLds, D256SingleBufferProgressiveMatchesBaseline)
+{
+    if(!ck_tile::is_gfx125_supported())
+        GTEST_SKIP() << "QR-TDM progressive K LDS is only supported on gfx1250";
+
+    expect_progressive_matches_single_buffer<SingleBufferD256Problem,
+                                             SingleBufferProgressiveD256Problem>(
+        "d256", {64, 65, 192, 193});
+}
+
+// Kept to one and two K tiles on purpose: d512 needs 196 KiB of LDS and runs a
+// single workgroup per CU.
+TEST(QrTdmProgressiveKLds, D512SingleBufferProgressiveMatchesBaseline)
+{
+    if(!ck_tile::is_gfx125_supported())
+        GTEST_SKIP() << "QR-TDM progressive K LDS is only supported on gfx1250";
+
+    expect_progressive_matches_single_buffer<SingleBufferD512Problem,
+                                             SingleBufferProgressiveD512Problem>("d512", {64, 65});
 }
 
 template <typename DataType>

@@ -67,8 +67,10 @@ if(FMHA_FWD_HAS_GFX125 AND FMHA_FWD_HAS_NON_GFX125)
   message(FATAL_ERROR "CK Tile FMHA: gfx125x cannot be built together with other archs "
                       "(the fwd --optdim head-dim list differs per arch). INST_TARGETS: ${INST_TARGETS}")
 endif()
+# Keep the optdim baseline in test/ck_tile/fmha/test_fmha_fwd_codegen.py in
+# sync when either list changes -- it asserts on the exact gfx125 value.
 if(FMHA_FWD_HAS_GFX125)
-  set(FMHA_FWD_OPTDIM 32,64,96,128,160,192,256)
+  set(FMHA_FWD_OPTDIM 32,64,96,128,160,192,256,512)
 else()
   set(FMHA_FWD_OPTDIM 32,64,80,128,256)
 endif()

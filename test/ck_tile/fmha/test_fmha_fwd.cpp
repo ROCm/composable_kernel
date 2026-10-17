@@ -503,6 +503,142 @@ TEST_P(QrTdmNewHeadDim, DataTypeConfig)
     }
 }
 
+// gfx125x-only: qr_tdm at the large head dims whose LDS arena only fits a single
+// unguarded bm0=64 tile with no bm0=128 fallback -- (256,256) and (512,512).
+// General reaches 256 through HDimValues but never 512. Keeping 512 out of
+// HDimValues is a deliberate cost choice rather than a hard constraint: AllLong
+// crosses that list with dropout and bias tuples, qr_tdm emits no dropout
+// instance and the qr fallback stops at head dim 256 (the hdim <= 256 gate in
+// fmha_fwd.py), so those rows would only ever CHECK_RESULT-skip -- paying full
+// d512 codegen and build time to produce skips.
+//
+// Beyond the numerics these cases pin the codegen-level dispatch properties:
+// bm0 stays 64 at every seqlen_q (the crossover QrTdmNewHeadDim checks does not
+// apply -- there is no second tile to cross to), V stays single-buffered
+// (_nkvlp_), progressive K reload stays on (_plk_), and the mask variant matches
+// what the trait combination is supposed to select. The LDS layout behind those
+// flags is already pinned at compile time by test_qr_tdm_lds_padding.cpp and
+// test_qr_tdm_progressive_k_lds.cpp; what is new here is that the instance the
+// runtime dispatcher actually hands out still has them. At 512 a regression to
+// double-buffered V would not even link (the policy static_assert fires first),
+// so there _nkvlp_ is belt-and-braces; at 256 it is load-bearing, since a double
+// buffer still fits 128 KiB and would silently cost the bank-conflict padding.
+class QrTdmLargeHeadDim
+    : public TestWithParam<
+          std::tuple<mode_enum, std::tuple<int, int, int, const char*, const char*, bool, bool>>>
+{
+};
+
+// hdim, seqlen_q, seqlen_k, mask, bias, lse, perm. Non-multiple seqlens select the
+// seqlen-padded instances; seqlen_k > seqlen_q and seqlen_q > seqlen_k are both
+// represented, as are top-left, bottom-right and a live sliding window.
+//
+// lse is a parameter rather than def_lse because the simplified-mask causal
+// specialisation (_mc, see get_pipelines in fmha_fwd.py) is only emitted for
+// bias == "no" && lse == "f" && sink == "f". Pinning lse to def_lse (true for
+// fp16/bf16) would route every causal row to the generic _mask instance and
+// leave _mc with no coverage at these head dims at all.
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    QrTdmLargeHeadDim,
+    Combine(Values(mode_enum::batch, mode_enum::group),
+            Values(std::tuple{512, 127, 509, "0", "n", true, false}, // padded seqlens, bshd
+                   std::tuple{512, 128, 256, "0", "n", false, true}, // tile-multiple seqlen_q
+                   std::tuple{512, 99, 256, "1", "n", false, true},  // causal top-left -> _mc
+                   std::tuple{512, 256, 256, "2", "n", false, true}, // causal bottom-r -> _mc
+                   std::tuple{512, 99, 256, "1", "n", true, true},   // lse -> generic _mask
+                   std::tuple{512, 200, 520, "t:128,30", "n", false, true}, // window -> _mask
+                   std::tuple{512, 127, 509, "0", "e", true, true},         // elementwise bias
+                   std::tuple{512, 99, 256, "1", "a", false, true}, // alibi -> generic _mask
+                   std::tuple{256, 127, 509, "0", "n", true, false},
+                   std::tuple{256, 128, 256, "0", "n", false, true},
+                   std::tuple{256, 99, 256, "1", "n", false, true},
+                   std::tuple{256, 256, 256, "2", "n", false, true},
+                   std::tuple{256, 99, 256, "1", "n", true, true},
+                   std::tuple{256, 200, 520, "t:128,30", "n", false, true},
+                   std::tuple{256, 127, 509, "0", "e", true, true},
+                   std::tuple{256, 99, 256, "1", "a", false, true})));
+
+TEST_P(QrTdmLargeHeadDim, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm is only supported on gfx1250";
+
+        auto [mode, dims]                                              = GetParam();
+        auto [hdim, seqlen_q, seqlen_k, mask_str, bias_str, lse, perm] = dims;
+
+        const int adjusted_hdim = adjust_hdim(hdim);
+
+        std::string selected_kernel;
+        auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                                   2, // batch
+                                                   2, // nhead
+                                                   2, // nhead_k
+                                                   {adjust_seqlen(seqlen_q)},
+                                                   {adjust_seqlen(seqlen_k)},
+                                                   adjusted_hdim,     // hdim_q
+                                                   adjusted_hdim,     // hdim_v
+                                                   0,                 // seqlen_knew
+                                                   {-1},              // seqlen_qpads
+                                                   {-1},              // seqlen_kpads
+                                                   {},                // q_eff_lens_per_batch
+                                                   {},                // kv_eff_lens_per_batch
+                                                   0,                 // rotary_dim
+                                                   perm,              // i_perm
+                                                   perm,              // o_perm
+                                                   0,                 // scale_s
+                                                   0,                 // logits_soft_cap
+                                                   def_is_v_rowmajor, // is_v_rowmajor
+                                                   lse,               // lse
+                                                   0,                 // page_block_size
+                                                   false,             // use_cache_batch_idx
+                                                   bias_str,          // bias_str
+                                                   0.0f,              // p_drop
+                                                   0,                 // drop_seed
+                                                   0,                 // drop_offset
+                                                   false,             // drop_prefs
+                                                   mask_str,          // mask_str
+                                                   qscale_str,
+                                                   true, // is_rotary_interleaved
+                                                   1,    // num_splits
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success)
+            << "no instance for d" << adjusted_hdim << "; check that --optdim in "
+            << "example/ck_tile/01_fmha/CMakeLists.txt still lists this head dim";
+
+        EXPECT_NE(selected_kernel.find("_qr_tdm_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_d" + std::to_string(adjusted_hdim) + "_"),
+                  std::string::npos)
+            << selected_kernel;
+        // Single tile: bm0 is 64 regardless of seqlen_q and of batch vs group,
+        // unlike the head dims QrTdmNewHeadDim covers.
+        EXPECT_NE(selected_kernel.find("_b64x"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_nkvlp_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_plk_"), std::string::npos) << selected_kernel;
+
+        // Mask variant: no mask stays _nmask_; causal takes the _mc specialisation
+        // only when nothing else forces the generic path (see the INSTANTIATE
+        // comment); windows and causal+bias/+lse fall back to generic _mask.
+        const bool is_causal      = mask_str == std::string("1") || mask_str == std::string("2");
+        const char* expected_mask = mask_str == std::string("0") ? "_nmask_"
+                                    : (is_causal && bias_str == std::string("n") && !lse)
+                                        ? "_mc_"
+                                        : "_mask_";
+        EXPECT_NE(selected_kernel.find(expected_mask), std::string::npos)
+            << "expected " << expected_mask << " in " << selected_kernel;
+        EXPECT_NE(selected_kernel.find(lse ? "_lse_" : "_nlse_"), std::string::npos)
+            << selected_kernel;
+    }
+    else
+    {
+        GTEST_SKIP() << "qr_tdm large head dims (256/512) are fp16/bf16 only";
+    }
+}
+
 class General
     : public TestWithParam<std::tuple<std::tuple<int, int>,
                                       bool,
