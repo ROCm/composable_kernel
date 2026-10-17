@@ -46,25 +46,11 @@ struct jagged_forward_dispatch
     static constexpr HstuFwdPipelineKind kPipelineKind =
         get_hstu_fwd_pipeline_kind<kUseSoftmax, MaxK, kHdimPadded>();
 
-#if defined(__hstu_gfx125__)
     using HstuAttentionTileSetting = decltype(GetHstuAttentionFwdTileSetting<MaxK,
                                                                              MTile,
                                                                              kUseSoftmax,
                                                                              kUseCausal,
                                                                              kPipelineKind>());
-#else
-    using HstuAttentionTileSetting =
-        decltype(GetHstuAttentionFwdTileSetting<MaxK, MTile, kUseSoftmax, kUseCausal>());
-#endif
-
-    // Tile setting of the direct-to-LDS pipeline instance (see
-    // GetHstuAttentionFwdDirectLdsTileSetting)
-#if defined(__hstu_gfx95__)
-    using HstuAttentionTileSettingDirectLds =
-        decltype(GetHstuAttentionFwdDirectLdsTileSetting<MaxK, MTile, kUseSoftmax, kUseCausal>());
-#else
-    using HstuAttentionTileSettingDirectLds = HstuAttentionTileSetting;
-#endif
 
     template <bool kIsCrossAttention>
     using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
@@ -82,22 +68,6 @@ struct jagged_forward_dispatch
         kStoreLSE,
         HstuAttentionTileSetting>;
 
-    template <bool kIsCrossAttention>
-    using HstuPipelineProblemDirectLdsTemp = ck_tile::HstuAttentionFwdPipelineProblem<
-        InOutDataType,
-        typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType,
-        typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType,
-        typename HstuAttentionFwdTypeConfig<InOutDataType>::BiasDataType,
-        kIsCrossAttention,
-        false, // kUseGroup
-        true,  // kIsJagged
-        kHasBias,
-        kHasDropout,
-        kUseCausal,
-        kUseSoftmax,
-        kStoreLSE,
-        HstuAttentionTileSettingDirectLds>;
-
     static void Run(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
     {
         constexpr ck_tile::index_t occupancy = -1;
@@ -108,83 +78,93 @@ struct jagged_forward_dispatch
         // no need to check seqlen_q since it is not used as fastest dim,
         // buffer_load_dwordxx/buffer_store_dwordxx can handle oob access
         constexpr bool kPadSeqLenQ = false;
-
         constexpr bool kPadSeqLenK = true;
 
-        BOOL_SWITCH_2(pad_headdim_qk, kPadHeadDimQK, pad_headdim_v, kPadHeadDimV, [&] {
-            using HstuTraits = ck_tile::HstuAttentionFwdTraits<kPadSeqLenQ,
-                                                               kPadSeqLenK,
-                                                               kPadHeadDimQK,
-                                                               kPadHeadDimV,
-                                                               occupancy>;
+        BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
+            using HstuPipelineProblem = HstuPipelineProblemTemp<kIsCrossAttention>;
 
-            using HstuEpilogue = ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
-                typename HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType,
-                typename HstuAttentionFwdTypeConfig<InOutDataType>::ODataType,
-                kPadSeqLenQ,
-                kPadHeadDimV>>;
+            if constexpr(kPipelineKind == HstuFwdPipelineKind::DirectLdsTrLoad)
+            {
+                using HstuTraits = ck_tile::HstuAttentionFwdTraits<kPadSeqLenQ,
+                                                                   kPadSeqLenK,
+                                                                   false /*kPadHeadDimQK*/,
+                                                                   false /*kPadHeadDimV*/,
+                                                                   occupancy>;
 
-            BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
-                using HstuPipelineProblem = HstuPipelineProblemTemp<kIsCrossAttention>;
-                using HstuDirectLdsPipelineProblem =
-                    HstuPipelineProblemDirectLdsTemp<kIsCrossAttention>;
+                using HstuEpilogue =
+                    ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                        typename HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType,
+                        typename HstuAttentionFwdTypeConfig<InOutDataType>::ODataType,
+                        kPadSeqLenQ,
+                        false /*kPadHeadDimV*/>>;
 
-                if constexpr(kPipelineKind == HstuFwdPipelineKind::Default)
-                {
-                    using HstuPipeline = std::conditional_t<
-                        kUseSoftmax,
-                        ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
-                                                                           HstuTraits>,
-                        ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
-                                                                         HstuTraits>>;
+                // we only use async_load_tile() for K/V when its maximum vector_size is
+                //  dwordx4 (ToDO: use dwordx3 when hdim is 96)
+                constexpr ck_tile::index_t k_vector_bytes =
+                    HstuPipelineProblem::GetKDramTileAccessMaxVectorSize(
+                        ck_tile::bool_constant<true>{}) *
+                    sizeof(InOutDataType);
+                constexpr ck_tile::index_t v_vector_bytes =
+                    HstuPipelineProblem::GetVDramTileAccessMaxVectorSize(
+                        ck_tile::bool_constant<true>{}) *
+                    sizeof(InOutDataType);
 
-                    using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+                static_assert(k_vector_bytes == 4 * sizeof(int), "Check failed!");
+                static_assert(v_vector_bytes == 4 * sizeof(int), "Check failed!");
+                static_assert(MaxK != 96, "Check failed!");
 
-                    RunWithKernel<HstuKernel>(param, stream);
-                }
-                else if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
-                {
-                    using HstuPipeline = std::conditional_t<
-                        kUseSoftmax,
-                        ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdm<HstuPipelineProblem,
-                                                                              HstuTraits>,
-                        ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm<HstuPipelineProblem,
-                                                                            HstuTraits>>;
+                using HstuPipeline = std::conditional_t<
+                    kUseSoftmax,
+                    ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad<
+                        HstuPipelineProblem,
+                        HstuTraits>,
+                    ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad<
+                        HstuPipelineProblem,
+                        HstuTraits>>;
 
-                    using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+                using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
 
-                    RunWithKernel<HstuKernel>(param, stream);
-                }
-                else
-                {
-                    // we only use async_load_tile() for K/V when its maximum vector_size is
-                    //  dwordx4 or dwordx1 (ToDO: use dwordx3 when hdim is 96)
-                    constexpr ck_tile::index_t k_vector_bytes =
-                        HstuDirectLdsPipelineProblem::GetKDramTileAccessMaxVectorSize(
-                            ck_tile::bool_constant<true>{}) *
-                        sizeof(InOutDataType);
-                    constexpr ck_tile::index_t v_vector_bytes =
-                        HstuDirectLdsPipelineProblem::GetVDramTileAccessMaxVectorSize(
-                            ck_tile::bool_constant<true>{}) *
-                        sizeof(InOutDataType);
+                RunWithKernel<HstuKernel>(param, stream);
+            }
+            else
+            {
+                BOOL_SWITCH_2(pad_headdim_qk, kPadHeadDimQK, pad_headdim_v, kPadHeadDimV, [&] {
+                    using HstuTraits = ck_tile::HstuAttentionFwdTraits<kPadSeqLenQ,
+                                                                       kPadSeqLenK,
+                                                                       kPadHeadDimQK,
+                                                                       kPadHeadDimV,
+                                                                       occupancy>;
 
-                    constexpr bool kKAbleUseDirectLds =
-                        (k_vector_bytes == 1 * sizeof(int) || k_vector_bytes == 4 * sizeof(int)) &&
-                        !kPadHeadDimQK;
-                    constexpr bool kVAbleUseDirectLds =
-                        (v_vector_bytes == 1 * sizeof(int) || v_vector_bytes == 4 * sizeof(int)) &&
-                        !kPadHeadDimV;
+                    using HstuEpilogue =
+                        ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                            typename HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType,
+                            typename HstuAttentionFwdTypeConfig<InOutDataType>::ODataType,
+                            kPadSeqLenQ,
+                            kPadHeadDimV>>;
 
-                    if constexpr(kKAbleUseDirectLds && kVAbleUseDirectLds && MaxK != 96)
+                    if constexpr(kPipelineKind == HstuFwdPipelineKind::Default)
                     {
                         using HstuPipeline = std::conditional_t<
                             kUseSoftmax,
-                            ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad<
-                                HstuDirectLdsPipelineProblem,
+                            ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
+                                                                               HstuTraits>,
+                            ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
+                                                                             HstuTraits>>;
+
+                        using HstuKernel =
+                            ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+
+                        RunWithKernel<HstuKernel>(param, stream);
+                    }
+                    else if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+                    {
+                        using HstuPipeline = std::conditional_t<
+                            kUseSoftmax,
+                            ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdm<
+                                HstuPipelineProblem,
                                 HstuTraits>,
-                            ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad<
-                                HstuDirectLdsPipelineProblem,
-                                HstuTraits>>;
+                            ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm<HstuPipelineProblem,
+                                                                                HstuTraits>>;
 
                         using HstuKernel =
                             ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
@@ -207,8 +187,8 @@ struct jagged_forward_dispatch
 
                         RunWithKernel<HstuKernel>(param, stream);
                     }
-                };
-            });
+                });
+            }
         });
     };
 
@@ -284,7 +264,7 @@ void run_jagged_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStream
     int mtile_size = get_hstu_attention_fwd_mtile(
         param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv);
 
-    const bool hdim_padded = (param.hdim_qk < MaxK && param.hdim_v < MaxK);
+    const bool hdim_padded = (param.hdim_qk < MaxK || param.hdim_v < MaxK);
 
     BOOL_SWITCH(hdim_padded, kHdimPadded, [&] {
         if(!param.is_cross_attention && mtile_size == 128)
@@ -299,9 +279,10 @@ void run_jagged_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStream
                                     128>::Run(param, stream);
         else
         {
-            // for cross-attention, we should give more opportunity to use split-kv since the
-            // seqlen_kv is usually much bigger than seqlen_q, so the main-loop along the seqlen_kv
-            // have enough iterations to counter-act the cost brought by splitting
+            // for cross-attention, we should give more opportunity to use split-kv since
+            // the seqlen_kv is usually much bigger than seqlen_q, so the main-loop along
+            // the seqlen_kv have enough iterations to counter-act the cost brought by
+            // splitting
 
             const bool disable_fwd_splitkv = []() {
                 const char* env_p = std::getenv("HSTU_DISABLE_SPLITKV");
