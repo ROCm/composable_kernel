@@ -33,7 +33,7 @@ using HstuAttentionFwdBlockTile_Hdim64_M128_N0_64_Sub32_K1_32_softmax =
 using HstuAttentionFwdBlockTile_Hdim96_M128_N0_64_Sub32_K1_32 =
     ck_tile::sequence<128, 64, 32, 128, 32, 96>;
 
-// used by silu + causal mask/no causal mask situation
+// used by silu + causal mask/no causal mask situation, and by the softmax direct-to-LDS instance
 using HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32_silu =
     ck_tile::sequence<64, 64, 32, 128, 32, 128>;
 // used by softmax + causal mask/no causal mask situation
@@ -188,6 +188,27 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
     else
     {
         static_assert(false, "MaxK size not supported!");
+    }
+}
+// Tile setting of the direct-to-LDS pipeline instance. That pipeline keeps a whole kN0 tile in
+// LDS (one K buffer per kN0Sub slice and one V buffer per kK1 slice), so where the regular tile
+// has kN0 == 128 (the hdim-128 mtile-64 softmax tile) it gets the kN0 == 64 tile instead;
+// everywhere else it is the regular tile.
+template <ck_tile::index_t MaxK, ck_tile::index_t ExpectedMTile, bool kUseSoftmax, bool kUseCausal>
+static constexpr auto GetHstuAttentionFwdDirectLdsTileSetting()
+{
+    if constexpr(MaxK == 128 && ExpectedMTile == 64 && kUseSoftmax)
+    {
+        return ck_tile::HstuAttentionFwdTileSettingClass<
+            HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32_silu,
+            HstuAttentionFwdGemm0Warps,
+            WarpTile_16x16x32,
+            HstuAttentionFwdGemm1Warps,
+            WarpTile_16x16x32>{};
+    }
+    else
+    {
+        return GetHstuAttentionFwdTileSetting<MaxK, ExpectedMTile, kUseSoftmax, kUseCausal>();
     }
 }
 #endif
