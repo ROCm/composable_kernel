@@ -57,13 +57,27 @@ template <ck_tile::index_t MaxK,
           HstuFwdPipelineKind kPipelineKind = HstuFwdPipelineKind::TrLoad>
 static constexpr auto GetHstuAttentionFwdTileSetting()
 {
-    // Tile setting of the direct-to-LDS pipeline instance. That pipeline keeps a whole kN0 tile in
-    // LDS (one K buffer per kN0Sub slice and one V buffer per kK1 slice), so where the regular tile
-    // has kN0 == 128 (the hdim-128 mtile-64 softmax tile) it gets the kN0 == 64 tile instead;
-    // everywhere else it is the regular tile.
     if constexpr(kPipelineKind == HstuFwdPipelineKind::DirectLdsTrLoad && MaxK == 128 &&
-                 ExpectedMTile == 64 && kUseSoftmax)
+                 ExpectedMTile == 128 && kUseSoftmax)
     {
+        // has kN0 == 128 (the hdim-128 mtile-64 softmax tile) it gets the kN0 == 64 tile
+        // instead. The hdim-128 mtile-128 softmax tile runs faster on it with 16x16x32 warp
+        // gemms; both gemms need the same warp gemm, since P goes from gemm_0 to gemm_1 in
+        // registers. Everywhere else it is the regular tile.
+        return ck_tile::HstuAttentionFwdTileSettingClass<
+            HstuAttentionFwdBlockTile_Hdim128_M128_N0_64_Sub32_K1_32_softmax,
+            HstuAttentionFwdGemm0Warps,
+            WarpTile_16x16x32,
+            HstuAttentionFwdGemm1Warps,
+            WarpTile_16x16x32>{};
+    }
+    else if constexpr(kPipelineKind == HstuFwdPipelineKind::DirectLdsTrLoad && MaxK == 128 &&
+                      ExpectedMTile == 64 && kUseSoftmax)
+    {
+        // Tile setting of the direct-to-LDS pipeline instance. That pipeline keeps a whole kN0 tile
+        // in LDS (one K buffer per kN0Sub slice and one V buffer per kK1 slice), so where the
+        // regular tile has kN0 == 128 (the hdim-128 mtile-64 softmax tile) it gets the kN0 == 64
+        // tile instead; everywhere else it is the regular tile.
         return ck_tile::HstuAttentionFwdTileSettingClass<
             HstuAttentionFwdBlockTile_Hdim128_M64_N0_64_Sub32_K1_32_silu,
             HstuAttentionFwdGemm0Warps,
