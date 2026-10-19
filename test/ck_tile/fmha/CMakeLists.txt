@@ -243,6 +243,7 @@ endif()
 
 # The independent arithmetic reference is a host test on every FMHA architecture.
 add_gtest_executable(test_ck_tile_fmha_reference test_fmha_reference.cpp)
+add_dependencies(${TEST_NAME} test_ck_tile_fmha_reference)
 target_compile_options(test_ck_tile_fmha_reference PRIVATE -Wno-float-equal)
 get_test_property(test_ck_tile_fmha_reference LABELS FMHA_REFERENCE_COMMON_LABELS)
 set_tests_properties(test_ck_tile_fmha_reference PROPERTIES
