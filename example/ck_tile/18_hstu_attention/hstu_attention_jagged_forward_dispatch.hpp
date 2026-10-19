@@ -13,6 +13,7 @@
 #include "hstu_attention_fwd_type_config.hpp"
 #include "hstu_attention_fwd_setting.hpp"
 #include "hstu_attention_params.hpp"
+#include "hstu_attention_fwd_strategy.hpp"
 #include "hstu_attention_hdim_switch.hpp"
 #include "hstu_attention_fwd_pipeline_problem.hpp"
 #include "hstu_attention_fwd_pipeline_traits.hpp"
@@ -195,7 +196,9 @@ struct jagged_forward_dispatch
     template <typename HstuKernel>
     static void RunWithKernel(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
     {
-        bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
+        const bool almost_invariant_seqlen = param.grid_order_override >= 0
+                                                 ? param.grid_order_override == 1
+                                                 : is_almost_invariant_seqlen(param);
 
         const auto kargs = [&] {
             return HstuKernel::MakeKargs(param.q_ptr,
@@ -261,39 +264,11 @@ template <typename InOutDataType,
           ck_tile::index_t MaxK>
 void run_jagged_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
 {
-    int mtile_size = get_hstu_attention_fwd_mtile(
-        param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv);
-
     const bool hdim_padded = (param.hdim_qk < MaxK || param.hdim_v < MaxK);
 
     BOOL_SWITCH(hdim_padded, kHdimPadded, [&] {
-        if(!param.is_cross_attention && mtile_size == 128)
-            jagged_forward_dispatch<InOutDataType,
-                                    kUseCausal,
-                                    kUseSoftmax,
-                                    kStoreLSE,
-                                    kHasBias,
-                                    kHasDropout,
-                                    MaxK,
-                                    kHdimPadded,
-                                    128>::Run(param, stream);
-        else
-        {
-            // for cross-attention, we should give more opportunity to use split-kv since
-            // the seqlen_kv is usually much bigger than seqlen_q, so the main-loop along
-            // the seqlen_kv have enough iterations to counter-act the cost brought by
-            // splitting
-
-            const bool disable_fwd_splitkv = []() {
-                const char* env_p = std::getenv("HSTU_DISABLE_SPLITKV");
-                if(env_p == nullptr)
-                    return false;
-                return static_cast<bool>(atoi(env_p));
-            }();
-
-            if(!disable_fwd_splitkv &&
-               shall_use_splitkv(
-                   param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv))
+        auto run = [&](int mtile_size, bool use_splitkv) {
+            if(use_splitkv)
             {
                 if(mtile_size == 128)
                     jagged_forward_splitkv_dispatch<InOutDataType,
@@ -340,5 +315,57 @@ void run_jagged_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStream
                                             64>::Run(param, stream);
             }
         };
+
+        if(param.is_jagged)
+        {
+            const HstuFwdStrategy& strategy = default_hstu_fwd_strategy();
+            const HstuFwdCallFeatures features{param.is_cross_attention,
+                                               kUseCausal,
+                                               param.window_size > 0,
+                                               kUseSoftmax,
+                                               static_cast<int>(sizeof(InOutDataType)),
+                                               param.hdim_qk,
+                                               param.hdim_v,
+                                               param.num_head,
+                                               param.num_batch,
+                                               param.total_seqlen_q,
+                                               param.total_seqlen_kv};
+            HstuFwdConfig cfg;
+            param.config_rule = select_hstu_fwd_config_on_device(strategy, features, cfg);
+            if(param.config_rule >= 0)
+            {
+                param.config_source       = strategy.name.c_str();
+                param.num_splits_override = cfg.num_splits;
+                param.grid_order_override = cfg.grid_order;
+                run(cfg.mtile, cfg.num_splits > 0);
+                return;
+            }
+        }
+
+        int mtile_size = get_hstu_attention_fwd_mtile(
+            param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv);
+
+        if(!param.is_cross_attention && mtile_size == 128)
+        {
+            run(128, false);
+            return;
+        }
+
+        // for cross-attention, we should give more opportunity to use split-kv since
+        // the seqlen_kv is usually much bigger than seqlen_q, so the main-loop along
+        // the seqlen_kv have enough iterations to counter-act the cost brought by
+        // splitting
+
+        const bool disable_fwd_splitkv = []() {
+            const char* env_p = std::getenv("HSTU_DISABLE_SPLITKV");
+            if(env_p == nullptr)
+                return false;
+            return static_cast<bool>(atoi(env_p));
+        }();
+
+        run(mtile_size,
+            !disable_fwd_splitkv &&
+                shall_use_splitkv(
+                    param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv));
     });
 };
