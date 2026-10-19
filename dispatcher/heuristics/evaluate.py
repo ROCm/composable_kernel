@@ -17,6 +17,7 @@ Usage:
 
 import argparse
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -24,11 +25,12 @@ import pandas as pd
 from data_pipeline import build_training_dataset
 from feature_engine import GemmUniversalFeatureEngine
 from predict import Predictor
-from train import compute_tflops_efficiency
+from train import compute_tflops_efficiency, problem_columns
 
 
-#: The only operation this module evaluates.
+#: Default operation. ``batched_gemm`` is also accepted.
 _OPERATION = "gemm_universal"
+_OPERATIONS = ("gemm_universal", "batched_gemm")
 
 
 def classify_shape_family(m: int, n: int, k: int) -> str:
@@ -64,10 +66,29 @@ def classify_k_regime(k: int) -> str:
         return "deep_k"
 
 
+def oof_tflops(df: pd.DataFrame, log_targets) -> np.ndarray:
+    """Raw TFLOPS from a training run's out-of-fold column.
+
+    ``train.py`` stores ``oof_pred_tflops`` in log1p space when ``tflops`` is a
+    log target. Ranking would survive that, but R² would not, so invert it.
+    """
+    if "oof_pred_tflops" not in df.columns:
+        raise KeyError(
+            "oof_predictions.parquet has no oof_pred_tflops column. "
+            "Train with the tflops target to produce it."
+        )
+    pred = df["oof_pred_tflops"].to_numpy(dtype=np.float64)
+    if "tflops" in set(log_targets):
+        pred = np.expm1(pred)
+    return pred
+
+
 def evaluate_model(
     predictor: Predictor,
     df: pd.DataFrame,
     feature_engine: GemmUniversalFeatureEngine = None,
+    operation: str = _OPERATION,
+    use_existing_predictions: bool = False,
 ) -> dict:
     """Run full evaluation on a dataset. Returns a metrics dictionary.
 
@@ -88,20 +109,24 @@ def evaluate_model(
     valid = df[df["is_valid"].fillna(False) & (df["measured_tflops"] > 0)].copy()
     valid = valid.reset_index(drop=True)
 
-    X = predictor.feature_engine.extract_batch(valid)
-    model = predictor._load_model("tflops")
-    if model is None:
-        raise FileNotFoundError("No TFLOPS model found")
-
-    X = predictor.select_features(X)
-
-    # Predict and apply inverse log transform if model was trained in log-space
-    raw_pred = model.predict(X)
-    if "tflops" in predictor._log_targets:
-        valid["pred_tflops"] = np.expm1(raw_pred)
+    if use_existing_predictions:
+        if "pred_tflops" not in valid.columns:
+            raise KeyError("pred_tflops is required when use_existing_predictions is set")
     else:
-        # Clamp to non-negative even for non-log models
-        valid["pred_tflops"] = np.maximum(0.0, raw_pred)
+        X = predictor.feature_engine.extract_batch(valid)
+        model = predictor._load_model("tflops")
+        if model is None:
+            raise FileNotFoundError("No TFLOPS model found")
+
+        X = predictor.select_features(X)
+
+        # Predict and apply inverse log transform if model was trained in log-space
+        raw_pred = model.predict(X)
+        if "tflops" in predictor._log_targets:
+            valid["pred_tflops"] = np.expm1(raw_pred)
+        else:
+            # Clamp to non-negative even for non-log models
+            valid["pred_tflops"] = np.maximum(0.0, raw_pred)
 
     y_true = valid["measured_tflops"].values
     y_pred = valid["pred_tflops"].values
@@ -112,13 +137,14 @@ def evaluate_model(
     rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
     mae = np.mean(np.abs(y_true - y_pred))
 
-    eff_df = compute_tflops_efficiency(valid, _OPERATION, "pred_tflops")
+    eff_df = compute_tflops_efficiency(valid, operation, "pred_tflops")
 
     ndcg1_count = 0
     total_shapes = 0
     topk_hits = {3: 0, 5: 0, 10: 0}
+    shape_cols = problem_columns(operation)
 
-    for (m, n, k), group in valid.groupby(["m", "n", "k"]):
+    for _, group in valid.groupby(shape_cols):
         if group["measured_tflops"].max() <= 0:
             continue
         total_shapes += 1
@@ -156,7 +182,7 @@ def evaluate_model(
     def _slice_efficiency(slice_df):
         if len(slice_df) == 0:
             return {"count": 0}
-        eff = compute_tflops_efficiency(slice_df, _OPERATION, "pred_tflops")
+        eff = compute_tflops_efficiency(slice_df, operation, "pred_tflops")
         if len(eff) == 0:
             return {"count": 0}
         return {
@@ -201,18 +227,29 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model_dir", required=True, help="Directory with trained models"
     )
-    parser.add_argument("--data_dir", required=True, help="Directory with parquet data")
+    parser.add_argument(
+        "--data_dir",
+        help="Directory with parquet data. Required unless --oof is set.",
+    )
     parser.add_argument(
         "--op",
         default=_OPERATION,
-        choices=[_OPERATION],
+        choices=list(_OPERATIONS),
         help=(
-            f"Operation type. Only {_OPERATION} is supported: this module groups "
-            "shapes by (m, n, k) throughout, so another operation would load its "
-            "data and then fail on a missing column rather than say so."
+            "Operation type. gemm_universal groups shapes by (m, n, k). "
+            "batched_gemm groups them by (layout, batch_count, m, n, k)."
         ),
     )
     parser.add_argument("--dtype", default="fp8")
+    parser.add_argument(
+        "--oof",
+        action="store_true",
+        help=(
+            "Score model_dir/oof_predictions.parquet instead of re-predicting "
+            "on --data_dir. Each row was predicted by a fold that did not train "
+            "on its group."
+        ),
+    )
     parser.add_argument("--output", "-o", help="Output JSON path for metrics")
     return parser
 
@@ -221,15 +258,39 @@ def main():
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    print(f"Loading data from {args.data_dir}...")
-    df = build_training_dataset(args.data_dir, op_type=args.op, dtype=args.dtype)
-    print(f"  {len(df)} rows, {df.groupby(['m', 'n', 'k']).ngroups} shapes")
+    if not args.oof and not args.data_dir:
+        parser.error("--data_dir is required unless --oof is set")
+    shape_cols = problem_columns(args.op)
 
-    predictor = Predictor(args.model_dir)
-    fe = predictor.feature_engine
+    if args.oof:
+        predictor = Predictor(args.model_dir)
+        oof_path = Path(args.model_dir) / "oof_predictions.parquet"
+        if not oof_path.exists():
+            raise FileNotFoundError(
+                f"No {oof_path}. Train without skipping cross-validation to write it."
+            )
+        print(f"Loading out-of-fold predictions from {oof_path}...")
+        df = pd.read_parquet(oof_path)
+        df["pred_tflops"] = oof_tflops(df, predictor._log_targets)
+        if "is_valid" not in df.columns:
+            df["is_valid"] = True
+        use_existing = True
+        print(f"  {len(df)} rows, {df.groupby(shape_cols).ngroups} shapes")
+    else:
+        print(f"Loading data from {args.data_dir}...")
+        df = build_training_dataset(args.data_dir, op_type=args.op, dtype=args.dtype)
+        print(f"  {len(df)} rows, {df.groupby(shape_cols).ngroups} shapes")
+        predictor = Predictor(args.model_dir)
+        use_existing = False
 
     print("Evaluating...")
-    results = evaluate_model(predictor, df, fe)
+    results = evaluate_model(
+        predictor,
+        df,
+        predictor.feature_engine,
+        operation=args.op,
+        use_existing_predictions=use_existing,
+    )
 
     gm = results["global_metrics"]
     print("\nGlobal Metrics:")

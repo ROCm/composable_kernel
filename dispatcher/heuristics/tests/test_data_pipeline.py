@@ -478,6 +478,22 @@ class TestVectorWidthSuffix:
     def test_single_digit_and_multi_digit_widths_both_parse(self):
         assert parse_kernel_name(self.BASE + "_vec16_2_16")["vec_a"] == 16
 
+    def test_a_trailing_batched_suffix_does_not_change_the_config(self):
+        plain = parse_kernel_name(self.BASE)
+        batched = parse_kernel_name(self.BASE + "_batched")
+        assert batched["tile_m"] == plain["tile_m"] == 128
+        assert (batched["vec_a"], batched["vec_b"], batched["vec_c"]) == (0, 0, 0)
+        assert batched["is_fixed_width"] is False
+        assert batched["pipeline"] == plain["pipeline"]
+
+    def test_is_fixed_width_follows_the_vec_suffix(self):
+        assert parse_kernel_name(self.BASE)["is_fixed_width"] is False
+        assert parse_kernel_name(self.BASE + "_vec4_4_8")["is_fixed_width"] is True
+        both = parse_kernel_name(self.BASE + "_vec4_4_8_batched")
+        assert (both["vec_a"], both["vec_b"], both["vec_c"]) == (4, 4, 8)
+        assert both["is_fixed_width"] is True
+        assert both["tile_m"] == 128
+
 
 def _rocminfo(gfx, generic, features=""):
     """rocminfo-shaped text: a CPU agent, then one GPU agent named ``gfx``.
@@ -833,6 +849,71 @@ class TestHardwareProfileLdsCapacity:
         assert out.exists()
         df = pd.read_parquet(out)
         assert df["hw_lds_capacity"].iloc[0] == 163840
+
+
+_BATCHED_KERNEL = (
+    "gemm_bf16_rcr_compv3_default_intrawave_False_False_False_True_"
+    "128x128x128_2x2x1_32x32x16_batched"
+)
+
+
+class TestBatchedGemmCsv:
+    def _write(self, directory: Path, name: str, rows: str) -> None:
+        path = directory / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "kernel,M,N,K,batch_count,tflops,latency_ms,verified\n" + rows
+        )
+
+    def test_directory_merge_skips_csv_copies_and_keeps_the_median(self, tmp_path):
+        from data_pipeline import load_batched_gemm_results
+
+        self._write(
+            tmp_path / "run_a",
+            "batched_gemm_results.csv",
+            f"{_BATCHED_KERNEL},16,32,64,8,10,1.0,true\n"
+            f"{_BATCHED_KERNEL},16,32,64,8,30,3.0,true\n"
+            f"{_BATCHED_KERNEL},16,32,64,8,999,9.0,false\n",
+        )
+        self._write(
+            tmp_path / "run_a" / "csv",
+            "batched_gemm_results.csv",
+            f"{_BATCHED_KERNEL},16,32,64,8,1000,1.0,true\n",
+        )
+        self._write(
+            tmp_path / "full-run" / "job_7",
+            "batched_gemm_results.csv",
+            f"{_BATCHED_KERNEL},16,32,64,4,5,1.0,true\n",
+        )
+
+        df = load_batched_gemm_results(tmp_path, arch="gfx950", dtype="bf16")
+        assert set(df["op_type"]) == {"batched_gemm"}
+        assert set(df["dtype"]) == {"bf16"}
+        trim = df[df["batch_count"] == 8].iloc[0]
+        assert trim["measured_tflops"] == pytest.approx(20)
+        assert trim["latency_ms"] == pytest.approx(2)
+        assert trim["source"] == "trim"
+        assert trim["is_fixed_width"] == False  # noqa: E712
+        assert (trim["vec_a"], trim["vec_b"], trim["vec_c"]) == (0, 0, 0)
+        assert df["batch_count"].tolist() == [4, 8] or set(df["batch_count"]) == {4, 8}
+        full = df[df["batch_count"] == 4].iloc[0]
+        assert full["source"] == "full"
+        assert "hw_num_cus" not in df.columns
+
+    def test_convert_csv_attaches_the_hardware_profile(self, tmp_path):
+        from convert_csv_to_parquet import convert_csv_to_parquet
+
+        src = tmp_path / "batched_gemm_results.csv"
+        src.write_text(
+            "kernel,M,N,K,batch_count,tflops,latency_ms,verified\n"
+            f"{_BATCHED_KERNEL},16,32,64,8,12,1.5,true\n"
+        )
+        out = tmp_path / "out.parquet"
+        df = convert_csv_to_parquet(src, out, arch="gfx950", op_type="batched_gemm")
+        assert out.exists()
+        assert df["hw_num_cus"].iloc[0] == 256
+        assert df["hw_lds_capacity"].iloc[0] > 0
+        assert df["op_type"].iloc[0] == "batched_gemm"
 
 
 if __name__ == "__main__":

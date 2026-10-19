@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from evaluate import classify_shape_family, classify_k_regime, evaluate_model
+from evaluate import classify_shape_family, classify_k_regime, evaluate_model, oof_tflops
 
 
 class TestClassifyShapeFamily:
@@ -169,6 +169,33 @@ class TestFeatureRemapIsApplied:
         assert pred._model.last_X.shape[1] == 5
 
 
+class TestBatchedGemmScoring:
+    def test_each_batch_is_its_own_problem(self):
+        df = pd.DataFrame(
+            {
+                "layout": ["rcr", "rcr"],
+                "batch_count": [1, 8],
+                "m": [16, 16],
+                "n": [16, 16],
+                "k": [16, 16],
+                "measured_tflops": [10.0, 20.0],
+                "is_valid": [True, True],
+                "pipeline": ["compv3", "compv3"],
+            }
+        )
+        res = evaluate_model(
+            _StubPredictor([10.0, 20.0]),
+            df,
+            operation="batched_gemm",
+        )
+        assert res["global_metrics"]["num_shapes"] == 2
+        assert res["global_metrics"]["efficiency_mean"] == pytest.approx(1.0)
+
+    def test_oof_log_predictions_are_inverted(self):
+        df = pd.DataFrame({"oof_pred_tflops": np.log1p([10.0, 20.0])})
+        np.testing.assert_allclose(oof_tflops(df, ["tflops"]), [10.0, 20.0])
+
+
 class TestArgParser:
     def test_the_supported_operation_parses(self):
         from evaluate import _OPERATION, build_arg_parser
@@ -183,6 +210,14 @@ class TestArgParser:
 
         parsed = build_arg_parser().parse_args(["--model_dir", "m", "--data_dir", "d"])
         assert parsed.op == _OPERATION
+
+    def test_batched_gemm_is_accepted(self):
+        from evaluate import build_arg_parser
+
+        parsed = build_arg_parser().parse_args(
+            ["--model_dir", "m", "--data_dir", "d", "--op", "batched_gemm"]
+        )
+        assert parsed.op == "batched_gemm"
 
     @pytest.mark.parametrize("op", ["grouped_conv", "fmha", "gemm_universal_vec"])
     def test_an_unsupported_operation_is_rejected(self, op):
