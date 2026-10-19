@@ -318,13 +318,17 @@ struct jagged_forward_splitkv_dispatch
                                         SplitkvWorkspace& ws,
                                         hipStream_t stream)
     {
-        bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
+        const bool almost_invariant_seqlen = param.grid_order_override >= 0
+                                                 ? param.grid_order_override == 1
+                                                 : is_almost_invariant_seqlen(param);
 
-        ws.num_splits = get_suggested_num_splits(almost_invariant_seqlen,
-                                                 param.num_batch,
-                                                 param.num_head,
-                                                 param.max_seqlen_q,
-                                                 param.max_seqlen_kv);
+        ws.num_splits = param.num_splits_override > 0
+                            ? param.num_splits_override
+                            : get_suggested_num_splits(almost_invariant_seqlen,
+                                                       param.num_batch,
+                                                       param.num_head,
+                                                       param.max_seqlen_q,
+                                                       param.max_seqlen_kv);
 
         // assume the workspace for o_acc is in compact shape of [num_batch, max_seqlen, num_head,
         // num_splits, hdim]

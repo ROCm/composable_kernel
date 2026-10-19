@@ -94,6 +94,19 @@ struct HstuAttentionNoGroupFwdParams
     // Reading it on the device avoids a blocking D2H copy per call; the scalar
     // `attn_scale` above stays as the fallback when this is null.
     const void* attn_scale_ptr = nullptr;
+
+    // jagged mode only: total Q/KV tokens across the batch, known on the host without a sync. 0
+    // means unknown, which disables the strategy.
+    ck_tile::index_t total_seqlen_q  = 0;
+    ck_tile::index_t total_seqlen_kv = 0;
+
+    // Set by run_jagged_forward_dispatch from a strategy-chosen config; negative leaves the choice
+    // to the dispatchers' heuristics. grid_order: 1 almost-invariant (batch-leading), 0
+    // length-aware.
+    int num_splits_override   = -1;
+    int grid_order_override   = -1;
+    const char* config_source = "heuristic";
+    int config_rule           = -1;
 };
 
 struct HstuAttentionGroupFwdParams
