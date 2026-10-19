@@ -15,6 +15,7 @@ Trains LGBMRegressor models (TFLOPS, latency, bandwidth) with:
 
 Supports multiple operation types:
   - gemm_universal: GEMM operations (group by M, N, K)
+  - batched_gemm: batched GEMM (CV group by layout, M, N, K; score each batch)
   - grouped_conv: Grouped convolution (group by problem config)
   - fmha: Fused multi-head attention (future)
 
@@ -44,6 +45,11 @@ from codegen_common import normalize_gfx_arch  # noqa: E402
 # Operation-specific target column mappings
 TARGET_COLUMNS = {
     "gemm_universal": {
+        "tflops": "measured_tflops",
+        "latency": "latency_ms",
+        "bandwidth": "bandwidth_gb_s",
+    },
+    "batched_gemm": {
         "tflops": "measured_tflops",
         "latency": "latency_ms",
         "bandwidth": "bandwidth_gb_s",
@@ -293,7 +299,7 @@ def build_feature_spec(
     params: dict,
 ) -> dict:
     """The contents of feature_spec.json."""
-    return {
+    spec = {
         "op_type": operation,
         "feature_encoding_version": getattr(fe, "ENCODING_VERSION", 0),
         "feature_engine": type(fe).__name__,
@@ -306,6 +312,45 @@ def build_feature_spec(
         "log_targets": log_targets_used,
         "params": params,
     }
+    if operation == "batched_gemm":
+        spec["group_key"] = "layout_M_N_K"
+    return spec
+
+
+def problem_columns(operation: str) -> list[str]:
+    """Columns that identify one scored problem."""
+    operation = base_operation(operation)
+    if operation == "gemm_universal":
+        return ["m", "n", "k"]
+    if operation == "batched_gemm":
+        return ["layout", "batch_count", "m", "n", "k"]
+    if operation == "grouped_conv":
+        return ["N", "C", "K", "G", "Hi", "Wi", "Y", "X"]
+    raise ValueError(f"Unknown operation type: {operation}")
+
+
+def choose_holdout_groups(groups, n: int, seed: int) -> list[str]:
+    """``n`` distinct group keys, chosen without replacement."""
+    unique = sorted({str(g) for g in groups})
+    if n < 0:
+        raise ValueError(f"--holdout must be >= 0, got {n}")
+    if n == 0:
+        return []
+    if n >= len(unique):
+        raise ValueError(
+            f"--holdout {n} leaves no training group ({len(unique)} available)"
+        )
+    picked = np.random.default_rng(seed).choice(unique, size=n, replace=False)
+    return sorted(str(g) for g in picked)
+
+
+def load_holdout_groups(path: Path, present) -> list[str]:
+    """Group keys listed in a JSON file. Unknown keys raise."""
+    groups = sorted({str(g) for g in json.loads(Path(path).read_text())})
+    unknown = sorted(set(groups) - {str(g) for g in present})
+    if unknown:
+        raise ValueError(f"holdout groups absent from the data: {unknown}")
+    return groups
 
 
 def compute_group_keys(df: pd.DataFrame, operation: str) -> np.ndarray:
@@ -328,6 +373,18 @@ def compute_group_keys(df: pd.DataFrame, operation: str) -> np.ndarray:
         # Group by (M, N, K)
         return (
             df["m"].astype(str) + "_" + df["n"].astype(str) + "_" + df["k"].astype(str)
+        ).values
+    elif operation == "batched_gemm":
+        # Batch is left out on purpose: shapes that differ only in batch count
+        # stay in the same fold. Layout stays in, because it changes the kernel.
+        return (
+            df["layout"].astype(str)
+            + "_"
+            + df["m"].map(int).astype(str)
+            + "_"
+            + df["n"].map(int).astype(str)
+            + "_"
+            + df["k"].map(int).astype(str)
         ).values
     elif operation == "grouped_conv":
         # Group by problem configuration (including 3D and dilation for FWD/BWD_DATA/BWD_WEIGHT)
@@ -366,7 +423,10 @@ def compute_tflops_efficiency(
 
     operation = base_operation(operation)
     if operation == "gemm_universal":
-        groupby_cols = ["m", "n", "k"]
+        groupby_cols = problem_columns(operation)
+        tflops_col = "measured_tflops"
+    elif operation == "batched_gemm":
+        groupby_cols = problem_columns(operation)
         tflops_col = "measured_tflops"
     elif operation == "grouped_conv":
         # Group by all problem parameters including 3D and dilation
@@ -378,6 +438,12 @@ def compute_tflops_efficiency(
         raise NotImplementedError("FMHA efficiency computation not yet implemented")
     else:
         raise ValueError(f"Unknown operation type: {operation}")
+
+    missing = [c for c in groupby_cols if c not in df.columns]
+    if missing:
+        raise KeyError(
+            f"{operation} scores problems by {groupby_cols}; missing {missing}"
+        )
 
     for shape_key, group in df.groupby(groupby_cols):
         oracle_best = group[tflops_col].max()
@@ -393,8 +459,8 @@ def compute_tflops_efficiency(
             "efficiency": efficiency,
         }
         # Add shape-specific keys
-        if operation == "gemm_universal":
-            result.update({"m": shape_key[0], "n": shape_key[1], "k": shape_key[2]})
+        if operation in ("gemm_universal", "batched_gemm"):
+            result.update(dict(zip(groupby_cols, shape_key)))
         elif operation == "grouped_conv":
             result.update(
                 {
@@ -643,11 +709,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--operation",
         default="gemm_universal",
-        choices=["gemm_universal", "gemm_universal_vec", "grouped_conv", "fmha"],
+        choices=[
+            "gemm_universal",
+            "gemm_universal_vec",
+            "batched_gemm",
+            "grouped_conv",
+            "fmha",
+        ],
         help=(
             "Operation type. gemm_universal_vec is gemm_universal plus six "
             "features for the fixed A/B/C vector widths; use it when the data "
-            "varies them, since the base engine cannot tell those kernels apart."
+            "varies them, since the base engine cannot tell those kernels apart. "
+            "batched_gemm adds batch occupancy and vector-width features and "
+            "reads op_type=batched_gemm rows."
         ),
     )
     parser.add_argument(
@@ -661,6 +735,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--targets", default="tflops,latency,bandwidth", help="Comma-separated targets"
     )
     parser.add_argument("--n_splits", type=int, default=5, help="Number of CV folds")
+    parser.add_argument(
+        "--holdout",
+        type=int,
+        default=0,
+        help="Number of CV groups to leave out of training entirely",
+    )
+    parser.add_argument(
+        "--holdout_file",
+        type=Path,
+        default=None,
+        help="JSON list of exact CV group keys to leave out of training",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Seed used when --holdout samples groups",
+    )
     parser.add_argument(
         "--tune", action="store_true", help="Run Optuna hyperparameter tuning"
     )
@@ -706,6 +798,9 @@ def main():
     print(f"{'=' * 80}")
     print()
 
+    if args.holdout and args.holdout_file:
+        parser.error("--holdout and --holdout_file are mutually exclusive")
+
     print(f"Loading data from {args.data_dir}...")
     df = build_training_dataset(
         args.data_dir, op_type=base_operation(operation), dtype=args.dtype
@@ -713,9 +808,25 @@ def main():
     check_arch_matches_data(df, args.arch)
     print(f"  Total rows: {len(df)}")
 
+    holdout = []
+    if args.holdout or args.holdout_file:
+        present = compute_group_keys(df, operation)
+        if args.holdout_file:
+            holdout = load_holdout_groups(args.holdout_file, present)
+        else:
+            holdout = choose_holdout_groups(present, args.holdout, args.seed)
+        if holdout:
+            print(f"  Holding out {len(holdout)} CV groups")
+            df = df.loc[~pd.Series(present, index=df.index).isin(holdout)]
+            df = df.reset_index(drop=True)
+            if df.empty:
+                raise ValueError("holdout removed every training row")
+
     # Print unique shapes based on operation type
-    if base_operation(operation) == "gemm_universal":
-        print(f"  Unique shapes: {df.groupby(['m', 'n', 'k']).ngroups}")
+    if base_operation(operation) in ("gemm_universal", "batched_gemm"):
+        print(
+            f"  Unique shapes: {df.groupby(problem_columns(operation)).ngroups}"
+        )
     elif operation == "grouped_conv":
         print(
             f"  Unique shapes: {df.groupby(['N', 'C', 'K', 'G', 'Hi', 'Wi', 'Y', 'X']).ngroups}"
@@ -831,8 +942,8 @@ def main():
         json.dump(spec, f, indent=2)
 
     # Compute unique shapes based on operation type
-    if base_operation(operation) == "gemm_universal":
-        unique_shapes = int(df.groupby(["m", "n", "k"]).ngroups)
+    if base_operation(operation) in ("gemm_universal", "batched_gemm"):
+        unique_shapes = int(df.groupby(problem_columns(operation)).ngroups)
     elif operation == "grouped_conv":
         unique_shapes = int(
             df.groupby(["N", "C", "K", "G", "Hi", "Wi", "Y", "X"]).ngroups
@@ -860,6 +971,14 @@ def main():
     }
     with open(out_dir / "train_manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
+
+    if operation == "batched_gemm":
+        from feature_engine_batched import observed_search_space
+
+        with open(out_dir / "holdout_shapes.json", "w") as f:
+            json.dump(holdout, f, indent=2)
+        with open(out_dir / "search_space.json", "w") as f:
+            json.dump(observed_search_space(df), f, indent=2)
 
     print(f"\nAll models saved to {out_dir}")
     if prev_model_dir:

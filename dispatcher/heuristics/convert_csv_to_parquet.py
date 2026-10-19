@@ -35,11 +35,20 @@ Usage:
         --arch gfx950 \
         --op-type grouped_conv
 
+    # Batched GEMM: one CSV, or a directory of batched_gemm_results.csv files.
+    # Copies under a csv/ directory are skipped. Repeated measurements are median-aggregated.
+    python convert_csv_to_parquet.py \
+        --input /path/to/batched/results \
+        --output data/batched_gemm_bf16_gfx950.parquet \
+        --arch gfx950 \
+        --dtype bf16 \
+        --op-type batched_gemm
+
 Features:
     - Auto-detects problem columns from CSV headers
     - Generic kernel name parsing with optional custom patterns
     - Supports all GPU architectures and data types
-    - No hardcoded operation-specific logic
+    - Batched GEMM CSVs are written in the canonical training schema
     - Validates data quality and reports statistics
 """
 
@@ -246,6 +255,16 @@ def auto_detect_problem_columns(df: pd.DataFrame) -> list[str]:
     return [col for col in df.columns if col not in METRIC_COLUMNS]
 
 
+def _looks_like_batched_gemm(path: Path) -> bool:
+    """A batched-GEMM results file, or a directory that contains one."""
+    if path.is_dir():
+        return any(
+            p.parent.name != "csv" and p.name == "batched_gemm_results.csv"
+            for p in path.rglob("batched_gemm_results.csv")
+        )
+    return path.name == "batched_gemm_results.csv"
+
+
 def convert_csv_to_parquet(
     csv_file: Path,
     output_file: Path,
@@ -270,6 +289,32 @@ def convert_csv_to_parquet(
     Returns:
         DataFrame with converted data
     """
+    csv_file = Path(csv_file)
+    output_file = Path(output_file)
+    if op_type == "batched_gemm" or (
+        op_type is None and _looks_like_batched_gemm(csv_file)
+    ):
+        if kernel_pattern:
+            raise ValueError(
+                "batched_gemm parses kernel names with data_pipeline.parse_kernel_name; "
+                "do not pass kernel_pattern"
+            )
+        from data_pipeline import load_batched_gemm_results
+
+        df = load_batched_gemm_results(
+            csv_file,
+            arch=arch,
+            dtype=dtype,
+            hw=HW_PROFILES.get(arch, {}),
+        )
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(output_file, index=False)
+        print(
+            f"Wrote {len(df):,} batched GEMM rows "
+            f"({df['kernel_name'].nunique():,} kernels) -> {output_file}"
+        )
+        return df
+
     print(f"Loading {csv_file}...")
     df = pd.read_csv(csv_file)
 

@@ -335,7 +335,7 @@ class TestEngineVariants:
     def test_base_operation_is_identity_for_real_operations(self):
         from train import base_operation
 
-        for op in ("gemm_universal", "grouped_conv", "fmha"):
+        for op in ("gemm_universal", "batched_gemm", "grouped_conv", "fmha"):
             assert base_operation(op) == op
 
     def test_factory_returns_the_wider_engine(self):
@@ -380,6 +380,37 @@ class TestEngineVariants:
             compute_tflops_efficiency(df, "gemm_universal_vec", "pred_tflops"),
             compute_tflops_efficiency(df, "gemm_universal", "pred_tflops"),
         )
+
+    def test_batched_gemm_groups_folds_without_batch_and_scores_each_batch(self):
+        from train import compute_group_keys, compute_tflops_efficiency
+
+        df = pd.DataFrame(
+            {
+                "layout": ["rcr", "rcr", "ccr"],
+                "batch_count": [1, 32, 1],
+                "m": [16, 16, 16],
+                "n": [16, 16, 16],
+                "k": [16, 16, 16],
+                "measured_tflops": [1.0, 2.0, 3.0],
+                "pred_tflops": [1.0, 2.0, 3.0],
+            }
+        )
+        keys = compute_group_keys(df, "batched_gemm")
+        assert list(keys) == ["rcr_16_16_16", "rcr_16_16_16", "ccr_16_16_16"]
+        eff = compute_tflops_efficiency(df, "batched_gemm")
+        assert len(eff) == 3
+        assert set(eff["batch_count"]) == {1, 32}
+
+    def test_holdout_sampling_leaves_the_rest_and_is_stable(self):
+        from train import choose_holdout_groups
+
+        groups = ["a", "a", "b", "c", "d"]
+        first = choose_holdout_groups(groups, 2, seed=1)
+        assert first == choose_holdout_groups(groups, 2, seed=1)
+        assert len(first) == 2
+        assert set(first) < {"a", "b", "c", "d"}
+        with pytest.raises(ValueError):
+            choose_holdout_groups(groups, 4, seed=1)
 
     def test_parser_accepts_the_variant_and_rejects_junk(self):
         import train
@@ -548,7 +579,12 @@ class TestEncodingVersion:
 
     @pytest.mark.parametrize(
         "operation,expected",
-        [("gemm_universal", 0), ("gemm_universal_vec", 1), ("grouped_conv", 0)],
+        [
+            ("gemm_universal", 0),
+            ("gemm_universal_vec", 1),
+            ("batched_gemm", 1),
+            ("grouped_conv", 0),
+        ],
     )
     def test_the_spec_records_the_engines_version(self, operation, expected):
         from train import build_feature_spec, get_feature_engine

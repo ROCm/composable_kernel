@@ -202,6 +202,7 @@ class TestEngineForSpec:
             "grouped_conv": "GroupedConvFeatureEngine",
             "gemm_universal": "GemmUniversalFeatureEngine",
             "gemm_universal_vec": "GemmUniversalVecFeatureEngine",
+            "batched_gemm": "BatchedGemmFeatureEngine",
         }
         for op, expected in cases.items():
             assert type(_engine_for_spec({"op_type": op})).__name__ == expected, op

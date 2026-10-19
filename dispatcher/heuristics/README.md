@@ -80,6 +80,37 @@ It reads `gemm_universal` data. Rows need non-null `vec_a/b/c`, `arch`,
 `gemm_full_benchmark.py`'s CSV into such a parquet. `search.py` and the C++
 path (`ml_heuristic.hpp`) support only the base engine.
 
+#### Batched GEMM
+
+Batched problems need their own engine (`feature_engine_batched.py`). The
+universal engine's occupancy ignores `batch_count`, which dominates small
+M/N shapes. Cross-validation groups by `layout_M_N_K` and leaves batch out of
+the fold key, so two batches of the same shape are scored separately but are
+not split across folds.
+
+```bash
+python3 convert_csv_to_parquet.py \
+    --input /path/to/results \
+    --output data/batched_gemm_bf16_gfx950.parquet \
+    --arch gfx950 --dtype bf16 --op-type batched_gemm
+
+python3 train.py \
+    --data_dir data/ \
+    --out_dir models/batched_gemm_bf16_gfx950 \
+    --operation batched_gemm --dtype bf16 --arch gfx950 \
+    --targets tflops
+
+python3 evaluate.py \
+    --model_dir models/batched_gemm_bf16_gfx950 \
+    --op batched_gemm --dtype bf16 --oof
+```
+
+`--input` may be one CSV or a directory of `batched_gemm_results.csv` files.
+Copies under a `csv/` directory are skipped, and repeated measurements of the
+same kernel and problem keep the median TFLOPS. Pass `--targets tflops` when
+the CSVs have no bandwidth column. `--oof` scores the out-of-fold predictions
+written by training.
+
 ### 3. Evaluate
 
 ```bash
@@ -155,6 +186,7 @@ Three models are trained per (op, dtype, arch):
 | `data_pipeline.py` | Parse raw benchmark logs into canonical parquet datasets |
 | `feature_engine.py` | 72-feature extraction: problem, kernel, interaction, hardware profile |
 | `feature_engine_vec.py` | Adds six fixed-vector-width features (78 total) |
+| `feature_engine_batched.py` | Batched GEMM: batch occupancy plus vector-width features |
 | `train.py` | Multi-target LGBMRegressor training with GroupKFold CV, IHEM, warm-start |
 | `predict.py` | Predictor class: predict TFLOPS/latency/bandwidth, rank kernels |
 | `evaluate.py` | Full evaluation: global metrics, per-shape/layout/pipeline slices |
