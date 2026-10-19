@@ -19,17 +19,26 @@
         throw std::runtime_error(ostr.str());  \
     }
 
+// Cached per thread and device: the dispatch heuristics call this several times per launch.
 static inline int get_number_of_cu()
 {
+    static thread_local int cached_device = -1;
+    static thread_local int cached_cus    = 0;
+
     int device;
 
     HIP_CHECK_ERROR(hipGetDevice(&device));
 
-    hipDeviceProp_t props;
+    if(device != cached_device)
+    {
+        hipDeviceProp_t props;
 
-    HIP_CHECK_ERROR(hipGetDeviceProperties(&props, device));
+        HIP_CHECK_ERROR(hipGetDeviceProperties(&props, device));
 
-    return props.multiProcessorCount;
+        cached_cus    = props.multiProcessorCount;
+        cached_device = device;
+    }
+    return cached_cus;
 }
 
 static inline bool is_almost_invariant_seqlen(HstuAttentionNoGroupFwdParams& param)

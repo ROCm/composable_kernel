@@ -398,6 +398,8 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.max_seqlen_kv      = max_seqlen_kv;
         params.min_seqlen_q       = min_seqlen_q;
         params.min_seqlen_kv      = min_seqlen_kv;
+        params.total_seqlen_q     = seq_offsets_q.back();
+        params.total_seqlen_kv    = seq_offsets_kv.back();
         params.q_ptr              = q_dev.GetDeviceBuffer();
         params.k_ptr              = k_dev.GetDeviceBuffer();
         params.v_ptr              = v_dev.GetDeviceBuffer();
