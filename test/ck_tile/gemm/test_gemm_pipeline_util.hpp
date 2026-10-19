@@ -299,14 +299,19 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr bool ClusterLaunch =
         ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
 
+    // Waves per block as ck_tile::sequence<M_Warp, N_Warp, K_Warp>
+    using BlockWarps = ck_tile::tuple_element_or_default_t<
+        Tuple,
+        16,
+        ck_tile::sequence<PipelineType == GemmPipelineType::CompAsyncEightWaves ? 4 : 2, 2, 1>>;
+
     protected:
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        constexpr ck_tile::index_t M_Warp =
-            PipelineType == GemmPipelineType::CompAsyncEightWaves ? 4 : 2;
-        constexpr ck_tile::index_t N_Warp = 2;
-        constexpr ck_tile::index_t K_Warp = 1;
+        constexpr ck_tile::index_t M_Warp = BlockWarps::at(ck_tile::number<0>{});
+        constexpr ck_tile::index_t N_Warp = BlockWarps::at(ck_tile::number<1>{});
+        constexpr ck_tile::index_t K_Warp = BlockWarps::at(ck_tile::number<2>{});
 
         // if cluster launch is enabled, set cluster dim to 2x2x1
         constexpr ck_tile::index_t kClusterSizeM =
