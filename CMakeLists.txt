@@ -584,6 +584,11 @@ if(NOT WIN32 AND check-coerce AND ${hip_VERSION_FLAT} GREATER 600241132)
    message(STATUS "Adding the amdgpu-coerce-illegal-types=1")
    add_compile_options("SHELL: -mllvm -amdgpu-coerce-illegal-types=1")
 endif()
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+   message(STATUS "Adding -amdgpu-early-inline-all=true and -amdgpu-function-calls=false")
+   add_compile_options("SHELL: -mllvm -amdgpu-early-inline-all=true")
+   add_compile_options("SHELL: -mllvm -amdgpu-function-calls=false")
+endif()
 #
 # Seperate linking jobs from compiling
 # Too many concurrent linking jobs can break the build
