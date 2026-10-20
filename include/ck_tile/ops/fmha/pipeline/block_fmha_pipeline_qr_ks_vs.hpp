@@ -327,12 +327,12 @@ struct BlockFmhaPipelineQRKSVS
         {
 #if CK_TILE_FMHA_FWD_FAST_EXP2
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI ||
-                         BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+                         BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS || kHasLogitsSoftCap)
                 set_tile(m, sink_v * scale_s * C_LOG2E);
             else
                 set_tile(m, sink_v * C_LOG2E);
 #else
-            set_tile(m, sink_v);
+            set_tile(m, sink_v * scale_s);
 #endif
             set_tile(l, SMPLComputeDataType{1.0f});
         }

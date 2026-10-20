@@ -103,7 +103,12 @@ endif()
 # there is no corresponding instance for parameters).
 if(BUILD_TESTING)
   # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
-  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv*)
+  # The split-KV entry says *logits* rather than *_nlogits* so that the soft-cap
+  # instances are built too: SplitKvSinkSoftCap needs a soft cap and a sink on the
+  # same split, and without these instances it would report success while
+  # skipping every case that matters. fnmatch takes one pattern per API, so this
+  # also pulls in the soft-cap instances without a sink, for 524 more instances.
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*logits*_nbias*,*,*_nlogits*_nskip*_pagedkv*)
 endif()
 
 # generate a list of kernels, but not actually emit files at config sta
