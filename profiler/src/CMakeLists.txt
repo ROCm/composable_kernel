@@ -153,6 +153,19 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
   target_compile_options(${PROFILER_EXECUTABLE} PRIVATE --offload-compress)
 endif()
 
+# Keep the 2 GB x86-64 PC-relative relocation reach usable. ckProfiler links
+# every device instance library, and the default layout places the embedded
+# device images (.hip_fatbin) between .rodata and .text, which puts each
+# object's constant pool out of reach of its own code. The INSERT script moves
+# only that one section to the end of the image.
+if(NOT WIN32)
+  set(CK_PROFILER_LAYOUT_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/ckProfiler_fatbin_last.ld)
+  target_link_options(${PROFILER_EXECUTABLE} PRIVATE
+                      "SHELL:-Wl,-T,${CK_PROFILER_LAYOUT_SCRIPT}")
+  set_property(TARGET ${PROFILER_EXECUTABLE} APPEND
+               PROPERTY LINK_DEPENDS ${CK_PROFILER_LAYOUT_SCRIPT})
+endif()
+
 
 # =============================================================================
 # CK Tile Dispatcher: Generate and compile CK Tile conv kernels
