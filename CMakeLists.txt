@@ -20,8 +20,11 @@ else()
 endif()
 
 # Allow user to specify the C++ standard.
-# We must support C++17 builds until downstream users are migrated to C++20, but we default to C++20.
-set(CK_CXX_STANDARD "20" CACHE STRING "C++ standard to use (e.g. 17 or 20)")
+# ROCm 7.0.2.1 delivery: this branch shipped C++17 in compute build 50 and the
+# rest of the 7.0.2.x series is built and consumed at C++17, so the default
+# stays 17 here. Upstream develop defaults to 20. Pass -DCK_CXX_STANDARD=20 to
+# build this branch at C++20.
+set(CK_CXX_STANDARD "17" CACHE STRING "C++ standard to use (e.g. 17 or 20)")
 set(valid_cxx_standards 17 20)
 set_property(CACHE CK_CXX_STANDARD PROPERTY STRINGS ${valid_cxx_standards})
 if(NOT CK_CXX_STANDARD IN_LIST valid_cxx_standards)

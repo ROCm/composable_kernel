@@ -3,7 +3,9 @@
 
 cmake_minimum_required(VERSION 3.15)
 project(ck_app)
-add_compile_options(-std=c++20)
+# Compiled at the standard the 7.0.2.x packages ship, so this stays the C++17
+# consumer check for the installed headers.
+add_compile_options(-std=c++17)
 
 if (DTYPES)
     add_definitions(-DDTYPES)
