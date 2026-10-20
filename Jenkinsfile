@@ -222,8 +222,8 @@ pipeline {
             description: "Build CK and run tests on gfx12 (default: ON)")
         booleanParam(
             name: "BUILD_GFX1250",
-            defaultValue: false,
-            description: "Build CK for gfx1250 (default: OFF)")
+            defaultValue: true,
+            description: "Build CK for gfx1250 (default: ON)")
         booleanParam(
             name: "NINJA_BUILD_TRACE",
             defaultValue: true,

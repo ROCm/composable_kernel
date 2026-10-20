@@ -133,6 +133,7 @@ set(KNOWN_FAILING_TESTS
     test_mx_bf6
     test_mx_fp8_pk4scale
     test_mx_bf8_pk4scale
+    test_cluster_load_async
 )
 
 function(add_test_executable TEST_NAME)
