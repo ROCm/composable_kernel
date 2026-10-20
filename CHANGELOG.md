@@ -2,6 +2,19 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## Composable Kernel 1.2.0 for ROCm 7.0.2.1
+
+### Removed
+
+The CK develop import (#3773) dropped 13 headers that `composablekernel-devel` shipped in ROCm 7.0.2.1 compute build 50. They are listed here with their replacements, measured on the published RPM file lists for builds 50 and 52.
+
+* Removed the `ck::tensor_operation::device` StreamK GEMM API: `ck/tensor_operation/gpu/device/device_gemm_streamk.hpp`, `device_gemm_streamk_v2.hpp`, `impl/device_gemm_xdl_cshuffle_streamk_v3.hpp`, `impl/device_gemm_xdl_streamk.hpp`, `grid/gridwise_gemm_xdl_cshuffle_streamk_v3.hpp`, `grid/gridwise_gemm_xdlops_streamk.hpp`, and the instance headers `ck/library/tensor_operation_instance/gpu/gemm_streamk.hpp` and `gemm_universal_streamk.hpp`. The matching instance sources, examples and profiler op were removed with them. Use the CK Tile StreamK GEMM under `ck_tile/ops/gemm/kernel/streamk_gemm/`, which the same import added.
+* Removed `ck/library/reference_tensor_operation/gpu/naive_conv_fwd.hpp`. Use `naive_conv_fwd_gpu.hpp`, which is unchanged from build 50.
+* Removed `ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_wmma_instance.hpp`. Use `device_grouped_conv_bwd_weight_v3_wmma_instance.hpp`, or the new `device_grouped_conv_bwd_weight_wmma_bilinear_instance.hpp` and `device_grouped_conv_bwd_weight_wmma_scale_instance.hpp`.
+* Removed `ck_tile/ops/fmha/pipeline/block_fmha_bwd_pipeline_enum.hpp`. `BlockFmhaBwdPipelineEnum` no longer exists and has no replacement.
+* Renamed `ck_tile/ops/reduce/block/block_reduce2d_default_policy.hpp` to `ck_tile/ops/reduce/pipeline/reduce2d_default_policy.hpp`, and `BlockReduce2dDefaultPolicy` to `Reduce2dDefaultPolicy`. The policy now reads `kOutputIndex` from the problem and `ThreadTile_M`/`ThreadTile_N` from the block shape, so this is a source change for callers, not just an include path change.
+* Renamed `ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_explicit_xdl.hpp` to `device_grouped_conv_bwd_weight_explicit.hpp`, and `DeviceGroupedConvBwdWeight_Explicit_Xdl` to `DeviceGroupedConvBwdWeight_Explicit`. The old header and the old class name stay available for the 7.0.2.x series through a compatibility header; the template parameter list is unchanged.
+
 ## Composable Kernel 1.2.0 for ROCm 7.13
 
 ### Added
