@@ -186,7 +186,7 @@ uint16_t float_to_bf16_rtn_asm(float f)
             v_cndmask_b32 %2, %1, %4, %0 \n \
             v_lshrrev_b32 %2, 16, %2 \n \
             "
-                 : "=s"(check_nan), "+v"(tmp), "+v"(u.fp32)
+                 : "=s"(check_nan), "=&v"(tmp), "+v"(u.fp32)
                  : "v"(ROUND_BIAS_FOR_BF16), "v"(FP32_NAN));
 
     return uint16_t(u.int32);
