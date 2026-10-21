@@ -238,7 +238,9 @@ def _main(monkeypatch, capsys, tmp_path, n_fail):
     monkeypatch.setattr(
         drv, "setup_multiple_gemm_dispatchers", lambda cfgs, **kw: [lib] * len(cfgs)
     )
-    monkeypatch.setattr(drv, "_run_batch_on_device", lambda *a, **kw: ([], [], n_fail))
+    monkeypatch.setattr(
+        drv, "_run_batch_on_device", lambda *a, **kw: ([], [], n_fail, 0)
+    )
     rc = drv.main()
     return rc, capsys.readouterr().out
 
@@ -257,6 +259,7 @@ DRIVERS = [
     "streamk_gemm_full_benchmark.py",
     "grouped_gemm_full_benchmark.py",
     "block_scale_gemm/gemm_bquant/gemm_bquant_full_benchmark.py",
+    "mx_gemm_full_benchmark.py",
 ]
 
 

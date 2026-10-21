@@ -18,6 +18,7 @@ Three-layer Python bridge for the dispatcher's microscaling-GEMM path
 
 Build helper (self-contained):
   setup_multiple_mx_gemm_dispatchers(configs, ...) : codegen -> hipcc -> .so paths
+  expand_mx_sweep(config_json, arch, dtype)        : TE sweep JSON -> [MxGemmKernelConfig]
 
 Data types (verified against ck_tile headers / example/ck_tile/42_mx_gemm):
   fp8 : ck_tile::fp8_t  == float8_e4m3_t (OCP e4m3, bias 7, on gfx950/gfx1250)
@@ -935,6 +936,65 @@ def setup_multiple_mx_gemm_dispatchers(
     built = sum(1 for r in results if r)
     log.info("built %d/%d mx_gemm kernels for %s", built, len(configs), arch)
     return results
+
+
+def expand_mx_sweep(
+    config_path,
+    gfx_arch: str,
+    dtype: str = "fp4",
+    layout: str = "rcr",
+    max_instances: Optional[int] = None,
+    seed: Optional[int] = None,
+) -> List[MxGemmKernelConfig]:
+    """TE JSON sweep config -> [MxGemmKernelConfig].
+
+    Enumerates with the Old-TE MxGemmKernelBuilder (the validated and sampled
+    list its CMake --list_kernels step builds), so a bridge sweep runs exactly
+    the kernels of an Old-TE build of the same JSON, dtype and max_instances.
+    """
+    config_path = Path(config_path)
+    if not config_path.is_file():
+        raise FileNotFoundError(f"mx_gemm sweep config not found: {config_path}")
+    arch = normalize_arch(gfx_arch)
+    codegen = _mx_codegen()
+    with tempfile.TemporaryDirectory(prefix="mx_gemm_sweep_") as work_dir:
+        builder = codegen._load_mx_builder()(
+            codegen.KERNEL_NAME_PREFIX,
+            work_dir,
+            arch,
+            dtype,
+            layout,
+            config_json=str(config_path),
+            max_instances=max_instances,
+            seed=seed,
+        )
+        kernels = builder._get_sampled_kernel_list()
+    k_block_per_cu = int(builder.config.get("k_block_per_cu", 1))
+
+    configs = []
+    for kernel in kernels:
+        pipeline, epilogue, scheduler, pad_m, pad_n, pad_k, persistent = (
+            builder._normalize_trait_combo(kernel["trait_combo"])
+        )
+        cfg = MxGemmKernelConfig(
+            datatype=dtype,
+            layout=layout,
+            gpu_target=arch,
+            pipeline=pipeline,
+            epilogue=epilogue,
+            scheduler=scheduler,
+            pad_m=pad_m,
+            pad_n=pad_n,
+            pad_k=pad_k,
+            persistent=persistent,
+            k_block_per_cu=k_block_per_cu,
+            **kernel["tile_config"],
+        )
+        if cfg.is_valid():
+            configs.append(cfg)
+        else:
+            log.warning("dropping %s: rejected by the bridge codegen", kernel["name"])
+    return configs
 
 
 def default_fp8_config(
