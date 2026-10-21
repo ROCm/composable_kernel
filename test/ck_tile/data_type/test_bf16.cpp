@@ -1363,6 +1363,16 @@ __global__ void test_native_conversion_kernel(const float* input, bf16_t* output
     }
 }
 
+// Device kernel that explicitly exercises the inline-assembly RNE conversion path.
+__global__ void test_standard_asm_conversion_kernel(const float* input, uint16_t* output, size_t n)
+{
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if(idx < n)
+    {
+        output[idx] = float_to_bf16_raw(input[idx], constant<bf16_rounding_mode::standard_asm>{});
+    }
+}
+
 // Device kernel for FMA accumulation test (bf16 * bf16 + fp32 accumulator)
 __global__ void
 test_fma_accumulate_kernel(const bf16_t* a, const bf16_t* b, float* acc, size_t n, int iterations)
@@ -1507,6 +1517,74 @@ TEST_F(Bf16PlatformTest, NativeHardwareConversion)
     std::cout << "Native hardware bf16 conversion not available on this platform" << std::endl;
     std::cout << "Using software conversion implementation" << std::endl;
 #endif
+}
+
+// Verify that the inline-assembly RNE path agrees with the scalar reference. Exercise both
+// possible retained LSBs independently of low bits around the round-to-nearest-even boundary.
+TEST_F(Bf16PlatformTest, StandardAsmRoundingMatchesReference)
+{
+    constexpr uint32_t exponents[]    = {1u, 127u, 254u};
+    constexpr uint32_t mantissa_los[] = {0x0001u, 0x7fffu, 0x8000u, 0x8001u, 0xffffu};
+    constexpr size_t n                = 2 * 3 * 128 * 5;
+    std::vector<float> input(n);
+    std::vector<uint16_t> output(n);
+
+    size_t index = 0;
+    for(uint32_t sign = 0; sign < 2; ++sign)
+    {
+        for(uint32_t exponent : exponents)
+        {
+            for(uint32_t mantissa_hi = 0; mantissa_hi < 128; ++mantissa_hi)
+            {
+                for(uint32_t mantissa_lo : mantissa_los)
+                {
+                    const uint32_t bits =
+                        (sign << 31) | (exponent << 23) | (mantissa_hi << 16) | mantissa_lo;
+                    input[index++] = bit_cast<float>(bits);
+                }
+            }
+        }
+    }
+
+    float* d_input     = nullptr;
+    uint16_t* d_output = nullptr;
+    hip_check_error(hipMalloc(&d_input, input.size() * sizeof(float)));
+    hip_check_error(hipMalloc(&d_output, output.size() * sizeof(uint16_t)));
+    hip_check_error(
+        hipMemcpy(d_input, input.data(), input.size() * sizeof(float), hipMemcpyHostToDevice));
+
+    constexpr size_t block_size = 256;
+    const size_t grid_size      = (n + block_size - 1) / block_size;
+    test_standard_asm_conversion_kernel<<<grid_size, block_size>>>(d_input, d_output, n);
+    hip_check_error(hipGetLastError());
+    hip_check_error(hipDeviceSynchronize());
+    hip_check_error(hipMemcpy(
+        output.data(), d_output, output.size() * sizeof(uint16_t), hipMemcpyDeviceToHost));
+
+    size_t mismatch_count = 0;
+    size_t first_mismatch = n;
+    uint16_t first_actual{};
+    uint16_t first_expected{};
+    for(size_t i = 0; i < n; ++i)
+    {
+        const uint16_t expected =
+            float_to_bf16_raw(input[i], constant<bf16_rounding_mode::standard>{});
+        if(output[i] != expected)
+        {
+            if(first_mismatch == n)
+            {
+                first_mismatch = i;
+                first_actual   = output[i];
+                first_expected = expected;
+            }
+            ++mismatch_count;
+        }
+    }
+
+    hip_check_error(hipFree(d_output));
+    hip_check_error(hipFree(d_input));
+    EXPECT_EQ(mismatch_count, 0u) << "first mismatch at index " << first_mismatch << ": got 0x"
+                                  << std::hex << first_actual << ", expected 0x" << first_expected;
 }
 
 // Test conversion accuracy across implementations
