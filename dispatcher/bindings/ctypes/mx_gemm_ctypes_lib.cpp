@@ -404,6 +404,10 @@ int dispatcher_run_mx_gemm(const void* A,
     catch(const std::exception& e)
     {
         std::cerr << "dispatcher_run_mx_gemm: launch threw: " << e.what() << "\n";
+        // The generated launch throws "Arguments not supported" when the native
+        // IsSupportedArgument rejects the problem; report that as unsupported.
+        if(std::string_view(e.what()).find("not supported") != std::string_view::npos)
+            return -2;
         return -1;
     }
 
