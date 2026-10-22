@@ -39,13 +39,13 @@ struct HstuFwdStrategyRule
     HstuFwdRange dtype_bytes, hdim_qk, hdim_v, heads, batch, total_q, total_kv;
 
     // Action. splits_const >= 0 fixes num_splits (0 disables split-kv); otherwise num_splits fills
-    // splits_waves waves of 2 workgroups per CU with Q tiles of mtile rows, rounded to a power of
-    // two, clamped to [splits_min, splits_max] (0 below 1.5), and halved while the average
+    // coverage_factor times of 2 workgroups per CU with Q tiles of mtile rows, rounded to a power
+    // of two, clamped to [splits_min, splits_max] (0 below 1.5), and halved while the average
     // sequence has fewer than kv_tiles_per_split 64-wide KV tiles per split.
     int mtile              = 128;
     int grid_order         = -1;
     int splits_const       = -1;
-    float splits_waves     = 3.0f;
+    float coverage_factor  = 3.0f;
     int splits_min         = 2;
     int splits_max         = 32;
     int kv_tiles_per_split = 2;
@@ -112,7 +112,7 @@ hstu_fwd_rule_num_splits(const HstuFwdStrategyRule& r, const HstuFwdCallFeatures
         return r.splits_const;
 
     const float q_tiles = static_cast<float>(f.heads) * f.total_q / r.mtile;
-    const float wanted  = r.splits_waves * 2.0f * num_cu / q_tiles;
+    const float wanted  = r.coverage_factor * 2.0f * num_cu / q_tiles;
     if(wanted < 1.5f)
         return 0;
     int num_splits = std::clamp(
