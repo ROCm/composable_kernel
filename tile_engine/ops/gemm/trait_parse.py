@@ -7,8 +7,9 @@ A trait combo is serialized as
 ``<pipeline>_<epilogue>_<scheduler>_<pad_m>_<pad_n>_<pad_k>[_<persistent>]``.
 Most pipeline names contain no underscore, so the historical parser simply
 split on ``_``. Multi-token pipeline names (``comp_async``, ``comp_tdm``,
-``comp_tdm_v2``, ``comp_async_eight_waves``, ``weight_preshuffle``) break that
-split, so they are matched first against a known-prefix list (longest first);
+``comp_tdm_v2``, ``comp_tdm_pc``, ``comp_async_eight_waves``,
+``weight_preshuffle``) break that split, so they are matched first against a
+known-prefix list (longest first);
 anything else falls back to the legacy split, keeping existing names parsed
 exactly as before.
 
@@ -18,10 +19,12 @@ The CMake mirror of this helper is ``gemm_trait_parse.cmake``.
 import re
 from typing import List, NamedTuple
 
-# Longest names first so ``comp_tdm_v2`` is never matched as ``comp_tdm``.
+# Longest names first so ``comp_tdm_v2`` and ``comp_tdm_pc`` are never matched
+# as ``comp_tdm`` (which would leave ``v2`` / ``pc`` parsed as the epilogue).
 MULTI_TOKEN_PIPELINES = (
     "comp_async_eight_waves",
     "comp_tdm_v2",
+    "comp_tdm_pc",
     "comp_async",
     "comp_tdm",
     "weight_preshuffle",

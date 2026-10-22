@@ -84,7 +84,17 @@ inline bool is_gfx120_supported()
 
 inline bool is_gfx95_supported() { return get_device_name() == "gfx950"; }
 
-inline bool is_gfx125_supported() { return get_device_name() == "gfx1250"; }
+// "gfx1250-strict" is the same silicon with the non-architected instructions withheld, so every
+// gfx125-gated host dispatch applies to it unchanged. It reaches here as a distinct processor
+// name rather than a target-id feature: get_device_name() strips a ":xnack+"-style suffix, but
+// "-strict" is part of the name itself and survives. The rest of the tree already treats the two
+// as one target -- CMakeLists.txt maps both to device id 0x1250, and config.hpp folds
+// __gfx1250_strict__ into __gfx125__ -- so an exact compare here is what leaves a strict device
+// looking unsupported to the host while its kernels are perfectly loadable.
+inline bool is_gfx125_supported()
+{
+    return get_device_name() == "gfx1250" || get_device_name() == "gfx1250-strict";
+}
 
 inline bool is_gfx12_supported() { return is_gfx120_supported() || is_gfx125_supported(); }
 

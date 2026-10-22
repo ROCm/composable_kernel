@@ -69,6 +69,14 @@ function(create_individual_batched_gemm_target datatype layout trait tile_config
 
     ck_tile_gemm_split_trait("${trait}" pipeline epilogue scheduler)
 
+    # The trait splitter is shared with gemm_universal and knows pipelines
+    # batched_gemm does not build (comp_tdm_pc). Fail with the actionable
+    # cause rather than CMake's "non-existent target" for an internal name.
+    if(NOT TARGET benchmark_batched_gemm_${pipeline}_pipeline)
+        message(FATAL_ERROR
+            "Trait '${trait}' uses pipeline '${pipeline}', which is not in "
+            "BATCHED_GEMM_PIPELINES. Add it there, or drop it from the config.")
+    endif()
     add_dependencies(benchmark_batched_gemm_${pipeline}_pipeline ${target_name})
     add_dependencies(benchmark_batched_gemm_${epilogue}_epilogue ${target_name})
     add_dependencies(benchmark_batched_gemm_${scheduler}_scheduler ${target_name})

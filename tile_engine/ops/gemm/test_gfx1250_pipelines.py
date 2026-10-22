@@ -109,6 +109,7 @@ class TestTraitParse(unittest.TestCase):
             "comp_async_cshuffle_intrawave_False_False_False_True",
             "comp_tdm_tdm_intrawave_False_False_False",
             "comp_tdm_v2_tdm_intrawave_True_False_False_False",
+            "comp_tdm_pc_tdm_intrawave_False_False_False_False",
             "comp_async_eight_waves_cshuffle_intrawave_False_False_False",
             "weight_preshuffle_default_intrawave_False_False_False",
         ]
@@ -411,6 +412,73 @@ class TestValidationRules(unittest.TestCase):
         for arch in ("gfx942", "gfx950", "gfx1201"):
             for p in ("comp_tdm", "comp_tdm_v2", "comp_async"):
                 self.assertFalse(v(128, 128, 2, 2, 1, "fp16", p, arch)[0])
+
+    def test_comp_tdm_pc_acc_vgpr_budget(self):
+        # comp_tdm_pc is the only gfx1250 pipeline that is not wave-count locked,
+        # so the fp32 C accumulator VGPR budget is what caps its tile. wave32 with
+        # 256 architected VGPRs => tile_m*tile_n/(waves*32) must be <= 256.
+        v = vu.validate_gemm_gfx1250_pipeline
+        # (tile_m, tile_n, waves as (wm, wn, wk), accepted, acc VGPRs per lane)
+        cases = [
+            (256, 256, (2, 2, 1), False, 512),  # 4 waves: over budget
+            (256, 256, (4, 2, 1), True, 256),  # 8 waves: exactly at the budget
+            (256, 128, (2, 2, 1), True, 256),  # 4 waves, half N: at the budget
+            (128, 128, (1, 1, 1), False, 512),  # 1 wave: over budget
+            (128, 128, (2, 2, 1), True, 128),  # 4 waves: comfortably under
+        ]
+        for tile_m, tile_n, (wm, wn, wk), accepted, per_lane in cases:
+            with self.subTest(tile=(tile_m, tile_n), waves=wm * wn * wk):
+                ok, reason = v(
+                    tile_m, tile_n, wm, wn, wk, "fp16", "comp_tdm_pc", "gfx1250"
+                )
+                self.assertEqual(ok, accepted)
+                if not accepted:
+                    self.assertIn(str(per_lane), reason)
+                    self.assertIn("VGPRs per lane", reason)
+        # The budget is specific to comp_tdm_pc: comp_tdm has no wave-count rule
+        # and comp_tdm_v2 is rejected for its own (4-wave) reason, not this one.
+        self.assertTrue(v(256, 256, 2, 2, 1, "fp16", "comp_tdm", "gfx1250")[0])
+        self.assertNotIn(
+            "VGPRs per lane",
+            v(256, 256, 4, 2, 1, "fp16", "comp_tdm_v2", "gfx1250")[1],
+        )
+
+    def test_comp_tdm_pc_lds_budget_matches_its_ring_depth(self):
+        # comp_tdm_pc rings PIPELINE_SMEM_SLOTS["comp_tdm_pc"] LDS slots
+        # (GetSmemSize = NumSlots * per-slot). At the shipped <4, 0> default that is
+        # two slots deeper than comp_tdm / comp_tdm_v2's two-slot budget, so comp_tdm_pc
+        # must reject tiles the other two still accept.
+        lds = vu.validate_lds_capacity
+        slots = vu.PIPELINE_SMEM_SLOTS["comp_tdm_pc"]
+        # 256x256x128 fp16 => ~136KB of A+B: <= 320K/2 (163840) but > 320K/3 (109226).
+        fits_two_not_three = (256, 256, 128, "fp16", "fp16")
+        fits_three = (256, 256, 64, "fp16", "fp16")
+        for p in ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc"):
+            self.assertTrue(lds(*fits_three, p, "gfx1250", True)[0], p)
+        for p in ("comp_tdm", "comp_tdm_v2"):
+            self.assertTrue(lds(*fits_two_not_three, p, "gfx1250", True)[0], p)
+        ok, reason = lds(*fits_two_not_three, "comp_tdm_pc", "gfx1250", True)
+        self.assertEqual(ok, slots <= 2)
+        if not ok:
+            self.assertIn(f"{slots} LDS slot(s)", reason)
+
+    def test_smem_slot_table_covers_every_multi_slot_pipeline(self):
+        # test_gemm_universal_gfx1250.py indexes PIPELINE_SMEM_SLOTS directly
+        # (not .get) for every pipeline it lints, so a missing key is a KeyError
+        # rather than a readable failure. Every gfx1250 pipeline plus compv4 must
+        # have an entry; comp_tdm_pc is the only one that rings four slots today.
+        required = (
+            set(vu.GEMM_TDM_PIPELINES) | set(vu.GEMM_ASYNC_PIPELINES) | {"compv4"}
+        )
+        self.assertEqual(required - set(vu.PIPELINE_SMEM_SLOTS), set())
+        # comp_tdm_pc's entry mirrors GemmPipelineAgBgCrCompTDMProducerConsumerPolicy's
+        # NumSlots_ default, <4, 0>.
+        self.assertEqual(vu.PIPELINE_SMEM_SLOTS["comp_tdm_pc"], 4)
+        self.assertEqual(set(vu.PIPELINE_SMEM_SLOTS.values()), {2, 4})
+        # Pipelines with no entry fall back to a single slot (full LDS budget).
+        self.assertEqual(vu.DEFAULT_SMEM_SLOTS, 1)
+        self.assertNotIn("compv3", vu.PIPELINE_SMEM_SLOTS)
+        self.assertNotIn("mem", vu.PIPELINE_SMEM_SLOTS)
 
     def test_tile_config_rejects_off_arch(self):
         args = [_TILE[k] for k in _TILE] + ["fp16", "fp16", "fp16"]

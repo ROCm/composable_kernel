@@ -57,6 +57,7 @@
 #include "ck_tile/core/arch/mma/wmma/wmma_selector.hpp"
 #include "ck_tile/core/arch/mma/wmma/wmma_traits.hpp"
 #include "ck_tile/core/arch/mma/wmma/wmma_transforms.hpp"
+#include "ck_tile/core/arch/named_barrier.hpp"
 #include "ck_tile/core/arch/utility.hpp"
 #include "ck_tile/core/arch/workgroup_barrier.hpp"
 #include "ck_tile/core/config.hpp"
