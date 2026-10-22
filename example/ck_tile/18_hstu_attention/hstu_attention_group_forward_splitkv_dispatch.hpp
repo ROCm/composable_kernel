@@ -25,8 +25,8 @@
 #include "hstu_attention_no_softmax_fwd_trload_pipeline.hpp"
 #include "hstu_attention_with_softmax_fwd_direct_lds_trload_pipeline.hpp"
 #include "hstu_attention_no_softmax_fwd_direct_lds_trload_pipeline.hpp"
-#include "hstu_attention_with_softmax_fwd_tdm_pipeline.hpp"
-#include "hstu_attention_no_softmax_fwd_tdm_pipeline.hpp"
+#include "hstu_attention_with_softmax_fwd_tdm_trload_pipeline.hpp"
+#include "hstu_attention_no_softmax_fwd_tdm_trload_pipeline.hpp"
 #include "hstu_attention_no_softmax_fwd_splitkv_combine_pipeline.hpp"
 #include "hstu_attention_with_softmax_fwd_splitkv_combine_pipeline.hpp"
 #include "hstu_attention_fwd_splitkv_kernel.hpp"
@@ -187,14 +187,14 @@ struct group_forward_splitkv_dispatch
 
                             RunWithFwdSplitKVKernel<HstuKernel>(param, ws, stream);
                         }
-                        else if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+                        else if constexpr(kPipelineKind == HstuFwdPipelineKind::TdmTrLoad)
                         {
                             using HstuPipeline = std::conditional_t<
                                 kUseSoftmax,
-                                ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdm<
+                                ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad<
                                     HstuPipelineProblem,
                                     HstuTraits>,
-                                ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdm<
+                                ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad<
                                     HstuPipelineProblem,
                                     HstuTraits>>;
 

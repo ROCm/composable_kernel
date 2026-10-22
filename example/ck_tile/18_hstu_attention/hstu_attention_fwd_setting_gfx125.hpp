@@ -70,7 +70,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
 {
     if constexpr(MaxK == 64)
     {
-        if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+        if constexpr(kPipelineKind == HstuFwdPipelineKind::TdmTrLoad)
         {
             if constexpr(ExpectedMTile == 64)
             {
@@ -115,7 +115,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
     }
     else if constexpr(MaxK == 96)
     {
-        if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+        if constexpr(kPipelineKind == HstuFwdPipelineKind::TdmTrLoad)
         {
             if constexpr(ExpectedMTile == 64)
             {
@@ -160,7 +160,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
     }
     else if constexpr(MaxK == 128)
     {
-        if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+        if constexpr(kPipelineKind == HstuFwdPipelineKind::TdmTrLoad)
         {
             if constexpr(ExpectedMTile == 64)
             {
@@ -229,7 +229,7 @@ static constexpr auto GetHstuAttentionFwdTileSetting()
     }
     else if constexpr(MaxK == 256)
     {
-        if constexpr(kPipelineKind == HstuFwdPipelineKind::Tdm)
+        if constexpr(kPipelineKind == HstuFwdPipelineKind::TdmTrLoad)
         {
             return ck_tile::HstuAttentionFwdTileSettingClass<
                 HstuAttentionFwdBlockTile_Hdim256_M64_N0_32_Sub32_K1_32_Tdm,
