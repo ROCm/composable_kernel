@@ -15,7 +15,7 @@ set(GEMM_UNIVERSAL_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(GEMM_UNIVERSAL_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/../configs"
     CACHE PATH "Directory holding gemm sweep config JSONs")
 
-# Trait-string splitter that understands multi-token pipelines (comp_tdm_v2)
+# Trait-string splitter that understands multi-token pipelines (comp_tdm_v2, comp_tdm_pc)
 include(${CMAKE_CURRENT_LIST_DIR}/../gemm_trait_parse.cmake)
 
 # Function to create individual GEMM Universal targets
@@ -334,8 +334,9 @@ else()
     set(GEMM_UNIVERSAL_SCHEDULERS "intrawave;interwave")
     if(GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL MATCHES "gfx1250")
         # gfx1250 pipelines: non-MX comp_async (cshuffle epilogue) and the TDM
-        # pipelines comp_tdm / comp_tdm_v2 (tdm epilogue)
-        list(APPEND GEMM_UNIVERSAL_PIPELINES "comp_async;comp_tdm;comp_tdm_v2")
+        # pipelines comp_tdm / comp_tdm_v2 / comp_tdm_pc (producer/consumer;
+        # tdm epilogue)
+        list(APPEND GEMM_UNIVERSAL_PIPELINES "comp_async;comp_tdm;comp_tdm_v2;comp_tdm_pc")
         list(APPEND GEMM_UNIVERSAL_EPILOGUES "tdm")
     endif()
 

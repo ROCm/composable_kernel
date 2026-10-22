@@ -75,6 +75,7 @@ set(REGRESSION_TESTS
     test_max_pool3d_fwd
     test_grouped_convnd_bwd_data
     test_monitor_mwait
+    test_barrier_device
     test_ck_tile_gemm_pipeline_tdm_wmma
     test_ck_tile_gemm_pipeline_wp
     test_ck_tile_gemm_pipeline_wp_tdm

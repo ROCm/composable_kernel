@@ -36,7 +36,7 @@ GEMM_PIPELINES = ["mem", "compv3", "compv4"]
 # gfx1250 pipelines for the non-MX GEMM ops. They are opt-in per arch so
 # the pipeline sets (and therefore generated kernels) of every other arch stay
 # exactly GEMM_PIPELINES.
-GEMM_TDM_PIPELINES = ["comp_tdm", "comp_tdm_v2"]
+GEMM_TDM_PIPELINES = ["comp_tdm", "comp_tdm_v2", "comp_tdm_pc"]
 GEMM_ASYNC_PIPELINES = ["comp_async"]
 GEMM_PIPELINES_BY_ARCH = {
     "gfx1250": GEMM_PIPELINES + GEMM_ASYNC_PIPELINES + GEMM_TDM_PIPELINES,
@@ -624,11 +624,30 @@ def validate_warp_configuration(
     # table is its only listing. Scope the change to exactly that.
     allowed_combinations = WARP_SUPPORTED_COMBINATIONS.get(gpu_name, {})
     if not allowed_combinations and _base_gfx_arch(gpu_name) == "gfx1250":
-        allowed_combinations = WARP_SUPPORTED_COMBINATIONS.get("gfx1250", {})
+        allowed_combinations = WARP_SUPPORTED_COMBINATIONS.get("gfx1250", [])
     if not allowed_combinations:
         # If GPU not recognized, try to be permissive but log warning
         logging.warning(f"No warp_[m/n/k] combinations found for GPU: {gpu_name}")
         return True
+
+    # [4, 4, 1] (16 consumer + 2 producer waves) was unlocked here for comp_tdm_pc and
+    # has been WITHDRAWN. It is attractive on paper -- the 2 non-computing producer
+    # waves cost 11% of the workgroup at 16 consumer waves versus 33% at 4, it compiles
+    # spill-free at zero scratch (128x128x64 at 62 VGPR/wave, 14 waves/SIMD), and it
+    # fits LDS at the shipped NumSlots=3 (104352 B, 3 workgroups per 327680 B CU).
+    #
+    # It is also UNSAFE at large shapes. The gtest passes SingleTile at 64x64x32 and
+    # 128x128x64, and the host ring replay is sound at ring_spec<3, 2, 16> for every
+    # step count and interleaving, but LargeMatrix (2048x2048x2048) hangs -- and on a
+    # gpu_recovery=0 box, killing the hung process left a queue the driver could not
+    # evict and wedged the MES for every user of the machine. The host replay models
+    # the barrier handshake, not the memory it is meant to order, so it cannot see this.
+    #
+    # Do not re-enable without root-causing the large-shape hang at 16 consumer waves.
+    # The hang was observed while named_barrier.hpp was missing its release/acquire
+    # fences; those are restored now, so re-testing against the fenced build is the first
+    # step. Until then the sweep generates only the shared gfx1250 warp shapes for
+    # comp_tdm_pc, same as every other pipeline.
 
     # Check if current combination is in the allowed list
     if current_combination not in allowed_combinations:
@@ -679,6 +698,46 @@ LDS_SIZE_MAP = {
 
 DEFAULT_LDS_SIZE = 2**16  # 64KB
 
+# LDS A/B staging buffers each pipeline holds live at once. GetSmemSize() is
+# this many times the per-slot size, so the per-slot budget is the hardware LDS
+# divided by the slot count. Every entry here MIRRORS a default declared in C++
+# and diverges silently if that default is retuned -- comp_tdm_pc's 4 tracks
+# GemmPipelineAgBgCrCompTDMProducerConsumerPolicy's NumSlots_. Verified against the
+# emitted kernel descriptor: for bf16 rcr 256x256x64 the per-slot model (69600 B)
+# times NumSlots reproduces .amdhsa_group_segment_fixed_size exactly at both
+# settings -- 208800 B at NumSlots=3, 278400 B at NumSlots=4.
+#
+# Too HIGH here only over-rejects (a valid tile is never generated). Too LOW emits
+# instances the compiler rejects outright: at 256x256x128 bf16 the ring already
+# needs 417696 B at NumSlots=3 alone, and clang fails the TU with "local memory
+# (417696) exceeds limit (327680)" -- the same tile is strictly worse at
+# NumSlots=4 (per-slot size does not shrink). Raise this the moment NumSlots_
+# rises again.
+#
+# Two of the 2s are conditional: preshufflev2 is 2 only because the builder always
+# emits DoubleSmemBuffer=true, and comp_tdm_v2 is 2*(slot + barrier) which stops
+# being exact if BARRIER_ATOMIC_IN_TDM is ever flipped to 1.
+PIPELINE_SMEM_SLOTS = {
+    "preshufflev2": 2,
+    "compv4": 2,
+    "comp_async": 2,
+    "comp_async_eight_waves": 2,
+    "weight_preshuffle": 2,
+    "comp_tdm": 2,
+    "comp_tdm_v2": 2,
+    "comp_tdm_pc": 4,
+}
+DEFAULT_SMEM_SLOTS = 1
+
+# gfx1250 runs wave32. The C accumulator is one fp32 VGPR per element, so a lane
+# holds tile_m*tile_n/(waves*32) of them. This is NOT a hardware ceiling: compiling
+# past it still succeeds with zero spill, it just costs occupancy -- above the
+# accumulator the pipeline also holds the A/B fragments and NumSlots-deep LDS
+# windows, so 256 is the point past which occupancy collapses, not the point past
+# which the kernel breaks.
+GFX1250_WAVE_SIZE = 32
+MAX_ACC_VGPRS_PER_LANE = 256
+
 
 def validate_lds_capacity(
     tile_m: int,
@@ -701,13 +760,15 @@ def validate_lds_capacity(
         # This MX pipeline reads preshuffled B directly into registers.
         matrix_b_size = 0
     elif (
-        pipeline in ("comp_tdm", "comp_tdm_v2")
+        pipeline in GEMM_TDM_PIPELINES
         or (pipeline == "comp_async" and gfx1250_gemm_pipeline)
     ) and _base_gfx_arch(gpu_target) == "gfx1250":
         # TDM and non-MX comp_async use the gfx1250 non-transposed base LDS
         # descriptors. Each group of rows spanning at least 256 bytes is
         # separated by 16 padding bytes.
         # GetSmemSizeA/B round to 16 bytes; valid K tiles are already aligned.
+        # Exact for RowMajor A; a slight under-estimate for the other layout
+        # combinations, which the per-slot budget above absorbs.
         a_lds_layer = max(1, 256 // (tile_k * element_size(a_datatype)))
         b_lds_layer = max(1, 256 // (tile_k * element_size(b_datatype)))
         matrix_a_size += max(0, tile_m // a_lds_layer - 1) * 16
@@ -729,22 +790,14 @@ def validate_lds_capacity(
 
     base_gpu_target = _base_gfx_arch(gpu_target)
     hw_lds_size = LDS_SIZE_MAP.get(base_gpu_target, DEFAULT_LDS_SIZE)
-    double_buffer = pipeline in [
-        "preshufflev2",
-        "compv4",
-        "comp_async",
-        "comp_tdm",
-        "comp_tdm_v2",
-        "comp_async_eight_waves",
-        "weight_preshuffle",
-    ]
-    max_tile_size = hw_lds_size // 2 if double_buffer else hw_lds_size
+    smem_slots = PIPELINE_SMEM_SLOTS.get(pipeline, DEFAULT_SMEM_SLOTS)
+    max_tile_size = hw_lds_size // smem_slots
 
     if total_tile_in_lds > max_tile_size:
         error_msg = (
             f"LDS capacity exceeded: Total required {total_tile_in_lds:,}B ({total_tile_in_lds / 1024:.1f}KB) > "
             f"maximum allowed {max_tile_size:,}B ({max_tile_size / 1024}KB) "
-            f"[{base_gpu_target}, {'double' if double_buffer else 'single'} buffer]. Breakdown:\n"
+            f"[{base_gpu_target}, {smem_slots} LDS slot(s)]. Breakdown:\n"
             f"- Matrix A ({a_datatype}): {tile_m}x{tile_k} = {matrix_a_size:,}B\n"
             f"- Matrix B ({b_datatype}): {tile_n}x{tile_k} = {matrix_b_size:,}B"
         )
@@ -966,6 +1019,26 @@ def validate_gemm_gfx1250_pipeline(
             False,
             f"comp_tdm_v2 requires exactly 4 waves, got {warp_m}x{warp_n}x{warp_k}",
         )
+    if pipeline == "comp_tdm_pc":
+        # The producer/consumer split maps the C tile onto the consumer waves
+        # only (BlockGemmShape::NumWarps); the two producer waves hold no
+        # accumulator. Unlike comp_tdm_v2 this pipeline is not wave-count
+        # locked, so the accumulator VGPR budget is what bounds its tile.
+        waves = warp_m * warp_n * warp_k
+        if waves <= 0:
+            return (False, f"comp_tdm_pc needs a positive wave count, got {waves}")
+        lanes = waves * GFX1250_WAVE_SIZE
+        # Ceiling, not floor: the 16x16 warp tile makes this division exact today,
+        # but a floor would let a config needing a fractional VGPR over the cap
+        # round back under it.
+        acc_vgprs_per_lane = -(-(tile_m * tile_n) // lanes)
+        if acc_vgprs_per_lane > MAX_ACC_VGPRS_PER_LANE:
+            return (
+                False,
+                f"comp_tdm_pc C accumulator needs {acc_vgprs_per_lane} VGPRs per lane "
+                f"({tile_m}x{tile_n} over {waves} wave(s)), exceeding "
+                f"{MAX_ACC_VGPRS_PER_LANE}",
+            )
     if pipeline in GEMM_TDM_PIPELINES:
         # TdmEpilogue stages the full output tile in the shared LDS allocation.
         c_tile_bytes = tile_m * tile_n * element_size(c_datatype)
