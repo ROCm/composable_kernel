@@ -49,7 +49,7 @@ enum class HstuFwdPipelineKind
     TrLoad,          // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTrLoad
     DirectLdsTrLoad, // // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSDirectLdsTrLoad, gfx950
                      // only
-    Tdm,             // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTdm, gfx1250 only
+    TdmTrLoad,       // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTdm, gfx1250 only
 };
 
 // The choice depends only on the build arch and on values known before the tile setting is
@@ -62,13 +62,13 @@ constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
     // Tdm is selected per MaxK, for the buckets that have Tdm tile rows in the gfx125 tile
     // setting (the Tdm pipelines need kN0 == kN0Sub == kK1). Every other MaxK keeps trload.
     if constexpr(MaxK == 128)
-        return HstuFwdPipelineKind::Tdm;
+        return HstuFwdPipelineKind::TdmTrLoad;
     else if constexpr(MaxK == 64)
-        return HstuFwdPipelineKind::Tdm;
+        return HstuFwdPipelineKind::TdmTrLoad;
     else if constexpr(MaxK == 256)
-        return HstuFwdPipelineKind::Tdm;
+        return HstuFwdPipelineKind::TdmTrLoad;
     else if constexpr(MaxK == 96)
-        return HstuFwdPipelineKind::Tdm;
+        return HstuFwdPipelineKind::TdmTrLoad;
     else
         return HstuFwdPipelineKind::TrLoad;
 #elif HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
