@@ -40,6 +40,12 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
 import logging
+from codegen_common import (
+    PACKED_B_PIPELINES,
+    packed_b_pipeline_reject_reason,
+    preshuffle_pipeline_reject_reason,
+    preshuffle_tile_reject_reason,
+)
 
 from codegen_common import (
     CommonTypeMappings,
@@ -246,7 +252,13 @@ except ImportError:
         },
     }
 
-    PRESHUFFLE_PIPELINES = ["preshufflev2"]
+    PRESHUFFLE_PIPELINES = [
+        "preshufflev2",
+        "preshuffle_tdm",
+        "comp_tdm",
+        "comp_tdm_v2",
+        "comp_async",
+    ]
 
     # Conservative fallback: the historical 64 KB / 32 KB budget, applied to
     # every architecture. It deliberately understates gfx950 and gfx1250 rather
@@ -263,6 +275,7 @@ except ImportError:
         "compv6": 32768,
         "preshufflev1": 32768,
         "preshufflev2": 32768,
+        "preshuffle_tdm": 32768,
         # Mandatory double buffering (num_lds_buffers = 2), so half the budget.
         "comp_async": 32768,
         "wavelet": 65536,
@@ -727,8 +740,12 @@ class ArchFilter:
 
     def _validate_warp_tile_combo(self, config: KernelConfig, result: ValidationResult):
         """Validate warp tile combination against architecture and data types"""
-        # Use preshuffle-specific warp tiles for preshuffle operator
-        if config.operator == OperatorType.GEMM_PRESHUFFLE:
+        # Packed-B preshuffle pipelines use their own warp tiles; the ordinary-B
+        # compute pipelines use the standard table.
+        if (
+            config.operator == OperatorType.GEMM_PRESHUFFLE
+            and config.pipeline in PACKED_B_PIPELINES
+        ):
             gpu_combos = PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS.get(
                 self.gpu_arch, {}
             )
@@ -771,6 +788,43 @@ class ArchFilter:
                     f"Preshuffle GEMM requires pipeline in {PRESHUFFLE_PIPELINES}, "
                     f"got {config.pipeline}"
                 )
+            reason = preshuffle_pipeline_reject_reason(
+                config.pipeline,
+                self.gpu_arch,
+                config.layout,
+                num_waves=config.warp_m * config.warp_n * config.warp_k,
+                dtype=config.datatype_b,
+                scheduler=config.scheduler,
+                epilogue=config.epilogue,
+                warp_tile_k=config.warp_tile_k,
+                warp_k=config.warp_k,
+                tile_k=config.tile_k,
+            ) or preshuffle_tile_reject_reason(
+                config.pipeline,
+                self.gpu_arch,
+                config.datatype_b,
+                config.tile_m,
+                config.tile_n,
+                config.tile_k,
+                config.warp_m,
+                config.warp_n,
+                config.warp_k,
+                config.warp_tile_m,
+                config.warp_tile_n,
+                config.warp_tile_k,
+            )
+            if reason:
+                result.add_error(reason)
+
+        if config.operator in (
+            OperatorType.GEMM,
+            OperatorType.GEMM_MULTI_D,
+            OperatorType.GEMM_GROUPED,
+            OperatorType.GEMM_STREAMK,
+        ):
+            reason = packed_b_pipeline_reject_reason(config.pipeline, preshuffle=False)
+            if reason:
+                result.add_error(reason)
 
         # Conv backward operations only support compv3/mem pipelines
         # (compv4/compv5 have template issues: transpose_tile2d for bwd_weight,
@@ -810,8 +864,8 @@ class ArchFilter:
         python/gemm_utils: TDM pipelines are gfx1250-only (off gfx1250 the TDM
         instructions compile to no-ops and the kernel silently writes zeros),
         need the TDM epilogue (and vice versa), intrawave, unpadded tiles and,
-        for comp_tdm_v2, exactly four waves; only the plain GEMM operator can
-        use them. Non-MX comp_async GEMM on gfx1250 needs the cshuffle
+        for comp_tdm_v2, exactly four waves; only the plain and preshuffle GEMM
+        operators can use them. Non-MX comp_async GEMM on gfx1250 needs the cshuffle
         epilogue, an rc A/B layout, pad_m=pad_n=pad_k=True and, for fp8/bf8,
         warp_tile_k >= 128.
 
@@ -822,7 +876,10 @@ class ArchFilter:
         "no persistent kernel" rule is enforced only by the codegen and
         python/gemm_utils, which see the persistent trait.
         """
-        is_gemm = config.operator == OperatorType.GEMM
+        is_gemm = config.operator in (
+            OperatorType.GEMM,
+            OperatorType.GEMM_PRESHUFFLE,
+        )
         if (
             config.pipeline == "comp_async"
             and config.epilogue != "tdm"
@@ -866,7 +923,7 @@ class ArchFilter:
         uses_gfx1250_base_lds = is_gfx1250_tdm or (
             is_gfx1250
             and config.pipeline == "comp_async"
-            and config.operator == OperatorType.GEMM
+            and config.operator in (OperatorType.GEMM, OperatorType.GEMM_PRESHUFFLE)
         )
         if uses_gfx1250_base_lds:
             # TDM and non-MX comp_async use the gfx1250 non-transposed base LDS

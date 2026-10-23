@@ -214,6 +214,7 @@ def listed_warp_tiles(
     dtype_b: Optional[str] = None,
     dtype_acc: Optional[str] = None,
     variant: str = "standard",
+    pipeline: Optional[str] = None,
 ) -> Tuple[str, str, List[List[int]]]:
     """Return (dtype_key, table_key, warp tiles) listed for *arch* and dtypes.
 
@@ -235,19 +236,23 @@ def listed_warp_tiles(
     arch_data = get_arch_filter_data()  # also puts codegen/ on sys.path
     # The accumulator rule and the arch normalization are the codegen's own, so
     # a suffixed target (gfx1250:xnack-) finds the same entry here as there.
-    from codegen_common import CommonTypeMappings, normalize_gfx_arch
+    from codegen_common import (
+        PACKED_B_PIPELINES,
+        CommonTypeMappings,
+        normalize_gfx_arch,
+    )
 
     arch = normalize_gfx_arch(arch)
     dtype_b = dtype_b or dtype_a
     dtype_acc = dtype_acc or CommonTypeMappings.get_acc_dtype(dtype_a)
     dtype_key = f"{dtype_a}_{dtype_b}_{dtype_acc}"
-    # Preshuffle consults its own (smaller) whitelist; other variants use the
-    # standard GEMM warp-tile table.
-    table_key = (
-        "preshuffle_warp_tile_combos"
-        if variant == "preshuffle"
-        else "warp_tile_combos"
+    # Packed-B preshuffle pipelines consult their own (smaller) whitelist; the
+    # ordinary-B gfx1250 compute pipelines and other variants use the standard
+    # GEMM warp-tile table. Without a pipeline, preshuffle means packed B.
+    packed_b = variant == "preshuffle" and (
+        pipeline is None or pipeline in PACKED_B_PIPELINES
     )
+    table_key = "preshuffle_warp_tile_combos" if packed_b else "warp_tile_combos"
     return dtype_key, table_key, arch_data.get(table_key, {}).get(arch, {}).get(
         dtype_key, []
     )
@@ -272,7 +277,7 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
     epilogue = config.epilogue
     scheduler = config.scheduler
     dtype = config.dtype_a
-    arch = config.gfx_arch
+    arch = config.gfx_arch.split(":", 1)[0]
     variant = getattr(config, "variant", "standard")
 
     wave_m = config.wave_m
@@ -285,6 +290,24 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
 
     # Variant-specific tile constraints
     if variant == "preshuffle":
+        from arch_filter import ArchFilter, KernelConfig as ArchKernelConfig, OperatorType
+        result = ArchFilter(arch).validate_kernel(ArchKernelConfig(
+            datatype_a=dtype, datatype_b=config.dtype_b, datatype_c=config.dtype_acc,
+            tile_m=config.tile_m, tile_n=config.tile_n, tile_k=config.tile_k,
+            warp_m=wave_m, warp_n=wave_n, warp_k=wave_k,
+            warp_tile_m=warp_m, warp_tile_n=warp_n, warp_tile_k=warp_k,
+            pipeline=pipeline, epilogue=epilogue, scheduler=scheduler,
+            layout=config.layout, operator=OperatorType.GEMM_PRESHUFFLE,
+        ))
+        errors.extend(result.errors)
+        # ArchFilter gets no pads or persistent flag; the shared rules cover them.
+        from codegen_common import preshuffle_pipeline_reject_reason
+        reason = preshuffle_pipeline_reject_reason(
+            pipeline, arch, pad_m=config.pad_m, pad_n=config.pad_n, pad_k=config.pad_k,
+            persistent=getattr(config, "persistent", False),
+        )
+        if reason:
+            errors.append(reason)
         # Preshuffle requires larger minimum tiles for efficiency
         if config.tile_m < 64:
             errors.append(f"Preshuffle requires tile_m >= 64, got {config.tile_m}")
@@ -296,7 +319,13 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
             errors.append(f"Preshuffle requires tile_k >= 32, got {config.tile_k}")
             suggested_fixes["tile_k"] = 32
 
-    elif variant == "multi_d":
+    else:
+        from codegen_common import packed_b_pipeline_reject_reason
+        reason = packed_b_pipeline_reject_reason(pipeline, preshuffle=False)
+        if reason:
+            errors.append(reason)
+
+    if variant == "multi_d":
         # Multi-D has standard GEMM constraints
         # Could add specific constraints here if needed
         pass
@@ -325,7 +354,7 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
     # Check warp tile configuration for this arch and dtype.
     dtype_b = getattr(config, "dtype_b", None) or dtype
     dtype_key, table_key, warp_tile_combos = listed_warp_tiles(
-        arch, dtype, dtype_b, getattr(config, "dtype_acc", None), variant
+        arch, dtype, dtype_b, getattr(config, "dtype_acc", None), variant, pipeline
     )
     warp_cfg = [warp_m, warp_n, warp_k]
     if not warp_tile_combos:
@@ -1194,6 +1223,14 @@ def _parse_gemm_header_metadata(header: Path) -> Optional[Dict[str, Any]]:
     if len(parts) < 13 or parts[0] != "gemm" or _is_fixed_vector_header(header):
         return None
 
+    try:
+        flag_index = next(i for i in range(3, len(parts)) if parts[i].lower() in ("true", "false"))
+    except StopIteration:
+        return None
+    # Collapse the variable-length pipeline token to retain the canonical field positions.
+    parts = parts[:3] + ["_".join(parts[3:flag_index - 2])] + parts[flag_index - 2:]
+    if len(parts) < 13:
+        return None
     tile = _parse_triplet(parts[10])
     wave = _parse_triplet(parts[11])
     warp = _parse_triplet(parts[12])
@@ -1472,6 +1509,7 @@ class KernelConfig:
     # GEMM variant (affects arch filter validation)
     # "standard", "preshuffle", "multi_d", or "stream_k"
     variant: str = "standard"
+    persistent: bool = False
 
     @property
     def layout(self) -> str:

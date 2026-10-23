@@ -324,6 +324,16 @@
         "doubling case, which is the one that can overflow."
       ]
     },
+    "preshuffle_tdm": {
+      "basis": "fraction",
+      "value": 0.5,
+      "_reason": [
+        "Same buffering as preshufflev2 (gfx1250 only):",
+        "WeightPreshufflePipelineAGmemBGmemCRegTDM::GetSmemSize() returns",
+        "DoubleSmemBuffer ? 2 * smem : smem, and the bridge always sets",
+        "DoubleSmemBuffer for it."
+      ]
+    },
     "comp_async": {
       "basis": "fraction",
       "value": 0.5,
@@ -362,7 +372,7 @@
       "value": 0.5,
       "_reason": [
         "Vestigial. No WeightPreshufflePipelineAGmemBGmemCRegV1 exists and",
-        "preshuffle_pipelines.supported lists only preshufflev2, so nothing",
+        "preshuffle_pipelines.supported does not list it, so nothing",
         "generates this pipeline. Ratio preserved so the entry stays inert."
       ]
     },
@@ -403,6 +413,12 @@
   },
   
   "preshuffle_warp_tile_combos": {
+    "gfx1250": {
+      "fp16_fp16_fp32": [[16, 16, 32]],
+      "bf16_bf16_fp32": [[16, 16, 32]],
+      "fp8_fp8_fp32": [[16, 16, 64]],
+      "bf8_bf8_fp32": [[16, 16, 64]]
+    },
     "_comment": "Preshuffle-specific warp tile combinations (subset of standard GEMM, no [4, 64, 16])",
     "gfx90a": {
       "fp16_fp16_fp32": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [64, 4, 16]],
@@ -427,6 +443,6 @@
   
   "preshuffle_pipelines": {
     "_comment": "Pipelines supported for preshuffle GEMM variant",
-    "supported": ["preshufflev2"]
+    "supported": ["preshufflev2", "preshuffle_tdm", "comp_tdm", "comp_tdm_v2", "comp_async"]
   }
 }

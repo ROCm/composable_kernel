@@ -199,3 +199,25 @@ TEST(KernelKeyTest, EncodeIdentifierWithSparsity)
 
     EXPECT_NE(id.find("_sparse"), std::string::npos);
 }
+
+TEST(KernelKeyTest, Gfx1250PipelineIdentity)
+{
+    const std::array<std::pair<const char*, Pipeline>, 5> pipelines = {{
+        {"preshufflev2", Pipeline::PreShuffleV2},
+        {"comp_tdm", Pipeline::CompTDMV1},
+        {"comp_tdm_v2", Pipeline::CompTDMV2},
+        {"preshuffle_tdm", Pipeline::PreShuffleTDM},
+        {"comp_async", Pipeline::CompAsync},
+    }};
+    for(const auto& [name, pipeline] : pipelines)
+    {
+        EXPECT_EQ(string_to_pipeline(name), pipeline);
+        EXPECT_EQ(to_string(pipeline), name);
+        EXPECT_NE(pipeline, Pipeline::Mem);
+    }
+    EXPECT_EQ(string_to_epilogue("tdm"), Epilogue::Tdm);
+    EXPECT_EQ(to_string(Epilogue::Tdm), "tdm");
+    // Existing values form part of the dispatcher ABI; new values are appended.
+    EXPECT_EQ(static_cast<unsigned>(Pipeline::Wavelet), 9u);
+    EXPECT_EQ(static_cast<unsigned>(Epilogue::BiasActivation), 5u);
+}

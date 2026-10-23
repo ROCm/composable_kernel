@@ -34,6 +34,17 @@ struct pipeline_skips_launch_checks<Pipeline,
 {
 };
 
+// True for kernels whose launcher rejects partial N/K tiles (preshuffle compute TDM).
+template <typename Kernel, typename = void>
+struct kernel_requires_full_nk_tiles : std::false_type
+{
+};
+template <typename Kernel>
+struct kernel_requires_full_nk_tiles<Kernel, std::void_t<decltype(Kernel::RequiresFullNKTiles)>>
+    : std::bool_constant<Kernel::RequiresFullNKTiles>
+{
+};
+
 /**
  * Kernel instance wrapper for unified_gemm_codegen.py generated kernels
  *
@@ -112,6 +123,19 @@ class GeneratedTileKernelInstance : public KernelInstance
                 return false;
             if(require_k && !pad_k && problem.K % k_grain != 0)
                 return false;
+        }
+        else
+        {
+            // TdmEpilogue overwrites C, so TDM cannot split K, and the kernel's own
+            // check accepts any k_batch. The preshuffle compute TDM launcher also
+            // requires complete N/K tiles.
+            if(problem.k_batch != 1)
+                return false;
+            if constexpr(kernel_requires_full_nk_tiles<SelectedKernel>::value)
+            {
+                if(problem.N % SelectedKernel::TileN != 0 || problem.K % SelectedKernel::TileK != 0)
+                    return false;
+            }
         }
 
         // Select the host-side A/B distribution for this kernel's target.

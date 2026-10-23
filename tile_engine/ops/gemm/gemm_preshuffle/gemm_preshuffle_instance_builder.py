@@ -8,23 +8,23 @@ import multiprocessing
 import concurrent.futures
 
 
-def _import_gemm_kernel_builder():
-    """Import validation utilities from commons directory."""
+def _import_gemm_module(name):
+    """Import a module from the parent gemm directory."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
 
     # Load the module dynamically
     spec = importlib.util.spec_from_file_location(
-        "gemm_instance_builder",
-        os.path.join(parent_dir, "gemm_instance_builder.py"),
+        name,
+        os.path.join(parent_dir, f"{name}.py"),
     )
-    gemm_builder_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(gemm_builder_module)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-    return gemm_builder_module.GemmKernelBuilder
 
-
-GemmKernelBuilder = _import_gemm_kernel_builder()
+GemmKernelBuilder = _import_gemm_module("gemm_instance_builder").GemmKernelBuilder
+parse_trait = _import_gemm_module("trait_parse").parse_trait
 
 
 class GemmPreshuffleKernelBuilder(GemmKernelBuilder):
@@ -316,17 +316,8 @@ def main():
             "warp_tile_k": int(warp_tile_dims[2]),
         }
 
-        # Parse trait combo
-        trait_parts = args.trait_combo.split("_")
-        trait_combo = (
-            trait_parts[0],  # pipeline
-            trait_parts[1],  # epilogue
-            trait_parts[2],  # scheduler
-            trait_parts[3] == "True",  # pad_m
-            trait_parts[4] == "True",  # pad_n
-            trait_parts[5] == "True",  # pad_k
-            trait_parts[6] == "True",  # persistent
-        )
+        # Parse trait combo (pipeline names may contain "_", e.g. preshuffle_tdm)
+        trait_combo = tuple(parse_trait(args.trait_combo))
 
         # Generate the kernel
         builder._generate_kernel_instance(

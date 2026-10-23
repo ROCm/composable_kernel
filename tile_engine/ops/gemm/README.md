@@ -64,9 +64,11 @@ gemm/
 > `configs/` directory and be selected with a positional config — no driver
 > changes needed.
 
-The not-yet-bridged variants (`gemm_multi_d/`, `gemm_preshuffle/`,
-`grouped_gemm/`) keep their own per-variant `configs/` directories; the driver
-selects them with `--variant`.
+The other variants keep their own per-variant `configs/` directories; the driver
+selects them with `--variant`. For `gemm_preshuffle` on gfx1250, the default is
+[`default_config_gfx1250.json`](gemm_preshuffle/configs/default_config_gfx1250.json),
+covering [five pipelines](gemm_preshuffle/README.md) for fp16/bf16/fp8/bf8. An explicit
+positional config always takes precedence.
 
 ### Running
 

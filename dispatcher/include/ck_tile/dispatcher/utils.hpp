@@ -677,7 +677,9 @@ struct KernelKeyBuilder
         // (unified_gemm_codegen.py). Hardcoding true here would hand a
         // single-buffered pipeline half the LDS budget it is entitled to.
         key.algorithm.double_buffer =
-            (pipeline == Pipeline::CompV4 || pipeline == Pipeline::PreShuffleV2);
+            (pipeline == Pipeline::CompV4 || pipeline == Pipeline::PreShuffleV2 ||
+             pipeline == Pipeline::PreShuffleTDM || pipeline == Pipeline::CompTDMV1 ||
+             pipeline == Pipeline::CompTDMV2 || pipeline == Pipeline::CompAsync);
         key.algorithm.persistent      = false;
         key.algorithm.preshuffle      = preshuffle;
         key.algorithm.transpose_c     = false;
