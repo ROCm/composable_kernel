@@ -4,6 +4,7 @@
 
 
 import argparse
+import fnmatch
 from enum import IntEnum
 from pathlib import Path
 import sys
@@ -505,7 +506,11 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                             F_instance_func=ins.call_name,
                         )
                     # inner_str = inner_str + vec_str
-                n_cnd = f"(a.n <= {n_})" if isinstance(n_, int) else ""
+                if isinstance(n_, int):
+                    n_cnd = f"(a.n <= {n_})"
+                else:
+                    # Filtering can leave the unbounded N case without a preceding if.
+                    n_cnd = "(true)" if i_n == 0 else ""
                 n_str += self.API_PER_N_CASE.format(
                     F_if=get_if_str(i_n, len(blob_per_t), not isinstance(n_, int)),
                     F_N_COND=n_cnd,
@@ -1534,6 +1539,16 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                         dtype, current_n_str, xbias, fused_add, fused_quant, current_hs
                     )
                 )
+        if self.kernel_filter:
+            total_blob = [
+                blob
+                for blob in total_blob
+                if fnmatch.fnmatchcase(blob.name, self.kernel_filter)
+            ]
+            if not total_blob:
+                raise ValueError(
+                    f"LayerNorm instance filter matched no kernels: {self.kernel_filter}"
+                )
         return total_blob
 
     def list_blobs(self, args) -> None:
@@ -1616,7 +1631,6 @@ if __name__ == "__main__":
         help="generate all kernels into different tile",
     )
 
-    # TODO: if using filter, must apply same value to output_dir and list_blobs
     parser.add_argument(
         "-f",
         "--filter",
