@@ -9,6 +9,7 @@
 // foreign calls, so single-threaded usage must be enforced by the caller.
 
 #include <hip/hip_runtime.h>
+#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -1552,8 +1553,18 @@ int fmha_dispatcher_run_batch_prefill(const void* q_host,
     }
 
     HIP_CHECK(hipMemcpy(q_dev, q_host, q_bytes, hipMemcpyHostToDevice));
-    HIP_CHECK(hipMemset(k_dev, 0, kv_page_bytes));
-    HIP_CHECK(hipMemset(v_dev, 0, kv_page_bytes));
+    {
+        const int64_t k_src_bytes =
+            static_cast<int64_t>(total_pages) * nhead_k * page_block_size * hdim_q * in_bytes;
+        const int64_t v_src_bytes =
+            static_cast<int64_t>(total_pages) * nhead_k * page_block_size * hdim_v * in_bytes;
+        assert(k_src_bytes <= kv_page_bytes);
+        assert(v_src_bytes <= kv_page_bytes);
+        HIP_CHECK(hipMemset(k_dev, 0, kv_page_bytes));
+        HIP_CHECK(hipMemset(v_dev, 0, kv_page_bytes));
+        HIP_CHECK(hipMemcpy(k_dev, k_host, k_src_bytes, hipMemcpyHostToDevice));
+        HIP_CHECK(hipMemcpy(v_dev, v_host, v_src_bytes, hipMemcpyHostToDevice));
+    }
     HIP_CHECK(hipMemset(o_dev, 0, o_bytes));
 
     args.q_ptr           = q_dev;
@@ -1613,14 +1624,15 @@ int fmha_dispatcher_run_batch_prefill(const void* q_host,
     args.batch_stride_randval = 0;
     args.batch_stride_lse     = static_cast<int64_t>(nhead_q) * seqlen_q;
     args.batch_stride_o       = 0;
-    args.window_size_left     = -1;
-    args.window_size_right    = -1;
-    args.sink_size            = 0;
-    args.mask_type            = mask_type_int;
-    args.p_drop               = has_dropout ? 0.2f : 0.0f;
-    args.s_randval            = false;
-    args.drop_seed_offset     = has_dropout ? std::make_pair(uint64_t(1), uint64_t(0))
-                                            : std::make_pair(uint64_t(0), uint64_t(0));
+    // right=-1 is a full row, so causal (top_left=1 / bottom_right=2) needs right=0.
+    args.window_size_left  = -1;
+    args.window_size_right = (mask_type_int == 1 || mask_type_int == 2) ? 0 : -1;
+    args.sink_size         = 0;
+    args.mask_type         = mask_type_int;
+    args.p_drop            = has_dropout ? 0.2f : 0.0f;
+    args.s_randval         = false;
+    args.drop_seed_offset  = has_dropout ? std::make_pair(uint64_t(1), uint64_t(0))
+                                         : std::make_pair(uint64_t(0), uint64_t(0));
 
     try
     {
