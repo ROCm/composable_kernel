@@ -6,6 +6,18 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2.hpp"
+
+#ifndef CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_KVEC4
+#define CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_KVEC4 0
+#endif
+
+// gfx11 WMMA C vs A layouts do not match. Fallback BlockGemmARegBSmemCRegV2
+// rejects the P tile (thread_buffer size). Independent-V uses ARegBReg and a
+// dedicated V LDS layout for the 256-thread N0=32 / K1=32 / N1=128 linear case.
+#ifndef CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V
+#define CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V 1
+#endif
 
 namespace ck_tile {
 
@@ -20,6 +32,14 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
                                                      /* AsyncCopy = */ true,
                                                      /* NumPrefetchK = */ 3,
                                                      /* NumPrefetchV = */ 3>;
+    // gfx11 has no parent async dwordx2 K-copy; the gfx11 policy overrides this.
+    static constexpr bool kUseSyncKLoad = false;
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr bool UseIndependentVBuffer()
+    {
+        return false;
+    }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
@@ -243,6 +263,249 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
             // For non-VECTORIZED_LAYOUT, use base class implementation
             return Base::template MakeVDramTileDistribution<Problem>();
         }
+    }
+};
+
+// gfx1100 batch-prefill: synchronous K loads, vec4 K packing on 32x32 linear
+// tiles, fallback V DRAM loads, and Independent-V gemm1 on the N0=32 / K1=32 /
+// N1=128 linear 256-thread predicate. Vectorized KV is out of scope.
+struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncGfx11Policy
+    : BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
+{
+    using Parent                        = BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy;
+    using Fallback                      = Parent::Base;
+    static constexpr bool kUseSyncKLoad = true;
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr bool UseIndependentVBuffer()
+    {
+#if CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V
+        return Problem::kBlockSize == 256 && Problem::BlockFmhaShape::kN0 == 32 &&
+               Problem::BlockFmhaShape::kK1 == 32 && Problem::BlockFmhaShape::kN1 == 128 &&
+               !Problem::kHasDropout &&
+               Problem::kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT;
+#else
+        return false;
+#endif
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetIndependentVElementSpaceSize()
+    {
+        if constexpr(UseIndependentVBuffer<Problem>())
+        {
+            constexpr index_t kN = Problem::BlockFmhaShape::kN1;
+            constexpr index_t kK = Problem::BlockFmhaShape::kK1;
+            return kK * (kN + kN / 8);
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetIndependentVByteOffset()
+    {
+        constexpr auto lds_seq = Parent::template GetLdsBufferSequence<Problem>();
+        constexpr index_t k0_loops =
+            Problem::BlockFmhaShape::kQKHeaddim / Problem::BlockFmhaShape::kK0;
+        constexpr index_t k1_loops = Problem::BlockFmhaShape::kN0 / Problem::BlockFmhaShape::kK1;
+        constexpr index_t v_buffer = lds_seq.at(number<k0_loops + k1_loops - 1>{});
+        constexpr index_t slot_elements = Parent::template GetSingleSmemElementSpaceSize<Problem>();
+        static_assert(GetIndependentVElementSpaceSize<Problem>() <= slot_elements);
+        constexpr index_t offset = v_buffer * slot_elements * sizeof(typename Problem::VDataType);
+        // K buffers are packed from offset 0 with their own stride, not by slot, so the
+        // slot-based placement alone does not keep V clear of the K prefetch.
+        constexpr index_t k_bytes =
+            MakeKLdsLoadBlockDescriptor<Problem>().get_element_space_size() *
+            sizeof(typename Problem::KDataType);
+        static_assert(offset >= k_bytes, "independent-V LDS tile overlaps the K buffers");
+        return offset;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentK()
+    {
+#if CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_KVEC4
+        return Parent::template GetAlignmentK<Problem>();
+#else
+        if constexpr(Problem::kKVMemoryLayout ==
+                         BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT &&
+                     Problem::BlockFmhaShape::kN0 == 32 && Problem::BlockFmhaShape::kK0 == 32)
+        {
+            return 4;
+        }
+        else
+        {
+            return Parent::template GetAlignmentK<Problem>();
+        }
+#endif
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
+    {
+#if CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_KVEC4
+        return Parent::template GetSmemKPackK<Problem>();
+#else
+        if constexpr(Problem::kKVMemoryLayout ==
+                         BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT &&
+                     Problem::BlockFmhaShape::kN0 == 32 && Problem::BlockFmhaShape::kK0 == 32)
+        {
+            return 4;
+        }
+        else
+        {
+            return Parent::template GetSmemKPackK<Problem>();
+        }
+#endif
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsLoadBlockDescriptor()
+    {
+        // gfx11 stages K with ordinary loads + LDS stores, not async copy.
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kPad       = GetSmemKPackK<Problem>();
+
+        if constexpr(Problem::kKVMemoryLayout ==
+                         BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT &&
+                     kKPerBlock == 32 && kNPerBlock == 32)
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(number<Parent::Base::NumKVLdsBuffers * kNPerBlock>{},
+                           number<kKPerBlock>{}),
+                make_tuple(number<kKPerBlock + kPad>{}, number<1>{}),
+                number<kPad>{},
+                number<1>{});
+        }
+        else
+        {
+            return Parent::template MakeKLdsLoadBlockDescriptor<Problem>();
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t MaxVectorSize = GetAlignmentK<Problem>();
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+
+        constexpr index_t K1 = min(MaxVectorSize, ElemPerThread);
+        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t N2 = get_warp_size() / K0;
+        constexpr index_t N1 = kBlockSize / get_warp_size();
+        constexpr index_t N0 = kNPerBlock / (N2 * N1);
+        // GetAlignmentK depends on CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_KVEC4, so check
+        // that the chosen vector still tiles the K block exactly.
+        static_assert((kNPerBlock * kKPerBlock) % kBlockSize == 0 && kKPerBlock % K1 == 0 &&
+                          get_warp_size() % K0 == 0 && kNPerBlock % (N2 * N1) == 0,
+                      "K DRAM tile does not divide evenly across the block");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
+    {
+        return Fallback::template MakeVDramTileDistribution<Problem>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
+    {
+        return Fallback::template GetSmemKPackV<Problem>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSingleSmemElementSpaceSize()
+    {
+        return Fallback::template GetSingleSmemElementSpaceSize<Problem>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
+    {
+        return Fallback::template MakeVLdsBlockDescriptor<Problem>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeIndependentVLdsStoreBlockDescriptor()
+    {
+        constexpr index_t kN            = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kK            = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kTile         = 8;
+        constexpr index_t kNOuter       = kN / kTile;
+        constexpr index_t kKOuter       = kK / kTile;
+        constexpr index_t kNOuterStride = kTile * (kTile + 1);
+        constexpr index_t kKOuterStride = kNOuter * kNOuterStride;
+        constexpr auto tiled_desc       = make_naive_tensor_descriptor(
+            make_tuple(number<kKOuter>{}, number<kNOuter>{}, number<kTile>{}, number<kTile>{}),
+            make_tuple(
+                number<kKOuterStride>{}, number<kNOuterStride>{}, number<kTile>{}, number<1>{}),
+            number<8>{},
+            number<1>{});
+
+        return transform_tensor_descriptor(
+            tiled_desc,
+            make_tuple(make_merge_transform(make_tuple(number<kNOuter>{}, number<kTile>{})),
+                       make_merge_transform(make_tuple(number<kKOuter>{}, number<kTile>{}))),
+            make_tuple(sequence<1, 2>{}, sequence<0, 3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeIndependentVLdsLoadBlockDescriptor()
+    {
+        return MakeIndependentVLdsStoreBlockDescriptor<Problem>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetIndependentVBlockGemm()
+    {
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::PDataType,
+                             typename Problem::VDataType,
+                             typename Problem::OaccDataType,
+                             Problem::kNumGemm1Warps * get_warp_size(),
+                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                    Problem::BlockFmhaShape::kN1,
+                                                    Problem::BlockFmhaShape::kK1>,
+                                           typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+
+        using WarpGemm = WarpGemmDispatcher<typename Problem::PDataType,
+                                            typename Problem::VDataType,
+                                            typename Problem::OaccDataType,
+                                            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                            true,
+                                            false,
+                                            false,
+                                            WGAttrNumAccessEnum::Double>;
+
+        using BlockGemmPolicy =
+            BlockGemmARegBRegCRegV2CustomPolicy<typename Problem::PDataType,
+                                                typename Problem::VDataType,
+                                                typename Problem::OaccDataType,
+                                                typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                                WarpGemm,
+                                                GemmLoopOrder::MNK>;
+
+        return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 };
 

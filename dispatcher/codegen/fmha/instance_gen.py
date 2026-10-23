@@ -1457,6 +1457,8 @@ MODES = ["batch", "group"]
 _MASK_MAP = {"no": "no", "causal": "top_left", "generic": "generic"}
 _BIAS_MAP = {"no": "no", "bias": "bias", "alibi": "alibi"}
 
+GFX11_WARP_SIZE = 32
+
 
 def _pad_val(s: str) -> int:
     if s == "f":
@@ -2392,10 +2394,21 @@ def _expand_batch_prefill(
         if restrict_hdims is not None:
             hdims = [hv for hv in hdims if hv in restrict_hdims]
         for hq, hv in hdims:
+            # gfx1100 must stay inside Gfx11Policy::UseIndependentVBuffer; the
+            # fallback gemm1 does not compile against gfx11 WMMA.
+            if arch == "gfx1100" and (hq, hv) != (128, 128):
+                continue
             tiles = generate_splitkv_tiles(arch, dtype, hq, hv)
             bp_specs = get_batch_prefill_pipelines(dtype, hq, receipt)
             for tc in tiles:
                 bk1 = _bp_bk1(tc.bm0, tc.bn0, tc.bk0, hq)
+                if arch == "gfx1100" and (
+                    tc.rm0 * GFX11_WARP_SIZE != 256
+                    or tc.bn0 != 32
+                    or tc.bn1 != 128
+                    or bk1 != 32
+                ):
+                    continue
 
                 # qr_async stages K into LDS through a bk1-major descriptor while the gemm0
                 # loop reads bk0 chunks, therefore the pipeline requires bk0 == bk1
@@ -2403,6 +2416,10 @@ def _expand_batch_prefill(
                     continue
 
                 for spec in bp_specs:
+                    if arch == "gfx1100" and (
+                        spec.kv_memory_layout != "linear" or spec.dropout == "t"
+                    ):
+                        continue
                     mm = _MASK_MAP.get(spec.mask, spec.mask)
                     mb = _BIAS_MAP.get(spec.bias, spec.bias)
                     if allowed_masks is not None and mm not in allowed_masks:
@@ -2421,7 +2438,9 @@ def _expand_batch_prefill(
                                 mode="group",
                                 hdim_q=hq,
                                 hdim_v=hv,
-                                pipeline="qr_async",
+                                pipeline="batch_prefill_gfx11"
+                                if arch == "gfx1100"
+                                else "qr_async",
                                 tile_m0=tc.bm0,
                                 tile_n0=tc.bn0,
                                 tile_k0=tc.bk0,

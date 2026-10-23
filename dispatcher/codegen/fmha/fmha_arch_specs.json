@@ -31,7 +31,7 @@
       "family": "rdna3",
       "arch_tag": "ck_tile::gfx11_t",
       "supported_dtypes": ["fp16", "bf16"],
-      "supported_pipelines": ["qr", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "bwd"],
+      "supported_pipelines": ["qr", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "batch_prefill_gfx11", "bwd"],
       "supports_trload": false,
       "supports_v3": false
     },

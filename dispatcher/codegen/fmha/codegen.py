@@ -753,6 +753,16 @@ def _batch_prefill_kernel_body(name: str, config: dict) -> str:
     warp = alg["warp"]
     pad = alg["padding"]
     ns = f"ns_{name}"
+    pipeline_policy = (
+        ", ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsyncGfx11Policy"
+        if alg["pipeline"] == "batch_prefill_gfx11"
+        else ""
+    )
+    pipeline_enum_key = (
+        "batch_prefill_gfx11"
+        if alg["pipeline"] == "batch_prefill_gfx11"
+        else "batch_prefill_async"
+    )
     return f"""// SPDX-License-Identifier: MIT
 #pragma once
 
@@ -808,7 +818,7 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaBatchPrefillPipelineProblem<
     false,
     {sig["page_size"]},
     fmha_trait>;
-using fmha_pipeline = ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync<fmha_pipeline_problem>;
+using fmha_pipeline = ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync<fmha_pipeline_problem{pipeline_policy}>;
 using fmha_epilogue = ck_tile::Default2DEpilogue<
     ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
                                       typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
@@ -821,7 +831,7 @@ using trait = fmha_fwd_batch_prefill_traits_<{sig["hdim_q"]},
                                              {mode_cpp},
                                              {tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]},
                                              {vlayout_cpp},
-                                             {PIPELINE_ENUM_TO_CPP["batch_prefill_async"]},
+                                             {PIPELINE_ENUM_TO_CPP[pipeline_enum_key]},
                                              {_bool_cpp(sig["logits"])},
                                              fmha_mask,
                                              {_bias_cpp(sig["bias"])},

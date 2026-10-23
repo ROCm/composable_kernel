@@ -839,6 +839,90 @@ class FmhaRunner:
             Q_c = np.ascontiguousarray(Q.astype(in_dt))
             K_c = np.ascontiguousarray(K.astype(in_dt))
             V_c = np.ascontiguousarray(V.astype(in_dt))
+        if api_family == "batch_prefill":
+            page_size = kwargs.get("page_size", 64)
+            kv_layout = kwargs.get("kv_layout", 0)
+
+            def _pack_linear_paged(x):
+                bsz, heads, seqlen, hdim = x.shape
+                pages_per_seq = (seqlen + page_size - 1) // page_size
+                packed = np.zeros(
+                    (bsz * pages_per_seq, heads, page_size, hdim), dtype=x.dtype
+                )
+                for batch_id in range(bsz):
+                    for page_id in range(pages_per_seq):
+                        begin = page_id * page_size
+                        end = min(begin + page_size, seqlen)
+                        packed[
+                            batch_id * pages_per_seq + page_id, :, : end - begin, :
+                        ] = x[batch_id, :, begin:end, :]
+                return np.ascontiguousarray(packed.reshape(-1))
+
+            if kv_layout != 1:
+                return FmhaResult(
+                    success=False,
+                    error="batch_prefill runner packs linear KV only",
+                )
+            # The C runner sizes its host->device copies from prob, not from these arrays.
+            for name, arr, want in (
+                ("Q", Q_c, prob.q_shape()),
+                ("K", K_c, prob.k_shape()),
+                ("V", V_c, prob.v_shape()),
+            ):
+                if arr.shape != want:
+                    return FmhaResult(
+                        success=False,
+                        error=f"batch_prefill {name} shape {arr.shape} != problem {want}",
+                    )
+            K_c = _pack_linear_paged(K_c)
+            V_c = _pack_linear_paged(V_c)
+            Q_api = np.ascontiguousarray(np.transpose(Q_c, (0, 2, 1, 3)))
+            O_api = np.zeros(
+                (prob.batch, prob.seqlen_q, prob.nhead_q, prob.hdim_v), dtype=out_dt
+            )
+            time_ms = ctypes.c_float(0.0)
+            rc = self._lib._lib.fmha_dispatcher_run_batch_prefill(
+                ctypes.c_void_p(Q_api.ctypes.data),
+                ctypes.c_void_p(K_c.ctypes.data),
+                ctypes.c_void_p(V_c.ctypes.data),
+                ctypes.c_void_p(O_api.ctypes.data),
+                prob.batch,
+                prob.nhead_q,
+                prob.nhead_k,
+                prob.seqlen_q,
+                prob.seqlen_k,
+                prob.hdim_q,
+                prob.hdim_v,
+                ctypes.c_float(prob.scale),
+                mask_type,
+                bias_type,
+                page_size,
+                kv_layout,
+                kwargs.get("kv_lookup", 0),
+                kwargs.get("is_v_rowmajor", 1),
+                data_type.encode(),
+                has_lse,
+                has_dropout,
+                has_logits,
+                has_sink,
+                has_skip,
+                ctypes.byref(time_ms),
+            )
+            if rc != 0:
+                return FmhaResult(success=False, error=f"Kernel failed (rc={rc})")
+            ops = prob.num_ops
+            tflops = (
+                ops / (time_ms.value * 1e-3) / 1e12
+                if time_ms.value > 0 and ops > 0
+                else 0.0
+            )
+            O_c = np.ascontiguousarray(np.transpose(O_api, (0, 2, 1, 3)))
+            if data_type == "bf16":
+                O_c = _bf16_to_float32(O_c)
+            return FmhaResult(
+                success=True, output=O_c, time_ms=time_ms.value, tflops=tflops
+            )
+
         O_c = np.zeros(prob.o_shape(), dtype=out_dt)
 
         d_q, d_k, d_v, d_o = (ctypes.c_void_p() for _ in range(4))

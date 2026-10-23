@@ -240,6 +240,7 @@ PIPELINE_TO_CPP = {
     "qr_nwarp_sshuffle": "ck_tile::BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS",
     "appendkv": "ck_tile::BlockFmhaFwdAppendKVPipeline",
     "batch_prefill_async": "ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync",
+    "batch_prefill_gfx11": "ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync",
 }
 
 # Pipeline tag → C++ pipeline enum value.
@@ -254,6 +255,7 @@ PIPELINE_ENUM_TO_CPP = {
     "qr_pagedkv": "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "qr_nwarp_sshuffle": "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "batch_prefill_async": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
+    "batch_prefill_gfx11": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
 }
 
 BOOL_MAP = {
