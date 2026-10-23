@@ -92,6 +92,9 @@ CI_CONFIG_NAMES = (
 # right after its own name at each level (bf8 lists the same warp tiles as fp8
 # on every arch, so default_ci_config_gfx1250_fp8.json serves bf8 too).
 CI_CONFIG_DTYPE_ALIAS = {"bf8": "fp8"}
+# Variant-specific sweep files, tried before the CI names above (the gfx1250
+# preshuffle sweep covers all five preshuffle pipelines).
+VARIANT_CI_CONFIG_NAMES = {"gemm_preshuffle": ("default_config_{arch}.json",)}
 EXAMPLE_PROBLEMS_NAME = "example_problems.json"
 
 # Map the driver's --variant (a configs-dir selector) onto the single codegen/
@@ -187,7 +190,8 @@ def resolve_configs(args, arch):
     cfg_dir = _THIS_DIR / VARIANT_CONFIGS[args.variant]
     alias = CI_CONFIG_DTYPE_ALIAS.get(args.dtype, args.dtype)
     names = [n.format(arch=arch, dtype=d)
-             for n in CI_CONFIG_NAMES for d in (args.dtype, alias)]
+             for n in VARIANT_CI_CONFIG_NAMES.get(args.variant, ()) + CI_CONFIG_NAMES
+             for d in (args.dtype, alias)]
     return [str(next((cfg_dir / n for n in names if (cfg_dir / n).exists()),
                      cfg_dir / names[-1]))]
 
@@ -319,7 +323,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env, extra=Non
             for idx in sorted(missing):
                 _, cfg, _ = batch[idx]
                 lines.append(f"  [gpu{device_id}] {cfg.name:<58} MISSING (crash)")
-            n_fail += len(missing)
+            n_fail += len(missing) or int(proc.returncode != 0)
 
     except subprocess.TimeoutExpired:
         lines.append(f"  [gpu{device_id}] batch timeout ({len(batch)} kernels)")
@@ -439,7 +443,7 @@ def main():
     parser.add_argument(
         "configs",
         nargs="*",
-        help="TE sweep config JSON files (default: variant's default_ci_config.json)",
+        help="TE sweep config JSON files (gfx1250 preshuffle defaults to default_config_gfx1250.json; other variants use default_ci_config.json)",
     )
     parser.add_argument(
         "--variant",
@@ -645,6 +649,13 @@ def main():
     )
     build_time = time.perf_counter() - t0
 
+    build_failures = sum(lib is None for lib in lib_paths)
+    if len(lib_paths) != len(all_configs):
+        print("  ERROR: Incomplete kernel build results")
+        return 1
+    if build_failures:
+        print(f"  ERROR: {build_failures}/{len(all_configs)} kernel builds failed")
+
     vfb.report_builds(all_configs, lib_paths)
     built_kernels, duplicate_count = unique_built_kernels(all_configs, lib_paths)
 
@@ -678,7 +689,7 @@ def main():
         problems, pairs, built_kernels, devices, args, worker_path, base_env, csv_path
     )
     print_summary(build_time, stats, devices, csv_path)
-    return 1 if stats["failures"] else 0
+    return int(bool(build_failures or stats["failures"]))
 
 
 if __name__ == "__main__":

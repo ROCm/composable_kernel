@@ -8,8 +8,8 @@ A trait combo is serialized as
 Most pipeline names contain no underscore, so the historical parser simply
 split on ``_``. Multi-token pipeline names (``comp_async``, ``comp_tdm``,
 ``comp_tdm_v2``, ``comp_tdm_pc``, ``comp_async_eight_waves``,
-``weight_preshuffle``) break that split, so they are matched first against a
-known-prefix list (longest first);
+``weight_preshuffle``, ``preshuffle_tdm``) break that split, so they are matched
+first against a known-prefix list (longest first);
 anything else falls back to the legacy split, keeping existing names parsed
 exactly as before.
 
@@ -28,6 +28,7 @@ MULTI_TOKEN_PIPELINES = (
     "comp_async",
     "comp_tdm",
     "weight_preshuffle",
+    "preshuffle_tdm",
 )
 
 _MULTI_TOKEN_RE = re.compile(

@@ -5,7 +5,7 @@
  * AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
  *
  * Generated from: arch_specs.json
- * Generated at: 2026-09-16T15:00:49.741464
+ * Generated at: 2026-10-20T17:02:31.492665
  *
  * To update this file:
  * 1. Edit arch_specs.json
@@ -172,6 +172,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 32768;
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
+        case Pipeline::PreShuffleTDM: return 32768;
         default: return 65536;
         }
     case GpuArch::GFX_90A: // 64 KB of LDS
@@ -190,6 +191,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 32768;
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
+        case Pipeline::PreShuffleTDM: return 32768;
         default: return 65536;
         }
     case GpuArch::GFX_942: // 64 KB of LDS
@@ -208,6 +210,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 32768;
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
+        case Pipeline::PreShuffleTDM: return 32768;
         default: return 65536;
         }
     case GpuArch::GFX_950: // 160 KB of LDS
@@ -226,6 +229,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 81920;
         case Pipeline::CompTDMV1: return 81920;
         case Pipeline::CompTDMV2: return 81920;
+        case Pipeline::PreShuffleTDM: return 81920;
         default: return 163840;
         }
     case GpuArch::GFX_1100: // 64 KB of LDS
@@ -244,6 +248,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 32768;
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
+        case Pipeline::PreShuffleTDM: return 32768;
         default: return 65536;
         }
     case GpuArch::GFX_1200: // 64 KB of LDS
@@ -262,6 +267,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 32768;
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
+        case Pipeline::PreShuffleTDM: return 32768;
         default: return 65536;
         }
     case GpuArch::GFX_1201: // 64 KB of LDS
@@ -280,6 +286,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 32768;
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
+        case Pipeline::PreShuffleTDM: return 32768;
         default: return 65536;
         }
     case GpuArch::GFX_1250: // 320 KB of LDS
@@ -298,6 +305,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 163840;
         case Pipeline::CompTDMV1: return 163840;
         case Pipeline::CompTDMV2: return 163840;
+        case Pipeline::PreShuffleTDM: return 163840;
         default: return 327680;
         }
     case GpuArch::UNKNOWN:
@@ -317,6 +325,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompAsync: return 32768;
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
+        case Pipeline::PreShuffleTDM: return 32768;
         default: return 65536;
         }
     }

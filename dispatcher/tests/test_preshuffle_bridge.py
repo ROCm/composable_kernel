@@ -23,6 +23,7 @@ Run: python3 -m pytest tests/test_preshuffle_bridge.py -v
 import json
 import sys
 import unittest
+import tempfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
@@ -99,7 +100,7 @@ class TestPreshuffleName(unittest.TestCase):
         # A permute_n=True config must be rejected at build time (the permuteN
         # pipeline is not bridged yet), before any codegen/compile happens.
         from gemm_utils import setup_multiple_gemm_dispatchers
-        cfg = _make_config(permute_n=True)
+        cfg = _make_config(permute_n=True, gfx_arch="gfx1250")
         with self.assertRaises(ValueError):
             setup_multiple_gemm_dispatchers([cfg])
 
@@ -242,6 +243,53 @@ class TestPreshuffleConfigsCoverPersistentFalse(unittest.TestCase):
                 vals = data["trait_config"]["persistent"]["values"]
                 self.assertIn(False, vals, f"{name} must sweep persistent=False")
                 self.assertIn(True, vals, f"{name} must sweep persistent=True")
+
+
+class TestPreshuffleGfx1250(unittest.TestCase):
+    def test_arch_spec_survives_regeneration(self):
+        sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
+        from arch_specs_generated import PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS
+        specs = json.loads((DISPATCHER_DIR / "codegen" / "arch_specs.json").read_text())
+        expected = {"fp16_fp16_fp32": [[16, 16, 32]],
+                    "bf16_bf16_fp32": [[16, 16, 32]],
+                    "fp8_fp8_fp32": [[16, 16, 64]],
+                    "bf8_bf8_fp32": [[16, 16, 64]]}
+        self.assertEqual(specs["preshuffle_warp_tile_combos"]["gfx1250"], expected)
+        self.assertEqual(PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS["gfx1250"], expected)
+
+    def test_wave32_lds_distribution_rejects_oversized_k(self):
+        sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
+        from unified_gemm_codegen import is_preshuffle_config_valid
+        args = dict(tile_m=128, tile_n=128, tile_k=512, warp_m=2, warp_n=2,
+                    warp_k=1, warp_tile_m=16, warp_tile_n=16, warp_tile_k=32,
+                    datatype="fp16")
+        self.assertTrue(is_preshuffle_config_valid(**args, warp_size=64))
+        self.assertFalse(is_preshuffle_config_valid(**args, warp_size=32))
+
+    def test_ci_configs_generate_all_epilogues_and_persistent_modes(self):
+        sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
+        from gemm_utils import expand_sweep
+        from unified_gemm_codegen import UnifiedGemmCodegen, GemmVariant
+        for dtype in ("fp16", "bf16"):
+            configs = expand_sweep(str(_CONFIG_DIR / "default_ci_config.json"),
+                                   arch="gfx1250", dtype=dtype, variant="preshuffle")
+            self.assertEqual(len(configs), 4)
+            self.assertEqual({(c.epilogue, c.persistent) for c in configs},
+                             {("default", False), ("default", True),
+                              ("cshuffle", False), ("cshuffle", True)})
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for index, config in enumerate(configs):
+                    config_file = root / f"{index}.json"
+                    config_file.write_text(json.dumps(config.to_codegen_json()))
+                    gen = UnifiedGemmCodegen(root / str(index), datatype=dtype,
+                                            layout="rcr", gpu_target="gfx1250",
+                                            config_file=config_file,
+                                            variants=[GemmVariant.PRESHUFFLE])
+                    result = gen.generate_all(parallel=False)
+                    self.assertEqual(result["failed"], [])
+                    self.assertEqual(len(result["kernels"]), 1)
+                    self.assertEqual(Path(result["kernels"][0]).stem, config.name)
 
 
 class TestShuffledBCacheGuardParity(unittest.TestCase):

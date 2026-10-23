@@ -64,6 +64,7 @@ GFX942_FROZEN = {
     "compv6": 32768,
     "preshufflev1": 32768,
     "preshufflev2": 32768,
+    "preshuffle_tdm": 32768,
     # comp_async allocates two LDS buffers unconditionally. It previously had no
     # entry and inherited the 64 KB default, which is twice what it can use.
     "comp_async": 32768,
@@ -80,6 +81,7 @@ HALF_CAPACITY_PIPELINES = (
     "compv6",
     "preshufflev1",
     "preshufflev2",
+    "preshuffle_tdm",
     "comp_async",
 )
 
@@ -305,8 +307,6 @@ class TestCppPythonParity(unittest.TestCase):
     cleanly where none is available.
     """
 
-    # comp_async is deliberately absent: it has no Pipeline enumerator on the
-    # C++ side, so it exists only in the Python table.
     CPP_PIPELINE_ENUM = {
         "mem": "Mem",
         "compv1": "CompV1",
@@ -318,6 +318,10 @@ class TestCppPythonParity(unittest.TestCase):
         "preshufflev1": "PreShuffleV1",
         "preshufflev2": "PreShuffleV2",
         "wavelet": "Wavelet",
+        "preshuffle_tdm": "PreShuffleTDM",
+        "comp_async": "CompAsync",
+        "comp_tdm": "CompTDMV1",
+        "comp_tdm_v2": "CompTDMV2",
     }
 
     @staticmethod

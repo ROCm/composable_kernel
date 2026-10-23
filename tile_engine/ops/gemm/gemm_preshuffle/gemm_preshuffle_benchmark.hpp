@@ -25,7 +25,8 @@ struct KernelConfig
     static constexpr ck_tile::index_t N_Warp_Tile = SelectedKernel::WarpTileN;
     static constexpr ck_tile::index_t K_Warp_Tile = SelectedKernel::WarpTileK;
 
-    static constexpr bool permuteN = SelectedKernel::PermuteN;
+    static constexpr bool preshuffle = SelectedKernel::Preshuffle;
+    static constexpr bool permuteN   = SelectedKernel::PermuteN;
 };
 
 /// @brief Function to get the kernel output with reference implementation on CPU/GPU

@@ -195,6 +195,7 @@ class CommonTypeMappings:
         # gfx1250 only (Tensor Data Mover); always paired with the tdm epilogue.
         "comp_tdm": "GemmPipelineAgBgCrCompTDMV1",
         "comp_tdm_v2": "GemmPipelineAgBgCrCompTDMV2",
+        "preshuffle_tdm": "WeightPreshufflePipelineAGmemBGmemCRegTDM",
     }
 
     PIPELINE_TO_BASE = {
@@ -206,6 +207,7 @@ class CommonTypeMappings:
         "comp_async": "BaseGemmPipelineAgBgCrCompAsync",
         "comp_tdm": "BaseGemmPipelineAgBgCrCompTDM",
         "comp_tdm_v2": "BaseGemmPipelineAgBgCrCompTDM",
+        "preshuffle_tdm": "BaseWeightPreshufflePipelineAGmemBGmemCRegTDM",
     }
 
     PIPELINE_TO_DISPATCHER = {
@@ -217,6 +219,7 @@ class CommonTypeMappings:
         "comp_async": "Pipeline::CompAsync",
         "comp_tdm": "Pipeline::CompTDMV1",
         "comp_tdm_v2": "Pipeline::CompTDMV2",
+        "preshuffle_tdm": "Pipeline::PreShuffleTDM",
     }
 
     SCHEDULER_TO_CK = {
@@ -1395,9 +1398,9 @@ def gfx1250_pipeline_reject_reason(
     immediately, so existing kernel sets are unchanged.
 
     ``variant_supported`` is False for GEMM variants the pipelines do not
-    support (only plain and batched GEMM are). ``pads`` is (pad_m, pad_n,
-    pad_k); None means unknown and skips the pad rules. An empty ``layout``
-    skips the comp_async layout rule and empty dtypes skip the 8-bit
+    support (only plain, batched and preshuffle GEMM are). ``pads`` is
+    (pad_m, pad_n, pad_k); None means unknown and skips the pad rules. An empty
+    ``layout`` skips the comp_async layout rule and empty dtypes skip the 8-bit
     warp_tile_k rule.
     """
     is_tdm = pipeline in TDM_PIPELINES
@@ -1448,6 +1451,281 @@ def rcr_only_layout_guard(layout: str) -> Optional[str]:
     if layout != "rcr":
         return f"Unsupported layout {layout} (only rcr) -- skipping"
     return None
+
+
+# ============================================================================
+# gfx1250 preshuffle pipelines
+# ============================================================================
+# preshufflev2 / preshuffle_tdm read B packed by the host shuffle_b_v0; the
+# gfx1250 compute pipelines read ordinary B (Preshuffle=false) and follow the
+# plain GEMM gfx1250 rules above. Mirrors preshuffle_pipeline_reject_reason in
+# tile_engine/ops/gemm/gemm_validation_utils.py (tile_engine cannot be imported
+# here, see normalize_gfx_arch); tests/test_preshuffle_gfx1250_pipelines.py
+# pins the two copies to identical behaviour.
+PACKED_B_PIPELINES = ("preshufflev2", "preshuffle_tdm")
+PRESHUFFLE_GFX1250_PIPELINES = ("preshuffle_tdm",) + GFX1250_ONLY_PIPELINES
+PRESHUFFLE_GFX1250_LAYOUT = "rcr"
+# The host shuffle_b_v0 packs whole N x K tiles: a partial N tile overflows the
+# packed buffer and a partial K tile packs the wrong elements.
+PRESHUFFLE_PAD_NK_REJECT_REASON = (
+    "preshuffled B holds whole N/K tiles, so gfx1250 preshuffle requires pad_n=pad_k=False"
+)
+# These block GEMMs ignore K warps while the launch still counts them, so the
+# extra waves run as M warps past the tile and corrupt C (comp_tdm* only survive
+# through their TDM store), on every arch.
+PRESHUFFLE_WARP_K1_PIPELINES = PACKED_B_PIPELINES + ("comp_async",)
+
+
+def is_true(value) -> bool:
+    """Accept both JSON booleans and their string spellings."""
+    return value is True or str(value).lower() == "true"
+
+
+def packed_b_pipeline_reject_reason(pipeline: str, preshuffle: bool) -> str:
+    """Reason string if a packed-B pipeline is used outside the preshuffle op, else "".
+
+    These pipelines read B packed by the host shuffle_b_v0, which only the
+    preshuffle variant performs; any other GEMM would compute from unpacked B.
+    """
+    if pipeline in PACKED_B_PIPELINES and not preshuffle:
+        return f"{pipeline} reads preshuffled B, so only the preshuffle variant can use it"
+    return ""
+
+
+def preshuffle_pipeline_reject_reason(
+    pipeline: str,
+    gpu_target: str = "",
+    layout: str = "",
+    pad_m=None,
+    pad_n=None,
+    pad_k=None,
+    num_waves: Optional[int] = None,
+    dtype: str = "",
+    scheduler: str = "",
+    epilogue: str = "",
+    persistent: bool = False,
+    warp_tile_k: Optional[int] = None,
+    warp_k: Optional[int] = None,
+    tile_k: Optional[int] = None,
+) -> str:
+    """Reason string if a gemm_preshuffle pipeline config is not allowed, else "".
+
+    Pipelines outside PRESHUFFLE_GFX1250_PIPELINES (preshufflev2) only get the
+    scheduler, tdm-epilogue and warp_k checks, plus the pad_n/pad_k check on
+    gfx1250. Empty gpu_target / layout / dtype / scheduler / epilogue and None
+    pads / num_waves / warp_tile_k / warp_k / tile_k mean "not known yet" and
+    are not checked, so the helper can run at trait level and at tile level.
+    """
+    # comp_* pipelines are Intrawave-only, the weight-preshuffle ones Default.
+    want_scheduler = "intrawave" if pipeline.startswith("comp_") else "default"
+    if scheduler and scheduler != want_scheduler:
+        return f"preshuffle {pipeline} requires scheduler {want_scheduler!r}, got {scheduler!r}"
+    if epilogue == "tdm" and pipeline not in TDM_PIPELINES:
+        return f"preshuffle {pipeline} cannot use the tdm epilogue"
+    if pipeline in PRESHUFFLE_WARP_K1_PIPELINES and warp_k not in (None, 1):
+        return f"preshuffle {pipeline} requires warp_k=1, got {warp_k}"
+    arch = normalize_gfx_arch(gpu_target)
+    pads = (pad_m, pad_n, pad_k)
+    if pipeline not in PRESHUFFLE_GFX1250_PIPELINES:
+        pad_nk = is_true(pad_n) or is_true(pad_k)
+        return PRESHUFFLE_PAD_NK_REJECT_REASON if pad_nk and arch == GFX1250_ARCH else ""
+    if arch and arch != GFX1250_ARCH:
+        return f"pipeline {pipeline!r} requires {GFX1250_ARCH}, got {arch!r}"
+    # rcr also covers the comp_async A row-major / B col-major requirement.
+    if layout and layout != PRESHUFFLE_GFX1250_LAYOUT:
+        return f"preshuffle {pipeline} requires layout {PRESHUFFLE_GFX1250_LAYOUT!r}, got {layout!r}"
+    if persistent:
+        return f"preshuffle {pipeline} has no persistent kernel"
+    want_epilogue = "tdm" if pipeline in TDM_PIPELINES else "cshuffle"
+    if epilogue and epilogue != want_epilogue:
+        return f"preshuffle {pipeline} requires epilogue {want_epilogue!r}, got {epilogue!r}"
+    if pipeline != "comp_async" and any(is_true(p) for p in pads):
+        return TDM_PAD_REJECT_REASON
+    if pipeline == "comp_async" and None not in pads and not all(is_true(p) for p in pads):
+        return GFX1250_COMP_ASYNC_PAD_REJECT_REASON
+    if pipeline == "comp_tdm_v2" and num_waves is not None and num_waves != 4:
+        return f"comp_tdm_v2 requires exactly 4 waves, got {num_waves}"
+    # The TDM LDS descriptors put one pad per K row; the LDS pad interval only
+    # lands there when the row (tile_k elements) is a power of two.
+    if pipeline in TDM_PIPELINES and tile_k is not None and tile_k & (tile_k - 1):
+        return f"preshuffle {pipeline} requires a power-of-two tile_k, got {tile_k}"
+    if (
+        pipeline == "comp_async"
+        and warp_tile_k is not None
+        and gfx1250_comp_async_8bit_warp_tile_k_rejected(dtype, dtype, warp_tile_k)
+    ):
+        return GFX1250_COMP_ASYNC_8BIT_WARP_TILE_K_REJECT_REASON
+    return ""
+
+
+# =============================================================================
+# Preshuffle Validation (copied from tile_engine/ops/commons/gemm_validation_utils.py)
+# =============================================================================
+
+ELEMENT_SIZE_MAP = {
+    "fp16": 2,
+    "bf16": 2,
+    "fp32": 4,
+    "fp64": 8,
+    "fp8": 1,
+    "bf8": 1,
+    "int8": 1,
+}
+
+
+def _validate_preshuffle_vector_load(
+    warp_tile_m: int,
+    warp_tile_k: int,
+    datatype: str,
+    m_iter_per_warp: float,
+    wave_size: int = 64,
+    vector_load_size: int = 16,
+) -> bool:
+    """
+    Validate vector load alignment for preshuffle pipeline.
+
+    Checks: (warp_tile_m * warp_tile_k * elem_size * m_iter_per_warp / wave_size) % vector_load_size == 0
+    """
+    elem_size = ELEMENT_SIZE_MAP.get(datatype, 2)
+    access_size = (warp_tile_m * warp_tile_k * elem_size * m_iter_per_warp) / wave_size
+    return access_size % vector_load_size == 0
+
+
+def _validate_preshuffle_m0_m1_m2(
+    tile_m: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    datatype: str,
+    vector_load_size: int = 16,
+    warp_size: int = 64,
+) -> bool:
+    """
+    Validate M0, M1, M2 configuration for preshuffle matrix A row-major layout.
+    Ensures proper memory access pattern alignment.
+    """
+    try:
+        elem_size = ELEMENT_SIZE_MAP.get(datatype, 2)
+        MPerBlock = tile_m
+
+        # Calculate K1
+        K1 = vector_load_size / elem_size
+        if K1 != int(K1):
+            return False
+        K1 = int(K1)
+
+        # Calculate K0
+        if tile_k % K1 != 0:
+            return False
+        K0 = tile_k // K1
+
+        # Calculate M2
+        if warp_size % K0 != 0:
+            return False
+        M2 = warp_size // K0
+
+        # Calculate number of warps
+        NumWarps = warp_m * warp_n * warp_k
+        M0 = NumWarps
+
+        # Calculate M1
+        if (M2 * M0) == 0:
+            return False
+        if MPerBlock % (M2 * M0) != 0:
+            return False
+        M1 = MPerBlock // (M2 * M0)
+
+        # Validate: M0 * M1 * M2 == MPerBlock
+        return (M0 * M1 * M2) == MPerBlock
+
+    except (ZeroDivisionError, ValueError):
+        return False
+
+
+def is_preshuffle_config_valid(
+    tile_m: int,
+    tile_n: int,
+    tile_k: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_tile_k: int,
+    datatype: str,
+    warp_size: int = 64,
+) -> bool:
+    """
+    Comprehensive preshuffle configuration validation.
+    Copied from tile_engine/ops/commons/gemm_validation_utils.py
+    """
+    # Basic divisibility checks
+    if tile_m % (warp_m * warp_tile_m) != 0:
+        return False
+    if tile_n % (warp_n * warp_tile_n) != 0:
+        return False
+    if tile_k % (warp_k * warp_tile_k) != 0:
+        return False
+
+    # Calculate m_iter_per_warp
+    m_iter_per_warp = tile_m / (warp_m * warp_tile_m)
+
+    # Validate vector load alignment
+    if not _validate_preshuffle_vector_load(
+        warp_tile_m,
+        warp_tile_k,
+        datatype,
+        m_iter_per_warp,
+        wave_size=warp_size,
+        vector_load_size=16,
+    ):
+        return False
+
+    # Validate M0/M1/M2 configuration
+    if not _validate_preshuffle_m0_m1_m2(
+        tile_m,
+        tile_k,
+        warp_m,
+        warp_n,
+        warp_k,
+        datatype,
+        vector_load_size=16,
+        warp_size=warp_size,
+    ):
+        return False
+
+    return True
+
+
+def warp_size_for_arch(gpu_target: str) -> int:
+    return 64 if gpu_target.startswith("gfx9") else 32
+
+
+def preshuffle_tile_reject_reason(
+    pipeline, gpu_target, dtype, tile_m, tile_n, tile_k, warp_m, warp_n, warp_k,
+    warp_tile_m, warp_tile_n, warp_tile_k,
+) -> str:
+    """Tile rules the preshuffle kernels static_assert on; "" when the tile is valid."""
+    warp_size = warp_size_for_arch(gpu_target)
+    if pipeline in PACKED_B_PIPELINES and not is_preshuffle_config_valid(
+        tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n,
+        warp_tile_k, dtype, warp_size,
+    ):
+        return (
+            f"preshuffle {pipeline} packed-B M0/M1/M2 or vector-load rule rejects "
+            f"{tile_m}x{tile_n}x{tile_k}"
+        )
+    # comp_async loads A (tile_m x tile_k) and B (tile_n x tile_k) through
+    # warp-raked distributions whose K threads must tile a whole wave.
+    if pipeline == "comp_async" and not all(
+        _validate_preshuffle_m0_m1_m2(
+            mn, tile_k, warp_m, warp_n, warp_k, dtype, warp_size=warp_size
+        )
+        for mn in (tile_m, tile_n)
+    ):
+        return f"preshuffle comp_async tile {tile_m}x{tile_n}x{tile_k} does not cover a whole wave"
+    return ""
 
 
 def iter_quant_axes(

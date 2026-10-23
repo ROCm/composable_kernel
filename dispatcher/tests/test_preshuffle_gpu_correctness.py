@@ -6,23 +6,19 @@
 """
 GPU correctness test for the preshuffle GEMM dispatcher bridge.
 
-Builds the preshuffle GEMM dispatcher .so (fp16 / rcr — the bridge's supported
-signature; permute_n is pinned False by BRIDGE_PERMUTE_N), runs a small GEMM
-on-device via GpuGemmRunner, and compares the GPU output to an fp32 numpy
-reference within an fp16-appropriate tolerance. Skips cleanly (exit 77) when no
-GPU / hipcc is available.
+Builds the complete five-pipeline gfx1250 configuration for fp16 and bf16/rcr,
+plus padded compute TDM configurations to check rejection of partial N/K tiles,
+and the existing V2 configuration on gfx9. Exercises all supported epilogues and
+persistent modes, short and hot loops, odd and even K tails, multiple output
+tiles, and changing B values against an fp32 NumPy reference. Returns 77 when
+the GPU or dispatcher build is unavailable.
 
-The preshuffle kernel pre-permutes the B (weight) operand into a packed layout
-before the main loop; that shuffle is done HOST-SIDE inside the ctypes .so
-(ck_tile::shuffle_b, guarded by GEMM_KEY_PRESHUFFLE), so the caller still hands
+The packed-B pipelines (preshufflev2, preshuffle_tdm) read the B (weight)
+operand in a packed layout; that shuffle is done HOST-SIDE inside the ctypes .so
+(ck_tile::shuffle_b_v0, selected by the kernel's Preshuffle trait; the gfx1250
+compute pipelines read ordinary B and skip it), so the caller still hands
 the runner logical row-major A (M x K) and logical B (K x N) — identical to the
 plain-GEMM path. The result must therefore match the ordinary C = A @ B.
-
-NOTE: the preshuffle .so links the dispatcher static archive (registry path),
-which pulls in ck_tile core headers. On some runtime-only toolchains this build
-can fail (pre-existing core-lib/fmha compile issue) independent of the bridge —
-if the .so genuinely will not build, the test reports the build failure honestly
-rather than masking it.
 
 Run:
   python3 test_preshuffle_gpu_correctness.py
@@ -33,11 +29,13 @@ Run:
 import argparse
 import logging
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "codegen"))
 
 from gemm_utils import (  # noqa: E402
     GemmKernelConfig,
@@ -45,11 +43,15 @@ from gemm_utils import (  # noqa: E402
     GpuGemmRunner,
     setup_multiple_gemm_dispatchers,
     _resolve_arch,
+    _fp32_to_bf16_u16,
+    _bf16_u16_to_fp32,
+    expand_sweep,
 )
+from codegen_common import PRESHUFFLE_GFX1250_PIPELINES  # noqa: E402
 
 log = logging.getLogger(__name__)
 
-# fp16 inputs, fp32 accumulate; small K keeps worst-case error under 1e-2.
+# Rounded fp16/bf16 inputs, fp32 accumulation, and dtype-appropriate output.
 TOLERANCE = 1e-2
 
 PASS = "PASS"
@@ -92,20 +94,20 @@ def _max_rel_err(C_gpu: np.ndarray, C_ref: np.ndarray) -> float:
     return float(np.max(np.abs(g - r)) / ref_scale)
 
 
-def _make_preshuffle_config(gfx_arch: str) -> GemmKernelConfig:
-    """A single small, valid fp16/rcr preshuffle kernel.
+def _make_preshuffle_config(gfx_arch: str, dtype: str) -> GemmKernelConfig:
+    """A small rcr preshuffle kernel for the requested 16-bit dtype.
 
-    The preshuffle path is codegen-only for the ``preshufflev2`` pipeline with a
-    16x16x32 warp-tile (see gemm_preshuffle/configs/default_ci_config.json); no
-    other pipeline emits the WeightPreshuffle B pack, so those parameters are
-    fixed. 128x128x64 tile / 2x2x1 waves is divisibility-valid:
+    The base kernel uses the ``preshufflev2`` pipeline (the only preshuffle
+    pipeline on every arch; gfx1250 adds ``preshuffle_tdm``, see
+    _preshuffle_configs) with a 16x16x32 warp-tile (see
+    gemm_preshuffle/configs/default_ci_config.json). 128x128x64 tile / 2x2x1 waves is divisibility-valid:
     128/(2*16)=4, 64/(1*32)=2. variant='preshuffle' appends the _preshuffle name
     token; permute_n stays False (the only bridged shuffle, per BRIDGE_PERMUTE_N).
-    rcr (col-major B) is required for the host-side shuffle_b byte-identity
+    rcr (col-major B) is required for the host-side shuffle_b_v0 byte-identity
     contract inside the .so.
     """
     return GemmKernelConfig(
-        dtype_a="fp16", dtype_b="fp16", dtype_c="fp16", dtype_acc="fp32",
+        dtype_a=dtype, dtype_b=dtype, dtype_c=dtype, dtype_acc="fp32",
         layout_a="row", layout_b="col", layout_c="row",
         tile_m=128, tile_n=128, tile_k=64,
         wave_m=2, wave_n=2, wave_k=1,
@@ -117,55 +119,88 @@ def _make_preshuffle_config(gfx_arch: str) -> GemmKernelConfig:
     )
 
 
-def _run_preshuffle_fp16(gfx_arch: str) -> tuple[str, str]:
-    cfg = _make_preshuffle_config(gfx_arch)
-    if not cfg.name.endswith("_preshuffle"):
-        return FAIL, f"preshuffle/fp16: name {cfg.name!r} missing _preshuffle token"
+def _preshuffle_configs(gfx_arch: str, dtype: str) -> list[GemmKernelConfig]:
+    """preshufflev2 in every epilogue/persistent mode, plus on gfx1250 the whole
+    default_config_gfx1250.json sweep (all five preshuffle pipelines)."""
+    base = _make_preshuffle_config(gfx_arch, dtype)
+    configs = [
+        replace(base, epilogue=epilogue, persistent=persistent)
+        for epilogue in ("default", "cshuffle")
+        for persistent in (False, True)
+    ]
+    if gfx_arch.split(":")[0] == "gfx1250":
+        config_path = (Path(__file__).resolve().parents[2] / "tile_engine/ops/gemm/"
+                       "gemm_preshuffle/configs/default_config_gfx1250.json")
+        configs += expand_sweep(str(config_path), arch=gfx_arch, dtype=dtype, variant="preshuffle")
+    return configs
 
-    so_paths = setup_multiple_gemm_dispatchers([cfg], verbose=False)
-    if not so_paths or so_paths[0] is None:
-        return FAIL, ("preshuffle/fp16: kernel build failed (may be the "
-                      "pre-existing core-lib/fmha compile issue on this toolchain)")
 
-    runner = GpuGemmRunner(so_paths[0])
+def _run_preshuffle(gfx_arch: str, dtype: str) -> tuple[str, str]:
+    configs = _preshuffle_configs(gfx_arch, dtype)
+    if gfx_arch.split(":")[0] == "gfx1250" and not set(PRESHUFFLE_GFX1250_PIPELINES) <= {
+        cfg.pipeline for cfg in configs
+    }:
+        return FAIL, f"incomplete gfx1250 pipeline sweep: {len(configs)} configs"
+    paths = setup_multiple_gemm_dispatchers(configs, max_workers=4, verbose=False)
+    if len(paths) != len(configs) or any(path is None for path in paths):
+        return FAIL, f"preshuffle/{dtype}: kernel build failed"
 
-    # K=256 gives 8 tile-K iterations (256/32) — exercises the shuffled-B main loop.
-    M, N, K = 128, 128, 256
+    # Cover both short-loop tails, both hot-loop tails, and multiple output tiles.
+    shapes = [(128, 128, k) for k in (64, 128, 192, 256, 320)]
+    shapes += [(256, 384, 256), (128, 128, 256)]
     rng = np.random.default_rng(23)
-    A = rng.uniform(-1.0, 1.0, (M, K)).astype(np.float32)
-    B = rng.uniform(-1.0, 1.0, (K, N)).astype(np.float32)
+    worst = 0.0
+    count = 0
+    rejected = 0
+    for cfg, path in zip(configs, paths):
+        runner = GpuGemmRunner(path, arch=gfx_arch)
+        if runner.kernel_name != cfg.name:
+            return FAIL, f"registered {runner.kernel_name!r}, expected {cfg.name!r}"
+        for M, N, K in shapes:
+            if K % cfg.tile_k:  # unpadded kernels need K to be a tile_k multiple
+                continue
+            # Generate fresh B even for a repeated shape, detecting stale packing.
+            A = rng.uniform(-1.0, 1.0, (M, K)).astype(np.float32)
+            B = rng.uniform(-1.0, 1.0, (K, N)).astype(np.float32)
+            if dtype == "bf16":
+                A = _bf16_u16_to_fp32(_fp32_to_bf16_u16(A))
+                B = _bf16_u16_to_fp32(_fp32_to_bf16_u16(B))
+            else:
+                A = A.astype(np.float16).astype(np.float32)
+                B = B.astype(np.float16).astype(np.float32)
+            result = runner.run(A, B, GemmProblem(M=M, N=N, K=K))
+            label = f"{cfg.name}, MNK={M}/{N}/{K}"
+            if result.status != 0:
+                return FAIL, f"{label}: status={result.status}"
+            if result.output.shape != (M, N) or not np.isfinite(result.output).all():
+                return FAIL, f"{label}: invalid output shape or NaN/Inf"
+            error = _max_rel_err(result.output, A @ B)
+            if error > TOLERANCE:
+                return FAIL, f"{label}: max_rel_err={error:.4e} > {TOLERANCE:.1e}"
+            if result.time_ms <= 0.0:
+                return FAIL, f"{label}: nonpositive time {result.time_ms}"
+            worst = max(worst, error)
+            count += 1
+        if cfg.pipeline in ("comp_tdm", "comp_tdm_v2"):
+            for M, N, K in ((128, 160, 128), (128, 128, 96)):
+                result = runner.run(
+                    np.zeros((M, K), dtype=np.float32),
+                    np.zeros((K, N), dtype=np.float32),
+                    GemmProblem(M=M, N=N, K=K),
+                )
+                if result.status != -2:  # No supported kernel, before launch.
+                    return FAIL, f"{cfg.name}: accepted a partial N/K tile"
+                rejected += 1
+        runner.lib.cleanup()
+    return PASS, (f"preshuffle/{dtype}: {count} cases, {rejected} rejected shapes, "
+                  f"max_rel_err={worst:.4e}")
 
-    problem = GemmProblem(M=M, N=N, K=K)
-    result = runner.run(A, B, problem)
 
-    if result.status != 0:
-        return FAIL, f"preshuffle/fp16: run status={result.status} (nonzero)"
-    C_gpu = result.output
-    if C_gpu.shape != (M, N):
-        return FAIL, f"preshuffle/fp16: output shape {C_gpu.shape} != {(M, N)}"
-    if np.all(C_gpu == 0):
-        return FAIL, "preshuffle/fp16: GPU output is all-zero"
-    if not np.all(np.isfinite(C_gpu.astype(np.float32))):
-        return FAIL, "preshuffle/fp16: GPU output contains NaN/Inf"
-
-    # The host-side shuffle is transparent: result must equal the plain GEMM.
-    C_ref = A.astype(np.float32) @ B.astype(np.float32)
-    mre = _max_rel_err(C_gpu, C_ref)
-    if mre > TOLERANCE:
-        return FAIL, (f"preshuffle/fp16: max_rel_err={mre:.4e} > tol={TOLERANCE:.1e} "
-                      f"(M={M} N={N} K={K}) — B mis-shuffled?")
-    if result.time_ms <= 0.0:
-        return FAIL, f"preshuffle/fp16: time_ms={result.time_ms:.4f} not positive"
-
-    return PASS, (f"preshuffle/fp16: max_rel_err={mre:.4e}, "
-                  f"time_ms={result.time_ms:.3f}, MNK={M}/{N}/{K}, "
-                  f"kernel={runner.kernel_name}")
-
-
-def test_preshuffle_fp16_gpu(gpu_arch, dispatcher_static_lib) -> None:
+def test_preshuffle_gpu(gpu_arch, dispatcher_static_lib) -> None:
     """Build the prerequisite and verify the result whenever a GPU is available."""
-    status, detail = _run_preshuffle_fp16(gpu_arch)
-    assert status == PASS, detail
+    for dtype in ("fp16", "bf16"):
+        status, detail = _run_preshuffle(gpu_arch, dtype)
+        assert status == PASS, detail
 
 
 def main() -> int:
@@ -200,21 +235,18 @@ def main() -> int:
         print(f"FAIL: could not build the dispatcher static lib: {exc}")
         return 1
 
-    try:
-        status, detail = _run_preshuffle_fp16(gfx)
-    except FileNotFoundError as exc:
-        # Same gate the pytest entry point applies: the on-device check needs the
-        # compiled dispatcher artifacts, and a unit-only stage runs without them.
-        # Absent artifacts is "cannot run here", not "the bridge is wrong".
-        print(f"SKIP: dispatcher not built; preshuffle GPU test skipped ({exc})")
-        return SKIP_EXIT
-    except Exception as exc:  # noqa: BLE001
-        status, detail = FAIL, f"preshuffle/fp16: exception: {exc}"
-
-    print("\n=== Summary ===")
-    print(f"  [{status:4s}] {detail}")
-    print(f"\n{1 if status == PASS else 0}/1 passed")
-    return 0 if status == PASS else 1
+    results = []
+    for dtype in ("fp16", "bf16"):
+        try:
+            status, detail = _run_preshuffle(gfx, dtype)
+        except FileNotFoundError as exc:
+            print(f"SKIP: dispatcher not built ({exc})")
+            return SKIP_EXIT
+        except Exception as exc:
+            status, detail = FAIL, f"preshuffle/{dtype}: exception: {exc}"
+        results.append(status)
+        print(f"[{status}] {detail}", flush=True)
+    return 0 if all(status == PASS for status in results) else 1
 
 
 if __name__ == "__main__":
