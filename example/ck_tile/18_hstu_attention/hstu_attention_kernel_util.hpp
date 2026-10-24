@@ -183,6 +183,29 @@ CK_TILE_DEVICE static constexpr bool IsPerfectHeaddimSize(index_t kHeaddim)
     return kHeaddim > 0 && ((kHeaddim & (kHeaddim - 1)) == 0);
 };
 
+// --- attn_scale resolver -----------------------------------------------------
+// Resolve the per-invocation SiLU scale from an optional device tensor.
+//
+// Deliberately marked noinline and kept in a separate function so the uniform
+// global load + null/zero checks do NOT participate in the register allocation
+// / instruction scheduling of the hot attention kernel body. When inlined, this
+// logic perturbs the whole kernel's SGPR/VGPR coloring and desynchronizes waves
+// at the main-loop barriers (~+6% regression on gfx942 for the jagged bf16
+// case), even though the device branch is not taken.
+//
+// Semantics (identical to the previously inlined version):
+//   * attn_scale_ptr == nullptr             -> keep host_default
+//   * *attn_scale_ptr is +/-0 (classf 0x60) -> keep host_default
+//   * otherwise                             -> use *attn_scale_ptr
+__device__ __attribute__((noinline)) inline float hstu_resolve_scale_p(const float* attn_scale_ptr,
+                                                                       float host_default)
+{
+    if(attn_scale_ptr == nullptr)
+        return host_default;
+    const float s = *attn_scale_ptr;
+    return __builtin_amdgcn_classf(s, 0x60) ? host_default : s;
+}
+
 } // namespace detail
 
 } // namespace ck_tile
