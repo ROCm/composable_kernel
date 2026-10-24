@@ -820,8 +820,8 @@ struct HstuAttentionFwdKernel
 
         int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
 
-        index_t seqlen_in_upper_scope = kargs.seqlen_q;
-        bool is_tile_in_upper_scope   = true;
+        index_t seqlen_in_upper_scope;
+        bool is_tile_in_upper_scope;
         index_t i_m0;
 
         // 1) when kHasDropout is false, the second split starts just from position seqlen_q -
@@ -829,45 +829,38 @@ struct HstuAttentionFwdKernel
         // start from the first kM0 aligned position bigger or equal to seqlen_q - num_target -
         // min_full_attn_seqlen, since BlockDropout requires each workgroup has a kM0 aligned i_m0
         // position
+        kargs.min_full_attn_seqlen = min(kargs.seqlen_q - num_target, kargs.min_full_attn_seqlen);
+
         if(kargs.min_full_attn_seqlen > 0)
         {
-            // need consider for cases where min_full_attn_seqlen be bigger than max_uih_len
-            if(kargs.seqlen_q - num_target > kargs.min_full_attn_seqlen)
+            // seqlen_in_upper_scope could be 0 in special situation
+            seqlen_in_upper_scope = kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
+
+            index_t num_tile_in_upper_scope = __builtin_amdgcn_readfirstlane(
+                ck_tile::integer_divide_ceil(seqlen_in_upper_scope, HstuAttentionPipeline::kM0));
+
+            // so if seqlen_in_upper_scope is 0, then num_tile_in_upper_scope is 0,
+            // i_tile_in_upper_case is always false
+            is_tile_in_upper_scope = (i_tile_m < num_tile_in_upper_scope);
+
+            if constexpr(!kHasDropout)
             {
-                seqlen_in_upper_scope = kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
-
-                index_t num_tile_in_upper_scope =
-                    __builtin_amdgcn_readfirstlane(ck_tile::integer_divide_ceil(
-                        seqlen_in_upper_scope, HstuAttentionPipeline::kM0));
-
-                is_tile_in_upper_scope = (i_tile_m < num_tile_in_upper_scope);
-
-                if constexpr(!kHasDropout)
-                {
-                    // be careful that i_m0 for second_split could be not aligned on kM0
-                    i_m0 =
-                        is_tile_in_upper_scope
-                            ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
-                            : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_upper_scope) *
-                                                             HstuAttentionPipeline::kM0) +
-                                  seqlen_in_upper_scope;
-                }
-                else
-                    i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
+                // be careful i_m0 for second_split could be not aligned on kM0
+                i_m0 = is_tile_in_upper_scope
+                           ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
+                           : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_upper_scope) *
+                                                            HstuAttentionPipeline::kM0) +
+                                 seqlen_in_upper_scope;
             }
             else
-            {
-                seqlen_in_upper_scope  = 0;
-                is_tile_in_upper_scope = false;
-
-                // adjust the min_full_attn_seqlen to be passed to HstuBlockMask constructor
-                kargs.min_full_attn_seqlen = kargs.seqlen_q - num_target;
-
                 i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
-            };
         }
         else
+        {
+            seqlen_in_upper_scope  = kargs.seqlen_q;
+            is_tile_in_upper_scope = true;
             i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
+        }
 
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * HstuAttentionPipeline::kN1);
 
