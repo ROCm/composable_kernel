@@ -809,21 +809,14 @@ struct HstuAttentionFwdKernel
             }
         }
 
-#if !defined(__hstu_gfx94__)
         // Non-group: attn_scale may arrive as a device tensor so the host never
         // blocks on a D2H copy to read it. MakeKargs already put the correct
         // default in scale_p (the caller passes 0 for the scalar), so only a
         // non-zero device value overrides it -- mirroring the group path above.
         if constexpr(!kUseGroup)
         {
-            if(kargs.attn_scale_ptr != nullptr)
-            {
-                const float s = *kargs.attn_scale_ptr;
-                if(s != 0.0f)
-                    kargs.scale_p = s;
-            }
+            kargs.scale_p = detail::hstu_resolve_scale_p(kargs.attn_scale_ptr, kargs.scale_p);
         }
-#endif
 
         int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
 
