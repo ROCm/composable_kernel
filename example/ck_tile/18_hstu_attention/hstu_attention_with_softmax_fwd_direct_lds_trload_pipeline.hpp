@@ -933,8 +933,6 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
                 });
             }
 
-            seqlen_k_curr += kN0;
-
             if constexpr(kHasDropout)
             {
                 auto randval_lds_ptr =
@@ -947,6 +945,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSDirectLdsTrLoad
                 dropout.template Run<decltype(gemm_0), CompDataType, uint8_t>(
                     randval_lds_ptr, seqlen_k_curr, pcomp_tile, null_randval_window);
             }
+
+            seqlen_k_curr += kN0;
 
             auto p = cast_tile<PDataType>(pcomp_tile);
 
