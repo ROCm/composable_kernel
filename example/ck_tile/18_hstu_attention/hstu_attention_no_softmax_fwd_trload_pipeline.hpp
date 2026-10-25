@@ -393,8 +393,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
             tile_elementwise_inout(f_silu, pcomp_tile);
 
-            detail::scale_tile_in_pack(pcomp_tile, scale_p);
-
             if constexpr(kHasDropout)
             {
                 __builtin_amdgcn_sched_barrier(0);
@@ -445,6 +443,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                     v_lds_trload_windows[number<i_k1 % NumVLdsBuffers>{}]);
             });
         } while(seqlen_k_curr < seqlen_k_end);
+
+        detail::scale_tile_in_pack(o_acc, scale_p);
 
         return o_acc;
     }
