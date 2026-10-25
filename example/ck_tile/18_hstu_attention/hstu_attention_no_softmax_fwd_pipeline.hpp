@@ -408,9 +408,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
             tile_elementwise_inout(f_silu, pcomp_tile);
 
-            tile_elementwise_inout([&](auto& x) { x = x * type_convert<CompDataType>(scale_p); },
-                                   pcomp_tile);
-
             if constexpr(kHasDropout)
             {
                 __builtin_amdgcn_sched_barrier(0);
@@ -479,6 +476,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                 __builtin_amdgcn_s_barrier();
             }
         } while(seqlen_k_curr < seqlen_k_end);
+
+        tile_elementwise_inout([&](auto& x) { x = x * type_convert<CompDataType>(scale_p); },
+                               o_acc);
 
         return o_acc;
     }
