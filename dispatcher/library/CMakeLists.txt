@@ -117,7 +117,7 @@ function(ck_add_dispatcher_conv_instances VARIANT)
     -Wno-lifetime-safety-intra-tu-suggestions
     -Wno-lifetime-safety-lifetimebound-invalidation
     -Wno-lifetime-safety-experimental-field-origin-escape
-
+    -Wno-lifetime-safety-experimental-invalidation
   )
   if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
     target_compile_options(${TARGET_NAME} PRIVATE --offload-compress)

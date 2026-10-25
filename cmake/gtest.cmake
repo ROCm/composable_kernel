@@ -74,6 +74,7 @@ set(GTEST_CXX_FLAGS
      -Wno-lifetime-safety-invalidation
      -Wno-lifetime-safety-lifetimebound-invalidation
      -Wno-lifetime-safety-experimental-field-origin-escape
+     -Wno-lifetime-safety-experimental-invalidation
 )
 
 if(WIN32)

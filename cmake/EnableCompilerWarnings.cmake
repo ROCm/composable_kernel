@@ -55,6 +55,7 @@ else()
             -Wno-lifetime-safety-lifetimebound-violation
             -Wno-lifetime-safety-lifetimebound-invalidation
             -Wno-lifetime-safety-experimental-field-origin-escape
+            -Wno-lifetime-safety-experimental-invalidation
             -Wno-unknown-warning-option
         )
         if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "Clang")
@@ -89,6 +90,7 @@ else()
                 -Wno-lifetime-safety-cross-tu-suggestions
                 -Wno-lifetime-safety-lifetimebound-violation
                 -Wno-experimental-lifetime-safety-field-origin-escape
+                -Wno-lifetime-safety-experimental-invalidation
                 -Wno-unknown-warning-option
             )
             if(CK_CXX_STANDARD GREATER_EQUAL 20)
