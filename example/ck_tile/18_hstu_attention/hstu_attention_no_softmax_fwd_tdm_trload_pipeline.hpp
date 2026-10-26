@@ -16,13 +16,14 @@ template <typename Problem_,
           typename Policy_ = HstuAttentionFwdPipelineQRKSVSPolicy>
 // Tdm variant of the no-softmax forward pipeline, for gfx1250.
 //
-// Same structure as HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad; what differs is only how
+// Same structure as HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad; the main difference is how
 // K and V reach Lds. Here the Tdm engine copies them global -> Lds directly, so there is no
-// register staging and no store_tile, and the Lds layout must be the plain row-major one the
-// engine writes rather than an xor-swizzled one.
+// register staging and no store_tile for them, and the Lds layout must be the plain row-major
+// one the engine writes rather than an xor-swizzled one.
 //
-// Q is not staged through Tdm: hstu loads Q once straight into registers and has no Q Lds
-// descriptor at all.
+// Q is not staged through Tdm: hstu loads Q once into registers. Where Policy::IsQInLdsTdm()
+// each wave then stores its rows of Q to Lds once (plain row-major, behind the K/V copies) and
+// gemm_0 reads Q back from there; otherwise gemm_0 uses the register tile.
 struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
 {
     using Problem         = remove_cvref_t<Problem_>;
@@ -104,6 +105,12 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
             else if constexpr(kQKHeaddim == 64)
             {
                 return 2;
+            }
+            else if constexpr(Policy::template IsQInLdsTdm<Problem>())
+            {
+                // hdim128 Tdm M128 tile with Q in Lds: 3 workgroups (= 3 waves/SIMD) per CU,
+                // VGPR <= 336
+                return 3;
             }
             else if constexpr(kQKHeaddim == 96 || kQKHeaddim == 128)
             {
@@ -197,7 +204,43 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
                                               q_dram_block_window_tmp.get_window_origin(),
                                               Policy::template MakeQRegTileDistribution<Problem>());
 
-        auto q_tile = load_tile(q_dram_window);
+        // The Tdm Lds layout reserves no space for the dropout randval buffer (GetSmemSizeDropout()
+        // is 0, so the buffer at smem + 2 K + 2 V would overlap Q in Lds or run past the end of
+        // the allocation): dropout is refused whether or not Q is in Lds. kBlockPerCu workgroups
+        // per CU (above, or from Traits) need kBlockPerCu copies of the whole Lds layout. The Tdm
+        // pipelines only run on gfx1250, so its Lds size is named directly: get_lds_size() would
+        // pick the arch from the device macros, which the host pass of a HIP build does not define.
+        static_assert(!kHasDropout,
+                      "the Tdm pipelines reserve no Lds for the dropout randval buffer");
+        static_assert(kBlockPerCu * GetSmemSize() <= detail::get_lds_size(gfx125_t{}),
+                      "kBlockPerCu x GetSmemSize() does not fit the Lds of a CU");
+
+        // The Q operand of gemm_0: the register tile or, where Policy::IsQInLdsTdm(), an Lds
+        // window over a copy of Q that every wave stores once here (each wave reads back only
+        // the rows it wrote, so no barrier is needed).
+        auto q_tile = [&]() {
+            if constexpr(Policy::template IsQInLdsTdm<Problem>())
+            {
+                auto q_lds = make_tensor_view<address_space_enum::lds>(
+                    reinterpret_cast<QKVDataType*>(
+                        static_cast<char*>(smem_ptr) +
+                        Policy::template GetQLdsByteOffsetPlain<Problem>()),
+                    Policy::template MakeQLdsPlainBlockDescriptor<Problem>());
+
+                auto q_lds_store_window =
+                    make_tile_window(q_lds,
+                                     make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
+                                     {0, 0},
+                                     Policy::template MakeQRegTileDistribution<Problem>());
+
+                store_tile(q_lds_store_window, load_tile(q_dram_window));
+
+                return make_tile_window(
+                    q_lds, make_tuple(number<kM0>{}, number<kQKHeaddim>{}), {0, 0});
+            }
+            else
+                return load_tile(q_dram_window);
+        }();
 
         const auto q_origin = q_dram_window.get_window_origin();
 

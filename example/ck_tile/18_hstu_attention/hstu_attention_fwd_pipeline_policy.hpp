@@ -459,6 +459,238 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
     }
 };
 
+// As BlockGemmARegBSmemCRegTdmGroupPrefetch_0, but the A operand (Q) is read from Lds too: per
+// (kIter, nIter) step the B tile is loaded kPrefetchDepth steps ahead, and the MIterPerWarp A
+// tiles of a kIter are loaded together with the B tile of that kIter's first step, i.e. in the
+// same group of DS loads. Only the A tiles of the current and the next kIter are live (2 x
+// MIterPerWarp x 8 VGPRs) instead of the whole Q tile.
+template <typename Problem_, typename Policy_, index_t kPrefetchDepth_, index_t kStepsPerGroup_>
+struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
+    : public BlockGemmARegBSmemCRegV2Hack_0<Problem_, Policy_>
+{
+    using Base           = BlockGemmARegBSmemCRegV2Hack_0<Problem_, Policy_>;
+    using Problem        = remove_cvref_t<Problem_>;
+    using Policy         = remove_cvref_t<Policy_>;
+    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+
+    using Base::MakeABlockTileDistribution;
+    using Base::MakeCBlockTile;
+
+    static constexpr index_t kBlockSize = Problem::kBlockSize;
+
+    // The run_ahead() of the base reads ahead with its own depth and would silently ignore
+    // kPrefetchDepth_ and kStepsPerGroup_, so it is hidden here.
+    template <index_t kPrefetchRequested, typename... Args>
+    CK_TILE_DEVICE void run_ahead(Args&&...) const = delete;
+
+    // C = A * B, written into c_block_tensor (the first k step overwrites C)
+    template <typename CBlockTensor, typename ABlockWindowTmp, typename BBlockWindowTmp>
+    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                   const ABlockWindowTmp& a_block_window_tmp,
+                                   const BBlockWindowTmp& b_block_window_tmp) const
+    {
+        static_assert(
+            std::is_same_v<ADataType, remove_cv_t<typename ABlockWindowTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
+                std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+            "wrong!");
+
+        constexpr index_t MPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<0>{}];
+        constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
+        constexpr index_t KPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<1>{}];
+
+        static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
+                          KPerBlock == BlockGemmShape::kK,
+                      "wrong!");
+
+        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+
+        using WG = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t MWarp = config.template at<1>();
+        constexpr index_t NWarp = config.template at<2>();
+
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
+        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
+        constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+
+        constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
+        constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
+
+        constexpr index_t kSteps         = KIterPerWarp * NIterPerWarp;
+        constexpr index_t kPrefetchDepth = kPrefetchDepth_ < kSteps ? kPrefetchDepth_ : kSteps;
+        constexpr index_t kStepsPerGroup = kStepsPerGroup_ < kSteps ? kStepsPerGroup_ : kSteps;
+
+        static_assert(kPrefetchDepth >= 1 && kStepsPerGroup >= 1 && kSteps % kStepsPerGroup == 0,
+                      "kStepsPerGroup must divide the number of (kIter, nIter) steps");
+
+        static_assert(NWarp == 1, "Check failed!");
+
+        // the warp's rows of A, as in MakeABlockDistributionEncode(): mIter * MWarp * kM +
+        // iMWarp * kM + [0, kM)
+        const index_t iMWarp = get_warp_id<false>() / NWarp;
+
+        constexpr auto c_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+
+        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+
+        auto a_warp_window_tmp = make_tile_window(
+            a_block_window_tmp.get_bottom_tensor_view(),
+            make_tuple(number<WG::kM>{}, number<WG::kK>{}),
+            a_block_window_tmp.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
+            make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+
+        auto b_warp_window_tmp =
+            make_tile_window(b_block_window_tmp.get_bottom_tensor_view(),
+                             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
+                             b_block_window_tmp.get_window_origin(),
+                             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
+
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
+                           remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "wrong!");
+
+        using CWarpDstr = typename WG::CWarpDstr;
+
+        using CWarpTensor = typename WG::CWarpTensor;
+
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+        using a_warp_tensor_type = decltype(a_warp_window_tmp.load_with_offset(number<0>{}));
+        using b_warp_tensor_type = decltype(b_warp_window_tmp.load_with_offset(number<0>{}));
+
+        constexpr index_t kDsPerStepA =
+            (a_warp_tensor_type::get_thread_buffer_size() * sizeof(ADataType) + 15) / 16;
+        constexpr index_t kDsPerStepB =
+            (b_warp_tensor_type::get_thread_buffer_size() * sizeof(BDataType) + 15) / 16;
+
+        statically_indexed_array<a_warp_tensor_type, KIterPerWarp * MIterPerWarp> a_warp_tensors;
+        statically_indexed_array<b_warp_tensor_type, kSteps> b_warp_tensors;
+
+        // number of ds_load issued by load_step(i_step)
+        constexpr auto ds_per_step = [](index_t i_step) constexpr {
+            return kDsPerStepB + (i_step % NIterPerWarp == 0 ? MIterPerWarp * kDsPerStepA : 0);
+        };
+
+        auto load_step = [&](auto i_step) {
+            constexpr index_t kIter = i_step / NIterPerWarp;
+            constexpr index_t nIter = i_step % NIterPerWarp;
+
+            if constexpr(nIter == 0)
+            {
+                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                    // the A windows of the M warps start at iMWarp * kM rows: the offset is
+                    // checked from each of them
+                    constexpr index_t kOffsetA =
+                        detail::GetLdsAffineStepOffset<typename ABlockWindowTmp::BottomTensorView,
+                                                       WG::kM,
+                                                       WG::kK,
+                                                       mIter * MWarp * WG::kM,
+                                                       kIter * KPerBlockPerIter,
+                                                       MWarp,
+                                                       WG::kM,
+                                                       0>();
+
+                    a_warp_tensors(number<kIter * MIterPerWarp + mIter>{}) =
+                        a_warp_window_tmp.load_with_offset(number<kOffsetA>{});
+                });
+            }
+
+            constexpr index_t kOffset =
+                detail::GetLdsAffineStepOffset<typename BBlockWindowTmp::BottomTensorView,
+                                               WG::kN,
+                                               WG::kK,
+                                               nIter * NPerBlockPerIter,
+                                               kIter * KPerBlockPerIter>();
+
+            b_warp_tensors(i_step) = b_warp_window_tmp.load_with_offset(number<kOffset>{});
+        };
+
+        static_for<0, kPrefetchDepth, 1>{}([&](auto i_step) { load_step(i_step); });
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        static_for<0, kSteps / kStepsPerGroup, 1>{}([&](auto i_group) {
+            constexpr index_t kFirstLoad = i_group * kStepsPerGroup + kPrefetchDepth;
+            constexpr index_t kNumLoads =
+                kFirstLoad >= kSteps
+                    ? 0
+                    : (kSteps - kFirstLoad < kStepsPerGroup ? kSteps - kFirstLoad : kStepsPerGroup);
+
+            constexpr index_t kNumDs = [=]() constexpr {
+                index_t n = 0;
+                for(index_t j = 0; j < kNumLoads; ++j)
+                    n += ds_per_step(kFirstLoad + j);
+                return n;
+            }();
+
+            static_for<0, kNumLoads, 1>{}([&](auto j) { load_step(number<kFirstLoad + j>{}); });
+
+            static_for<0, kStepsPerGroup, 1>{}([&](auto j) {
+                constexpr index_t i_step = i_group * kStepsPerGroup + j;
+                constexpr auto kIter     = number<i_step / NIterPerWarp>{};
+                constexpr auto nIter     = number<i_step % NIterPerWarp>{};
+
+                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                    const auto& a_warp_tensor =
+                        a_warp_tensors[number<kIter * MIterPerWarp + mIter>{}];
+
+                    CWarpTensor c_warp_tensor;
+
+                    if constexpr(kIter == 0)
+                    {
+                        c_warp_tensor = WG{}(a_warp_tensor, b_warp_tensors[number<i_step>{}]);
+                    }
+                    else
+                    {
+                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                        WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensors[number<i_step>{}]);
+                    }
+
+                    c_block_tensor.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                        c_warp_tensor.get_thread_buffer());
+                });
+            });
+
+            if constexpr(kNumLoads > 0)
+                __builtin_amdgcn_sched_group_barrier(0x100, kNumDs, 0);
+            __builtin_amdgcn_sched_group_barrier(0x008, kStepsPerGroup * MIterPerWarp, 0);
+
+            __builtin_amdgcn_sched_barrier(0);
+        });
+    }
+
+    // C = A * B
+    template <typename ABlockWindowTmp, typename BBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ABlockWindowTmp& a_block_window_tmp,
+                                   const BBlockWindowTmp& b_block_window_tmp) const
+    {
+        auto c_block_tensor = MakeCBlockTile();
+        operator()(c_block_tensor, a_block_window_tmp, b_block_window_tmp);
+        return c_block_tensor;
+    }
+};
+
 struct HstuAttentionFwdPipelineQRKSVSPolicy
 {
     template <typename Problem, bool kUseDirectLds = false>
@@ -1520,7 +1752,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     // Tdm pipelines: the hdim128 tiles with more than one gemm0 warp (M64 and M128) get the
-    // group-prefetch variant of the Q@K block gemm; everything else keeps GetQKBlockGemm().
+    // group-prefetch variant of the Q@K block gemm, BlockGemmASmemBSmemCRegTdmGroupPrefetch_0 (Q
+    // read from Lds as well) where IsQInLdsTdm(); everything else keeps GetQKBlockGemm().
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemmTdm()
     {
@@ -1529,14 +1762,21 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         if constexpr(Problem::HstuAttentionTileSetting::kQKHeaddim == 128 &&
                      1 < Problem::kNumGemm0Warps)
         {
-            constexpr bool kM128             = Problem::HstuAttentionTileSetting::kM0 >= 128;
-            constexpr index_t kPrefetchDepth = kM128 ? (Problem::kUseSoftmax ? 8 : 4) : 8;
+            constexpr bool kM128 = Problem::HstuAttentionTileSetting::kM0 >= 128;
+            constexpr index_t kPrefetchDepth =
+                kM128 ? (Problem::kUseSoftmax && !IsQInLdsTdm<Problem>() ? 8 : 4) : 8;
             constexpr index_t kStepsPerGroup = kM128 ? 4 : 8;
 
-            return BlockGemmARegBSmemCRegTdmGroupPrefetch_0<typename BaseGemm::Problem,
-                                                            typename BaseGemm::Policy,
-                                                            kPrefetchDepth,
-                                                            kStepsPerGroup>{};
+            if constexpr(IsQInLdsTdm<Problem>())
+                return BlockGemmASmemBSmemCRegTdmGroupPrefetch_0<typename BaseGemm::Problem,
+                                                                 typename BaseGemm::Policy,
+                                                                 kPrefetchDepth,
+                                                                 kStepsPerGroup>{};
+            else
+                return BlockGemmARegBSmemCRegTdmGroupPrefetch_0<typename BaseGemm::Problem,
+                                                                typename BaseGemm::Policy,
+                                                                kPrefetchDepth,
+                                                                kStepsPerGroup>{};
         }
         else
             return BaseGemm{};
@@ -1668,14 +1908,79 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return (actual_bytes + 63) / 64 * 64;
     };
 
-    // Lds layout of the Tdm pipelines: [K copy 0 | K copy 1 | V copy 0 | V copy 1 | dropout].
+    // Q staged in Lds (hdim128 M128 Tdm tile with more than one gemm0 warp, no bias, no dropout):
+    // Q is written to Lds once and the Q@K gemm reads its A operand back from there on every kv
+    // tile, instead of keeping the whole Q tile (64 VGPRs per lane) resident in registers. That is
+    // what lets the M128 kernels fit three workgroups (three waves per SIMD) per CU. Every wave
+    // reads back exactly the Q rows it wrote, so the store needs no barrier. No dropout: the Tdm
+    // pipelines refuse it anyway (static_assert), as their Lds layout reserves nothing for the
+    // dropout randval buffer (GetSmemSizeDropout() is 0).
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr bool IsQInLdsTdm()
+    {
+        return Problem::HstuAttentionTileSetting::kQKHeaddim == 128 &&
+               Problem::HstuAttentionTileSetting::kM0 >= 128 && 1 < Problem::kNumGemm0Warps &&
+               !Problem::kHasBias && !Problem::kHasDropout;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsPlainBlockDescriptor()
+    {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto pad_config =
+            detail::GetTdmLdsPaddingConfigForNormalRead<WG, true /*inputA*/, kKPerBlock>();
+
+        return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
+                                                            1,
+                                                            kMPerBlock,
+                                                            kKPerBlock,
+                                                            pad_config.at(number<0>{}),
+                                                            pad_config.at(number<1>{})>();
+#else
+        static_assert(sizeof(Problem) == 0,
+                      "MakeQLdsPlainBlockDescriptor() is only meaningful where Tdm staging is "
+                      "available");
+        return 0;
+#endif
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeQPlain()
+    {
+        if constexpr(IsQInLdsTdm<Problem>())
+        {
+            constexpr auto actual_bytes =
+                MakeQLdsPlainBlockDescriptor<Problem>().get_element_space_size() *
+                sizeof(typename Problem::QKVDataType);
+
+            return (actual_bytes + 63) / 64 * 64;
+        }
+        else
+            return 0;
+    };
+
+    // Lds layout of the Tdm pipelines:
+    // [K copy 0 | K copy 1 | V copy 0 | V copy 1 | dropout | Q (IsQInLdsTdm() only)].
     // Each copy holds one whole kv-tile; one copy is read by the gemms of the current iteration
     // while Tdm fills the other with the next kv-tile.
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizePlain()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetQLdsByteOffsetPlain()
     {
         return GetSmemSizeKPlain<Problem>() * 2 + GetSmemSizeVPlain<Problem>() * 2 +
                GetSmemSizeDropout<Problem>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizePlain()
+    {
+        return GetQLdsByteOffsetPlain<Problem>() + GetSmemSizeQPlain<Problem>();
     }
 
     // Element offset of V copy 1 in the NumCopies = 2 V descriptor, i.e. where its row kN0 starts
