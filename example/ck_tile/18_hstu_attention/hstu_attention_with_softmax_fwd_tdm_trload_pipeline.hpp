@@ -401,6 +401,15 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
             }
         };
 
+        // true: rescale o_acc behind one wave-uniform branch; false: always multiply.
+        // Measured on gfx1250: the branch wins on the M128 tiles (many kv-tiles per row, m
+        // rarely moves after the first ones) and on the hdim256 M64 tile (256 o_acc columns
+        // per row: multiplying on every kv-tile costs little time at full clock, but the long
+        // calls run at the power limit and get a lower clock); always multiplying wins on the
+        // other M64 tiles.
+        constexpr bool kUniformRescale = (kM0 >= 128) || (kQKHeaddim == 256);
+        const auto m_keep_threshold    = type_convert<CompDataType>(-8.0f);
+
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -547,29 +556,30 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
+            // Branch-free row stage. A row that is fully masked so far has m == -inf (and
+            // then m_old == -inf and every s of the row is -inf), so subtracting 0 instead of
+            // m gives exp(-inf) == 0 for the whole row with no per-row exec branch. (m also
+            // stays -inf while the unmasked s of the row are only NaN and -inf, as f_max drops
+            // NaN; a NaN s then gives a NaN P here. If m is still -inf at the end, the final
+            // normalization sets the row to 0; if a finite s follows in a later kv-tile, the
+            // row ends up NaN, as in the CPU reference.)
             constexpr auto p_spans = decltype(pcomp_tile)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 
-                if(__builtin_expect(m[i_idx] == -numeric<CompDataType>::infinity(), 0)) // unlikely
-                {
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        pcomp_tile(i_j_idx)    = type_convert<CompDataType>(0.0f);
-                    });
-                }
-                else
-                {
-                    // use the m_old[i] as the m-for-stablization if m_old[i] - m[i] >= -8.0f
-                    // and still keep the m-for-stablization in m[]
-                    if(m_old[i_idx] - m[i_idx] >= type_convert<CompDataType>(-8.0f))
-                        m(i_idx) = m_old[i_idx];
+                // use the m_old[i] as the m-for-stablization if m_old[i] - m[i] >= -8.0f
+                // and still keep the m-for-stablization in m[]; for m == -inf the
+                // difference is NaN and m stays -inf
+                const CompDataType m_new = m[i_idx];
+                m(i_idx) = (m_old[i_idx] - m_new >= m_keep_threshold) ? m_old[i_idx] : m_new;
 
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        pcomp_tile(i_j_idx)    = f_exp(pcomp_tile[i_j_idx] - m[i_idx]);
-                    });
-                }
+                const CompDataType m_sub =
+                    (m[i_idx] == -numeric<CompDataType>::infinity()) ? CompDataType{0} : m[i_idx];
+
+                sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    pcomp_tile(i_j_idx)    = f_exp(pcomp_tile[i_j_idx] - m_sub);
+                });
             });
 
             auto rowsum_p =
@@ -577,27 +587,47 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
-            // adjust o_acc[] according to the update between m and m_old
+            // adjust o_acc[] according to the update between m and m_old. m > m_old implies
+            // a finite m; o_scale is exp(m_old - m) there (0 for m_old == -inf) and 1 for
+            // every other row, including the ones with m == -inf (see the final normalization).
+            auto o_scale = make_static_distributed_tensor<CompDataType>(m.get_tile_distribution());
+            bool any_rescale       = false;
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 
-                if(__builtin_expect(m[i_idx] == -numeric<CompDataType>::infinity(), 0)) // unlikely
+                const bool rescale = m[i_idx] > m_old[i_idx];
+                const auto tmp     = f_exp(m_old[i_idx] - m[i_idx]);
+                o_scale(i_idx)     = rescale ? tmp : CompDataType{1};
+                l(i_idx)           = o_scale[i_idx] * l[i_idx] + rowsum_p[i_idx];
+                any_rescale        = any_rescale || rescale;
+            });
+
+            // after the first kv-tiles m rarely moves (m_keep_threshold), so test once per
+            // wave instead of once per row and lane
+            if constexpr(kUniformRescale)
+            {
+                if(__builtin_amdgcn_ballot_w32(any_rescale) != 0)
                 {
-                    l(i_idx) = rowsum_p[i_idx];
-                }
-                else if(m[i_idx] > m_old[i_idx])
-                {
-                    const auto tmp = f_exp(m_old[i_idx] - m[i_idx]);
-                    l(i_idx)       = tmp * l[i_idx] + rowsum_p[i_idx];
-                    sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        o_acc(i_j_idx) *= tmp;
+                    sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                        constexpr auto i_idx = make_tuple(idx0);
+                        sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            o_acc(i_j_idx) *= o_scale[i_idx];
+                        });
                     });
                 }
-                else
-                    l(i_idx) = l[i_idx] + rowsum_p[i_idx];
-            });
+            }
+            else
+            {
+                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+                    sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        o_acc(i_j_idx) *= o_scale[i_idx];
+                    });
+                });
+            }
 
             seqlen_k_curr += kN0;
 
@@ -642,8 +672,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
             constexpr auto lse_or_lse_acc_spans = decltype(lse_or_lse_acc)::get_distributed_spans();
             sweep_tile_span(lse_or_lse_acc_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
-                constexpr auto i_idx  = make_tuple(idx0);
-                lse_or_lse_acc(i_idx) = m_[i_idx] + log(l_[i_idx]);
+                constexpr auto i_idx = make_tuple(idx0);
+                // a row with m == -inf stores -inf whatever its l is (see the final normalization)
+                lse_or_lse_acc(i_idx) = (m_[i_idx] == -numeric<CompDataType>::infinity())
+                                            ? -numeric<CompDataType>::infinity()
+                                            : m_[i_idx] + log(l_[i_idx]);
             });
 
             store_tile(lse_or_lse_acc_dram_block_window, lse_or_lse_acc);
@@ -651,17 +684,18 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
 
+        // one division per row instead of one per element, and no per-element exec branch.
+        // A row whose m is still -inf (fully masked, or no unmasked score other than NaN and
+        // -inf) is set to 0 by a select, not by a multiply, so an inf/NaN in its o_acc (0 * an
+        // inf/NaN of V, or the NaN P of NaN scores) does not leak into the output or the
+        // split-kv combine.
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-            constexpr auto i_idx = make_tuple(idx0);
+            constexpr auto i_idx     = make_tuple(idx0);
+            const bool dead          = (m[i_idx] == -numeric<CompDataType>::infinity());
+            const CompDataType inv_l = 1.0f / l[i_idx];
             sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
-
-                if(__builtin_expect(m[i_idx] == -numeric<CompDataType>::infinity(), 0)) // unlikely
-                {
-                    o_acc(i_j_idx) = 0.0f;
-                }
-                else
-                    o_acc(i_j_idx) *= 1.0f / l[i_idx];
+                o_acc(i_j_idx)         = dead ? CompDataType{0} : o_acc[i_j_idx] * inv_l;
             });
         });
 
