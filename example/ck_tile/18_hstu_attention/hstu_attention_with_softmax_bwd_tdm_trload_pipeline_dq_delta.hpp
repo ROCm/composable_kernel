@@ -211,6 +211,9 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                                                     sequence<(i_buf + 1) * kN0Sub, kQKHeaddim>{});
         });
 
+        auto* k_lds_windows_curr = &k_lds_windows_0;
+        auto* k_lds_windows_next = &k_lds_windows_1;
+
         // k_lds windows for trload read
         using k_lds_trload_window_type = decltype(get_slice_tile(
             k_lds_monolithic_window_0, sequence<0, 0>{}, sequence<kK1, kQKHeaddim>{}));
@@ -226,6 +229,9 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                                sequence<i_buf * kK1, 0>{},
                                sequence<(i_buf + 1) * kK1, kQKHeaddim>{});
         });
+
+        auto* k_lds_trload_windows_curr = &k_lds_trload_windows_0;
+        auto* k_lds_trload_windows_next = &k_lds_trload_windows_1;
 
         QKVDataType* v_lds_ptr =
             reinterpret_cast<QKVDataType*>(static_cast<char*>(smem_ptr) + k_smem_size * 2);
@@ -369,15 +375,13 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
         // reuse the aliased delta_lds space at smem_ptr.
         block_sync_lds();
 
-        load_tile_tdm(tdm_config_k, k_lds_windows_0[number<0>{}], k_dram_window);
+        load_tile_tdm(tdm_config_k, (*k_lds_windows_curr)[number<0>{}], k_dram_window);
         move_tile_window(k_dram_window, {kN0Sub, 0});
 
         load_tile_tdm(tdm_config_v, v_lds_windows[number<0>{}], v_dram_window);
         move_tile_window(v_dram_window, {kN0Sub, 0});
 
         auto seqlen_k_curr = seqlen_k_start;
-
-        bool even_iter = true;
 
         do
         {
@@ -389,30 +393,16 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
 
                 s_wait_tensorcnt_barrier<0>();
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q @ K_sub
-                if(even_iter)
-                {
-                    gemm_0(sacc_tile, q_tile, k_lds_windows_0[i_n0]);
+                gemm_0(sacc_tile, q_tile, (*k_lds_windows_curr)[i_n0]);
 
-                    if constexpr(i_n0 < n0_loops - 1)
-                    {
-                        load_tile_tdm(
-                            tdm_config_k, k_lds_windows_0[number<i_n0 + 1>{}], k_dram_window);
-                        move_tile_window(k_dram_window, {kN0Sub, 0});
-                    }
-                }
-                else
+                if constexpr(i_n0 < n0_loops - 1)
                 {
-                    gemm_0(sacc_tile, q_tile, k_lds_windows_1[i_n0]);
-
-                    if constexpr(i_n0 < n0_loops - 1)
-                    {
-                        load_tile_tdm(
-                            tdm_config_k, k_lds_windows_1[number<i_n0 + 1>{}], k_dram_window);
-                        move_tile_window(k_dram_window, {kN0Sub, 0});
-                    }
+                    load_tile_tdm(
+                        tdm_config_k, (*k_lds_windows_curr)[number<i_n0 + 1>{}], k_dram_window);
+                    move_tile_window(k_dram_window, {kN0Sub, 0});
                 }
 
                 auto s_tmp = cast_tile<CompDataType>(sacc_tile);
@@ -437,18 +427,10 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
-            if(even_iter)
-            {
-                load_tile_tdm(tdm_config_k, k_lds_windows_1[number<0>{}], k_dram_window);
-                move_tile_window(k_dram_window, {kN0Sub, 0});
-            }
-            else
-            {
-                load_tile_tdm(tdm_config_k, k_lds_windows_0[number<0>{}], k_dram_window);
-                move_tile_window(k_dram_window, {kN0Sub, 0});
-            }
+            load_tile_tdm(tdm_config_k, (*k_lds_windows_next)[number<0>{}], k_dram_window);
+            move_tile_window(k_dram_window, {kN0Sub, 0});
 
             load_tile_tdm(tdm_config_v, v_lds_windows[number<0>{}], v_dram_window);
             move_tile_window(v_dram_window, {kN0Sub, 0});
@@ -564,18 +546,18 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                     dpcomp_tile, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}));
 
                 // dQ += dS_sub @ KT_sub
-                if(even_iter)
-                {
-                    gemm_4(dq_acc, ds_slice, k_lds_trload_windows_0[i_k1]);
-                }
-                else
-                {
-                    gemm_4(dq_acc, ds_slice, k_lds_trload_windows_1[i_k1]);
-                }
+                gemm_4(dq_acc, ds_slice, (*k_lds_trload_windows_curr)[i_k1]);
             });
 
             seqlen_k_curr += kN0;
-            even_iter = !even_iter;
+
+            auto* k_lds_windows_tmp = k_lds_windows_curr;
+            k_lds_windows_curr      = k_lds_windows_next;
+            k_lds_windows_next      = k_lds_windows_tmp;
+
+            auto* k_lds_trload_windows_tmp = k_lds_trload_windows_curr;
+            k_lds_trload_windows_curr      = k_lds_trload_windows_next;
+            k_lds_trload_windows_next      = k_lds_trload_windows_tmp;
         } while(seqlen_k_curr < seqlen_k_end);
 
         // Apply alpha scaling to dQ
