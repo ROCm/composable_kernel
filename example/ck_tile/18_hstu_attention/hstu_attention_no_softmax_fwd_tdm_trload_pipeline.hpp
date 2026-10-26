@@ -170,8 +170,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
         static_assert(n0_loops == k1_loops, "n0_loops == k1_loops required by this pipeline");
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 = Policy::template GetPVTBlockGemm<Problem, true /*kUseTrLoad*/>();
+        constexpr auto gemm_0 = Policy::template GetQKBlockGemmTdm<Problem>();
+        constexpr auto gemm_1 = Policy::template GetPVTBlockGemmTdm<Problem>();
 
         // SaccBlockTile size is [kM0, kN0Sub]
         // PcompBlockTile size is [kM0, kN0]

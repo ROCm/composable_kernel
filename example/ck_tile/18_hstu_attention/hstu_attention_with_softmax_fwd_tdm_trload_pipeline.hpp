@@ -183,9 +183,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
                       "the Tdm pipeline needs a single n0/k1 sub-loop");
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 =
-            Policy::template GetPVTBlockGemm<Problem, true /*kPipelineUseTrLoad*/>();
+        constexpr auto gemm_0 = Policy::template GetQKBlockGemmTdm<Problem>();
+        constexpr auto gemm_1 = Policy::template GetPVTBlockGemmTdm<Problem>();
 
         // SaccBlockTile size is [kM0, kN0Sub]
         // PcompBlockTile size is [kM0, kN0]

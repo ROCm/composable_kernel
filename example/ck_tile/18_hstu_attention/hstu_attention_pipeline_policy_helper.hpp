@@ -303,6 +303,107 @@ CK_TILE_HOST_DEVICE constexpr auto MakeRowMajorLdsPaddedBlockDescriptor()
     return MakeRowMajorLdsPaddedBlockDescriptor<NumBuffers, Rows, Cols, PadInterval, PadLength>();
 };
 
+// Element offset, in the Lds layout of BottomTensorView, between a kTileRows x kTileCols warp
+// tile at (kRow, kCol) and the same tile at (0, 0). The group-prefetch block gemms add it to the
+// step-0 lane address instead of moving the window, which is only exact if the layout is affine
+// over the tile: checked along every row and every 8-element column vector of the tile (the
+// padded row-major layouts the Tdm pipelines use are; an xor-swizzled one is not and fails here).
+// The warp windows of a gemm start at (i * kOriginRowStep, i * kOriginColStep) of its Lds view, i <
+// kNumOrigins (one window per warp along M or N; cur/next buffers differ by data pointer), and the
+// check is made from each of these origins.
+template <typename BottomTensorView,
+          index_t kTileRows,
+          index_t kTileCols,
+          index_t kRow,
+          index_t kCol,
+          index_t kNumOrigins    = 1,
+          index_t kOriginRowStep = 0,
+          index_t kOriginColStep = 0>
+CK_TILE_HOST_DEVICE constexpr index_t GetLdsAffineStepOffset()
+{
+    using Desc = remove_cvref_t<decltype(BottomTensorView{}.get_tensor_descriptor())>;
+
+    // a default-constructed descriptor with run-time lengths/strides would give all-zero offsets
+    static_assert(Desc::is_static(), "the step offset folding needs a compile-time Lds layout");
+    static_assert(!Desc::template has_transform<coord_transform_enum::xor_t>(),
+                  "the step offset folding needs an unswizzled Lds layout");
+
+    constexpr auto offset_at = [](index_t r, index_t c) constexpr {
+        return BottomTensorView{}.get_tensor_descriptor().calculate_offset(make_multi_index(r, c));
+    };
+
+    constexpr index_t offset = offset_at(kRow, kCol) - offset_at(0, 0);
+
+    constexpr bool is_affine = [=]() constexpr {
+        bool ok = true;
+        for(index_t i = 0; i < kNumOrigins; ++i)
+        {
+            const index_t r0 = i * kOriginRowStep;
+            const index_t c0 = i * kOriginColStep;
+            const index_t r1 = r0 + kTileRows - 1;
+            const index_t c1 = c0 + kTileCols - 1;
+            for(index_t r = r0; r <= r1; ++r)
+                ok = ok && offset_at(kRow + r, kCol + c0) - offset_at(r, c0) == offset &&
+                     offset_at(kRow + r, kCol + c1) - offset_at(r, c1) == offset;
+            for(index_t c = c0; c <= c1; c += 8)
+                ok = ok && offset_at(kRow + r0, kCol + c) - offset_at(r0, c) == offset &&
+                     offset_at(kRow + r1, kCol + c) - offset_at(r1, c) == offset;
+        }
+        return ok;
+    }();
+
+    static_assert(is_affine, "the Lds layout is not affine over a warp tile step");
+
+    // The offset goes into the 16-bit (bytes) ds_load immediate, for the ds_load_tr reads together
+    // with the access offsets inside the warp tile; beyond that it would cost a VALU add per load.
+    static_assert((offset_at(kRow + kTileRows - 1, kCol + kTileCols - 1) - offset_at(0, 0)) *
+                          sizeof(typename BottomTensorView::DataType) <
+                      65536,
+                  "the step offset does not fit the 16-bit ds_load immediate");
+
+    return offset;
+}
+
+// Whether the Lds layout of BottomTensorView is linear over the kTileRows x kTileCols warp tile at
+// (kRow, kCol) of every warp window (origins as in GetLdsAffineStepOffset()), checked element by
+// element: offset(row, col) == row * offset(1, 0) + col * offset(0, 1), with offset(0, 0) == 0.
+// load_tile_transpose_with_offset() with static_move_ys = true adds the offset of each access
+// inside the warp tile, taken from (0, 0), to the lane's address instead of moving the lane's
+// coordinate, which is exact only on such a layout (a row-major layout padded after every row is
+// one; one padded every few rows, or within a row, is not).
+template <typename BottomTensorView,
+          index_t kTileRows,
+          index_t kTileCols,
+          index_t kRow,
+          index_t kCol,
+          index_t kNumOrigins    = 1,
+          index_t kOriginRowStep = 0,
+          index_t kOriginColStep = 0>
+CK_TILE_HOST_DEVICE constexpr bool IsLdsLinearOverTile()
+{
+    using Desc = remove_cvref_t<decltype(BottomTensorView{}.get_tensor_descriptor())>;
+
+    static_assert(Desc::is_static(), "the linearity check needs a compile-time Lds layout");
+
+    constexpr auto offset_at = [](index_t r, index_t c) constexpr {
+        return BottomTensorView{}.get_tensor_descriptor().calculate_offset(make_multi_index(r, c));
+    };
+
+    constexpr index_t row_step = offset_at(1, 0) - offset_at(0, 0);
+    constexpr index_t col_step = offset_at(0, 1) - offset_at(0, 0);
+
+    bool ok = offset_at(0, 0) == 0;
+    for(index_t i = 0; i < kNumOrigins; ++i)
+        for(index_t r = 0; r < kTileRows; ++r)
+            for(index_t c = 0; c < kTileCols; ++c)
+            {
+                const index_t row = i * kOriginRowStep + kRow + r;
+                const index_t col = i * kOriginColStep + kCol + c;
+                ok                = ok && offset_at(row, col) == row * row_step + col * col_step;
+            }
+    return ok;
+}
+
 template <index_t NumBuffers, index_t Rows, index_t Cols>
 CK_TILE_HOST_DEVICE constexpr auto MakeRowMajorLdsPlainBlockDescriptor()
 {
