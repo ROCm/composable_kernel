@@ -401,6 +401,20 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
             }
         };
 
+        // Without bias the softmax runs in the log2 domain: the pass right after gemm_0
+        // multiplies S by scale_s * log2e instead of scale_s, so m[] holds the row max in
+        // log2 units and every exp() becomes a bare exp2(), which drops the per-element
+        // log2e multiply of __expf. The m_old/m threshold is converted to log2 units and
+        // the LSE converted back with ln2. The bias path keeps its natural-log numerics.
+        const float s_scale = kHasBias ? scale_s : scale_s * log2e_v<float>;
+        const auto f_exp_s  = [&](CompDataType x) {
+            if constexpr(kHasBias)
+                return f_exp(x);
+            else if constexpr(std::is_same_v<CompDataType, float>)
+                return __builtin_amdgcn_exp2f(x);
+            else
+                return exp2(x);
+        };
         // true: rescale o_acc behind one wave-uniform branch; false: always multiply.
         // Measured on gfx1250: the branch wins on the M128 tiles (many kv-tiles per row, m
         // rarely moves after the first ones) and on the hdim256 M64 tile (256 o_acc columns
@@ -408,7 +422,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
         // calls run at the power limit and get a lower clock); always multiplying wins on the
         // other M64 tiles.
         constexpr bool kUniformRescale = (kM0 >= 128) || (kQKHeaddim == 256);
-        const auto m_keep_threshold    = type_convert<CompDataType>(-8.0f);
+        const auto m_keep_threshold =
+            type_convert<CompDataType>(kHasBias ? -8.0f : -8.0f * log2e_v<float>);
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
@@ -507,7 +522,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
             }
             else
             {
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
+                tile_elementwise_inout([s_scale](auto& x) { x = x * s_scale; }, pcomp_tile);
             }
 
             if(!mask.IsFullTileInsideMask(
@@ -568,7 +583,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
                 constexpr auto i_idx = make_tuple(idx0);
 
                 // use the m_old[i] as the m-for-stablization if m_old[i] - m[i] >= -8.0f
-                // and still keep the m-for-stablization in m[]; for m == -inf the
+                // and still keep the m-for-stablization in m[]
+                // (-8.0f in natural-log units, see m_keep_threshold); for m == -inf the
                 // difference is NaN and m stays -inf
                 const CompDataType m_new = m[i_idx];
                 m(i_idx) = (m_old[i_idx] - m_new >= m_keep_threshold) ? m_old[i_idx] : m_new;
@@ -578,7 +594,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    pcomp_tile(i_j_idx)    = f_exp(pcomp_tile[i_j_idx] - m_sub);
+                    pcomp_tile(i_j_idx)    = f_exp_s(pcomp_tile[i_j_idx] - m_sub);
                 });
             });
 
@@ -597,7 +613,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
                 constexpr auto i_idx = make_tuple(idx0);
 
                 const bool rescale = m[i_idx] > m_old[i_idx];
-                const auto tmp     = f_exp(m_old[i_idx] - m[i_idx]);
+                const auto tmp     = f_exp_s(m_old[i_idx] - m[i_idx]);
                 o_scale(i_idx)     = rescale ? tmp : CompDataType{1};
                 l(i_idx)           = o_scale[i_idx] * l[i_idx] + rowsum_p[i_idx];
                 any_rescale        = any_rescale || rescale;
@@ -673,10 +689,12 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
             constexpr auto lse_or_lse_acc_spans = decltype(lse_or_lse_acc)::get_distributed_spans();
             sweep_tile_span(lse_or_lse_acc_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
+                // m[] is in log2 units without bias, see s_scale
+                constexpr float m_to_ln = kHasBias ? 1.0f : 0.693147180559945309f;
                 // a row with m == -inf stores -inf whatever its l is (see the final normalization)
                 lse_or_lse_acc(i_idx) = (m_[i_idx] == -numeric<CompDataType>::infinity())
                                             ? -numeric<CompDataType>::infinity()
-                                            : m_[i_idx] + log(l_[i_idx]);
+                                            : m_[i_idx] * m_to_ln + log(l_[i_idx]);
             });
 
             store_tile(lse_or_lse_acc_dram_block_window, lse_or_lse_acc);
