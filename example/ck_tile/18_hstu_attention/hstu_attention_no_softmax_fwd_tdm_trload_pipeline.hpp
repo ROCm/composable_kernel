@@ -369,6 +369,45 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
             }
         };
 
+        // No-bias path, hdim128 (kTanhSilu): with t = 0.5 * scale_s * x,
+        //   silu(scale_s * x) * scale_p = scale_p * (t + t * tanh(t)),
+        // i.e. one v_tanh_f32 plus one fma per element; for large negative t the fma
+        // cancels to 0.
+        // No-bias path, hdim64/96: with t = -scale_s * log2e * x,
+        //   silu(scale_s * x) * scale_p = (-ln2 * scale_p) * t / (1 + exp2(t)).
+        // Either way the pass right after gemm_0 multiplies by silu_t_scale instead of
+        // scale_s, and f_silu_t multiplies by p_scale before P is converted to bf16, so P is
+        // rounded at the same scale as silu(scale_s * x) * scale_p (the bf16 rounding of P is
+        // only scale-invariant for power-of-two scales). A masked element is set to 0 after
+        // the pass and still yields exactly 0 (also for scale_s == 0).
+        // hdim256 (kFoldSiluScales false) keeps scale_s, f_silu and the separate scale_p pass:
+        // with the scales folded the compiler pads half of the WMMAs of its kv loop with v_nop
+        // (register hazards), and the long hdim256 calls, which run at the gfx1250 power limit,
+        // were measured 1.14x slower (MI450, batch 32, seqlen 16364).
+        constexpr bool kTanhSilu       = (kQKHeaddim == 128);
+        constexpr bool kFoldSiluScales = (kQKHeaddim != 256);
+        const float silu_t_scale       = !kFoldSiluScales ? scale_s
+                                         : kTanhSilu      ? 0.5f * scale_s
+                                                          : -scale_s * log2e_v<float>;
+        const float p_scale            = kTanhSilu ? scale_p : -scale_p / log2e_v<float>;
+        const auto f_silu_t            = [p_scale](CompDataType& t) {
+            if constexpr(std::is_same_v<CompDataType, float>)
+            {
+                if constexpr(kTanhSilu)
+                    t = __builtin_fmaf(t, __builtin_amdgcn_tanhf(t), t) * p_scale;
+                else
+                    t = t * __builtin_amdgcn_rcpf(1.0f + __builtin_amdgcn_exp2f(t)) * p_scale;
+            }
+            else
+            {
+                const auto one = ck_tile::type_convert<CompDataType>(1.0f);
+                if constexpr(kTanhSilu)
+                    t = t * (one + tanh(t)) * type_convert<CompDataType>(p_scale);
+                else
+                    t = t / (one + exp2(t)) * type_convert<CompDataType>(p_scale);
+            }
+        };
+
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -465,7 +504,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
             }
             else
             {
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
+                tile_elementwise_inout([silu_t_scale](auto& x) { x = x * silu_t_scale; },
+                                       pcomp_tile);
             }
 
             if(!mask.IsFullTileInsideMask(
@@ -501,9 +541,13 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
                     sweep_mask(bool_constant<false>{});
             }
 
-            tile_elementwise_inout(f_silu, pcomp_tile);
-
-            detail::scale_tile_in_pack(pcomp_tile, scale_p);
+            if constexpr(kHasBias || !kFoldSiluScales)
+            {
+                tile_elementwise_inout(f_silu, pcomp_tile);
+                detail::scale_tile_in_pack(pcomp_tile, scale_p);
+            }
+            else
+                tile_elementwise_inout(f_silu_t, pcomp_tile);
 
             seqlen_k_curr += kN0;
 
