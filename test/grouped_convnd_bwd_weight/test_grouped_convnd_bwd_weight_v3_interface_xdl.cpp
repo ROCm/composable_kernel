@@ -228,7 +228,7 @@ TYPED_TEST(TestGroupedConvndBwdWeightV3DefaultPipeV2, PrefetchStagesCheck)
     this->split_ks   = {64};
 
     bool is_supported = this->template Run<2>();
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported())
     {
         EXPECT_FALSE(is_supported);
     }

@@ -66,7 +66,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                         const BElementwiseOperation b_element_op,
                                         const CDEElementwiseOperation cde_element_op)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
     constexpr auto epilogue_type =
         GridwiseGemm::IsBWaveTransferApplicable && GridwiseGemm::UseDirectStore
             ? EpilogueType::DirectStore
@@ -209,7 +209,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = cde_element_op;
-#endif // end of if (defined(__gfx11__) || defined(__gfx12__))
+#endif // end of if (defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
 }
 
 template <typename ALayout,
@@ -491,14 +491,14 @@ struct DeviceGroupedGemmMultipleD_Wmma_CShuffle_TileLoop_V3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported() && !ck::is_gfx117_supported())
         {
             return false;
         }
         if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
                      std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
         {
-            if(ck::is_gfx11_supported())
+            if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
             {
                 return false;
             }

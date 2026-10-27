@@ -182,7 +182,8 @@ class TestGroupedGemm : public testing::Test
         // instances for it so we disable it entirely
         constexpr bool require_16bit_atomic_add =
             std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>;
-        bool missing_atomic_add = require_16bit_atomic_add && ck::is_gfx11_supported();
+        bool missing_atomic_add =
+            require_16bit_atomic_add && (ck::is_gfx11_supported() || ck::is_gfx117_supported());
 
         // CDE element operators are not supported in combination with split K
         constexpr bool has_cde_element_operator = !std::is_same_v<CDEElementOp, PassThrough>;

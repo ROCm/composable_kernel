@@ -51,7 +51,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                              const CElementwiseOperation c_element_op,
                              const Block2CTileMap block_2_ctile_map)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
     __shared__ char p_shared[GridwiseGemm::SharedMemTrait::lds_size];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -80,7 +80,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     ignore = b_element_op;
     ignore = c_element_op;
     ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx11__))
+#endif // end of if (defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
 }
 
 // Assume B is Col-Major
@@ -309,7 +309,7 @@ struct GridwiseFpAintBGemm_Wmma
                 // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
                 constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
                 constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
                 constexpr auto A_KRow = I2;
 #else
                 constexpr auto A_KRow = I1;
@@ -379,7 +379,7 @@ struct GridwiseFpAintBGemm_Wmma
                 // BK0_N_BK1 -> BK0_NRepeat_Nwaves_NPerWmma_BK1
                 constexpr auto B_K0 = BBlockDesc_{}.GetLength(I0);
                 constexpr auto B_K1 = BBlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
                 constexpr auto B_KRow = I2;
 #else
                 constexpr auto B_KRow = I1;

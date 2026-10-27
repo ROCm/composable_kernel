@@ -48,7 +48,7 @@ struct WmmaTraits<gfx120_t, int8_t, int8_t, int32_t, 16, 16, 16>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
     {
-#ifdef __gfx120__
+#if defined(__gfx120__) || defined(__gfx117__)
         using P = WarpGemmParamsParser<Params...>;
         return __builtin_amdgcn_wmma_i32_16x16x16_iu8_w32_gfx12(true, // neg_a
                                                                 bit_cast<int32x2_t>(a_vec),
@@ -152,6 +152,14 @@ struct WmmaTraits<gfx120_t, bf8_t, fp8_t, float, 16, 16, 16>
         return CVecType{0.f};
 #endif
     }
+};
+
+// GFX117 specializations (reuse gfx120 WMMA instructions)
+template <>
+struct WmmaTraits<gfx117_t, int8_t, int8_t, int32_t, 16, 16, 16>
+    : WmmaTraits<gfx120_t, int8_t, int8_t, int32_t, 16, 16, 16>
+{
+    using ArchType = gfx117_t;
 };
 
 // iu8 specialization - GFX125

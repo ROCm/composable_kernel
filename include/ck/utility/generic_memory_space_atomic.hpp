@@ -111,7 +111,7 @@ __device__ double2_t atomic_add<double2_t>(double2_t* p_dst, const double2_t& x)
     return vy.template AsType<double2_t>()[I0];
 }
 
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
 template <>
 __device__ float8_t atomic_add<float8_t>(float8_t* p_dst, const float8_t& x)
 {
@@ -221,7 +221,7 @@ __device__ half8_t atomic_add<half8_t>(half8_t* p_dst, const half8_t& x)
 
     return vy.template AsType<half8_t>()[I0];
 }
-#endif // defined(__gfx11__)
+#endif // defined(__gfx11__) || defined(__gfx117__)
 
 // Caution: DO NOT REMOVE
 // intentionally have only declaration but no definition to cause compilation failure when trying to

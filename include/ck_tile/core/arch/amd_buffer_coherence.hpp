@@ -114,7 +114,7 @@ enum struct amd_buffer_coherence_enum
     slc     = SYSTEM_NT1,
     glc_slc = DEVICE_NT1 | SYSTEM_NT1,
     glc_dlc = DEVICE_NT1, // Required for template parsing (see GFX11 comment re: Two-Phase Lookup)
-#elif defined(__gfx11__)
+#elif defined(__gfx11__) || defined(__gfx117__)
     glc     = 1,
     slc     = 2,
     dlc     = 4,

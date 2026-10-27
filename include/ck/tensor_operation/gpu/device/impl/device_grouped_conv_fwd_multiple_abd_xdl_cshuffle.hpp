@@ -110,7 +110,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffsetOfG compute_ptr_offset_of_groups,
         const ComputePtrOffsetOfN compute_ptr_offset_of_n)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         // offset base pointer for each work-group

@@ -57,7 +57,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                       const BElementwiseOperation b_element_op,
                                       const CDEElementwiseOperation cde_element_op)
 {
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     constexpr auto epilogue_type =
         GridwiseGemm::IsBWaveTransferApplicable && GridwiseGemm::UseDirectStore
             ? EpilogueType::DirectStore
@@ -85,8 +85,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     if(karg.M == 0 || karg.N == 0 || karg.K == 0)
         return;
 
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+#if defined(__gfx11__) || defined(__gfx117__)
+    // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
     if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<typename GridwiseGemm::EDataType_, ck::half_t> ||
                     std::is_same_v<typename GridwiseGemm::EDataType_, ck::bhalf_t>)))
@@ -568,7 +568,7 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported() && !ck::is_gfx117_supported())
         {
             return false;
         }

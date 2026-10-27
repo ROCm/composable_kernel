@@ -102,7 +102,7 @@ template<> struct Dispatcher<half_t, half_t, float, 16, 16, 32,  true, false, fa
 template<> struct Dispatcher<half_t, half_t, float,  4, 64, 16, false> { using Type = WarpGemmMfmaF16F16F32M4N64K16; };
 template<> struct Dispatcher<half_t, half_t, float, 64,  4, 16, false> { using Type = WarpGemmMfmaF16F16F32M64N4K16; };
 // WMMA cases
-#if defined(__gfx11__) || defined(__gfx120__)
+#if defined(__gfx11__) || defined(__gfx120__) || defined(__gfx117__)
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<half_t, half_t, float, 16, 16, 16, TransposeC, false, false, AttrNumAccess, AttrNumAccess>
     : WmmaTag { using Type = WarpGemmWmma_f32_16x16x16_f16_f16<TransposeC, AttrNumAccess>;};
 #else
@@ -154,7 +154,7 @@ template<> struct Dispatcher<bf16_t, bf16_t, float, 16, 16, 32,  true, false, fa
 template<> struct Dispatcher<bf16_t, bf16_t, float,  4, 64, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M4N64K16; };
 template<> struct Dispatcher<bf16_t, bf16_t, float, 64,  4, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M64N4K16; };
 // WMMA cases
-#if defined(__gfx11__) || defined(__gfx120__)
+#if defined(__gfx11__) || defined(__gfx120__) || defined(__gfx117__)
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<bf16_t, bf16_t, float, 16, 16, 16, TransposeC, false, false, AttrNumAccess, AttrNumAccess>
     : WmmaTag { using Type = WarpGemmWmma_f32_16x16x16_bf16_bf16<TransposeC, AttrNumAccess>; };
 #else

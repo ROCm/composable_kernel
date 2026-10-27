@@ -466,7 +466,7 @@ int main(int argc, char* argv[])
     }
 
     if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
-         ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+         ck::is_gfx11_supported() || ck::is_gfx117_supported() || ck::is_gfx12_supported()))
     {
         std::cout << "This kernel support gfx942, gfx950, gfx11 and gfx12 only" << std::endl;
     }

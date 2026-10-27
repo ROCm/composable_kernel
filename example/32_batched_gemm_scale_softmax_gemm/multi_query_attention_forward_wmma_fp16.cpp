@@ -291,7 +291,7 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm_
 
 int main(int argc, char* argv[])
 {
-    bool is_supported = ck::is_gfx11_supported();
+    bool is_supported = ck::is_gfx11_supported() || ck::is_gfx117_supported();
     if(!is_supported)
     {
         std::cout << "WARNING: wmma example not supported on the platform " << ck::get_device_name()

@@ -43,9 +43,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const typename ReduceTrait::ReduceAccElementwiseOperations_ reduce_out_element_ops,
         const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
+#if defined(__gfx11__) || defined(__gfx117__)
+    // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
     using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<e_data_type, ck::half_t> ||
@@ -106,7 +106,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg.b_element_op,
             karg.cde_element_op,
             epilogue_args);
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     }
 #endif
 #else
@@ -558,7 +558,7 @@ struct DeviceBatchedGemmReduce_Wmma_CShuffleV3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported() && !ck::is_gfx117_supported())
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -571,7 +571,7 @@ struct DeviceBatchedGemmReduce_Wmma_CShuffleV3
         if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
                      std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
         {
-            if(ck::is_gfx11_supported())
+            if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {

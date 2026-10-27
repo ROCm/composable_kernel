@@ -551,7 +551,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
         constexpr auto NumAccess = WGAttrNumAccessEnum::Default;
 #else
         constexpr auto NumAccess =

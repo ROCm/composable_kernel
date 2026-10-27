@@ -31,7 +31,7 @@ struct ABTransferThreadTilesPreShuffle
 
     static constexpr index_t KRepeat = KPerBlock / KPack;
 
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
     static constexpr auto KSubtileRepeat = I1;
 #else
     static constexpr auto KSubtileRepeat = I2;

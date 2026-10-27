@@ -139,7 +139,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
                                           index_t k_batch)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
-    defined(__gfx12__)
+    defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::IsValidCompilationParameter())
     {
         const index_t num_blocks_per_batch =

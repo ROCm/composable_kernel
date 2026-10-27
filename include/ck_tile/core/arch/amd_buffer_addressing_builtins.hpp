@@ -150,7 +150,7 @@ CK_TILE_DEVICE __amdgpu_buffer_rsrc_t cast_to_amdgpu_buffer_rsrc_t(int32x4_t res
 }
 #endif
 
-#if defined(__gfx12__) || defined(__gfx11__)
+#if defined(__gfx12__) || defined(__gfx11__) || defined(__gfx117__)
 #define READ_EXEC __builtin_amdgcn_read_exec_lo
 #define BUFFER_NULL_OFFSET " null "
 #define CMPX_LE_EXEC "v_cmpx_le_u32 "

@@ -264,7 +264,7 @@ bool run_grouped_conv(bool do_verification,
 int main(int argc, char* argv[])
 {
     // temp disable test on gfx11
-    if(ck::is_gfx11_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
     {
         return 0;
     }

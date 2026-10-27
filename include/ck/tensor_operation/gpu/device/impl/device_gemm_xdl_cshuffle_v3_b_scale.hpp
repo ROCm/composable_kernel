@@ -673,7 +673,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
             return false;
         }
 
-        if(is_gfx11_supported() && arg.KBatch > 1)
+        if((is_gfx11_supported() || is_gfx117_supported()) && arg.KBatch > 1)
         {
             return false;
         }

@@ -103,7 +103,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffsetOfN compute_ptr_offset_of_n,
         const index_t KBatch)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<OutElementOp>())
     {
         // offset base pointer for each work-group
@@ -1806,7 +1806,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         // gfx11 doesn't support float atomic
         // Todo: Enable splitK for gfx12
-        if((ck::is_gfx12_supported() || ck::is_gfx11_supported()) && arg.k_batch_ > 1)
+        if((ck::is_gfx12_supported() || ck::is_gfx11_supported() || ck::is_gfx117_supported()) &&
+           arg.k_batch_ > 1)
         {
             return false;
         }

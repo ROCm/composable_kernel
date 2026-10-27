@@ -59,7 +59,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
         const index_t num_k_per_block)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<EGlobalMemoryDataOperation>())
     {
         // offset base pointer for each work-group
@@ -224,7 +224,8 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
     ignore = compute_ptr_offset_of_batch;
     ignore = num_k_per_block;
 
-#endif // end of if (defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__))
+#endif // end of if (defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) ||
+       // defined(__gfx117__))
 }
 } // namespace
 
@@ -1093,7 +1094,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
             }
         }
 
-        if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
+        if((ck::is_gfx11_supported() || ck::is_gfx117_supported()) && arg.k_batch_ > 1)
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

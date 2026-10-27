@@ -33,7 +33,7 @@ class TestGroupedGemm
         // behaviour When compiling WMMA instances and WMMA is supported, then we'll fail if a
         // specific case is not supported
         this->fail_if_no_supported_instances_ =
-            ck::is_gfx11_supported() || ck::is_gfx12_supported();
+            ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported();
 #endif
     }
 };

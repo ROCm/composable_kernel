@@ -905,7 +905,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
         {
             return false;
         }
-        if(is_gfx11_supported() && arg.KBatch > 1)
+        if((is_gfx11_supported() || is_gfx117_supported()) && arg.KBatch > 1)
         {
             return false;
         }

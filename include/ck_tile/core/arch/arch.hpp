@@ -1338,7 +1338,7 @@ struct WaitcntLayoutLegacy
 // Select active layout
 #if defined(__gfx12__)
 using Waitcnt = WaitcntLayoutGfx12;
-#elif defined(__gfx11__)
+#elif defined(__gfx11__) || defined(__gfx117__)
 using Waitcnt = WaitcntLayoutGfx11;
 #else
 using Waitcnt = WaitcntLayoutLegacy;
@@ -1354,7 +1354,7 @@ struct waitcnt_arg
     CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0x3F; // 6 bits
     CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0x3F; // 6 bits
     CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0x0;  // none
-#elif defined(__gfx11__)
+#elif defined(__gfx11__) || defined(__gfx117__)
     CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0x3F; // 6 bits
     CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0x3F; // 6 bits
     CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0x07; // 3 bits

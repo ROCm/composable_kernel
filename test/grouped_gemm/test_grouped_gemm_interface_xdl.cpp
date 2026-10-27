@@ -112,7 +112,7 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, KLoops)
     EXPECT_FALSE(
         DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch));
 
-    if(!ck::is_gfx11_supported())
+    if(!(ck::is_gfx11_supported() || ck::is_gfx117_supported()))
     {
         Ks = std::vector<int>{256, 512, 768, 1536};
         EXPECT_TRUE(
