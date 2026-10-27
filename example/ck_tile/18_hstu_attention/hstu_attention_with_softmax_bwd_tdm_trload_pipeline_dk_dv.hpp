@@ -172,10 +172,6 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
         constexpr index_t m0_loops = Policy::template GetNumM0Loops<Problem>();
         constexpr index_t k1_loops = Policy::template GetNumK1Loops<Problem>();
 
-        constexpr auto NumQOGradPrefetches = 2;
-
-        static_assert(NumQOGradPrefetches <= m0_loops, "Check failed!");
-
         // ---- Tile type declarations ----
         using SaccBlockTileType      = decltype(gemm_0.template MakeCBlockTile<kM0Sub, kN0>());
         using PGradaccBlockTileType  = decltype(gemm_2.template MakeCBlockTile<kM0Sub, kN0>());
@@ -404,7 +400,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
             static_for<0, m0_loops, 1>{}([&](auto i_m0) {
                 s_wait_tensorcnt_barrier<0>();
 
-                __builtin_amdgcn_sched_barrier(0x00000001);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q_sub @ K
                 if(even_iter)
@@ -473,7 +469,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 });
             });
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
             if(even_iter)
             {
