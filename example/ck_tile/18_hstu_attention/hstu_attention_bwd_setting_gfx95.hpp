@@ -5,6 +5,7 @@
 
 #include <ck_tile/core.hpp>
 
+#include "hstu_attention_config.hpp"
 #include "hstu_attention_bwd_tile_setting_define.hpp"
 
 #if defined(BUILD_HSTU_FOR_GFX95)
@@ -38,7 +39,9 @@ using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub32_K1_32_silu =
 using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_64_Sub16_K1_32_softmax =
     ck_tile::sequence<64, 64, 16, 32, 256>;
 
-template <ck_tile::index_t MaxK, bool kUseSoftmax>
+template <ck_tile::index_t MaxK,
+          bool kUseSoftmax,
+          HstuBwdPipelineKind kPipelineKind = HstuFwdPipelineKind::TrLoad>
 static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
 {
     if constexpr(MaxK == 64)
@@ -133,7 +136,9 @@ using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub16_K1_32 =
 using HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_32 =
     ck_tile::sequence<32, 64, 16, 32, 256>;
 
-template <ck_tile::index_t MaxK, bool kUseSoftmax>
+template <ck_tile::index_t MaxK,
+          bool kUseSoftmax,
+          HstuBwdPipelineKind kPipelineKind = HstuFwdPipelineKind::TrLoad>
 static constexpr auto GetHstuAttentionBwdKernel2TileSetting()
 {
     if constexpr(MaxK == 64)

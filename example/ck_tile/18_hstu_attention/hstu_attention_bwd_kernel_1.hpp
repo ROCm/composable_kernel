@@ -905,30 +905,64 @@ struct HstuAttentionBwdKernel1
         }();
 
         const auto k_dram = [&]() {
-            const auto naive = make_naive_tensor_view<address_space_enum::global>(
+            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
                 make_tuple(kargs.seqlen_kv, kargs.hdim_qk),
                 make_tuple(kargs.seq_stride_k, 1),
                 number<HstuAttentionBwdPipeline::kAlignmentK>{},
                 number<1>{});
-            return pad_tensor_view(naive,
-                                   make_tuple(number<HstuAttentionBwdPipeline::kN0>{},
-                                              number<HstuAttentionBwdPipeline::kQKHeaddim>{}),
-                                   sequence<false, kPadHeadDimQK>{});
+
+            if constexpr(detail::is_using_tdm_v<HstuAttentionBwdPipeline>)
+            {
+                return k_dram_naive;
+            }
+            else
+            {
+                const auto k_dram_pad =
+                    pad_tensor_view(k_dram_naive,
+                                    make_tuple(number<HstuAttentionBwdPipeline::kN0>{},
+                                               number<HstuAttentionBwdPipeline::kQKHeaddim>{}),
+                                    sequence<false, kPadHeadDimQK>{});
+
+                if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionBwdPipeline>)
+                    return detail::make_direct_lds_xor_dram_view<
+                        HstuAttentionBwdPipeline::kQKHeaddim,
+                        HstuAttentionBwdPipeline::Policy::template GetKDirectLdsSwizzleUnit<
+                            typename HstuAttentionBwdPipeline::Problem>()>(k_dram_pad);
+                else
+                    return k_dram_pad;
+            }
         }();
 
         // V stored as [seqlen_kv, hdim_v]; tile shape [kN0, kVHeaddim]
         const auto v_dram = [&]() {
-            const auto naive = make_naive_tensor_view<address_space_enum::global>(
+            const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
                 make_tuple(kargs.seqlen_kv, kargs.hdim_v),
                 make_tuple(kargs.seq_stride_v, 1),
                 number<HstuAttentionBwdPipeline::kAlignmentV>{},
                 number<1>{});
-            return pad_tensor_view(naive,
-                                   make_tuple(number<HstuAttentionBwdPipeline::kN0>{},
-                                              number<HstuAttentionBwdPipeline::kVHeaddim>{}),
-                                   sequence<false, kPadHeadDimV>{});
+
+            if constexpr(detail::is_using_tdm_v<HstuAttentionBwdPipeline>)
+            {
+                return v_dram_naive;
+            }
+            else
+            {
+                const auto v_dram_pad =
+                    pad_tensor_view(v_dram_naive,
+                                    make_tuple(number<HstuAttentionBwdPipeline::kN0>{},
+                                               number<HstuAttentionBwdPipeline::kVHeaddim>{}),
+                                    sequence<false, kPadHeadDimV>{});
+
+                if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionBwdPipeline>)
+                    return detail::make_direct_lds_xor_dram_view<
+                        HstuAttentionBwdPipeline::kVHeaddim,
+                        HstuAttentionBwdPipeline::Policy::template GetVDirectLdsSwizzleUnit<
+                            typename HstuAttentionBwdPipeline::Problem>()>(v_dram_pad);
+                else
+                    return v_dram_pad;
+            }
         }();
 
         // dO -- [seqlen_q_in_ctrl, hdim_v]; tile shape [kM0, kVHeaddim]

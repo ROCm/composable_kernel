@@ -371,6 +371,50 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         return BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
     }
 
+    template <typename Problem, bool kUseTrLoad = false>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSGradKTWarpGemmBScalarPerVector()
+    {
+        using BlockGemm = remove_cvref_t<decltype(GetSGradKTBlockGemm<Problem, kUseTrLoad>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        using BEncoding = typename WG::BWarpDstrEncoding;
+
+        if constexpr(kUseTrLoad)
+        {
+            using BEncodingForTrLoad =
+                typename InputTileDistributionTraits<BEncoding, typename BlockGemm::BDataType>::
+                    TransposedDstrEncode;
+
+            return BEncodingForTrLoad::detail::ys_lengths_[BEncoding::NDimY - 1];
+        }
+        else
+        {
+            return BEncoding::detail::ys_lengths_[BEncoding::NDimY - 1];
+        }
+    };
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetKDirectLdsSwizzleUnit()
+    {
+        // On gfx950, ScalarPerVector for trload read could be smaller than ScalarPerVector
+        // for normal read, and AlignmentK could also be smaller since the tile divided by
+        // whole work-group when loading from Dram. So here we use the lcm of the three
+        // values as swizzle unit
+        return lcm(GetAlignmentK<Problem>(),
+                   lcm(GetQKWarpGemmBScalarPerVector<Problem>(),
+                       GetSGradKTWarpGemmBScalarPerVector<Problem, true /*kUseTrLoad */>()));
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVDirectLdsSwizzleUnit()
+    {
+        // AlignmentK could also be smaller than ScalarPerVector of normal read since the
+        // tile divided by whole work-group when loading from Dram. So here we use the lcm
+        // of the three values as swizzle unit
+        return lcm(GetAlignmentV<Problem>(), GetOGradVWarpGemmBScalarPerVector<Problem>());
+    }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
     {
@@ -385,7 +429,10 @@ struct HstuAttentionBwdKernel1PipelinePolicy
 
 #if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // K LDS descriptor: NumKVLdsBuffers * [kN0Sub, kQKHeaddim]
-    template <typename Problem, bool kUseTrLoad = false>
+    template <typename Problem,
+              bool kUseTrLoad    = false,
+              bool kUseDirectLds = false,
+              bool kUseXor       = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t NumBuffers =
@@ -394,7 +441,36 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
         constexpr index_t kKVector   = GetAlignmentK<Problem>();
 
-        if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
+        if constexpr(kUseDirectLds)
+        {
+            static_assert(kUseTrLoad, "Check failed!");
+
+            if constexpr(kUseXor) // true, used for reading from Lds
+            {
+                constexpr index_t kSwizzleUnit = GetKDirectLdsSwizzleUnit<Problem>();
+
+                constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
+                                                                                  NumBuffers,
+                                                                                  kNPerBlock,
+                                                                                  kKPerBlock,
+                                                                                  kSwizzleUnit>();
+
+                // merge: NumBuffers * [kN0Sub, kQKHeaddim] -> [kN0, kQKHeaddim]
+                return transform_tensor_descriptor(
+                    desc_native,
+                    make_tuple(make_merge_transform(
+                                   make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
+                               make_pass_through_transform(number<kKPerBlock>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else // false, used for direct-lds writing to Lds
+            {
+                return detail::
+                    MakeRowMajorLdsPlainBlockDescriptor<NumBuffers, kNPerBlock, kKPerBlock>();
+            }
+        }
+        else if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
             constexpr index_t SingleBufferSize = kNPerBlock * kKPerBlock;
 
@@ -554,7 +630,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
 
 #if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // V LDS descriptor: NumKVLdsBuffers * [kN0Sub, kVHeaddim]
-    template <typename Problem>
+    template <typename Problem, bool kUseDirectLds = false, bool kUseXor = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
         constexpr index_t NumBuffers = GetNumKVLdsBuffers<Problem>();
@@ -563,7 +639,34 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         constexpr index_t kKPack     = GetSmemKPackV<Problem>();
         constexpr index_t kKVector   = GetAlignmentV<Problem>();
 
-        if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
+        if constexpr(kUseDirectLds)
+        {
+            if constexpr(kUseXor) // true, used for reading from Lds
+            {
+                constexpr index_t kSwizzleUnit = GetVDirectLdsSwizzleUnit<Problem>();
+
+                constexpr auto desc_native = detail::MakeSimplySwizzledNativeDesc<Problem,
+                                                                                  NumBuffers,
+                                                                                  kNPerBlock,
+                                                                                  kKPerBlock,
+                                                                                  kSwizzleUnit>();
+
+                // merge: NumBuffers * [kN0Sub, kVHeaddim] -> [kN0, kVHeaddim]
+                return transform_tensor_descriptor(
+                    desc_native,
+                    make_tuple(make_merge_transform(
+                                   make_tuple(number<NumBuffers>{}, number<kNPerBlock>{})),
+                               make_pass_through_transform(number<kKPerBlock>{})),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }
+            else // false, used for direct-lds writing to Lds
+            {
+                return detail::
+                    MakeRowMajorLdsPlainBlockDescriptor<NumBuffers, kNPerBlock, kKPerBlock>();
+            }
+        }
+        else if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
             constexpr index_t SingleBufferSize = kNPerBlock * kKPerBlock;
 
@@ -743,11 +846,31 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     // K and V use separate LDS regions (Gemm0 and Gemm2 run in separate loops).
     // -------------------------------------------------------------------------
 #if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-    template <typename Problem, bool kUseTrLoad = false>
+    template <typename Problem, bool kUseTrLoad = false, bool kUseDirectLds = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeK()
     {
-        return MakeKLdsBlockDescriptor<Problem, kUseTrLoad>().get_element_space_size() *
+        // for kUseDirectLds = true,  kUseXor = true/false does not affect the k-lds space size
+        return MakeKLdsBlockDescriptor<Problem, kUseTrLoad, kUseDirectLds>()
+                   .get_element_space_size() *
                sizeof(typename Problem::QKVDataType);
+    }
+
+    template <typename Problem, bool kUseDirectLds = false>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeV()
+    {
+        if constexpr(kUseDirectLds)
+        {
+            // for kUseDirectLds = true,  kUseXor = true/false does not affect the k-lds space size
+            return MakeVLdsBlockDescriptor<Problem, true /*kUseDirectLds*/>()
+                       .get_element_space_size() *
+                   sizeof(typename Problem::QKVDataType);
+        }
+        else
+        {
+            return MakeVLdsBlockDescriptor<Problem, false /*kUseDirectLds*/>()
+                       .get_element_space_size() *
+                   sizeof(typename Problem::QKVDataType);
+        }
     }
 #else
     template <typename Problem>
@@ -756,7 +879,6 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         return MakeKLdsBlockDescriptor<Problem>().get_element_space_size() *
                sizeof(typename Problem::QKVDataType);
     }
-#endif
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeV()
@@ -764,6 +886,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         return MakeVLdsBlockDescriptor<Problem>().get_element_space_size() *
                sizeof(typename Problem::QKVDataType);
     }
+#endif
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeKT()
@@ -799,7 +922,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
 
 #if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // Total smem: k_lds + v_lds + kt_lds
-    template <typename Problem, bool kUseTrLoad = false>
+    template <typename Problem, bool kUseTrLoad = false, bool kUseDirectLds = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         if constexpr(!kUseTrLoad)
@@ -811,8 +934,19 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         }
         else
         {
-            return GetSmemSizeK<Problem, kUseTrLoad>() + GetSmemSizeV<Problem>() +
-                   GetSmemSizeDropout<Problem>();
+            if constexpr(kUseDirectLds)
+            {
+                // k_lds is ping-pong double-buffered (two regions); v_lds is a single circular
+                // buffer (NumKVLdsBuffers slots inside one region), so V is counted once.
+                return GetSmemSizeK<Problem, kUseTrLoad, true /*kUseDirectLds*/>() * 2 +
+                       GetSmemSizeV<Problem, true /*kUseDirectLds*/>() +
+                       GetSmemSizeDropout<Problem>();
+            }
+            else
+            {
+                return GetSmemSizeK<Problem, kUseTrLoad>() + GetSmemSizeV<Problem>() +
+                       GetSmemSizeDropout<Problem>();
+            }
         }
     }
 #else

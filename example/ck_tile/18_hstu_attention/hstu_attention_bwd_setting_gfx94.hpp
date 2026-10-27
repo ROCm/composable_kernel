@@ -5,6 +5,7 @@
 
 #include <ck_tile/core.hpp>
 
+#include "hstu_attention_config.hpp"
 #include "hstu_attention_bwd_tile_setting_define.hpp"
 
 #if defined(BUILD_HSTU_FOR_GFX94)
@@ -33,7 +34,9 @@ using HstuAttentionBwdKernel1BlockTile_Hdim128_M128_N0_32_Sub16_K1_16_softmax =
 using HstuAttentionBwdKernel1BlockTile_Hdim256_M64_N0_32_Sub16_K1_16 =
     ck_tile::sequence<64, 32, 16, 16, 256>;
 
-template <ck_tile::index_t MaxK, bool kUseSoftmax>
+template <ck_tile::index_t MaxK,
+          bool kUseSoftmax,
+          HstuBwdPipelineKind kPipelineKind = HstuFwdPipelineKind::TrLoad>
 static constexpr auto GetHstuAttentionBwdKernel1TileSetting()
 {
     // NoSoftmax and WithSoftmax share the same Kernel1 block tiles on gfx94.
@@ -110,7 +113,9 @@ using HstuAttentionBwdKernel2BlockTile_Hdim128_M0_32_N64_Sub32_K1_16_softmax =
 using HstuAttentionBwdKernel2BlockTile_Hdim256_M0_32_N64_Sub16_K1_16 =
     ck_tile::sequence<32, 64, 16, 16, 256>;
 
-template <ck_tile::index_t MaxK, bool kUseSoftmax>
+template <ck_tile::index_t MaxK,
+          bool kUseSoftmax,
+          HstuBwdPipelineKind kPipelineKind = HstuFwdPipelineKind::TrLoad>
 static constexpr auto GetHstuAttentionBwdKernel2TileSetting()
 {
     if constexpr(MaxK == 64)

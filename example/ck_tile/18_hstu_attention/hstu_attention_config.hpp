@@ -80,3 +80,20 @@ constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
     return HstuFwdPipelineKind::Default;
 #endif
 }
+
+using HstuBwdPipelineKind = HstuFwdPipelineKind;
+
+template <ck_tile::index_t MaxK, bool kHdimPadded>
+constexpr HstuBwdPipelineKind get_hstu_bwd_pipeline_kind()
+{
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+    return HstuBwdPipelineKind::TdmTrLoad;
+#elif HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
+    if constexpr(!kHdimPadded && MaxK != 96)
+        return HstuBwdPipelineKind::DirectLdsTrLoad;
+    else
+        return HstuBwdPipelineKind::TrLoad;
+#else
+    return HstuBwdPipelineKind::Default;
+#endif
+}

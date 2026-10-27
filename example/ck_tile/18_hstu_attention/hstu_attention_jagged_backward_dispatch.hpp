@@ -18,18 +18,27 @@
 #include "hstu_attention_hdim_switch.hpp"
 #include "hstu_attention_bwd_pipeline_problem.hpp"
 #include "hstu_attention_bwd_pipeline_traits.hpp"
+// default pipelines
 #include "hstu_attention_no_softmax_bwd_pipeline_dq.hpp"
 #include "hstu_attention_with_softmax_bwd_pipeline_dq_delta.hpp"
 #include "hstu_attention_no_softmax_bwd_pipeline_dk_dv.hpp"
 #include "hstu_attention_with_softmax_bwd_pipeline_dk_dv.hpp"
+// trload pipelines
 #include "hstu_attention_no_softmax_bwd_trload_pipeline_dq.hpp"
 #include "hstu_attention_with_softmax_bwd_trload_pipeline_dq_delta.hpp"
 #include "hstu_attention_no_softmax_bwd_trload_pipeline_dk_dv.hpp"
 #include "hstu_attention_with_softmax_bwd_trload_pipeline_dk_dv.hpp"
+// tdm_trload pipelines
 #include "hstu_attention_no_softmax_bwd_tdm_trload_pipeline_dq.hpp"
 #include "hstu_attention_with_softmax_bwd_tdm_trload_pipeline_dq_delta.hpp"
 #include "hstu_attention_no_softmax_bwd_tdm_trload_pipeline_dk_dv.hpp"
 #include "hstu_attention_with_softmax_bwd_tdm_trload_pipeline_dk_dv.hpp"
+// direct_lds_trload pipelines
+#include "hstu_attention_no_softmax_bwd_direct_lds_trload_pipeline_dq.hpp"
+#include "hstu_attention_with_softmax_bwd_direct_lds_trload_pipeline_dq_delta.hpp"
+#include "hstu_attention_no_softmax_bwd_direct_lds_trload_pipeline_dk_dv.hpp"
+#include "hstu_attention_with_softmax_bwd_direct_lds_trload_pipeline_dk_dv.hpp"
+
 #include "hstu_attention_bwd_kernel_1.hpp"
 #include "hstu_attention_bwd_kernel_2.hpp"
 #include "hstu_attention_epilogue.hpp"
@@ -43,25 +52,17 @@ template <typename InOutDataType,
           bool kUseSoftmax,
           bool kHasBias,
           bool kHasDropout,
+          bool kHdimPadded,
           ck_tile::index_t MaxK>
 struct jagged_backward_dispatch
 {
+    static constexpr HstuBwdPipelineKind kPipelineKind =
+        get_hstu_bwd_pipeline_kind<MaxK, kHdimPadded>();
+
     using HstuAttentionTileSettingForKernel1 =
-        decltype(GetHstuAttentionBwdKernel1TileSetting<MaxK, kUseSoftmax>());
+        decltype(GetHstuAttentionBwdKernel1TileSetting<MaxK, kUseSoftmax, kPipelineKind>());
     using HstuAttentionTileSettingForKernel2 =
-        decltype(GetHstuAttentionBwdKernel2TileSetting<MaxK, kUseSoftmax>());
-
-#if HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
-    static constexpr bool use_trload_pipeline = true;
-#else
-    static constexpr bool use_trload_pipeline = false;
-#endif
-
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-    static constexpr bool use_tdm_pipeline = true;
-#else
-    static constexpr bool use_tdm_pipeline = false;
-#endif
+        decltype(GetHstuAttentionBwdKernel2TileSetting<MaxK, kUseSoftmax, kPipelineKind>());
 
     template <bool kIsCrossAttention>
     using HstuBwdBaseProblemTemp = ck_tile::HstuAttentionBwdPipelineBaseProblem<
@@ -103,72 +104,108 @@ struct jagged_backward_dispatch
         constexpr bool kPadSeqLenQ = false;
         constexpr bool kPadSeqLenK = true;
 
-        BOOL_SWITCH_2(pad_headdim_qk, kPadHeadDimQK, pad_headdim_v, kPadHeadDimV, [&] {
-            using HstuTraits = ck_tile::HstuAttentionBwdTraits<kPadSeqLenQ,
-                                                               kPadSeqLenK,
-                                                               kPadHeadDimQK,
-                                                               kPadHeadDimV,
-                                                               occupancy_k1,
-                                                               occupancy_k2>;
+        BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
+            using HstuPipelineProblemForKernel1 =
+                HstuBwdPipelineProblemForKernel1Temp<kIsCrossAttention>;
+            using HstuPipelineProblemForKernel2 =
+                HstuBwdPipelineProblemForKernel2Temp<kIsCrossAttention>;
 
-            using HstuEpilogue = ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
-                typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
-                InOutDataType,
-                kPadSeqLenQ,
-                kPadHeadDimQK>>;
+            if constexpr(kPipelineKind == HstuBwdPipelineKind::DirectLdsTrLoad)
+            {
+                using HstuTraits = ck_tile::HstuAttentionBwdTraits<kPadSeqLenQ,
+                                                                   kPadSeqLenK,
+                                                                   false /*kPadHeadDimQK*/,
+                                                                   false /*kPadHeadDimV*/,
+                                                                   occupancy_k1,
+                                                                   occupancy_k2>;
 
-            BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
-                using HstuPipelineProblemForKernel1 =
-                    HstuBwdPipelineProblemForKernel1Temp<kIsCrossAttention>;
-                using HstuPipelineProblemForKernel2 =
-                    HstuBwdPipelineProblemForKernel2Temp<kIsCrossAttention>;
+                using HstuEpilogue =
+                    ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                        typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
+                        InOutDataType,
+                        kPadSeqLenQ,
+                        false /*kPadHeadDimQK*/>>;
 
-                if constexpr(!use_trload_pipeline)
-                {
-                    using HstuPipelineKernel1 =
-                        std::conditional_t<kUseSoftmax,
-                                           ck_tile::HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D<
-                                               HstuPipelineProblemForKernel1,
-                                               HstuTraits>,
-                                           ck_tile::HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ<
-                                               HstuPipelineProblemForKernel1,
-                                               HstuTraits>>;
+                // we only use async_load_tile() for K/V/Q/OGrad when its maximum vector_size is
+                //  dwordx4 (ToDO: use dwordx3 when hdim is 96)
+                constexpr ck_tile::index_t k_vector_bytes =
+                    HstuPipelineProblemForKernel1::GetKDramTileAccessMaxVectorSize() *
+                    sizeof(InOutDataType);
+                constexpr ck_tile::index_t v_vector_bytes =
+                    HstuPipelineProblemForKernel1::GetVDramTileAccessMaxVectorSize() *
+                    sizeof(InOutDataType);
+                constexpr ck_tile::index_t q_vector_bytes =
+                    HstuPipelineProblemForKernel2::GetQDramTileAccessMaxVectorSize() *
+                    sizeof(InOutDataType);
+                constexpr ck_tile::index_t do_vector_bytes =
+                    HstuPipelineProblemForKernel2::GetOGradDramTileAccessMaxVectorSize() *
+                    sizeof(InOutDataType);
 
-                    using HstuPipelineKernel2 =
-                        std::conditional_t<kUseSoftmax,
-                                           ck_tile::HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV<
-                                               HstuPipelineProblemForKernel2,
-                                               HstuTraits>,
-                                           ck_tile::HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV<
-                                               HstuPipelineProblemForKernel2,
-                                               HstuTraits>>;
+                static_assert(k_vector_bytes == 4 * sizeof(int), "Check failed!");
+                static_assert(v_vector_bytes == 4 * sizeof(int), "Check failed!");
+                static_assert(q_vector_bytes == 4 * sizeof(int), "Check failed!");
+                static_assert(do_vector_bytes == 4 * sizeof(int), "Check failed!");
+                static_assert(MaxK != 96, "Check failed!");
 
-                    using HstuKernel1 =
-                        ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
-                    using HstuKernel2 =
-                        ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+                using HstuPipelineKernel1 = std::conditional_t<
+                    kUseSoftmax,
+                    ck_tile::HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ_D<
+                        HstuPipelineProblemForKernel1,
+                        HstuTraits>,
+                    ck_tile::HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ<
+                        HstuPipelineProblemForKernel1,
+                        HstuTraits>>;
 
-                    RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
-                }
-                else
-                {
-                    if constexpr(!use_tdm_pipeline)
+                using HstuPipelineKernel2 = std::conditional_t<
+                    kUseSoftmax,
+                    ck_tile::HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV<
+                        HstuPipelineProblemForKernel2,
+                        HstuTraits>,
+                    ck_tile::HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV<
+                        HstuPipelineProblemForKernel2,
+                        HstuTraits>>;
+
+                using HstuKernel1 =
+                    ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
+                using HstuKernel2 =
+                    ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+
+                RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
+            }
+            else
+            {
+                BOOL_SWITCH_2(pad_headdim_qk, kPadHeadDimQK, pad_headdim_v, kPadHeadDimV, [&] {
+                    using HstuTraits = ck_tile::HstuAttentionBwdTraits<kPadSeqLenQ,
+                                                                       kPadSeqLenK,
+                                                                       kPadHeadDimQK,
+                                                                       kPadHeadDimV,
+                                                                       occupancy_k1,
+                                                                       occupancy_k2>;
+
+                    using HstuEpilogue =
+                        ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                            typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
+                            InOutDataType,
+                            kPadSeqLenQ,
+                            kPadHeadDimQK>>;
+
+                    if constexpr(kPipelineKind == HstuBwdPipelineKind::Default)
                     {
                         using HstuPipelineKernel1 = std::conditional_t<
                             kUseSoftmax,
-                            ck_tile::HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D<
+                            ck_tile::HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D<
                                 HstuPipelineProblemForKernel1,
                                 HstuTraits>,
-                            ck_tile::HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ<
+                            ck_tile::HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ<
                                 HstuPipelineProblemForKernel1,
                                 HstuTraits>>;
 
                         using HstuPipelineKernel2 = std::conditional_t<
                             kUseSoftmax,
-                            ck_tile::HstuAttentionWithSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV<
+                            ck_tile::HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV<
                                 HstuPipelineProblemForKernel2,
                                 HstuTraits>,
-                            ck_tile::HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV<
+                            ck_tile::HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV<
                                 HstuPipelineProblemForKernel2,
                                 HstuTraits>>;
 
@@ -179,7 +216,7 @@ struct jagged_backward_dispatch
 
                         RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
                     }
-                    else
+                    else if constexpr(kPipelineKind == HstuBwdPipelineKind::TdmTrLoad)
                     {
                         using HstuPipelineKernel1 = std::conditional_t<
                             kUseSoftmax,
@@ -206,8 +243,35 @@ struct jagged_backward_dispatch
 
                         RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
                     }
-                }
-            });
+                    else
+                    {
+                        using HstuPipelineKernel1 = std::conditional_t<
+                            kUseSoftmax,
+                            ck_tile::HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D<
+                                HstuPipelineProblemForKernel1,
+                                HstuTraits>,
+                            ck_tile::HstuAttentionNoSoftmaxBwdTrLoadPipelineQRKSVS_dQ<
+                                HstuPipelineProblemForKernel1,
+                                HstuTraits>>;
+
+                        using HstuPipelineKernel2 = std::conditional_t<
+                            kUseSoftmax,
+                            ck_tile::HstuAttentionWithSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV<
+                                HstuPipelineProblemForKernel2,
+                                HstuTraits>,
+                            ck_tile::HstuAttentionNoSoftmaxBwdTrLoadPipelineKRVRQS_dK_dV<
+                                HstuPipelineProblemForKernel2,
+                                HstuTraits>>;
+
+                        using HstuKernel1 =
+                            ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
+                        using HstuKernel2 =
+                            ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+
+                        RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
+                    }
+                });
+            }
         });
     }
 
@@ -367,6 +431,15 @@ template <typename InOutDataType,
           ck_tile::index_t MaxK>
 void run_jagged_backward_dispatch(HstuAttentionNoGroupBwdParams& param, hipStream_t stream)
 {
-    jagged_backward_dispatch<InOutDataType, kUseCausal, kUseSoftmax, kHasBias, kHasDropout, MaxK>::
-        Run(param, stream);
+    const bool hdim_padded = (param.hdim_qk < MaxK || param.hdim_v < MaxK);
+
+    BOOL_SWITCH(hdim_padded, kHdimPadded, [&] {
+        jagged_backward_dispatch<InOutDataType,
+                                 kUseCausal,
+                                 kUseSoftmax,
+                                 kHasBias,
+                                 kHasDropout,
+                                 kHdimPadded,
+                                 MaxK>::Run(param, stream);
+    });
 }

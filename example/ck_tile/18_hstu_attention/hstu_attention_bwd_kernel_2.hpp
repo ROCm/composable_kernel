@@ -806,16 +806,33 @@ struct HstuAttentionBwdKernel2
 
         // ---- Q DRAM view [seqlen_q, hdim_qk] ----
         const auto q_dram = [&]() {
-            const auto naive = make_naive_tensor_view<address_space_enum::global>(
+            const auto q_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 q_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_qk),
                 make_tuple(kargs.seq_stride_q, 1),
                 number<HstuAttentionBwdPipeline::kAlignmentQ>{},
                 number<1>{});
-            return pad_tensor_view(naive,
-                                   make_tuple(number<HstuAttentionBwdPipeline::kM0>{},
-                                              number<HstuAttentionBwdPipeline::kQKHeaddim>{}),
-                                   sequence<false, kPadHeadDimQK>{});
+
+            if constexpr(detail::is_using_tdm_v<HstuAttentionBwdPipeline>)
+            {
+                return q_dram_naive;
+            }
+            else
+            {
+                const auto q_dram_pad =
+                    pad_tensor_view(q_dram_naive,
+                                    make_tuple(number<HstuAttentionBwdPipeline::kM0>{},
+                                               number<HstuAttentionBwdPipeline::kQKHeaddim>{}),
+                                    sequence<false, kPadHeadDimQK>{});
+
+                if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionBwdPipeline>)
+                    return detail::make_direct_lds_xor_dram_view<
+                        HstuAttentionBwdPipeline::kQKHeaddim,
+                        HstuAttentionBwdPipeline::Policy::template GetQDirectLdsSwizzleUnit<
+                            typename HstuAttentionBwdPipeline::Problem>()>(q_dram_pad);
+                else
+                    return q_dram_pad;
+            }
         }();
 
         // ---- K DRAM view [seqlen_kv, hdim_qk] -- loaded once into registers ----
@@ -848,16 +865,33 @@ struct HstuAttentionBwdKernel2
 
         // ---- dO DRAM view [seqlen_q, hdim_v] ----
         const auto do_dram = [&]() {
-            const auto naive = make_naive_tensor_view<address_space_enum::global>(
+            const auto do_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 do_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
                 make_tuple(kargs.seq_stride_do, 1),
                 number<HstuAttentionBwdPipeline::kAlignmentOGrad>{},
                 number<1>{});
-            return pad_tensor_view(naive,
-                                   make_tuple(number<HstuAttentionBwdPipeline::kM0>{},
-                                              number<HstuAttentionBwdPipeline::kVHeaddim>{}),
-                                   sequence<false, kPadHeadDimV>{});
+
+            if constexpr(detail::is_using_tdm_v<HstuAttentionBwdPipeline>)
+            {
+                return do_dram_naive;
+            }
+            else
+            {
+                const auto do_dram_pad =
+                    pad_tensor_view(do_dram_naive,
+                                    make_tuple(number<HstuAttentionBwdPipeline::kM0>{},
+                                               number<HstuAttentionBwdPipeline::kVHeaddim>{}),
+                                    sequence<false, kPadHeadDimV>{});
+
+                if constexpr(detail::is_direct_lds_pipeline_v<HstuAttentionBwdPipeline>)
+                    return detail::make_direct_lds_xor_dram_view<
+                        HstuAttentionBwdPipeline::kVHeaddim,
+                        HstuAttentionBwdPipeline::Policy::template GetOGradDirectLdsSwizzleUnit<
+                            typename HstuAttentionBwdPipeline::Problem>()>(do_dram_pad);
+                else
+                    return do_dram_pad;
+            }
         }();
 
         // ---- DRAM windows ----
