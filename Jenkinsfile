@@ -563,7 +563,7 @@ pipeline {
         {
             when {
                 beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() && (params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean() || params.RUN_DISPATCHER_PERF_TESTS.toBoolean()) }
+                expression { env.SHOULD_RUN_CI.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && (params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean() || params.RUN_DISPATCHER_PERF_TESTS.toBoolean()) }
             }
             agent none
             steps {
