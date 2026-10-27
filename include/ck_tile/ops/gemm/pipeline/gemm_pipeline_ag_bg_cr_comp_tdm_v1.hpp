@@ -119,6 +119,60 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
 
     static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
 
+    /**
+     * 6-bit (FP6/BF6) operands. The TDM descriptor gives a 6-bit pack the 1-byte data size while
+     * counting box, dims and strides in packs, so such an instantiation compiles but addresses the
+     * wrong bytes. Support is enabled per operand type and only for one configuration: the same
+     * 6-bit type on A and B, row-major A, column-major B, a 16x16x128 warp tile, an MX problem
+     * with 32-element scale blocks, and no padding. The guard precedes BlockGemm, so it is the
+     * first error even for a 6-bit type without a WMMA warp trait.
+     */
+    static constexpr bool kTdmFp6Enabled  = false;
+    static constexpr bool kTdmBf6Enabled  = false;
+    static constexpr bool kHas6BitOperand = is_pk_f6_v<ADataType> || is_pk_f6_v<BDataType>;
+
+    template <typename P>
+    using ProblemScaleBlockSize = decltype(P::ScaleBlockSize);
+
+    static constexpr bool Is6BitConfigSupported()
+    {
+        using WarpTile         = typename BlockGemmShape::WarpTile;
+        constexpr bool same_ab = std::is_same_v<ADataType, BDataType>;
+        constexpr bool rcr     = std::is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
+                             std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>;
+        constexpr bool warp_16x16x128 = WarpTile::at(number<0>{}) == 16 &&
+                                        WarpTile::at(number<1>{}) == 16 &&
+                                        WarpTile::at(number<2>{}) == 128;
+        constexpr bool mx_scale32 = is_detected<ProblemScaleBlockSize, Problem>{} &&
+                                    detail::scale_block_size_or_default<Problem>::value == 32;
+        return same_ab && rcr && warp_16x16x128 && mx_scale32 && !Problem::kPadM &&
+               !Problem::kPadN && !Problem::kPadK;
+    }
+
+    template <typename T>
+    static constexpr bool kTdm6BitTypeEnabledFor =
+        !is_pk_f6_v<T> || (std::is_same_v<T, pk_fp6x16_t> && kTdmFp6Enabled) ||
+        (std::is_same_v<T, pk_bf6x16_t> && kTdmBf6Enabled);
+    static constexpr bool kTdm6BitTypeEnabled =
+        kTdm6BitTypeEnabledFor<ADataType> && kTdm6BitTypeEnabledFor<BDataType>;
+    static constexpr bool kTdm6BitConfigSupported = [] {
+        if constexpr(kHas6BitOperand)
+        {
+            return Is6BitConfigSupported();
+        }
+        else
+        {
+            return true;
+        }
+    }();
+    static_assert(!kHas6BitOperand || kTdm6BitTypeEnabled,
+                  "TDM GEMM pipelines (comp_tdm v1/v2) do not support this FP6/BF6 operand type "
+                  "yet: the TDM load path does not handle 6-bit packs.");
+    static_assert(!kHas6BitOperand || !kTdm6BitTypeEnabled || kTdm6BitConfigSupported,
+                  "TDM GEMM pipelines (comp_tdm v1/v2) support FP6/BF6 operands only with the same "
+                  "type on A and B, row-major A, column-major B, a 16x16x128 warp tile, an MX "
+                  "problem with 32-element scale blocks and no padding.");
+
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
     static constexpr index_t BPackedSize =

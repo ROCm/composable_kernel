@@ -208,9 +208,12 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
         set_tests_properties(${test_target} PROPERTIES LABELS "CK_TILE_GEMM_TESTS")
     endforeach()
     # The loop above replaces the SMOKE_TEST label, and the gfx1250 CI stage only runs "ninja smoke".
-    # Keep the gfx125 async-LDS tests in that set.
-    foreach(test_target ${CK_TILE_GEMM_ASYNC_WMMA_TARGETS})
-        set_property(TEST ${test_target} APPEND PROPERTY LABELS "SMOKE_TEST")
+    # Keep the gfx125 async-LDS tests and the TDM LDS padding test in that set; all of them fit the
+    # smoke time budget on the gfx1250 emulator.
+    foreach(test_target ${CK_TILE_GEMM_ASYNC_WMMA_TARGETS} test_ck_tile_gemm_pipeline_tdm_lds_padding_wmma)
+        if(TEST ${test_target})
+            set_property(TEST ${test_target} APPEND PROPERTY LABELS "SMOKE_TEST")
+        endif()
     endforeach()
     # comp_tdm_pc is deliberately absent from the tile engine CI config (it is a shared contract
     # with the dispatcher bridge), so this gtest is the only CI coverage of

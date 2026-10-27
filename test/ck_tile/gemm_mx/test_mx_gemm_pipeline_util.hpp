@@ -12,6 +12,7 @@
 #include "ck_tile/ops/gemm/kernel/mx_gemm_kernel.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck/library/utility/gpu_verification.hpp"
+#include "test_mx_gemm_host_helpers.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -50,6 +51,11 @@ constexpr ck_tile::index_t get_k_warp_tile()
         return 128;
 #endif
 }
+
+// A test fixture opts into mx_test::mx_gemm_tolerance by declaring
+// `static constexpr bool kUseDerivedMxTolerance = true;`; otherwise calculate_rtol_atol is used.
+template <typename T>
+using use_derived_mx_tolerance_t = decltype(T::kUseDerivedMxTolerance);
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -452,6 +458,18 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
         }
     }
 
+    static constexpr bool use_derived_mx_tolerance()
+    {
+        if constexpr(ck_tile::is_detected<use_derived_mx_tolerance_t, Derived>{})
+        {
+            return Derived::kUseDerivedMxTolerance;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     public:
     std::vector<int> k_batches_;
 
@@ -794,10 +812,23 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                           AccDataType,
                           CDataType>(a_m_k, b_k_n, c_m_n_host_ref, scale_a_ref, scale_b_ref);
 
-        const float max_accumulated_value =
-            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-            K, kbatch, max_accumulated_value);
+        const auto rtol_atol = [&] {
+            if constexpr(use_derived_mx_tolerance())
+            {
+                const double s_max =
+                    mx_test::mx_sum_abs_max(a_m_k, b_k_n, scale_a_ref, scale_b_ref, ScaleBlockSize);
+                const auto tolerance =
+                    mx_test::mx_gemm_tolerance<ADataType, BDataType, CDataType>(K, s_max);
+                return ck_tile::make_tuple(tolerance.rtol, tolerance.atol);
+            }
+            else
+            {
+                const float max_accumulated_value =
+                    *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+                return calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+                    K, kbatch, max_accumulated_value);
+            }
+        }();
         bool pass = check_err(c_m_n_dev_result,
                               c_m_n_host_ref,
                               "Error: Incorrect results!",
