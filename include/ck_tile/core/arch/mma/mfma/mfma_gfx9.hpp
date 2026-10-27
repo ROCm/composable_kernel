@@ -567,7 +567,8 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 32u, 32u, 16u, CompilerTarget, MmaOpF
             float b_f32 =
                 type_convert<float>(reinterpret_cast<const thread_buffer<BDataType, 8>&>(bVec)
                                         .template get_as<BDataType>()[number<k>{}]);
-            c = __builtin_amdgcn_mfma_f32_32x32x2f32(a_f32, b_f32, c, 0, 0, 0);
+            c = bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_32x32x2f32(
+                a_f32, b_f32, bit_cast<fp32x16_t>(c), 0, 0, 0));
         });
         return c;
     }
