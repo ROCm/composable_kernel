@@ -4,6 +4,9 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ## (Unreleased) Composable Kernel
 
+### Fixed
+* Fixed CK Tile TF32 compilation for combined gfx942/gfx950 builds that select gfx942 fragments, by lowering their XF32 operations to FP32 MFMA instructions on gfx950 while preserving the fragment layout.
+
 ### Added
 
 ### Changed
@@ -17,6 +20,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Known issues
 
 ### Upcoming changes
+
 
 ## Composable Kernel 1.3.0 for ROCm 10.2.0
 
