@@ -619,13 +619,14 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
     __device__ static bool constexpr IsValidCompilationParameter()
     {
-#if defined(__gfx12__)
+#if defined(__gfx12__) || defined(__gfx117__)
         if constexpr(KPerBlock % (Base::KPerWmmaBlk * 2) != 0)
         {
             return false;
         }
 #endif
-        constexpr bool IsGfx11            = is_same_v<decltype(get_device_arch()), gfx11_t>;
+        constexpr bool IsGfx11 = is_same_v<decltype(get_device_arch()), gfx11_t> ||
+                                 is_same_v<decltype(get_device_arch()), gfx117_t>;
         constexpr auto EstimateVgprCount  = GetEstimateVgprCount<IsGfx11>();
         constexpr auto AvailableVgprCount = get_max_vgpr_count(get_device_arch());
         if constexpr(EstimateVgprCount > (AvailableVgprCount + AvailableVgprCount / 4))
@@ -650,7 +651,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
             {
                 return get_max_vgpr_count(gfx120_t{});
             }
-            else if(ck::is_gfx11_supported())
+            else if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
             {
                 return get_max_vgpr_count(gfx11_t{});
             }
@@ -659,8 +660,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
                 return get_max_vgpr_count(gfx_invalid_t{});
             }
         }();
-        const auto estimateVgprCount =
-            ck::is_gfx11_supported() ? GetEstimateVgprCount<true>() : GetEstimateVgprCount<false>();
+        const auto estimateVgprCount = (ck::is_gfx11_supported() || ck::is_gfx117_supported())
+                                           ? GetEstimateVgprCount<true>()
+                                           : GetEstimateVgprCount<false>();
         if(estimateVgprCount > (availableVgprCount + availableVgprCount / 4))
         {
             return false;

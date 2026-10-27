@@ -60,7 +60,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                                    bool input_permute,
                                                    bool output_permute)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
 
     // clang-format off
 // ***************************************************
@@ -192,7 +192,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                        index_t head_size,
                                        float alpha)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
 
     // clang-format off
 // ***************************************************
@@ -326,7 +326,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                         index_t head_size,
                                         float alpha)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
 
     // clang-format off
 // ***************************************************
@@ -864,7 +864,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
 
     static bool IsSupportedArgument(const RawArg& arg)
     {
-        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported())
         {
             if constexpr(!(is_same_v<Acc0DataType, float> || is_same_v<Acc0DataType, int32_t>))
             {

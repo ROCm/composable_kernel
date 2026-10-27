@@ -84,9 +84,10 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         const ComputePtrOffset compute_ptr_offset_of_n,
         const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__) || \
+    defined(__gfx117__))
+#if defined(__gfx11__) || defined(__gfx117__)
+    // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
     using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<e_data_type, ck::half_t> ||
@@ -143,7 +144,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
                 epilogue_args);
         }
 
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     }
 #endif
 #else
@@ -155,7 +156,8 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
     ignore = num_k_per_block;
-#endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__) ||
+       // defined(__gfx117__))
 }
 
 } // namespace
@@ -1586,7 +1588,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             return false;
         }
 
-        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

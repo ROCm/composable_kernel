@@ -406,7 +406,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
                 // BK0_L_BK1 -> BK0_LRepeat_Lwaves_LPerWmma_BK1
                 constexpr auto B_K0 = B0BlockDesc_{}.GetLength(I0);
                 constexpr auto B_K1 = B0BlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
                 constexpr auto B_KRow = I2;
 #else
                 constexpr auto B_KRow = I1;
@@ -493,7 +493,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
                 // BL0_N_BL1 -> BL0_NRepeat_Nwaves_NPerWmma_BL1
                 constexpr auto B_L0 = B1BlockDesc_{}.GetLength(I0);
                 constexpr auto B_L1 = B1BlockDesc_{}.GetLength(I2);
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
                 constexpr auto B_LRow = I2;
 #else
                 constexpr auto B_LRow = I1;

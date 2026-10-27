@@ -366,7 +366,7 @@ bool profile_batched_gemm_bias_softmax_gemm_permute_impl(bool do_verification,
                    std::is_same_v<CDataType, ck::bhalf_t> &&
                    std::is_same_v<D0DataType, ck::bhalf_t>)
                 {
-                    if(ck::is_gfx11_supported())
+                    if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
                     {
                         rtol = 5e-2;
                         atol = 5e-2;

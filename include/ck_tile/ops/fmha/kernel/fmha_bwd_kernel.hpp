@@ -2210,7 +2210,7 @@ struct FmhaBwdDQDKDVKernel
                                                              scale_rp_undrop,
                                                              dropout);
 
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
             // Workaround for a compiler bug (SWDEV-559729): v_wmma instructions can be incorrectly
             // placed in divergent branches used to store padded tensors (when some lanes are
             // inactive due to padding). Inline asm with dummy dependencies on VGPRs of the tensors

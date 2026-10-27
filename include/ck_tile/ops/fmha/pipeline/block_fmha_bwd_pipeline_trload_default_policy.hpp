@@ -105,7 +105,7 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
                    sequence<BlockFmhaShape::kM0, BlockFmhaShape::kQKHeaddim, BlockFmhaShape::kK4>,
                    typename BlockFmhaShape::Gemm4BlockWarps,
                    typename BlockFmhaShape::Gemm4WarpTile>>;
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
         constexpr auto NumAccess = WGAttrNumAccessEnum::Default;
 #else
         constexpr auto NumAccess = Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}) == 32

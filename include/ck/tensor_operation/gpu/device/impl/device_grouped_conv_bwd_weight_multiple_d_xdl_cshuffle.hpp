@@ -67,7 +67,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
         const Block2CTileMap block_2_ctile_map,
         const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::IsValidCompilationParameter())
     {
         const index_t num_blocks_per_batch =
@@ -975,7 +975,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
             return false;
         }
 
-        if(is_gfx11_supported())
+        if(is_gfx11_supported() || is_gfx117_supported())
         {
             if(!is_xdl_wmma_k_supported<ComputeTypeA, Number<K0PerBlock * K1>{}, K1>())
             {

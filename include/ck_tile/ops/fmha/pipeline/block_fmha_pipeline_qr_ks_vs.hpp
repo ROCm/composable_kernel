@@ -683,7 +683,7 @@ struct BlockFmhaPipelineQRKSVS
                 AfterSoftmax
             };
 
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
             constexpr auto kVPrefetch =
                 kPadHeadDimV ? VPrefetchPoint::AfterSoftmax : VPrefetchPoint::AfterGemm0Tail;
 #else

@@ -17,7 +17,8 @@
 #define CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD 0
 
 #if !defined(CK_TILE_FMHA_FORCE_HEAD_MAJOR)
-#if defined(__HIP_DEVICE_COMPILE__) && (defined(__gfx11__) || defined(__gfx12__))
+#if defined(__HIP_DEVICE_COMPILE__) && \
+    (defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
 #define CK_TILE_FMHA_FORCE_HEAD_MAJOR 1
 #else
 #define CK_TILE_FMHA_FORCE_HEAD_MAJOR 0

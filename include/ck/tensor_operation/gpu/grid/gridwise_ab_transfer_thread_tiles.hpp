@@ -613,7 +613,7 @@ struct ABTransferThreadTiles
         // ABK0_MN_ABK1 -> ABK0_MNRepeat_MNWaves_KRow_MNPerWmma_ABK1
         constexpr auto ABK0 = BlockDesc{}.GetLength(I0);
         constexpr auto ABK1 = BlockDesc{}.GetLength(I2);
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
         constexpr auto KRow = I2;
 #else
         constexpr auto KRow = I1;

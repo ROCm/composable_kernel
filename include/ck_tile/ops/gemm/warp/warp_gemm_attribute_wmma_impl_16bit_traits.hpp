@@ -63,7 +63,7 @@ struct WmmaTraits<gfx120_t, fp16_t, fp16_t, float, 16, 16, 16>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
     {
-#ifdef __gfx120__
+#if defined(__gfx120__) || defined(__gfx117__)
         return __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(a_vec, b_vec, c_vec);
 #else
         ck_tile::ignore = a_vec;
@@ -85,7 +85,7 @@ struct WmmaTraits<gfx120_t, bf16_t, bf16_t, float, 16, 16, 16>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
     {
-#ifdef __gfx120__
+#if defined(__gfx120__) || defined(__gfx117__)
         return __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32_gfx12(
             bit_cast<int16x8_t>(a_vec), bit_cast<int16x8_t>(b_vec), c_vec);
 #else
@@ -95,6 +95,22 @@ struct WmmaTraits<gfx120_t, bf16_t, bf16_t, float, 16, 16, 16>
         return CVecType{0.f};
 #endif
     }
+};
+
+// fp16 specialization - GFX117 (reuses gfx120 WMMA instructions)
+template <>
+struct WmmaTraits<gfx117_t, fp16_t, fp16_t, float, 16, 16, 16>
+    : WmmaTraits<gfx120_t, fp16_t, fp16_t, float, 16, 16, 16>
+{
+    using ArchType = gfx117_t;
+};
+
+// bf16 specialization - GFX117 (reuses gfx120 WMMA instructions)
+template <>
+struct WmmaTraits<gfx117_t, bf16_t, bf16_t, float, 16, 16, 16>
+    : WmmaTraits<gfx120_t, bf16_t, bf16_t, float, 16, 16, 16>
+{
+    using ArchType = gfx117_t;
 };
 
 // fp16 specialization - GFX125

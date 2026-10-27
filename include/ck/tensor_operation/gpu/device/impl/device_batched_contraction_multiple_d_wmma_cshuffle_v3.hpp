@@ -840,8 +840,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
             return false;
         }
 
-        if((ck::is_gfx12_supported() || ck::is_gfx117_supported()) &&
-           !GridwiseGemm::CheckValidityAWaveTransfer(arg.M, arg.K))
+        if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(arg.M, arg.K))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -851,8 +850,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
             return false;
         }
 
-        if((ck::is_gfx12_supported() || ck::is_gfx117_supported()) &&
-           !GridwiseGemm::CheckValidityBWaveTransfer(arg.N, arg.K))
+        if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityBWaveTransfer(arg.N, arg.K))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

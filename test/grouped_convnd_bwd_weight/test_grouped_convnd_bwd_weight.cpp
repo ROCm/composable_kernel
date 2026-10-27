@@ -52,7 +52,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 return true;
             }
         }
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
         {
             // on gfx11 only support for 3d is implemented
             if constexpr(NDimSpatial{} != 3)

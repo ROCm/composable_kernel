@@ -443,7 +443,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f8f8_gfx12,
         static_assert(wave_size == 32, "only support wave32 for gfx12 wmma");
         if constexpr(wave_size == 32)
         {
-#if defined(__gfx12__) || defined(__gfx117__)
+#if defined(__gfx12__)
             intrin_wmma_f32_16x16x16_f8f8_w32_gfx12<MPerWmma, NPerWmma>::Run(a, b, reg_c);
 #else
             ignore = a;
@@ -479,7 +479,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f8bf8_gfx12,
         static_assert(wave_size == 32, "only support wave32 for gfx12 wmma");
         if constexpr(wave_size == 32)
         {
-#if defined(__gfx12__) || defined(__gfx117__)
+#if defined(__gfx12__)
             intrin_wmma_f32_16x16x16_f8bf8_w32_gfx12<MPerWmma, NPerWmma>::Run(a, b, reg_c);
 #else
             ignore = a;
@@ -515,7 +515,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_bf8f8_gfx12,
         static_assert(wave_size == 32, "only support wave32 for gfx12 wmma");
         if constexpr(wave_size == 32)
         {
-#ifdef __gfx12__
+#if defined(__gfx12__)
             intrin_wmma_f32_16x16x16_bf8f8_w32_gfx12<MPerWmma, NPerWmma>::Run(a, b, reg_c);
 #else
             ignore = a;
@@ -551,7 +551,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_bf8bf8_gfx12,
         static_assert(wave_size == 32, "only support wave32 for gfx12 wmma");
         if constexpr(wave_size == 32)
         {
-#if defined(__gfx12__) || defined(__gfx117__)
+#if defined(__gfx12__)
             intrin_wmma_f32_16x16x16_bf8bf8_w32_gfx12<MPerWmma, NPerWmma>::Run(a, b, reg_c);
 #else
             ignore = a;
@@ -1215,7 +1215,7 @@ struct WmmaGemm
 
     __host__ __device__ static auto CalculateAThreadOriginDataIndex()
     {
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
         return GetLaneIdUnderSubGroup();
 #else
         return TransposeC ? GetLaneIdUnderSubGroup() : GetSwizzledLaneIdLow();
@@ -1224,7 +1224,7 @@ struct WmmaGemm
 
     __host__ __device__ static auto CalculateBThreadOriginDataIndex()
     {
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
         return GetLaneIdUnderSubGroup();
 #else
         return TransposeC ? GetSwizzledLaneIdLow() : GetLaneIdUnderSubGroup();

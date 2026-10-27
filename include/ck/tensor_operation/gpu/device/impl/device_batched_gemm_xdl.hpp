@@ -355,7 +355,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             return false;
         }
         // temp disable on gfx11
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
         {
             return false;
         }

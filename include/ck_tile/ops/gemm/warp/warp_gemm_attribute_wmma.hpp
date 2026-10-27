@@ -321,6 +321,16 @@ CK_TILE_HOST bool check_wmma_supported()
                                  N_Warp_Tile,
                                  K_Warp_Tile>;
     }
+    else if(is_gfx117_supported())
+    {
+        return has_wmma_traits_v<gfx117_t,
+                                 ADataType,
+                                 BDataType,
+                                 AccDataType,
+                                 M_Warp_Tile,
+                                 N_Warp_Tile,
+                                 K_Warp_Tile>;
+    }
     else if(is_gfx125_supported())
     {
         return has_wmma_traits_v<gfx125_t,

@@ -74,7 +74,7 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
 
 int main(int argc, char* argv[])
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx117_supported() || ck::is_gfx120_supported())
     {
         return 0;
     }

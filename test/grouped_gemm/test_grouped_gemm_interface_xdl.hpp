@@ -185,7 +185,7 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
         {
             ggemm_instance.SetKBatchSize(&argument, kbatch);
         }
-        if(kbatch > 1 && ck::is_gfx11_supported())
+        if(kbatch > 1 && (ck::is_gfx11_supported() || ck::is_gfx117_supported()))
         {
             EXPECT_FALSE(ggemm_instance.IsSupportedArgument(argument));
             return 0;

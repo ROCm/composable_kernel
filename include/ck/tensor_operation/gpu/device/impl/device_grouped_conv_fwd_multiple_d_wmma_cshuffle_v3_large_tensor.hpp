@@ -51,7 +51,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffset compute_ptr_offset_of_groups,
         const ComputePtrOffset compute_ptr_offset_of_n)
 {
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     using SelectedEpilogue = get_epilogue_t<EpilogueType::CShuffle, GridwiseGemm>;
 
     constexpr index_t LDS_size =
@@ -1021,7 +1021,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_V3_Large_Tensor
         }
 
         // check device
-        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {

@@ -78,7 +78,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
         constexpr auto NumAccess = WGAttrNumAccessEnum::Default;
 #else
         constexpr auto NumAccess = Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32
@@ -154,7 +154,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm3BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm3WarpTile>>;
 
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
         constexpr auto NumAccess = WGAttrNumAccessEnum::Default;
 #else
         constexpr auto NumAccess = Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}) == 32

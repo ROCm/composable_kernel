@@ -81,7 +81,7 @@ using DeviceGroupedConvNDFwdInstance =
 int main(int argc, char* argv[])
 {
     // fp8 are not supported on gfx11
-    if(ck::is_gfx11_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
     {
         return 0;
     }

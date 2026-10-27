@@ -65,7 +65,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         const long_index_t split_k_stride_b,
         bool split_k_offset_hack)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
@@ -170,7 +170,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         const long_index_t split_k_stride_b,
         bool split_k_offset_hack)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         // offset base pointer for each work-group
@@ -1606,7 +1606,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         {
             return false;
         }
-        if(is_gfx11_supported() && arg.k_batch_ > 1)
+        if((is_gfx11_supported() || is_gfx117_supported()) && arg.k_batch_ > 1)
         {
             return false;
         }

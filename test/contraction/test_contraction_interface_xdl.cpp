@@ -186,7 +186,7 @@ TEST(TestContractionSupportedArgs, DEMemoryAccess)
 
 int main(int argc, char** argv)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported() || ck::is_gfx117_supported())
     {
         std::cout << "FP32/64 are not supported on gfx11 and gfx12." << std::endl;
         return 0;

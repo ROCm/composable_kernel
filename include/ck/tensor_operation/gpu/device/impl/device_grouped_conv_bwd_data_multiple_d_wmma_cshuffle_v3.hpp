@@ -69,8 +69,9 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         const ComputePtrOffsetOfN compute_ptr_offset_of_n,
         const index_t KBatch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__) || \
+    defined(__gfx117__))
+#if defined(__gfx11__) || defined(__gfx117__)
     if constexpr(EGlobalMemoryDataOperation != InMemoryDataOperationEnum::AtomicAdd)
     {
 #endif
@@ -200,7 +201,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
             }
         }
 
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     }
 #endif
 #else
@@ -211,7 +212,8 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
     ignore = compute_ptr_offset_of_n;
     ignore = KBatch;
 
-#endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__) ||
+       // defined(__gfx117__))
 }
 
 } // namespace
@@ -1502,7 +1504,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             }
         }
 
-        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported() && !ck::is_gfx117_supported())
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -1526,7 +1528,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             }
         }
 
-        if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
+        if((ck::is_gfx11_supported() || ck::is_gfx117_supported()) && arg.k_batch_ > 1)
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

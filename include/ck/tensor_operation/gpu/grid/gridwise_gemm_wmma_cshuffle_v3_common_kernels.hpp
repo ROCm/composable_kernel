@@ -20,9 +20,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     kernel_gemm_wmma_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
+#if defined(__gfx11__) || defined(__gfx117__)
+    // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
     using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<e_data_type, ck::half_t> ||
@@ -46,7 +46,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
             p_shared, splitk_batch_offset, karg, epilogue_args);
 
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     }
 #endif
 #else
@@ -71,9 +71,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                               // argument through implicit conversion to base class!
         const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
+#if defined(__gfx11__) || defined(__gfx117__)
+    // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
     using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<c_data_type, ck::half_t> ||
@@ -161,7 +161,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                 karg.cde_element_op,
                 epilogue_args);
         }
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     }
 #endif
 #else
@@ -181,9 +181,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     kernel_gemm_b_preshuffle_wmma_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+#if(defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
+#if defined(__gfx11__) || defined(__gfx117__)
+    // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
     using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<e_data_type, ck::half_t> ||
@@ -212,7 +212,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             0, /* A_k_id == 0 (we shift the pointer for splitk) */
             k_id);
 
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     }
 #endif
 #else

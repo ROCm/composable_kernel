@@ -97,7 +97,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(defined(__gfx906__) || defined(__gfx103__) || defined(__gfx90a__) || defined(__gfx908__) || \
-    defined(__gfx94__) || defined(__gfx101__) || defined(__gfx11__) || defined(__gfx12__))
+    defined(__gfx94__) || defined(__gfx101__) || defined(__gfx11__) || defined(__gfx12__) ||    \
+    defined(__gfx117__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -669,7 +670,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 
         // check device
         if(!(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-             ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+             ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported() ||
+             ck::is_gfx117_supported()))
         {
             return false;
         }

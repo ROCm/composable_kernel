@@ -36,7 +36,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_PadO)
 
 TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddM)
 {
-    if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+    if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()))
     {
         GTEST_SKIP() << "Odd-sizes only supported on WMMA instances.";
     }
@@ -49,7 +49,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddM)
 
 TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddN)
 {
-    if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+    if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()))
     {
         GTEST_SKIP() << "Odd-sizes only supported on WMMA instances.";
     }
@@ -62,7 +62,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddN)
 
 TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddK)
 {
-    if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+    if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()))
     {
         GTEST_SKIP() << "Odd-sizes only supported on WMMA instances.";
     }
@@ -76,7 +76,7 @@ TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddK)
 
 TYPED_TEST(TestBatchedGemmMultipleDGemmMultipleD, Test_OddO)
 {
-    if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+    if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()))
     {
         GTEST_SKIP() << "Odd-sizes only supported on WMMA instances.";
     }

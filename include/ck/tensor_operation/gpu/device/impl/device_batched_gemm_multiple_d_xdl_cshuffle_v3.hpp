@@ -37,7 +37,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     kernel_batched_gemm_xdl_cshuffle_v3_multi_d(BatchedGemmArg karg)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
@@ -86,7 +86,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds(BatchedGemmArg karg)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         // Pass two lds pointer is the key to tell compiler that ds_read/write
@@ -1045,7 +1045,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         {
             return false;
         }
-        if(is_gfx11_supported() && arg.KBatch > 1)
+        if((is_gfx11_supported() || is_gfx117_supported()) && arg.KBatch > 1)
         {
             return false;
         }
