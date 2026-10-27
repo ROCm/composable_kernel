@@ -382,8 +382,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
 
         bool even_iter = true;
 
-        do
-        {
+        auto main_loop_func = [&](auto EvenIter) {
             // Load LSE and delta for the full kM0 tile
             lse_tile   = cast_tile<CompDataType>(load_tile(lse_dram_window));
             delta_tile = cast_tile<CompDataType>(load_tile(delta_dram_window));
@@ -403,7 +402,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q_sub @ K
-                if(even_iter)
+                if constexpr(EvenIter)
                 {
                     gemm_0(sacc_tile, q_lds_windows_0[i_m0], k_tile);
                     if constexpr(i_m0 < m0_loops - 1)
@@ -438,7 +437,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 });
 
                 // Gemm2: dpacc_tile = dO_sub @ V
-                if(even_iter)
+                if constexpr(EvenIter)
                 {
                     gemm_2(dpacc_tile, do_lds_windows_0[i_m0], v_tile);
                     if constexpr(i_m0 < m0_loops - 1)
@@ -471,7 +470,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
 
             __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
-            if(even_iter)
+            if constexpr(EvenIter)
             {
                 load_tile_tdm(tdm_config_q, q_lds_windows_1[number<0>{}], q_dram_window);
                 move_tile_window(q_dram_window, {kM0Sub, 0});
@@ -639,7 +638,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 // Gemm1: dV += P^T_sub @ dO^T_sub
                 auto pt_slice = get_slice_tile(
                     pt_tile, sequence<0, i_k1 * kK1>{}, sequence<kN0, (i_k1 + 1) * kK1>{});
-                if(even_iter)
+                if constexpr(EvenIter)
                 {
                     gemm_1(dv_acc, pt_slice, do_lds_trload_windows_0[i_k1]);
                 }
@@ -663,7 +662,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 // Gemm3: dK += dS^T_sub @ Q^T_sub
                 auto dst_slice = get_slice_tile(
                     dst_tile, sequence<0, i_k1 * kK1>{}, sequence<kN0, (i_k1 + 1) * kK1>{});
-                if(even_iter)
+                if constexpr(EvenIter)
                 {
                     gemm_3(dk_acc, dst_slice, q_lds_trload_windows_0[i_k1]);
                 }
@@ -672,8 +671,17 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                     gemm_3(dk_acc, dst_slice, q_lds_trload_windows_1[i_k1]);
                 }
             });
+        };
+
+        do
+        {
+            if(even_iter)
+                main_loop_func(bool_constant<true>{});
+            else
+                main_loop_func(bool_constant<false>{});
 
             seqlen_q_curr += kM0;
+
             even_iter = !even_iter;
         } while(seqlen_q_curr < seqlen_q_end);
 

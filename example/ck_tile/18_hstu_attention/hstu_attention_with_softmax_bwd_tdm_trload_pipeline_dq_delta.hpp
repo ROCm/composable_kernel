@@ -379,8 +379,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
 
         bool even_iter = true;
 
-        do
-        {
+        auto main_loop_func = [&](auto EvenIter) {
             // === STAGE 1: Gemm0 (S = Q@K) ===
             // === STAGE 2: Gemm2 (dP = dO@V) ===
             static_for<0, n0_loops, 1>{}([&](auto i_n0) {
@@ -392,7 +391,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                 __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q @ K_sub
-                if(even_iter)
+                if constexpr(EvenIter)
                 {
                     gemm_0(sacc_tile, q_tile, k_lds_windows_0[i_n0]);
 
@@ -439,7 +438,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
 
             __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
-            if(even_iter)
+            if constexpr(EvenIter)
             {
                 load_tile_tdm(tdm_config_k, k_lds_windows_1[number<0>{}], k_dram_window);
                 move_tile_window(k_dram_window, {kN0Sub, 0});
@@ -564,7 +563,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                     dpcomp_tile, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}));
 
                 // dQ += dS_sub @ KT_sub
-                if(even_iter)
+                if constexpr(EvenIter)
                 {
                     gemm_4(dq_acc, ds_slice, k_lds_trload_windows_0[i_k1]);
                 }
@@ -573,8 +572,17 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                     gemm_4(dq_acc, ds_slice, k_lds_trload_windows_1[i_k1]);
                 }
             });
+        };
+
+        do
+        {
+            if(even_iter)
+                main_loop_func(bool_constant<true>{});
+            else
+                main_loop_func(bool_constant<false>{});
 
             seqlen_k_curr += kN0;
+
             even_iter = !even_iter;
         } while(seqlen_k_curr < seqlen_k_end);
 
