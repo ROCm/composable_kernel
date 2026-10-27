@@ -54,6 +54,99 @@ struct MxGemmKernelArgs : public UniversalGemmKernelArgs<NumATensor, NumBTensor,
     const std::array<const void*, NumBTensor> bs_scale_ptr;
 };
 
+/**
+ * @brief Host shape checks for MX GEMM on the gfx125 TDM pipelines.
+ * @details For TDM pipelines UniversalGemmKernel::IsSupportedArgument checks only tensor size and
+ *          split-K and skips its shape checks, so MxGemmKernel applies these checks instead. They
+ *          reject:
+ *          - K <= 0;
+ *          - K not a multiple of ScaleBlockSize * KXdlPack: the kernel sizes the packed scale view
+ *            as K / ScaleBlockSize / KXdlPack and drops the remainder;
+ *          - K not a multiple of KPerBlock: the MX kernel never pads K (kPadK is false), so its
+ *            scale view does not cover a partial final K tile. This check is conservative;
+ *          - for a packed A or B (PackedSize > 1, such as pk_fp4_t or pk_fp6x16_t), a stride or a
+ *            contiguous extent that is not a whole number of packs: the TDM descriptor divides
+ *            both by PackedSize and rounds down. The contiguous extent is K for a row-major A and
+ *            a column-major B, M for a column-major A and N for a row-major B.
+ *          Apart from that, M and N are not checked: TDM clips partial tiles in hardware.
+ *          The function takes the operand types and tile constants rather than a kernel, so it
+ *          can also be checked for operand types that the TDM pipelines cannot instantiate yet.
+ * @tparam ADataType      Type of A.
+ * @tparam BDataType      Type of B.
+ * @tparam ALayout        Layout of A (tensor_layout::gemm::RowMajor or ColumnMajor).
+ * @tparam BLayout        Layout of B (tensor_layout::gemm::RowMajor or ColumnMajor).
+ * @tparam KPerBlock      K tile size.
+ * @tparam ScaleBlockSize Elements per scale (16 or 32).
+ * @tparam KXdlPack       Scale blocks per packed int32 of scales (the pipeline's KXdlPackEff).
+ * @param M        Rows of A and C.
+ * @param N        Columns of B and C.
+ * @param K        Reduction length.
+ * @param stride_A Stride of A in elements, as in MxGemmHostArgs.
+ * @param stride_B Stride of B in elements, as in MxGemmHostArgs.
+ * @return true if the TDM MX path supports the shape.
+ */
+template <typename ADataType,
+          typename BDataType,
+          typename ALayout,
+          typename BLayout,
+          index_t KPerBlock,
+          index_t ScaleBlockSize,
+          index_t KXdlPack>
+CK_TILE_HOST bool
+IsMxTdmShapeSupported(index_t M, index_t N, index_t K, index_t stride_A, index_t stride_B)
+{
+    static_assert(KPerBlock > 0 && ScaleBlockSize > 0 && KXdlPack > 0);
+    const auto reject = [](const auto&... reason) {
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            CK_TILE_ERROR("MX GEMM with a TDM pipeline ", reason..., "!");
+        }
+        return false;
+    };
+    if(K <= 0)
+    {
+        return reject("requires K > 0");
+    }
+    if(K % (ScaleBlockSize * KXdlPack) != 0)
+    {
+        return reject("requires K to be a multiple of ScaleBlockSize * KXdlPack = ",
+                      ScaleBlockSize * KXdlPack);
+    }
+    if(K % KPerBlock != 0)
+    {
+        return reject("requires K to be a multiple of KPerBlock = ", KPerBlock);
+    }
+    if constexpr(numeric_traits<remove_cvref_t<ADataType>>::PackedSize > 1)
+    {
+        constexpr index_t pack = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+        if(stride_A % pack != 0)
+        {
+            return reject("requires the stride of a packed A to be a multiple of its pack size ",
+                          pack);
+        }
+        if(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> && M % pack != 0)
+        {
+            return reject(
+                "requires M of a column-major packed A to be a multiple of its pack size ", pack);
+        }
+    }
+    if constexpr(numeric_traits<remove_cvref_t<BDataType>>::PackedSize > 1)
+    {
+        constexpr index_t pack = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+        if(stride_B % pack != 0)
+        {
+            return reject("requires the stride of a packed B to be a multiple of its pack size ",
+                          pack);
+        }
+        if(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor> && N % pack != 0)
+        {
+            return reject("requires N of a row-major packed B to be a multiple of its pack size ",
+                          pack);
+        }
+    }
+    return true;
+}
+
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct MxGemmKernel
     : public UniversalGemmKernel<TilePartitioner_,
@@ -262,8 +355,48 @@ struct MxGemmKernel
             }
         }
 
+        if constexpr(BaseKernel::kIsTdmPipeline)
+        {
+            // UniversalGemmKernel::IsSupportedArgument skips its shape checks for TDM pipelines.
+            // The device check comes last so that the argument checks also run on a host without
+            // a gfx125 device.
+            if(!BaseKernel::IsTdmArgumentSupported("MX GEMM",
+                                                   kargs.k_batch,
+                                                   kargs.K,
+                                                   kargs.as_ptr[0],
+                                                   kargs.bs_ptr[0],
+                                                   kargs.e_ptr) ||
+               !IsTdmShapeSupported(kargs) || !BaseKernel::IsTdmDeviceSupported("MX GEMM"))
+            {
+                return false;
+            }
+        }
+
         // Delegate the remaining shape/vector-size checks to the universal kernel.
         return BaseKernel::IsSupportedArgument(kargs);
+    }
+
+    /**
+     * @brief Runs only the IsMxTdmShapeSupported checks of IsSupportedArgument.
+     * @details Skips the split-K, pointer-alignment and device checks, so it runs on any host.
+     * @return true if the TDM MX path supports the shape in kargs.
+     */
+    CK_TILE_HOST static bool IsTdmShapeSupported(const KernelArgs& kargs)
+    {
+        static_assert(BaseKernel::kIsTdmPipeline,
+                      "MX GEMM: IsTdmShapeSupported applies to the TDM pipelines only.");
+        static_assert(NumATensor == 1 && NumBTensor == 1,
+                      "MX GEMM: the TDM pipelines take a single A and a single B tensor.");
+        using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+        using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+        return IsMxTdmShapeSupported<ADataType,
+                                     BDataType,
+                                     ALayout,
+                                     BLayout,
+                                     TilePartitioner::KPerBlock,
+                                     BlockScaleSize,
+                                     KXdlPackEff>(
+            kargs.M, kargs.N, kargs.K, kargs.stride_As[0], kargs.stride_Bs[0]);
     }
 
     template <typename KernelArgs>

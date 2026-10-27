@@ -1,6 +1,8 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+#pragma once
+
 #include <tuple>
 #include <type_traits>
 
@@ -80,6 +82,16 @@ using KernelTypesMxGemmCompTDMWmma = ::testing::Types<
     // --- Scale32 cluster launch (from develop; ScaleBlockSize=I32 at idx 16, ClusterEnable at idx 17) ---
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I128,       I32,        I32,        CompTDMV1,  I32, std::false_type, ClusterEnable>,
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I128,       I32,        I32,        CompTDMV2,  I32, std::false_type, ClusterEnable>
+>;
+
+// bf16 C on the TDM pipelines, one row per data type and pipeline. All rows use the non-cluster
+// 16x16 scale32 E8M0 path, which also runs on asic revision 0. Paired with the cases in
+// test_mx_gemm_pipeline_smoke_cases.inc for the gfx1250 emulator smoke stage.
+using KernelTypesMxGemmTdmBf16C = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV1,  I32>,
+    std::tuple<    Row,     Col,     Row,       F4,        F4,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV1,  I32>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV2,  I32>,
+    std::tuple<    Row,     Col,     Row,       F4,        F4,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV2,  I32>
 >;
 
 using KernelTypesMxGemmCompAsyncRCR = ::testing::Types<
