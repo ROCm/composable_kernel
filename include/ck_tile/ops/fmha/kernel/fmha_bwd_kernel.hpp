@@ -2280,7 +2280,7 @@ struct FmhaBwdOGradDotOKernel
     using FmhaBwdOGradDotO                        = ck_tile::remove_cvref_t<FmhaBwdOGradDotO_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaBwdOGradDotO::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaBwdOGradDotO::kBlockPerCu;
-    static constexpr ck_tile::index_t kM0         = kBlockSize;
+    static constexpr ck_tile::index_t kM0         = FmhaBwdOGradDotO::kM0;
     static constexpr ck_tile::index_t kVHeaddim   = FmhaBwdOGradDotO::kVHeaddim;
 
     using DDataType     = ck_tile::remove_cvref_t<typename FmhaBwdOGradDotO::DDataType>;
@@ -2313,7 +2313,7 @@ struct FmhaBwdOGradDotOKernel
             return n.empty() ? n : std::string("p") + n; }();
         return
             _SS_("fmha_bwd_dot_do_o_d") + _TS_(kVHeaddim) + "_" + _SS_(t2s<ODataType>::name) +
-            "_b" + _TS_(kM0) + "_" + (kIsGroupMode ? "group" : "batch") + "_" +
+            "_b" + _TS_(kBlockSize) + "_" + (kIsGroupMode ? "group" : "batch") + "_" +
             ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn);
         #undef _SS_
         #undef _TS_
@@ -2545,12 +2545,19 @@ struct FmhaBwdOGradDotOKernel
 
         // O/dO/D DRAM and DRAM window
         const auto o_dram = [&]() {
-            auto o_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                o_ptr,
-                make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.stride_o, 1),
-                number<FmhaBwdOGradDotO::kAlignmentO>{},
-                number<1>{});
+            // O is read once: load it non-temporally,
+            // except padded hdim (scalar loads reuse lines).
+            constexpr auto kOCoherence = kPadHeadDimV ? amd_buffer_coherence_enum::coherence_default
+                                                      : amd_buffer_coherence_enum::SYSTEM_NT1;
+
+            auto o_dram_naive =
+                make_naive_tensor_view<address_space_enum::global,
+                                       memory_operation_enum::set,
+                                       kOCoherence>(o_ptr,
+                                                    make_tuple(kargs.seqlen_q, kargs.hdim_v),
+                                                    make_tuple(kargs.stride_o, 1),
+                                                    number<FmhaBwdOGradDotO::kAlignmentO>{},
+                                                    number<1>{});
             return pad_tensor_view(o_dram_naive,
                                    make_tuple(number<kM0>{}, number<kVHeaddim>{}),
                                    sequence<kPadSeqLenQ, kPadHeadDimV>{});

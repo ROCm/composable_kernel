@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_pipeline_default_policy.hpp"
+#include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 
@@ -19,6 +20,8 @@ struct BlockFmhaBwdOGradDotO
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
     static constexpr index_t kVHeaddim   = Problem::kVHeaddim;
+    static constexpr index_t kM0 =
+        Policy::template MakePreODramTileDistribution<Problem>().get_lengths()[number<0>{}];
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
@@ -57,10 +60,9 @@ struct BlockFmhaBwdOGradDotO
         static_assert(std::is_same_v<LSEDataType, float>,
                       "sink gradient atomicAdd requires LSEDataType == float");
 
-        static_assert(kBlockSize == ODramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kBlockSize ==
-                              OGradDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kBlockSize == DDramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
+        static_assert(kM0 == ODramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                          kM0 == OGradDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                          kM0 == DDramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
                       "wrong!");
 
         auto o_dram_window =
@@ -96,6 +98,10 @@ struct BlockFmhaBwdOGradDotO
                     (type_convert<DDataType>(o[i_j_idx]) * type_convert<DDataType>(do_[i_j_idx]));
             });
         });
+
+        // The KL lanes sharing a row each hold a partial sum: reduce across them and
+        // broadcast, so every replica stores the same full D value.
+        block_tile_reduce_sync(d, [](auto e0, auto e1) { return e0 + e1; });
 
         // Scale by p_undrop (=1 when dropout is disabled)
         tile_elementwise_inout([&p_undrop](auto& x) { x = x * p_undrop; }, d);
@@ -148,6 +154,15 @@ struct BlockFmhaBwdOGradDotO
             // Warp-level reduction: fold thread_sum across lanes so only one
             // atomicAdd per warp is issued instead of one per thread.
 #if defined(__HIP_DEVICE_COMPILE__) || defined(__CUDA_ARCH__)
+            // The KL lanes of a row hold the same broadcast D, so only the first lane of each
+            // row contributes; otherwise every row would be counted KL times.
+            // Lanes sharing a row = replication (R) of the D distribution.
+            constexpr index_t kLanesPerRow = container_reduce(
+                remove_cvref_t<decltype(d_dstr)>::DstrEncode::rs_lengths_, multiplies<>{}, 1);
+
+            if(get_lane_id() % kLanesPerRow != 0)
+                thread_sum = 0.f;
+
             const index_t warp_sz = get_warp_size();
             for(index_t offset = warp_sz >> 1; offset > 0; offset >>= 1)
                 thread_sum += warp_shuffle_down(thread_sum, offset);
