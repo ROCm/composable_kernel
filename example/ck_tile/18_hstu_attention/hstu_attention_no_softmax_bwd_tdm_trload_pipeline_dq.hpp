@@ -316,8 +316,6 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
 
         auto seqlen_k_curr = seqlen_k_start;
 
-        bool even_iter = true;
-
         auto main_loop_func = [&](auto EvenIter) {
             // === STAGE 1: Gemm0 (S = Q@K) ===
             // === STAGE 2: Gemm2 (dP = dO@V) ===
@@ -491,17 +489,17 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
             });
         };
 
-        do
+        while(seqlen_k_curr + kN0 < seqlen_k_end)
         {
-            if(even_iter)
-                main_loop_func(bool_constant<true>{});
-            else
-                main_loop_func(bool_constant<false>{});
-
+            main_loop_func(bool_constant<true>{});
             seqlen_k_curr += kN0;
 
-            even_iter = !even_iter;
-        } while(seqlen_k_curr < seqlen_k_end);
+            main_loop_func(bool_constant<false>{});
+            seqlen_k_curr += kN0;
+        }
+
+        if(seqlen_k_curr < seqlen_k_end)
+            main_loop_func(bool_constant<true>{});
 
         // Apply alpha scaling to accumulated dQ
         tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, dq_acc);

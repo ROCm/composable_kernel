@@ -380,8 +380,6 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
 
         auto seqlen_q_curr = seqlen_q_start;
 
-        bool even_iter = true;
-
         auto main_loop_func = [&](auto EvenIter) {
             // Load LSE and delta for the full kM0 tile
             lse_tile   = cast_tile<CompDataType>(load_tile(lse_dram_window));
@@ -673,17 +671,17 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
             });
         };
 
-        do
+        while(seqlen_q_curr + kM0 < seqlen_q_end)
         {
-            if(even_iter)
-                main_loop_func(bool_constant<true>{});
-            else
-                main_loop_func(bool_constant<false>{});
-
+            main_loop_func(bool_constant<true>{});
             seqlen_q_curr += kM0;
 
-            even_iter = !even_iter;
-        } while(seqlen_q_curr < seqlen_q_end);
+            main_loop_func(bool_constant<false>{});
+            seqlen_q_curr += kM0;
+        }
+
+        if(seqlen_q_curr < seqlen_q_end)
+            main_loop_func(bool_constant<true>{});
 
         // Apply alpha scaling to accumulated dK
         tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, dk_acc);
