@@ -2286,6 +2286,8 @@ def setup_multiple_gemm_dispatchers(
     configs: List[GemmKernelConfig],
     verbose: bool = True,
     max_workers: Optional[int] = None,
+    *,
+    errors: Optional[Dict[str, str]] = None,
 ) -> List[Optional[Path]]:
     """Codegen + compile each config into its own .so. Returns .so paths.
 
@@ -2293,11 +2295,39 @@ def setup_multiple_gemm_dispatchers(
     codegen + hipcc, run massively in parallel -- and returns only ``Path``
     objects (``None`` for configs that failed to generate/compile), aligned to
     the input order. Benchmarking happens later, in an isolated worker.
+
+    ``errors`` is an optional out-parameter: pass a dict and it is filled with
+    ``{config.name: reason}`` for every config that ends up with a ``None``
+    path. An out-parameter rather than a richer return type because ~15 call
+    sites index, zip and tuple-unpack the returned list (the tile_engine
+    *_full_benchmark.py drivers, the examples bridge, eight tests); changing
+    the return type to carry the reasons would have to touch every one of them
+    to deliver information only the search-space sweep consumes. Keyword-only
+    so a stray positional third argument can never land in it. The dict is not
+    required to be empty, but every name in ``configs`` is cleared from it
+    first, so on return it describes *this* call for those names and nothing
+    else; entries for names this call never saw are left alone.
+
+    Without this the reasons are computed and thrown away unless verbose=True
+    -- which is how a TheRock image with a bad HIP_CLANG_PATH produced 64 lines
+    of "build_fail" with an empty reason instead of one "clang++: not found".
     """
     import sys
 
     n = len(configs)
     results: List[Optional[Path]] = [None] * n
+
+    # Only failures are written below, so a caller that reuses one dict across
+    # calls -- a sweep retrying a config after a toolchain fix, say -- would
+    # keep reading last call's reason for a config that now builds clean. Drop
+    # every name this call is about before anything is recorded, so "absent"
+    # means "built" rather than "never asked". Done before the n == 0 and
+    # permute_n exits too: a call that produced no verdict must not leave an
+    # older one standing in for it.
+    if errors is not None:
+        for c in configs:
+            errors.pop(c.name, None)
+
     if n == 0:
         return results
 
@@ -2405,6 +2435,12 @@ def setup_multiple_gemm_dispatchers(
             f"(workers={max_workers})..."
         )
 
+    # Why a config has no .so, keyed by its index in `configs`. Kept whether or
+    # not `errors` was passed: the cost is one short string per failure, and
+    # deciding at the top which failures are worth remembering is exactly the
+    # mistake `verbose` already made.
+    failures: Dict[int, str] = {}
+
     headers: Dict[int, Path] = {}
     with ProcessPoolExecutor(max_workers=max_workers) as ex:
         futs = {
@@ -2418,8 +2454,10 @@ def setup_multiple_gemm_dispatchers(
                 headers[i] = Path(hdr)
                 if verbose:
                     print(f"  OK  codegen [{i}] {configs[i].name}")
-            elif verbose:
-                print(f"  FAIL codegen [{i}] {configs[i].name}: {err}")
+            else:
+                failures[i] = err or "codegen failed with no reason reported"
+                if verbose:
+                    print(f"  FAIL codegen [{i}] {configs[i].name}: {err}")
 
     # -- Step 2: parallel compile + link -----------------------------------
     compile_jobs = []
@@ -2450,13 +2488,28 @@ def setup_multiple_gemm_dispatchers(
                 results[i] = Path(lp)
                 if verbose:
                     print(f"  OK  compile [{i}] {Path(lp).name}")
-            elif verbose:
-                print(f"  FAIL compile [{i}] {configs[i].name}: {err}")
+            else:
+                failures[i] = err or "compile failed with no reason reported"
+                if verbose:
+                    print(f"  FAIL compile [{i}] {configs[i].name}: {err}")
 
     # -- Fan the deduped result back out to every input index --------------
     for i, c in enumerate(configs):
         if results[i] is None:
             results[i] = results[first_index[c.name]]
+
+    # Mirror that fan-out for the reasons: a config that was never compiled in
+    # its own right (it shares a .name with an earlier one) inherits that one's
+    # reason exactly as it inherits its path. Keyed by name, not index, because
+    # the sweep's results list is keyed by name too.
+    if errors is not None:
+        for i, c in enumerate(configs):
+            if results[i] is None:
+                errors[c.name] = (
+                    failures.get(i)
+                    or failures.get(first_index[c.name])
+                    or "build failed with no reason reported"
+                )
 
     if verbose:
         ok_count = sum(1 for r in results if r is not None)

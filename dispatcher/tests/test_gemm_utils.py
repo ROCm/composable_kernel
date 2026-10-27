@@ -717,3 +717,261 @@ class TestArchNormalizationMatchesCodegen(unittest.TestCase):
                     self.assertEqual(normalize_gfx_arch(arch), canonical(arch))
         finally:
             builtins.__import__ = real_import
+
+
+# --- Build-failure reasons --------------------------------------------------
+# The JIT build workers already compute a reason for every codegen/compile
+# failure; what they do with it decides whether a broken toolchain is
+# diagnosable. develop #2700 produced 64 lines of "build_fail " with nothing
+# after them because the reason was computed and dropped. These tests pin the
+# worker end: the reason carries the compiler's own message, and it is bounded
+# so one CK template failure cannot bury the summary.
+import tempfile  # noqa: E402
+from unittest import mock  # noqa: E402
+
+import ctypes_utils as _cu  # noqa: E402
+
+
+def _hipcc_job():
+    """Minimal _run_hipcc_subprocess job; subprocess.run is always mocked."""
+    with tempfile.TemporaryDirectory() as d:
+        return {
+            "compile_cmd": ["hipcc", "-c", "k.cpp"],
+            "link_cmd": ["hipcc", "-shared", "k.o"],
+            "lib_path": str(Path(d) / "libk.so"),
+            "compile_timeout": 300,
+        }
+
+
+class TestBuildFailureReasons(unittest.TestCase):
+    def test_compile_failure_reports_the_compiler_message(self):
+        # develop #2700 verbatim: HIP_CLANG_PATH pointed at a directory the
+        # TheRock image does not have, so hipcc could not find clang++. That one
+        # line is the whole diagnosis.
+        res = mock.Mock(returncode=1, stderr="clang++: not found")
+        with mock.patch("subprocess.run", return_value=res):
+            ok, path, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertFalse(ok)
+        self.assertIsNone(path)
+        self.assertEqual(reason, "Compile failed: clang++: not found")
+
+    def test_link_failure_is_distinguishable_from_compile_failure(self):
+        # Same .so, very different fix (missing symbol vs bad flag), so the
+        # prefix has to survive.
+        def run(cmd, **kwargs):
+            if "-shared" in cmd:
+                return mock.Mock(returncode=1, stderr="undefined symbol: foo")
+            return mock.Mock(returncode=0, stderr="")
+
+        with mock.patch("subprocess.run", side_effect=run):
+            ok, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertFalse(ok)
+        self.assertTrue(reason.startswith("Link failed: "), reason)
+        self.assertIn("undefined symbol: foo", reason)
+
+    def test_huge_stderr_is_clipped_with_a_marker(self):
+        # A CK template failure is tens of kilobytes. Unbounded, 64 of those
+        # make the summary unreadable and bloat the archived JSON.
+        huge = "e" * 50_000
+        res = mock.Mock(returncode=1, stderr=huge)
+        with mock.patch("subprocess.run", return_value=res):
+            _, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertLess(len(reason), _cu._STDERR_REASON_CHARS + 300)
+        self.assertIn("clipped", reason)
+        self.assertIn("50000 chars total", reason)
+        self.assertTrue(reason.startswith("Compile failed: eeee"), reason[:40])
+
+    def test_message_shorter_than_the_limit_is_untouched(self):
+        # The old codegen path clipped at 200 chars, shorter than one clang
+        # diagnostic plus its file:line prefix, so errors were cut mid-word.
+        msg = "x" * 400
+        self.assertEqual(_cu._clip_stderr(msg), msg)
+        self.assertNotIn("clipped", _cu._clip_stderr(msg))
+
+    def test_empty_stderr_does_not_become_none(self):
+        # subprocess with text=True can hand back None if stderr was not piped.
+        self.assertEqual(_cu._clip_stderr(None), "")
+
+    def test_failure_with_no_stderr_still_says_something(self):
+        # A compiler killed by a signal writes nothing. "Compile failed: " is
+        # truthy, so it would slide past every `err or "<placeholder>"` guard
+        # downstream and print as a build_fail with a blank reason -- the exact
+        # symptom this PR exists to remove. The exit code is then the only
+        # evidence there is, so it has to be in the string.
+        res = mock.Mock(returncode=-9, stderr="")
+        with mock.patch("subprocess.run", return_value=res):
+            ok, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertFalse(ok)
+        self.assertNotEqual(reason.strip(), "Compile failed:")
+        self.assertIn("no stderr output", reason)
+        self.assertIn("-9", reason)
+
+    def test_whitespace_only_stderr_counts_as_no_stderr(self):
+        # A lone newline is not a diagnostic; treating it as one gives a reason
+        # that renders as a blank line in the summary.
+        res = mock.Mock(returncode=1, stderr="\n  \n")
+        with mock.patch("subprocess.run", return_value=res):
+            _, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertIn("no stderr output", reason)
+
+    def test_every_reason_site_goes_through_one_placeholder(self):
+        # The codegen site (_generate_single_kernel_subprocess) is driven
+        # against a real codegen in test_quant_target_header_regressions, so
+        # assert the shared helper instead of standing up a third subprocess
+        # mock: all three sites format through it, and a new site that does not
+        # is the thing to catch in review.
+        self.assertEqual(
+            _cu._fail_reason("Codegen failed", "bad tile", 1),
+            "Codegen failed: bad tile",
+        )
+        self.assertIn("no stderr output", _cu._fail_reason("Codegen failed", "", 1))
+        self.assertIn("no stderr output", _cu._fail_reason("Codegen failed", None, 1))
+
+    def test_link_failure_with_no_stderr_keeps_its_prefix(self):
+        # The compile/link distinction still has to survive the placeholder.
+        def run(cmd, **kwargs):
+            if "-shared" in cmd:
+                return mock.Mock(returncode=134, stderr="")
+            return mock.Mock(returncode=0, stderr="")
+
+        with mock.patch("subprocess.run", side_effect=run):
+            _, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertTrue(reason.startswith("Link failed"), reason)
+        self.assertIn("no stderr output", reason)
+        self.assertIn("134", reason)
+
+
+# --- Build-failure reasons reach the caller ---------------------------------
+# The worker end is covered above; this is the bridge end. The reasons used to
+# die at the setup_multiple_gemm_dispatchers boundary, which returns only
+# Optional[Path], so a caller could tell THAT a config failed but never why.
+from concurrent.futures import ThreadPoolExecutor  # noqa: E402
+
+import gemm_utils as _gu  # noqa: E402
+
+
+def _buildable_config(name_suffix=""):
+    cfg = _gu.GemmKernelConfig(
+        dtype_a="bf16", dtype_b="bf16", dtype_c="bf16", dtype_acc="fp32",
+        layout_a="row", layout_b="col", layout_c="row",
+        tile_m=256, tile_n=256, tile_k=64,
+        wave_m=2, wave_n=2, wave_k=1,
+        warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+        pipeline="compv3", scheduler="intrawave", epilogue="cshuffle",
+        pad_m=True, pad_n=True, pad_k=True, gfx_arch="gfx950",
+    )
+    return cfg
+
+
+class TestBuildErrorsOutParameter(unittest.TestCase):
+    """setup_multiple_gemm_dispatchers(..., errors=d) fills d with the reasons."""
+
+    def _run_bridge(self, codegen_result, compile_result, errors=None):
+        cfg = _buildable_config()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            # The bridge refuses to start unless the static lib and the
+            # variant's ctypes source exist (gemm_utils FileNotFoundError
+            # guard), so stand both up empty -- nothing actually compiles here.
+            (root / "bindings" / "ctypes").mkdir(parents=True)
+            (root / "bindings" / "ctypes" / _gu._ctypes_source_name(cfg)).touch()
+            (root / "build").mkdir()
+            (root / "build" / "libck_tile_dispatcher.a").touch()
+            (root / "generated").mkdir()
+            (root / "codegen.py").touch()
+            with mock.patch.object(_gu._cu, "get_dispatcher_root", return_value=root), \
+                 mock.patch.object(_gu._cu, "get_build_dir", return_value=root / "build"), \
+                 mock.patch.object(_gu._cu, "get_generated_kernels_dir",
+                                   return_value=root / "generated"), \
+                 mock.patch.object(_gu._cu, "get_codegen_path",
+                                   return_value=root / "codegen.py"), \
+                 mock.patch.object(_gu, "_tile_engine_codegen_flags", return_value=[]), \
+                 mock.patch.object(_gu._cu, "_generate_single_kernel_subprocess",
+                                   return_value=codegen_result), \
+                 mock.patch.object(_gu._cu, "_run_hipcc_subprocess",
+                                   return_value=compile_result), \
+                 mock.patch.object(_gu, "ProcessPoolExecutor", ThreadPoolExecutor):
+                # ThreadPoolExecutor is API-compatible with the pool's use here
+                # (submit + as_completed) and runs in-process, so the patched
+                # workers above are the ones actually called. With a real
+                # process pool the children re-import the unpatched module and
+                # every mock is silently bypassed.
+                kw = {} if errors is None else {"errors": errors}
+                return _gu.setup_multiple_gemm_dispatchers(
+                    [cfg], verbose=False, **kw), cfg
+
+    def test_codegen_failure_reason_reaches_the_caller(self):
+        errors = {}
+        paths, cfg = self._run_bridge(
+            codegen_result=(False, None, "Codegen failed: bad tile"),
+            compile_result=(True, "unused.so", ""),
+            errors=errors,
+        )
+        self.assertEqual(paths, [None])
+        self.assertEqual(errors, {cfg.name: "Codegen failed: bad tile"})
+
+    def test_compile_failure_reason_reaches_the_caller(self):
+        errors = {}
+        paths, cfg = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(False, None, "Compile failed: clang++: not found"),
+            errors=errors,
+        )
+        self.assertEqual(paths, [None])
+        self.assertEqual(errors, {cfg.name: "Compile failed: clang++: not found"})
+
+    def test_reasonless_failure_gets_a_placeholder_not_an_empty_string(self):
+        errors = {}
+        paths, cfg = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(False, None, ""),
+            errors=errors,
+        )
+        self.assertEqual(paths, [None])
+        self.assertIn("no reason reported", errors[cfg.name])
+
+    def test_successful_build_records_no_error(self):
+        errors = {}
+        paths, _ = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(True, "k.so", ""),
+            errors=errors,
+        )
+        self.assertEqual(paths, [Path("k.so")])
+        self.assertEqual(errors, {})
+
+    def test_a_reused_dict_does_not_keep_a_stale_reason(self):
+        # Only failures are written, so without an upfront clear a caller that
+        # reuses one dict -- a sweep rebuilding after a toolchain fix -- reads
+        # last run's "clang++: not found" for a config that now builds clean,
+        # and reports a green build as failed.
+        cfg_name = _buildable_config().name
+        errors = {cfg_name: "Compile failed: clang++: not found"}
+        paths, cfg = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(True, "k.so", ""),
+            errors=errors,
+        )
+        self.assertEqual(paths, [Path("k.so")])
+        self.assertNotIn(cfg.name, errors)
+
+    def test_clearing_leaves_other_callers_entries_alone(self):
+        # The clear is scoped to the names this call was handed. A dict shared
+        # across two config groups must not lose the other group's reasons.
+        errors = {"some_other_kernel": "Codegen failed: bad tile"}
+        _, _ = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(True, "k.so", ""),
+            errors=errors,
+        )
+        self.assertEqual(errors, {"some_other_kernel": "Codegen failed: bad tile"})
+
+    def test_omitting_errors_is_unchanged(self):
+        # The backward-compatibility guarantee for the ~15 other call sites:
+        # they pass no `errors` and must keep getting the same list, with no
+        # exception from the collection path.
+        paths, _ = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(False, None, "Compile failed: boom"),
+        )
+        self.assertEqual(paths, [None])
