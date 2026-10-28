@@ -155,6 +155,11 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t contextual_seqlen;
         ck_tile::index_t window_size;
         ck_tile::index_t min_full_attn_seqlen;
+
+        // KV truncation: > 0 keeps only kv_truncate_len keys of each sequence, the last ones
+        // when kv_keep_last, else the first ones. Set by the jagged dispatchers after MakeKargs.
+        ck_tile::index_t kv_truncate_len = 0;
+        bool kv_keep_last                = false;
     };
 
     struct HstuAttentionGroupFwdBaseKargs
@@ -749,7 +754,18 @@ struct HstuAttentionFwdKernel
         {
             // get starting offset for each batch
             const long_index_t query_start = kargs.seq_q_offsets_ptr[i_batch];
-            const long_index_t key_start   = kargs.seq_kv_offsets_ptr[i_batch];
+            long_index_t key_start         = kargs.seq_kv_offsets_ptr[i_batch];
+            index_t seqlen_kv =
+                kargs.seq_kv_offsets_ptr[i_batch + 1] - kargs.seq_kv_offsets_ptr[i_batch];
+            if constexpr(!kUseGroup)
+            {
+                if(kargs.kv_truncate_len > 0 && seqlen_kv > kargs.kv_truncate_len)
+                {
+                    if(kargs.kv_keep_last)
+                        key_start += seqlen_kv - kargs.kv_truncate_len;
+                    seqlen_kv = kargs.kv_truncate_len;
+                }
+            }
 
             batch_offset_q = query_start * kargs.seq_stride_q;
             batch_offset_k = key_start * kargs.seq_stride_k;
@@ -767,8 +783,7 @@ struct HstuAttentionFwdKernel
 
             kargs.seqlen_q =
                 kargs.seq_q_offsets_ptr[i_batch + 1] - kargs.seq_q_offsets_ptr[i_batch];
-            kargs.seqlen_kv =
-                kargs.seq_kv_offsets_ptr[i_batch + 1] - kargs.seq_kv_offsets_ptr[i_batch];
+            kargs.seqlen_kv = seqlen_kv;
 
             // read from device memory for the group specific mask and scaling parameters
             if constexpr(kUseGroup)

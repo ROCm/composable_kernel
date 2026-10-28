@@ -100,6 +100,11 @@ struct HstuAttentionNoGroupFwdParams
     ck_tile::index_t total_seqlen_q  = 0;
     ck_tile::index_t total_seqlen_kv = 0;
 
+    // jagged mode only: > 0 keeps kv_truncate_len keys of each sequence, the last ones when
+    // kv_keep_last, else the first ones (forward only).
+    ck_tile::index_t kv_truncate_len = 0;
+    bool kv_keep_last                = false;
+
     // Set by run_jagged_forward_dispatch from a strategy-chosen config; negative leaves the choice
     // to the dispatchers' heuristics. grid_order: 1 almost-invariant (batch-leading), 0
     // length-aware.
