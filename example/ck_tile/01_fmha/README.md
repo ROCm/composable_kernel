@@ -49,7 +49,7 @@ args:
                 if not equal to h, then this is GQA/MQA case
           -s    seqlen_q. if group-mode, means the average value of seqlen_q (default:3328)
                 total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
-                also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
+                also with "-s=s0,s1,s2..." comma-separated ints to set per batch seqlen(group-mode)
         -s_k    seqlen_k (including new key/value), -1 means equal to s (default:-1)
                 also with "-s_k=s0,s1,s2..." comma-separated ints to set seqlen per batch (group mode)
      -s_qpad    seqlen_q stride between 2 batches (group-mode optional) (default:-1)
