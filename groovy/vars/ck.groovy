@@ -1596,6 +1596,19 @@ String _dispatcherPerfCmd(String compiler, String gpuTarget, String samplingTier
     return cmd
 }
 
+// Archive a dispatcher lane's result JSON as <arch>_<name>. The gfx942 and gfx950
+// lanes are parallel branches of one build writing the same names, and Jenkins
+// keeps one artifact per path, so unprefixed the last lane silently replaces the
+// other arch's results (tile_engine JSON has no arch field). Paths are spelled
+// out because execute_cmd runs in the build dir while archiveArtifacts resolves
+// against the workspace root. Never throws: callers are finally blocks, where on
+// a cmake/ninja failure no JSON exists and a throw would mask the real error.
+def archiveArchResults(String arch, String glob) {
+    def buildDir = "projects/composablekernel/build"
+    sh(returnStatus: true, script: "cd ${buildDir} && for f in ${glob}; do mv \"\$f\" \"${arch}_\$f\"; done")
+    archiveArtifacts artifacts: "${buildDir}/${arch}_${glob}", allowEmptyArchive: true
+}
+
 // Benchmark ahead-of-time tile_engine instances at smoke coverage: one dtype,
 // one layout, one problem size, and a fixed per-op AOT instance cap. Sized to
 // catch codegen/build/launch breakage on demand without booking a GPU node for
@@ -1677,10 +1690,7 @@ def runDispatcherPerfTests(String compiler, String gpuTarget = "gfx942") {
         buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)
     } finally {
         // finally, not a trailing call: a red lane is exactly when the per-kernel
-        // JSON is worth having, and buildAndTest throws on failure. Same path
-        // reasoning as runDispatcherCorrectnessTests: execute_cmd runs from
-        // projects/composablekernel/build while archiveArtifacts resolves against
-        // the workspace root, so the build-relative path is spelled out in full.
+        // JSON is worth having, and buildAndTest throws on failure.
         //
         // *_results.json, NOT dispatcher_*: this lane drives tile_engine's own
         // benchmark drivers, and every file it produces is a tile_engine JSON
@@ -1689,14 +1699,11 @@ def runDispatcherPerfTests(String compiler, String gpuTarget = "gfx942") {
         // writes those -- so the narrower glob matched zero files and
         // allowEmptyArchive turned that into a silent success.
         //
-        // allowEmptyArchive stays true only because this is a finally block: on a
-        // cmake/ninja failure no JSON exists yet, and a throwing archive step
-        // would mask the real exception. The signal that the run actually
-        // produced results comes from the drivers, which now exit non-zero when
-        // no kernels were discovered or the result set is empty, and record
-        // launches_attempted/succeeded/failed in each JSON.
-        archiveArtifacts artifacts: "projects/composablekernel/build/*_results.json",
-                         allowEmptyArchive: true
+        // The signal that the run actually produced results comes from the
+        // drivers, which exit non-zero when no kernels were discovered or the
+        // result set is empty, and record launches_attempted/succeeded/failed in
+        // each JSON.
+        archiveArchResults(gpuTarget, "*_results.json")
     }
 }
 
@@ -1987,14 +1994,8 @@ def runDispatcherCorrectnessTests(String arch, String compiler) {
     } finally {
         // finally, not a trailing call: a red lane is exactly when the per-kernel
         // JSON is worth having, and buildAndTest throws on failure.
-        //
-        // Path, not a bare glob: cmake_build runs execute_cmd from
-        // projects/composablekernel/build, while archiveArtifacts resolves
-        // against the workspace root. A bare "dispatcher_*_results.json" matches
-        // nothing there, and allowEmptyArchive hides that it matched nothing.
         // Glob, not one name: each variant writes its own dispatcher_<v>_*.json.
-        archiveArtifacts artifacts: "projects/composablekernel/build/dispatcher_*_results.json",
-                         allowEmptyArchive: true
+        archiveArchResults(arch, "dispatcher_*_results.json")
     }
 }
 
