@@ -143,3 +143,4 @@
 #include "ck_tile/core/utility/transpose_vectors.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/unary_element_function.hpp"
+#include "ck_tile/core/utility/xcd_remap.hpp"

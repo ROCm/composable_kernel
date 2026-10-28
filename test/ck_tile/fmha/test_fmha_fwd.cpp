@@ -411,6 +411,76 @@ TEST(TestCkTileFmhaFwd, QrTdmLdsArenaPrefill)
     }
 }
 
+// Batch-mode XCD remap of the block index (gfx1250): 3 batches, seqlen_q 300, so
+// 3 (bm0=128) or 5 (bm0=64) m-tiles per (batch, head) on grids that are not a
+// multiple of the XCD count, where the remap is not the identity. Each case names
+// the GetTileIndex branch it reaches. Square causal bhsd grids take the
+// batch-local causal order instead, hence seqlen_k 400 for the bhsd causal case.
+// Masked bshd grids remap only with at least 8 (batch, head) rows per m-tile: 3 x
+// 16 heads covers both m-tile counts, 3 x 5 neither.
+class BatchXCDRemap
+    : public TestWithParam<
+          std::tuple<bool, int, int, std::vector<int>, std::vector<int>, const char*>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    BatchXCDRemap,
+    // bhsd/bshd, nhead, seqlen_k, q_eff_lens, kv_eff_lens, mask
+    Values(
+        // bhsd remap
+        std::tuple{true, 5, 300, std::vector<int>{}, std::vector<int>{}, "0"},
+        std::tuple{true, 5, 400, std::vector<int>{}, std::vector<int>{}, "2"},
+        // bshd remap
+        std::tuple{false, 5, 300, std::vector<int>{}, std::vector<int>{}, "0"},
+        std::tuple{false, 16, 300, std::vector<int>{}, std::vector<int>{}, "2"},
+        // bshd masked, too few heads per m-tile: round-robin
+        std::tuple{false, 5, 300, std::vector<int>{}, std::vector<int>{}, "2"},
+        // per-batch lengths: round-robin, early exit past each batch's seqlen_q
+        std::tuple{true, 5, 300, std::vector<int>{300, 64, 1}, std::vector<int>{300, 100, 7}, "0"},
+        std::tuple{
+            false, 16, 300, std::vector<int>{300, 64, 1}, std::vector<int>{300, 100, 7}, "2"}));
+
+TEST_P(BatchXCDRemap, DataTypeConfig)
+{
+    auto [perm, nhead, seqlen_k, q_eff_lens, kv_eff_lens, mask_str] = GetParam();
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode_enum::batch,
+                                               3, // batch
+                                               nhead,
+                                               -1, // nhead_k
+                                               {adjust_seqlen(300)},
+                                               {adjust_seqlen(seqlen_k)},
+                                               adjust_hdim(128),
+                                               adjust_hdim(128),
+                                               0,    // seqlen_knew
+                                               {-1}, // seqlen_qpads
+                                               {-1}, // seqlen_kpads
+                                               q_eff_lens,
+                                               kv_eff_lens,
+                                               0,    // rotary_dim
+                                               perm, // i_perm
+                                               perm, // o_perm
+                                               0,    // scale_s
+                                               0,    // logits_soft_cap
+                                               def_is_v_rowmajor,
+                                               def_lse,
+                                               0,     // page_block_size
+                                               false, // use_cache_batch_idx
+                                               "n",   // bias_str
+                                               0.0f,  // p_drop
+                                               0,     // drop_seed
+                                               0,     // drop_offset
+                                               false, // drop_prefs
+                                               mask_str,
+                                               qscale_str,
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
+    CHECK_RESULT(result);
+}
+
 // gfx125x-only: qr_tdm correctness at the head dims this PR added but that the
 // generic General sweep does not cover -- (160,160) and (96,96). The generic
 // suite already exercises 32/64/128/192-128 through qr_tdm but never asserts
