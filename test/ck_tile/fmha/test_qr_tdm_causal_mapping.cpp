@@ -65,6 +65,35 @@ using MappingKernel = ck_tile::FmhaFwdKernel<
         MappingProblem<M, Mask, StoreLSE, DataType, BiasEnum, HasSink>>,
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<float, DataType, false, false>>>;
 
+// Which pipelines and tiles get the K/V NT_HT hint: only the fields the predicate
+// reads, so every axis can be pinned without instantiating a full pipeline.
+template <typename KDataType_, ck_tile::index_t M0, ck_tile::index_t HDim, bool LdsArena = true>
+struct HintProbePipeline
+{
+    static constexpr bool kUsesLdsArena   = LdsArena;
+    static constexpr ck_tile::index_t kM0 = M0;
+    using KDataType                       = KDataType_;
+    struct BlockFmhaShape
+    {
+        static constexpr ck_tile::index_t kQKHeaddim = HDim;
+    };
+};
+
+template <typename Pipeline>
+constexpr bool kKVHint = ck_tile::detail::uses_kv_nt_ht_hint_v<Pipeline>;
+
+static_assert(kKVHint<HintProbePipeline<ck_tile::bf16_t, 64, 128>>);
+static_assert(kKVHint<HintProbePipeline<ck_tile::half_t, 64, 128>>);
+static_assert(kKVHint<HintProbePipeline<ck_tile::bf16_t, 16, 128>>);
+static_assert(kKVHint<HintProbePipeline<ck_tile::bf16_t, 64, 64>>);
+static_assert(kKVHint<HintProbePipeline<ck_tile::bf16_t, 64, 192>>);
+static_assert(!kKVHint<HintProbePipeline<ck_tile::bf16_t, 128, 128>>);
+static_assert(!kKVHint<HintProbePipeline<ck_tile::bf16_t, 64, 256>>);
+static_assert(!kKVHint<HintProbePipeline<ck_tile::fp8_t, 64, 128>>);
+static_assert(!kKVHint<HintProbePipeline<ck_tile::bf16_t, 64, 128, false>>);
+static_assert(kKVHint<ck_tile::BlockFmhaPipelineQRKSVSTdm<MappingProblem<64, true>>>);
+static_assert(!kKVHint<ck_tile::BlockFmhaPipelineQRKSVSTdm<MappingProblem<128, true>>>);
+
 template <typename Kernel>
 __global__ void capture_mapping(typename Kernel::Kargs args, int* output)
 {
