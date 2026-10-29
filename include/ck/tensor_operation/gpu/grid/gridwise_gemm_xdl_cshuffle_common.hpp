@@ -32,7 +32,8 @@ enum Activation
     silu_and_mul       = 1,
     swiglustep_and_mul = 2,
     swiglu_oai_and_mul = 3,
-    gelu_tanh_and_mul  = 4
+    gelu_tanh_and_mul  = 4,
+    relu2              = 5
 };
 
 // OAI / gpt-oss SwiGLU activation: gate * sigmoid(alpha * gate) * (up + 1), with a
