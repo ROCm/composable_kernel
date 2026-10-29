@@ -415,18 +415,6 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         return lcm(GetAlignmentV<Problem>(), GetOGradVWarpGemmBScalarPerVector<Problem>());
     }
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackK()
-    {
-        return max(GetQKWarpGemmBScalarPerVector<Problem>(), GetAlignmentK<Problem>());
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
-    {
-        return max(GetOGradVWarpGemmBScalarPerVector<Problem>(), GetAlignmentV<Problem>());
-    }
-
 #if !HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // K LDS descriptor: NumKVLdsBuffers * [kN0Sub, kQKHeaddim]
     template <typename Problem,
@@ -487,7 +475,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
-        else if constexpr(GetQKWarpGemmBScalarPerVector<Problem>() == GetSmemKPackK<Problem>())
+        else if constexpr(GetQKWarpGemmBScalarPerVector<Problem>() == GetAlignmentK<Problem>())
         {
             // In the trload pipeline this k_lds is read BOTH normally (Gemm0 A operand) and
             // transposed (Gemm4 via ds_read_b64_tr). Profiling shows the transpose read is the
@@ -636,7 +624,6 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         constexpr index_t NumBuffers = GetNumKVLdsBuffers<Problem>();
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
-        constexpr index_t kKPack     = GetSmemKPackV<Problem>();
         constexpr index_t kKVector   = GetAlignmentV<Problem>();
 
         if constexpr(kUseDirectLds)
@@ -685,10 +672,12 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         }
         else if constexpr(GetOGradVWarpGemmBScalarPerVector<Problem>() >= GetAlignmentV<Problem>())
         {
+            constexpr index_t kSwizzleUnit = GetOGradVWarpGemmBScalarPerVector<Problem>();
+
             // XOR-swizzled physical layout [NumBuffers, kNPerBlock, kKPerBlock] -- shared
             // with the transposed staging buffers (see MakeSwizzledNativeDesc).
             constexpr auto desc_native = detail::
-                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
+                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kSwizzleUnit>();
 
             // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
             // dim0, matching the other branches and the per-buffer caller slicing.

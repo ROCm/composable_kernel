@@ -477,12 +477,6 @@ struct HstuAttentionBwdKernel2PipelinePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackQ()
-    {
-        return max(GetQKWarpGemmAScalarPerVector<Problem>(), GetAlignmentQ<Problem>());
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetOGradVWarpGemmAScalarPerVector()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
@@ -528,12 +522,6 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                        GetPTOGradTWarpGemmBScalarPerVector<Problem, true /*kUseTrLoad */>()));
     }
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackOGrad()
-    {
-        return max(GetOGradVWarpGemmAScalarPerVector<Problem>(), GetAlignmentOGrad<Problem>());
-    }
-
     // -------------------------------------------------------------------------
     // LDS block descriptors
     // -------------------------------------------------------------------------
@@ -545,11 +533,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
               bool kUseXor       = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
-        constexpr index_t kNPerBlock              = Problem::HstuAttentionTileSetting::kM0Sub;
-        constexpr index_t kKPerBlock              = Problem::HstuAttentionTileSetting::kQKHeaddim;
-        constexpr index_t kKPack                  = GetSmemKPackQ<Problem>();
-        constexpr index_t kKVector                = GetAlignmentQ<Problem>();
-        constexpr index_t WarpGemmScalarPerVector = GetQKWarpGemmAScalarPerVector<Problem>();
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+        constexpr index_t kKVector   = GetAlignmentQ<Problem>();
 
         constexpr index_t NumBuffers =
             kUseTrLoad ? GetNumM0Loops<Problem>() : GetNumQOGradLdsBuffers<Problem>();
@@ -600,7 +586,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
-        else if constexpr(WarpGemmScalarPerVector >= kKVector)
+        else if constexpr(GetQKWarpGemmAScalarPerVector<Problem>() >= kKVector)
         {
             if constexpr(kUseTrLoad)
             {
@@ -645,7 +631,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         else
         {
             constexpr auto desc_native = detail::
-                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
+                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKVector>();
 
             // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
             // dim0, matching the other branches and the per-buffer caller slicing.
@@ -728,11 +714,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
               bool kUseXor       = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradLdsBlockDescriptor()
     {
-        constexpr index_t kNPerBlock              = Problem::HstuAttentionTileSetting::kM0Sub;
-        constexpr index_t kKPerBlock              = Problem::HstuAttentionTileSetting::kVHeaddim;
-        constexpr index_t kKPack                  = GetSmemKPackOGrad<Problem>();
-        constexpr index_t kKVector                = GetAlignmentOGrad<Problem>();
-        constexpr index_t WarpGemmScalarPerVector = GetOGradVWarpGemmAScalarPerVector<Problem>();
+        constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kM0Sub;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kVHeaddim;
+        constexpr index_t kKVector   = GetAlignmentOGrad<Problem>();
 
         constexpr index_t NumBuffers =
             kUseTrLoad ? GetNumM0Loops<Problem>() : GetNumQOGradLdsBuffers<Problem>();
@@ -783,7 +767,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
-        else if constexpr(WarpGemmScalarPerVector >= kKVector)
+        else if constexpr(GetOGradVWarpGemmAScalarPerVector<Problem>() >= kKVector)
         {
             if constexpr(kUseTrLoad)
             {
@@ -828,7 +812,7 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         else
         {
             constexpr auto desc_native = detail::
-                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKPack>();
+                MakeSwizzledNativeDesc<Problem, NumBuffers, kNPerBlock, kKPerBlock, kKVector>();
 
             // Logical view: [NumBuffers * kNPerBlock, kKPerBlock] -- buffers stacked along
             // dim0, matching the other branches and the per-buffer caller slicing.
