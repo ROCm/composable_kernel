@@ -28,10 +28,17 @@ using I32  = ck_tile::number<32>;
 using I64  = ck_tile::number<64>;
 using I128 = ck_tile::number<128>;
 using I256 = ck_tile::number<256>;
+using I384 = ck_tile::number<384>;
 using I512 = ck_tile::number<512>;
 
 using ClusterEnable  = std::true_type;
 using ClusterDisable = std::false_type;
+
+// Optional tuple slot 18: warps along M and N (slots 16 and 17 must then be given too).
+using Warps2x2 = ck_tile::sequence<2, 2>;
+using Warps4x1 = ck_tile::sequence<4, 1>;
+using Warps1x4 = ck_tile::sequence<1, 4>;
+using Warps2x4 = ck_tile::sequence<2, 4>;
 
 // clang-format off
 // MX GEMM kernel types using TDM pipeline with scale support
@@ -92,6 +99,39 @@ using KernelTypesMxGemmTdmBf16C = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F4,        F4,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV1,  I32>,
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV2,  I32>,
     std::tuple<    Row,     Col,     Row,       F4,        F4,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV2,  I32>
+>;
+
+// FP6 (E2M3) on the TDM pipelines, one row per C type and pipeline. All rows use the one
+// configuration the pipelines support for FP6: row-major A, column-major B, a 16x16x128 warp tile
+// and 32-element E8M0 scales. Paired with the cases in test_mx_gemm_pipeline_smoke_cases.inc.
+using KernelTypesMxGemmTdmFp6 = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I128,       I16,        I16,        CompTDMV1,  I32>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV1,  I32>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I128,       I16,        I16,        CompTDMV2,  I32>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV2,  I32>
+>;
+
+// FP6 at K tiles of 256 and 384, for a few cases; the smoke cases run at a K tile of 128.
+using KernelTypesMxGemmTdmFp6DeepKTile = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I256,       I16,        I16,        CompTDMV1,  I32>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I384,       I16,        I16,        CompTDMV2,  I32>
+>;
+
+// FP6 with bf16 C at other block tiles and warp layouts: the smallest and a large block tile with
+// 2 x 2 warps, four waves as 4 x 1 and 1 x 4, and eight waves (2 x 4) on V1.
+using KernelTypesMxGemmTdmFp6TileLayouts = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,        I32,         I32,          I128,       I16,        I16,        CompTDMV2,  I32, std::false_type, ClusterDisable, Warps2x2>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,       I256,        I128,          I128,       I16,        I16,        CompTDMV1,  I32, std::false_type, ClusterDisable, Warps2x2>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,       I128,        I128,          I128,       I16,        I16,        CompTDMV1,  I32, std::false_type, ClusterDisable, Warps4x1>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV2,  I32, std::false_type, ClusterDisable, Warps1x4>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,       I128,        I128,          I128,       I16,        I16,        CompTDMV1,  I32, std::false_type, ClusterDisable, Warps2x4>
+>;
+
+// FP6 with bf16 C at a 128-deep K tile, one row per pipeline, for the K-loop cases of
+// test_mx_gemm_tdm_fp6_kloop_shapes.cpp.
+using KernelTypesMxGemmTdmFp6KLoop = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV1,  I32>,
+    std::tuple<    Row,     Col,     Row,       F6,        F6,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV2,  I32>
 >;
 
 using KernelTypesMxGemmCompAsyncRCR = ::testing::Types<

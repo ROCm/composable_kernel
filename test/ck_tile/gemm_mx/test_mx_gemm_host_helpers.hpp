@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
@@ -241,6 +242,14 @@ MxTolerance mx_gemm_tolerance(ck_tile::index_t K, double s_max, bool quantized_r
 /**
  * @brief S_max for mx_gemm_tolerance, for the reference_mx_gemm layouts: a (M, K), b (K, N),
  *        scale_a (M, K / ScaleBlockSize), scale_b (K / ScaleBlockSize, N).
+ * @details Each operand is decoded and scaled once, into contiguous K-major rows, rather than once
+ *          per output element, and the M rows of sums run in parallel. Operand values and scales
+ *          have few mantissa bits, so each product |a * scale_a| * |b * scale_b| is exact in double
+ *          however its four factors are grouped.
+ * @throws std::invalid_argument if a tensor is not 2-D, scale_block_size is not positive, b does
+ *         not have K rows, or a scale tensor is smaller than its operand needs (scale_a at least
+ *         M x ceil(K / scale_block_size), scale_b at least ceil(K / scale_block_size) x N). The
+ *         checks are here because HostTensor::operator() does not check bounds.
  */
 template <typename ADataType, typename BDataType, typename AScaleDataType, typename BScaleDataType>
 double mx_sum_abs_max(const ck_tile::HostTensor<ADataType>& a,
@@ -249,27 +258,67 @@ double mx_sum_abs_max(const ck_tile::HostTensor<ADataType>& a,
                       const ck_tile::HostTensor<BScaleDataType>& scale_b,
                       ck_tile::index_t scale_block_size)
 {
-    const std::size_t M = a.get_lengths()[0];
-    const std::size_t K = a.get_lengths()[1];
-    const std::size_t N = b.get_lengths()[1];
-    double s_max        = 0.0;
+    if(a.get_num_of_dimension() != 2 || b.get_num_of_dimension() != 2 ||
+       scale_a.get_num_of_dimension() != 2 || scale_b.get_num_of_dimension() != 2 ||
+       scale_block_size <= 0)
+    {
+        throw std::invalid_argument("mx_sum_abs_max: needs 2-D tensors and scale_block_size > 0");
+    }
+    const std::size_t M     = a.get_lengths()[0];
+    const std::size_t K     = a.get_lengths()[1];
+    const std::size_t N     = b.get_lengths()[1];
+    const std::size_t block = static_cast<std::size_t>(scale_block_size);
+    const std::size_t KB    = (K + block - 1) / block;
+    if(b.get_lengths()[0] != K || scale_a.get_lengths()[0] < M || scale_a.get_lengths()[1] < KB ||
+       scale_b.get_lengths()[0] < KB || scale_b.get_lengths()[1] < N)
+    {
+        throw std::invalid_argument("mx_sum_abs_max: operand and scale shapes do not match");
+    }
+
+    std::vector<double> a_abs(M * K);
+    std::vector<double> b_abs(N * K);
     for(std::size_t m = 0; m < M; ++m)
     {
-        for(std::size_t n = 0; n < N; ++n)
+        for(std::size_t k = 0; k < K; ++k)
         {
-            double s = 0.0;
-            for(std::size_t k = 0; k < K; ++k)
-            {
-                const std::size_t kb = k / scale_block_size;
-                s += std::abs(static_cast<double>(mx_operand_value(a, m, k)) *
-                              mx_operand_value(b, k, n) *
-                              ck_tile::type_convert<float>(scale_a(m, kb)) *
-                              ck_tile::type_convert<float>(scale_b(kb, n)));
-            }
-            s_max = std::max(s_max, s);
+            a_abs[m * K + k] = std::abs(static_cast<double>(mx_operand_value(a, m, k)) *
+                                        ck_tile::type_convert<float>(scale_a(m, k / block)));
         }
     }
-    return s_max;
+    for(std::size_t n = 0; n < N; ++n)
+    {
+        for(std::size_t k = 0; k < K; ++k)
+        {
+            b_abs[n * K + k] = std::abs(static_cast<double>(mx_operand_value(b, k, n)) *
+                                        ck_tile::type_convert<float>(scale_b(k / block, n)));
+        }
+    }
+
+    // Each m is summed by one thread, which writes only row_max[m]. Nothing below may throw: an
+    // exception that escapes a worker thread calls std::terminate, so all decoding stays above.
+    std::vector<double> row_max(M, 0.0);
+    auto sum_row = [&](std::size_t m) {
+        const double* a_row = a_abs.data() + m * K;
+        double best         = 0.0;
+        for(std::size_t n = 0; n < N; ++n)
+        {
+            const double* b_row = b_abs.data() + n * K;
+            double s            = 0.0;
+            for(std::size_t k = 0; k < K; ++k)
+            {
+                s += a_row[k] * b_row[k];
+            }
+            best = std::max(best, s);
+        }
+        row_max[m] = best;
+    };
+    // ParallelTensorFunctor divides by the thread count, which must therefore be at least 1. More
+    // threads than rows would only idle, and the cap of 64 keeps parallel test binaries on a
+    // many-core host from oversubscribing it.
+    const std::size_t num_threads = std::max<std::size_t>(
+        1, std::min<std::size_t>({M, ck_tile::get_available_cpu_cores(), std::size_t{64}}));
+    ck_tile::make_ParallelTensorFunctor(sum_row, M)(num_threads);
+    return M == 0 ? 0.0 : *std::max_element(row_max.begin(), row_max.end());
 }
 
 } // namespace mx_test

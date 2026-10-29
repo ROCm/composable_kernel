@@ -14,6 +14,7 @@ using BF16 = ck_tile::bf16_t;
 using BF8  = ck_tile::bf8_t;
 
 using F4   = ck_tile::pk_fp4_t;
+using F6   = ck_tile::pk_fp6x16_t;
 using E8M0 = ck_tile::e8m0_t;
 using E5M3 = ck_tile::e5m3_t;
 using E4M3 = ck_tile::e4m3_t;
