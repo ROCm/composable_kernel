@@ -104,6 +104,54 @@ to have each worker compare its output against an fp32 numpy reference
 populated in the CSV. This gives self-contained per-kernel confidence; the
 broader numeric parity against native Tile Engine remains a separate task.
 
+### Measurement options
+
+All of these are off by default; without them the driver builds, pairs,
+measures and reports exactly as described above.
+
+- `--build-timeout SECONDS` — one limit for each kernel's codegen, compile and
+  link step, instead of the bridge's defaults (300 s each, 1200 s to compile a
+  fixed-vector-width kernel). The limits are wall-clock, so a large `--workers`
+  build on a busy host can hit them; a kernel whose step times out is reported
+  as a build failure (`Timeout: <step> exceeded N s`) and is absent from the
+  results.
+- `--failures-csv PATH` — one row per failed measurement, with `kind` one of
+  `error` (the worker reported a failure, e.g. the kernel refused the problem),
+  `missing` (the worker died before reporting), `worker-exit` (it exited with an
+  error after reporting every kernel), `timeout`, `batch-error`, `mismatch` (with
+  `--verify`) or `bad-output`; one `unsupported` row per kernel the worker
+  reported as not supporting the problem (counted as skipped, not failed); and
+  one `build-failed` row per kernel that did not build, with the failed step and
+  the first error line. The main CSV holds every kernel that ran, including
+  those that failed `--verify` (`verified` is `False`); this file is what tells
+  "could not run" apart from "never tried".
+- `--repeat-top K` with `--repeat-count N` (default 5) — after the sweep, re-time
+  the K fastest kernels of each problem N more times, each launch in its own
+  subprocess, into `--repeat-csv` (default `<csv>.repeats.csv`). The fastest of
+  many single timings is biased towards a lucky timing; selecting and reporting
+  on the median of the repeats removes that bias. Kernels that failed `--verify`
+  or wrote no non-zero output are not re-timed.
+- `--list-pairs PATH` — dry run: expand and pair as a real run would, write every
+  `(problem, kernel)` pair it would measure together with each kernel's
+  configuration, and exit without building. Use it to see the size of a sweep
+  before running it, or as the candidate list for choosing kernels another way.
+- `--pairs PATH` — measure only the listed pairs. The file maps `"MxNxK"` to a
+  list of kernel names, or to `"*"`; a `--list-pairs` file is accepted. Expansion
+  still uses the full config and problems files, so the fixed-vector-width
+  kernels are the same as in a full run, but only what the list needs is built.
+  A listed problem or kernel the run does not have is an error. A listed kernel
+  is measured only if a full run would pair it with that problem when every
+  kernel builds; a listed pair that cannot be measured (not built, or not paired
+  by the vector-width and tile rules) is printed and, with `--failures-csv`,
+  recorded as `not-measured`. A `"*"` problem is measured exactly as a full run
+  measures it, including the fixed-vector-width kernels a full run falls back to
+  when a native kernel fails to build, so `"*"` entries for the problems an
+  interrupted sweep did not reach complete it.
+
+The files a run writes (`--csv`, `--failures-csv`, `--repeat-csv`) and the
+`--pairs` file must all be different files; the driver refuses to start
+otherwise.
+
 ### Multi-GPU parallelism
 
 Phase 3 fans the `(kernel × problem)` work out across **every visible GPU** in
