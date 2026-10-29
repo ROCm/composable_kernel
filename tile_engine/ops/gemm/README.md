@@ -34,6 +34,10 @@ Tile Engine does — it only swaps the harness.
 | `gemm_full_benchmark.py` | Driver: compile (Phase 1) → load problems (Phase 2) → benchmark across all visible GPUs (Phase 3). |
 | `run_one_gemm_kernel.py` | Disposable worker: loads one `.so` in an isolated subprocess and times it. A GPU fault kills only the worker. |
 
+To measure only the kernels a trained model picks, and to score the picks
+against a full sweep, see
+[dispatcher/heuristics/HEURISTIC_BENCHMARKING.md](../../../dispatcher/heuristics/HEURISTIC_BENCHMARKING.md).
+
 ### Folder layout
 
 The bridged regular-GEMM path follows the same op-root convention as the merged
