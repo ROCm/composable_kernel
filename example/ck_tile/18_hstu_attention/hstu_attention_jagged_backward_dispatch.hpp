@@ -119,12 +119,26 @@ struct jagged_backward_dispatch
                                                                    occupancy_k1,
                                                                    occupancy_k2>;
 
-                using HstuEpilogue =
+                using HstuEpilogueQGrad =
                     ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
                         typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
                         InOutDataType,
                         kPadSeqLenQ,
                         false /*kPadHeadDimQK*/>>;
+
+                using HstuEpilogueKGrad =
+                    ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                        typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
+                        InOutDataType,
+                        kPadSeqLenK,
+                        false /*kPadHeadDimQK*/>>;
+
+                using HstuEpilogueVGrad =
+                    ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                        typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
+                        InOutDataType,
+                        kPadSeqLenK,
+                        false /*kPadHeadDimV*/>>;
 
                 // we only use async_load_tile() for K/V/Q/OGrad when its maximum vector_size is
                 //  dwordx4 (ToDO: use dwordx3 when hdim is 96)
@@ -166,9 +180,10 @@ struct jagged_backward_dispatch
                         HstuTraits>>;
 
                 using HstuKernel1 =
-                    ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
-                using HstuKernel2 =
-                    ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+                    ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogueQGrad>;
+                using HstuKernel2 = ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2,
+                                                                     HstuEpilogueKGrad,
+                                                                     HstuEpilogueVGrad>;
 
                 RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
             }
@@ -182,12 +197,26 @@ struct jagged_backward_dispatch
                                                                        occupancy_k1,
                                                                        occupancy_k2>;
 
-                    using HstuEpilogue =
+                    using HstuEpilogueQGrad =
                         ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
                             typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
                             InOutDataType,
                             kPadSeqLenQ,
                             kPadHeadDimQK>>;
+
+                    using HstuEpilogueKGrad =
+                        ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                            typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
+                            InOutDataType,
+                            kPadSeqLenK,
+                            kPadHeadDimQK>>;
+
+                    using HstuEpilogueVGrad =
+                        ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                            typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
+                            InOutDataType,
+                            kPadSeqLenK,
+                            kPadHeadDimV>>;
 
                     if constexpr(kPipelineKind == HstuBwdPipelineKind::Default)
                     {
@@ -209,10 +238,11 @@ struct jagged_backward_dispatch
                                 HstuPipelineProblemForKernel2,
                                 HstuTraits>>;
 
-                        using HstuKernel1 =
-                            ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
-                        using HstuKernel2 =
-                            ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+                        using HstuKernel1 = ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1,
+                                                                             HstuEpilogueQGrad>;
+                        using HstuKernel2 = ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2,
+                                                                             HstuEpilogueKGrad,
+                                                                             HstuEpilogueVGrad>;
 
                         RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
                     }
@@ -236,10 +266,11 @@ struct jagged_backward_dispatch
                                 HstuPipelineProblemForKernel2,
                                 HstuTraits>>;
 
-                        using HstuKernel1 =
-                            ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
-                        using HstuKernel2 =
-                            ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+                        using HstuKernel1 = ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1,
+                                                                             HstuEpilogueQGrad>;
+                        using HstuKernel2 = ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2,
+                                                                             HstuEpilogueKGrad,
+                                                                             HstuEpilogueVGrad>;
 
                         RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
                     }
@@ -263,10 +294,11 @@ struct jagged_backward_dispatch
                                 HstuPipelineProblemForKernel2,
                                 HstuTraits>>;
 
-                        using HstuKernel1 =
-                            ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
-                        using HstuKernel2 =
-                            ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+                        using HstuKernel1 = ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1,
+                                                                             HstuEpilogueQGrad>;
+                        using HstuKernel2 = ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2,
+                                                                             HstuEpilogueKGrad,
+                                                                             HstuEpilogueVGrad>;
 
                         RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
                     }

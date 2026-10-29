@@ -24,11 +24,14 @@
 
 namespace ck_tile {
 
-template <typename HstuAttentionBwdPipeline_, typename EpiloguePipeline_>
+template <typename HstuAttentionBwdPipeline_,
+          typename EpiloguePipelineKGrad_,
+          typename EpiloguePipelineVGrad_>
 struct HstuAttentionBwdKernel2
 {
     using HstuAttentionBwdPipeline = remove_cvref_t<HstuAttentionBwdPipeline_>;
-    using EpiloguePipeline         = remove_cvref_t<EpiloguePipeline_>;
+    using EpiloguePipelineKGrad    = remove_cvref_t<EpiloguePipelineKGrad_>;
+    using EpiloguePipelineVGrad    = remove_cvref_t<EpiloguePipelineVGrad_>;
 
     static constexpr index_t kBlockSize  = HstuAttentionBwdPipeline::kBlockSize;
     static constexpr index_t kBlockPerCu = HstuAttentionBwdPipeline::kBlockPerCu;
@@ -670,8 +673,9 @@ struct HstuAttentionBwdKernel2
 
     CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
-        return ck_tile::max(HstuAttentionBwdPipeline::GetSmemSize(),
-                            EpiloguePipeline::GetSmemSize());
+        return ck_tile::max(
+            HstuAttentionBwdPipeline::GetSmemSize(),
+            max(EpiloguePipelineKGrad::GetSmemSize(), EpiloguePipelineVGrad::GetSmemSize()));
     }
 
     // -------------------------------------------------------------------------
@@ -997,8 +1001,8 @@ struct HstuAttentionBwdKernel2
             constexpr index_t NumRepN_V =
                 HstuAttentionBwdPipeline::kVHeaddim / HstuAttentionBwdPipeline::kGemm1SingleRepN;
 
-            EpiloguePipeline{}(dk_dram_window, dk_acc, number<NumRepN_K>{});
-            EpiloguePipeline{}(dv_dram_window, dv_acc, number<NumRepN_V>{});
+            EpiloguePipelineKGrad{}(dk_dram_window, dk_acc, number<NumRepN_K>{});
+            EpiloguePipelineVGrad{}(dv_dram_window, dv_acc, number<NumRepN_V>{});
         };
 
         auto null_randval_window = [&]() {
