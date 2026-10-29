@@ -379,6 +379,35 @@ set_tests_properties(dispatcher_test_gemm_driver_fp32 PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# tile_engine GEMM sweep driver measurement options: --build-timeout reaches every
+# codegen/compile/link step, --failures-csv records failed runs and builds,
+# --repeat-top re-times the fastest kernels. Build and GPU runner are mocked.
+add_test(
+    NAME dispatcher_test_gemm_driver_measurement
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_gemm_driver_measurement.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_gemm_driver_measurement PROPERTIES
+    LABELS "dispatcher;python;gemm;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# tile_engine GEMM sweep driver --list-pairs / --pairs: the listed pairs are what a
+# full run measures, and --pairs builds and measures only them. Mocked as above.
+add_test(
+    NAME dispatcher_test_gemm_driver_pairs
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_gemm_driver_pairs.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_gemm_driver_pairs PROPERTIES
+    LABELS "dispatcher;python;gemm;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # MX bridge host tests and CMake configuration tests. Report missing host build
 # tools as a skipped CMake test rather than an all-skipped pass.
 foreach(_mx_test bridge cmake)

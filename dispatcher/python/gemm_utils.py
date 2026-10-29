@@ -2288,6 +2288,7 @@ def setup_multiple_gemm_dispatchers(
     max_workers: Optional[int] = None,
     *,
     errors: Optional[Dict[str, str]] = None,
+    build_timeout: Optional[int] = None,
 ) -> List[Optional[Path]]:
     """Codegen + compile each config into its own .so. Returns .so paths.
 
@@ -2311,6 +2312,12 @@ def setup_multiple_gemm_dispatchers(
     Without this the reasons are computed and thrown away unless verbose=True
     -- which is how a TheRock image with a bad HIP_CLANG_PATH produced 64 lines
     of "build_fail" with an empty reason instead of one "clang++: not found".
+
+    ``build_timeout`` (seconds) replaces the per-step limits of every kernel's
+    codegen, compile and link. ``None`` keeps them: 300 s each, except 1200 s to
+    compile a fixed-vector-width kernel. Each step is a wall-clock limit, so a
+    build sharing the host with many parallel workers may need a larger one. A
+    step that times out is reported as ``Timeout: <step> exceeded N s``.
     """
     import sys
 
@@ -2428,6 +2435,8 @@ def setup_multiple_gemm_dispatchers(
                 "variant": c.variant,
             }
         )
+        if build_timeout:
+            codegen_args[-1]["timeout"] = build_timeout
 
     if verbose:
         print(
@@ -2467,6 +2476,8 @@ def setup_multiple_gemm_dispatchers(
         if hdr is None:
             continue
         job, _ = _build_compile_jobs(configs[i], hdr)
+        if build_timeout:
+            job["compile_timeout"] = job["link_timeout"] = build_timeout
         compile_jobs.append(job)
         job_index.append(i)
 
