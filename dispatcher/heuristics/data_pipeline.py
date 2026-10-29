@@ -25,7 +25,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "codegen"))
 
 from arch_specs_generated import LDS_TOTAL_CAPACITY_BY_ARCH  # noqa: E402
-from codegen_common import normalize_gfx_arch  # noqa: E402
+from codegen_common import _VEC_ELEMENT_BYTES, normalize_gfx_arch  # noqa: E402
 
 
 CANONICAL_COLUMNS = [
@@ -281,6 +281,90 @@ def parse_streaming_log(
     return df
 
 
+# Columns every gemm_full_benchmark.py CSV carries.
+GEMM_DRIVER_CSV_COLUMNS = {"kernel", "M", "N", "K", "latency_ms", "tflops"}
+# The driver's output (C) dtype per input dtype (gemm_utils._OUTPUT_DTYPE).
+_GEMM_DRIVER_C_DTYPE = {"fp8": "fp16", "bf8": "fp16", "int8": "int32"}
+
+
+def is_gemm_driver_csv(columns, first_kernel: str) -> bool:
+    """True for a CSV written by tile_engine/ops/gemm/gemm_full_benchmark.py."""
+    return GEMM_DRIVER_CSV_COLUMNS <= set(columns) and str(first_kernel).startswith(
+        "gemm_"
+    )
+
+
+def parse_gemm_driver_csv(
+    path: str | Path,
+    arch: str,
+    run_id: Optional[str] = None,
+    op_type: str = "gemm_universal",
+) -> pd.DataFrame:
+    """Parse the CSV of tile_engine/ops/gemm/gemm_full_benchmark.py into canonical rows.
+
+    The driver writes one row per successful (kernel, problem) measurement. The
+    kernel name carries dtype, layout and every kernel field (parse_kernel_name),
+    so the canonical columns all come from the row and its name.
+
+    - A row whose ``verified`` column reads False (it failed ``--verify``) is
+      dropped; an empty column (a sweep run without ``--verify``) is kept. The
+      number dropped is in ``df.attrs["dropped_unverified"]``.
+    - A kernel name that does not decode raises instead of producing a row
+      without kernel fields.
+    - ``bandwidth_gb_s`` counts A and B in the input dtype and C in the
+      driver's output dtype.
+    """
+    path = Path(path)
+    if run_id is None:
+        run_id = hashlib.md5(path.name.encode()).hexdigest()[:12]
+    # round_trip: the default float parser is off by one ulp on some values.
+    raw = pd.read_csv(path, float_precision="round_trip", dtype={"verified": str})
+    missing = GEMM_DRIVER_CSV_COLUMNS - set(raw.columns)
+    if missing:
+        raise ValueError(
+            f"{path}: not a gemm_full_benchmark.py CSV, missing {sorted(missing)}"
+        )
+    verified = raw.get("verified", pd.Series("", index=raw.index))
+    failed = verified.fillna("").astype(str).str.strip().str.lower() == "false"
+    raw = raw[~failed]
+
+    parsed = {name: parse_kernel_name(name) for name in raw["kernel"].unique()}
+    undecoded = sorted(n for n, kp in parsed.items() if "warp_tile_k" not in kp)
+    if undecoded:
+        raise ValueError(
+            f"{path}: {len(undecoded)} kernel names do not decode, e.g. {undecoded[0]}"
+        )
+
+    rows = []
+    for r in raw.itertuples(index=False):
+        kp = parsed[r.kernel]
+        m, n, k = int(r.M), int(r.N), int(r.K)
+        latency, tflops = float(r.latency_ms), float(r.tflops)
+        in_bytes = _VEC_ELEMENT_BYTES[kp["dtype"]]
+        c_dtype = _GEMM_DRIVER_C_DTYPE.get(kp["dtype"], kp["dtype"])
+        moved = (m * k + k * n) * in_bytes + m * n * _VEC_ELEMENT_BYTES[c_dtype]
+        row = {
+            "op_type": op_type,
+            "arch": arch,
+            "kernel_name": r.kernel,
+            "m": m,
+            "n": n,
+            "k": k,
+            "split_k": 1,
+            "measured_tflops": tflops,
+            "latency_ms": latency,
+            "bandwidth_gb_s": moved / (latency * 1e6) if latency > 0 else 0.0,
+            "is_valid": tflops > 0 and latency > 0,
+            "run_id": run_id,
+        }
+        row.update(kp)
+        rows.append(row)
+
+    df = pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
+    df.attrs["dropped_unverified"] = int(failed.sum())
+    return df
+
+
 def check_capture_hw_arch(hw: dict, arch: str) -> None:
     """Raise if the profile's gfx target differs from ``arch``; pass if it has none."""
     local = re.search(r"(gfx[0-9a-f]+)", str(hw.get("gfx_name", "")))
@@ -532,7 +616,9 @@ def main(argv=None):
     import time
 
     parser = argparse.ArgumentParser(description="Parse CK Tile benchmark data")
-    parser.add_argument("input", help="Input file (log or parquet)")
+    parser.add_argument(
+        "input", help="Input file (log, gemm_full_benchmark.py CSV, or parquet)"
+    )
     parser.add_argument("--output", "-o", required=True, help="Output parquet path")
     parser.add_argument("--arch", default="gfx950", help="GPU architecture")
     parser.add_argument("--op_type", default="gemm_universal", help="Operation type")
@@ -550,6 +636,9 @@ def main(argv=None):
 
     if input_path.suffix == ".parquet":
         df = load_parquet(input_path)
+    elif input_path.suffix == ".csv":
+        df = parse_gemm_driver_csv(input_path, arch=args.arch, op_type=args.op_type)
+        print(f"  Dropped {df.attrs['dropped_unverified']} rows that failed --verify")
     else:
         df = parse_streaming_log(input_path, arch=args.arch, op_type=args.op_type)
 

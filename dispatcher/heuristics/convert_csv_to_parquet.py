@@ -62,6 +62,7 @@ from typing import Dict, Any, Optional, Set
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "codegen"))
 
 from arch_specs_generated import LDS_TOTAL_CAPACITY_BY_ARCH  # noqa: E402
+from data_pipeline import is_gemm_driver_csv, parse_gemm_driver_csv  # noqa: E402
 
 
 # Known metric/metadata columns (will be excluded from problem features)
@@ -265,6 +266,37 @@ def _looks_like_batched_gemm(path: Path) -> bool:
     return path.name == "batched_gemm_results.csv"
 
 
+def convert_gemm_driver_csv(
+    csv_file: Path, output_file: Path, arch: str, op_type: str = "gemm_universal"
+) -> pd.DataFrame:
+    """Convert a gemm_full_benchmark.py CSV to training parquet.
+
+    Rows are data_pipeline's canonical GEMM rows (parse_gemm_driver_csv: kernel
+    fields from the name, rows that failed --verify dropped) plus the hw_*
+    constants of ``arch`` from HW_PROFILES, which train.py records with the model.
+    """
+    df = parse_gemm_driver_csv(csv_file, arch=arch, op_type=op_type)
+    dropped = df.attrs["dropped_unverified"]
+    hw_profile = HW_PROFILES.get(arch, {})
+    if not hw_profile:
+        print(
+            f"Warning: no hardware profile for {arch}; emitting no hw_ columns. "
+            "The feature engine will use its built-in defaults, which may not "
+            f"describe {arch}. Add it to HW_PROFILES to train against real "
+            "constants."
+        )
+    for col, value in hw_profile.items():
+        df[col] = value
+    print(f"GEMM driver CSV {csv_file}:")
+    print(f"  Rows: {len(df):,} ({dropped} that failed --verify dropped)")
+    print(f"  Problems: {df.groupby(['layout', 'm', 'n', 'k']).ngroups}")
+    print(f"  Kernels: {df['kernel_name'].nunique()}")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(output_file, index=False)
+    print(f"✓ Saved to {output_file}")
+    return df
+
+
 def convert_csv_to_parquet(
     csv_file: Path,
     output_file: Path,
@@ -288,6 +320,9 @@ def convert_csv_to_parquet(
 
     Returns:
         DataFrame with converted data
+
+    A CSV written by tile_engine/ops/gemm/gemm_full_benchmark.py is converted by
+    convert_gemm_driver_csv instead (dtype and variant come from its kernel names).
     """
     csv_file = Path(csv_file)
     output_file = Path(output_file)
@@ -314,6 +349,12 @@ def convert_csv_to_parquet(
             f"({df['kernel_name'].nunique():,} kernels) -> {output_file}"
         )
         return df
+
+    head = pd.read_csv(csv_file, nrows=1)
+    if len(head) and is_gemm_driver_csv(head.columns, head.get("kernel", [""])[0]):
+        return convert_gemm_driver_csv(
+            Path(csv_file), Path(output_file), arch, op_type or "gemm_universal"
+        )
 
     print(f"Loading {csv_file}...")
     df = pd.read_csv(csv_file)
