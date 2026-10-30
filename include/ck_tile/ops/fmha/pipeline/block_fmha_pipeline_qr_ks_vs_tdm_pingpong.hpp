@@ -65,7 +65,12 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
     static_assert(!Problem::kUseDoubleKVLdsBuffer && !Problem::kProgressiveDsLoadK,
                   "qr_tdm_pingpong has its own K/V buffering");
     static_assert(kSubQKHeaddim == kQKHeaddim, "qr_tdm_pingpong stages whole K rows");
-    static_assert(kNWarp == 1, "qr_tdm_pingpong keeps S in registers: gemm_0 warps all on M");
+
+    // P is summed on the matrix unit when one gemm_1 warp tile of columns spans a row,
+    // i.e. the gemm_1 warps are all on M; the short-query tile spends them on N and
+    // takes the fp32 sum, which the LSE then shares.
+    static constexpr bool kRowSumOnMatrixUnit = BlockFmhaShape::Gemm1BlockWarps::at(I1) == 1;
+    static constexpr bool kSeparateLseSum     = kStoreLSE && kRowSumOnMatrixUnit;
 
     // Row sum of P as a pairwise tree per thread, then the cross-lane sync. The
     // serial fold of block_tile_reduce is a dependent v_add_f32 chain the
@@ -416,8 +421,9 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         using MLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
             SBlockTileType{}, sequence<1>{}, f_max, SMPLComputeDataType{0}));
 
-        // init M, L (sink-aware: when sink_v is finite, pre-seed m/l). l sums the 16-bit
-        // P that gemm_1 consumes and normalises O; the LSE needs the fp32 sum, l_lse.
+        // init M, L (sink-aware: when sink_v is finite, pre-seed m/l). l normalises O; on
+        // the matrix unit it sums the 16-bit P that gemm_1 consumes, and the LSE takes an
+        // fp32 sum of its own, l_lse (see kSeparateLseSum).
         auto m                      = MLBlockTileType{};
         auto l                      = MLBlockTileType{};
         [[maybe_unused]] auto l_lse = MLBlockTileType{};
@@ -428,7 +434,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         clear_tile(o_acc);
         InitRowMaxSum(m, l, sink_v, scale_s);
         m_base = m;
-        if constexpr(kStoreLSE)
+        if constexpr(kSeparateLseSum)
             l_lse = l;
 
         const auto q_origin = q_dram_block_window_tmp.get_window_origin();
@@ -532,6 +538,18 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
 
         // issued while Q is still in flight
         load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+
+        // S tile in LDS, only used with the gemm_0 warps on N
+        auto s_lds = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<SaccDataType*>(static_cast<char*>(smem_arena) + Layout::kSOffset),
+            Policy::template MakeSLdsBlockDescriptor<Problem>());
+        [[maybe_unused]] auto s_write_lds_window = make_tile_window(
+            s_lds, Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+        [[maybe_unused]] auto s_read_lds_window =
+            make_tile_window(s_lds,
+                             Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0},
+                             Policy::template MakeSRegTileDistribution<Problem>());
 
         // V tile in LDS
         auto v_dram_window =
@@ -664,7 +682,20 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             k_lds_write_window.set_bottom_tensor_view_data_ptr(k_write_ptr);
             load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
 
-            const auto s_new = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
+            // S{j}. With the gemm_0 warps on N each warp holds a column slice, so S goes
+            // through LDS into the row-complete layout gemm_1's A operand takes.
+            const auto s_new = [&]() {
+                if constexpr(kNWarp > 1)
+                {
+                    store_tile(s_write_lds_window, cast_tile<SMPLComputeDataType>(s_acc));
+                    block_sync_lds();
+                    return load_tile(s_read_lds_window);
+                }
+                else
+                {
+                    return cast_tile<SMPLComputeDataType>(s_acc);
+                }
+            }();
 
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
                 s_new,
@@ -735,7 +766,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                     {
                         const auto tmp = exp2(-gap);
                         l(i_idx) *= tmp;
-                        if constexpr(kStoreLSE)
+                        if constexpr(kSeparateLseSum)
                             l_lse(i_idx) *= tmp;
                         m_base(i_idx) = m[i_idx];
                         sweep_tile_span(o_spans[I1],
@@ -769,17 +800,25 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 });
             });
 
+            // MakePForGemm1 reorders P's (MIter, KIter) blocks within a thread, which
+            // lines up with gemm_1's A operand only with the warps on M or one MIter.
+            static_assert(BlockFmhaShape::Gemm1BlockWarps::at(I1) == 1 ||
+                          remove_cvref_t<decltype(gemm_1)>::MIterPerWarp == 1);
             [[maybe_unused]] int32_t p_scale = 0;
             auto p_tile = Base::template MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
 
             // l{j}; o_acc is already in p's m_base frame.
-            AccumulateRowSumOnMatrixUnit(l, p_tile);
-            if constexpr(kStoreLSE)
+            if constexpr(kRowSumOnMatrixUnit)
+                AccumulateRowSumOnMatrixUnit(l, p_tile);
+            if constexpr(!kRowSumOnMatrixUnit || kSeparateLseSum)
             {
                 const auto rowsum_p = BlockRowSum(p_compute); // rowsum(Pcompute{j})
                 sweep_tile_span(o_spans[I0], [&](auto idx0) {
                     constexpr auto i_idx = make_tuple(idx0);
-                    l_lse(i_idx) += rowsum_p[i_idx];
+                    if constexpr(kSeparateLseSum)
+                        l_lse(i_idx) += rowsum_p[i_idx];
+                    else
+                        l(i_idx) += rowsum_p[i_idx];
                 });
             }
 
@@ -826,7 +865,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
 
         if constexpr(kStoreLSE)
         {
-            // l_lse is normalised to m_base, validated as in the loop (a fully
+            // the fp32 sum, normalised to m_base, validated as in the loop (a fully
             // masked row keeps m_base at -inf)
             auto m_lse = m_base;
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
@@ -839,7 +878,10 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                     },
                     m_lse);
             }
-            StoreLse(lse_acc_dram_window_tmp, m_lse, l_lse, scale_s);
+            if constexpr(kSeparateLseSum)
+                StoreLse(lse_acc_dram_window_tmp, m_lse, l_lse, scale_s);
+            else
+                StoreLse(lse_acc_dram_window_tmp, m_lse, l, scale_s);
         }
 
         NormalizeO(o_acc, l);

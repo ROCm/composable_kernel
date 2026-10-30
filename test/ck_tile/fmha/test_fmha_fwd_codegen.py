@@ -1875,7 +1875,8 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
             )
         for kernel in pingpong:
             self.assertIn(kernel.F_dtype, ("fp16", "bf16"))
-            self.assertEqual((kernel.F_hdim, kernel.F_tile.F_bm0), (128, 64))
+            self.assertEqual(kernel.F_hdim, 128)
+            self.assertIn(kernel.F_tile.F_bm0, (16, 64))
             self.assertIn("BlockFmhaPipelineQRKSVSTdmPingPong", kernel.render())
 
     def test_d128_pingpong_dispatch(self):
@@ -1918,6 +1919,18 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
         # On a big grid below 640 rows. The unpadded instance serves any seqlen_k,
         # except with an elementwise bias, which still needs a tile multiple.
         self.assertEqual(run(**square, **big), [kernel("qr_tdm_pingpong", 64)])
+        # Up to 16 rows the 16-row tile, under the same grid condition (one m-tile:
+        # 1280 x 2 blocks, and 1792 x 1 at 32 rows).
+        for length, bm0 in ((8, 16), (16, 16), (17, 64)):
+            self.assertEqual(
+                run(seqlen_q=length, seqlen_k=532, **big),
+                [kernel("qr_tdm_pingpong", bm0)],
+            )
+        self.assertEqual(
+            run(seqlen_q=32, seqlen_k=200, batch=1792, nhead_q=1, nhead_k=1),
+            [kernel("qr_tdm_pingpong", 64)],
+        )
+        self.assertEqual(run(seqlen_q=8, seqlen_k=512), [kernel("qr_tdm", 64)])
         self.assertEqual(
             run(**square, **big, bias=1),
             [kernel("qr_tdm_pingpong", 64, skpad="t", bias="bias")],

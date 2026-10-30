@@ -484,13 +484,13 @@ TEST_P(BatchXCDRemap, DataTypeConfig)
 // d128 runs qr_tdm_pingpong below 640 rows with at least 2 (batch, head) pairs per
 // multiprocessor (GFX125_QR_TDM_PINGPONG_RANGE in fmha_fwd.py), so each case sizes its
 // grid to reach it on this device: the batch in batch mode; in group mode, where this
-// runner passes the packed total length as max_seqlen_q (kept below 640), 12 sequences
-// and the head count. The unpadded instance serves any seqlen_k except with an
-// elementwise bias; causal masks take its causal kernel ("_mc_", without LSE, bias or
-// sink). ALiBi without a mask makes every K tile raise the row maxima of the steep heads
-// past the rebase threshold, so those cases take the finite-to-finite rescale of o_acc
-// and l on every trip, with and without LSE.
-std::pair<int, int> PingPongGrid(mode_enum mode, int nhead)
+// runner passes the packed total length as max_seqlen_q (kept below 640), the head
+// count for a given number of sequences (12 by default). The unpadded instance serves
+// any seqlen_k except with an elementwise bias; causal masks take its causal kernel
+// ("_mc_", without LSE, bias or sink). ALiBi without a mask makes every K tile raise the
+// row maxima of the steep heads past the rebase threshold, so those cases take the
+// finite-to-finite rescale of o_acc and l on every trip, with and without LSE.
+std::pair<int, int> PingPongGrid(mode_enum mode, int nhead, int group_batch = 12)
 {
     int device = 0;
     hipDeviceProp_t props{};
@@ -499,8 +499,79 @@ std::pair<int, int> PingPongGrid(mode_enum mode, int nhead)
     const int pairs = 2 * props.multiProcessorCount;
     if(mode == mode_enum::batch)
         return {ck_tile::integer_divide_ceil(pairs, nhead), nhead};
-    constexpr int batch = 12;
-    return {batch, ck_tile::integer_divide_ceil(pairs, batch)};
+    return {group_batch, ck_tile::integer_divide_ceil(pairs, group_batch)};
+}
+
+// max_seqlen_q <= 16 takes qr_tdm_pingpong's 16-row tile, which spends its warps on N
+// instead of M and so sends S through LDS on its way from gemm_0 to gemm_1. A
+// distribution mismatch there permutes P's columns within a row: the row sums, and so
+// the LSE, stay right while O is wrong, so O is what these cases check. seqlen_k covers
+// a tile multiple and a padded tail; the masks cover the causal and windowed paths. The
+// grid is sized as for QrTdmPingPong; group mode packs 2 sequences of 8 rows.
+class QrTdmShortQuery : public TestWithParam<std::tuple<mode_enum, int, int, const char*>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         QrTdmShortQuery,
+                         // mode, seqlen_q, seqlen_k, mask
+                         Values(std::tuple{mode_enum::batch, 1, 509, "0"},
+                                std::tuple{mode_enum::batch, 8, 64, "0"},
+                                std::tuple{mode_enum::batch, 16, 509, "1"},
+                                std::tuple{mode_enum::batch, 8, 509, "2"},
+                                std::tuple{mode_enum::batch, 16, 64, "t:50,64"},
+                                std::tuple{mode_enum::group, 8, 509, "2"}));
+
+TEST_P(QrTdmShortQuery, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm_pingpong is only supported on gfx1250";
+
+        auto [mode, seqlen_q, seqlen_k, mask_str] = GetParam();
+        const auto [batch, nhead]                 = PingPongGrid(mode, 4, 2);
+
+        std::string selected_kernel;
+        // MHA: pack-GQA would fold the heads into seqlen_q and move the tile choice.
+        auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                                   batch,
+                                                   nhead,
+                                                   -1,
+                                                   {seqlen_q},
+                                                   {seqlen_k},
+                                                   128,
+                                                   128,
+                                                   0,
+                                                   {-1},
+                                                   {-1},
+                                                   {},
+                                                   {},
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   false,
+                                                   "n",
+                                                   0.0f,
+                                                   0,
+                                                   0,
+                                                   false,
+                                                   mask_str,
+                                                   qscale_str,
+                                                   true,
+                                                   1,
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_qr_tdm_pingpong_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_b16x64"), std::string::npos) << selected_kernel;
+    }
 }
 
 class QrTdmPingPong

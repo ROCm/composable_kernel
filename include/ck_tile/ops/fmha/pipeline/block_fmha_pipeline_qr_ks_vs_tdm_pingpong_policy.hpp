@@ -75,9 +75,11 @@ struct QrTdmPingPongPadding<Problem, true>
                                2 * kQrTdmLdsAccessBytes>;
 };
 
-// [K buffer 0][K buffer 1][V, aliased by Q]. Q is read once before the main loop and V's
-// first write follows the loop-head barrier, so Q sits on V and K's first transfer can be
-// issued right behind Q's. d128 fp16/bf16, padded: K0=0, K1=17408, Q/V0=34816, end=53248.
+// [K buffer 0][K buffer 1][S][V, aliased by Q]. Q is read once before the main loop and
+// V's first write follows the loop-head barrier, so Q sits on V and K's first transfer can
+// be issued right behind Q's. S only takes space with the gemm_0 warps on N. d128
+// fp16/bf16, padded: K0=0, K1=17408, Q/V0=34816, end=53248 (warps on M, M=64); the
+// 16-row short-query tile: S=34800, Q/V0=39168, end=57600.
 template <typename Problem, typename QPadding, typename KPadding, typename VPadding>
 struct QrTdmPingPongLdsArenaLayout
 {
@@ -108,11 +110,18 @@ struct QrTdmPingPongLdsArenaLayout
             .get_element_space_size() *
         sizeof(typename Problem::VDataType);
 
+    static constexpr index_t kSBytes =
+        BlockFmhaPipelineQRKSVSTdmDefaultPolicy::template GetSmemSizeS<Problem>();
+    static constexpr index_t kSAlignment =
+        BlockFmhaPipelineQRKSVSTdmDefaultPolicy::template GetSmemNPackS<Problem>() *
+        sizeof(typename Problem::SaccDataType);
+
     static constexpr index_t kK0Offset = 0;
     static constexpr index_t kK1Offset =
         integer_least_multiple(kK0Offset + kKBytes, kRegionAlignment);
+    static constexpr index_t kSOffset = integer_least_multiple(kK1Offset + kKBytes, kSAlignment);
     static constexpr index_t kV0Offset =
-        integer_least_multiple(kK1Offset + kKBytes, kRegionAlignment);
+        integer_least_multiple(kSOffset + kSBytes, kRegionAlignment);
     static constexpr index_t kQOffset = kV0Offset;
     static constexpr index_t kArenaBytes =
         integer_least_multiple(max(kQOffset + kQBytes, kV0Offset + kVBytes), kArenaAlignment);
@@ -175,6 +184,16 @@ struct BlockFmhaPipelineQRKSVSTdmPingPongPolicy : BlockFmhaPipelineQRKSVSTdmDefa
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return LdsArenaLayout<Problem>::kArenaBytes;
+    }
+
+    // S comes back out of LDS (gemm_0 warps on N) to be softmaxed and fed into gemm_1
+    // as its A operand, so it takes P's distribution. An encoding built from the QK
+    // gemm's warp layout would permute P's columns within a row once the warps sit on
+    // N: the row sums (and LSE) stay right while each key meets the wrong value row.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeSRegTileDistribution()
+    {
+        return MakePRegTileDistribution<Problem>();
     }
 
     // Row sum of P on the matrix unit: P (M x kN0) times ones (kN0 x one warp tile), with

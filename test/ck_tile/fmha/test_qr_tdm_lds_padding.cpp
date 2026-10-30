@@ -67,6 +67,15 @@ using TestFmhaShape = ck_tile::TileFmhaShape<ck_tile::sequence<M, 64, 32, 128, 3
                                              ck_tile::sequence<16, 16, 32>,
                                              true>;
 
+// Same geometry as TestFmhaShape, with explicit gemm_0 / gemm_1 warp layouts.
+template <ck_tile::index_t M, typename Gemm0Warps, typename Gemm1Warps = Gemm0Warps>
+using TestFmhaShapeWarps = ck_tile::TileFmhaShape<ck_tile::sequence<M, 64, 32, 128, 32, 128>,
+                                                  Gemm0Warps,
+                                                  ck_tile::sequence<16, 16, 32>,
+                                                  Gemm1Warps,
+                                                  ck_tile::sequence<16, 16, 32>,
+                                                  true>;
+
 using TestFmhaTraits = ck_tile::TileFmhaTraits<false,
                                                false,
                                                false,
@@ -757,6 +766,7 @@ constexpr bool validate_pingpong_layout()
 
     static_assert(Layout::kKBytes == 17392 && Layout::kVBytes == 18400);
     static_assert(Layout::kK0Offset == 0 && Layout::kK1Offset == 17408);
+    static_assert(Layout::kSBytes == 0);
     static_assert(Layout::kV0Offset == 34816 && Layout::kQOffset == Layout::kV0Offset);
     static_assert(Layout::kQBytes == (M == 128 ? 34800 : 17392));
     static_assert(Layout::kArenaBytes == (M == 128 ? 69632 : 53248));
@@ -769,7 +779,32 @@ constexpr bool validate_pingpong_layout()
     return true;
 }
 
+// The 16-row short-query tile spends its warps on N, so S goes through LDS: a region
+// between K1 and V, with the same row padding and K buffers.
+template <typename DataType>
+constexpr bool validate_short_query_pingpong_layout()
+{
+    using Problem  = TestProblemWithShape<TestFmhaProblem<DataType, 128>,
+                                          TestFmhaShapeWarps<16, ck_tile::sequence<1, 4, 1>>>;
+    using Policy   = ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPolicy;
+    using Layout   = typename Policy::template LdsArenaLayout<Problem>;
+    using Pipeline = ck_tile::BlockFmhaPipelineQRKSVSTdmPingPong<Problem>;
+
+    static_assert(std::is_same_v<Policy::LdsPaddingConfigK<Problem>, QKPad>);
+    static_assert(std::is_same_v<Policy::LdsPaddingConfigV<Problem>, VPad>);
+    static_assert(Layout::kSBytes > 0);
+    static_assert(Layout::kK0Offset == 0 && Layout::kK1Offset == 17408);
+    static_assert(Layout::kSOffset == 34800);
+    static_assert(Layout::kV0Offset == 39168 && Layout::kQOffset == Layout::kV0Offset);
+    static_assert(Layout::kArenaBytes == 57600);
+    static_assert(!Pipeline::kRowSumOnMatrixUnit);
+    static_assert(Pipeline::GetSmemSize() == Layout::kArenaBytes);
+    return true;
+}
+
 #if !defined(__HIP_DEVICE_COMPILE__) || defined(__gfx125__)
+static_assert(validate_short_query_pingpong_layout<ck_tile::bf16_t>());
+static_assert(validate_short_query_pingpong_layout<ck_tile::half_t>());
 static_assert(validate_pingpong_layout<ck_tile::bf16_t, 64>());
 static_assert(validate_pingpong_layout<ck_tile::half_t, 64>());
 static_assert(validate_pingpong_layout<ck_tile::bf16_t, 128>());
