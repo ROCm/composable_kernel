@@ -1056,10 +1056,22 @@ struct HstuAttentionFwdSplitKVKernel
                                         number<HstuAttentionPipeline::kQKHeaddim>{}),
                              {0, 0});
 
-        auto v_dram_window = make_tile_window(
-            v_dram,
-            make_tuple(number<HstuAttentionPipeline::kN1>{}, number<HstuAttentionPipeline::kK1>{}),
-            {i_n1, 0});
+        auto v_dram_window = [&]() {
+            if constexpr(!kUseTrLoad)
+            {
+                return make_tile_window(v_dram,
+                                        make_tuple(number<HstuAttentionPipeline::kN1>{},
+                                                   number<HstuAttentionPipeline::kK1>{}),
+                                        {i_n1, 0});
+            }
+            else
+            {
+                return make_tile_window(v_dram,
+                                        make_tuple(number<HstuAttentionPipeline::kK1>{},
+                                                   number<HstuAttentionPipeline::kN1>{}),
+                                        {0, i_n1});
+            }
+        }();
 
         /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
         /// following copy capture of the 'i_nhead' if in C++20
