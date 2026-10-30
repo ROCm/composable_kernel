@@ -867,7 +867,7 @@ class ArchFilter:
         for comp_tdm_v2, exactly four waves; only the plain and preshuffle GEMM
         operators can use them. Non-MX comp_async GEMM on gfx1250 needs the cshuffle
         epilogue, an rc A/B layout, pad_m=pad_n=pad_k=True and, for fp8/bf8,
-        warp_tile_k >= 128.
+        warp_tile_k >= 128 and a 16x16 warp tile (32x32 does not compile).
 
         comp_async is only gated for the GEMM operator on gfx1250: other
         operators (e.g. grouped convolution) and architectures use it under
@@ -894,6 +894,8 @@ class ArchFilter:
             config.scheduler,
             num_waves=config.warp_m * config.warp_n * config.warp_k,
             warp_tile_k=config.warp_tile_k,
+            warp_tile_m=config.warp_tile_m,
+            warp_tile_n=config.warp_tile_n,
             dtype_a=config.datatype_a,
             dtype_b=config.datatype_b,
             layout=config.layout,

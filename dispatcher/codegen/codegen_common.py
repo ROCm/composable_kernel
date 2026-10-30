@@ -1292,6 +1292,34 @@ def gfx1250_comp_async_8bit_warp_tile_k_rejected(dtype_a, dtype_b, warp_tile_k) 
     return is_8bit and warp_tile_k < GFX1250_COMP_ASYNC_8BIT_MIN_WARP_TILE_K
 
 
+# Non-MX comp_async on gfx1250 with 8-bit A/B does not compile with the 32x32
+# warp tile: its A/B LDS register tile distribution is empty (static_assert
+# "0 < kThreadElementSpaceSize" in static_distributed_tensor.hpp). Only the
+# 16x16 warp tile is supported. Shared like
+# GFX1250_COMP_ASYNC_PAD_REJECT_REASON above.
+GFX1250_COMP_ASYNC_8BIT_MAX_WARP_TILE_MN = 16
+GFX1250_COMP_ASYNC_8BIT_WARP_TILE_MN_REJECT_REASON = (
+    "comp_async on gfx1250 with fp8/bf8 A/B does not compile with a 32x32 "
+    "warp tile (empty LDS register tile distribution), so it requires "
+    "warp_tile_m = warp_tile_n = 16"
+)
+
+
+def gfx1250_comp_async_8bit_warp_tile_mn_rejected(
+    dtype_a, dtype_b, warp_tile_m, warp_tile_n
+) -> bool:
+    """True if a gfx1250 non-MX comp_async config has fp8/bf8 A or B and a
+    warp_tile_m or warp_tile_n above GFX1250_COMP_ASYNC_8BIT_MAX_WARP_TILE_MN."""
+    is_8bit = (
+        dtype_a in GFX1250_COMP_ASYNC_8BIT_DTYPES
+        or dtype_b in GFX1250_COMP_ASYNC_8BIT_DTYPES
+    )
+    return (
+        is_8bit
+        and max(warp_tile_m, warp_tile_n) > GFX1250_COMP_ASYNC_8BIT_MAX_WARP_TILE_MN
+    )
+
+
 # gfx1250 pipelines: the Tensor Data Mover pipelines (gfx1250-only; off gfx1250
 # the TDM path compiles to a no-op and the kernel silently writes zeros, so the
 # arch gate is exact) plus non-MX comp_async (MX comp_async on gfx950 is a
@@ -1389,6 +1417,8 @@ def gfx1250_pipeline_reject_reason(
     variant_name: str = "",
     persistent: bool = False,
     pads: Optional[Tuple[bool, bool, bool]] = None,
+    warp_tile_m: int = 0,
+    warp_tile_n: int = 0,
 ) -> str:
     """Why a comp_async / comp_tdm* / tdm-epilogue (or gfx1250 compv5) GEMM config is rejected.
 
@@ -1401,7 +1431,8 @@ def gfx1250_pipeline_reject_reason(
     support (only plain, batched and preshuffle GEMM are). ``pads`` is
     (pad_m, pad_n, pad_k); None means unknown and skips the pad rules. An empty
     ``layout`` skips the comp_async layout rule and empty dtypes skip the 8-bit
-    warp_tile_k rule.
+    warp_tile_k and warp_tile_m/n rules. ``warp_tile_m``/``warp_tile_n`` of 0
+    (unknown) skip the 8-bit warp_tile_m/n rule.
     """
     is_tdm = pipeline in TDM_PIPELINES
     if pipeline == "compv5" and normalize_gfx_arch(gpu_target).lower() == GFX1250_ARCH:
@@ -1438,6 +1469,10 @@ def gfx1250_pipeline_reject_reason(
         return GFX1250_COMP_ASYNC_PAD_REJECT_REASON
     if gfx1250_comp_async_8bit_warp_tile_k_rejected(dtype_a, dtype_b, warp_tile_k):
         return GFX1250_COMP_ASYNC_8BIT_WARP_TILE_K_REJECT_REASON
+    if gfx1250_comp_async_8bit_warp_tile_mn_rejected(
+        dtype_a, dtype_b, warp_tile_m, warp_tile_n
+    ):
+        return GFX1250_COMP_ASYNC_8BIT_WARP_TILE_MN_REJECT_REASON
     return ""
 
 

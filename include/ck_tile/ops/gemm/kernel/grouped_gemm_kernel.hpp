@@ -156,6 +156,9 @@ struct GroupedGemmKernel
     /// a TdmEpilogue to pass the static_asserts below.
     static constexpr bool kIsTdmPipeline = Base::kIsTdmPipeline;
 
+    static_assert(!Base::kIsPlainGemmOnlyPipeline,
+                  "Grouped GEMM does not support this pipeline (plain GEMM only)");
+
     static_assert(!kIsTdmPipeline || !UsePersistentKernel,
                   "TDM grouped GEMM: persistent/tile-loop not supported yet");
     static_assert(!kIsTdmPipeline || !Base::ClusterLaunch,

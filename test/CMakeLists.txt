@@ -79,6 +79,7 @@ set(REGRESSION_TESTS
     test_ck_tile_gemm_pipeline_tdm_wmma
     test_ck_tile_gemm_pipeline_wp
     test_ck_tile_gemm_pipeline_wp_tdm
+    test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma
     test_ck_tile_grouped_gemm_multi_d
     test_ck_tile_grouped_gemm_preshuffle
     test_memory_copy

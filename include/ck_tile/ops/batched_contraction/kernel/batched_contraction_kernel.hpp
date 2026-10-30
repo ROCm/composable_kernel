@@ -318,6 +318,9 @@ struct BatchedContractionKernel
     /// store E through hardware tensor descriptors, so they take a dedicated RunGemmTdm path.
     static constexpr bool kIsTdmPipeline = UniversalGemmKernel::kIsTdmPipeline;
 
+    static_assert(!UniversalGemmKernel::kIsPlainGemmOnlyPipeline,
+                  "Batched contraction does not support this pipeline (plain GEMM only)");
+
     // Tensor descriptor utilities with vectorization support
     using DescriptorUtils = TensorDescriptorUtils<NumDimG,
                                                   NumDimM,

@@ -38,6 +38,7 @@ from codegen_common import (  # noqa: E402
     GFX1250_COMP_ASYNC_PAD_REJECT_REASON,
     GFX1250_COMPV5_REJECT_REASON,
     gfx1250_comp_async_8bit_warp_tile_k_rejected,
+    gfx1250_comp_async_8bit_warp_tile_mn_rejected,
     gfx1250_pipeline_reject_reason,
 )
 
@@ -166,6 +167,36 @@ class TestArchFilter(unittest.TestCase):
         )
         self.assertFalse(
             gfx1250_comp_async_8bit_warp_tile_k_rejected("fp16", "fp16", 32)
+        )
+
+    def test_comp_async_8bit_warp_tile_mn_rule_gfx1250(self):
+        pads = dict(pad_m=True, pad_n=True, pad_k=True)
+        wt32 = dict(warp_tile_m=32, warp_tile_n=32, warp_tile_k=128)
+        for dt in ("fp8", "bf8"):
+            kw = dict(datatype_a=dt, datatype_b=dt, datatype_c="fp16", tile_k=256)
+            self.assertFalse(
+                self._valid("gfx1250", pipeline="comp_async", **wt32, **kw, **pads),
+                dt,
+            )
+            self.assertTrue(
+                self._valid(
+                    "gfx1250", pipeline="comp_async", warp_tile_k=128, **kw, **pads
+                ),
+                dt,
+            )
+            # Only comp_async is affected.
+            self.assertTrue(self._valid("gfx1250", pipeline="compv3", **wt32, **kw), dt)
+        self.assertTrue(
+            gfx1250_comp_async_8bit_warp_tile_mn_rejected("fp8", "fp8", 32, 32)
+        )
+        self.assertTrue(
+            gfx1250_comp_async_8bit_warp_tile_mn_rejected("fp16", "bf8", 32, 32)
+        )
+        self.assertFalse(
+            gfx1250_comp_async_8bit_warp_tile_mn_rejected("bf8", "bf8", 16, 16)
+        )
+        self.assertFalse(
+            gfx1250_comp_async_8bit_warp_tile_mn_rejected("fp16", "fp16", 32, 32)
         )
 
     def test_existing_pipelines_unchanged(self):

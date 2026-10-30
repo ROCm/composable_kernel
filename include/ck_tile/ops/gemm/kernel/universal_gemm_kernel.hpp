@@ -498,6 +498,17 @@ struct UniversalGemmKernel
     /// Kernels that host them take a dedicated TDM path.
     static constexpr bool kIsTdmPipeline = has_skip_check_valid_launch_params::value;
 
+    template <typename T>
+    using has_plain_gemm_only = decltype(T::kPlainGemmOnly);
+    /// True for a pipeline tested only in the plain GEMM kernel (comp_tdm_v3). The kernels that
+    /// derive from or wrap this one static_assert against it.
+    static constexpr bool kIsPlainGemmOnlyPipeline = []() {
+        if constexpr(is_detected<has_plain_gemm_only, GemmPipeline>{})
+            return GemmPipeline::kPlainGemmOnly;
+        else
+            return false;
+    }();
+
     /// @brief Host checks shared by the kernels that host a TDM pipeline.
     /// @details The TDM epilogues overwrite E, so split-K is not possible, and the pipelines
     ///          need at least one K tile. A, B and E must be aligned to
@@ -726,7 +737,11 @@ struct UniversalGemmKernel
 
         if constexpr(has_skip_check_valid_launch_params::value)
         {
-            return true;
+            // A TDM pipeline paired with a split-K-capable epilogue (comp_tdm_v3 with CShuffle)
+            // passes the EpilogueSupportsSplitK guard above, but no TDM pipeline is tested with
+            // k_batch != 1, so apply the same TDM checks as the kernels that host one.
+            return IsTdmArgumentSupported(
+                "GEMM", kargs.k_batch, kargs.K, kargs.as_ptr[0], kargs.bs_ptr[0], kargs.e_ptr);
         }
 
         const auto vectorSizeA = is_wave32() ? GemmPipeline::template GetVectorSizeA<true>()
