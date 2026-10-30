@@ -14,6 +14,7 @@
 #include "block_gemm_areg_bsmem_creg_v2_hack_0.hpp"
 #include "block_gemm_areg_bsmem_creg_v2_hack_1.hpp"
 #include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
+#include "block_gemm_tdm_group_prefetch.hpp"
 
 #include "hstu_attention_config.hpp"
 #include "hstu_attention_kernel_util.hpp"
@@ -1081,6 +1082,61 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
+    // Tdm pipelines: the hdim128 tiles with more than one gemm0 warp (M64 and M128) get the
+    // group-prefetch variant of the Q@K block gemm, BlockGemmASmemBSmemCRegTdmGroupPrefetch_0 (Q
+    // read from Lds as well) where IsQInLdsTdm(); everything else keeps GetQKBlockGemm().
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemmTdm()
+    {
+        using BaseGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+
+        if constexpr(Problem::HstuAttentionTileSetting::kQKHeaddim == 128 &&
+                     1 < Problem::kNumGemm0Warps)
+        {
+            constexpr bool kIsM128 = Problem::HstuAttentionTileSetting::kM0 >= 128;
+            constexpr index_t kPrefetchDepth =
+                kIsM128 ? (Problem::kUseSoftmax && !IsQInLdsTdm<Problem>() ? 8 : 4) : 8;
+            constexpr index_t kStepsPerGroup = kIsM128 ? 4 : 8;
+
+            if constexpr(IsQInLdsTdm<Problem>())
+                return BlockGemmASmemBSmemCRegTdmGroupPrefetch_0<typename BaseGemm::Problem,
+                                                                 typename BaseGemm::Policy,
+                                                                 kPrefetchDepth,
+                                                                 kStepsPerGroup>{};
+            else
+                return BlockGemmARegBSmemCRegTdmGroupPrefetch_0<typename BaseGemm::Problem,
+                                                                typename BaseGemm::Policy,
+                                                                kPrefetchDepth,
+                                                                kStepsPerGroup>{};
+        }
+        else
+            return BaseGemm{};
+    }
+
+    // Tdm pipelines: the hdim128 tiles get the group-prefetch variant of the trload P@V block
+    // gemm (same distributions, V ds_load_tr issued in groups ahead of the WMMAs). kPrefetchDepth
+    // is how many (kIter, nIter) B tiles are in flight ahead of the WMMAs, kStepsPerGroup how many
+    // steps share one group of loads; both cost 8 VGPRs per step (16x32 bf16 per wave32).
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetPVTBlockGemmTdm()
+    {
+        using BaseGemm = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, true>())>;
+
+        if constexpr(Problem::HstuAttentionTileSetting::kQKHeaddim == 128)
+        {
+            constexpr bool kIsM128           = Problem::HstuAttentionTileSetting::kM0 >= 128;
+            constexpr index_t kPrefetchDepth = kIsM128 ? 4 : 8;
+            constexpr index_t kStepsPerGroup = kIsM128 ? 2 : 8;
+
+            return BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1<typename BaseGemm::Problem,
+                                                                  typename BaseGemm::Policy,
+                                                                  kPrefetchDepth,
+                                                                  kStepsPerGroup>{};
+        }
+        else
+            return BaseGemm{};
+    }
+
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_DEVICE static constexpr auto GetAlignmentO()
     {
@@ -1183,14 +1239,79 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return (actual_bytes + 63) / 64 * 64;
     };
 
-    // Lds layout of the Tdm pipelines: [K copy 0 | K copy 1 | V copy 0 | V copy 1 | dropout].
+    // Q staged in Lds (hdim128 M128 Tdm tile with more than one gemm0 warp, no bias, no dropout):
+    // Q is written to Lds once and the Q@K gemm reads its A operand back from there on every kv
+    // tile, instead of keeping the whole Q tile (64 VGPRs per lane) resident in registers. That is
+    // what lets the M128 kernels fit three workgroups (three waves per SIMD) per CU. Every wave
+    // reads back exactly the Q rows it wrote, so the store needs no barrier. No dropout: the Tdm
+    // pipelines refuse it anyway (static_assert), as their Lds layout reserves nothing for the
+    // dropout randval buffer (GetSmemSizeDropout() is 0).
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr bool IsQInLdsTdm()
+    {
+        return Problem::HstuAttentionTileSetting::kQKHeaddim == 128 &&
+               Problem::HstuAttentionTileSetting::kM0 >= 128 && 1 < Problem::kNumGemm0Warps &&
+               !Problem::kHasBias && !Problem::kHasDropout;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsPlainBlockDescriptor()
+    {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto pad_config =
+            detail::GetTdmLdsPaddingConfigForNormalRead<WG, true /*inputA*/, kKPerBlock>();
+
+        return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
+                                                            1,
+                                                            kMPerBlock,
+                                                            kKPerBlock,
+                                                            pad_config.at(number<0>{}),
+                                                            pad_config.at(number<1>{})>();
+#else
+        static_assert(sizeof(Problem) == 0,
+                      "MakeQLdsPlainBlockDescriptor() is only meaningful where Tdm staging is "
+                      "available");
+        return 0;
+#endif
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeQPlain()
+    {
+        if constexpr(IsQInLdsTdm<Problem>())
+        {
+            constexpr auto actual_bytes =
+                MakeQLdsPlainBlockDescriptor<Problem>().get_element_space_size() *
+                sizeof(typename Problem::QKVDataType);
+
+            return (actual_bytes + 63) / 64 * 64;
+        }
+        else
+            return 0;
+    };
+
+    // Lds layout of the Tdm pipelines:
+    // [K copy 0 | K copy 1 | V copy 0 | V copy 1 | dropout | Q (IsQInLdsTdm() only)].
     // Each copy holds one whole kv-tile; one copy is read by the gemms of the current iteration
     // while Tdm fills the other with the next kv-tile.
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizePlain()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetQLdsByteOffsetPlain()
     {
         return GetSmemSizeKPlain<Problem>() * 2 + GetSmemSizeVPlain<Problem>() * 2 +
                GetSmemSizeDropout<Problem>();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizePlain()
+    {
+        return GetQLdsByteOffsetPlain<Problem>() + GetSmemSizeQPlain<Problem>();
     }
 
     // Element offset of V copy 1 in the NumCopies = 2 V descriptor, i.e. where its row kN0 starts
