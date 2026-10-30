@@ -930,7 +930,7 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
                  MXdlPerWave,
                  NXdlPerWave,
                  KPack,
-                 IsInputGemm>())>;
+                 (IsInputGemm && IsGateUp)>())>;
 
     IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
 
