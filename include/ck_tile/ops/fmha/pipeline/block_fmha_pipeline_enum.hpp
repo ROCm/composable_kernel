@@ -16,6 +16,7 @@ enum class BlockFmhaPipelineEnum
     QRKSVS_HPAD,
     QRKSVS_TDM,
     QRKSVS_TDM_SCHED,
+    QRKSVS_TDM_PINGPONG,
 };
 
 template <BlockFmhaPipelineEnum>
@@ -59,6 +60,12 @@ template <>
 struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_TDM_SCHED>
 {
     static constexpr const char* name = "qr_tdm_sched";
+};
+
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_TDM_PINGPONG>
+{
+    static constexpr const char* name = "qr_tdm_pingpong";
 };
 
 } // namespace ck_tile
