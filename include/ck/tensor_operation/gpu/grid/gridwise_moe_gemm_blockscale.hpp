@@ -1661,8 +1661,9 @@ struct GridwiseMoeGemmBlockScale
                                 if constexpr(!RuntimeSwigluLimit)
                                 {
                                     gate = gate < kSwiGluClamp ? gate : kSwiGluClamp;
-                                    up   = up < kSwiGluClamp ? (up > -kSwiGluClamp ? up : -kSwiGluClamp)
-                                                             : kSwiGluClamp;
+                                    up   = up < kSwiGluClamp
+                                               ? (up > -kSwiGluClamp ? up : -kSwiGluClamp)
+                                               : kSwiGluClamp;
                                 }
                                 c_thread_buf(cidx) = gate * up;
                             }
@@ -2237,8 +2238,9 @@ struct GridwiseMoeGemmBlockScale
                                 if constexpr(!RuntimeSwigluLimit)
                                 {
                                     gate = gate < kSwiGluClamp ? gate : kSwiGluClamp;
-                                    up   = up < kSwiGluClamp ? (up > -kSwiGluClamp ? up : -kSwiGluClamp)
-                                                             : kSwiGluClamp;
+                                    up   = up < kSwiGluClamp
+                                               ? (up > -kSwiGluClamp ? up : -kSwiGluClamp)
+                                               : kSwiGluClamp;
                                 }
                                 c_thread_buf(cidx) = gate * up;
                             }
