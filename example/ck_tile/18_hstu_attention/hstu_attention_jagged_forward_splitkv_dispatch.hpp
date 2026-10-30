@@ -349,7 +349,7 @@ struct jagged_forward_splitkv_dispatch
                 splitkv_workspace_alloc(param.workspace_allocator, workspace_bytes, stream);
         }
 
-        const auto kargs = [&] {
+        auto kargs = [&] {
             return HstuKernel::MakeKargs(param.q_ptr,
                                          param.k_ptr,
                                          param.v_ptr,
@@ -384,6 +384,8 @@ struct jagged_forward_splitkv_dispatch
                                          param.philox_seed,
                                          param.philox_offset);
         }();
+        kargs.kv_truncate_len = param.kv_truncate_len;
+        kargs.kv_keep_last    = param.kv_keep_last;
 
         bool has_minfull_attn_seqlen           = (param.min_full_attn_seqlen > 0);
         dim3 kGridSize                         = HstuKernel::GridSize(param.num_batch,

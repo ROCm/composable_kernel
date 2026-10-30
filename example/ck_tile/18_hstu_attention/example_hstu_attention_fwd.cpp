@@ -85,7 +85,9 @@ auto create_args(int argc, char* argv[])
         .insert("init_qkv", "0", "initialize q, k, v tensor from local files q.dat, k.dat and v.data")
         .insert("save_mask", "0", "save the mask tensor to disk by the CPU validation codes")
         .insert("perf", "0", "weather measure execution time or not")
-        .insert("dump_output", "0", "dump both device and reference hstu attention outputs to files, only used when validation is true");
+        .insert("dump_output", "0", "dump both device and reference hstu attention outputs to files, only used when validation is true")
+        .insert("kv_truncate_len", "0", "jagged non-group cross attention only: > 0 keeps kv_truncate_len keys of each key/value sequence, 0 keeps all")
+        .insert("kv_keep_last", "0", "with kv_truncate_len, keep the last keys of each key/value sequence instead of the first ones");
     // clang-format on
 
     bool result = arg_parser.parse(argc, argv);
@@ -134,6 +136,9 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
     bool save_mask      = static_cast<bool>(arg_parser.get_int("save_mask"));
     bool initialize_qkv = static_cast<bool>(arg_parser.get_int("init_qkv"));
 
+    int kv_truncate_len = arg_parser.get_int("kv_truncate_len");
+    bool kv_keep_last   = static_cast<bool>(arg_parser.get_int("kv_keep_last"));
+
     std::string str_of_integers;
 
     str_of_integers              = arg_parser.get_str("targets");
@@ -176,6 +181,12 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         if(input_max_uih_seqlen_kv <= 0)
             input_max_uih_seqlen_kv = input_max_uih_seqlen_q;
     };
+
+    HSTU_CHECK(kv_truncate_len >= 0, "kv_truncate_len should be non-negative!");
+    HSTU_CHECK(kv_truncate_len == 0 ||
+                   (is_jagged && is_cross_attention && !use_causal && !save_mask),
+               "kv_truncate_len is only supported for jagged non-causal cross attention "
+               "without save_mask!");
 
     if(is_jagged)
     {
@@ -477,6 +488,18 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.philox_offset        = 0UL;
     };
 
+    if(kv_truncate_len > 0)
+    {
+        // the kernels see at most kv_truncate_len keys per sequence, so size the dispatch for
+        // the truncated extent
+        params.kv_truncate_len = kv_truncate_len;
+        params.kv_keep_last    = kv_keep_last;
+        params.max_seqlen_kv   = min(params.max_seqlen_kv, kv_truncate_len);
+        params.min_seqlen_kv   = min(params.min_seqlen_kv, kv_truncate_len);
+        params.total_seqlen_kv = static_cast<ck_tile::index_t>(
+            std::min<long>(params.total_seqlen_kv, static_cast<long>(num_batch) * kv_truncate_len));
+    };
+
     hipStream_t stream;
 
     HIP_CHECK_ERROR(hipStreamCreate(&stream));
@@ -498,6 +521,54 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
     {
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
 
+        // with kv_truncate_len, the reference runs untruncated on the kept keys of each sequence
+        std::vector<int> seq_offsets_kv_ref = seq_offsets_kv;
+        int max_seqlen_kv_ref               = max_seqlen_kv;
+        int phy_seqlen_kv_ref               = 1;
+
+        if(kv_truncate_len > 0)
+        {
+            seq_offsets_kv_ref.assign(1, 0);
+            for(int i = 0; i < num_batch; i++)
+            {
+                int len = seq_offsets_kv[i + 1] - seq_offsets_kv[i];
+                seq_offsets_kv_ref.push_back(seq_offsets_kv_ref.back() + min(len, kv_truncate_len));
+            };
+            max_seqlen_kv_ref = min(max_seqlen_kv, kv_truncate_len);
+            phy_seqlen_kv_ref = max(seq_offsets_kv_ref.back(), 1);
+        };
+
+        ck_tile::HostTensor<InOutDataType> k_host_trunc(
+            std::array<ck_tile::index_t, 4>{1, phy_seqlen_kv_ref, num_head, hdim_qk});
+        ck_tile::HostTensor<InOutDataType> v_host_trunc(
+            std::array<ck_tile::index_t, 4>{1, phy_seqlen_kv_ref, num_head, hdim_v});
+
+        if(kv_truncate_len > 0)
+        {
+            for(int i = 0; i < num_batch; i++)
+            {
+                int len   = seq_offsets_kv[i + 1] - seq_offsets_kv[i];
+                int kept  = seq_offsets_kv_ref[i + 1] - seq_offsets_kv_ref[i];
+                int start = seq_offsets_kv[i] + (kv_keep_last ? len - kept : 0);
+
+                for(int s = 0; s < kept; s++)
+                    for(int h = 0; h < num_head; h++)
+                    {
+                        for(int d = 0; d < hdim_qk; d++)
+                            k_host_trunc(0, seq_offsets_kv_ref[i] + s, h, d) =
+                                k_host(0, start + s, h, d);
+                        for(int d = 0; d < hdim_v; d++)
+                            v_host_trunc(0, seq_offsets_kv_ref[i] + s, h, d) =
+                                v_host(0, start + s, h, d);
+                    };
+            };
+        };
+
+        const ck_tile::HostTensor<InOutDataType>& k_host_ref =
+            (kv_truncate_len > 0) ? k_host_trunc : k_host;
+        const ck_tile::HostTensor<InOutDataType>& v_host_ref =
+            (kv_truncate_len > 0) ? v_host_trunc : v_host;
+
         BOOL_SWITCH_2(is_jagged, kIsJagged, use_causal, kUseCausal, [&] {
             ck_tile::reference_no_group_hstu_attention_fwd<InOutDataType,
                                                            GemmAccDataType,
@@ -507,8 +578,8 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
                                                                             use_softmax,
                                                                             store_lse,
                                                                             q_host,
-                                                                            k_host,
-                                                                            v_host,
+                                                                            k_host_ref,
+                                                                            v_host_ref,
                                                                             o_host_ref,
                                                                             lse_host_ref,
                                                                             mask_host,
@@ -516,9 +587,9 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
                                                                             scale_s,
                                                                             attn_scale,
                                                                             max_seqlen_q,
-                                                                            max_seqlen_kv,
+                                                                            max_seqlen_kv_ref,
                                                                             seq_offsets_q,
-                                                                            seq_offsets_kv,
+                                                                            seq_offsets_kv_ref,
                                                                             num_targets,
                                                                             contextual_seqlen,
                                                                             window_size,
@@ -604,6 +675,8 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     int num_batch = arg_parser.get_int("b");
 
     HSTU_CHECK(num_group > 1, "ru_group_hstu should only be called when num_group > 1 !");
+    HSTU_CHECK(arg_parser.get_int("kv_truncate_len") == 0,
+               "kv_truncate_len is not supported for group hstu attention!");
     HSTU_CHECK(num_batch > 0 && num_batch % num_group == 0,
                "number of batches should be a multi-fold value of num_group!");
 
