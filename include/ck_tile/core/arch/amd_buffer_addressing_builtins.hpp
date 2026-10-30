@@ -1682,8 +1682,8 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
              (N == 1 || N == 2 || N == 4 || N == 6 || N == 8 || N == 16 || N == 32)) ||
             (std::is_same<T, int32_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, fp8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (fp8_format_traits<T>::e4m3 && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (fp8_format_traits<T>::e5m2 && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, int8_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same<T, uint8_t>::value &&
@@ -2140,8 +2140,8 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
             (std::is_same<T, bf16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, int32_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, fp8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (fp8_format_traits<T>::e4m3 && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (fp8_format_traits<T>::e5m2 && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, int8_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same<T, uint16_t>::value &&
@@ -2891,8 +2891,8 @@ __device__ void amd_async_global_load_to_lds(CK_TILE_LDS_ADDR T* smem_ptr,
             (std::is_same_v<T, int32_t> && (N == 1 || N == 2 || N == 3 || N == 4)) ||
             (std::is_same_v<T, half_t> && (N == 2 || N == 4 || N == 8)) ||
             (std::is_same_v<T, bf16_t> && (N == 2 || N == 4 || N == 8)) ||
-            (std::is_same_v<T, fp8_t> && (N == 1 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same_v<T, bf8_t> && (N == 1 || N == 4 || N == 8 || N == 16)) ||
+            (fp8_format_traits<T>::e4m3 && (N == 1 || N == 4 || N == 8 || N == 16)) ||
+            (fp8_format_traits<T>::e5m2 && (N == 1 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same_v<T, pk_fp4_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same_v<T, int8_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same_v<T, uint8_t> && (N == 1 || N == 4 || N == 8 || N == 12 || N == 16)),

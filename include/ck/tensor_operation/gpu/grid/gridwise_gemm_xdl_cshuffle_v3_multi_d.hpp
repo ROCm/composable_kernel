@@ -304,8 +304,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
           lcm_AK1_BK1 <= 4) ||
          (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
          // gfx950 double rate mfma16x16 require at least 128 KPerBlock to consume
-         ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
-          KPerBlock < 128 && MPerXdl == 16))
+         ((is_f8_type_v<ComputeTypeA> || is_bf8_type_v<ComputeTypeA>) && KPerBlock < 128 &&
+          MPerXdl == 16))
             ? true
             : false;
     static constexpr auto is_scale_mfma = false;

@@ -21,83 +21,88 @@
 #include "ck/library/utility/check_err.hpp"
 
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
+#include "ck/library/utility/run_fp8_example.hpp"
 
 using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::Tensor;
 
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using BF16 = ck::bhalf_t;
-using FP8  = ck::f8_t;
-using F32  = float;
-
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
-
-using A0DataType       = FP8;
-using A1DataType       = F32;
-using B0DataType       = FP8;
-using B1DataType       = F32;
-using AccDataType      = F32;
-using CShuffleDataType = F32;
-using DsDataType       = ck::Tuple<>;
-using EDataType        = BF16;
-
-using A0Layout = Row;
-using A1Layout = Col;
-using B0Layout = Col;
-using D0Layout = Row;
-using D1Layout = Col;
-using DsLayout = ck::Tuple<>;
-using ELayout  = Row;
-
-void preShuffleBuffer(const FP8* src, FP8* dst, int N, int K, int NXdl)
+template <typename Fp8, typename Bf8>
+struct Example
 {
-    int KPack = 16;
-    int NLane = NXdl;
-    int KLane = ck::get_warp_size() / NLane;
 
-    int K0 = K / (KLane * KPack);
-    // K -> K0 KLane KPack
-    // N -> N0 NLane
-    // N, K -> N0 K0 KLane NLane KPack
-    int tempk;
-    for(int n = 0; n < N; ++n)
+    template <ck::index_t... Is>
+    using S = ck::Sequence<Is...>;
+
+    using BF16 = ck::bhalf_t;
+    using FP8  = Fp8;
+    using F32  = float;
+
+    using Row = ck::tensor_layout::gemm::RowMajor;
+    using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+    using A0DataType       = FP8;
+    using A1DataType       = F32;
+    using B0DataType       = FP8;
+    using B1DataType       = F32;
+    using AccDataType      = F32;
+    using CShuffleDataType = F32;
+    using DsDataType       = ck::Tuple<>;
+    using EDataType        = BF16;
+
+    using A0Layout = Row;
+    using A1Layout = Col;
+    using B0Layout = Col;
+    using D0Layout = Row;
+    using D1Layout = Col;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = Row;
+
+    void preShuffleBuffer(const FP8* src, FP8* dst, int N, int K, int NXdl)
     {
-        for(int k = 0; k < K; ++k)
+        int KPack = 16;
+        int NLane = NXdl;
+        int KLane = ck::get_warp_size() / NLane;
+
+        int K0 = K / (KLane * KPack);
+        // K -> K0 KLane KPack
+        // N -> N0 NLane
+        // N, K -> N0 K0 KLane NLane KPack
+        int tempk;
+        for(int n = 0; n < N; ++n)
         {
-            int n0 = n / NLane;
-            int n1 = n % NLane;
+            for(int k = 0; k < K; ++k)
+            {
+                int n0 = n / NLane;
+                int n1 = n % NLane;
 
-            int k0 = k / (KLane * KPack);
-            tempk  = k % (KLane * KPack);
-            int k1 = tempk / KPack;
-            int k2 = tempk % KPack;
+                int k0 = k / (KLane * KPack);
+                tempk  = k % (KLane * KPack);
+                int k1 = tempk / KPack;
+                int k2 = tempk % KPack;
 
-            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
-                              k1 * KPack * NLane + n1 * KPack + k2;
+                int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                                  k1 * KPack * NLane + n1 * KPack + k2;
 
-            dst[outputIndex] = src[n * K + k];
+                dst[outputIndex] = src[n * K + k];
+            }
         }
     }
-}
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using AElementOp   = PassThrough;
-using BElementOp   = PassThrough;
-using CDEElementOp = PassThrough;
+    using AElementOp   = PassThrough;
+    using BElementOp   = PassThrough;
+    using CDEElementOp = PassThrough;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
+    static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
-static constexpr ck::index_t Scale_Block_M = 1;
-static constexpr ck::index_t Scale_Block_N = 128;
-static constexpr ck::index_t Scale_Block_K = 128;
+    static constexpr ck::index_t Scale_Block_M = 1;
+    static constexpr ck::index_t Scale_Block_N = 128;
+    static constexpr ck::index_t Scale_Block_K = 128;
 
-using DeviceOpInstance =
-    ck::tensor_operation::device::DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
-    // clang-format off
+    using DeviceOpInstance =
+        ck::tensor_operation::device::DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
+        // clang-format off
          <Row, Col, DsLayout, ELayout,
           A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
           AElementOp,  BElementOp, CDEElementOp, GemmSpec,
@@ -110,9 +115,13 @@ using DeviceOpInstance =
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
           2,    1,  S<1, 32, 1, 8>,  S<8>,
           ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
-// clang-format on
+    // clang-format on
 
-int main(int argc, char* argv[])
+    int Run(int argc, char* argv[]);
+};
+
+template <typename Fp8, typename Bf8>
+int Example<Fp8, Bf8>::Run(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
@@ -375,3 +384,5 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+
+int main(int argc, char* argv[]) { return ck::utils::run_fp8_example<Example>(argc, argv); }

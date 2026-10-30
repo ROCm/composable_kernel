@@ -45,6 +45,15 @@ template <> struct memOpToStr<memory_operation_enum::atomic_max> { static conste
 template <> struct memOpToStr<memory_operation_enum::add> { static constexpr const char * name = "add"; };
 // clang-format on
 
+template <fp8_interpretation I>
+struct DataTypeTraits<float8_format_t<I>>
+{
+    static constexpr const char* name =
+        numeric_traits<float8_format_t<I>>::e4m3
+            ? (numeric_traits<float8_format_t<I>>::fnuz ? "fp8_fnuz" : "fp8_ocp")
+            : (numeric_traits<float8_format_t<I>>::fnuz ? "bf8_fnuz" : "bf8_ocp");
+};
+
 template <typename ADataType_, typename BDataType_>
 std::string gemm_prec_str()
 {

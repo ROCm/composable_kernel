@@ -118,10 +118,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy
                                             WarpTile::at(I1),
                                             WarpTile::at(I2),
                                             Problem::TransposeC>;
-        static_assert(std::is_same_v<typename Problem::AComputeDataType, fp8_t> ||
-                      std::is_same_v<typename Problem::AComputeDataType, bf8_t>);
-        static_assert(std::is_same_v<typename Problem::BComputeDataType, fp8_t> ||
-                      std::is_same_v<typename Problem::BComputeDataType, bf8_t>);
+        static_assert(is_fp8_type_v<typename Problem::AComputeDataType>);
+        static_assert(is_fp8_type_v<typename Problem::BComputeDataType>);
         static_assert(std::is_same_v<typename Problem::CDataType, float>);
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,

@@ -27,7 +27,6 @@ template <typename ComputeDataType, typename OutDataType, typename AccDataType =
 double get_relative_threshold(const int number_of_accumulations = 1)
 {
     using F4   = ck::f4_t;
-    using F8   = ck::f8_t;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
     using F32  = float;
@@ -35,7 +34,7 @@ double get_relative_threshold(const int number_of_accumulations = 1)
     using I8   = int8_t;
     using I32  = int32_t;
 
-    static_assert(is_same_v<ComputeDataType, F4> || is_same_v<ComputeDataType, F8> ||
+    static_assert(is_same_v<ComputeDataType, F4> || is_fp8_type_v<ComputeDataType> ||
                       is_same_v<ComputeDataType, F16> || is_same_v<ComputeDataType, BF16> ||
                       is_same_v<ComputeDataType, F32> || is_same_v<ComputeDataType, TF32> ||
                       is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
@@ -52,7 +51,7 @@ double get_relative_threshold(const int number_of_accumulations = 1)
         compute_error = std::pow(2, -NumericUtils<ComputeDataType>::mant) * 0.5;
     }
 
-    static_assert(is_same_v<OutDataType, F4> || is_same_v<OutDataType, F8> ||
+    static_assert(is_same_v<OutDataType, F4> || is_fp8_type_v<OutDataType> ||
                       is_same_v<OutDataType, F16> || is_same_v<OutDataType, BF16> ||
                       is_same_v<OutDataType, F32> || is_same_v<ComputeDataType, TF32> ||
                       is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
@@ -70,7 +69,7 @@ double get_relative_threshold(const int number_of_accumulations = 1)
     }
     double midway_error = std::max(compute_error, output_error);
 
-    static_assert(is_same_v<AccDataType, F4> || is_same_v<AccDataType, F8> ||
+    static_assert(is_same_v<AccDataType, F4> || is_fp8_type_v<AccDataType> ||
                       is_same_v<AccDataType, F16> || is_same_v<AccDataType, BF16> ||
                       is_same_v<AccDataType, F32> || is_same_v<ComputeDataType, TF32> ||
                       is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
@@ -93,7 +92,6 @@ template <typename ComputeDataType, typename OutDataType, typename AccDataType =
 double get_absolute_threshold(const double max_possible_num, const int number_of_accumulations = 1)
 {
     using F4   = ck::f4_t;
-    using F8   = ck::f8_t;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
     using F32  = float;
@@ -101,7 +99,7 @@ double get_absolute_threshold(const double max_possible_num, const int number_of
     using I8   = int8_t;
     using I32  = int32_t;
 
-    static_assert(is_same_v<ComputeDataType, F4> || is_same_v<ComputeDataType, F8> ||
+    static_assert(is_same_v<ComputeDataType, F4> || is_fp8_type_v<ComputeDataType> ||
                       is_same_v<ComputeDataType, F16> || is_same_v<ComputeDataType, BF16> ||
                       is_same_v<ComputeDataType, F32> || is_same_v<ComputeDataType, TF32> ||
                       is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
@@ -119,7 +117,7 @@ double get_absolute_threshold(const double max_possible_num, const int number_of
         compute_error = std::pow(2, expo - NumericUtils<ComputeDataType>::mant) * 0.5;
     }
 
-    static_assert(is_same_v<OutDataType, F4> || is_same_v<OutDataType, F8> ||
+    static_assert(is_same_v<OutDataType, F4> || is_fp8_type_v<OutDataType> ||
                       is_same_v<OutDataType, F16> || is_same_v<OutDataType, BF16> ||
                       is_same_v<OutDataType, F32> || is_same_v<ComputeDataType, TF32> ||
                       is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
@@ -137,7 +135,7 @@ double get_absolute_threshold(const double max_possible_num, const int number_of
     }
     double midway_error = std::max(compute_error, output_error);
 
-    static_assert(is_same_v<AccDataType, F4> || is_same_v<AccDataType, F8> ||
+    static_assert(is_same_v<AccDataType, F4> || is_fp8_type_v<AccDataType> ||
                       is_same_v<AccDataType, F16> || is_same_v<AccDataType, BF16> ||
                       is_same_v<AccDataType, F32> || is_same_v<ComputeDataType, TF32> ||
                       is_same_v<AccDataType, I8> || is_same_v<AccDataType, I32> ||
@@ -375,8 +373,8 @@ template <typename Range,
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_integral_v<ranges::range_value_t<Range>> &&
                   !std::is_same_v<ranges::range_value_t<Range>, bhalf_t> &&
-                  !std::is_same_v<ranges::range_value_t<Range>, f8_t> &&
-                  !std::is_same_v<ranges::range_value_t<Range>, bf8_t>)
+                  !is_f8_type_v<ranges::range_value_t<Range>> &&
+                  !is_bf8_type_v<ranges::range_value_t<Range>>)
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
                      || std::is_same_v<ranges::range_value_t<Range>, int4_t>
 #endif
@@ -432,7 +430,7 @@ template <typename Range,
           typename RefRange,
           typename ComputeDataType = ranges::range_value_t<Range>>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
-                  std::is_same_v<ranges::range_value_t<Range>, f8_t>),
+                  is_f8_type_v<ranges::range_value_t<Range>>),
                  bool>
 check_err(const Range& out,
           const RefRange& ref,
@@ -483,7 +481,7 @@ template <typename Range,
           typename RefRange,
           typename ComputeDataType = ranges::range_value_t<Range>>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
-                  std::is_same_v<ranges::range_value_t<Range>, bf8_t>),
+                  is_bf8_type_v<ranges::range_value_t<Range>>),
                  bool>
 check_err(const Range& out,
           const RefRange& ref,

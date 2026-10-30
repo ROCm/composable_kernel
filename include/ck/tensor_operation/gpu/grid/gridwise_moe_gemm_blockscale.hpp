@@ -312,7 +312,7 @@ struct GridwiseMoeGemmBlockScale
         // mode. So, we need split K into mutiple groups.
         return mfma_selector::GetK1PerXdlops() * sizeof(ComputeTypeA) > 16 ? 2 : 1;
 #else
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, f8_t>)
+        if constexpr(is_f8_type_v<remove_cvref_t<BDataType>>)
             // On gfx950, we have a mfma that required 32 f8 elements as input,
             // splited into 2 groups of 16 f8 elements.
             // the 2 groups is not contiguous in the B preshuffed layout.
