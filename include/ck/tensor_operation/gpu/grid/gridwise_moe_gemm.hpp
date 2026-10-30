@@ -1240,7 +1240,7 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
         const long_index_t expert_stride = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(problem.N) * problem.K * (IsInputGemm ? 2 : 1));
+            static_cast<long_index_t>(problem.N) * problem.K * ((IsInputGemm && IsGateUp) ? 2 : 1));
         const long_index_t expert_offset =
             static_cast<long_index_t>(expert_id) * expert_stride / BPackedSize;
         // N0, K0, Blocksize*KPack
@@ -1834,7 +1834,7 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
         const long_index_t expert_stride = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(problem.N) * problem.K * (IsInputGemm ? 2 : 1));
+            static_cast<long_index_t>(problem.N) * problem.K * ((IsInputGemm && IsGateUp) ? 2 : 1));
         const long_index_t expert_offset =
             static_cast<long_index_t>(expert_id) * expert_stride / BPackedSize;
         // N0, K0, Blocksize*KPack
