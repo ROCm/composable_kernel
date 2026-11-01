@@ -386,6 +386,10 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                 move_tile_window(k_dram_window, {kN0Sub, 0});
             }
 
+            // wait normal reading of the whole v_lds tile in gemm_2() of current iteration to be
+            // done
+            __builtin_amdgcn_s_barrier();
+
             load_tile_tdm(tdm_config_v, v_lds_windows[number<0>{}], v_dram_window);
             move_tile_window(v_dram_window, {kN0Sub, 0});
 
