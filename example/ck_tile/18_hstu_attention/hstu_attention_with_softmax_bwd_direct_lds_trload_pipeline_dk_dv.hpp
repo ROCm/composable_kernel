@@ -481,9 +481,6 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
             // Loop 1: Gemm0 (S = Q@K); prefetch Q to LDS
             // Loop 2: Gemm2 (dP = dO@V); prefetch dO to LDS
             // =======================================================================
-            // Ensure the trloading of q in previous itertation completely done by all warps
-            __builtin_amdgcn_s_barrier();
-
             static_for<0, m0_loops, 1>{}([&](auto i_m0) {
                 // wait the last Direct-Lds q/do transfering to be done
                 s_waitcnt_barrier<0, waitcnt_arg::kMaxExpCnt>();
@@ -552,10 +549,6 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
             });
 
             __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
-
-            // 1) wait trload reading from q_lds in gemm_3() from last iteration to be done
-            // 2) wait trload reading from do_lds in gemm_1() from last iteration to be done
-            __builtin_amdgcn_s_barrier();
 
             if constexpr(EvenIter)
             {

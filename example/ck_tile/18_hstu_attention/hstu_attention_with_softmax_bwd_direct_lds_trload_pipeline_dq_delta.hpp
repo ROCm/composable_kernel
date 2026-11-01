@@ -500,10 +500,6 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ_D
 
             __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
-            // 1) wait trload reading from k_lds in gemm_4() from last iteration to be done
-            // 2) wait normal reading from v_lds in gemm_2() from current iteration to be done
-            __builtin_amdgcn_s_barrier();
-
             if constexpr(EvenIter)
             {
                 async_load_tile(k_lds_write_windows_1[number<0>{}], k_dram_window);
@@ -514,6 +510,10 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ_D
                 async_load_tile(k_lds_write_windows_0[number<0>{}], k_dram_window);
                 move_tile_window(k_dram_window, {kN0Sub, 0});
             }
+
+            // wait normal reading of the whole v_lds tile in gemm_2() of current iteration to be
+            // done
+            __builtin_amdgcn_s_barrier();
 
             async_load_tile(v_lds_write_windows[number<0>{}], v_dram_window);
             move_tile_window(v_dram_window, {kN0Sub, 0});

@@ -533,10 +533,6 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
 
             __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
-            // 1) wait trload reading from q_lds in gemm_3() from last iteration to be done
-            // 2) wait trload reading from do_lds in gemm_1() from last iteration to be done
-            __builtin_amdgcn_s_barrier();
-
             if constexpr(EvenIter)
             {
                 async_load_tile(q_lds_write_windows_1[number<0>{}], q_dram_window);
