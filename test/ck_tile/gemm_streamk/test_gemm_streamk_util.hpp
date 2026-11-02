@@ -97,7 +97,9 @@ class TestCkTileStreamK : public ::testing::Test
               bool Preshuffle = false,
               bool TransposeC = false>
     ck_tile::index_t invoke_streamk(const ck_tile::StreamKHostArgs& args,
-                                    const ck_tile::stream_config& s)
+                                    const ck_tile::stream_config& s,
+                                    int num_cu         = 0,
+                                    bool require_split = false)
     {
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
@@ -169,7 +171,21 @@ class TestCkTileStreamK : public ::testing::Test
 
         using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-        auto kargs                = Kernel::MakeKernelArgs(args);
+        auto kargs =
+            num_cu > 0 ? Kernel::MakeKernelArgs(args, num_cu, 1) : Kernel::MakeKernelArgs(args);
+        if(require_split)
+        {
+            const auto& partitioner = kargs.tile_partitioner;
+            int split_boundaries    = 0;
+            for(int cta = 1; cta < partitioner.get_sk_ctas(); ++cta)
+            {
+                const int start = cta * partitioner.get_iters_per_sk_cta() +
+                                  std::min(cta, partitioner.get_extra_iters());
+                split_boundaries += start % partitioner.get_iters_per_tile() != 0;
+            }
+            // A successful data-parallel launch cannot validate cross-workgroup reduction.
+            EXPECT_GT(split_boundaries, 0);
+        }
         const auto workspace_size = Kernel::GetWorkSpaceSize(kargs);
         ck_tile::DeviceMem workspace_data(workspace_size);
         workspace_data.SetZero();
@@ -197,7 +213,9 @@ class TestCkTileStreamK : public ::testing::Test
              ck_tile::index_t K,
              ck_tile::index_t stride_A = 0,
              ck_tile::index_t stride_B = 0,
-             ck_tile::index_t stride_C = 0)
+             ck_tile::index_t stride_C = 0,
+             int num_cu                = 0,
+             bool require_split        = false)
     {
         // Since M, N, and K will vary depending on the number of CUs, we print it here to
         // facilitate test output readability.
@@ -268,8 +286,8 @@ class TestCkTileStreamK : public ::testing::Test
                                       stride_B,
                                       stride_C};
 
-        ck_tile::index_t num_accumulations_per_tile =
-            invoke_streamk<>(args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+        ck_tile::index_t num_accumulations_per_tile = invoke_streamk<>(
+            args, ck_tile::stream_config{nullptr, false, 0, 0, 1}, num_cu, require_split);
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 

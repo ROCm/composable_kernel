@@ -5,6 +5,7 @@ set(EXAMPLE_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
     list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
+
 set(EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS)
 if(CK_USE_OCP_FP8)
     list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS -DCK_TILE_USE_OCP_FP8)
@@ -150,5 +151,39 @@ if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950|gfx11|gfx12" AND NOT GPU_TARGETS MA
         COMMENT "Running all ck_tile gemm_streamk tests..."
     )
 else()
-    message(DEBUG "Skipping test_ck_tile_streamk unit tests for current target")
+    message(DEBUG "Skipping generated Stream-K fixtures for current target")
+endif()
+
+# gfx1250 uses 16x16x32/64 WMMA tiles, unlike the gfx11/gfx12 fixtures.
+# Keep a dedicated suite that forces cross-workgroup reduction with these tiles.
+if(GPU_TARGETS MATCHES "gfx1250")
+    set(GFX1250_STREAMK_TARGETS ${SUPPORTED_GPU_TARGETS})
+    list(FILTER GFX1250_STREAMK_TARGETS INCLUDE REGEX "^gfx1250")
+    set(CK_TILE_GFX1250_STREAMK_TEST_TARGETS)
+    # Both implementations must finish partial stores before publishing the ready flag.
+    # The gfx1250 emulator runs one workgroup at a time, so a Linear or Tree tile owner waits
+    # forever there for later workgroups. Both full suites are REGRESSION_TESTS; the smoke
+    # suite keeps a subset of the atomic rows in the emulator stage.
+    foreach(variant IN ITEMS builtin legacy smoke)
+        set(test_target test_ck_tile_streamk_gfx1250_wmma)
+        if(NOT variant STREQUAL "builtin")
+            string(APPEND test_target "_${variant}")
+        endif()
+        add_gtest_executable(${test_target}
+            test_gemm_streamk_gfx1250_wmma.cpp test_gemm_streamk_util.cpp)
+        set_property(TARGET ${test_target}
+                     PROPERTY HIP_ARCHITECTURES ${GFX1250_STREAMK_TARGETS})
+        target_compile_definitions(${test_target} PRIVATE
+            CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN=$<NOT:$<STREQUAL:${variant},legacy>>
+            GFX1250_STREAMK_SMOKE=$<STREQUAL:${variant},smoke>)
+        target_compile_options(${test_target} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+        set_property(TEST ${test_target} APPEND PROPERTY LABELS CK_TILE_GEMM_STREAMK_TESTS)
+        list(APPEND CK_TILE_GFX1250_STREAMK_TEST_TARGETS ${test_target})
+    endforeach()
+    add_custom_target(ck_tile_gemm_streamk_tests
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_GEMM_STREAMK_TESTS"
+        DEPENDS ${CK_TILE_GFX1250_STREAMK_TEST_TARGETS}
+        USES_TERMINAL
+        COMMENT "Running gfx1250 ck_tile gemm_streamk tests..."
+    )
 endif()

@@ -54,6 +54,8 @@ set(REGRESSION_TESTS
     test_ck_tile_fmha_fwd_mxfp8
     test_ck_tile_fmha_fwd_mxfp4
     test_ck_tile_streamk_extended
+    test_ck_tile_streamk_gfx1250_wmma
+    test_ck_tile_streamk_gfx1250_wmma_legacy
     test_amdgcn_mma_layout_gfx1250
     test_gemm_multiply_multiply_wmma
     test_gemm_multiply_multiply_wp_fp8

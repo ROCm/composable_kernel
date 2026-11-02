@@ -1,7 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950")
+if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950|gfx1250")
     add_executable(tile_example_streamk_gemm_basic streamk_gemm_basic.cpp)
     set(EXAMPLE_GEMM_COMPILE_OPTIONS)
     if(CK_USE_OCP_FP8)
