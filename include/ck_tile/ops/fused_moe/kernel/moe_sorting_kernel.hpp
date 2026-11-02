@@ -1824,7 +1824,12 @@ struct MoeSortingMultiPhaseKernel_P0_v2
         {
             p_expert_mesh[i] = 0;
         }
-        ck_tile::block_sync_load_raw(0);
+        // Full barrier: all wavefronts must finish zeroing before any wavefront starts
+        // filling. block_sync_load_raw(0) is only a store fence within one thread, not a
+        // cross-wavefront barrier. On WarpSize=32 (gfx1103+), the mesh row spans multiple
+        // wavefronts; without __syncthreads() the fill loop in wavefront-0 can overwrite
+        // positions that wavefront-1 has not yet cleared, producing wrong token counts.
+        __syncthreads();
 
         index_t total_elem = rounded_tokens * kargs.topk_mdiv.divisor / index_pack;
 
