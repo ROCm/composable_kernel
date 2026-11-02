@@ -318,6 +318,8 @@ _GOLDEN_TILE = {
     "warp_tile_k": 32,
 }
 
+_GOLDEN_TILE_FP8 = dict(_GOLDEN_TILE, tile_k=256, warp_tile_k=128)
+
 
 class TestTileEngineGolden(unittest.TestCase):
     def _instance(self, pipeline, epilogue, pad=False, layout="rcr"):
@@ -411,6 +413,113 @@ class TestTileEngineGolden(unittest.TestCase):
             self.assertIn("comp_tdm_v2_tdm_intrawave", headers[0].name)
             self.assertIn("ck_tile::GemmPipelineAgBgCrCompTDMV2<", code)
             self.assertIn("ck_tile::TdmEpilogue<", code)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class TestCDatatype(unittest.TestCase):
+    """--c_datatype bf16 (fp8/bf8 only) is opt-in: default names and headers are
+    unchanged, and a bf16-C kernel carries a _cbf16 name suffix."""
+
+    def _builder(self, dtype, c_datatype):
+        return gub.GemmUniversalKernelBuilder(
+            "gemm_universal",
+            Path(tempfile.mkdtemp(prefix="gu_gfx1250_c_")),
+            "gfx1250",
+            dtype,
+            "rcr",
+            str(_CI_CONFIG),
+            c_datatype=c_datatype,
+        )
+
+    def _names(self, dtype, c_datatype):
+        b = self._builder(dtype, c_datatype)
+        try:
+            return [k["name"] for k in b._get_sampled_kernel_list()]
+        finally:
+            shutil.rmtree(b.working_path, ignore_errors=True)
+
+    def test_default_names_unchanged(self):
+        for dtype in DTYPES:
+            default = self._names(dtype, None)
+            self.assertTrue(default, dtype)
+            self.assertEqual(default, self._names(dtype, _c_dtype(dtype)), dtype)
+            self.assertFalse([n for n in default if n.endswith("_cbf16")], dtype)
+
+    def test_bf16_c_suffix(self):
+        for dtype in ("fp8", "bf8"):
+            default = self._names(dtype, None)
+            bf16 = self._names(dtype, "bf16")
+            # bf16 and fp16 C are both 2 bytes, so the validated set is the same.
+            self.assertEqual(bf16, [n + "_cbf16" for n in default], dtype)
+
+    def test_bf16_c_header(self):
+        trait = ("comp_tdm", "tdm", "intrawave", False, False, False, False)
+        for c_datatype, c_type, suffix in (
+            (None, "ck_tile::fp16_t", ""),
+            ("bf16", "ck_tile::bf16_t", "_cbf16"),
+        ):
+            b = self._builder("fp8", c_datatype)
+            try:
+                name, code = b._generate_kernel_instance(_GOLDEN_TILE_FP8, trait)
+                self.assertTrue(name.endswith("_16x16x128" + suffix), name)
+                self.assertIn(f"using CDataType = {c_type};", code)
+                self.assertIn(f'KERNEL_NAME = "{name}";', code)
+                headers = [h.name for h in b.working_path.glob("*.hpp")]
+                self.assertEqual(
+                    headers, [f"gemm_universal_single_{name[15:]}.hpp"], headers
+                )
+            finally:
+                shutil.rmtree(b.working_path, ignore_errors=True)
+
+    def test_unsupported_c_datatype_raises(self):
+        for dtype, c_datatype in (("fp16", "bf16"), ("bf16", "fp16"), ("fp8", "fp8")):
+            with self.assertRaisesRegex(ValueError, "is not supported for datatype"):
+                self._builder(dtype, c_datatype)
+
+    def test_gen_single_cli_bf16_c(self):
+        # The CMake target passes --c_datatype and expects the _cbf16 header name.
+        tmp = Path(tempfile.mkdtemp(prefix="gu_gfx1250_cli_c_"))
+        try:
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(_BUILDER),
+                    "--working_path",
+                    str(tmp),
+                    "--gpu_target",
+                    "gfx1250",
+                    "--datatype",
+                    "fp8",
+                    "--layout",
+                    "rcr",
+                    "--config_json",
+                    str(_CI_CONFIG),
+                    "--c_datatype",
+                    "bf16",
+                    "--gen_single",
+                    "--kernel_name",
+                    "unused",
+                    "--tile_config",
+                    "128x128x256_2x2x1_16x16x128",
+                    "--trait_combo",
+                    "comp_tdm_tdm_intrawave_False_False_False_False",
+                ],
+                check=True,
+                capture_output=True,
+                cwd=str(_HERE),
+            )
+            headers = [h.name for h in tmp.glob("*.hpp")]
+            self.assertEqual(
+                headers,
+                [
+                    "gemm_universal_single_fp8_rcr_comp_tdm_tdm_intrawave_False_False_"
+                    "False_False_128x128x256_2x2x1_16x16x128_cbf16.hpp"
+                ],
+            )
+            self.assertIn(
+                "using CDataType = ck_tile::bf16_t;", (tmp / headers[0]).read_text()
+            )
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

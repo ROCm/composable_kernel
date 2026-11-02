@@ -1,0 +1,7 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+include README.md
+recursive-include csrc *.cpp *.hpp
+recursive-include cmake *.txt
+recursive-include tests *.py

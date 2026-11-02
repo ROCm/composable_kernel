@@ -470,6 +470,12 @@ def get_fwd_appendkv_blobs(
                     cond &= pipeline.F_vlayout == "row"
                     if not cond:
                         continue
+                # CK Tile Python API
+                elif receipt == 5:
+                    cond = dtype in ["fp16", "bf16"] and hdim <= 256
+                    cond &= pipeline.F_vlayout == "row"
+                    if not cond:
+                        continue
 
                 # fp32 only
                 if receipt == 800 or receipt == 801:
@@ -521,4 +527,7 @@ def list_blobs(
         )
         for kernel in kernels:
             f.write((file_path.parent / GEN_DIR / kernel.filename).as_posix() + "\n")
-        f.write((file_path.parent / GEN_DIR / FMHA_FWD_APPENDKV_API_FILENAME).as_posix() + "\n")
+        f.write(
+            (file_path.parent / GEN_DIR / FMHA_FWD_APPENDKV_API_FILENAME).as_posix()
+            + "\n"
+        )

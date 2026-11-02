@@ -1045,8 +1045,18 @@ struct amdgcn_mma<tf32_t, tf32_t, fp32_t, 16u, 16u, 8u, CompilerTarget, MmaOpFam
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
         using P = WarpGemmParamsParser<Params...>;
+#if defined(__gfx950__)
+        // A mixed gfx942/gfx950 build can select this gfx942 fragment in both passes.
+        // Keep its layout and template type: TF32 values already have their low 13 bits
+        // cleared, so two FP32 MFMAs implement the same dot product on gfx950.
+        auto result =
+            __builtin_amdgcn_mfma_f32_16x16x4f32(aVec[0], bVec[0], cVec, P::cbsz, P::abid, P::blgp);
+        return {__builtin_amdgcn_mfma_f32_16x16x4f32(
+            aVec[1], bVec[1], result, P::cbsz, P::abid, P::blgp)};
+#else
         return {
             __builtin_amdgcn_mfma_f32_16x16x8_xf32(aVec, bVec, cVec, P::cbsz, P::abid, P::blgp)};
+#endif
     }
 };
 
@@ -1065,8 +1075,17 @@ struct amdgcn_mma<tf32_t, tf32_t, fp32_t, 32u, 32u, 4u, CompilerTarget, MmaOpFam
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
         using P = WarpGemmParamsParser<Params...>;
+#if defined(__gfx950__)
+        // Preserve the gfx942 fragment layout when compiling it for gfx950, which has
+        // no XF32 instruction. The inputs are already rounded to TF32.
+        auto result =
+            __builtin_amdgcn_mfma_f32_32x32x2f32(aVec[0], bVec[0], cVec, P::cbsz, P::abid, P::blgp);
+        return {__builtin_amdgcn_mfma_f32_32x32x2f32(
+            aVec[1], bVec[1], result, P::cbsz, P::abid, P::blgp)};
+#else
         return {
             __builtin_amdgcn_mfma_f32_32x32x4_xf32(aVec, bVec, cVec, P::cbsz, P::abid, P::blgp)};
+#endif
     }
 };
 

@@ -5,6 +5,7 @@ set(GEMM_UNIVERSAL_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM 
 set(GEMM_UNIVERSAL_LAYOUT "rcr;rrr;crr;ccr" CACHE STRING "List of layout for GEMM Universal (semicolon-separated)")
 set(GEMM_UNIVERSAL_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 set(GEMM_UNIVERSAL_MAX_INSTANCES "" CACHE STRING "Max kernel instances per (dtype, layout) combo (empty = no cap)")
+set(GEMM_UNIVERSAL_C_DATATYPE "" CACHE STRING "Output (C) datatype of the fp8/bf8 kernels: empty = fp16 (default), or bf16. A non-default C type adds a _c<dtype> suffix to the kernel and target names")
 option(ENABLE_CCACHE_GEMM_UNIVERSAL "Enable ccache for GEMM Universal ops compilation" OFF)
 
 # Store the directory path for use in functions
@@ -17,6 +18,21 @@ set(GEMM_UNIVERSAL_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/../configs"
 
 # Trait-string splitter that understands multi-token pipelines (comp_tdm_v2, comp_tdm_pc)
 include(${CMAKE_CURRENT_LIST_DIR}/../gemm_trait_parse.cmake)
+
+# Builder arguments and kernel-name suffix for GEMM_UNIVERSAL_C_DATATYPE. Only
+# fp8/bf8 have a non-default C type; other datatypes keep their default.
+function(gemm_universal_c_datatype datatype out_args out_suffix)
+    set(c_args "")
+    set(c_suffix "")
+    if(NOT "${GEMM_UNIVERSAL_C_DATATYPE}" STREQUAL "" AND datatype MATCHES "^(fp8|bf8)$")
+        set(c_args --c_datatype ${GEMM_UNIVERSAL_C_DATATYPE})
+        if(NOT GEMM_UNIVERSAL_C_DATATYPE STREQUAL "fp16")
+            set(c_suffix "_c${GEMM_UNIVERSAL_C_DATATYPE}")
+        endif()
+    endif()
+    set(${out_args} "${c_args}" PARENT_SCOPE)
+    set(${out_suffix} "${c_suffix}" PARENT_SCOPE)
+endfunction()
 
 # Function to create individual GEMM Universal targets
 function(create_individual_gemm_universal_target datatype layout trait tile_config config_json)
@@ -51,11 +67,12 @@ function(create_individual_gemm_universal_target datatype layout trait tile_conf
     list(GET warp_tile_parts 1 warp_tile_n)
     list(GET warp_tile_parts 2 warp_tile_k)
 
-    set(target_name "benchmark_gemm_universal_${datatype}_${layout}_${trait}_${tile_config}")
+    gemm_universal_c_datatype("${datatype}" c_args c_suffix)
+    set(target_name "benchmark_gemm_universal_${datatype}_${layout}_${trait}_${tile_config}${c_suffix}")
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
 
     # Generate the single instance header for this kernel
-    set(instance_header "${working_path}/gemm_universal_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
+    set(instance_header "${working_path}/gemm_universal_single_${datatype}_${layout}_${trait}_${tile_config}${c_suffix}.hpp")
 
     # Add custom command to generate the header file at build time
     add_custom_command(
@@ -65,8 +82,9 @@ function(create_individual_gemm_universal_target datatype layout trait tile_conf
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${config_json}
+                ${c_args}
                 --gen_single
-                --kernel_name "gemm_universal_${datatype}_${layout}_${trait}_${tile_config}"
+                --kernel_name "gemm_universal_${datatype}_${layout}_${trait}_${tile_config}${c_suffix}"
                 --tile_config "${tile_config}"
                 --trait_combo "${trait}"
                 --gpu_target "${GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL}"
@@ -111,6 +129,13 @@ function(create_individual_gemm_universal_target datatype layout trait tile_conf
 
     # Add to trait-specific targets
     ck_tile_gemm_split_trait("${trait}" pipeline epilogue scheduler)
+
+    # comp_tdm_v3 kernels build with the post-RA machine scheduler that the top-level CMakeLists
+    # turns off (-enable-post-misched=0; the later option wins), as its gtests do
+    # (test/ck_tile/gemm/CMakeLists.txt). No other pipeline's targets change.
+    if(pipeline STREQUAL "comp_tdm_v3")
+        target_compile_options(${target_name} PRIVATE "SHELL:-mllvm -enable-post-misched=1")
+    endif()
 
     add_dependencies(benchmark_gemm_universal_${pipeline}_pipeline ${target_name})
     add_dependencies(benchmark_gemm_universal_${epilogue}_epilogue ${target_name})
@@ -182,7 +207,7 @@ function(build_individual_gemm_universal_targets datatype layout)
                 --list_kernels ")
 
     # Build optional args for instance builder
-    set(extra_list_args "")
+    gemm_universal_c_datatype("${datatype}" extra_list_args c_suffix)
     if(NOT "${GEMM_UNIVERSAL_MAX_INSTANCES}" STREQUAL "")
         list(APPEND extra_list_args --max-instances ${GEMM_UNIVERSAL_MAX_INSTANCES})
     endif()
@@ -335,8 +360,9 @@ else()
     if(GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL MATCHES "gfx1250")
         # gfx1250 pipelines: non-MX comp_async (cshuffle epilogue) and the TDM
         # pipelines comp_tdm / comp_tdm_v2 / comp_tdm_pc (producer/consumer;
-        # tdm epilogue)
-        list(APPEND GEMM_UNIVERSAL_PIPELINES "comp_async;comp_tdm;comp_tdm_v2;comp_tdm_pc")
+        # tdm epilogue), and comp_tdm_v3 (cshuffle epilogue; only in
+        # configs/gfx1250_fp8_comp_tdm_v3.json, not in the default configs)
+        list(APPEND GEMM_UNIVERSAL_PIPELINES "comp_async;comp_tdm;comp_tdm_v2;comp_tdm_pc;comp_tdm_v3")
         list(APPEND GEMM_UNIVERSAL_EPILOGUES "tdm")
     endif()
 

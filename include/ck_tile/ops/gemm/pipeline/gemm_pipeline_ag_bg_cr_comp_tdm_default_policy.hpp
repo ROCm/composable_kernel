@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 
 #pragma once
 
@@ -291,7 +291,18 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
      * the pad fields of the TDM descriptor, and the LDS tensor descriptors read it: this
      * policy's MakeA/BLdsBlockDescriptor directly, Base::MakeA/BLdsBlockDescriptorForTrLoad
      * through Derived::GetLdsPaddingConfig. Only gfx125 has a TDM, so the host pass and every
-     * other device target return Base::GetLdsPaddingConfig unchanged.
+     * other device target return Base::GetLdsPaddingConfig unchanged, except for 6-bit types.
+     *
+     * 6-bit (FP6/BF6, is_pk_f6_v) LDS rows are never padded, in every compilation pass. 6-bit
+     * types have no transposed load, so a row holds KPerBlock values along K. For the dense packs
+     * (16 or 32 values in 12 or 24 bytes, such as pk_fp6x16_t) that is 3 * KPerBlock / 16 dwords,
+     * never a power of two, so no TDM pad interval (a power of two in dwords) can match the LDS
+     * tensor descriptor's pad period. Nor could MakeA/BLdsBlockDescriptor express the pad: they
+     * count it in packs, so the base's 16-byte pad would truncate to 12 bytes (PaddingDataAmount)
+     * while the TDM skips 16. Every other is_pk_f6_v type (pk_fp6_t, pk_bf6_t), which the TDM
+     * pipelines reject, is unpadded too; that is harmless, because unpadded rows are always
+     * consistent. Deciding this ahead of the gfx125 branch keeps the host pass (GetSmemSize) in
+     * agreement with the device pass for 6-bit types.
      *
      * @tparam Problem  Gemm pipeline problem.
      * @tparam IsA      true for operand A, false for operand B.
@@ -300,23 +311,32 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
     template <typename Problem, bool IsA>
     CK_TILE_HOST_DEVICE static constexpr auto GetLdsPaddingConfig()
     {
-        constexpr auto config = Base::template GetLdsPaddingConfig<Problem, IsA>();
-#if defined(__gfx125__)
-        if constexpr(IsTDMLdsPaddingConsistent<Problem, IsA>())
-        {
-            static_assert(!config[Base::I0] ||
-                              (config[Base::I1] >= 0 && config[Base::I1] <= TDMPadAmountMax &&
-                               config[Base::I2] >= 0 && config[Base::I2] <= TDMPadIntervalMax),
-                          "TDM LDS padding does not fit the TDM descriptor fields");
-            return config;
-        }
-        else
+        using LdsDataType =
+            remove_cvref_t<std::conditional_t<IsA, LdsADataType<Problem>, LdsBDataType<Problem>>>;
+        if constexpr(is_pk_f6_v<LdsDataType>)
         {
             return make_tuple(number<false>{}, number<0>{}, number<0>{});
         }
+        else
+        {
+            constexpr auto config = Base::template GetLdsPaddingConfig<Problem, IsA>();
+#if defined(__gfx125__)
+            if constexpr(IsTDMLdsPaddingConsistent<Problem, IsA>())
+            {
+                static_assert(!config[Base::I0] ||
+                                  (config[Base::I1] >= 0 && config[Base::I1] <= TDMPadAmountMax &&
+                                   config[Base::I2] >= 0 && config[Base::I2] <= TDMPadIntervalMax),
+                              "TDM LDS padding does not fit the TDM descriptor fields");
+                return config;
+            }
+            else
+            {
+                return make_tuple(number<false>{}, number<0>{}, number<0>{});
+            }
 #else
-        return config;
+            return config;
 #endif
+        }
     }
 
     template <typename Problem>

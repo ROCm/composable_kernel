@@ -2100,6 +2100,8 @@ class UnifiedGemmCodegen:
             trait.scheduler,
             num_waves=tile.warp_m * tile.warp_n * tile.warp_k,
             warp_tile_k=tile.warp_tile_k,
+            warp_tile_m=tile.warp_tile_m,
+            warp_tile_n=tile.warp_tile_n,
             dtype_a=self.datatype,
             dtype_b=self.datatype,
             layout=self.layout,

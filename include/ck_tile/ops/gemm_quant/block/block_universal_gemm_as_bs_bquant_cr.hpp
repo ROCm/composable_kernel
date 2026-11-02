@@ -105,13 +105,15 @@ struct BQuantBlockUniversalGemmAsBsCr
         // 4. i4,  bf8, (fp8/fp32) -> f32
         // 5. bf16, (bf16/bf8/fp8/fp4), e8m0 -> f32
         // 6. fp16, (fp16/fp8/bf8/fp4), e8m0 -> f32
-        static_assert(
-            is_any_of<ADataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
-            is_any_of<BDataType, fp8_t, bf8_t, pk_int4_t, bf16_t, pk_fp4_t, fp16_t>::value &&
-            is_any_of<BQDataType, float, fp8_t, bf8_t, e8m0_t>::value &&
-            is_any_of<AComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
-            is_any_of<BComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
-            std::is_same_v<CDataType, fp32_t>);
+        static_assert((is_fp8_type_v<ADataType> || is_any_of<ADataType, bf16_t, fp16_t>::value) &&
+                      (is_fp8_type_v<BDataType> ||
+                       is_any_of<BDataType, pk_int4_t, bf16_t, pk_fp4_t, fp16_t>::value) &&
+                      (is_fp8_type_v<BQDataType> || is_any_of<BQDataType, float, e8m0_t>::value) &&
+                      (is_fp8_type_v<AComputeDataType> ||
+                       is_any_of<AComputeDataType, bf16_t, fp16_t>::value) &&
+                      (is_fp8_type_v<BComputeDataType> ||
+                       is_any_of<BComputeDataType, bf16_t, fp16_t>::value) &&
+                      std::is_same_v<CDataType, fp32_t>);
 
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 

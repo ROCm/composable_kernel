@@ -12,8 +12,7 @@ list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS "SHELL: -mllvm -greedy-reverse-local-as
 
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     set(EXE_NAME tile_example_gemm_quant)
-    add_executable(${EXE_NAME}
-        gemm_quant.cpp
+    set(GEMM_QUANT_INSTANCE_SOURCES
         gemm_abquant_quantgrouped_fp8.cpp
         gemm_abquant_quantgrouped_fp4.cpp
         gemm_abquant_quantgrouped_bf8.cpp
@@ -44,6 +43,24 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         gemm_quant_rowcol.cpp
         gemm_quant_tensor.cpp
         )
+    set(GEMM_QUANT_INSTANCE_FILTER "" CACHE STRING
+        "Regex selecting quantized GEMM instance source basenames (without .cpp); empty builds all")
+    if(NOT GEMM_QUANT_INSTANCE_FILTER STREQUAL "")
+        set(_selected_instances)
+        foreach(_source IN LISTS GEMM_QUANT_INSTANCE_SOURCES)
+            get_filename_component(_name "${_source}" NAME_WE)
+            if(_name MATCHES "${GEMM_QUANT_INSTANCE_FILTER}")
+                list(APPEND _selected_instances "${_source}")
+            endif()
+        endforeach()
+        if(NOT _selected_instances)
+            message(FATAL_ERROR "GEMM_QUANT_INSTANCE_FILTER matched no instance sources: ${GEMM_QUANT_INSTANCE_FILTER}")
+        endif()
+        set(GEMM_QUANT_INSTANCE_SOURCES ${_selected_instances})
+    endif()
+    list(LENGTH GEMM_QUANT_INSTANCE_SOURCES _instance_count)
+    message(STATUS "Quantized GEMM: building ${_instance_count} instance sources")
+    add_executable(${EXE_NAME} gemm_quant.cpp ${GEMM_QUANT_INSTANCE_SOURCES})
     target_compile_options(${EXE_NAME} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 else()
     message(DEBUG "Skipping ck_tile quant gemm tests for current target")

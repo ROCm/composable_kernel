@@ -687,6 +687,18 @@ struct mfma_type<MfmaInstr::mfma_f64_16x16x4f64>
     }
 };
 
+// Explicit FP8 encodings use the existing intrinsic register layout. Only
+// matching native formats can cross this boundary without a conversion.
+template <typename T, index_t N>
+__device__ auto fp8_mfma_input(const non_native_vector_base<T, N>& value)
+{
+    using InstructionType = conditional_t<is_f8_type_v<T>, f8_t, bf8_t>;
+    static_assert(is_fp8_type_v<T>);
+    if constexpr(!is_same_v<T, InstructionType> && !is_native_fp8_type<T>())
+        __builtin_trap();
+    return bit_cast<non_native_vector_base<InstructionType, N>>(value);
+}
+
 template <>
 struct mfma_type<MfmaInstr::mfma_f32_32x32x16f8f8>
 {
@@ -705,7 +717,8 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x16f8f8>
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x16f8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x16f8f8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
     }
 };
 
@@ -728,7 +741,8 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32f8f8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
 #if defined(__HIP_DEVICE_COMPILE__)
-        intrin_mfma_f32_16x16x32f8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x32f8f8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
 #else
         ignore = a;
         ignore = b;
@@ -755,7 +769,8 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x16bf8bf8>
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x16bf8bf8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x16bf8bf8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
     }
 };
 
@@ -778,7 +793,8 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32bf8bf8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
 #if defined(__HIP_DEVICE_COMPILE__)
-        intrin_mfma_f32_16x16x32bf8bf8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x32bf8bf8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
 #else
         ignore = a;
         ignore = b;
@@ -805,7 +821,8 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x16f8bf8>
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x16f8bf8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x16f8bf8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
     }
 };
 
@@ -828,7 +845,8 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32f8bf8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
 #if defined(__HIP_DEVICE_COMPILE__)
-        intrin_mfma_f32_16x16x32f8bf8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x32f8bf8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
 #else
         ignore = a;
         ignore = b;
@@ -855,7 +873,8 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x16bf8f8>
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x16bf8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x16bf8f8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
     }
 };
 
@@ -878,7 +897,8 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32bf8f8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
 #if defined(__HIP_DEVICE_COMPILE__)
-        intrin_mfma_f32_16x16x32bf8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x32bf8f8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
 #else
         ignore = a;
         ignore = b;
@@ -2389,16 +2409,21 @@ struct MfmaSelector
 #endif
     }
 
-    static constexpr auto selected_mfma = mfma_type<GetMfma<element_type_t<base_type>,
-                                                            MPerXdlops,
-                                                            NPerXdlops,
-                                                            element_type_t<additional_type>,
-                                                            is_single_rate_mfma,
-                                                            is_scale_mfma,
-                                                            element_type_t<AccType>,
-                                                            ScaleBlkSize,
-                                                            AScaleDataType,
-                                                            BScaleDataType>()>{}; // default init
+    template <typename T>
+    using instruction_type =
+        conditional_t<is_f8_type_v<T>, f8_t, conditional_t<is_bf8_type_v<T>, bf8_t, T>>;
+
+    static constexpr auto selected_mfma =
+        mfma_type<GetMfma<instruction_type<element_type_t<base_type>>,
+                          MPerXdlops,
+                          NPerXdlops,
+                          instruction_type<element_type_t<additional_type>>,
+                          is_single_rate_mfma,
+                          is_scale_mfma,
+                          element_type_t<AccType>,
+                          ScaleBlkSize,
+                          AScaleDataType,
+                          BScaleDataType>()>{}; // default init
 
     __host__ __device__ constexpr MfmaSelector()
     {
@@ -2705,9 +2730,9 @@ struct XdlopsGemm
             is_same<base_type, double>::value || is_same<base_type, float>::value ||
                 is_same<base_type, tf32_t>::value || is_same<base_type, half_t>::value ||
                 is_same<base_type, bhalf_t>::value || is_same<base_type, int8_t>::value ||
-                is_same<base_type, f8_t>::value || is_same<base_type, bf8_t>::value ||
-                (is_same<base_type, f8_t>::value && is_same<additional_type, bf8_t>::value) ||
-                (is_same<base_type, bf8_t>::value && is_same<additional_type, f8_t>::value),
+                is_f8_type_v<base_type> || is_bf8_type_v<base_type> ||
+                (is_f8_type_v<base_type> && is_bf8_type_v<additional_type>) ||
+                (is_bf8_type_v<base_type> && is_f8_type_v<additional_type>),
             "base_type must be double, float, tf32_t, half, bfloat16, int8_t, f8_t or bf8_t!");
 
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
@@ -2870,7 +2895,7 @@ struct XdlopsGemm
         (((is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value) &&
           KPack <= 4) ||
          (is_same<base_type, int8_t>::value && KPack <= 8) ||
-         ((is_same<base_type, f8_t>::value || is_same<base_type, bf8_t>::value) &&
+         ((is_f8_type_v<base_type> || is_bf8_type_v<base_type>) &&
 #if defined(__gfx125__)
           KPack < 128) ||
 #else

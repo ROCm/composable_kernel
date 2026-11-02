@@ -120,19 +120,21 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
     static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
 
     /**
-     * 6-bit (FP6/BF6) operands. The TDM descriptor gives a 6-bit pack the 1-byte data size while
-     * counting box, dims and strides in packs, so such an instantiation compiles but addresses the
-     * wrong bytes. Support is enabled per operand type and only for one configuration: the same
-     * 6-bit type on A and B, row-major A, column-major B, a 16x16x128 warp tile, an MX problem
-     * with 32-element scale blocks, and no padding. The guard precedes BlockGemm, so it is the
+     * 6-bit (FP6/BF6) operands. Support is enabled per operand type, and FP6 (pk_fp6x16_t) is the
+     * only enabled type: TDMElementTraits describes its 12-byte packs to the TDM descriptor, and
+     * the policy keeps its LDS rows dense and unpadded. The guard precedes BlockGemm, so it is the
      * first error even for a 6-bit type without a WMMA warp trait.
      */
-    static constexpr bool kTdmFp6Enabled  = false;
+    static constexpr bool kTdmFp6Enabled  = true;
     static constexpr bool kTdmBf6Enabled  = false;
     static constexpr bool kHas6BitOperand = is_pk_f6_v<ADataType> || is_pk_f6_v<BDataType>;
 
     template <typename P>
     using ProblemScaleBlockSize = decltype(P::ScaleBlockSize);
+    template <typename P>
+    using ProblemAScaleDataType = typename P::AScaleDataType;
+    template <typename P>
+    using ProblemBScaleDataType = typename P::BScaleDataType;
 
     static constexpr bool Is6BitConfigSupported()
     {
@@ -165,13 +167,51 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
             return true;
         }
     }();
+    static constexpr bool kTdm6BitScalesE8M0 = [] {
+        if constexpr(!kHas6BitOperand)
+        {
+            return true;
+        }
+        else if constexpr(is_detected<ProblemAScaleDataType, Problem>{} &&
+                          is_detected<ProblemBScaleDataType, Problem>{})
+        {
+            return std::is_same_v<typename Problem::AScaleDataType, e8m0_t> &&
+                   std::is_same_v<typename Problem::BScaleDataType, e8m0_t>;
+        }
+        else
+        {
+            // A 6-bit problem without MX scale types has no supported scale configuration.
+            return false;
+        }
+    }();
+    // Protects against 6-bit types these pipelines do not support: BF6 has no gfx125 WMMA warp
+    // trait yet, and the other 6-bit pack types are not supported.
     static_assert(!kHas6BitOperand || kTdm6BitTypeEnabled,
-                  "TDM GEMM pipelines (comp_tdm v1/v2) do not support this FP6/BF6 operand type "
-                  "yet: the TDM load path does not handle 6-bit packs.");
+                  "TDM GEMM pipelines (comp_tdm v1/v2) support 6-bit operands only as FP6 "
+                  "(pk_fp6x16_t); BF6 and the other 6-bit pack types are not supported yet.");
+    // Protects against 6-bit configurations these pipelines do not support: a column-major A or a
+    // row-major B needs a 6-bit transpose load that does not exist, and other warp tiles, scale
+    // block sizes, mixed pairs and padding are not supported with 6-bit packs.
     static_assert(!kHas6BitOperand || !kTdm6BitTypeEnabled || kTdm6BitConfigSupported,
                   "TDM GEMM pipelines (comp_tdm v1/v2) support FP6/BF6 operands only with the same "
                   "type on A and B, row-major A, column-major B, a 16x16x128 warp tile, an MX "
                   "problem with 32-element scale blocks and no padding.");
+    // Protects the data-cache prefetch: prefetch_for_tdm adds the thread's offset in values to
+    // offsets counted in packs without dividing it by the pack size, so for 6-bit packs it would
+    // prefetch the wrong addresses.
+    static_assert(!kHas6BitOperand || !kTdm6BitTypeEnabled || !kTdm6BitConfigSupported ||
+                      (Policy::DataCachePrefetchA == DataCachePrefetchKind::None &&
+                       Policy::DataCachePrefetchB == DataCachePrefetchKind::None),
+                  "TDM GEMM pipelines (comp_tdm v1/v2) do not support data-cache prefetch with "
+                  "FP6/BF6 operands yet: the policy's DataCachePrefetchA and DataCachePrefetchB "
+                  "must be DataCachePrefetchKind::None.");
+    // Protects the MX scales of 6-bit operands: the 16x16x128 FP6 WMMA trait encodes scale type 0
+    // (E8M0) for A and B, so an E4M3 or E5M3 scale byte would be silently decoded as E8M0. CK's
+    // gfx125 scale table (scale_traits.hpp) allows E4M3 and E5M3 for FP4 operands only.
+    static_assert(!kHas6BitOperand || !kTdm6BitTypeEnabled || !kTdm6BitConfigSupported ||
+                      kTdm6BitScalesE8M0,
+                  "TDM GEMM pipelines (comp_tdm v1/v2) support FP6/BF6 operands only with E8M0 "
+                  "(e8m0_t) scales on A and B.");
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;

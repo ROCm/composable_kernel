@@ -149,6 +149,7 @@ if __name__ == "__main__":
         + "  1: generate more instance to cover all hdim\n"
         + "  2: Only generate instance for Flash attention integration\n"
         + "  4: Only generate instance for PyTorch integration\n"
+        + "  5: Only generate instances supported by the CK Tile Python API\n"
         + "  100-199: Only generate instance for Aiter(mha_fwd) integration\n"
         + "  200-299: Only generate instance for Aiter(mha_varlen_fwd) integration\n"
         + "  300-399: Only generate instance for Aiter(mha_bwd) integration\n"

@@ -67,6 +67,15 @@ using TestFmhaShape = ck_tile::TileFmhaShape<ck_tile::sequence<M, 64, 32, 128, 3
                                              ck_tile::sequence<16, 16, 32>,
                                              true>;
 
+// Same geometry as TestFmhaShape, with explicit gemm_0 / gemm_1 warp layouts.
+template <ck_tile::index_t M, typename Gemm0Warps, typename Gemm1Warps = Gemm0Warps>
+using TestFmhaShapeWarps = ck_tile::TileFmhaShape<ck_tile::sequence<M, 64, 32, 128, 32, 128>,
+                                                  Gemm0Warps,
+                                                  ck_tile::sequence<16, 16, 32>,
+                                                  Gemm1Warps,
+                                                  ck_tile::sequence<16, 16, 32>,
+                                                  true>;
+
 using TestFmhaTraits = ck_tile::TileFmhaTraits<false,
                                                false,
                                                false,
@@ -331,18 +340,54 @@ struct SelVTag
 // qr_tdm shapes, so kSubQKHeaddim keeps QK's true length (96 -> 96, 160 -> 160,
 // 128/192 unchanged) instead of the shared rounded value. Includes the asymmetric
 // 192/128 (QK=192, VN1=128). M0=128 prefill path.
+template <ck_tile::index_t M, ck_tile::index_t QK, ck_tile::index_t VN1>
+using HeadDimShapeM = ck_tile::TileFmhaShape<ck_tile::sequence<M, 64, 32, VN1, 32, QK>,
+                                             ck_tile::sequence<4, 1, 1>,
+                                             ck_tile::sequence<16, 16, 32>,
+                                             ck_tile::sequence<4, 1, 1>,
+                                             ck_tile::sequence<16, 16, 32>,
+                                             true,
+                                             /*UseTdmCeil=*/true>;
+
 template <ck_tile::index_t QK, ck_tile::index_t VN1>
-using AlignedHeadDimShape = ck_tile::TileFmhaShape<ck_tile::sequence<128, 64, 32, VN1, 32, QK>,
-                                                   ck_tile::sequence<4, 1, 1>,
-                                                   ck_tile::sequence<16, 16, 32>,
-                                                   ck_tile::sequence<4, 1, 1>,
-                                                   ck_tile::sequence<16, 16, 32>,
-                                                   true,
-                                                   /*UseTdmCeil=*/true>;
+using AlignedHeadDimShape = HeadDimShapeM<128, QK, VN1>;
 
 template <typename DataType, ck_tile::index_t QK, ck_tile::index_t VN1>
 using AlignedHeadDimProblem =
     TestProblemWithShape<TestFmhaProblem<DataType, 128>, AlignedHeadDimShape<QK, VN1>>;
+
+// Same, but with M0 and the buffering mode spelled out, so head dims whose
+// production tile is M0=64 (d256, and later d512) can be described exactly.
+template <typename DataType,
+          ck_tile::index_t M,
+          ck_tile::index_t QK,
+          ck_tile::index_t VN1,
+          bool UseDoubleKVLdsBuffer = false,
+          bool ProgressiveDsLoadK   = false>
+using HeadDimProblemM =
+    TestProblemWithShape<TestFmhaProblem<DataType, M, UseDoubleKVLdsBuffer, ProgressiveDsLoadK>,
+                         HeadDimShapeM<M, QK, VN1>>;
+
+// The padding gate is head-dim aware only for the double-buffer arena: that one
+// already fills the LDS budget at d256, so adding a pad per row would not fit.
+// The single-buffer arena has room, and dropping its padding costs real bank
+// conflicts -- so the gate must look at the buffering mode, not just at the head
+// dim. These lock both halves of that condition down.
+template <typename DataType, ck_tile::index_t M, ck_tile::index_t QK, bool Double>
+using PaddingGateSelection =
+    ck_tile::detail::QrTdmPaddingSelection<HeadDimProblemM<DataType, M, QK, QK, Double>>;
+
+template <typename DataType, ck_tile::index_t M, ck_tile::index_t QK>
+constexpr bool has_single_buffer_kv_padding()
+{
+    using Sel = PaddingGateSelection<DataType, M, QK, false>;
+    return Sel::K::kEnabled && Sel::V::kEnabled;
+}
+
+// d256 single buffer: K/V padded. Losing this is the bank-conflict regression.
+static_assert(has_single_buffer_kv_padding<ck_tile::bf16_t, 64, 256>());
+// d256 double buffer: still unpadded, i.e. the gate was narrowed, not widened.
+static_assert(is_disabled_selection<PaddingGateSelection<ck_tile::bf16_t, 64, 256, true>>());
 
 // Validate issue geometry + reader segments for an aligned head dim, using the
 // head-dim-correct padding config. Only meaningful for dims TDM stores un-rounded
@@ -353,6 +398,19 @@ template <typename DataType, ck_tile::index_t QK, ck_tile::index_t VN1>
 constexpr bool validate_aligned_head_dim()
 {
     using Problem = AlignedHeadDimProblem<DataType, QK, VN1>;
+    return ck_tile::detail::validate_qr_tdm_issue_geometry<SelQTag<Problem>, Problem>() &&
+           ck_tile::detail::validate_qr_tdm_issue_geometry<SelKTag<Problem>, Problem, true>() &&
+           ck_tile::detail::validate_qr_tdm_issue_geometry<SelVTag<Problem>, Problem>() &&
+           ck_tile::detail::validate_qr_tdm_reader_segments<SelQTag<Problem>, Problem>() &&
+           ck_tile::detail::validate_qr_tdm_reader_segments<SelKTag<Problem>, Problem>() &&
+           ck_tile::detail::validate_qr_tdm_reader_segments<SelVTag<Problem>, Problem>();
+}
+
+// Same, for head dims whose production tile is not the M0=128 prefill one.
+template <typename DataType, ck_tile::index_t M, ck_tile::index_t QK, ck_tile::index_t VN1>
+constexpr bool validate_head_dim_m()
+{
+    using Problem = HeadDimProblemM<DataType, M, QK, VN1>;
     return ck_tile::detail::validate_qr_tdm_issue_geometry<SelQTag<Problem>, Problem>() &&
            ck_tile::detail::validate_qr_tdm_issue_geometry<SelKTag<Problem>, Problem, true>() &&
            ck_tile::detail::validate_qr_tdm_issue_geometry<SelVTag<Problem>, Problem>() &&
@@ -382,6 +440,11 @@ static_assert(validate_aligned_head_dim<ck_tile::bf16_t, 64, 64>());
 static_assert(validate_aligned_head_dim<ck_tile::bf16_t, 64, 32>());
 static_assert(validate_aligned_head_dim<ck_tile::half_t, 64, 64>());
 static_assert(validate_aligned_head_dim<ck_tile::half_t, 64, 32>());
+// 256 and 512 run on the M0=64 tile.
+static_assert(validate_head_dim_m<ck_tile::bf16_t, 64, 256, 256>());
+static_assert(validate_head_dim_m<ck_tile::half_t, 64, 256, 256>());
+static_assert(validate_head_dim_m<ck_tile::bf16_t, 64, 512, 512>());
+static_assert(validate_head_dim_m<ck_tile::half_t, 64, 512, 512>());
 #endif
 
 template <typename Layout>
@@ -441,10 +504,14 @@ constexpr bool validate_arena_layouts()
     static_assert(PrefillAll::kV0Offset == 34816);
     static_assert(PrefillAll::kV1Offset == 53248);
     static_assert(PrefillAll::kArenaBytes == 71680);
+    // The single-buffer path stages whole K tiles in two ping-pong buffers, so
+    // its K region has the same geometry as the double-buffer one; only V is
+    // single.
     static_assert(DecodeAll::kQOffset == 0);
     static_assert(DecodeAll::kK0Offset == 0);
-    static_assert(DecodeAll::kV0Offset == 4352);
-    static_assert(DecodeAll::kArenaBytes == 22784);
+    static_assert(DecodeAll::kK1Offset == 17408);
+    static_assert(DecodeAll::kV0Offset == 34816);
+    static_assert(DecodeAll::kArenaBytes == 53248);
 
     using PrefillNone =
         typename Policy::template LdsArenaLayout<PrefillProblem, NoPad, NoPad, NoPad>;
@@ -463,14 +530,18 @@ constexpr bool validate_arena_layouts()
     using DecodeKV   = typename Policy::template LdsArenaLayout<DecodeProblem, NoPad, QKPad, VPad>;
     using DecodeK    = typename Policy::template LdsArenaLayout<DecodeProblem, NoPad, QKPad, NoPad>;
     using DecodeV    = typename Policy::template LdsArenaLayout<DecodeProblem, NoPad, NoPad, VPad>;
-    static_assert(DecodeNone::kArenaBytes == 20480);
-    static_assert(DecodeQKV::kArenaBytes == 22784);
-    static_assert(DecodeKV::kArenaBytes == 22784);
-    static_assert(DecodeK::kArenaBytes == 20736);
-    static_assert(DecodeV::kArenaBytes == 22528);
+    static_assert(DecodeNone::kArenaBytes == 49152);
+    static_assert(DecodeQKV::kArenaBytes == 53248);
+    static_assert(DecodeKV::kArenaBytes == 53248);
+    static_assert(DecodeK::kArenaBytes == 51200);
+    static_assert(DecodeV::kArenaBytes == 51200);
 
     static_assert(has_aligned_production_regions<PrefillAll>());
     static_assert(has_aligned_production_regions<DecodeAll>());
+    // K is a whole tile in both modes now; V is the only region that stays single.
+    static_assert(DecodeAll::kKBytes == PrefillAll::kKBytes);
+    static_assert(DecodeAll::kV1Offset == DecodeAll::kV0Offset);
+    static_assert(PrefillAll::kV1Offset > PrefillAll::kV0Offset);
     static_assert(PrefillAll::kK0Offset + PrefillAll::kKBytes <= PrefillAll::kK1Offset);
     static_assert(PrefillAll::kK1Offset + PrefillAll::kKBytes <= PrefillAll::kV0Offset);
     static_assert(PrefillAll::kQOffset + PrefillAll::kQBytes <= PrefillAll::kV0Offset);
@@ -493,6 +564,44 @@ constexpr bool validate_arena_layouts()
 
 static_assert(validate_arena_layouts<ck_tile::bf16_t>());
 static_assert(validate_arena_layouts<ck_tile::half_t>());
+
+// gfx125 hands out LDS in 64 KiB granules out of 320 KiB per CU, so the budget
+// is granule(arena) * occupancy <= 320 KiB rather than a fixed per-workgroup
+// cap. d512 spends its whole allowance on one workgroup; everything below it
+// still leaves room for two.
+template <typename DataType, ck_tile::index_t M, ck_tile::index_t QK>
+using HeadDimArena =
+    typename ck_tile::BlockFmhaPipelineQRKSVSTdmDefaultPolicy::template LdsArenaLayout<
+        HeadDimProblemM<DataType, M, QK, QK>>;
+
+template <typename DataType, ck_tile::index_t M, ck_tile::index_t QK>
+constexpr bool fits_lds_budget()
+{
+    using Arena = HeadDimArena<DataType, M, QK>;
+    return ck_tile::integer_least_multiple(Arena::kArenaBytes, 64 * 1024) *
+               Arena::kLdsOccupancyTarget <=
+           320 * 1024;
+}
+
+static_assert(HeadDimArena<ck_tile::bf16_t, 64, 512>::kLdsOccupancyTarget == 1);
+static_assert(HeadDimArena<ck_tile::half_t, 64, 512>::kLdsOccupancyTarget == 1);
+static_assert(HeadDimArena<ck_tile::bf16_t, 64, 256>::kLdsOccupancyTarget == 2);
+static_assert(HeadDimArena<ck_tile::bf16_t, 128, 128>::kLdsOccupancyTarget == 2);
+static_assert(HeadDimArena<ck_tile::bf16_t, 64, 512>::kArenaBytes == 200704);
+static_assert(HeadDimArena<ck_tile::half_t, 64, 512>::kArenaBytes == 200704);
+static_assert(HeadDimArena<ck_tile::bf16_t, 64, 256>::kArenaBytes == 102400);
+static_assert(fits_lds_budget<ck_tile::bf16_t, 64, 512>());
+static_assert(fits_lds_budget<ck_tile::half_t, 64, 512>());
+static_assert(fits_lds_budget<ck_tile::bf16_t, 64, 256>());
+static_assert(fits_lds_budget<ck_tile::bf16_t, 128, 128>());
+
+// d512 keeps its bank-conflict padding: one row is 1024 B, so the pad lands
+// once per row for K and once per row for V.
+static_assert(std::is_same_v<PaddingGateSelection<ck_tile::bf16_t, 64, 512, false>::K,
+                             ck_tile::detail::LdsPaddingConfig<true, 1024, 16>>);
+static_assert(std::is_same_v<PaddingGateSelection<ck_tile::bf16_t, 64, 512, false>::V,
+                             ck_tile::detail::LdsPaddingConfig<true, 1024, 32>>);
+static_assert(has_single_buffer_kv_padding<ck_tile::half_t, 64, 512>());
 
 template <typename DataType,
           ck_tile::index_t M,
@@ -539,10 +648,13 @@ constexpr bool validate_policy_coupling()
     static_assert(k_desc.get_element_space_size() * sizeof(DataType) ==
                   (UseDoubleKVLdsBuffer ? 17392 : 4336));
     static_assert(v_desc.get_element_space_size() * sizeof(DataType) == 18400);
-    static_assert(Layout::kArenaBytes ==
-                  (UseDoubleKVLdsBuffer ? 71680 : (M == 128 ? 32768 : 22784)));
+    // The arena no longer depends on M0: both modes store Q, two whole K tiles
+    // and V, and the single-buffer one trades the second V for the S staging
+    // area.
+    static_assert(Layout::kArenaBytes == (UseDoubleKVLdsBuffer ? 71680 : 53248));
     static_assert(Layout::kUseDoubleKVLdsBuffer == UseDoubleKVLdsBuffer);
-    static_assert(Pipeline::kKLoadOnce == UseDoubleKVLdsBuffer);
+    // Both paths stage K as a whole (kN0 x kSubQKHeaddim) tile.
+    static_assert(Pipeline::kKLoadOnce);
     static_assert(Pipeline::GetSmemSize() == Layout::kArenaBytes);
 
     using EnabledQ   = ck_tile::detail::LdsPaddingConfig<true, 256, 16>;
@@ -579,8 +691,8 @@ static_assert(validate_policy_coupling<ck_tile::half_t, 64, false>());
 static_assert(validate_policy_coupling<ck_tile::bf16_t, 128, true, true, true>());
 static_assert(validate_policy_coupling<ck_tile::bf16_t, 64, true, true, false>());
 static_assert(validate_policy_coupling<ck_tile::half_t, 128, true, true, true>());
-// The selector must reject this combination even though the pipeline itself
-// deliberately forbids progressive loading without double K/V buffers.
+// Progressive loading without double K/V buffers is a supported combination,
+// but Q padding is tied to the double-buffer M128 traversal, so Q stays unpadded.
 static_assert(std::is_same_v<ck_tile::detail::QrTdmPaddingSelection<
                                  TestFmhaProblem<ck_tile::bf16_t, 128, false, true>>::Q,
                              NoPad>);
@@ -626,6 +738,80 @@ static_assert(
         ck_tile::detail::QrTdmPaddingSelection<TestFmhaProblem<ck_tile::half_t, 128, true>>>());
 static_assert(is_disabled_selection<
               ck_tile::detail::QrTdmPaddingSelection<TestFmhaProblem<ck_tile::half_t, 64>>>());
+#endif
+
+// qr_tdm_pingpong: Q/K rows padded by one 16 B vector, V rows by two, one pad per row as
+// a plain row stride; [K0][K1][V, aliased by Q].
+template <typename DataType, ck_tile::index_t M>
+constexpr bool validate_pingpong_layout()
+{
+    using Problem  = TestFmhaProblem<DataType, M>;
+    using Policy   = ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPolicy;
+    using Layout   = typename Policy::template LdsArenaLayout<Problem>;
+    using Pipeline = ck_tile::BlockFmhaPipelineQRKSVSTdmPingPong<Problem>;
+    using QRaw     = ck_tile::detail::EncodedTdmPadding<Policy::LdsPaddingConfigQ<Problem>>;
+    using KRaw     = ck_tile::detail::EncodedTdmPadding<Policy::LdsPaddingConfigK<Problem>>;
+    using VRaw     = ck_tile::detail::EncodedTdmPadding<Policy::LdsPaddingConfigV<Problem>>;
+
+    static_assert(std::is_same_v<Policy::LdsPaddingConfigQ<Problem>, QKPad>);
+    static_assert(std::is_same_v<Policy::LdsPaddingConfigK<Problem>, QKPad>);
+    static_assert(std::is_same_v<Policy::LdsPaddingConfigV<Problem>, VPad>);
+    static_assert(QRaw::kPadInterval == 5 && QRaw::kPadAmount == 3);
+    static_assert(KRaw::kPadInterval == 5 && KRaw::kPadAmount == 3);
+    static_assert(VRaw::kPadInterval == 5 && VRaw::kPadAmount == 7);
+
+    constexpr auto k_desc = Policy::template MakeKLdsBlockDescriptor<Problem>();
+    static_assert(k_desc.calculate_offset(ck_tile::make_tuple(1, 0)) == 136);
+    static_assert(k_desc.calculate_offset(ck_tile::make_tuple(2, 40)) == 2 * 136 + 40);
+
+    static_assert(Layout::kKBytes == 17392 && Layout::kVBytes == 18400);
+    static_assert(Layout::kK0Offset == 0 && Layout::kK1Offset == 17408);
+    static_assert(Layout::kSBytes == 0);
+    static_assert(Layout::kV0Offset == 34816 && Layout::kQOffset == Layout::kV0Offset);
+    static_assert(Layout::kQBytes == (M == 128 ? 34800 : 17392));
+    static_assert(Layout::kArenaBytes == (M == 128 ? 69632 : 53248));
+    static_assert(Pipeline::GetSmemSize() == Layout::kArenaBytes);
+    static_assert(ck_tile::detail::uses_qr_tdm_lds_arena_v<Pipeline>);
+
+    using Unpadded = typename Policy::template LdsArenaLayout<Problem, NoPad, NoPad, NoPad>;
+    static_assert(Unpadded::kK1Offset == 16384 && Unpadded::kV0Offset == 32768);
+    static_assert(Unpadded::kArenaBytes == (M == 128 ? 65536 : 49152));
+    return true;
+}
+
+// The 16-row short-query tile spends its warps on N, so S goes through LDS: a region
+// between K1 and V, with the same row padding and K buffers.
+template <typename DataType>
+constexpr bool validate_short_query_pingpong_layout()
+{
+    using Problem  = TestProblemWithShape<TestFmhaProblem<DataType, 128>,
+                                          TestFmhaShapeWarps<16, ck_tile::sequence<1, 4, 1>>>;
+    using Policy   = ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPolicy;
+    using Layout   = typename Policy::template LdsArenaLayout<Problem>;
+    using Pipeline = ck_tile::BlockFmhaPipelineQRKSVSTdmPingPong<Problem>;
+
+    static_assert(std::is_same_v<Policy::LdsPaddingConfigK<Problem>, QKPad>);
+    static_assert(std::is_same_v<Policy::LdsPaddingConfigV<Problem>, VPad>);
+    static_assert(Layout::kSBytes > 0);
+    static_assert(Layout::kK0Offset == 0 && Layout::kK1Offset == 17408);
+    static_assert(Layout::kSOffset == 34800);
+    static_assert(Layout::kV0Offset == 39168 && Layout::kQOffset == Layout::kV0Offset);
+    static_assert(Layout::kArenaBytes == 57600);
+    static_assert(!Pipeline::kRowSumOnMatrixUnit);
+    static_assert(Pipeline::GetSmemSize() == Layout::kArenaBytes);
+    return true;
+}
+
+#if !defined(__HIP_DEVICE_COMPILE__) || defined(__gfx125__)
+static_assert(validate_short_query_pingpong_layout<ck_tile::bf16_t>());
+static_assert(validate_short_query_pingpong_layout<ck_tile::half_t>());
+static_assert(validate_pingpong_layout<ck_tile::bf16_t, 64>());
+static_assert(validate_pingpong_layout<ck_tile::half_t, 64>());
+static_assert(validate_pingpong_layout<ck_tile::bf16_t, 128>());
+#else
+static_assert(std::is_same_v<ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPolicy::LdsPaddingConfigK<
+                                 TestFmhaProblem<ck_tile::bf16_t, 64>>,
+                             NoPad>);
 #endif
 
 using DispatchProblem = TestFmhaProblem<ck_tile::half_t, 128, true>;

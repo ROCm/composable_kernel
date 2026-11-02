@@ -1608,6 +1608,7 @@ struct FmhaBwdDQDKDVKernel
                         if(i_tile_n_ == 0) // reset dq_acc writing idx when starting a new head
                             i_split = 0;
                         run_(kargs, dim3(i_tile_n, i_nhead, i_batch), i_split, n_splits);
+                        ck_tile::s_wait_tensorcnt_barrier<0 /*tensorcnt*/, 0 /*lgkmcnt*/>();
                     } while(++job_id < end_job_id);
                 }
                 else

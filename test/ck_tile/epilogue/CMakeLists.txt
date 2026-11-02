@@ -18,6 +18,8 @@ if(GPU_TARGETS MATCHES "gfx950")
     endif()
 endif()
 
+add_gtest_executable(test_ck_tile_lds_shuffle_2d_epilogue test_lds_shuffle_2d_epilogue.cpp)
+
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
     add_gtest_executable(test_ck_tile_tdm_epilogue test_tdm_epilogue.cpp)
     if(result EQUAL 0)
