@@ -428,6 +428,7 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
         "comp_async": "CompAsync",
         "comp_tdm": "CompTDMV1",
         "comp_tdm_v2": "CompTDMV2",
+        "comp_tdm_pc": "CompTDMPC",
         "preshuffle_tdm": "PreShuffleTDM",
     }
     lds_budget_aliases = resolve_pipeline_lds_budget_aliases(specs)
@@ -559,7 +560,8 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch) {{
 // LDS staging budget in bytes for the A+B tiles, per architecture and
 // pipeline. The budget depends on the target: a tile that overflows one
 // architecture's LDS may fit comfortably in another's. The gfx1250 TDM
-// pipelines (CompTDMV1/V2) share the double-buffered comp_async budget.
+// pipelines (CompTDMV1/V2) share the double-buffered comp_async budget;
+// CompTDMPC has its own four-slot budget.
 inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline) {{
     switch(arch)
     {{
@@ -585,7 +587,7 @@ inline bool is_trait_unsupported(Pipeline pipeline, [[maybe_unused]] Epilogue ep
     if (scheduler == Scheduler::Interwave) {{
         if (pipeline == Pipeline::CompV3 || pipeline == Pipeline::CompV4 ||
             pipeline == Pipeline::CompAsync || pipeline == Pipeline::CompTDMV1 ||
-            pipeline == Pipeline::CompTDMV2) {{
+            pipeline == Pipeline::CompTDMV2 || pipeline == Pipeline::CompTDMPC) {{
             return true;
         }}
     }}

@@ -48,8 +48,16 @@ except ImportError:  # pragma: no cover - numpy missing
 
 ARCH = "gfx1250"
 TE_PREFIX = "gemm_universal"
-PIPELINES = ("comp_async", "comp_tdm", "comp_tdm_v2", "compv3", "compv4", "mem")
-GATED_PIPELINES = ("comp_async", "comp_tdm", "comp_tdm_v2")
+PIPELINES = (
+    "comp_async",
+    "comp_tdm",
+    "comp_tdm_v2",
+    "comp_tdm_pc",
+    "compv3",
+    "compv4",
+    "mem",
+)
+GATED_PIPELINES = ("comp_async", "comp_tdm", "comp_tdm_v2", "comp_tdm_pc")
 EPILOGUES = ("cshuffle", "default", "tdm")
 SCHEDULERS = ("intrawave", "interwave")
 LAYOUTS = ("rcr", "rrr", "crr", "ccr")
@@ -134,6 +142,7 @@ def _gemm_utils_accepts(
         warp_tile_k=t["warp_tile_k"],
         warp_tile_m=t["warp_tile_m"],
         warp_tile_n=t["warp_tile_n"],
+        tile_mn=(t["tile_m"], t["tile_n"]),
     )
 
 
@@ -183,6 +192,7 @@ LEGAL_TRAITS = {
     "comp_async": ("cshuffle", "intrawave", (True, True, True)),
     "comp_tdm": ("tdm", "intrawave", (False, False, False)),
     "comp_tdm_v2": ("tdm", "intrawave", (False, False, False)),
+    "comp_tdm_pc": ("tdm", "intrawave", (False, False, False)),
 }
 
 
@@ -245,9 +255,11 @@ class TestGfx1250GateEquivalence(unittest.TestCase):
                             )
                         )
                     continue
-                if not (
-                    want == got_filter and (gemm_utils is None or want == got_gate)
-                ):
+                # gemm_utils gates traits and waves only; the LDS budget (which
+                # rejects some of these tiles for the four-slot comp_tdm_pc) is
+                # the arch filter's, so gemm_utils is checked through the
+                # combined result.
+                if not (want == got_filter and (gemm_utils is None or want == got)):
                     mismatches.append(
                         (
                             pipe,
@@ -310,8 +322,9 @@ class TestGfx1250GateEquivalence(unittest.TestCase):
 
     def test_tile_space(self):
         """Every tile x wave x warp_tile_k x dtype for the legal trait of each
-        gated pipeline (LDS incl. TDM row padding, TDM C tile, 4-wave v2 and
-        8-bit warp_tile_k and warp_tile_m/n rules)."""
+        gated pipeline (LDS incl. TDM row padding, TDM C tile, 4-wave v2,
+        producer/consumer accumulator, 8-bit warp_tile_k and warp_tile_m/n
+        rules)."""
         mismatches = []
         compared = accepted = rejected = 0
         for t in _tile_space():

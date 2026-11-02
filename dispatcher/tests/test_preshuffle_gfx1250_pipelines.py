@@ -43,7 +43,8 @@ def _load_te_validation():
 
 
 TE = _load_te_validation()
-ALL_PIPELINES = ("preshufflev2",) + cc.PRESHUFFLE_GFX1250_PIPELINES + ("compv3",)
+ALL_PIPELINES = ("preshufflev2",) + cc.PRESHUFFLE_GFX1250_PIPELINES + ("comp_tdm_pc", "compv3")
+PRESHUFFLE_COMP_TDM = tuple(p for p in cc.TDM_PIPELINES if p in cc.PRESHUFFLE_GFX1250_PIPELINES)
 TILE = dict(
     tile_m=128, tile_n=128, tile_k=64, warp_m=1, warp_n=4, warp_k=1,
     warp_tile_m=16, warp_tile_n=16, warp_tile_k=32,
@@ -162,13 +163,13 @@ class TestRejectRules(unittest.TestCase):
             self.assertIn("persistent", self._ok(pipeline, persistent=True))
 
     def test_tdm_requires_no_padding(self):
-        for pipeline in ("preshuffle_tdm",) + cc.TDM_PIPELINES:
+        for pipeline in ("preshuffle_tdm",) + PRESHUFFLE_COMP_TDM:
             for pads in ((True, False, False), (False, True, False), (False, False, True)):
                 self.assertEqual(self._ok(pipeline, pad_m=pads[0], pad_n=pads[1], pad_k=pads[2]),
                                  cc.TDM_PAD_REJECT_REASON)
 
     def test_string_pad_flags(self):
-        for pipeline in ("preshuffle_tdm",) + cc.TDM_PIPELINES:
+        for pipeline in ("preshuffle_tdm",) + PRESHUFFLE_COMP_TDM:
             self.assertEqual(self._ok(pipeline, pad_m="false", pad_n="False", pad_k="false"), "")
             self.assertEqual(self._ok(pipeline, pad_m="true"), cc.TDM_PAD_REJECT_REASON)
 
@@ -203,11 +204,11 @@ class TestRejectRules(unittest.TestCase):
             self.assertEqual(self._ok(pipeline, warp_k=1), "")
         # Not a gfx1250 rule: the gfx942/gfx950 warp tables list [2, 1, 2].
         self.assertIn("warp_k=1", self.reject("preshufflev2", "gfx950", warp_k=2))
-        for pipeline in cc.TDM_PIPELINES:
+        for pipeline in PRESHUFFLE_COMP_TDM:
             self.assertEqual(self._ok(pipeline, warp_k=2), "")
 
     def test_comp_tdm_power_of_two_tile_k(self):
-        for pipeline in cc.TDM_PIPELINES:
+        for pipeline in PRESHUFFLE_COMP_TDM:
             self.assertIn("power-of-two tile_k", self._ok(pipeline, tile_k=192))
             for tile_k in (64, 128, 256):
                 self.assertEqual(self._ok(pipeline, tile_k=tile_k), "")
@@ -264,7 +265,7 @@ class TestCodegen(unittest.TestCase):
         for pipeline in cc.PRESHUFFLE_WARP_K1_PIPELINES:
             with self.subTest(pipeline=pipeline, warp_k=2):
                 self.assertEqual(_generate(pipeline, "gfx1250", warp_n=2, warp_k=2), [])
-        for pipeline in cc.TDM_PIPELINES:
+        for pipeline in PRESHUFFLE_COMP_TDM:
             with self.subTest(pipeline=pipeline, tile_k=192):
                 self.assertEqual(_generate(pipeline, "gfx1250", tile_k=192), [])
         for pipeline in cc.PACKED_B_PIPELINES + ("comp_async",):

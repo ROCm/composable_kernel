@@ -126,6 +126,11 @@ struct GemmPipelineAgBgCrCompTDMProducerConsumer
     static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
 
     static_assert(NumWaveGroups == 1, "the producer/consumer split replaces wave groups");
+    // NumConsumerWaves counts every BlockWarps wave, but BlockGemm and the epilogue spread the C
+    // tile over MWarps x NWarps only and nothing reduces partial sums across K waves, so a K wave
+    // would be a consumer whose work is lost.
+    static_assert(BlockGemmShape::BlockWarps::at(number<2>{}) == 1,
+                  "BlockWarps[2] (K waves) must be 1: the consumers have no K-wave reduction");
     static_assert(!Preshuffle, "preshuffled B is not supported");
     static_assert(!kPadM && !kPadN && !kPadK,
                   "padding is not supported: TDM handles ragged extents itself, and padded "
