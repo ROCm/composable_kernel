@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Regression test for the gfx1250 Tdm forward pipelines.
 
-hstu_attention_{no,with}_softmax_fwd_tdm_pipeline.hpp keep two Lds copies of K and V and
+hstu_attention_{no,with}_softmax_fwd_tdm_trload_pipeline.hpp keep two Lds copies of K and V and
 alternate between them from one kv-tile to the next, so mistakes in that bookkeeping only
 show up for particular kv-tile counts (one, odd, even, none at all in an empty split-kv
 range). The cases below vary those counts on all Tdm kernel variants (MTile 64/128,
-plain/split-kv), with and without softmax, for every head-dim bucket that uses Tdm:
+plain/split-kv), with and without softmax, for every head-dim bucket (all use Tdm):
 
     test_tdm_pipeline.py [--exe PATH] [--hdim 64,96,128,256] [--max-err X|inf] [-k REGEX]
                          [--timeout S] [--no-kernel-check] [--list]
@@ -28,7 +28,8 @@ values only and is 0 when a run passes its tolerance; 0 does not mean bit-exact.
 
 MAX_ERR[bucket] is chosen inside [2 x worst baseline, min mutant / 2], where the worst
 baseline is the largest max error of this test on the Tdm build and on a build with Tdm
-disabled (all buckets on trload), and min mutant is the smallest, over deliberately broken
+disabled (all buckets on trload; measured before gfx1250 became Tdm-only, so that build can
+no longer be made as is), and min mutant is the smallest, over deliberately broken
 pipelines, of their largest max error. The runs use the example's default scale (alpha 0,
 i.e. 1/sqrt(hdim)); a large alpha makes softmax one-hot, so only the diagonal kv-tile
 would be checked.

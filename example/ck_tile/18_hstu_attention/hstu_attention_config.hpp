@@ -46,7 +46,7 @@ enum class HstuFwdPipelineKind
     // hstu_attention_fwd_pipeline_policy.hpp -- so returning Default on an arch that has
     // ds_read_tr is a hard template error several headers down, not a fallback.
     Default,         // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVS
-    TrLoad,          // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTrLoad
+    TrLoad,          // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTrLoad, gfx950 only
     DirectLdsTrLoad, // // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSDirectLdsTrLoad, gfx950
                      // only
     TdmTrLoad,       // HstuAttention{With,No}SoftmaxFwdPipelineQRKSVSTdm, gfx1250 only
@@ -59,18 +59,12 @@ template <bool kUseSoftmax, ck_tile::index_t MaxK, bool kHdimPadded>
 constexpr HstuFwdPipelineKind get_hstu_fwd_pipeline_kind()
 {
 #if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
-    // Tdm is selected per MaxK, for the buckets that have Tdm tile rows in the gfx125 tile
-    // setting (the Tdm pipelines need kN0 == kN0Sub == kK1). Every other MaxK keeps trload.
-    if constexpr(MaxK == 128)
-        return HstuFwdPipelineKind::TdmTrLoad;
-    else if constexpr(MaxK == 64)
-        return HstuFwdPipelineKind::TdmTrLoad;
-    else if constexpr(MaxK == 256)
-        return HstuFwdPipelineKind::TdmTrLoad;
-    else if constexpr(MaxK == 96)
-        return HstuFwdPipelineKind::TdmTrLoad;
-    else
-        return HstuFwdPipelineKind::TrLoad;
+    // gfx1250 runs every forward instance on the Tdm pipelines, whether the head dim is padded
+    // or not; the gfx125 tile setting has Tdm tile rows only.
+    static_assert(MaxK == 64 || MaxK == 96 || MaxK == 128 || MaxK == 256,
+                  "no Tdm forward tile for this MaxK on gfx1250: add its Tdm tiles in "
+                  "hstu_attention_fwd_setting_gfx125.hpp and list the MaxK here");
+    return HstuFwdPipelineKind::TdmTrLoad;
 #elif HSTU_LDS_READ_WITH_TRANSPOSE_AVAILABLE
     if constexpr(!kHdimPadded && MaxK != 96)
         return HstuFwdPipelineKind::DirectLdsTrLoad;

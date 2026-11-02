@@ -926,7 +926,10 @@ struct HstuAttentionFwdKernel
             // length up past the end of the real K buffer, so leave it unpadded and let the
             // clamp do the work. (Q keeps its pad: it is read with a plain load_tile, which
             // gets no such zero-fill and would pick up the next row.)
-            if constexpr(kUseTdm && kPadHeadDimQK)
+            // Where the head dim needs no padding, the naive view is right as well: the Tdm
+            // engine is given only the view's start offset, lengths and strides, which
+            // pad_tensor_view() would leave unchanged.
+            if constexpr(kUseTdm)
             {
                 return k_dram_naive;
             }
@@ -969,7 +972,7 @@ struct HstuAttentionFwdKernel
                                                   number<HstuAttentionPipeline::kK1>{}),
                                        sequence<kPadHeadDimV, false>{});
             }
-            else if constexpr(kUseTdm && kPadHeadDimV)
+            else if constexpr(kUseTdm)
             {
                 // same reasoning as k_dram above: V is Tdm-moved as well
                 return v_dram_naive;
