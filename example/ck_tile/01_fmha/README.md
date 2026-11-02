@@ -2,6 +2,12 @@
 
 This folder contains example for fmha(fused multi-head attention) using ck_tile tile-programming implementation. It is a good example to demonstrate the usage of tile-programming API, as well as illustrate the new approach to construct a kernel template and instantiate it(them) while keeping compile time fast.
 
+For a PyTorch API and the full fmha pytest
+matrix using GPU references, see [the Python package](python/README.md). It
+supports pip or setuptools installation and incremental kernel rebuilds. After
+installation, `script/run_python_test.sh` runs the Python tests; normal pytest
+arguments can be passed through to select or report cases.
+
 ## build
 ```
 # 1. In the root of composable_kernel project, create the build directory.

@@ -77,22 +77,27 @@ endif()
 
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/fmha_fwd_source_flags.cmake)
+set(FMHA_FWD_CODEGEN_RECEIPT 0 CACHE STRING "Codegen receipt for FMHA forward instances")
+set(FMHA_BWD_CODEGEN_RECEIPT 3 CACHE STRING "Codegen receipt for FMHA backward instances")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --targets ${FMHA_TARGETS_ARG}
   --api ${FMHA_FWD_APIS}
   --optdim ${FMHA_FWD_OPTDIM}
+  --receipt ${FMHA_FWD_CODEGEN_RECEIPT}
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --targets ${FMHA_TARGETS_ARG}
   --api bwd
-  --receipt 3
+  --receipt ${FMHA_BWD_CODEGEN_RECEIPT}
   --optdim 32,64,96,128,256
   # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 )
 set(FMHA_BWD_INSTANCE_FILTER "" CACHE STRING
   "fnmatch filter for generated FMHA BWD kernels: dot_do_o@convert_dq@dq_dk_dv. Empty = all.")
+set(FMHA_FWD_INSTANCE_FILTER "" CACHE STRING
+  "fnmatch filters for generated FMHA FWD kernels, one per enabled API. Empty = default.")
 
 if(NOT FMHA_BWD_INSTANCE_FILTER STREQUAL "")
   # must go into COMMON_ARGS so --list_blobs and --output_dir stay in agreement
@@ -104,7 +109,10 @@ endif()
 # TODO: Consider to use a special receipt for testing only, or even two receipts: a small subset of
 # instances for quick CI runs and a larger subset for scheduled runs (the tests skip tests when
 # there is no corresponding instance for parameters).
-if(BUILD_TESTING)
+if(NOT FMHA_FWD_INSTANCE_FILTER STREQUAL "")
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter ${FMHA_FWD_INSTANCE_FILTER})
+  message(STATUS "CK Tile FMHA FWD instance filter: ${FMHA_FWD_INSTANCE_FILTER}")
+elseif(BUILD_TESTING)
   # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
   # The split-KV entry says *logits* rather than *_nlogits* so that the soft-cap
   # instances are built too: SplitKvSinkSoftCap needs a soft cap and a sink on the

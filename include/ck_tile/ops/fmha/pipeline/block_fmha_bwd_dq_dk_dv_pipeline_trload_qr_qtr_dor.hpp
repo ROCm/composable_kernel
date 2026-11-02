@@ -543,7 +543,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                         },
                         s_acc,
                         bias_s_tile);
-                    move_tile_window(bias_dram_window, {kM0, 0});
+                    move_tile_window(bias_dram_window, {0, kN0});
                     __builtin_amdgcn_sched_barrier(0);
                 }
                 else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
@@ -674,7 +674,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                         Policy::template MakeBiasTileDistribution<Problem>());
                     shuffle_tile(dbias_tile, shuffled_dbias_tile);
                     store_tile(dbias_dram_window, dbias_tile);
-                    move_tile_window(dbias_dram_window, {kM0, 0});
+                    move_tile_window(dbias_dram_window, {0, kN0});
                     __builtin_amdgcn_sched_barrier(0);
                 }
             }

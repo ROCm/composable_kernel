@@ -304,6 +304,7 @@ FMHA_FWD_API_KVSCALE_LOOKUP = """    struct row {{ const char* arch; const char*
 FMHA_FWD_API_KVSCALE_ROW = """        {{"{F_arch.name}", "{F_dtype_name}", {F_hdim}, {F_hdim_v}, fmha_fwd_kvscale_align_<{F_trait_type}, {F_arch.tag}>()}},
 """
 
+
 @dataclass
 class CppConstraint:
     bool_expr: str = None
@@ -1368,7 +1369,12 @@ class KernelComponentFactoryGfx950(
                 ["no", "causal"],
                 ["t", "f"],
             ):
-                pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "f", "f", F_logits=logits, F_bias="no", F_lse=lse, F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t", F_sink="f"))  # fmt: skip
+                mask_constraint = (
+                    CppConstraint("a.window_size_left < 0 && a.window_size_right == 0")
+                    if mask == "causal"
+                    else CppConstraint()
+                )
+                pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "f", "f", F_logits=logits, F_bias="no", F_lse=lse, F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t", F_sink="f", F_constraint=mask_constraint))  # fmt: skip
 
         elif dtype in cls._DT_MXFP8 or dtype in cls._DT_MXFP4:
             # no need dropout kernels
@@ -1689,7 +1695,9 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                 return (
                     kernel_ctx.pipeline.F_vlayout == "row"
                     and kernel_ctx.pipeline.F_spad == kernel_ctx.pipeline.F_skpad
-                    and (problem_ctx.mode != "group" or kernel_ctx.pipeline.F_spad == "t")
+                    and (
+                        problem_ctx.mode != "group" or kernel_ctx.pipeline.F_spad == "t"
+                    )
                     and kernel_ctx.pipeline.F_dpad == "f"
                     and kernel_ctx.pipeline.F_dvpad == "f"
                 )
@@ -1791,7 +1799,9 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             })  # fmt: skip
             if dtype in cls._DT_FP16_BF16:
                 # D64 matches qr_tdm's M128/N64 geometry and occupancy hint3.
-                result[(64, 64)].extend(copy.deepcopy(cls._QR_TDM_SCHED_TILES[(64, 64)]))
+                result[(64, 64)].extend(
+                    copy.deepcopy(cls._QR_TDM_SCHED_TILES[(64, 64)])
+                )
                 # Append the qr_tdm_sched tiles. The codegen compatibility rule pairs
                 # these tile variants with the scheduled pipeline: D128 uses N128,
                 # while D192 tries N128 first and then N64. Batch mode passes
@@ -1814,9 +1824,7 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                 result[(128, 128)].extend(
                     copy.deepcopy(cls._QR_TDM_SCHED_TILES[(128, 128)])
                 )
-                d192_n128, d192_n64 = copy.deepcopy(
-                    cls._QR_TDM_SCHED_TILES[(192, 128)]
-                )
+                d192_n128, d192_n64 = copy.deepcopy(cls._QR_TDM_SCHED_TILES[(192, 128)])
                 result[(192, 128)].extend(
                     [
                         replace(d192_n128, F_constraint=d192_n128_constraint),
@@ -1870,7 +1878,9 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                 # padding their row pitch needs, and at D512 one would not fit
                 # in LDS at all. Progressive K reload stays on for both: the
                 # single-buffer path also stages whole K tiles now.
-                tdm_double_kv = "f" if (hdim, hdim_v) in ((256, 256), (512, 512)) else "t"
+                tdm_double_kv = (
+                    "f" if (hdim, hdim_v) in ((256, 256), (512, 512)) else "t"
+                )
                 tdm_prog_k = "t"
                 tdm_masks = list(get_mask_map(mask_impl))
                 if mask_impl == "simplified":
@@ -2276,6 +2286,42 @@ def get_product(receipt: int) -> Product:
             return cond
 
         return Product(name="PyTorch integration", rule=fit)
+    # CK Tile Python API
+    elif receipt == 5:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            pipeline = kernel_ctx.pipeline
+            if problem_ctx.dtype == "fp8bf16":
+                return (
+                    problem_ctx.hdim == problem_ctx.hdim_v <= 256
+                    and pipeline.F_vlayout == "row"
+                    and (
+                        pipeline.F_qscale in ["no", "pertensor", "perhead"]
+                        or (
+                            problem_ctx.mode == "batch"
+                            and pipeline.F_qscale == "blockscale"
+                        )
+                    )
+                    and pipeline.F_bias == "no"
+                    and pipeline.F_dropout == "f"
+                    and pipeline.F_logits == "f"
+                    and pipeline.F_skip == "f"
+                    and pipeline.F_sink == "f"
+                )
+            cond = problem_ctx.dtype in ["fp16", "bf16"]
+            cond &= problem_ctx.hdim == problem_ctx.hdim_v <= 256
+            cond &= pipeline.F_vlayout == "row"
+            cond &= pipeline.F_bias in ["no", "alibi"] or (
+                problem_ctx.mode == "batch" and pipeline.F_bias == "bias"
+            )
+            cond &= pipeline.F_lse == "t"
+            cond &= pipeline.F_logits == "f"
+            cond &= pipeline.F_qscale == "no"
+            cond &= pipeline.F_skip == "f"
+            cond &= pipeline.F_sink == "f"
+            return cond
+
+        return Product(name="CK Tile Python API", rule=fit)
     # Aiter(mha_fwd) integration
     elif receipt == 100:
 
