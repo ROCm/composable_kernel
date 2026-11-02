@@ -264,6 +264,9 @@ We support sequence padding and variable-length processing in both batch and gro
 
 Both approaches optimize memory access patterns while supporting flexible sequence length requirements commonly found in transformer inference scenarios.
 
+### kv shared
+If K and V are the same tensor, pass it as both `k_ptr` and `v_ptr` with the same strides. On gfx1250 (fp16/bf16, hdim `128`/`256`, up to 16 query rows) this runs `qr_tdm_kvshared`, which loads each K/V tile once for both gemms. Use `-kv_shared=1` to test it through the executable.
+
 ## FP8 support
 FP8 FMHA kernels are supported on gfx942/gfx950/gfx1250 machines with ROCm 6.0+. Three fp8-based precision modes are available via `-prec`:
 

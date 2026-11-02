@@ -574,6 +574,101 @@ TEST_P(QrTdmShortQuery, DataTypeConfig)
     }
 }
 
+// K and V passed as one tensor (same buffer and strides) take qr_tdm_kvshared up to 16
+// query rows, on any grid: each K/V tile is staged once and read by both gemms. seqlen_k
+// covers one partial tile, a tile multiple and a padded tail over many tiles (both LDS
+// buffers in turn); the masks cover the causal and windowed paths, LSE, bias and ALiBi the
+// row-max frame. Group mode packs 2 sequences of 8 rows (this runner passes the packed
+// length as max_seqlen_q). Head dims 128 and 256. A sink logit seeds one warp's row max.
+// hdim, mode, batch, seqlen_q, seqlen_k, mask, bias, lse, BHSD, sink
+class QrTdmKVShared
+    : public TestWithParam<
+          std::tuple<int, mode_enum, int, int, int, const char*, const char*, bool, bool, int>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    QrTdmKVShared,
+    Values(std::tuple{128, mode_enum::batch, 1, 16, 1, "0", "n", true, true, 0},
+           std::tuple{128, mode_enum::batch, 4, 16, 64, "0", "n", true, true, 0},
+           std::tuple{128, mode_enum::batch, 37, 16, 4097, "0", "n", true, true, 0},
+           std::tuple{128, mode_enum::batch, 5, 1, 509, "0", "n", false, false, 0},
+           std::tuple{128, mode_enum::batch, 3, 16, 1000, "2", "n", true, true, 0},
+           std::tuple{128, mode_enum::batch, 3, 16, 700, "t:50,64", "n", false, false, 0},
+           std::tuple{128, mode_enum::batch, 3, 16, 700, "0", "a", true, true, 0},
+           std::tuple{128, mode_enum::batch, 3, 16, 700, "0", "e", true, false, 0},
+           std::tuple{128, mode_enum::group, 2, 8, 509, "2", "n", true, true, 0},
+           std::tuple{256, mode_enum::batch, 4, 16, 1, "0", "n", true, true, 0},
+           std::tuple{256, mode_enum::batch, 37, 16, 4097, "0", "n", true, false, 0},
+           std::tuple{256, mode_enum::batch, 3, 16, 1000, "2", "n", false, true, 0},
+           std::tuple{256, mode_enum::group, 2, 8, 509, "t:50,64", "a", true, true, 0},
+           // one warp per workgroup: 2 heads x 1280 batches give 10 workgroups per CU on
+           // up to 256 CUs
+           std::tuple{128, mode_enum::batch, 1280, 16, 100, "0", "n", true, true, 0},
+           std::tuple{128, mode_enum::batch, 1280, 9, 77, "t:50,64", "e", true, false, 1},
+           // sink
+           std::tuple{128, mode_enum::batch, 3, 16, 700, "0", "n", true, true, 1},
+           std::tuple{256, mode_enum::batch, 3, 16, 1000, "2", "n", true, false, 1}));
+
+TEST_P(QrTdmKVShared, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm_kvshared is only supported on gfx1250";
+
+        auto [hdim, mode, batch, seqlen_q, seqlen_k, mask_str, bias_str, lse, perm, sink] =
+            GetParam();
+
+        std::string selected_kernel;
+        auto result = fmha_fwd_run<DataTypeConfig>(
+            mode,
+            batch,
+            2,
+            -1,
+            {seqlen_q},
+            {seqlen_k},
+            hdim,
+            hdim,
+            0,
+            {-1},
+            {-1},
+            {},
+            {},
+            0,
+            perm,
+            perm,
+            0,
+            0,
+            true,
+            lse,
+            0,
+            false,
+            bias_str,
+            0.0f,
+            0,
+            0,
+            false,
+            mask_str,
+            qscale_str,
+            true,
+            1,
+            init_method,
+            static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+            1,
+            sink,
+            1,
+            stream_config,
+            std::nullopt,
+            &selected_kernel,
+            true); // kv_shared
+        ASSERT_EQ(result, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_qr_tdm_kvshared_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_b16x"), std::string::npos) << selected_kernel;
+    }
+}
+
 class QrTdmPingPong
     : public TestWithParam<
           std::tuple<mode_enum, int, int, int, const char*, const char*, bool, const char*, bool>>

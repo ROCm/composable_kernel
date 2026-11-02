@@ -372,6 +372,7 @@ class FmhaFwdApiTrait:
             "qr_tdm",
             "qr_tdm_sched",
             "qr_tdm_pingpong",
+            "qr_tdm_kvshared",
         ]:
             if self.spad == "t":
                 return "true"  # always support
@@ -407,7 +408,7 @@ class FmhaFwdApiTrait:
                 return f"true /*a.seqlen_k % {self.bn0} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
             else:
                 return f"(a.cu_seqlen_k_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)"
-        elif self.pipeline_tag == "qr_tdm_pingpong":
+        elif self.pipeline_tag in ("qr_tdm_pingpong", "qr_tdm_kvshared"):
             # It zero-fills the K/V rows past seqlen_k and masks the last S tile,
             # so the unpadded instance serves any seqlen_k; an elementwise bias
             # is vector-loaded and still needs whole tiles.
@@ -441,7 +442,7 @@ class FmhaFwdApiTrait:
                 return "a.hdim_q % 8 == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr_tdm", "qr_tdm_pingpong"]:
+        elif self.pipeline_tag in ["qr_tdm", "qr_tdm_pingpong", "qr_tdm_kvshared"]:
             if self.dpad == "t":
                 return "a.hdim_q % 8 == 0"
             return f"a.hdim_q % {TDM_K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
@@ -468,7 +469,7 @@ class FmhaFwdApiTrait:
                 return "a.hdim_v % 8 == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr_tdm", "qr_tdm_pingpong"]:
+        elif self.pipeline_tag in ["qr_tdm", "qr_tdm_pingpong", "qr_tdm_kvshared"]:
             if self.dvpad == "t":
                 return "a.hdim_v % 8 == 0"
             return f"a.hdim_v % {TDM_K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
@@ -846,7 +847,7 @@ class FmhaFwdKernel:
     def _get_epilogue_decl(self) -> str:
         spad = BOOL_MAP[self.F_pipeline.F_spad]
         dvpad = BOOL_MAP[self.F_pipeline.F_dvpad]
-        if self.F_pipeline.tag == "qr_tdm_pingpong":
+        if self.F_pipeline.tag in ("qr_tdm_pingpong", "qr_tdm_kvshared"):
             return (
                 "using fmha_epilogue = ck_tile::LdsShuffle2DEpilogue<\n"
                 "    ck_tile::LdsShuffle2DEpilogueProblem<\n"
@@ -895,7 +896,8 @@ class FmhaFwdKernel:
             F_vlayout=LAYOUT_MAP[self.F_pipeline.F_vlayout],
             F_use_tdm_ceil=(
                 "true"
-                if self.F_pipeline.tag in ("qr_tdm", "qr_tdm_pingpong")
+                if self.F_pipeline.tag
+                in ("qr_tdm", "qr_tdm_pingpong", "qr_tdm_kvshared")
                 else "false"
             ),
             F_spad=BOOL_MAP[self.F_pipeline.F_spad],
@@ -1592,6 +1594,21 @@ GFX125_QR_TDM_PINGPONG_RANGE = (
 )
 
 
+# K and V passed as one tensor (same pointer, strides and head dim): qr_tdm_kvshared stages
+# each K/V tile once for both gemms.
+GFX125_QR_TDM_KV_SHARED = (
+    "a.k_ptr == a.v_ptr && a.hdim_q == a.hdim_v && t.is_v_rowmajor"
+    " && a.stride_k == a.stride_v && a.nhead_stride_k == a.nhead_stride_v"
+    " && a.batch_stride_k == a.batch_stride_v"
+)
+# At d128 a grid of at least 10 workgroups per CU runs qr_tdm_kvshared with one warp per
+# workgroup (32-key tiles); smaller grids keep two warps splitting each 64-key tile, which
+# keeps more warps in flight.
+GFX125_QR_TDM_KV_SHARED_ONE_WARP = (
+    "a.batch * a.nhead_q >= 10 * static_cast<ck_tile::index_t>(num_cus)"
+)
+
+
 def _gfx125_qr_tdm_crossover_constraint(hdim):
     return CppConstraint(
         f"a.max_seqlen_q < {GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q[hdim]}"
@@ -1622,7 +1639,7 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
     _DT_FP8FP32 = ("fp8fp32",)
 
     # Pipelines whose tiles carry F_pipeline_tag (see check_tile_owner).
-    _PIPELINES_WITH_OWN_TILES = ("qr_tdm_pingpong",)
+    _PIPELINES_WITH_OWN_TILES = ("qr_tdm_pingpong", "qr_tdm_kvshared")
 
     # Define scheduled tile configurations once. Codegen inventory and pipeline
     # compatibility share these entries; runtime constraints are attached to copies.
@@ -1784,9 +1801,12 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                               FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
                 ( 96,  96) : [FmhaFwdTileSize( 64,  64,  32,  96,  32,   96,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint(( 96,  96))),
                               FmhaFwdTileSize(128,  64,  32,  96,  32,   96,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-                # qr_tdm_pingpong's tiles. Up to 16 rows the 64-row tile would idle 3/4 of
-                # its M rows, so this one spends its four warps on N instead.
-                (128, 128) : [FmhaFwdTileSize( 16,  64,  32, 128,  32,  128,  1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint(f"a.max_seqlen_q <= 16 && {GFX125_QR_TDM_PINGPONG_RANGE}"), "qr_tdm_pingpong"),
+                # qr_tdm_kvshared's tiles (K and V one tensor), then qr_tdm_pingpong's.
+                # Up to 16 rows the 64-row tile would idle 3/4 of its M rows, so these
+                # spend their warps on N instead.
+                (128, 128) : [FmhaFwdTileSize( 16,  32,  32, 128,  32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint(f"a.max_seqlen_q <= 16 && {GFX125_QR_TDM_KV_SHARED} && {GFX125_QR_TDM_KV_SHARED_ONE_WARP}"), "qr_tdm_kvshared"),
+                              FmhaFwdTileSize( 16,  64,  32, 128,  32,  128,  1, 2, 1,  1, 2, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint(f"a.max_seqlen_q <= 16 && {GFX125_QR_TDM_KV_SHARED}"), "qr_tdm_kvshared"),
+                              FmhaFwdTileSize( 16,  64,  32, 128,  32,  128,  1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint(f"a.max_seqlen_q <= 16 && {GFX125_QR_TDM_PINGPONG_RANGE}"), "qr_tdm_pingpong"),
                               FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint(GFX125_QR_TDM_PINGPONG_RANGE), "qr_tdm_pingpong"),
                               FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint(m64_d128_constraint)),
                               FmhaFwdTileSize(128,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
@@ -1794,7 +1814,8 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                               FmhaFwdTileSize(128,  64,  32, 160,  32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
                 (192, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  192,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1, _gfx125_qr_tdm_crossover_constraint((192, 128))),
                               FmhaFwdTileSize(128,  64,  32, 128,  32,  192,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
-                (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
+                (256, 256) : [FmhaFwdTileSize( 16,  64,  32, 256,  32,  256,  1, 2, 1,  1, 2, 1,  16, 16, 32,  16, 16, 32,  -1, CppConstraint(f"a.max_seqlen_q <= 16 && {GFX125_QR_TDM_KV_SHARED}"), "qr_tdm_kvshared"),
+                              FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
                 (512, 512) : [FmhaFwdTileSize( 64,  64,  32, 512,  32,  512,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1)],
             })  # fmt: skip
             if dtype in cls._DT_FP16_BF16:
@@ -1912,6 +1933,9 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                         pipelines.append(FmhaFwdPipeline("qr_tdm_pingpong", "row", "f", "f", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint))  # fmt: skip
                         pipelines.append(FmhaFwdPipeline("qr_tdm_pingpong", "row", "t", "t", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint))  # fmt: skip
                         pipelines.append(FmhaFwdPipeline("qr_tdm_pingpong", "row", "t", "t", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint))  # fmt: skip
+                    if (hdim, hdim_v) in ((128, 128), (256, 256)):
+                        for pad in ("f", "t"):
+                            pipelines.append(FmhaFwdPipeline("qr_tdm_kvshared", "row", pad, pad, "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint))  # fmt: skip
 
             if (hdim, hdim_v) in cls._QR_TDM_SCHED_TILES:
                 # Finite virtual-sink logits retain the existing qr_tdm fallback.

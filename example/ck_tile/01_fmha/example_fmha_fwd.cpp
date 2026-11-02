@@ -110,6 +110,9 @@ auto create_args(int argc, char* argv[])
         .insert("cache_batch_idx", "0", "whether to use index map to the kvcache")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("kv_shared",
+                "0",
+                "1: K and V are one tensor (hdim_q == hdim_v), passed as the same buffer")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
         .insert("jsonfile", "fmha_fwd.json", "json file name to dump results")
         .insert("q_eff_lens",
@@ -216,7 +219,9 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         init_sink_value,
                                         pack_gqa,
                                         stream_config,
-                                        json);
+                                        json,
+                                        nullptr,
+                                        arg_parser.get_bool("kv_shared"));
 }
 
 int main(int argc, char* argv[])

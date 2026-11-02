@@ -149,6 +149,7 @@ PIPELINE_MAP = {
     "qr_tdm": "ck_tile::BlockFmhaPipelineQRKSVSTdm",
     "qr_tdm_sched": "ck_tile::BlockFmhaPipelineQRKSVSTdmSched",
     "qr_tdm_pingpong": "ck_tile::BlockFmhaPipelineQRKSVSTdmPingPong",
+    "qr_tdm_kvshared": "ck_tile::BlockFmhaPipelineQRKSVSTdmKVShared",
 }
 
 PIPELINE_ENUM_MAP = {
@@ -163,6 +164,7 @@ PIPELINE_ENUM_MAP = {
     "qr_tdm": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_TDM",
     "qr_tdm_sched": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_TDM_SCHED",
     "qr_tdm_pingpong": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_TDM_PINGPONG",
+    "qr_tdm_kvshared": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_TDM_KVSHARED",
 }
 
 BOOL_MAP = {

@@ -273,7 +273,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         int pack_gqa,
                         const ck_tile::stream_config& stream_config,
                         std::optional<std::string> json   = std::nullopt,
-                        std::string* selected_kernel_name = nullptr)
+                        std::string* selected_kernel_name = nullptr,
+                        bool kv_shared                    = false)
 {
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
 
@@ -1137,6 +1138,28 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem block_table_buf(block_table_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem cache_batch_idx_buf(cache_batch_idx_host.get_element_space_size_in_bytes());
 
+    // -kv_shared: K and V are one tensor, passed as the same buffer with the same strides
+    if(kv_shared)
+    {
+        if constexpr(std::is_same_v<KDataType, VDataType>)
+        {
+            if(!(hdim_q == hdim_v && is_v_rowmajor && page_block_size <= 0 &&
+                 !need_append_kvcache && !use_cache_batch_idx &&
+                 k_host.get_lengths() == v_host.get_lengths()))
+            {
+                std::cerr << "kv_shared needs hdim_q == hdim_v, row-major V and no KV cache"
+                          << std::endl;
+                return fwd_result::invalid_args;
+            }
+            v_host = k_host;
+        }
+        else
+        {
+            std::cerr << "kv_shared needs one K/V data type" << std::endl;
+            return fwd_result::invalid_args;
+        }
+    }
+
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
     v_buf.ToDevice(v_host.data());
@@ -1400,7 +1423,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
         args.q_ptr = q_buf.GetDeviceBuffer();
         args.k_ptr = k_buf.GetDeviceBuffer();
-        args.v_ptr = v_buf.GetDeviceBuffer();
+        args.v_ptr = kv_shared ? k_buf.GetDeviceBuffer() : v_buf.GetDeviceBuffer();
         if(init_sink_value != 0)
             args.sink_ptr = sink_buf.GetDeviceBuffer();
         else
