@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_activation_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
@@ -95,6 +96,16 @@ struct has_ignore_fast_exp2_flag<
 
 template <typename T>
 static inline constexpr bool ignore_fast_exp2_v = has_ignore_fast_exp2_flag<T>::value;
+
+// Pipelines with a GDPA mode (a non-softmax activation) say so with ActivationTraits
+template <typename T, typename = void>
+struct has_activation_mode : std::false_type
+{
+};
+template <typename T>
+struct has_activation_mode<T, std::void_t<typename T::ActivationTraits>> : std::true_type
+{
+};
 
 // A helper struct for detecting naive_hdim_load, naive_hdim_load means load tiles of
 // hdim96/hdim160/hdim192 without padding the tensor_view/tile_window to hdim128/hdim256
@@ -225,6 +236,10 @@ struct FmhaFwdKernel
     static constexpr auto QScaleEnum        = FmhaPipeline::Problem::QScaleEnum;
     static constexpr bool kSkipMinSeqlenQ   = FmhaPipeline::Problem::kSkipMinSeqlenQ;
     static constexpr bool kHasSink          = FmhaPipeline::kHasSink;
+    static_assert(detail::has_activation_mode<FmhaPipeline>::value ||
+                      detail::fmha_activation_v<typename FmhaPipeline::Problem> ==
+                          BlockAttentionActivationEnum::SOFTMAX,
+                  "this FMHA pipeline has no GDPA mode: softmax only");
     static constexpr bool kUsesUntransposedVKernelPath =
         detail::uses_untransposed_v_kernel_path_v<FmhaPipeline>;
     static constexpr bool kUsesTdmAffineDramPath =
@@ -233,6 +248,10 @@ struct FmhaFwdKernel
         detail::uses_fixed_segmented_lds_arena_v<FmhaPipeline>;
 
     static constexpr std::string_view kPipelineName = FmhaPipeline::name;
+    // The qr_tdm family pipelines take lse_log2 and compute the LSE in base 2 (fmha_lse)
+    static constexpr bool kStoresLseLog2 =
+        kPipelineName == "qr_tdm" || kPipelineName == "qr_tdm_pingpong" ||
+        kPipelineName == "qr_tdm_sched" || kPipelineName == "qr_tdm_kvshared";
 
     static_assert(kPipelineName == "qr_tdm" || QScaleEnum != BlockAttentionQuantScaleEnum::PERHEAD,
                   "perhead scale is only supported on qr_tdm");
@@ -443,6 +462,9 @@ struct FmhaFwdKernel
         void* lse_ptr                     = nullptr;
         ck_tile::index_t nhead_stride_lse = 0;
         ck_tile::index_t batch_stride_lse = 0;
+        // LSE in base 2 (log2 sum 2^(s log2 e)) instead of natural log, which the pipeline
+        // computes (fmha_lse); qr_tdm family pipelines only
+        bool lse_log2 = false;
     };
 
     struct FmhaFwdDropoutSeedOffset
@@ -572,6 +594,10 @@ struct FmhaFwdKernel
         // Optional per-sequence and cumulative logical (excluding padding) sequence length arrays
         const int32_t* cu_seqlen_q_ptr = nullptr;
         const int32_t* cu_seqlen_k_ptr = nullptr;
+
+        // Every batch reads one Q block of seqlen_q rows (Q's batch offset is 0) and writes
+        // its O and LSE rows from i_batch * seqlen_q; seqstart_q_ptr is not read
+        bool broadcast_q = false;
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
@@ -1527,6 +1553,18 @@ struct FmhaFwdKernel
 
     CK_TILE_HOST static bool IsSupportedArgument([[maybe_unused]] const Kargs& kargs)
     {
+        if constexpr(kStoreLSE && !kStoresLseLog2)
+        {
+            if(kargs.lse_log2)
+                return false;
+        }
+        if constexpr(kIsGroupMode && (QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE ||
+                                      QScaleEnum == BlockAttentionQuantScaleEnum::MX))
+        {
+            // a broadcast Q block has no per-batch Q scales to follow
+            if(kargs.broadcast_q)
+                return false;
+        }
         if constexpr(kPipelineName == "qr_tdm_sched")
         {
             // The generated no-virtual-sink specialization omits the finite
@@ -2001,11 +2039,13 @@ struct FmhaFwdKernel
             if constexpr(kIsGroupMode)
             {
                 // Use seqstart_q_ptr and seqstart_k_ptr for physical starts
-                const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
-                const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
+                const long_index_t query_start =
+                    kargs.broadcast_q ? static_cast<long_index_t>(i_batch) * kargs.seqlen_q
+                                      : kargs.seqstart_q_ptr[i_batch];
+                const long_index_t key_start = kargs.seqstart_k_ptr[i_batch];
 
-                // DRAM base offsets use physical starts
-                batch_offset_q = query_start * kargs.stride_q;
+                // DRAM base offsets use physical starts (Q's is 0 when Q is broadcast)
+                batch_offset_q = kargs.broadcast_q ? 0 : query_start * kargs.stride_q;
                 batch_offset_k = key_start * kargs.stride_k;
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
@@ -2045,20 +2085,24 @@ struct FmhaFwdKernel
                 batch_offset_o = query_start * kargs.stride_o;
 
                 // real logical lengths (exclude PAD)
-                // Priority: seqlen_q_ptr > cu_seqlen_q_ptr > calculated from seqstart_q_ptr
-                if(kargs.seqlen_q_ptr != nullptr)
+                // Priority: seqlen_q_ptr > cu_seqlen_q_ptr > calculated from seqstart_q_ptr;
+                // a broadcast Q block keeps the seqlen_q the host set
+                if(!kargs.broadcast_q)
                 {
-                    kargs.seqlen_q = kargs.seqlen_q_ptr[i_batch];
-                }
-                else if(kargs.cu_seqlen_q_ptr != nullptr)
-                {
-                    kargs.seqlen_q =
-                        kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
-                }
-                else
-                {
-                    const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-                    kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+                    if(kargs.seqlen_q_ptr != nullptr)
+                    {
+                        kargs.seqlen_q = kargs.seqlen_q_ptr[i_batch];
+                    }
+                    else if(kargs.cu_seqlen_q_ptr != nullptr)
+                    {
+                        kargs.seqlen_q =
+                            kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+                    }
+                    else
+                    {
+                        const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
+                        kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+                    }
                 }
 
                 if constexpr(kSkipMinSeqlenQ)
@@ -2818,10 +2862,12 @@ struct FmhaFwdKernel
             {
                 // get starting offset for each batch - use seqstart_q_ptr/seqstart_k_ptr for
                 // physical starts
-                const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
-                const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
+                const long_index_t query_start =
+                    kargs.broadcast_q ? static_cast<long_index_t>(i_batch) * kargs.seqlen_q
+                                      : kargs.seqstart_q_ptr[i_batch];
+                const long_index_t key_start = kargs.seqstart_k_ptr[i_batch];
 
-                batch_offset_q = query_start * kargs.stride_q;
+                batch_offset_q = kargs.broadcast_q ? 0 : query_start * kargs.stride_q;
                 batch_offset_k = key_start * kargs.stride_k;
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
@@ -2841,20 +2887,24 @@ struct FmhaFwdKernel
                 batch_offset_lse = query_start;
                 batch_offset_o   = query_start * kargs.stride_o;
 
-                // get real # queries & # keys under group mode
-                if(kargs.seqlen_q_ptr != nullptr)
+                // get real # queries & # keys under group mode (a broadcast Q block keeps
+                // the seqlen_q the host set)
+                if(!kargs.broadcast_q)
                 {
-                    kargs.seqlen_q = kargs.seqlen_q_ptr[i_batch];
-                }
-                else if(kargs.cu_seqlen_q_ptr != nullptr)
-                {
-                    kargs.seqlen_q =
-                        kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
-                }
-                else
-                {
-                    kargs.seqlen_q =
-                        kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
+                    if(kargs.seqlen_q_ptr != nullptr)
+                    {
+                        kargs.seqlen_q = kargs.seqlen_q_ptr[i_batch];
+                    }
+                    else if(kargs.cu_seqlen_q_ptr != nullptr)
+                    {
+                        kargs.seqlen_q =
+                            kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+                    }
+                    else
+                    {
+                        kargs.seqlen_q =
+                            kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
+                    }
                 }
 
                 // # of required blocks is different in each groups, terminate unnecessary blocks
@@ -3563,6 +3613,13 @@ struct FmhaFwdKernel
                     ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / scale_s
                     : -numeric<float>::infinity();
 
+            // kargs.lse_log2: the pipeline stores the LSE in base 2
+            const bool lse_log2 = [&] {
+                if constexpr(kStoreLSE)
+                    return kargs.lse_log2;
+                else
+                    return false;
+            }();
             auto invoke_fmha_pipeline = [&](auto&&... args) -> decltype(auto) {
                 if constexpr(kPipelineName == "qr_tdm" && kBlockQScale)
                 {
@@ -3574,11 +3631,18 @@ struct FmhaFwdKernel
                                           k_descale_ptr,
                                           v_descale_ptr,
                                           kargs.block_scale_size_kv,
-                                          v_descale);
+                                          v_descale,
+                                          lse_log2);
                 }
                 else if constexpr(kPipelineName == "qr_tdm" && kFoldedQScale)
-                    return FmhaPipeline{}(
-                        static_cast<decltype(args)&&>(args)..., nullptr, nullptr, 1, v_descale);
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                          nullptr,
+                                          nullptr,
+                                          1,
+                                          v_descale,
+                                          lse_log2);
+                else if constexpr(kStoresLseLog2)
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)..., lse_log2);
                 else
                     return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...);
             };

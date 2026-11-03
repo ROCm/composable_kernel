@@ -361,46 +361,18 @@ std::vector<at::Tensor> mha_fwd_kvcache(
         window_size_right = 0;
     }
 
-    mask_info mask;
-    if(is_causal)
-    {
-        // Causal is the special case where window_size_right == 0 and window_size_left < 0.
-        window_size_right         = 0;
-        std::string mask_identify = "b:" + std::to_string(window_size_left) + "," + "0";
-        mask                      = mask_info::decode(mask_identify, seqlen_q, seqlen_k); // casual
-    }
-    else if(window_size_left == -1 && window_size_right == -1)
-    {
-        mask = mask_info::decode("0", seqlen_q, seqlen_k); // no mask
-    }
-    else
-    {
-        // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
-        std::string mask_identify =
-            "b:" + std::to_string(window_size_left) + "," + std::to_string(window_size_right);
-        mask = mask_info::decode(mask_identify, seqlen_q, seqlen_k); // local
-    }
+    const mask_info mask =
+        detail::make_mask_info(is_causal, window_size_left, window_size_right, seqlen_q, seqlen_k);
 
-    // Faster to transpose q from (b, 1, (nheads_kv ngroups), d) to (b, ngroups, nheads_kv, d) in
-    // this case H/t Daniel Haziza
-    const int seqlenq_ngroups_swapped = seqlen_q == 1 && num_heads > num_heads_k &&
-                                        window_size_left < 0 && window_size_right < 0 &&
-                                        head_size_og % 8 == 0 && !alibi_slopes_.has_value();
+    const bool seqlenq_ngroups_swapped =
+        detail::use_ngroups_swap(
+            seqlen_q, num_heads, num_heads_k, mask, alibi_slopes_.has_value()) &&
+        head_size_og % 8 == 0;
     if(seqlenq_ngroups_swapped)
     {
-        const int ngroups = num_heads / num_heads_k;
-        q         = q.reshape({batch_size, num_heads_k, ngroups, head_size_og}).transpose(1, 2);
-        seqlen_q  = ngroups;
+        q         = detail::to_ngroups_layout(q, num_heads_k);
+        seqlen_q  = num_heads / num_heads_k;
         num_heads = num_heads_k;
-    }
-
-    if(window_size_left >= seqlen_k)
-    {
-        window_size_left = -1;
-    }
-    if(window_size_right >= seqlen_k)
-    {
-        window_size_right = -1;
     }
 
     CK_TILE_FMHA_CHECK_SHAPE(q, batch_size, seqlen_q, num_heads, head_size_og);
@@ -644,7 +616,7 @@ std::vector<at::Tensor> mha_fwd_kvcache(
 
     if(seqlenq_ngroups_swapped)
     {
-        out = out.transpose(1, 2).reshape({batch_size, 1, num_heads_k * seqlen_q, head_size_og});
+        out         = detail::from_ngroups_layout(out);
         softmax_lse = softmax_lse.reshape({batch_size, num_heads_k * seqlen_q, 1});
     }
     return {out, softmax_lse};

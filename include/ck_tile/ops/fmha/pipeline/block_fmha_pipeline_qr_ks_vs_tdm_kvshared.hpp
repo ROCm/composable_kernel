@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_fmha_lse.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_tdm_pingpong.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_tdm_kvshared_policy.hpp"
 
@@ -62,6 +63,7 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
                       BlockFmhaShape::NumWarps == kNWarp && kSubQKHeaddim % 32 == 0,
                   "qr_tdm_kvshared: 16 queries, one or two warps of 32 keys each");
     static_assert(!kHasLogitsSoftCap, "qr_tdm_kvshared: no logits soft-cap");
+    static_assert(PingPong::kIsSoftmax, "qr_tdm_kvshared: softmax only (no GDPA mode)");
     static_assert(std::is_same_v<SMPLComputeDataType, float> &&
                   std::is_same_v<SaccDataType, float>);
 
@@ -208,7 +210,8 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
                                         PositionEncoding position_encoding,
                                         float scale_s,
                                         void* smem_arena,
-                                        float sink_v) const
+                                        float sink_v,
+                                        bool lse_log2 = false) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
 
@@ -259,7 +262,10 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
                 {
                     // the sink alone, or -inf
                     auto lse = make_static_distributed_tensor<LSEDataType>(MakeLseDistribution());
-                    set_tile(lse, has_sink_logit ? sink_v * scale_s : -numeric<float>::infinity());
+                    set_tile(lse,
+                             fmha_lse_from_natural(has_sink_logit ? sink_v * scale_s
+                                                                  : -numeric<float>::infinity(),
+                                                   lse_log2));
                     store_tile(lse_acc_dram_window_tmp, lse);
                 }
                 clear_tile(o_acc);
@@ -552,12 +558,11 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
         }
         if constexpr(kStoreLSE)
         {
-            // natural log, as StoreLse; a fully masked row stores -inf, from log(0)
-            constexpr float kLn2 = 1.f / log2e_v<float>;
-            const float m_lse    = m_q < -numeric<float>::max() ? 0.f : m_q;
-            auto lse = make_static_distributed_tensor<LSEDataType>(MakeLseDistribution());
+            // as StoreLse; a fully masked row stores -inf, from log(0)
+            const float m_lse = m_q < -numeric<float>::max() ? 0.f : m_q;
+            auto lse          = make_static_distributed_tensor<LSEDataType>(MakeLseDistribution());
             lse.get_thread_buffer()[0] =
-                m_lse * (kScaledScores ? kLn2 : scale_s * kLn2) + log(l_sum);
+                fmha_lse(kScaledScores ? m_lse : m_lse * scale_s, l_sum, lse_log2);
             store_tile(lse_acc_dram_window_tmp, lse);
         }
         return o_acc;
@@ -579,7 +584,8 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
                                         PositionEncoding position_encoding,
                                         float scale_s,
                                         float sink_v,
-                                        void* smem_arena) const
+                                        void* smem_arena,
+                                        bool lse_log2 = false) const
     {
         return (*this)(q_dram_block_window_tmp,
                        k_dram_block_window_tmp,
@@ -590,7 +596,8 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
                        position_encoding,
                        scale_s,
                        smem_arena,
-                       sink_v);
+                       sink_v,
+                       lse_log2);
     }
 };
 

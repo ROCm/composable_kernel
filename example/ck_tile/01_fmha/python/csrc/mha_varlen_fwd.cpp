@@ -359,14 +359,26 @@ std::vector<at::Tensor> mha_varlen_fwd(
     std::optional<at::Tensor> k_descale_,
     std::optional<at::Tensor> v_descale_,
     std::string qscale,
-    bool return_lse)
+    bool return_lse,
+    std::string activation,
+    bool broadcast_q,
+    bool lse_log2)
 {
     TORCH_CHECK(softcap == 0.0f, "CK Tile FMHA Python bindings do not support softcap");
-    auto q_dtype      = q.dtype();
-    const bool is_fp8 = q.scalar_type() == at::ScalarType::Float8_e4m3fn ||
+    // softmax, or GDPA: out = act(softmax_scale * q k^T) v, with no normalization and no LSE
+    ck_tile::BlockAttentionActivationEnum activation_type;
+    if(activation == "softmax")
+        activation_type = ck_tile::BlockAttentionActivationEnum::SOFTMAX;
+    else if(activation == "fast_gelu")
+        activation_type = ck_tile::BlockAttentionActivationEnum::FAST_GELU;
+    else
+        TORCH_CHECK(false, "activation must be softmax or fast_gelu, got ", activation);
+    const bool is_gdpa = activation_type != ck_tile::BlockAttentionActivationEnum::SOFTMAX;
+    auto q_dtype       = q.dtype();
+    const bool is_fp8  = q.scalar_type() == at::ScalarType::Float8_e4m3fn ||
                         q.scalar_type() == at::ScalarType::Float8_e4m3fnuz;
-    TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16 || is_fp8,
-                "CK Tile FMHA only supports fp16, bf16 and fp8 e4m3 data types");
+    TORCH_CHECK_NOT_IMPLEMENTED(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16 || is_fp8,
+                                "CK Tile FMHA only supports fp16, bf16 and fp8 e4m3 data types");
 
     TORCH_CHECK(k.dtype() == q_dtype, "query and key must have the same dtype");
     TORCH_CHECK(v.dtype() == q_dtype, "query and value must have the same dtype");
@@ -427,12 +439,25 @@ std::vector<at::Tensor> mha_varlen_fwd(
     // Faster to transpose q from (b, 1, (nheads_kv ngroups), d) to (b, ngroups, nheads_kv, d) in
     // this case H/t Daniel Haziza
 
-    const int total_q = q.size(0);
+    // broadcast_q: q is one block of rows every batch attends; out has a block per batch, batch
+    // b's at rows b * q_rows. cu_seqlens_q gives the batch size only: the kernel reads no
+    // seqstart for Q.
+    const int q_rows  = q.size(0);
+    const int total_q = broadcast_q ? batch_size * q_rows : q_rows;
+    if(broadcast_q)
+    {
+        TORCH_CHECK(max_seqlen_q == q_rows, "broadcast_q: max_seqlen_q must be q's rows");
+        TORCH_CHECK(q_rows > 0, "broadcast_q: q has no rows");
+        TORCH_CHECK_NOT_IMPLEMENTED(!block_table_.has_value() && !is_fp8 && qscale == "no_scale",
+                                    "broadcast_q takes no paged KV or FP8");
+    }
 
     TORCH_CHECK(batch_size > 0, "batch size must be postive");
-    TORCH_CHECK(head_size > 0 && head_size <= 256, "CK only supports head dimension in [1, 256]");
-    TORCH_CHECK(head_size % 8 == 0,
-                "query, key, value, and out_ must have a head_size that is a multiple of 8");
+    TORCH_CHECK_NOT_IMPLEMENTED(head_size > 0 && head_size <= 256,
+                                "CK only supports head dimension in [1, 256]");
+    TORCH_CHECK_NOT_IMPLEMENTED(
+        head_size % 8 == 0,
+        "query, key, value, and out_ must have a head_size that is a multiple of 8");
     TORCH_CHECK(num_heads > 0 && num_heads_k > 0 && num_heads % num_heads_k == 0,
                 "Number of heads in key/value must divide number of heads in query");
 
@@ -443,23 +468,25 @@ std::vector<at::Tensor> mha_varlen_fwd(
                 qscale);
     if(is_fp8)
     {
-        TORCH_CHECK(
+        TORCH_CHECK_NOT_IMPLEMENTED(
             !paged_KV && !seqused_k.has_value() && !leftpad_k_.has_value() &&
                 num_splits_requested == 0,
             "FP8 varlen attention requires contiguous sequences without paged KV or splits");
-        TORCH_CHECK(p_dropout == 0.0f && !return_dropout_randval,
-                    "FP8 attention does not support dropout");
-        TORCH_CHECK(!alibi_slopes_.has_value(), "FP8 attention does not support ALiBi");
-        TORCH_CHECK(!q.requires_grad() && !k.requires_grad() && !v.requires_grad(),
-                    "FP8 attention supports forward only");
+        TORCH_CHECK_NOT_IMPLEMENTED(p_dropout == 0.0f && !return_dropout_randval,
+                                    "FP8 attention does not support dropout");
+        TORCH_CHECK_NOT_IMPLEMENTED(!alibi_slopes_.has_value(),
+                                    "FP8 attention does not support ALiBi");
+        TORCH_CHECK_NOT_IMPLEMENTED(!q.requires_grad() && !k.requires_grad() && !v.requires_grad(),
+                                    "FP8 attention supports forward only");
         const std::string arch = at::cuda::getDeviceProperties(q.get_device())->gcnArchName;
         const bool use_fnuz    = arch.rfind("gfx94", 0) == 0;
         TORCH_CHECK(q.scalar_type() == (use_fnuz ? at::ScalarType::Float8_e4m3fnuz
                                                  : at::ScalarType::Float8_e4m3fn),
                     "FP8 dtype does not match the GPU: expected ",
                     use_fnuz ? "float8_e4m3fnuz" : "float8_e4m3fn");
-        TORCH_CHECK(!perhead || (arch.rfind("gfx1250", 0) == 0 && head_size <= 128),
-                    "FP8 per-head attention requires gfx1250 and head dimension at most 128");
+        TORCH_CHECK_NOT_IMPLEMENTED(
+            !perhead || (arch.rfind("gfx1250", 0) == 0 && head_size <= 128),
+            "FP8 per-head attention requires gfx1250 and head dimension at most 128");
         qscale_type = perhead                 ? quant_scale_enum::perhead
                       : qscale == "pertensor" ? quant_scale_enum::pertensor
                                               : quant_scale_enum::no_scale;
@@ -477,7 +504,8 @@ std::vector<at::Tensor> mha_varlen_fwd(
                 TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Float,
                             name,
                             " must have dtype float32");
-                TORCH_CHECK(!tensor.requires_grad(), "FP8 attention supports forward only");
+                TORCH_CHECK_NOT_IMPLEMENTED(!tensor.requires_grad(),
+                                            "FP8 attention supports forward only");
                 if(perhead)
                 {
                     TORCH_CHECK(tensor.sizes() == torch::IntArrayRef({batch_size, heads}),
@@ -500,37 +528,17 @@ std::vector<at::Tensor> mha_varlen_fwd(
                     "descale is only supported for FP8 inputs");
     }
 
-    if(window_size_left >= max_seqlen_k)
-    {
-        window_size_left = -1;
-    }
-    if(window_size_right >= max_seqlen_k)
-    {
-        window_size_right = -1;
-    }
+    const mask_info mask = detail::make_mask_info(
+        is_causal, window_size_left, window_size_right, max_seqlen_q, max_seqlen_k);
+    TORCH_CHECK_NOT_IMPLEMENTED(
+        !is_gdpa || (!return_lse && p_dropout == 0.0f && mask.type == mask_enum::no_mask &&
+                     !alibi_slopes_.has_value() && !block_table_.has_value() && !is_fp8 &&
+                     qscale == "no_scale"),
+        "GDPA (activation ",
+        activation,
+        ") takes no LSE, dropout, mask, ALiBi, paged KV, FP8 or quantization");
 
-    mask_info mask;
-
-    if(is_causal)
-    {
-        // Causal is the special case where window_size_right == 0 and window_size_left < 0.
-        window_size_right         = 0;
-        std::string mask_identify = "b:" + std::to_string(window_size_left) + "," + "0";
-        mask = mask_info::decode(mask_identify, max_seqlen_q, max_seqlen_k); // casual
-    }
-    else if(window_size_left == -1 && window_size_right == -1)
-    {
-        mask = mask_info::decode("0", max_seqlen_q, max_seqlen_k); // no mask
-    }
-    else
-    {
-        // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
-        std::string mask_identify =
-            "b:" + std::to_string(window_size_left) + "," + std::to_string(window_size_right);
-        mask = mask_info::decode(mask_identify, max_seqlen_q, max_seqlen_k); // local
-    }
-
-    CK_TILE_FMHA_CHECK_SHAPE(q, total_q, num_heads, head_size);
+    CK_TILE_FMHA_CHECK_SHAPE(q, q_rows, num_heads, head_size);
     if(!paged_KV)
     {
         const int total_k = k.size(0);
@@ -559,7 +567,7 @@ std::vector<at::Tensor> mha_varlen_fwd(
     }
     else
     {
-        out = torch::empty_like(q, q.options().dtype(out_dtype));
+        out = torch::empty({total_q, num_heads, head_size}, q.options().dtype(out_dtype));
     }
 
     // Otherwise the kernel will be launched from cuda:0 device
@@ -597,16 +605,6 @@ std::vector<at::Tensor> mha_varlen_fwd(
         }
     }
 
-    int num_splits = 0;
-    num_splits     = detail::override_num_splits_if_necessary(
-        batch_size, num_heads, max_seqlen_q, head_size, 0, num_splits);
-    TORCH_CHECK(num_splits > 0, "num_splits should greater than 0");
-    TORCH_CHECK(num_splits <= 128, "num_splits greater than 128 is not supported");
-
-    auto softmax_lse_accum = torch::empty({num_heads, num_splits, total_q}, opts.dtype(at::kFloat));
-    auto out_accum =
-        torch::empty({num_heads, num_splits, total_q, head_size}, opts.dtype(at::kFloat));
-
     int64_t counter_offset = batch_size * num_heads * ck_tile::get_warp_size();
     auto rng_state         = torch::empty({2}, opts.dtype(torch::kInt64));
     auto rng_state_ptr     = reinterpret_cast<uint64_t*>(rng_state.data_ptr());
@@ -633,6 +631,18 @@ std::vector<at::Tensor> mha_varlen_fwd(
 
         if(paged_KV)
         {
+            int num_splits = 0;
+            num_splits     = detail::override_num_splits_if_necessary(
+                batch_size, num_heads, max_seqlen_q, head_size, 0, num_splits);
+            TORCH_CHECK(num_splits > 0, "num_splits should greater than 0");
+            TORCH_CHECK(num_splits <= 128, "num_splits greater than 128 is not supported");
+
+            // split-KV partials, of the paged path only
+            auto softmax_lse_accum =
+                torch::empty({num_heads, num_splits, total_q}, opts.dtype(at::kFloat));
+            auto out_accum =
+                torch::empty({num_heads, num_splits, total_q, head_size}, opts.dtype(at::kFloat));
+
             auto traits = get_ck_fmha_varlen_fwd_splitkv_traits(
                 mask, q_dtype_str, head_size, has_lse, alibi_slopes_.has_value());
 
@@ -659,7 +669,9 @@ std::vector<at::Tensor> mha_varlen_fwd(
                                                             out_accum);
 
             float t = fmha_fwd_splitkv(traits, args, stream_config);
-            TORCH_CHECK(t >= 0, "invalid argument for fmha_fwd_splitkv");
+            TORCH_CHECK_NOT_IMPLEMENTED(t >= 0, "invalid argument for fmha_fwd_splitkv");
+            if(lse_log2 && has_lse)
+                softmax_lse.mul_(M_LOG2E); // split-KV kernels store the natural log
         }
         else
         {
@@ -690,6 +702,10 @@ std::vector<at::Tensor> mha_varlen_fwd(
                                                     drop_seed_offset);
 
             traits.qscale_type = qscale_type;
+            args.lse_log2      = lse_log2 && has_lse; // the LSE in base 2
+            traits.activation  = activation_type;
+            args.broadcast_q   = broadcast_q;
+            args.seqlen_q      = total_q; // group mode: the rows of out, as without broadcast_q
             if(is_fp8 && qscale_type != quant_scale_enum::no_scale)
             {
                 args.q_descale_ptr = q_descale_.value().data_ptr();
@@ -706,36 +722,37 @@ std::vector<at::Tensor> mha_varlen_fwd(
                 }
             }
 
-            float t = detail::maybe_dispatch_head_grouped_fwd(
-                stream_config,
-                traits,
-                args,
-                num_heads,
-                num_heads_k,
-                batch_size,
-                max_seqlen_k,
+            const float t = detail::dispatch_lse_log2(args, softmax_lse, [&] {
+                float r = detail::maybe_dispatch_head_grouped_fwd(
+                    stream_config,
+                    traits,
+                    args,
+                    num_heads,
+                    num_heads_k,
+                    batch_size,
+                    max_seqlen_k,
+                    head_size,
+                    head_size,
+                    k.element_size(),
+                    v.element_size(),
+                    q.scalar_type(),
+                    [&](const auto& grouped_traits, auto& grouped_args, const auto& grouped_sc) {
+                        return fmha_fwd(grouped_traits, grouped_args, grouped_sc);
+                    });
+                return r < 0.0f ? fmha_fwd(traits, args, stream_config) : r;
+            });
+            TORCH_CHECK_NOT_IMPLEMENTED(
+                t >= 0,
+                "No FMHA variable-length forward kernel supports these arguments: dtype=",
+                q_dtype_str,
+                ", head_size=",
                 head_size,
-                head_size,
-                k.element_size(),
-                v.element_size(),
-                q.scalar_type(),
-                [&](const auto& grouped_traits, auto& grouped_args, const auto& grouped_sc) {
-                    return fmha_fwd(grouped_traits, grouped_args, grouped_sc);
-                });
-
-            if(t < 0.0f)
-            {
-                t = fmha_fwd(traits, args, stream_config);
-            }
-            TORCH_CHECK(t >= 0,
-                        "No FMHA variable-length forward kernel supports these arguments: dtype=",
-                        q_dtype_str,
-                        ", head_size=",
-                        head_size,
-                        ", qscale=",
-                        qscale,
-                        ", return_lse=",
-                        return_lse);
+                ", qscale=",
+                qscale,
+                ", return_lse=",
+                return_lse,
+                ", activation=",
+                activation);
         }
     }
     else

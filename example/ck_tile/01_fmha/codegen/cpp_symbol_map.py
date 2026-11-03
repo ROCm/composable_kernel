@@ -100,6 +100,12 @@ BIAS_MAP = {
     "alibi": "ck_tile::BlockAttentionBiasEnum::ALIBI",
 }
 
+# softmax, or a GDPA activation (see BlockAttentionActivationEnum)
+ACTIVATION_MAP = {
+    "softmax": "ck_tile::BlockAttentionActivationEnum::SOFTMAX",
+    "fast_gelu": "ck_tile::BlockAttentionActivationEnum::FAST_GELU",
+}
+
 # TODO: this is ugly
 BIAS_CHECK_MAP = {
     "no": "bias_enum::no_bias",

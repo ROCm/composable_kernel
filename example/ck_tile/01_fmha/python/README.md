@@ -38,6 +38,14 @@ Keep `python/build/` to reuse compiled objects, or set `CK_TILE_FMHA_BUILD_DIR`
 to relocate the cache. Editable installs pick up Python edits immediately;
 restart Python after rebuilding a loaded native extension.
 
+An inference-only build compiles the forward kernels without dropout and no backward ones (`fmha_infer`,
+GDPA and the forward of `fmha_func`/`fmha_varlen_func` without dropout; the rest raise
+`NotImplementedError`):
+
+```bash
+GPU_ARCHS=gfx1250 CK_TILE_FMHA_INFERENCE_ONLY=1 python setup.py build_ext --inplace
+```
+
 ## Use
 
 ```python
@@ -69,6 +77,88 @@ and added to `Q @ K.T * softmax_scale` before softmax. It cannot be combined wit
 
 Bias gradients require a `(batch_size, nheads, seqlen_q, seqlen_k)` temporary,
 reduced across batches and heads.
+
+## Inference
+
+`fmha_infer` is the forward pass with the least host work per call, for decode and other
+calls whose kernel runs in microseconds. It skips the autograd Function, dropout and its RNG
+state, allocates only the output (and the LSE when asked), and launches one kernel:
+
+```python
+from ck_tile_fmha import fmha_infer
+
+q = torch.randn(64, 1, 8, 128, device="cuda", dtype=torch.bfloat16)   # [b, s_q, h, d]
+k = torch.randn(64, 4096, 2, 128, device="cuda", dtype=torch.bfloat16)  # [b, s_k, h_k, d]
+v = torch.randn_like(k)
+out = fmha_infer(q, k, v, causal=True)
+out, lse = fmha_infer(q, k, v, return_lse=True)
+```
+
+It takes `causal`, `window_size`, `alibi_slopes` and `bias` as `fmha_func` does, and also the
+head-less layout `[b, s, d]` (one head; `k` and `v` may be the same tensor), `out=` for a
+preallocated output, and `lse_log2=True` for the LSE in base 2. It is forward only: inputs
+that need a gradient raise. FP16/BF16; it works under `torch.compile`, and in plain eager mode
+it calls the binding directly.
+
+Timing a call (device time per call, and the host time to issue it):
+
+```python
+import time, torch
+from ck_tile_fmha import fmha_infer
+
+q = torch.randn(1024, 16, 256, device="cuda", dtype=torch.bfloat16)   # [b, s_q, d], one head
+kv = torch.randn(1024, 200, 256, device="cuda", dtype=torch.bfloat16)  # K and V one tensor
+f = lambda: fmha_infer(q, kv, kv, return_lse=True, lse_log2=True)
+for _ in range(20):
+    f()
+start, end = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+start.record()
+for _ in range(200):
+    f()
+end.record()
+torch.cuda.synchronize()
+print(f"device {start.elapsed_time(end) / 200 * 1e3:.1f} us per call")
+torch.cuda._sleep(100_000_000)  # keep the GPU busy so the loop below measures issuing only
+t = time.perf_counter()
+for _ in range(200):
+    f()
+print(f"host {(time.perf_counter() - t) / 200 * 1e6:.1f} us per call")
+torch.cuda.synchronize()
+```
+
+## Forward-only options
+
+`fmha_func` and `fmha_varlen_func` take two options for inference callers:
+
+- `lse_log2=True` returns the LSE in base 2, log2 of the softmax normalizer (the natural-log
+  LSE times log2(e)). The gfx1250 `qr_tdm` kernels store it directly; elsewhere the natural log
+  is rescaled after the kernel.
+- `broadcast_q=True` (`fmha_varlen_func`, FP16/BF16, no paged KV): `q` is one block of rows that
+  every batch attends, `max_seqlen_q` is `q.shape[0]`, and batch `b`'s output is rows
+  `b * q.shape[0]` onward of `batch_size * q.shape[0]`. `cu_seqlens_q` only gives the batch
+  size; its values are not read.
+
+## Generalized dot-product attention
+
+`fmha_varlen_gdpa_func` computes `out = act(scale * q @ k.T) @ v` per batch and head, with no
+softmax, no normalization and no LSE (gfx1250, forward only):
+
+```python
+from ck_tile_fmha import fmha_varlen_gdpa_func
+
+out = fmha_varlen_gdpa_func(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k)
+```
+
+`act` is `fast_gelu`, GELU with the tanh approximation; `P` is rounded to `q`'s dtype before the
+second GEMM. `scale` defaults to 1.0, not `1 / sqrt(d)`. Head dims 64, 128 and 256, FP16/BF16; no
+mask, ALiBi, dropout, paged KV or FP8. Few keys per batch run on `qr_tdm_pingpong`, many on
+`qr_tdm_sched`.
+
+## Unsupported arguments
+
+Valid arguments that no kernel of the build serves on the GPU at hand (a dtype, head dim, mask,
+bias or option without instances there) raise `NotImplementedError`, a `RuntimeError`, so a
+caller can fall back to another implementation; malformed arguments raise `RuntimeError`.
 
 ## FP8 forward
 
@@ -139,6 +229,9 @@ must be positive powers of two** (E8M0); Q/K descales may be general FP32 values
 | `tests/test_varlen.py` | Variable-length/packed forward and backward, paged attention |
 | `tests/test_kvcache.py` | Cache updates, decode, rotary embeddings, cache indexing |
 | `tests/test_interface.py` | Validation, native compatibility, fake tensors, `torch.compile` |
+| `tests/test_infer.py` | `fmha_infer`: layouts, masks, bias, LSE, shared KV, validation, `torch.compile` |
+| `tests/test_gdpa.py` | GDPA (`fmha_varlen_gdpa_func`, gfx1250) |
+| `tests/test_fwd_options.py` | `broadcast_q` and `lse_log2` |
 
 FP8 tests compare against `fmha_func` using dequantized inputs cast to BF16;
 other numerical tests use GPU PyTorch references in `tests/reference.py`.

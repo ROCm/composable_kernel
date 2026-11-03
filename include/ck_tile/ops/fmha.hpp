@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ck_tile/ops/fmha/block/block_attention_activation_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kv_load_mode_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
+#include "ck_tile/ops/fmha/block/block_fmha_lse.hpp"
 #include "ck_tile/ops/fmha/block/block_masking.hpp"
 #include "ck_tile/ops/fmha/block/block_position_encoding.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"

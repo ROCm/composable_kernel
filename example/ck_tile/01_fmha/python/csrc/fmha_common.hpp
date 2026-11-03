@@ -12,6 +12,8 @@
 #include <optional>
 #include <string>
 
+#include "mask.hpp"
+
 #ifdef USE_ROCM
 #include <hip/hip_runtime.h>
 #endif
@@ -29,6 +31,60 @@
 #define CK_TILE_FMHA_CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 
 namespace ck_tile::fmha::torch_api::detail {
+// The mask of flash-attention style arguments: causal, or a window of window_size_left keys
+// before and window_size_right after the diagonal (-1: unbounded), aligned to the bottom right,
+// as mask_info::decode("b:left,right") builds it. Windows as long as seqlen_k are unbounded.
+inline mask_info make_mask_info(
+    bool is_causal, int window_size_left, int window_size_right, int seqlen_q, int seqlen_k)
+{
+    if(window_size_left >= seqlen_k)
+        window_size_left = -1;
+    if(window_size_right >= seqlen_k)
+        window_size_right = -1;
+    if(is_causal)
+        window_size_right = 0;
+
+    mask_info mask{};
+    mask.seqlen_q = seqlen_q;
+    mask.seqlen_k = seqlen_k;
+    mask.sink     = 0;
+    mask.left     = window_size_left;
+    mask.right    = window_size_right;
+    if(window_size_left == -1 && window_size_right == -1)
+    {
+        mask.type = mask_enum::no_mask;
+        return mask;
+    }
+    mask.type    = mask_enum::mask_bottom_right;
+    const auto r = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
+        window_size_left, window_size_right, 0, seqlen_q, seqlen_k, false);
+    mask.y = r.at(ck_tile::number<0>{});
+    mask.x = r.at(ck_tile::number<1>{});
+    return mask;
+}
+
+// One query per batch over grouped KV heads (decode, MQA/GQA): (b, 1, h_k * g, d) runs as
+// (b, g, h_k, d), one block of g rows per KV head instead of h one-row blocks that each load the
+// head's K and V. Not with a mask or bias, which tell the query heads apart (nor dropout).
+// H/t Daniel Haziza
+inline bool
+use_ngroups_swap(int seqlen_q, int nhead, int nhead_k, const mask_info& mask, bool has_bias)
+{
+    return seqlen_q == 1 && nhead > nhead_k && mask.type == mask_enum::no_mask && !has_bias;
+}
+
+// (b, 1, h_k * g, d) <-> (b, g, h_k, d), as views where the strides allow
+inline at::Tensor to_ngroups_layout(const at::Tensor& t, int nhead_k)
+{
+    const auto b = t.size(0), h = t.size(2), d = t.size(3);
+    return t.reshape({b, nhead_k, h / nhead_k, d}).transpose(1, 2);
+}
+inline at::Tensor from_ngroups_layout(const at::Tensor& t)
+{
+    const auto b = t.size(0), g = t.size(1), hk = t.size(2), d = t.size(3);
+    return t.transpose(1, 2).reshape({b, 1, hk * g, d});
+}
+
 // Elementwise bias is shared by all batches and heads.
 inline void check_bias(const std::optional<at::Tensor>& bias,
                        const std::optional<at::Tensor>& alibi_slopes,
@@ -117,6 +173,23 @@ num_splits_heuristic_ck(int batch_nheads_mblocks, int num_SMs, int num_n_blocks,
         }
     }
     return 1;
+}
+
+// Runs dispatch() (an fmha_fwd launch over args). With args.lse_log2, kernels that store a base-2
+// LSE themselves (the qr_tdm family) take the call; where none does, one that stores the natural
+// log runs and the LSE is rescaled here, one more elementwise kernel.
+template <typename FmhaArgs, typename Dispatch>
+float dispatch_lse_log2(FmhaArgs& args, at::Tensor& lse, Dispatch&& dispatch)
+{
+    float t = dispatch();
+    if(t < 0.0f && args.lse_log2)
+    {
+        args.lse_log2 = false;
+        t             = dispatch();
+        if(t >= 0.0f)
+            lse.mul_(M_LOG2E);
+    }
+    return t;
 }
 
 int override_num_splits_if_necessary(

@@ -296,32 +296,8 @@ std::vector<at::Tensor> mha_varlen_bwd(
     TORCH_CHECK(num_heads % num_heads_k == 0,
                 "Number of heads in key/value must divide number of heads in query");
 
-    if(window_size_left >= max_seqlen_k)
-    {
-        window_size_left = -1;
-    }
-    if(window_size_right >= max_seqlen_k)
-    {
-        window_size_right = -1;
-    }
-
-    mask_info mask;
-    if(is_causal)
-    {
-        std::string mask_identify = "b:" + std::to_string(window_size_left) + "," + "0";
-        mask = mask_info::decode(mask_identify, max_seqlen_q, max_seqlen_k); // casual
-    }
-    else if(window_size_left == -1 && window_size_right == -1)
-    {
-        mask = mask_info::decode("0", max_seqlen_q, max_seqlen_k); // no mask
-    }
-    else
-    {
-        // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
-        std::string mask_identify =
-            "b:" + std::to_string(window_size_left) + "," + std::to_string(window_size_right);
-        mask = mask_info::decode(mask_identify, max_seqlen_q, max_seqlen_k); // local
-    }
+    const mask_info mask = detail::make_mask_info(
+        is_causal, window_size_left, window_size_right, max_seqlen_q, max_seqlen_k);
 
     // q, k, v, out had been padded in mha_fwd
     // dq_, dk_, dv_ are also padded tensor

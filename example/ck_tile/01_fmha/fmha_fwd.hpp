@@ -361,6 +361,15 @@ struct fmha_fwd_args
 
     ck_tile::index_t block_scale_size_q;
     ck_tile::index_t block_scale_size_kv;
+
+    // Group mode, FmhaFwdKernel (not the v3 kernel): every batch reads one Q block of
+    // max_seqlen_q rows at q_ptr and writes its O and LSE rows from batch * max_seqlen_q;
+    // seqstart_q_ptr is not read.
+    bool broadcast_q = false;
+
+    // With lse_ptr: store the LSE in base 2, log2 sum_j 2^(s_ij log2 e), instead of natural log
+    // (the qr_tdm family pipelines)
+    bool lse_log2 = false;
 };
 
 struct fmha_fwd_pagedkv_args
@@ -882,8 +891,13 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
         }
     }();
 
+    if constexpr(FmhaKernel::kStoreLSE)
+        kargs.lse_log2 = args.lse_log2;
     if constexpr(FmhaKernel::kIsGroupMode)
     {
+        kargs.broadcast_q = args.broadcast_q;
+        if(args.broadcast_q)
+            kargs.seqlen_q = args.max_seqlen_q; // the Q block's rows
         dim3 grids = FmhaKernel::GridSize(
             args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr);
         return ck_tile::make_tuple(kargs, grids);
@@ -1478,7 +1492,9 @@ template <ck_tile::index_t HDim_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_ = false,
           bool kHasSink_        = false,
-          int kOccupancy_       = -1>
+          int kOccupancy_       = -1,
+          ck_tile::BlockAttentionActivationEnum Activation_ =
+              ck_tile::BlockAttentionActivationEnum::SOFTMAX>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1510,7 +1526,8 @@ struct fmha_fwd_traits_
     // traits but different occupancy still produce DISTINCT instantiations of
     // `fmha_fwd_<traits, arch>`, avoiding `ld: multiple definition` when
     // multiple such tiles are linked into a single shared object.
-    static constexpr int kOccupancy = kOccupancy_;
+    static constexpr int kOccupancy  = kOccupancy_;
+    static constexpr auto Activation = Activation_;
 };
 
 template <ck_tile::index_t HDim_,
@@ -1778,6 +1795,11 @@ struct fmha_fwd_traits
     quant_scale_enum qscale_type;
     bool skip_min_seqlen_q = false;
     bool has_sink          = false;
+    // softmax, or a GDPA activation: O = act(scale_s * Q K^T) V with no normalization
+    // and no LSE (has_lse false). gfx1250 fp16/bf16 (qr_tdm_pingpong for few keys,
+    // qr_tdm_sched for many, qr_tdm otherwise); no mask, bias, dropout or sink.
+    ck_tile::BlockAttentionActivationEnum activation =
+        ck_tile::BlockAttentionActivationEnum::SOFTMAX;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);

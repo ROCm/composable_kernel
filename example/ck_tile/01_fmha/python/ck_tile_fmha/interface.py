@@ -40,8 +40,61 @@ else:
     _torch_register_fake_wrapper = noop_register_fake_wrapper
 
 
-@_torch_custom_op_wrapper("ck_tile_fmha::_fmha_forward", mutates_args=(), device_types="cuda")
-def _fmha_forward(
+# torch.compiler.is_compiling where this torch has it (older ones have no torch.compile to see the
+# ops)
+_is_compiling = getattr(getattr(torch, "compiler", None), "is_compiling", lambda: False)
+
+
+if hasattr(torch._C, "_len_torch_dispatch_stack"):
+
+    def _no_dispatch_mode():
+        return torch._C._len_torch_dispatch_stack() == 0
+
+else:  # older torch
+    from torch.utils._python_dispatch import _get_current_dispatch_mode
+
+    def _no_dispatch_mode():
+        return _get_current_dispatch_mode() is None
+
+
+def _plain_eager(args):
+    """Whether these arguments may skip torch's dispatch: eager mode, no dispatch mode (fake
+    tensors, flop counters, ...) active, and every tensor a plain CUDA tensor (no meta tensor or
+    tensor subclass such as FakeTensor or DTensor, which need the registered op and its fake)."""
+    if _is_compiling() or not _no_dispatch_mode():
+        return False
+    for a in args:
+        if isinstance(a, torch.Tensor) and (type(a) is not torch.Tensor or not a.is_cuda):
+            return False
+    return True
+
+
+def _apply(function, *args):
+    """function.apply, or its forward directly in plain eager mode (_plain_eager) when no input
+    needs a gradient: no autograd graph to record (about 4 us a call). forward then never touches
+    ctx, which it uses only to save tensors for backward."""
+    if not _plain_eager(args) or (
+        torch.is_grad_enabled()
+        and any(isinstance(a, torch.Tensor) and a.requires_grad for a in args)
+    ):
+        return function.apply(*args)
+    return function.forward(None, *args)
+
+
+def _op_when_compiling(op, impl):
+    """Call op (a custom op) unless the call is plain eager (_plain_eager), where its implementation
+    runs directly and skips the op dispatcher (about 7 us a call on gfx1250 hosts); the autograd
+    Functions around these calls record the graph either way."""
+
+    def call(*args, **kwargs):
+        if _plain_eager(args) and _plain_eager(kwargs.values()):
+            return impl(*args, **kwargs)
+        return op(*args, **kwargs)
+
+    return call
+
+
+def _fmha_forward_impl(
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,
@@ -61,6 +114,7 @@ def _fmha_forward(
     return_lse: bool = True,
     block_size_q: int = 128,
     block_size_kv: int = 128,
+    lse_log2: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
     out, softmax_lse, S_dmask, rng_state = fmha_gpu.fwd(
@@ -85,8 +139,14 @@ def _fmha_forward(
         return_lse,
         block_size_q,
         block_size_kv,
+        lse_log2,
     )
     return out, softmax_lse, S_dmask, rng_state
+
+
+_fmha_forward = _torch_custom_op_wrapper(
+    "ck_tile_fmha::_fmha_forward", mutates_args=(), device_types="cuda"
+)(_fmha_forward_impl)
 
 
 @_torch_register_fake_wrapper("ck_tile_fmha::_fmha_forward")
@@ -110,6 +170,7 @@ def _fmha_forward_fake(
     return_lse: bool = True,
     block_size_q: int = 128,
     block_size_kv: int = 128,
+    lse_log2: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
     batch_size, seqlen_q, num_heads, head_size = q.shape
@@ -138,7 +199,9 @@ def _fmha_forward_fake(
 
 
 if tuple(int(part) for part in torch.__version__.split("+")[0].split(".")[:2]) >= (2, 4):
-    _wrapped_fmha_forward = torch.ops.ck_tile_fmha._fmha_forward
+    _wrapped_fmha_forward = _op_when_compiling(
+        torch.ops.ck_tile_fmha._fmha_forward, _fmha_forward_impl
+    )
 else:
     _wrapped_fmha_forward = _fmha_forward
 
@@ -217,10 +280,7 @@ def fmha_fp8_func(
     return (out, lse) if return_lse else out
 
 
-@_torch_custom_op_wrapper(
-    "ck_tile_fmha::_fmha_varlen_forward", mutates_args=(), device_types="cuda"
-)
-def _fmha_varlen_forward(
+def _fmha_varlen_forward_impl(
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,
@@ -246,6 +306,8 @@ def _fmha_varlen_forward(
     v_descale: Optional[torch.Tensor] = None,
     qscale: str = "no_scale",
     return_lse: bool = True,
+    broadcast_q: bool = False,
+    lse_log2: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
     out, softmax_lse, S_dmask, rng_state = fmha_gpu.varlen_fwd(
@@ -276,8 +338,16 @@ def _fmha_varlen_forward(
         v_descale,
         qscale,
         return_lse,
+        "softmax",
+        broadcast_q,
+        lse_log2,
     )
     return out, softmax_lse, S_dmask, rng_state
+
+
+_fmha_varlen_forward = _torch_custom_op_wrapper(
+    "ck_tile_fmha::_fmha_varlen_forward", mutates_args=(), device_types="cuda"
+)(_fmha_varlen_forward_impl)
 
 
 @_torch_register_fake_wrapper("ck_tile_fmha::_fmha_varlen_forward")
@@ -307,14 +377,18 @@ def _fmha_varlen_forward_fake(
     v_descale: Optional[torch.Tensor] = None,
     qscale: str = "no_scale",
     return_lse: bool = True,
+    broadcast_q: bool = False,
+    lse_log2: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
-    total_q, num_heads, _ = q.shape
+    total_q, num_heads, head_size = q.shape
+    if broadcast_q:  # one Q block for every batch; O has a block per batch
+        total_q *= cu_seqlens_q.numel() - 1
 
     out_dtype = (
         torch.bfloat16 if q.dtype in (torch.float8_e4m3fn, torch.float8_e4m3fnuz) else q.dtype
     )
-    out = torch.empty_like(q, dtype=out_dtype)
+    out = q.new_empty((total_q, num_heads, head_size), dtype=out_dtype)
     softmax_lse = torch.empty(
         (num_heads, total_q) if return_lse else (0,),
         dtype=torch.float32,
@@ -334,9 +408,235 @@ def _fmha_varlen_forward_fake(
 
 
 if tuple(int(part) for part in torch.__version__.split("+")[0].split(".")[:2]) >= (2, 4):
-    _wrapped_fmha_varlen_forward = torch.ops.ck_tile_fmha._fmha_varlen_forward
+    _wrapped_fmha_varlen_forward = _op_when_compiling(
+        torch.ops.ck_tile_fmha._fmha_varlen_forward, _fmha_varlen_forward_impl
+    )
 else:
     _wrapped_fmha_varlen_forward = _fmha_varlen_forward
+
+
+def _fmha_varlen_gdpa_forward_impl(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    cu_seqlens_q: torch.Tensor,
+    cu_seqlens_k: torch.Tensor,
+    max_seqlen_q: int,
+    max_seqlen_k: int,
+    scale: float,
+    activation: str,
+) -> torch.Tensor:
+    q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
+    out = fmha_gpu.varlen_fwd(
+        q,
+        k,
+        v,
+        None,
+        cu_seqlens_q,
+        cu_seqlens_k,
+        None,
+        None,
+        None,
+        None,
+        max_seqlen_q,
+        max_seqlen_k,
+        0.0,
+        scale,
+        False,
+        False,
+        -1,
+        -1,
+        0.0,
+        False,
+        None,
+        0,
+        None,
+        None,
+        None,
+        "no_scale",
+        False,
+        activation,
+    )[0]
+    return out
+
+
+_fmha_varlen_gdpa_forward = _torch_custom_op_wrapper(
+    "ck_tile_fmha::_fmha_varlen_gdpa_forward", mutates_args=(), device_types="cuda"
+)(_fmha_varlen_gdpa_forward_impl)
+
+
+@_torch_register_fake_wrapper("ck_tile_fmha::_fmha_varlen_gdpa_forward")
+def _fmha_varlen_gdpa_forward_fake(
+    q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, scale, activation
+):
+    return q.new_empty(q.shape)
+
+
+if tuple(int(part) for part in torch.__version__.split("+")[0].split(".")[:2]) >= (2, 4):
+    _wrapped_fmha_varlen_gdpa_forward = _op_when_compiling(
+        torch.ops.ck_tile_fmha._fmha_varlen_gdpa_forward, _fmha_varlen_gdpa_forward_impl
+    )
+else:
+    _wrapped_fmha_varlen_gdpa_forward = _fmha_varlen_gdpa_forward
+
+
+def fmha_varlen_gdpa_func(
+    q,
+    k,
+    v,
+    cu_seqlens_q,
+    cu_seqlens_k,
+    max_seqlen_q,
+    max_seqlen_k,
+    scale=1.0,
+    activation="fast_gelu",
+):
+    """Generalized dot-product attention, forward only (gfx1250).
+
+    out = act(scale * q k^T) v per batch and head, with no softmax, no normalization and
+    no LSE: the GDPA mode of CK's gfx1250 pipelines, qr_tdm_pingpong for few keys per batch,
+    qr_tdm_sched for many, qr_tdm otherwise. act is ``fast_gelu``, gelu with the tanh
+    approximation (the hardware tanh); P is rounded to q's dtype before the second gemm.
+
+    q: [total_q, nheads, d], k/v: [total_k, nheads_k, d] (nheads % nheads_k == 0),
+    cu_seqlens_q/k: GPU int32 [batch + 1]. FP16/BF16, d in {64, 128, 256}. No gradient:
+    inputs that need one raise.
+    """
+    if activation == "softmax":
+        raise ValueError(
+            "fmha_varlen_gdpa_func takes a GDPA activation; softmax is fmha_varlen_func"
+        )
+    if torch.is_grad_enabled() and any(t.requires_grad for t in (q, k, v)):
+        raise NotImplementedError("fmha_varlen_gdpa_func is forward only")
+    return _wrapped_fmha_varlen_gdpa_forward(
+        q,
+        k,
+        v,
+        cu_seqlens_q,
+        cu_seqlens_k,
+        max_seqlen_q,
+        max_seqlen_k,
+        float(scale),
+        activation,
+    )
+
+
+def _fmha_infer_impl(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    softmax_scale: float,
+    causal: bool,
+    window_size_left: int,
+    window_size_right: int,
+    alibi_slopes: Optional[torch.Tensor],
+    bias: Optional[torch.Tensor],
+    return_lse: bool,
+    lse_log2: bool,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    out, lse = fmha_gpu.infer(
+        q, k, v, softmax_scale, causal, window_size_left, window_size_right,
+        alibi_slopes, bias, return_lse, lse_log2,
+    )  # fmt: skip
+    # a custom op returns tensors only: no LSE is an empty one
+    return out, lse if lse is not None else q.new_empty(0, dtype=torch.float32)
+
+
+_fmha_infer = _torch_custom_op_wrapper(
+    "ck_tile_fmha::_fmha_infer", mutates_args=(), device_types="cuda"
+)(_fmha_infer_impl)
+
+
+@_torch_register_fake_wrapper("ck_tile_fmha::_fmha_infer")
+def _fmha_infer_fake(
+    q, k, v, softmax_scale, causal, window_size_left, window_size_right,
+    alibi_slopes, bias, return_lse, lse_log2,
+):  # fmt: skip
+    out = torch.empty(q.shape, dtype=q.dtype, device=q.device)
+    if not return_lse:
+        return out, q.new_empty(0, dtype=torch.float32)
+    rows = (q.shape[0], q.shape[2], q.shape[1]) if q.dim() == 4 else (q.shape[0], q.shape[1])
+    return out, q.new_empty(rows, dtype=torch.float32)
+
+
+def fmha_infer(
+    q,
+    k,
+    v,
+    softmax_scale=None,
+    causal=False,
+    window_size=(-1, -1),
+    alibi_slopes=None,
+    bias=None,
+    return_lse=False,
+    lse_log2=False,
+    out=None,
+):
+    """Attention for inference: the forward pass with the least host work per call.
+
+    For decode and other calls whose kernel takes microseconds, where the general fmha_func
+    (autograd, dropout and its RNG state, four allocations) costs more than the kernel. It
+    allocates the output and, if asked, the LSE, and launches one kernel.
+
+    q: [b, s_q, h, d] (flash-attention layout) or [b, s_q, d] (one head);
+    k, v: [b, s_k, h_k, d] or [b, s_k, d], h % h_k == 0 (MQA/GQA). k and v may be the same
+    tensor (shared KV). FP16/BF16, d a multiple of 8 up to 256; the last dimension contiguous.
+
+    softmax_scale: default 1 / sqrt(d).
+    causal, window_size=(left, right): bottom-right aligned masks, as in fmha_func.
+    alibi_slopes: float32 [h] or [b, h]. bias: [s_q, s_k], q's dtype, shared by batches and heads.
+    return_lse: also return the LSE, float32 [b, h, s_q] ([b, s_q] for [b, s, d] inputs);
+    lse_log2 stores it in base 2 (log2 of the row sum of exp2(scale * log2(e) * q k^T)).
+    out: optional output tensor, q's shape and dtype.
+
+    Returns out, or (out, lse) with return_lse. Forward only: inputs that need a gradient raise.
+    Arguments no kernel of this build serves on this GPU (dtype, head dim, mask or bias) raise
+    NotImplementedError, a RuntimeError, so callers can fall back.
+    """
+    if softmax_scale is None:
+        softmax_scale = q.shape[-1] ** (-0.5)
+    left, right = window_size
+    # _plain_eager and the gradient check, spelled out for this hot path: plain CUDA tensors (no
+    # subclass such as FakeTensor or DTensor, no meta tensor), no dispatch mode, not compiling.
+    Tensor = torch.Tensor
+    if (
+        type(q) is Tensor
+        and type(k) is Tensor
+        and type(v) is Tensor
+        and q.is_cuda
+        and k.is_cuda
+        and v.is_cuda
+        and (alibi_slopes is None and bias is None and out is None
+             or _plain_eager((alibi_slopes, bias, out)))
+        and not _is_compiling()
+        and _no_dispatch_mode()
+        and not (
+            (q.requires_grad or k.requires_grad or v.requires_grad
+             or (bias is not None and bias.requires_grad)
+             or (alibi_slopes is not None and alibi_slopes.requires_grad))
+            and torch.is_grad_enabled()
+        )
+    ):  # fmt: skip
+        # eager: straight to the binding, which returns None for no LSE
+        res, lse = fmha_gpu.infer(
+            q, k, v, softmax_scale, causal, left, right, alibi_slopes, bias,
+            return_lse, lse_log2, out,
+        )  # fmt: skip
+        return (res, lse) if return_lse else res
+    if torch.is_grad_enabled() and any(
+        t is not None and t.requires_grad for t in (q, k, v, bias, alibi_slopes)
+    ):
+        raise NotImplementedError("fmha_infer is forward only; use fmha_func for training")
+    res, lse = _fmha_infer(
+        q, k, v, float(softmax_scale), causal, left, right, alibi_slopes, bias,
+        return_lse, lse_log2,
+    )  # fmt: skip
+    if out is not None:
+        if out.shape != res.shape or out.dtype != res.dtype or out.device != res.device:
+            raise RuntimeError("out must match query in dtype, device and shape")
+        out.copy_(res)
+        res = out
+    return (res, lse) if return_lse else res
 
 
 def fmha_varlen_fp8_func(
@@ -673,7 +973,7 @@ class FmhaQKVPackedFunc(torch.autograd.Function):
             ctx.softcap = softcap
             ctx.alibi_slopes = alibi_slopes
             ctx.deterministic = deterministic
-        out = out_padded[..., :head_size_og]
+        out = out_padded if out_padded.size(-1) == head_size_og else out_padded[..., :head_size_og]
         return out if not return_softmax else (out, softmax_lse, S_dmask)
 
     @staticmethod
@@ -766,7 +1066,7 @@ class FmhaVarlenQKVPackedFunc(torch.autograd.Function):
             ctx.softcap = softcap
             ctx.alibi_slopes = alibi_slopes
             ctx.deterministic = deterministic
-        out = out_padded[..., :head_size_og]
+        out = out_padded if out_padded.size(-1) == head_size_og else out_padded[..., :head_size_og]
         return out if not return_softmax else (out, softmax_lse, S_dmask)
 
     @staticmethod
@@ -857,7 +1157,7 @@ class FmhaKVPackedFunc(torch.autograd.Function):
             ctx.softcap = softcap
             ctx.alibi_slopes = alibi_slopes
             ctx.deterministic = deterministic
-        out = out_padded[..., :head_size_og]
+        out = out_padded if out_padded.size(-1) == head_size_og else out_padded[..., :head_size_og]
         return out if not return_softmax else (out, softmax_lse, S_dmask)
 
     @staticmethod
@@ -958,7 +1258,7 @@ class FmhaVarlenKVPackedFunc(torch.autograd.Function):
             ctx.softcap = softcap
             ctx.alibi_slopes = alibi_slopes
             ctx.deterministic = deterministic
-        out = out_padded[..., :head_size_og]
+        out = out_padded if out_padded.size(-1) == head_size_og else out_padded[..., :head_size_og]
         return out if not return_softmax else (out, softmax_lse, S_dmask)
 
     @staticmethod
@@ -1016,11 +1316,14 @@ class FmhaFunc(torch.autograd.Function):
         deterministic,
         return_softmax,
         is_grad_enabled,
+        lse_log2,
         bias,
     ):
         is_grad = is_grad_enabled and (
             any(x.requires_grad for x in [q, k, v]) or (bias is not None and bias.requires_grad)
         )
+        if lse_log2 and is_grad:
+            raise NotImplementedError("fmha_func: lse_log2 is forward only")
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
         head_size_og = q.size(3)
@@ -1041,6 +1344,7 @@ class FmhaFunc(torch.autograd.Function):
             alibi_slopes=alibi_slopes,
             return_softmax=return_softmax and dropout_p > 0,
             bias=bias,
+            lse_log2=lse_log2,
         )
         if is_grad:
             ctx.save_for_backward(q, k, v, out_padded, softmax_lse, rng_state, bias)
@@ -1051,7 +1355,7 @@ class FmhaFunc(torch.autograd.Function):
             ctx.softcap = softcap
             ctx.alibi_slopes = alibi_slopes
             ctx.deterministic = deterministic
-        out = out_padded[..., :head_size_og]
+        out = out_padded if out_padded.size(-1) == head_size_og else out_padded[..., :head_size_og]
         return out if not return_softmax else (out, softmax_lse, S_dmask)
 
     @staticmethod
@@ -1088,7 +1392,7 @@ class FmhaFunc(torch.autograd.Function):
         dq = dq[..., : dout.shape[-1]]  # We could have padded the head dimension
         dk = dk[..., : dout.shape[-1]]
         dv = dv[..., : dout.shape[-1]]
-        return dq, dk, dv, None, None, None, None, None, None, None, None, None, dbias
+        return dq, dk, dv, None, None, None, None, None, None, None, None, None, None, dbias
 
 
 class FmhaVarlenFunc(torch.autograd.Function):
@@ -1112,8 +1416,12 @@ class FmhaVarlenFunc(torch.autograd.Function):
         return_softmax,
         block_table,
         is_grad_enabled,
+        broadcast_q,
+        lse_log2,
     ):
         is_grad = is_grad_enabled and any(x.requires_grad for x in [q, k, v])
+        if (broadcast_q or lse_log2) and is_grad:
+            raise NotImplementedError("fmha_varlen_func: broadcast_q and lse_log2 are forward only")
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
         head_size_og = q.size(2)
@@ -1138,6 +1446,8 @@ class FmhaVarlenFunc(torch.autograd.Function):
             alibi_slopes=alibi_slopes,
             return_softmax=return_softmax and dropout_p > 0,
             block_table=block_table,
+            broadcast_q=broadcast_q,
+            lse_log2=lse_log2,
         )
         if is_grad:
             ctx.save_for_backward(
@@ -1153,7 +1463,7 @@ class FmhaVarlenFunc(torch.autograd.Function):
             ctx.alibi_slopes = alibi_slopes
             ctx.deterministic = deterministic
 
-        out = out_padded[..., :head_size_og]
+        out = out_padded if out_padded.size(-1) == head_size_og else out_padded[..., :head_size_og]
         return out if not return_softmax else (out, softmax_lse, S_dmask)
 
     @staticmethod
@@ -1195,6 +1505,8 @@ class FmhaVarlenFunc(torch.autograd.Function):
             dq,
             dk,
             dv,
+            None,
+            None,
             None,
             None,
             None,
@@ -1262,7 +1574,8 @@ def fmha_qkvpacked_func(
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
-    return FmhaQKVPackedFunc.apply(
+    return _apply(
+        FmhaQKVPackedFunc,
         qkv,
         dropout_p,
         softmax_scale,
@@ -1345,7 +1658,8 @@ def fmha_kvpacked_func(
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
-    return FmhaKVPackedFunc.apply(
+    return _apply(
+        FmhaKVPackedFunc,
         q,
         kv,
         dropout_p,
@@ -1374,8 +1688,10 @@ def fmha_func(
     deterministic=False,
     return_attn_probs=False,
     bias=None,
+    lse_log2=False,
 ):
     """dropout_p should be set to 0.0 during evaluation
+    lse_log2 (forward only): the returned softmax_lse in base 2, log2 of the softmax normalizer.
     Supports multi-query and grouped-query attention (MQA/GQA) by passing in KV with fewer heads
     than Q. Note that the number of heads in Q must be divisible by the number of heads in KV.
     For example, if Q has 6 heads and K, V have 2 heads, head 0, 1, 2 of Q will attention to head
@@ -1427,7 +1743,8 @@ def fmha_func(
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
-    return FmhaFunc.apply(
+    return _apply(
+        FmhaFunc,
         q,
         k,
         v,
@@ -1440,6 +1757,7 @@ def fmha_func(
         deterministic,
         return_attn_probs,
         torch.is_grad_enabled(),
+        lse_log2,
         bias,
     )
 
@@ -1494,7 +1812,8 @@ def fmha_varlen_qkvpacked_func(
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
-    return FmhaVarlenQKVPackedFunc.apply(
+    return _apply(
+        FmhaVarlenQKVPackedFunc,
         qkv,
         cu_seqlens,
         max_seqlen,
@@ -1583,7 +1902,8 @@ def fmha_varlen_kvpacked_func(
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
-    return FmhaVarlenKVPackedFunc.apply(
+    return _apply(
+        FmhaVarlenKVPackedFunc,
         q,
         kv,
         cu_seqlens_q,
@@ -1619,8 +1939,16 @@ def fmha_varlen_func(
     deterministic=False,
     return_attn_probs=False,
     block_table=None,
+    broadcast_q=False,
+    lse_log2=False,
 ):
     """dropout_p should be set to 0.0 during evaluation
+    broadcast_q (forward only, FP16/BF16, no paged KV): q is one block of rows that every batch
+        attends, max_seqlen_q is q.shape[0], and batch b's output is rows b * q.shape[0] onward
+        of batch_size * q.shape[0]. cu_seqlens_q only gives batch_size (its values are not read:
+        cu_seqlens_k serves). Builds without such kernels raise NotImplementedError.
+    lse_log2 (forward only): the returned softmax_lse in base 2, log2 of the softmax normalizer
+        (stored by the gfx1250 qr_tdm kernels; elsewhere the natural log is rescaled).
     Supports multi-query and grouped-query attention (MQA/GQA) by passing in K, V with fewer heads
     than Q. Note that the number of heads in Q must be divisible by the number of heads in KV.
     For example, if Q has 6 heads and K, V have 2 heads, head 0, 1, 2 of Q will attention to head
@@ -1675,7 +2003,8 @@ def fmha_varlen_func(
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
-    return FmhaVarlenFunc.apply(
+    return _apply(
+        FmhaVarlenFunc,
         q,
         k,
         v,
@@ -1693,6 +2022,8 @@ def fmha_varlen_func(
         return_attn_probs,
         block_table,
         torch.is_grad_enabled(),
+        broadcast_q,
+        lse_log2,
     )
 
 

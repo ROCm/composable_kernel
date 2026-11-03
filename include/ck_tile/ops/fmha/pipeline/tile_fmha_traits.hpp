@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_activation_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kv_load_mode_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
@@ -24,7 +25,9 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           BlockAttentionQuantScaleEnum QScaleEnum_,
           index_t kBlockPerCu_  = -1,    /* overwrite occupancy if not -1 */
           bool kSkipMinSeqlenQ_ = false, /* skip min seqlen q while chunked prefill */
-          bool kHasSink_        = false>
+          bool kHasSink_        = false,
+          BlockAttentionActivationEnum Activation_ =
+              BlockAttentionActivationEnum::SOFTMAX /* softmax, or a GDPA activation */>
 struct TileFmhaTraits
 {
     static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
@@ -40,6 +43,7 @@ struct TileFmhaTraits
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
     static constexpr bool kSkipMinSeqlenQ   = kSkipMinSeqlenQ_;
     static constexpr bool kHasSink          = kHasSink_;
+    static constexpr auto Activation        = Activation_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,

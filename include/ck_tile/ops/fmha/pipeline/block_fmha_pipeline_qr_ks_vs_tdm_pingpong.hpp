@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_fmha_lse.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_tdm.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_tdm_pingpong_policy.hpp"
 
@@ -51,6 +52,12 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
     using Base::kSubQKHeaddim;
 
     using Base::ReduceRowSync;
+
+    // softmax, or GDPA (see qr_tdm): P = act(scale_s * S), no row max/sum, no normalization
+    using Base::Activation;
+    using Base::ApplyActivation;
+    using Base::kIsSoftmax;
+    using Base::kMaskedScore;
 
     static constexpr const char* name = "qr_tdm_pingpong";
 
@@ -212,11 +219,13 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
     CK_TILE_DEVICE static void StoreLseOfEmptyRows(LSEaccDramBlockWindowTmp& lse_acc_dram_window,
                                                    const RowTile& m,
                                                    float sink_v,
-                                                   float scale_s)
+                                                   float scale_s,
+                                                   bool lse_log2)
     {
         auto lse_acc = make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
         if(__builtin_isinf_sign(sink_v) >= 0)
-            set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
+            set_tile(lse_acc,
+                     SMPLComputeDataType{fmha_lse_from_natural(sink_v * scale_s, lse_log2)});
         else
             set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
         store_tile(lse_acc_dram_window, lse_acc);
@@ -293,9 +302,10 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         {
             if(is_last_tile)
             {
-                set_tile_if(s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                    return seqlen_k_end <= k_start + tile_idx.at(I1);
-                });
+                set_tile_if(
+                    s_acc, type_convert<SMPLComputeDataType>(kMaskedScore), [&](auto tile_idx) {
+                        return seqlen_k_end <= k_start + tile_idx.at(I1);
+                    });
             }
         }
         else
@@ -308,14 +318,15 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         {
             if(mask.IsEdgeTile(q_origin.at(I0), k_start, number<kM0>{}, number<kN0>{}))
             {
-                set_tile_if(s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                    const auto row = q_origin.at(I0) + tile_idx.at(I0);
-                    const auto col = k_start + tile_idx.at(I1);
-                    if constexpr(kHasSink)
-                        return mask.IsOutOfSinkBound(row, col);
-                    else
-                        return mask.IsOutOfBound(row, col);
-                });
+                set_tile_if(
+                    s_acc, type_convert<SMPLComputeDataType>(kMaskedScore), [&](auto tile_idx) {
+                        const auto row = q_origin.at(I0) + tile_idx.at(I0);
+                        const auto col = k_start + tile_idx.at(I1);
+                        if constexpr(kHasSink)
+                            return mask.IsOutOfSinkBound(row, col);
+                        else
+                            return mask.IsOutOfBound(row, col);
+                    });
             }
         }
     }
@@ -325,7 +336,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
     CK_TILE_DEVICE static void StoreLse(LSEaccDramBlockWindowTmp& lse_acc_dram_window,
                                         const RowTile& m,
                                         const RowTile& l,
-                                        float scale_s)
+                                        float scale_s,
+                                        bool lse_log2)
     {
         auto lse_acc = make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
@@ -334,9 +346,9 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             constexpr auto i_idx = make_tuple(idx0);
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                          BiasEnum == BlockAttentionBiasEnum::ALIBI || kHasLogitsSoftCap)
-                lse_acc(i_idx) = m[i_idx] / C_LOG2E + log(l[i_idx]);
+                lse_acc(i_idx) = fmha_lse(m[i_idx], l[i_idx], lse_log2);
             else
-                lse_acc(i_idx) = m[i_idx] * scale_s / C_LOG2E + log(l[i_idx]);
+                lse_acc(i_idx) = fmha_lse(m[i_idx] * scale_s, l[i_idx], lse_log2);
         });
 
         store_tile(lse_acc_dram_window, lse_acc);
@@ -380,7 +392,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                                         PositionEncoding position_encoding,
                                         float scale_s,
                                         void* smem_arena,
-                                        float sink_v) const
+                                        float sink_v,
+                                        bool lse_log2 = false) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
 
@@ -455,7 +468,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             if(logical_num_total_loop <= 0)
             {
                 if constexpr(kStoreLSE)
-                    StoreLseOfEmptyRows(lse_acc_dram_window_tmp, m, sink_v, scale_s);
+                    StoreLseOfEmptyRows(lse_acc_dram_window_tmp, m, sink_v, scale_s, lse_log2);
 
                 // Note: here occ are all cleard, return it
                 // Note: q loaded but no fence, ignore it.
@@ -697,14 +710,18 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 }
             }();
 
-            auto m_local = block_tile_reduce<SMPLComputeDataType>(
-                s_new,
-                sequence<1>{},
-                f_max,
-                -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-            ReduceRowSync(m_local, f_max);
+            if constexpr(kIsSoftmax)
+            {
+                auto m_local = block_tile_reduce<SMPLComputeDataType>(
+                    s_new,
+                    sequence<1>{},
+                    f_max,
+                    -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
+                ReduceRowSync(m_local, f_max);
 
-            tile_elementwise_inout([](auto& e0, auto e1) { e0 = max(e0, e1); }, m, m_local); // m{j}
+                tile_elementwise_inout(
+                    [](auto& e0, auto e1) { e0 = max(e0, e1); }, m, m_local); // m{j}
+            }
 
             auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
                 s_new.get_tile_distribution()); // Pcompute{j}
@@ -754,9 +771,10 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                     return scale_s * (m[i_idx] - m_base[i_idx]);
             };
             bool need_rebase = false;
-            sweep_tile_span(o_spans[I0], [&](auto idx0) {
-                need_rebase |= row_gap(make_tuple(idx0)) > kRebaseThreshold;
-            });
+            if constexpr(kIsSoftmax)
+                sweep_tile_span(o_spans[I0], [&](auto idx0) {
+                    need_rebase |= row_gap(make_tuple(idx0)) > kRebaseThreshold;
+                });
             if(need_rebase)
             {
                 sweep_tile_span(o_spans[I0], [&](auto idx0) {
@@ -776,29 +794,32 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             }
 
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
-            sweep_tile_span(p_spans[I0], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
-                auto row_max         = get_row_exp(m_base[i_idx]);
-                sweep_tile_span(p_spans[I1], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                    {
-                        p_compute(i_j_idx) = exp2(s_new[i_j_idx] - row_max);
-                    }
-                    else
-                    {
-                        if constexpr(kHasLogitsSoftCap)
+            if constexpr(!kIsSoftmax)
+                ApplyActivation(s_new, p_compute, scale_s);
+            else
+                sweep_tile_span(p_spans[I0], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+                    auto row_max         = get_row_exp(m_base[i_idx]);
+                    sweep_tile_span(p_spans[I1], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
                         {
                             p_compute(i_j_idx) = exp2(s_new[i_j_idx] - row_max);
                         }
                         else
                         {
-                            p_compute(i_j_idx) = exp2(scale_s * s_new[i_j_idx] - row_max);
+                            if constexpr(kHasLogitsSoftCap)
+                            {
+                                p_compute(i_j_idx) = exp2(s_new[i_j_idx] - row_max);
+                            }
+                            else
+                            {
+                                p_compute(i_j_idx) = exp2(scale_s * s_new[i_j_idx] - row_max);
+                            }
                         }
-                    }
+                    });
                 });
-            });
 
             // MakePForGemm1 reorders P's (MIter, KIter) blocks within a thread, which
             // lines up with gemm_1's A operand only with the warps on M or one MIter.
@@ -808,9 +829,9 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             auto p_tile = Base::template MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
 
             // l{j}; o_acc is already in p's m_base frame.
-            if constexpr(kRowSumOnMatrixUnit)
+            if constexpr(kRowSumOnMatrixUnit && kIsSoftmax)
                 AccumulateRowSumOnMatrixUnit(l, p_tile);
-            if constexpr(!kRowSumOnMatrixUnit || kSeparateLseSum)
+            if constexpr((!kRowSumOnMatrixUnit || kSeparateLseSum) && kIsSoftmax)
             {
                 const auto rowsum_p = BlockRowSum(p_compute); // rowsum(Pcompute{j})
                 sweep_tile_span(o_spans[I0], [&](auto idx0) {
@@ -879,12 +900,13 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                     m_lse);
             }
             if constexpr(kSeparateLseSum)
-                StoreLse(lse_acc_dram_window_tmp, m_lse, l_lse, scale_s);
+                StoreLse(lse_acc_dram_window_tmp, m_lse, l_lse, scale_s, lse_log2);
             else
-                StoreLse(lse_acc_dram_window_tmp, m_lse, l, scale_s);
+                StoreLse(lse_acc_dram_window_tmp, m_lse, l, scale_s, lse_log2);
         }
 
-        NormalizeO(o_acc, l);
+        if constexpr(kIsSoftmax)
+            NormalizeO(o_acc, l);
         return o_acc;
     }
 
@@ -904,7 +926,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                                         PositionEncoding position_encoding,
                                         float scale_s,
                                         float sink_v,
-                                        void* smem_arena) const
+                                        void* smem_arena,
+                                        bool lse_log2 = false) const
     {
         return (*this)(q_dram_block_window_tmp,
                        k_dram_block_window_tmp,
@@ -915,7 +938,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                        position_encoding,
                        scale_s,
                        smem_arena,
-                       sink_v);
+                       sink_v,
+                       lse_log2);
     }
 };
 

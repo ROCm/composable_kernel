@@ -27,7 +27,21 @@ mha_fwd(at::Tensor& q,       // batch_size x seqlen_q x num_heads x round_multip
         std::string qscale,
         bool return_lse,
         int block_size_q,
-        int block_size_kv);
+        int block_size_kv,
+        bool lse_log2);
+
+std::tuple<at::Tensor, at::Tensor> mha_infer(const at::Tensor& q,
+                                             const at::Tensor& k,
+                                             const at::Tensor& v,
+                                             const float softmax_scale,
+                                             bool is_causal,
+                                             int window_size_left,
+                                             int window_size_right,
+                                             const std::optional<at::Tensor>& alibi_slopes_,
+                                             const std::optional<at::Tensor>& bias_,
+                                             const bool return_lse,
+                                             const bool lse_log2,
+                                             std::optional<at::Tensor> out_);
 
 std::vector<at::Tensor> mha_varlen_fwd(
     at::Tensor& q, // total_q x num_heads x head_size, total_q := \sum_{i=0}^{b} s_i
@@ -62,7 +76,10 @@ std::vector<at::Tensor> mha_varlen_fwd(
     std::optional<at::Tensor> k_descale_,
     std::optional<at::Tensor> v_descale_,
     std::string qscale,
-    bool return_lse);
+    bool return_lse,
+    std::string activation,
+    bool broadcast_q,
+    bool lse_log2);
 
 std::vector<at::Tensor>
 mha_bwd(const at::Tensor& dout, // batch_size x seqlen_q x num_heads, x multiple_of(head_size_og, 8)
@@ -169,7 +186,24 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
           pybind11::arg("qscale")        = "no_scale",
           pybind11::arg("return_lse")    = true,
           pybind11::arg("block_size_q")  = 128,
-          pybind11::arg("block_size_kv") = 128);
+          pybind11::arg("block_size_kv") = 128,
+          pybind11::arg("lse_log2")      = false);
+    m.def("infer",
+          &ck_tile::fmha::torch_api::mha_infer,
+          "Lean inference attention (fp16/bf16, masks and bias, no dropout). q, k, v are "
+          "[b, s, d] or [b, s, h, d]; returns (out, lse), lse None unless return_lse.",
+          pybind11::arg("q"),
+          pybind11::arg("k"),
+          pybind11::arg("v"),
+          pybind11::arg("softmax_scale"),
+          pybind11::arg("causal")            = false,
+          pybind11::arg("window_size_left")  = -1,
+          pybind11::arg("window_size_right") = -1,
+          pybind11::arg("alibi_slopes")      = pybind11::none(),
+          pybind11::arg("bias")              = pybind11::none(),
+          pybind11::arg("return_lse")        = false,
+          pybind11::arg("lse_log2")          = false,
+          pybind11::arg("out")               = pybind11::none());
     m.def("varlen_fwd",
           &ck_tile::fmha::torch_api::mha_varlen_fwd,
           "Forward pass (variable length)",
@@ -195,11 +229,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
           pybind11::arg("return_softmax"),
           pybind11::arg("gen"),
           pybind11::arg("num_splits"),
-          pybind11::arg("q_descale")  = pybind11::none(),
-          pybind11::arg("k_descale")  = pybind11::none(),
-          pybind11::arg("v_descale")  = pybind11::none(),
-          pybind11::arg("qscale")     = "no_scale",
-          pybind11::arg("return_lse") = true);
+          pybind11::arg("q_descale")   = pybind11::none(),
+          pybind11::arg("k_descale")   = pybind11::none(),
+          pybind11::arg("v_descale")   = pybind11::none(),
+          pybind11::arg("qscale")      = "no_scale",
+          pybind11::arg("return_lse")  = true,
+          pybind11::arg("activation")  = "softmax",
+          pybind11::arg("broadcast_q") = false,
+          pybind11::arg("lse_log2")    = false);
     m.def("bwd",
           &ck_tile::fmha::torch_api::mha_bwd,
           "Backward pass",

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_activation_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
 
@@ -123,6 +124,7 @@ struct BlockFmhaPipelineProblem
     static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr bool kHasSink          = Traits::kHasSink;
+    static constexpr auto Activation        = detail::fmha_activation_v<Traits>;
 };
 
 template <typename QDataType_,

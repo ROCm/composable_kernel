@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_fmha_lse.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_activation_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_masking.hpp"
@@ -77,6 +79,16 @@ struct BlockFmhaPipelineQRKSVSTdmSched
     static constexpr bool kHasSink           = Problem::kHasSink;
     static constexpr bool kEnableVirtualSink = EnableVirtualSink_;
     static constexpr auto QScaleEnum         = Problem::QScaleEnum;
+
+    // Softmax, or GDPA: P = act(scale_s * S) elementwise, O = P V, with no row max, row sum,
+    // output rescale or normalization (see BlockAttentionActivationEnum)
+    static constexpr auto Activation      = Problem::Activation;
+    using ActivationTraits                = BlockAttentionActivationTraits<Activation>;
+    static constexpr bool kIsSoftmax      = ActivationTraits::is_softmax;
+    static constexpr bool kIgnoreFastExp2 = !kIsSoftmax; // GDPA: the kernel passes scale_s as is
+    static_assert(kIsSoftmax || (!kStoreLSE && !kHasSink), "qr_tdm_sched GDPA: no LSE or sink");
+    // The score a masked or padded key gets (see BlockAttentionActivationTraits)
+    static constexpr float kMaskedScore = ActivationTraits::masked_score;
 
     static_assert(CK_TILE_FMHA_FWD_FAST_EXP2,
                   "qr_tdm_sched: every softmax site calls exp2, so log2(e) must be folded into "
@@ -185,7 +197,8 @@ struct BlockFmhaPipelineQRKSVSTdmSched
         void* __restrict__ smem_ptrk1,
         void* __restrict__ smem_ptrv0,
         void* __restrict__ smem_ptrv1,
-        float sink_v) const
+        float sink_v,
+        bool lse_log2) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -299,7 +312,9 @@ struct BlockFmhaPipelineQRKSVSTdmSched
 
                     if(__builtin_isinf_sign(sink_v) >= 0)
                     {
-                        set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
+                        set_tile(
+                            lse_acc,
+                            SMPLComputeDataType{fmha_lse_from_natural(sink_v * scale_s, lse_log2)});
                     }
                     else
                     {
@@ -507,8 +522,11 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                 constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
 
                 auto rescale_fragment = [&](auto ordinal) {
-                    Policy::template RescaleOutputFragment<decltype(ordinal)::value>(
-                        o_acc, pv_output_scale_m0, pv_output_scale_m1);
+                    if constexpr(kIsSoftmax)
+                        Policy::template RescaleOutputFragment<decltype(ordinal)::value>(
+                            o_acc, pv_output_scale_m0, pv_output_scale_m1);
+                    else
+                        ignore = ordinal;
                 };
                 Schedule::template RunPvStagePrelude<Mode, decltype(stage)::value>(
                     [&](auto ordinal) { rescale_fragment(ordinal); });
@@ -734,13 +752,14 @@ struct BlockFmhaPipelineQRKSVSTdmSched
 
                     if(__builtin_expect(need_split_check || need_mask_check, false))
                     {
-                        set_tile_if(
-                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                                const auto row = q_origin.at(I0) + tile_idx.at(I0);
-                                const auto col = k_origin.at(I0) + tile_idx.at(I1);
-                                return (need_split_check && physical_seqlen_k_end <= col) ||
-                                       (need_mask_check && mask.IsOutOfBound(row, col));
-                            });
+                        set_tile_if(s_acc,
+                                    type_convert<SMPLComputeDataType>(kMaskedScore),
+                                    [&](auto tile_idx) {
+                                        const auto row = q_origin.at(I0) + tile_idx.at(I0);
+                                        const auto col = k_origin.at(I0) + tile_idx.at(I1);
+                                        return (need_split_check && physical_seqlen_k_end <= col) ||
+                                               (need_mask_check && mask.IsOutOfBound(row, col));
+                                    });
                     }
                 }
                 else
@@ -756,7 +775,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                         {
                             set_tile_if(
                                 s_acc,
-                                -numeric<SMPLComputeDataType>::infinity(),
+                                type_convert<SMPLComputeDataType>(kMaskedScore),
                                 [&, physical_seqlen_k_end_ = physical_seqlen_k_end](auto tile_idx) {
                                     const auto col = k_origin.at(I0) + tile_idx.at(I1);
 
@@ -775,7 +794,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                         {
                             set_tile_if(
                                 s_acc,
-                                -numeric<SMPLComputeDataType>::infinity(),
+                                type_convert<SMPLComputeDataType>(kMaskedScore),
                                 [&](auto tile_idx) {
                                     const auto row = q_origin.at(I0) + tile_idx.at(I0);
                                     const auto col = k_origin.at(I0) + tile_idx.at(I1);
@@ -815,6 +834,22 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                     static_assert(kNWarp == 1);
                     static_assert(std::is_same_v<SaccDataType, float> &&
                                   std::is_same_v<SMPLComputeDataType, float>);
+                    if constexpr(!kIsSoftmax)
+                    {
+                        // GDPA: P = act(scale_s S) in place, on the softmax's schedule slots
+                        Schedule::template RunSplitSoftmax<Mode>(
+                            [&]() {
+                                tile_elementwise_inout(
+                                    [&](auto& x) {
+                                        x = attention_activation<Activation>(x, scale_s);
+                                    },
+                                    s_new);
+                            },
+                            [&]() { s_wait_tensorcnt_barrier<Policy::kVPrefetchTensorCount>(); },
+                            [&](auto) {},
+                            [&](auto) {});
+                        return MakePForGemm1<decltype(gemm_1)>(s_new);
+                    }
                     float delta_m0;
                     float delta_m1;
                     Schedule::template RunSplitSoftmax<Mode>(
@@ -920,36 +955,38 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                                  BiasEnum == BlockAttentionBiasEnum::ALIBI)
                     {
-                        lse_acc(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                        lse_acc(i_idx) = fmha_lse(m_[i_idx], l_[i_idx], lse_log2);
                     }
                     else
                     {
-                        lse_acc(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                        lse_acc(i_idx) = fmha_lse(m_[i_idx] * scale_s, l_[i_idx], lse_log2);
                     }
                 });
 
                 store_tile(lse_acc_dram_window_tmp, lse_acc);
             }
 
-            sweep_tile_span(o_spans[I0], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
-                const auto tmp       = [&]() {
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 FmhaMask::IsMasking)
-                    {
-                        return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
-                    }
-                    else
-                        return 1 / l[i_idx];
-                }();
-                sweep_tile_span(o_spans[I1], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    output(i_j_idx) *= tmp;
+            if constexpr(kIsSoftmax)
+                sweep_tile_span(o_spans[I0], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+                    const auto tmp       = [&]() {
+                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                     FmhaMask::IsMasking)
+                        {
+                            return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
+                        }
+                        else
+                            return 1 / l[i_idx];
+                    }();
+                    sweep_tile_span(o_spans[I1], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        output(i_j_idx) *= tmp;
+                    });
                 });
-            });
         };
 
-        if constexpr(kEnableVirtualSink && BiasEnum == BlockAttentionBiasEnum::NO_BIAS)
+        if constexpr(kEnableVirtualSink && kIsSoftmax &&
+                     BiasEnum == BlockAttentionBiasEnum::NO_BIAS)
         {
             if(__builtin_isinf_sign(sink_v) != -1)
             {
@@ -964,12 +1001,12 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                     if(__builtin_isnan(sink_natural))
                     {
                         output_scale = sink_natural;
-                        merged_lse   = sink_natural;
+                        merged_lse   = fmha_lse_from_natural(sink_natural, lse_log2);
                     }
                     else if(l[i_idx] == 0.f || __builtin_isinf_sign(sink_natural) > 0)
                     {
                         output_scale = 0.f;
-                        merged_lse   = sink_natural;
+                        merged_lse   = fmha_lse_from_natural(sink_natural, lse_log2);
                     }
                     else
                     {
@@ -979,7 +1016,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                         const float sink_weight = SplitSoftmax::Exp2(sink_log2 - merged_max);
                         const float merged_sum = __builtin_fmaf(l[i_idx], real_weight, sink_weight);
                         output_scale           = real_weight / merged_sum;
-                        merged_lse             = merged_max / C_LOG2E + log(merged_sum);
+                        merged_lse             = fmha_lse(merged_max, merged_sum, lse_log2);
                     }
                     if constexpr(kStoreLSE)
                         lse_acc(i_idx) = merged_lse;
@@ -1034,7 +1071,8 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                                         void* smem_ptrk0,
                                         void* smem_ptrk1,
                                         void* smem_ptrv0,
-                                        void* smem_ptrv1) const
+                                        void* smem_ptrv1,
+                                        bool lse_log2 = false) const
     {
         return run(q_dram_block_window_tmp,
                    k_dram_block_window_tmp,
@@ -1048,7 +1086,8 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                    smem_ptrk1,
                    smem_ptrv0,
                    smem_ptrv1,
-                   sink_v);
+                   sink_v,
+                   lse_log2);
     }
 };
 

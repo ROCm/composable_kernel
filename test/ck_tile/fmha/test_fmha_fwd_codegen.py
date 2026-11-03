@@ -77,11 +77,17 @@ def _is_family_kernel(kernel):
 
 # These stubs provide types and unique launch IDs only. All selection predicates,
 # branch ordering, and v3/v2 fallback come from the renderer.
+def _softmax(kernels):
+    """The softmax kernels: GDPA's (a non-softmax activation) share their other traits."""
+    return [k for k in kernels if k.F_pipeline.F_activation == "softmax"]
+
+
 _HOST_HIP_STUB = """#pragma once
 #include <cstdlib>
 constexpr int hipSuccess = 0;
 struct hipDeviceProp_t { unsigned multiProcessorCount = 256; };
 inline int hipGetDevice(int* device) { *device = 0; return hipSuccess; }
+inline int hipGetDeviceCount(int* count) { *count = 1; return hipSuccess; }
 inline int hipGetDeviceProperties(hipDeviceProp_t* props, int) {
     const char* value = std::getenv("FMHA_TEST_NUM_CUS");
     if(value != nullptr) props->multiProcessorCount = std::atoi(value);
@@ -105,6 +111,7 @@ enum class BlockFmhaPipelineEnum { QRKSVS, QRKSVS_TDM, QRKSVS_TDM_SCHED, QRKSVS_
                                   QRKSVS_TDM_KVSHARED };
 enum class BlockAttentionBiasEnum { NO_BIAS, ELEMENTWISE_BIAS, ALIBI };
 enum class BlockAttentionQuantScaleEnum { NO_SCALE, PERTENSOR, BLOCKSCALE, KV_BLOCKSCALE, MX };
+enum class BlockAttentionActivationEnum { SOFTMAX, FAST_GELU };
 }
 enum class mask_enum { no_mask, mask_top_left, mask_bottom_right, window_generic };
 enum class bias_enum { no_bias, elementwise_bias, alibi };
@@ -118,7 +125,8 @@ struct FmhaMasks {
 };
 inline constexpr ck_tile::index_t fmha_fwd_largest_n_tile_size = 128;
 template <int, typename, bool, int, int, int, int, int, int, bool, auto, bool,
-          typename, auto, bool, bool, auto, bool, bool, bool, bool, bool, bool, bool, int = -1>
+          typename, auto, bool, bool, auto, bool, bool, bool, bool, bool, bool, bool, int = -1,
+          ck_tile::BlockAttentionActivationEnum = ck_tile::BlockAttentionActivationEnum::SOFTMAX>
 struct fmha_fwd_traits_ {};
 struct fmha_fwd_traits {
     int hdim_q = 192, hdim_v = 128;
@@ -129,6 +137,8 @@ struct fmha_fwd_traits {
     bool has_lse = false, has_dropout = false;
     quant_scale_enum qscale_type = quant_scale_enum::no_scale;
     bool skip_min_seqlen_q = false, has_sink = false;
+    ck_tile::BlockAttentionActivationEnum activation =
+        ck_tile::BlockAttentionActivationEnum::SOFTMAX;
 };
 struct fmha_fwd_args {
     int hdim_q = 192, hdim_v = 128, seqlen_q = 128, max_seqlen_q = 128, seqlen_k = 128;
@@ -142,6 +152,8 @@ struct fmha_fwd_args {
     const void* v_ptr = nullptr;
     int stride_k = 256, stride_v = 256, nhead_stride_k = 128, nhead_stride_v = 128;
     int batch_stride_k = 32768, batch_stride_v = 32768;
+    bool broadcast_q = false;
+    bool lse_log2 = false;
 };
 template <typename Trait, typename Arch> struct dispatch_id;
 template <typename Trait, typename Arch>
@@ -155,13 +167,18 @@ _HOST_MAIN = """
 int main() {
     fmha_fwd_traits t;
     fmha_fwd_args a;
-    int mask, bias, scale, arg_q, arg_v, max_q, has_cu_sk, has_sk_ptr, has_sink_ptr, kv_shared;
+    int mask, bias, scale, arg_q, arg_v, max_q, has_cu_sk, has_sk_ptr, has_sink_ptr, kv_shared,
+        activation, broadcast_q, lse_log2;
     if(!(std::cin >> t.hdim_q >> t.hdim_v >> a.seqlen_q >> a.seqlen_k
          >> t.is_group_mode >> t.is_v_rowmajor >> t.has_logits_soft_cap >> mask >> bias
          >> t.has_lse >> t.has_dropout >> scale >> t.skip_min_seqlen_q >> t.has_sink
          >> t.data_type >> arg_q >> arg_v >> max_q >> a.batch >> a.nhead_q
          >> a.nhead_k >> a.window_size_left >> a.window_size_right
-         >> has_cu_sk >> has_sk_ptr >> has_sink_ptr >> kv_shared)) return 2;
+         >> has_cu_sk >> has_sk_ptr >> has_sink_ptr >> kv_shared >> activation
+         >> broadcast_q >> lse_log2)) return 2;
+    a.broadcast_q = broadcast_q;
+    a.lse_log2 = lse_log2;
+    t.activation = static_cast<ck_tile::BlockAttentionActivationEnum>(activation);
     t.mask_type = static_cast<mask_enum>(mask);
     t.bias_type = static_cast<bias_enum>(bias);
     t.qscale_type = static_cast<quant_scale_enum>(scale);
@@ -247,6 +264,9 @@ class _CompiledDispatcher:
                 return kernel.F_pipeline.tag
             return getattr(kernel.F_pipeline, "F_" + name)
 
+        fields.setdefault(
+            "activation", "softmax"
+        )  # GDPA instances share the other traits
         matches = {
             index
             for kernel, index in self.kernel_ids
@@ -287,6 +307,9 @@ class _CompiledDispatcher:
             has_sk_ptr=0,
             has_sink_ptr=0,
             kv_shared=0,
+            activation=0,  # BlockAttentionActivationEnum: 0 softmax, 1 fast_gelu
+            broadcast_q=0,
+            lse_log2=0,
         )
         if changes.keys() - case.keys():
             raise ValueError(
@@ -1216,6 +1239,7 @@ class TestGfx125V128Codegen(unittest.TestCase):
         _, kernels = get_fwd_blobs(
             ["gfx1250"], f"*{dtype}*_qr_tdm_sched_*", receipt, dimensions, "simplified"
         )
+        kernels = _softmax(kernels)
         selected_dims = (
             {64, 128, 192}
             if dimensions == [-1]
@@ -1272,6 +1296,7 @@ class TestGfx125V128Codegen(unittest.TestCase):
             pool, kernels = get_fwd_blobs(
                 ["gfx1250"], f"*d64_{dtype}*_qr_tdm_sched_*", 600, [64], "simplified"
             )
+            kernels = _softmax(kernels)
             self.assertEqual(len(kernels), 12)
             for kernel in kernels:
                 self.assertEqual(kernel.F_tile.F_bm0, 128)
@@ -1300,6 +1325,7 @@ class TestGfx125V128Codegen(unittest.TestCase):
         pool, kernels = get_fwd_blobs(
             ["gfx1250"], f"*d128_{dtype}*_qr_tdm_sched_*", receipt, [128], "simplified"
         )
+        kernels = _softmax(kernels)
         family = [k for k in kernels if k.F_pipeline.tag == "qr_tdm_sched"]
         self.assertEqual(len(family), count)
         self.assertEqual(len(family), len(kernels))
@@ -1323,7 +1349,7 @@ class TestGfx125V128Codegen(unittest.TestCase):
                 ["gfx1250"], f"*{dtype}*", 600, [128, 192], "simplified"
             )
             kernels.extend(selected)
-        family = [k for k in kernels if k.F_pipeline.tag == "qr_tdm_sched"]
+        family = [k for k in _softmax(kernels) if k.F_pipeline.tag == "qr_tdm_sched"]
         self.assertEqual(len(family), 48)
         rule = KernelComponentFactoryGfx125.get_rules()[-1]
         for kernel in family:
@@ -1932,18 +1958,26 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
             if k.F_pipeline.tag == "qr_tdm_sched"
         }
         square = dict(seqlen_q=532, seqlen_k=532)
+        # qr_tdm_pingpong takes few keys (an average of 384 at most); not a tile multiple
+        short = dict(seqlen_q=532, seqlen_k=300)
         causal = dict(mask=1, window_size_left=-1, window_size_right=0)
         # 1280 x 2 (batch, head) pairs: 10 per num_cus (256).
         big = dict(batch=1280, nhead_q=2, nhead_k=2)
 
         # On a big grid below 640 rows. The unpadded instance serves any seqlen_k,
         # except with an elementwise bias, which still needs a tile multiple.
-        self.assertEqual(run(**square, **big), [kernel("qr_tdm_pingpong", 64)])
+        self.assertEqual(run(**short, **big), [kernel("qr_tdm_pingpong", 64)])
+        # Many keys go to qr_tdm_sched on the same grid, where it applies (no bias or sink).
+        self.assertIn(run(**square, **big)[0], sched_ids)
+        self.assertIn(run(seqlen_q=532, seqlen_k=385, **big)[0], sched_ids)
+        self.assertEqual(
+            run(seqlen_q=532, seqlen_k=384, **big), [kernel("qr_tdm_pingpong", 64)]
+        )
         # Up to 16 rows the 16-row tile, under the same grid condition (one m-tile:
         # 1280 x 2 blocks, and 1792 x 1 at 32 rows).
         for length, bm0 in ((8, 16), (16, 16), (17, 64)):
             self.assertEqual(
-                run(seqlen_q=length, seqlen_k=532, **big),
+                run(seqlen_q=length, seqlen_k=300, **big),
                 [kernel("qr_tdm_pingpong", bm0)],
             )
         self.assertEqual(
@@ -1960,7 +1994,7 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
             [kernel("qr_tdm_pingpong", 64, bias="bias")],
         )
         self.assertEqual(
-            run(**square, **causal, **big),
+            run(**short, **causal, **big),
             [kernel("qr_tdm_pingpong", 64, mask="causal")],
         )
         # qr_tdm_sched below 640 rows on small grids and from 640 rows on any grid;
@@ -1968,10 +2002,10 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
         self.assertIn(run(**square)[0], sched_ids)
         # The grid threshold, 2 (batch, head) pairs per num_cus: 256 x 2 >= 2 x 256.
         self.assertEqual(
-            run(**square, batch=256, nhead_q=2, nhead_k=2),
+            run(**short, batch=256, nhead_q=2, nhead_k=2),
             [kernel("qr_tdm_pingpong", 64)],
         )
-        self.assertIn(run(**square, batch=255, nhead_q=2, nhead_k=2)[0], sched_ids)
+        self.assertIn(run(**short, batch=255, nhead_q=2, nhead_k=2)[0], sched_ids)
         # Not a block count: 16 x 16 heads of 512 rows (2048 bm0=64 blocks) stay on
         # qr_tdm_sched.
         self.assertIn(
@@ -1986,9 +2020,9 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
         # Below 128 rows qr_tdm_pingpong needs the big grid too; on a small one qr_tdm
         # keeps its bm0=64 tile.
         self.assertEqual(
-            run(seqlen_q=100, seqlen_k=512, **big), [kernel("qr_tdm_pingpong", 64)]
+            run(seqlen_q=100, seqlen_k=256, **big), [kernel("qr_tdm_pingpong", 64)]
         )
-        self.assertEqual(run(seqlen_q=100, seqlen_k=512), [kernel("qr_tdm", 64)])
+        self.assertEqual(run(seqlen_q=100, seqlen_k=256), [kernel("qr_tdm", 64)])
 
     def test_d128_kvshared_tiles(self):
         # qr_tdm_kvshared runs on its own d128/d256 fp16/bf16 16-row tiles only.
@@ -2057,6 +2091,237 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
             [kernel("qr_tdm_pingpong", 64)],
         )
         self.assertEqual(run(seqlen_q=8, seqlen_k=512), [kernel("qr_tdm", 64)])
+
+
+class TestCompiledGfx125PingpongHeadDims(unittest.TestCase):
+    """Softmax qr_tdm_pingpong at d64 and d256: the K-length rule applies where qr_tdm_sched exists."""
+
+    def dispatcher(self, hdim):
+        pool, kernels = get_fwd_blobs(
+            ["gfx1250"],
+            f"fmha_fwd_d{hdim}_bf16_batch*_nlogits*_nbias*_ndropout*_nskip*_nqscale*_ntrload*_nsink*",
+            0,
+            [hdim],
+            "simplified",
+        )
+        dispatch = _CompiledDispatcher(self, pool, kernels)
+
+        def ids(pipeline):
+            return {
+                index
+                for k, index in dispatch.kernel_ids
+                if k.F_pipeline.tag == pipeline
+                and k.F_pipeline.F_activation == "softmax"
+            }
+
+        def run(**changes):
+            return dispatch.run(
+                hdim_q=hdim, hdim_v=hdim, batch=1280, nhead_q=2, nhead_k=2, **changes
+            )[0]
+
+        return run, ids
+
+    def test_d256_has_no_sched_so_pingpong_keeps_long_keys(self):
+        run, ids = self.dispatcher(256)
+        for seqlen_q, seqlen_k in ((532, 256), (532, 2048), (128, 4096), (100, 2048)):
+            self.assertIn(
+                run(seqlen_q=seqlen_q, seqlen_k=seqlen_k), ids("qr_tdm_pingpong")
+            )
+        self.assertIn(run(seqlen_q=640, seqlen_k=640), ids("qr_tdm"))
+
+    def test_d64_sched_from_128_rows_pingpong_below(self):
+        run, ids = self.dispatcher(64)
+        self.assertIn(run(seqlen_q=532, seqlen_k=2048), ids("qr_tdm_sched"))
+        self.assertIn(run(seqlen_q=100, seqlen_k=2048), ids("qr_tdm_pingpong"))
+        self.assertIn(run(seqlen_q=16, seqlen_k=256), ids("qr_tdm_pingpong"))
+
+
+class TestGfx125GdpaCodegen(unittest.TestCase):
+    """GDPA, P = act(scale * Q K^T) with no softmax, on qr_tdm, qr_tdm_pingpong and qr_tdm_sched."""
+
+    def gdpa_kernels(self, dtype, receipt, dims):
+        _, kernels = get_fwd_blobs(
+            ["gfx1250"], f"*{dtype}*", receipt, dims, "simplified"
+        )
+        return [k for k in kernels if k.F_pipeline.F_activation == "fast_gelu"]
+
+    def test_instances(self):
+        for dtype in ("fp16", "bf16"):
+            for receipt in (0, 5):
+                with self.subTest(dtype=dtype, receipt=receipt):
+                    kernels = self.gdpa_kernels(dtype, receipt, [64, 128, 192, 256])
+                    pipelines = {(k.F_hdim, k.F_pipeline.tag) for k in kernels}
+                    self.assertEqual(
+                        pipelines,
+                        {(d, "qr_tdm") for d in (64, 128, 256)}
+                        | {(d, "qr_tdm_pingpong") for d in (64, 128, 256)}
+                        | {(d, "qr_tdm_sched") for d in (64, 128)},
+                    )
+                    for kernel in kernels:
+                        pipeline = kernel.F_pipeline
+                        self.assertEqual(pipeline.F_lse, "f")
+                        self.assertEqual(pipeline.F_bias, "no")
+                        self.assertEqual(pipeline.F_dropout, "f")
+                        self.assertEqual(pipeline.F_sink, "f")
+                        self.assertEqual(pipeline.F_logits, "f")
+                        self.assertEqual(pipeline.F_mask, "s_no")
+                        self.assertIn("_fast_gelu", kernel.name)
+                        self.assertIn(
+                            "BlockAttentionActivationEnum::FAST_GELU", kernel.render()
+                        )
+                        if kernel.F_mode == "group":
+                            self.assertEqual(pipeline.F_spad, "t")
+                        if (kernel.F_hdim, pipeline.tag) == (128, "qr_tdm_sched"):
+                            # the validated d128 sched specialization pads Q and K
+                            self.assertEqual(pipeline.F_spad, "t")
+                    names = [k.name for k in kernels]
+                    self.assertEqual(len(names), len(set(names)))
+
+    def test_only_gdpa_receipts_emit_it(self):
+        # the integrations behind the other receipts never set traits.activation
+        for receipt in (3, 4, 100, 200, 600):
+            with self.subTest(receipt=receipt):
+                self.assertEqual(self.gdpa_kernels("bf16", receipt, [64, 128, 256]), [])
+
+    def test_gdpa_instances_twin_softmax_ones(self):
+        # Each GDPA instance is a softmax instance's twin: the same name and trait but for the
+        # activation, so GDPA adds instances and changes none of softmax's.
+        _, kernels = get_fwd_blobs(["gfx1250"], "*bf16*", 0, [128], "simplified")
+        softmax = {k.name for k in kernels if k.F_pipeline.F_activation == "softmax"}
+        gdpa = [k for k in kernels if k.F_pipeline.F_activation != "softmax"]
+        self.assertTrue(gdpa)
+        for kernel in gdpa:
+            with self.subTest(kernel=kernel.name):
+                self.assertIn("fast_gelu", kernel.api_trait().name)
+                self.assertIn(kernel.name.replace("_fast_gelu", ""), softmax)
+
+
+class TestCompiledGfx125GdpaDispatch(unittest.TestCase):
+    def dispatcher(self, mode_glob="*"):
+        pool, kernels = get_fwd_blobs(
+            ["gfx1250"],
+            f"fmha_fwd_d128_bf16_{mode_glob}*_nlogits*_nbias*_ndropout*_nskip*_nqscale*_ntrload*_nsink*",
+            0,
+            [128],
+            "simplified",
+        )
+        dispatch = _CompiledDispatcher(self, pool, kernels)
+
+        def ids(pipeline, activation, bm0=None, mode=None):
+            return {
+                index
+                for k, index in dispatch.kernel_ids
+                if k.F_pipeline.tag == pipeline
+                and k.F_pipeline.F_activation == activation
+                and (bm0 is None or k.F_tile.F_bm0 == bm0)
+                and (mode is None or k.F_mode == mode)
+            }
+
+        def run(**changes):
+            return dispatch.run(hdim_q=128, hdim_v=128, **changes)[0]
+
+        return run, ids
+
+    def test_batch_routes_by_keys(self):
+        run, ids = self.dispatcher()
+        gelu = dict(activation=1)
+        # few keys (at most 512 per batch): qr_tdm_pingpong, the 16-row tile up to 16 rows
+        self.assertIn(
+            run(seqlen_q=532, seqlen_k=256, **gelu),
+            ids("qr_tdm_pingpong", "fast_gelu", 64),
+        )
+        self.assertIn(
+            run(seqlen_q=532, seqlen_k=512, **gelu),
+            ids("qr_tdm_pingpong", "fast_gelu", 64),
+        )
+        self.assertIn(
+            run(seqlen_q=8, seqlen_k=256, **gelu),
+            ids("qr_tdm_pingpong", "fast_gelu", 16),
+        )
+        # many keys: qr_tdm_sched from 128 rows, qr_tdm below (as for softmax)
+        self.assertIn(
+            run(seqlen_q=532, seqlen_k=513, **gelu), ids("qr_tdm_sched", "fast_gelu")
+        )
+        self.assertIn(
+            run(seqlen_q=4096, seqlen_k=8192, **gelu), ids("qr_tdm_sched", "fast_gelu")
+        )
+        self.assertIn(
+            run(seqlen_q=100, seqlen_k=1024, **gelu), ids("qr_tdm", "fast_gelu")
+        )
+
+    def test_group_routes_by_average_keys(self):
+        run, ids = self.dispatcher("group")
+        group = dict(
+            group=1, activation=1, batch=8, seqlen_q=8 * 5000, max_seqlen_q=5000
+        )
+        # group mode: seqlen_k is the total over the batch
+        self.assertIn(
+            run(seqlen_k=8 * 256, **group), ids("qr_tdm_pingpong", "fast_gelu", 64)
+        )
+        self.assertIn(run(seqlen_k=8 * 4096, **group), ids("qr_tdm_sched", "fast_gelu"))
+
+    def test_gdpa_and_softmax_never_cross(self):
+        run, ids = self.dispatcher()
+        gdpa = set().union(
+            *(
+                ids(p, "fast_gelu")
+                for p in ("qr_tdm", "qr_tdm_pingpong", "qr_tdm_sched")
+            )
+        )
+        big = dict(batch=1280, nhead_q=2, nhead_k=2)
+        for shape in (
+            dict(seqlen_q=532, seqlen_k=256),
+            dict(seqlen_q=532, seqlen_k=4096),
+        ):
+            self.assertIn(run(activation=1, **shape, **big), gdpa)
+            self.assertNotIn(run(activation=0, **shape, **big), gdpa)
+            self.assertNotIn(run(activation=0, lse=1, **shape, **big), gdpa)
+
+    def test_gdpa_rejects_softmax_only_features(self):
+        run, _ = self.dispatcher()
+        for feature in (
+            dict(lse=1),
+            dict(mask=1, window_size_left=-1, window_size_right=0),
+        ):
+            self.assertLess(run(activation=1, seqlen_q=532, seqlen_k=256, **feature), 0)
+
+
+class TestCompiledGfx125ForwardOptionDispatch(unittest.TestCase):
+    """broadcast_q and lse_log2 reach only the kernels that serve them."""
+
+    SHAPE = dict(hdim_q=128, hdim_v=128, seqlen_q=512, seqlen_k=1024)
+
+    def dispatcher(self, name_glob):
+        pool, kernels = get_fwd_blobs(["gfx1250"], name_glob, 0, [128], "simplified")
+        return _CompiledDispatcher(self, pool, kernels)
+
+    def test_lse_log2_only_on_kernels_that_store_it(self):
+        dispatch = self.dispatcher(
+            "fmha_fwd_d128_bf16_batch*_nlogits*_nbias*_nmask*_nskip*_nqscale*_ntrload*_nsink*"
+        )
+        qr_tdm_family = {
+            index
+            for kernel, index in dispatch.kernel_ids
+            if kernel.F_pipeline.tag.startswith("qr_tdm")
+        }
+        (selected,) = dispatch.run(lse=1, lse_log2=1, **self.SHAPE)
+        self.assertIn(selected, qr_tdm_family)
+        # dropout runs on qr, which stores the natural log: no kernel takes lse_log2 there (the
+        # bindings rescale the LSE instead)
+        self.assertGreaterEqual(dispatch.run(lse=1, dropout=1, **self.SHAPE)[0], 0)
+        self.assertLess(dispatch.run(lse=1, dropout=1, lse_log2=1, **self.SHAPE)[0], 0)
+        # without an LSE to store, lse_log2 changes nothing
+        self.assertEqual(dispatch.run(lse_log2=1, **self.SHAPE), dispatch.run(**self.SHAPE))
+
+    def test_broadcast_q_only_in_group_mode(self):
+        dispatch = self.dispatcher(
+            "fmha_fwd_d128_bf16_*_nlogits*_nbias*_nmask*_nlse*_ndropout*_nskip*_nqscale*_ntrload*_nsink*"
+        )
+        group = dispatch.run(group=1, **self.SHAPE)
+        self.assertGreaterEqual(group[0], 0)
+        self.assertEqual(dispatch.run(group=1, broadcast_q=1, **self.SHAPE), group)
+        self.assertGreaterEqual(dispatch.run(**self.SHAPE)[0], 0)
+        self.assertLess(dispatch.run(broadcast_q=1, **self.SHAPE)[0], 0)
 
 
 if __name__ == "__main__":
