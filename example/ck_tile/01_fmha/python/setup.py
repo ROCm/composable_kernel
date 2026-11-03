@@ -3,6 +3,7 @@
 
 """Build the bindings with PyTorch and the kernels with CK's FMHA CMake targets."""
 
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -60,6 +61,20 @@ def update_file(path, content):
         path.write_bytes(content)
 
 
+def ck_api_digest(root):
+    """A digest of the headers the bindings compile against: their own (csrc), the FMHA API
+    structs (fmha_fwd_args, fmha_fwd_traits, ...) and all of ck_tile (12 MB, well under a
+    second)."""
+    digest = hashlib.sha256()
+    headers = sorted((PACKAGE_ROOT / "csrc").glob("*.hpp"))
+    headers += sorted((root / "example/ck_tile/01_fmha").glob("*.hpp"))
+    headers += sorted((root / "include/ck_tile").rglob("*.hpp"))
+    for header in headers:
+        digest.update(str(header.relative_to(root)).encode())
+        digest.update(header.read_bytes())
+    return digest.hexdigest()
+
+
 class FmhaBuildExtension(BuildExtension):
     def build_extensions(self):
         if torch.version.hip is None or ROCM_HOME is None:
@@ -93,7 +108,14 @@ class FmhaBuildExtension(BuildExtension):
             f"-DPython3_EXECUTABLE={sys.executable}",
             f"-DCK_ROOT={root}",
             f"-DTORCH_CXX11_ABI={int(torch._C._GLIBCXX_USE_CXX11_ABI)}",
-        ] + shlex.split(os.environ.get("CK_TILE_FMHA_CMAKE_ARGS", ""))
+        ]
+        if os.environ.get("CK_TILE_FMHA_INFERENCE_ONLY") == "1":
+            # forward kernels without dropout: no backward, no dropout's training-only variants
+            cmake_args += [
+                "-DFMHA_BWD_INSTANCE_FILTER=none@none@none",
+                "-DFMHA_FWD_INSTANCE_FILTER=*_ndropout_*",
+            ]
+        cmake_args += shlex.split(os.environ.get("CK_TILE_FMHA_CMAKE_ARGS", ""))
         subprocess.run(cmake_args, check=True)
         jobs = str(self.parallel or os.environ.get("MAX_JOBS", min(8, os.cpu_count() or 1)))
         subprocess.run(
@@ -113,6 +135,18 @@ class FmhaBuildExtension(BuildExtension):
             update_file(destination, source.read_bytes())
             if source.suffix == ".cpp":
                 sources.append(str(destination))
+        # Ninja tracks the hipified copies (*.hip), not the headers they include (the bindings'
+        # own and CK's), and hipify rewrites a copy only when it changes. When those headers
+        # change (say a new fmha_fwd_args member), drop the hipified copies so every binding
+        # recompiles: one left built against the old struct layout would read the new members
+        # as garbage.
+        stamp = binding_dir / ".ck_api_digest"
+        digest = ck_api_digest(root)
+        if not stamp.exists() or stamp.read_text() != digest:
+            for copy in binding_dir.iterdir():
+                if copy.suffix == ".hip" or copy.name.endswith("_hip.hpp"):
+                    copy.unlink()
+            stamp.write_text(digest)
 
         definitions = ["-DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3"]
         if "gfx1250" in targets:
