@@ -115,7 +115,7 @@ struct BlockFmhaPipelineQRKSVSTdmSchedPolicy : BlockFmhaPipelineQRKSVSTdmDefault
                   "output fragments do not match the PV geometry");
 
     // Q is used only during the prologue. Its descriptor may span both K buffers
-    // when the KV tile is 64 rows; the LDS barrier precedes the K prologue.
+    // when the KV tile is 64 rows; the LDS barrier precedes the K loads that overwrite it.
     static_assert(Geometry::kM * Geometry::kHeadDimQK * sizeof(typename Geometry::QDataType) <=
                   2 * kKFootprintBytes);
     static_assert(kLdsOffsetK0 % 16 == 0 && kLdsOffsetK1 % 16 == 0 && kLdsOffsetV0 % 16 == 0 &&

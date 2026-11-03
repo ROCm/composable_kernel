@@ -1924,6 +1924,14 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                     f"{sched_seqlen_q} && "
                     f"t.hdim_q == {hdim} && t.hdim_v == {hdim_v}"
                 )
+                if hdim == 128:
+                    # O layouts the async O store (kUseAsyncLdsOStore) cannot address use qr_tdm.
+                    sched_constraint &= CppConstraint(
+                        "reinterpret_cast<uintptr_t>(a.o_ptr) % 16 == 0 && a.stride_o >= 0 && "
+                        "a.stride_o % 8 == 0 && a.nhead_stride_o % 8 == 0 && "
+                        "(t.is_group_mode || a.batch_stride_o % 8 == 0) && "
+                        "127 * static_cast<uint64_t>(a.stride_o) * 2 + 256 <= (uint64_t{1} << 32)"
+                    )
                 for mask, lse in itertools.product(
                     get_mask_map(mask_impl).keys(), ["t", "f"]
                 ):

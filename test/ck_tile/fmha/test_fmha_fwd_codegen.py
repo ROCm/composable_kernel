@@ -90,6 +90,7 @@ inline int hipGetDeviceProperties(hipDeviceProp_t* props, int) {
 """
 
 _HOST_FMHA_STUB = """#pragma once
+#include <cstdint>
 #include <cstdlib>
 #include <string>
 namespace ck_tile {
@@ -137,6 +138,8 @@ struct fmha_fwd_args {
     const void* sink_ptr = nullptr;
     const void* seqlen_k_ptr = nullptr;
     const void* cu_seqlen_k_ptr = nullptr;
+    const void* o_ptr = nullptr;
+    int stride_o = 1024, nhead_stride_o = 128, batch_stride_o = 262144;
 };
 template <typename Trait, typename Arch> struct dispatch_id;
 template <typename Trait, typename Arch>
@@ -150,13 +153,14 @@ _HOST_MAIN = """
 int main() {
     fmha_fwd_traits t;
     fmha_fwd_args a;
-    int mask, bias, scale, arg_q, arg_v, max_q, has_cu_sk, has_sk_ptr, has_sink_ptr;
+    int mask, bias, scale, arg_q, arg_v, max_q, has_cu_sk, has_sk_ptr, has_sink_ptr, o_offset;
     if(!(std::cin >> t.hdim_q >> t.hdim_v >> a.seqlen_q >> a.seqlen_k
          >> t.is_group_mode >> t.is_v_rowmajor >> t.has_logits_soft_cap >> mask >> bias
          >> t.has_lse >> t.has_dropout >> scale >> t.skip_min_seqlen_q >> t.has_sink
          >> t.data_type >> arg_q >> arg_v >> max_q >> a.batch >> a.nhead_q
          >> a.nhead_k >> a.window_size_left >> a.window_size_right
-         >> has_cu_sk >> has_sk_ptr >> has_sink_ptr)) return 2;
+         >> has_cu_sk >> has_sk_ptr >> has_sink_ptr >> o_offset >> a.stride_o
+         >> a.nhead_stride_o >> a.batch_stride_o)) return 2;
     t.mask_type = static_cast<mask_enum>(mask);
     t.bias_type = static_cast<bias_enum>(bias);
     t.qscale_type = static_cast<quant_scale_enum>(scale);
@@ -166,6 +170,7 @@ int main() {
     a.cu_seqlen_k_ptr = has_cu_sk ? &a : nullptr;
     a.seqlen_k_ptr = has_sk_ptr ? &a : nullptr;
     a.sink_ptr = has_sink_ptr ? &a : nullptr;
+    a.o_ptr = reinterpret_cast<const void*>(std::uintptr_t{4096} + o_offset);
     std::cout << fmha_fwd(t, a, {}) << '\\n';
 }
 """
@@ -278,6 +283,10 @@ class _CompiledDispatcher:
             has_cu_sk=0,
             has_sk_ptr=0,
             has_sink_ptr=0,
+            o_offset=0,
+            stride_o=1024,
+            nhead_stride_o=128,
+            batch_stride_o=262144,
         )
         if changes.keys() - case.keys():
             raise ValueError(
@@ -977,6 +986,47 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
                         seqlen_q=length,
                     ),
                     [selected],
+                )
+
+    def test_real_dispatch_d128_o_layout_fallback(self):
+        dispatch, _ = self.compile()
+        for mode, group in (("batch", 0), ("group", 1)):
+            sched = dispatch.expected_id(
+                mode=mode,
+                hdim=128,
+                pipeline="qr_tdm_sched",
+                mask="s_no",
+                lse="f",
+                sink="f",
+            )
+            fallback = dispatch.expected_id(
+                mode=mode,
+                hdim=128,
+                pipeline="qr_tdm",
+                bm0=128,
+                spad="t" if group else "f",
+                mask="s_no",
+                lse="f",
+                sink="f",
+                dpad="f",
+            )
+            rejected = [
+                dict(o_offset=2),
+                dict(stride_o=1028),
+                dict(nhead_stride_o=132),
+                dict(stride_o=-1024),
+                dict(stride_o=16909320),
+            ]
+            accepted = [dict(stride_o=16909312)]
+            (rejected if group == 0 else accepted).append(dict(batch_stride_o=262148))
+            for changes in rejected + accepted:
+                selected = fallback if changes in rejected else sched
+                self.assertEqual(
+                    dispatch.run(
+                        group=group, hdim_q=128, hdim_v=128, seqlen_q=2048, **changes
+                    ),
+                    [selected],
+                    changes,
                 )
 
     def test_real_dispatch_mask_lse_and_unsupported_features(self):

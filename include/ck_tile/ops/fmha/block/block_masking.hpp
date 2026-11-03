@@ -517,7 +517,7 @@ struct SimplifiedGenericAttentionMask
     }
 
     // A nonempty signed interval has the same membership under unsigned offsets.
-    CK_TILE_HOST_DEVICE constexpr bool IsOutOfBoundUnsigned(index_t i_y, index_t i_x) const
+    CK_TILE_DEVICE bool IsOutOfBoundUnsigned(index_t i_y, index_t i_x) const
     {
         if constexpr(!IsMasking)
         {
@@ -527,8 +527,11 @@ struct SimplifiedGenericAttentionMask
         {
             const index_t x_start = -y + i_y + 1;
             const index_t x_end   = min(i_y + x, x_total);
-            const uint32_t width =
+            uint32_t width =
                 i_y < y_total && x_start < x_end ? uint32_t(x_end) - uint32_t(x_start) : 0u;
+            // Blocks folding `d >= (c ? w : 0)` into `!c | (d >= w)`, a per-element SALU OR.
+            // Not volatile, so it stays row-invariant.
+            asm("" : "+v"(width));
             return uint32_t(i_x) - uint32_t(x_start) >= width;
         }
     }
