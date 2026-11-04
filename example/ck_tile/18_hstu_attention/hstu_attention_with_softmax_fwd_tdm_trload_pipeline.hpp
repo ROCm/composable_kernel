@@ -629,18 +629,14 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
 
+        // one reciprocal per row instead of a guarded division per element
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-            constexpr auto i_idx = make_tuple(idx0);
-            sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-                constexpr auto i_j_idx = make_tuple(idx0, idx1);
-
-                if(__builtin_expect(m[i_idx] == -numeric<CompDataType>::infinity(), 0)) // unlikely
-                {
-                    o_acc(i_j_idx) = 0.0f;
-                }
-                else
-                    o_acc(i_j_idx) *= 1.0f / l[i_idx];
-            });
+            constexpr auto i_idx     = make_tuple(idx0);
+            const CompDataType inv_l = m[i_idx] == -numeric<CompDataType>::infinity()
+                                           ? type_convert<CompDataType>(0.0f)
+                                           : rcp<CompDataType>(l[i_idx]);
+            sweep_tile_span(o_spans[number<1>{}],
+                            [&](auto idx1) { o_acc(make_tuple(idx0, idx1)) *= inv_l; });
         });
 
         return o_acc;
