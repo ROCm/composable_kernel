@@ -77,6 +77,8 @@ set(GROUPED_CONV2D_FWD_NHWGC
    xdl/merged_groups/device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_int8_instance.cpp
    xdl/wavelet/device_grouped_conv2d_fwd_xdl_wavelet_nhwgc_gkyxc_nhwgk_f16_instance.cpp
    xdl/wavelet/device_grouped_conv2d_fwd_xdl_wavelet_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
+   xdl/wavelet/device_grouped_conv2d_fwd_xdl_wavelet_direct_load_nhwgc_gkyxc_nhwgk_f16_instance.cpp
+   xdl/wavelet/device_grouped_conv2d_fwd_xdl_wavelet_direct_load_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
 )
 
 if((GPU_TARGETS MATCHES "gfx1250"))
