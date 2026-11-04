@@ -89,7 +89,14 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
         kPadHeadDimV ? kPadHeadDimV : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
         kPadHeadDimV ? kPadHeadDimV : Policy::template GetAlignmentOGrad<Problem>();
-    static constexpr index_t kAlignmentQGrad = 1;
+    // The TDM policy lays gemm_4's C out along hdim, so unpadded dQ can be
+    // stored 16 bytes at a time.
+    static constexpr index_t kAlignmentQGrad = [] {
+        if constexpr(Policy::kUsesTdm)
+            return Policy::template GetAlignmentQGradStore<Problem>();
+        else
+            return 1;
+    }();
     static constexpr index_t kAlignmentKGrad =
         kPadHeadDimQ ? kPadHeadDimQ : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
@@ -98,9 +105,32 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
 
     static constexpr const char* name = "trload_kr_ktr_vr";
 
+    // dK/dV leave through a double-buffered LDS stage and TDM stores, so the
+    // write of kv tile i overlaps the compute of tile i+1 and goes out as whole
+    // rows instead of one 16-byte store per lane and row.
+    static constexpr bool kTdmStoreDKDV =
+        Policy::kUsesTdm && std::is_same_v<KGradDataType, VGradDataType>;
+
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDKDVStage()
+    {
+        if constexpr(kTdmStoreDKDV)
+            return 2 * kN0 *
+                   (kQKHeaddim * sizeof(KGradDataType) + kVHeaddim * sizeof(VGradDataType));
+        else
+            return 0;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDKDVStageOffset()
+    {
+        return integer_least_multiple(Policy::template GetSmemSize<Problem>(), 128);
+    }
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return Policy::template GetSmemSize<Problem>();
+        if constexpr(kTdmStoreDKDV)
+            return GetSmemSizeDKDVStageOffset() + GetSmemSizeDKDVStage();
+        else
+            return Policy::template GetSmemSize<Problem>();
     }
 
     CK_TILE_HOST_DEVICE static LSEDataType get_validated_lse(const LSEDataType raw_lse)
@@ -446,6 +476,56 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                                                dv_dram_block_window_tmp.get_window_lengths(),
                                                {0, 0});
 
+        // dK/dV LDS stage: two [kN0, hdim] buffers per gradient, stacked along
+        // rows; the windows start on buffer 0 and flip after every store.
+        auto dkdv_stage = [&]() {
+            if constexpr(kTdmStoreDKDV)
+            {
+                auto* stage_base =
+                    reinterpret_cast<char*>(k_lds_ptr) + GetSmemSizeDKDVStageOffset();
+                // Unpadded rows: the TDM store reads LDS densely.
+                auto dk_stage = make_tensor_view<address_space_enum::lds>(
+                    reinterpret_cast<KGradDataType*>(stage_base),
+                    make_naive_tensor_descriptor(
+                        make_tuple(number<2 * kN0>{}, number<kQKHeaddim>{}),
+                        make_tuple(number<kQKHeaddim>{}, number<1>{}),
+                        number<16 / sizeof(KGradDataType)>{},
+                        number<1>{}));
+                auto dv_stage = make_tensor_view<address_space_enum::lds>(
+                    reinterpret_cast<VGradDataType*>(stage_base +
+                                                     2 * kN0 * kQKHeaddim * sizeof(KGradDataType)),
+                    make_naive_tensor_descriptor(make_tuple(number<2 * kN0>{}, number<kVHeaddim>{}),
+                                                 make_tuple(number<kVHeaddim>{}, number<1>{}),
+                                                 number<16 / sizeof(VGradDataType)>{},
+                                                 number<1>{}));
+                return make_tuple(
+                    make_tile_window(dk_stage,
+                                     make_tuple(number<kN0>{}, number<kQKHeaddim>{}),
+                                     {0, 0},
+                                     gemm_3.MakeCBlockTile().get_tile_distribution()),
+                    make_tile_window(
+                        dk_stage,
+                        make_tuple(number<kN0>{}, number<kQKHeaddim>{}),
+                        {0, 0},
+                        Policy::template MakeTdmDramTileDistribution<Problem, kN0, kQKHeaddim>()),
+                    make_tile_window(dv_stage,
+                                     make_tuple(number<kN0>{}, number<kVHeaddim>{}),
+                                     {0, 0},
+                                     gemm_1.MakeCBlockTile().get_tile_distribution()),
+                    make_tile_window(
+                        dv_stage,
+                        make_tuple(number<kN0>{}, number<kVHeaddim>{}),
+                        {0, 0},
+                        Policy::template MakeTdmDramTileDistribution<Problem, kN0, kVHeaddim>()));
+            }
+            else
+            {
+                return 0;
+            }
+        }();
+        index_t dkdv_stage_flip  = kN0; // row offset to the other stage buffer
+        bool dkdv_store_inflight = false;
+
         index_t i_total_loops  = 0;
         index_t seqlen_kv_step = seqlen_kv_start;
         static_assert(kQKHeaddim >= kK0, "kQKHeaddim should be equal or greater than kK0");
@@ -490,6 +570,23 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
         lse = load_tile(lse_lds_read_window);
         d   = load_tile(d_lds_read_window);
 
+        constexpr bool kPrefetchKV = Policy::kUsesTdm;
+        index_t kv_tiles_issued    = 0;
+        auto issue_kv_tile         = [&]() {
+            Policy::template LoadBlockToLds<KDataType, kQKHeaddim>(k_lds_write_window,
+                                                                   k_dram_window);
+            move_tile_window(k_dram_window, {kN0, 0});
+            Policy::template LoadBlockToLds<VDataType, kVHeaddim>(v_lds_write_window,
+                                                                  v_dram_window);
+            move_tile_window(v_dram_window, {kN0, 0});
+            kv_tiles_issued += 1;
+        };
+        if constexpr(kPrefetchKV)
+        {
+            block_sync_lds();
+            issue_kv_tile();
+        }
+
         auto main_body = [&](auto is_prologue_, auto is_epilogue_) mutable {
             constexpr bool is_prologue = is_prologue_.value;
             constexpr bool is_epilogue = is_epilogue_.value;
@@ -506,16 +603,35 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
 
             if constexpr(is_epilogue)
             {
-                Policy::template LoadBlockToLds<KDataType, kQKHeaddim>(k_lds_write_window,
-                                                                       k_dram_window);
-                move_tile_window(k_dram_window, {kN0, 0});
-                Policy::template LoadBlockToLds<VDataType, kVHeaddim>(v_lds_write_window,
-                                                                      v_dram_window);
-                move_tile_window(v_dram_window, {kN0, 0});
-                Policy::WaitBlockToLds();
+                if constexpr(!kPrefetchKV)
+                {
+                    Policy::template LoadBlockToLds<KDataType, kQKHeaddim>(k_lds_write_window,
+                                                                           k_dram_window);
+                    move_tile_window(k_dram_window, {kN0, 0});
+                    Policy::template LoadBlockToLds<VDataType, kVHeaddim>(v_lds_write_window,
+                                                                          v_dram_window);
+                    move_tile_window(v_dram_window, {kN0, 0});
+                }
+                if constexpr(kTdmStoreDKDV)
+                {
+                    if(dkdv_store_inflight)
+                        Policy::template WaitBlockToLds<2>();
+                    else
+                        Policy::WaitBlockToLds();
+                }
+                else
+                {
+                    Policy::WaitBlockToLds();
+                }
                 k_reg_tensor = load_tile(k_lds_read_window);
                 v_reg_tensor = load_tile(v_lds_read_window);
                 load_tile_transpose(kt_reg_tensor, kt_lds_read_window);
+                if constexpr(kPrefetchKV)
+                {
+                    block_sync_lds();
+                    if(kv_tiles_issued < num_total_loop)
+                        issue_kv_tile();
+                }
             }
             if constexpr(is_epilogue)
             {
@@ -744,20 +860,66 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                     tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
                 }
 
-                dk_epilogue(dk_dram_window, dk_acc, nullptr);
+                if constexpr(kTdmStoreDKDV)
+                {
+                    auto& [dk_in, dk_out, dv_in, dv_out] = dkdv_stage;
+                    store_tile(dk_in, CastTile<KGradDataType>(dk_acc));
+                    store_tile(dv_in, CastTile<VGradDataType>(dv_acc));
+                    block_sync_lds();
+                    TDMConfig tdm_cfg;
+                    store_tile_tdm(tdm_cfg, dk_dram_window, dk_out);
+                    store_tile_tdm(tdm_cfg, dv_dram_window, dv_out);
+                    dkdv_store_inflight = true;
+                    move_tile_window(dk_in, {dkdv_stage_flip, 0});
+                    move_tile_window(dk_out, {dkdv_stage_flip, 0});
+                    move_tile_window(dv_in, {dkdv_stage_flip, 0});
+                    move_tile_window(dv_out, {dkdv_stage_flip, 0});
+                    dkdv_stage_flip = -dkdv_stage_flip;
+                }
+                else
+                {
+                    dk_epilogue(dk_dram_window, dk_acc, nullptr);
+                    dv_epilogue(dv_dram_window, dv_acc, nullptr);
+                }
                 move_tile_window(dk_dram_window, {kN0, 0});
-                dv_epilogue(dv_dram_window, dv_acc, nullptr);
                 move_tile_window(dv_dram_window, {kN0, 0});
             }
         };
 
-        for(index_t i = 0; i < seqlen_kv_start; i += kN0)
-        {
-            dk_epilogue(dk_dram_window, decltype(gemm_3.MakeCBlockTile()){0}, nullptr);
-            move_tile_window(dk_dram_window, {kN0, 0});
-            dv_epilogue(dv_dram_window, decltype(gemm_1.MakeCBlockTile()){0}, nullptr);
-            move_tile_window(dv_dram_window, {kN0, 0});
-        }
+        auto zero_dkdv = [&](index_t from, index_t to) {
+            if constexpr(kTdmStoreDKDV)
+            {
+                if(from >= to)
+                    return;
+                auto& [dk_in, dk_out, dv_in, dv_out] = dkdv_stage;
+                s_wait_tensorcnt<0>();
+                store_tile(dk_in, CastTile<KGradDataType>(decltype(gemm_3.MakeCBlockTile()){0}));
+                store_tile(dv_in, CastTile<VGradDataType>(decltype(gemm_1.MakeCBlockTile()){0}));
+                block_sync_lds();
+                TDMConfig tdm_cfg;
+                for(index_t i = from; i < to; i += kN0)
+                {
+                    store_tile_tdm(tdm_cfg, dk_dram_window, dk_out);
+                    move_tile_window(dk_dram_window, {kN0, 0});
+                    store_tile_tdm(tdm_cfg, dv_dram_window, dv_out);
+                    move_tile_window(dv_dram_window, {kN0, 0});
+                }
+                s_wait_tensorcnt<0>();
+                block_sync_lds();
+            }
+            else
+            {
+                for(index_t i = from; i < to; i += kN0)
+                {
+                    dk_epilogue(dk_dram_window, decltype(gemm_3.MakeCBlockTile()){0}, nullptr);
+                    move_tile_window(dk_dram_window, {kN0, 0});
+                    dv_epilogue(dv_dram_window, decltype(gemm_1.MakeCBlockTile()){0}, nullptr);
+                    move_tile_window(dv_dram_window, {kN0, 0});
+                }
+            }
+        };
+
+        zero_dkdv(0, seqlen_kv_start);
 
         main_body(std::true_type{}, std::false_type{});
         // Hot loop
@@ -782,13 +944,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
             const auto seqlen_kv_length =
                 k_dram_block_window_tmp.get_bottom_tensor_view().get_tensor_descriptor().get_length(
                     number<0>{});
-            for(; seqlen_kv_step < seqlen_kv_length; seqlen_kv_step += kN0)
-            {
-                dk_epilogue(dk_dram_window, decltype(gemm_3.MakeCBlockTile()){0}, nullptr);
-                move_tile_window(dk_dram_window, {kN0, 0});
-                dv_epilogue(dv_dram_window, decltype(gemm_1.MakeCBlockTile()){0}, nullptr);
-                move_tile_window(dv_dram_window, {kN0, 0});
-            }
+            zero_dkdv(seqlen_kv_step, seqlen_kv_length);
         }
 
         // QGrad Scale
@@ -798,6 +954,11 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
         else
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
         dq_epilogue(dq_dram_window, dq_acc, nullptr);
+        if constexpr(kTdmStoreDKDV)
+        {
+            // The last dK/dV stores still read the LDS stage.
+            s_wait_tensorcnt<0>();
+        }
         return;
     }
 };

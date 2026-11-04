@@ -2544,35 +2544,37 @@ struct FmhaBwdOGradDotOKernel
                            batch_offset_lsed;
 
         // O/dO/D DRAM and DRAM window
-        const auto o_dram = [&]() {
+        const auto make_o_do_windows = [&](auto alignment) {
+            constexpr index_t kAlign = decltype(alignment)::value;
             // O is read once: load it non-temporally,
-            // except padded hdim (scalar loads reuse lines).
-            constexpr auto kOCoherence = kPadHeadDimV ? amd_buffer_coherence_enum::coherence_default
-                                                      : amd_buffer_coherence_enum::SYSTEM_NT1;
-
+            // except on the per-element path (scalar loads reuse lines).
+            constexpr auto kOCoherence = kAlign == 1 ? amd_buffer_coherence_enum::coherence_default
+                                                     : amd_buffer_coherence_enum::SYSTEM_NT1;
             auto o_dram_naive =
                 make_naive_tensor_view<address_space_enum::global,
                                        memory_operation_enum::set,
                                        kOCoherence>(o_ptr,
                                                     make_tuple(kargs.seqlen_q, kargs.hdim_v),
                                                     make_tuple(kargs.stride_o, 1),
-                                                    number<FmhaBwdOGradDotO::kAlignmentO>{},
+                                                    number<kAlign>{},
                                                     number<1>{});
-            return pad_tensor_view(o_dram_naive,
-                                   make_tuple(number<kM0>{}, number<kVHeaddim>{}),
-                                   sequence<kPadSeqLenQ, kPadHeadDimV>{});
-        }();
-        const auto do_dram = [&]() {
             auto do_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 do_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
                 make_tuple(kargs.stride_do, 1),
-                number<FmhaBwdOGradDotO::kAlignmentOGrad>{},
+                number<kAlign>{},
                 number<1>{});
-            return pad_tensor_view(do_dram_naive,
-                                   make_tuple(number<kM0>{}, number<kVHeaddim>{}),
-                                   sequence<kPadSeqLenQ, kPadHeadDimV>{});
-        }();
+            const auto o_dram  = pad_tensor_view(o_dram_naive,
+                                                make_tuple(number<kM0>{}, number<kVHeaddim>{}),
+                                                sequence<kPadSeqLenQ, kPadHeadDimV>{});
+            const auto do_dram = pad_tensor_view(do_dram_naive,
+                                                 make_tuple(number<kM0>{}, number<kVHeaddim>{}),
+                                                 sequence<kPadSeqLenQ, kPadHeadDimV>{});
+            return make_tuple(
+                make_tile_window(o_dram, make_tuple(number<kM0>{}, number<kVHeaddim>{}), {i_m0, 0}),
+                make_tile_window(
+                    do_dram, make_tuple(number<kM0>{}, number<kVHeaddim>{}), {i_m0, 0}));
+        };
         auto d_dram = [&]() {
             const auto d_dram_naive = make_naive_tensor_view_packed<address_space_enum::global>(
                 d_ptr, make_tuple(kargs.seqlen_q), number<1>{});
@@ -2580,10 +2582,6 @@ struct FmhaBwdOGradDotOKernel
                 d_dram_naive, make_tuple(number<kM0>{}), sequence<kPadSeqLenQ>{});
         }();
 
-        auto o_dram_window =
-            make_tile_window(o_dram, make_tuple(number<kM0>{}, number<kVHeaddim>{}), {i_m0, 0});
-        auto do_dram_window =
-            make_tile_window(do_dram, make_tuple(number<kM0>{}, number<kVHeaddim>{}), {i_m0, 0});
         auto d_dram_window = make_tile_window(d_dram, make_tuple(number<kM0>{}), {i_m0});
 
         // nullptr when sink grad is disabled; the pipeline checks this to skip the sink path
@@ -2600,13 +2598,37 @@ struct FmhaBwdOGradDotOKernel
         }();
         auto lse_dram_window = make_tile_window(lse_dram, make_tuple(number<kM0>{}), {i_m0});
 
-        FmhaBwdOGradDotO{}(o_dram_window,
-                           do_dram_window,
-                           lse_dram_window,
-                           d_dram_window,
-                           sink_value,
-                           kargs.p_undrop,
-                           atomic_sink_grad_ptr);
+        const auto run = [&](auto alignment) {
+            auto [o_dram_window, do_dram_window] = make_o_do_windows(alignment);
+            FmhaBwdOGradDotO{}(o_dram_window,
+                               do_dram_window,
+                               lse_dram_window,
+                               d_dram_window,
+                               sink_value,
+                               kargs.p_undrop,
+                               atomic_sink_grad_ptr);
+        };
+
+        if constexpr(kPadHeadDimV)
+        {
+            // hdim padding only needs per-element loads when a 16-byte vector could straddle
+            // the hdim boundary or start misaligned; otherwise keep the vector path.
+            constexpr index_t kVec = 16 / sizeof(ODataType);
+            const bool vec_ok      = (kargs.hdim_v % kVec == 0) && (kargs.stride_o % kVec == 0) &&
+                                (kargs.stride_do % kVec == 0) &&
+                                (kargs.nhead_stride_o % kVec == 0) &&
+                                (kargs.nhead_stride_do % kVec == 0) &&
+                                (reinterpret_cast<uintptr_t>(o_ptr) % 16 == 0) &&
+                                (reinterpret_cast<uintptr_t>(do_ptr) % 16 == 0);
+            if(vec_ok)
+                run(number<kVec>{});
+            else
+                run(number<1>{});
+        }
+        else
+        {
+            run(number<FmhaBwdOGradDotO::kAlignmentO>{});
+        }
     }
 };
 
@@ -2906,78 +2928,105 @@ struct FmhaBwdConvertQGradKernel
         }();
         const long_index_t nhead_stride_dq_acc = split_stride_dq_acc * nsplits;
 
-        const auto dq_acc_dram = [&, i_nhead_ = i_nhead]() {
-            if constexpr(kIsDeterministic)
-            {
-                const AccDataType* dq_acc_ptr =
-                    reinterpret_cast<const AccDataType*>(kargs.dq_acc_ptr) +
-                    static_cast<long_index_t>(i_nhead_) * nhead_stride_dq_acc + batch_offset_dq_acc;
+        const auto run = [&](auto alignment) {
+            constexpr index_t kAlign = decltype(alignment)::value;
+            const auto dq_acc_dram   = [&, i_nhead_ = i_nhead]() {
+                if constexpr(kIsDeterministic)
+                {
+                    const AccDataType* dq_acc_ptr =
+                        reinterpret_cast<const AccDataType*>(kargs.dq_acc_ptr) +
+                        static_cast<long_index_t>(i_nhead_) * nhead_stride_dq_acc +
+                        batch_offset_dq_acc;
 
-                auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                    dq_acc_ptr,
-                    make_tuple(nsplits, kargs.seqlen_q, kargs.hdim_q),
-                    make_tuple(split_stride_dq_acc, kargs.hdim_q, 1),
-                    number<FmhaBwdConvertQGrad::kAlignmentQGradAcc>{},
-                    number<1>{});
-                return pad_tensor_view(dq_acc_dram_naive,
-                                       make_tuple(number<1>{}, number<kM0>{}, number<kQKHeaddim>{}),
-                                       sequence<false, kPadSeqLenQ, kPadHeadDimQ>{});
-            }
-            else
-            {
-                const AccDataType* dq_acc_ptr =
-                    reinterpret_cast<const AccDataType*>(kargs.dq_acc_ptr) +
-                    static_cast<long_index_t>(i_nhead_) * nhead_stride_dq_acc + batch_offset_dq_acc;
+                    auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                        dq_acc_ptr,
+                        make_tuple(nsplits, kargs.seqlen_q, kargs.hdim_q),
+                        make_tuple(split_stride_dq_acc, kargs.hdim_q, 1),
+                        number<kAlign>{},
+                        number<1>{});
+                    return pad_tensor_view(
+                        dq_acc_dram_naive,
+                        make_tuple(number<1>{}, number<kM0>{}, number<kQKHeaddim>{}),
+                        sequence<false, kPadSeqLenQ, kPadHeadDimQ>{});
+                }
+                else
+                {
+                    const AccDataType* dq_acc_ptr =
+                        reinterpret_cast<const AccDataType*>(kargs.dq_acc_ptr) +
+                        static_cast<long_index_t>(i_nhead_) * nhead_stride_dq_acc +
+                        batch_offset_dq_acc;
 
-                auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                    dq_acc_ptr,
+                    auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                        dq_acc_ptr,
+                        make_tuple(kargs.seqlen_q, kargs.hdim_q),
+                        make_tuple(kargs.hdim_q, 1),
+                        number<kAlign>{},
+                        number<1>{});
+                    return pad_tensor_view(dq_acc_dram_naive,
+                                           make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
+                                           sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                }
+            }();
+
+            auto dq_dram = [&]() {
+                auto dq_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                    dq_ptr,
                     make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                    make_tuple(kargs.hdim_q, 1),
-                    number<FmhaBwdConvertQGrad::kAlignmentQGradAcc>{},
+                    make_tuple(kargs.stride_dq, 1),
+                    number<kAlign>{},
                     number<1>{});
-                return pad_tensor_view(dq_acc_dram_naive,
+                return pad_tensor_view(dq_dram_naive,
                                        make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
                                        sequence<kPadSeqLenQ, kPadHeadDimQ>{});
-            }
-        }();
+            }();
 
-        auto dq_dram = [&]() {
-            auto dq_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                dq_ptr,
-                make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                make_tuple(kargs.stride_dq, 1),
-                number<FmhaBwdConvertQGrad::kAlignmentQGrad>{},
-                number<1>{});
-            return pad_tensor_view(dq_dram_naive,
-                                   make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
-                                   sequence<kPadSeqLenQ, kPadHeadDimQ>{});
-        }();
+            auto dq_acc_dram_window = [&]() {
+                if constexpr(kIsDeterministic)
+                {
+                    return make_tile_window(
+                        dq_acc_dram,
+                        make_tuple(number<1>{}, number<kM0>{}, number<kQKHeaddim>{}),
+                        {0, i_m0, 0});
+                }
+                else
+                {
+                    return make_tile_window(
+                        dq_acc_dram, make_tuple(number<kM0>{}, number<kQKHeaddim>{}), {i_m0, 0});
+                }
+            }();
 
-        auto dq_acc_dram_window = [&]() {
+            auto dq_dram_window = make_tile_window(
+                dq_dram, make_tuple(number<kM0>{}, number<kQKHeaddim>{}), {i_m0, 0});
+
             if constexpr(kIsDeterministic)
             {
-                return make_tile_window(
-                    dq_acc_dram,
-                    make_tuple(number<1>{}, number<kM0>{}, number<kQKHeaddim>{}),
-                    {0, i_m0, 0});
+                FmhaBwdConvertQGrad{}(dq_acc_dram_window, dq_dram_window, nsplits);
             }
             else
             {
-                return make_tile_window(
-                    dq_acc_dram, make_tuple(number<kM0>{}, number<kQKHeaddim>{}), {i_m0, 0});
+                FmhaBwdConvertQGrad{}(dq_acc_dram_window, dq_dram_window);
             }
-        }();
+        };
 
-        auto dq_dram_window =
-            make_tile_window(dq_dram, make_tuple(number<kM0>{}, number<kQKHeaddim>{}), {i_m0, 0});
-
-        if constexpr(kIsDeterministic)
+        if constexpr(kPadHeadDimQ)
         {
-            FmhaBwdConvertQGrad{}(dq_acc_dram_window, dq_dram_window, nsplits);
+            // keep vector loads/stores when hdim_q and strides are multiples of the vector
+            constexpr index_t kVec = FmhaBwdConvertQGrad::kVecQGrad;
+            const bool vec_ok =
+                (kargs.hdim_q % kVec == 0) && (kargs.stride_dq % kVec == 0) &&
+                (kargs.nhead_stride_dq % kVec == 0) && (batch_offset_dq_acc % kVec == 0) &&
+                (reinterpret_cast<uintptr_t>(kargs.dq_acc_ptr) % 16 == 0) &&
+                (reinterpret_cast<uintptr_t>(dq_ptr) % (kVec * sizeof(QGradDataType)) == 0);
+            if(vec_ok)
+                run(number<kVec>{});
+            else
+                run(number<1>{});
         }
         else
         {
-            FmhaBwdConvertQGrad{}(dq_acc_dram_window, dq_dram_window);
+            static_assert(FmhaBwdConvertQGrad::kAlignmentQGradAcc ==
+                          FmhaBwdConvertQGrad::kAlignmentQGrad);
+            run(number<FmhaBwdConvertQGrad::kAlignmentQGrad>{});
         }
     }
 };
