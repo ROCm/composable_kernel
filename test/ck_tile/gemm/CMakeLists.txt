@@ -199,8 +199,19 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
                 test_gemm_pipeline_comp_tdm_v3_wmma.cpp)
             add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma
                 test_gemm_pipeline_comp_tdm_v3_longk_wmma.cpp)
+            # bf16 instances in every A/B layout: short shapes and unaligned M/N/K (SMOKE_TEST) and
+            # 4096^3 (REGRESSION_TEST).
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_wmma
+                test_gemm_pipeline_comp_tdm_v3_bf16_wmma.cpp)
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_large_wmma
+                test_gemm_pipeline_comp_tdm_v3_bf16_large_wmma.cpp)
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_unaligned_mnk_wmma
+                test_gemm_pipeline_comp_tdm_v3_unaligned_mnk_wmma.cpp)
             foreach(test_target test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma
-                                test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma)
+                                test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma
+                                test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_wmma
+                                test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_large_wmma
+                                test_ck_tile_gemm_pipeline_comp_tdm_v3_unaligned_mnk_wmma)
                 target_compile_options(${test_target} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
                 # Re-enable, for these targets only, the post-RA machine scheduler that the top-level
                 # CMakeLists turns off (-enable-post-misched=0; the later option wins). It issues the
@@ -213,17 +224,21 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
             get_filename_component(_llvm_bin_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
             find_program(CK_LLVM_OBJDUMP llvm-objdump HINTS "${_llvm_bin_dir}" NO_DEFAULT_PATH)
             find_program(CK_LLVM_READELF llvm-readelf HINTS "${_llvm_bin_dir}" NO_DEFAULT_PATH)
-            if(TARGET test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma AND CK_LLVM_OBJDUMP AND CK_LLVM_READELF)
-                add_test(NAME test_ck_tile_gemm_pipeline_comp_tdm_v3_resources
-                    COMMAND ${CMAKE_COMMAND}
-                        -DTEST_BINARY=$<TARGET_FILE:test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma>
-                        -DLLVM_OBJDUMP=${CK_LLVM_OBJDUMP}
-                        -DLLVM_READELF=${CK_LLVM_READELF}
-                        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/comp_tdm_v3_resources
-                        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_comp_tdm_v3_resources.cmake)
-                set_tests_properties(test_ck_tile_gemm_pipeline_comp_tdm_v3_resources
-                    PROPERTIES LABELS "SMOKE_TEST;CK_TILE_GEMM_TESTS")
-            endif()
+            foreach(_v3_suffix "" "_bf16")
+                set(_v3_binary test_ck_tile_gemm_pipeline_comp_tdm_v3${_v3_suffix}_wmma)
+                set(_v3_check test_ck_tile_gemm_pipeline_comp_tdm_v3${_v3_suffix}_resources)
+                if(TARGET ${_v3_binary} AND CK_LLVM_OBJDUMP AND CK_LLVM_READELF)
+                    add_test(NAME ${_v3_check}
+                        COMMAND ${CMAKE_COMMAND}
+                            -DTEST_BINARY=$<TARGET_FILE:${_v3_binary}>
+                            -DLLVM_OBJDUMP=${CK_LLVM_OBJDUMP}
+                            -DLLVM_READELF=${CK_LLVM_READELF}
+                            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/comp_tdm_v3${_v3_suffix}_resources
+                            -P ${CMAKE_CURRENT_SOURCE_DIR}/check_comp_tdm_v3_resources.cmake)
+                    set_tests_properties(${_v3_check}
+                        PROPERTIES LABELS "SMOKE_TEST;CK_TILE_GEMM_TESTS")
+                endif()
+            endforeach()
             add_gtest_executable(test_ck_tile_gemm_pipeline_comp_async_wmma test_gemm_pipeline_comp_async_wmma.cpp)
             target_compile_options(test_ck_tile_gemm_pipeline_comp_async_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
             target_compile_options(test_ck_tile_gemm_pipeline_comp_async_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
@@ -269,7 +284,10 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     endif()
     # comp_tdm_v3: same reason as comp_tdm_pc above (keep the SMOKE_TEST / REGRESSION_TEST label).
     foreach(test_target test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma
-                        test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma)
+                        test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma
+                        test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_wmma
+                        test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_large_wmma
+                        test_ck_tile_gemm_pipeline_comp_tdm_v3_unaligned_mnk_wmma)
         if(TEST ${test_target})
             set_property(TEST ${test_target} APPEND PROPERTY LABELS "CK_TILE_GEMM_TESTS")
             list(APPEND CK_TILE_GEMM_TEST_TARGETS ${test_target})

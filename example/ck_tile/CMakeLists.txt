@@ -38,6 +38,7 @@ if(BUILD_CK_TILE_CSHUFFLE_LDS_BENCHMARKS)
     add_subdirectory(52_cshuffle_lds)
 endif()
 add_subdirectory(53_gemm_comp_tdm_v3_fp8)
+add_subdirectory(54_gemm_comp_tdm_v3_bf16)
 
 # Collect the tile_example_* executables configured above. Each example
 # directory decides for itself which targets a given architecture gets, so the

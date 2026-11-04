@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // comp_tdm_v3 gtest, short shapes (SMOKE_TEST): one, two and three K tiles and 512x512x1024; and
-// the split-K rejection.
+// split-K: which k_batch the kernel accepts, and k_batch 2, 3 and 4 over a partial last K tile.
 // Instances, inputs and checks: test_gemm_pipeline_comp_tdm_v3_util.hpp.
 
 #include "test_gemm_pipeline_comp_tdm_v3_util.hpp"
@@ -23,6 +23,7 @@ TYPED_TEST(TestCkTileGemmPipelineCompTDMV3, RandomOneTwoThreeKTiles)
         this->Run(256, 256, k, Init::Random);
 }
 TYPED_TEST(TestCkTileGemmPipelineCompTDMV3, Random512) { this->Run(512, 512, 1024, Init::Random); }
-TYPED_TEST(TestCkTileGemmPipelineCompTDMV3, SplitKRejected) { this->CheckSplitKRejected(); }
+TYPED_TEST(TestCkTileGemmPipelineCompTDMV3, SplitKSupport) { this->CheckSplitKSupport(); }
+TYPED_TEST(TestCkTileGemmPipelineCompTDMV3, SplitK) { this->RunSplitK(); }
 
 } // namespace

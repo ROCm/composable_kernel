@@ -46,12 +46,17 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
     static_assert(Problem::BlockGemmShape::NumWarps == 4 || Problem::BlockGemmShape::NumWarps == 16,
                   "comp_tdm_v3 supports 4 or 16 waves per workgroup");
 
-    // Only A row-major, B column-major, C row-major is tested; the other A/B layouts spill VGPRs
-    // in the K loop at the 16-wave tile.
-    static_assert(std::is_same_v<typename Base::ALayout, tensor_layout::gemm::RowMajor> &&
-                      std::is_same_v<typename Base::BLayout, tensor_layout::gemm::ColumnMajor> &&
-                      std::is_same_v<typename Base::CLayout, tensor_layout::gemm::RowMajor>,
-                  "comp_tdm_v3 supports A row-major, B column-major, C row-major only");
+    // C is row-major. With 8-bit A/B only A row-major, B column-major is supported: the other A/B
+    // layouts spill VGPRs in the K loop at the 16-wave tile with the 32x32x128 warp tile. With
+    // 16-bit A/B (warp tile 16x16x32) every A/B layout is supported.
+    static constexpr bool kIs16BitAB =
+        sizeof(typename Problem::ADataType) == 2 && sizeof(typename Problem::BDataType) == 2;
+    static_assert(std::is_same_v<typename Base::CLayout, tensor_layout::gemm::RowMajor>,
+                  "comp_tdm_v3 supports C row-major only");
+    static_assert(kIs16BitAB ||
+                      (std::is_same_v<typename Base::ALayout, tensor_layout::gemm::RowMajor> &&
+                       std::is_same_v<typename Base::BLayout, tensor_layout::gemm::ColumnMajor>),
+                  "comp_tdm_v3 with 8-bit A/B supports A row-major, B column-major only");
 
     // Only tested in the plain GEMM kernel; the multi-D, grouped and batched-contraction kernels
     // reject a pipeline that sets this (UniversalGemmKernel::kIsPlainGemmOnlyPipeline).
