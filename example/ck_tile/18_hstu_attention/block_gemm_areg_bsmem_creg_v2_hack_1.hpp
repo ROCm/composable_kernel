@@ -85,8 +85,10 @@ struct BlockGemmARegBSmemCRegV2Hack_1
             b_block_window_tmp.get_window_origin() + multi_index<2>{iNWarp * WG::kN, 0},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-        constexpr auto b_lds_desc = remove_cvref_t<
-            decltype(b_warp_window_tmp.get_bottom_tensor_view().get_tensor_descriptor())>{};
+        statically_indexed_array<
+            statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
+            NIterPerWarp>
+            b_warp_windows;
 
         // check C-block-distribution
         static_assert(
@@ -111,15 +113,16 @@ struct BlockGemmARegBSmemCRegV2Hack_1
 
         constexpr auto I0 = number<0>{};
 
-        using b_warp_tensor_type = decltype(load_tile(b_warp_window_tmp));
+        using b_warp_tensor_type = decltype(load_tile(b_warp_windows(I0)(I0)));
 
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             statically_indexed_array<b_warp_tensor_type, NIterPerWarp> b_warp_tensors;
 
             // read B warp tensor from B Block window
-            constexpr index_t step_offset_0 = b_lds_desc.calculate_offset(
-                make_tuple(number<0 * NPerBlockPerIter>{}, number<kIter * KPerBlockPerIter>{}));
-            b_warp_tensors(I0) = load_tile_with_offset(b_warp_window_tmp, step_offset_0);
+            b_warp_windows(I0)(kIter) = b_warp_window_tmp;
+            move_tile_window(b_warp_windows(I0)(kIter),
+                             {0 * NPerBlockPerIter, kIter * KPerBlockPerIter});
+            b_warp_tensors(I0) = load_tile(b_warp_windows(I0)(kIter));
 
             __builtin_amdgcn_sched_barrier(0);
 
@@ -127,11 +130,11 @@ struct BlockGemmARegBSmemCRegV2Hack_1
                 if constexpr(nIter < NIterPerWarp - 1)
                 {
                     // read B warp tensor from B Block window
-                    constexpr index_t step_offset =
-                        b_lds_desc.calculate_offset(make_tuple(number<(nIter + 1) * NPerBlockPerIter>{},
-                                                               number<kIter * KPerBlockPerIter>{}));
+                    b_warp_windows(number<nIter + 1>{})(kIter) = b_warp_window_tmp;
+                    move_tile_window(b_warp_windows(number<nIter + 1>{})(kIter),
+                                     {(nIter + 1) * NPerBlockPerIter, kIter * KPerBlockPerIter});
                     b_warp_tensors(number<nIter + 1>{}) =
-                        load_tile_with_offset(b_warp_window_tmp, step_offset);
+                        load_tile(b_warp_windows(number<nIter + 1>{})(kIter));
                 };
 
                 __builtin_amdgcn_sched_barrier(0);
