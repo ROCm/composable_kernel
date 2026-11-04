@@ -53,7 +53,7 @@ struct FmhaTdmPreparedVRead
             else
             {
                 static_assert(std::is_same_v<DataType, half_t>);
-                using NativeVector = __fp16 __attribute__((vector_size(16)));
+                using NativeVector = llvm_fp16_t __attribute__((vector_size(16)));
                 using LdsPointer   = __attribute__((address_space(3))) NativeVector*;
                 return bit_cast<VectorType>(__builtin_amdgcn_ds_load_tr16_b128_v8f16(
                     reinterpret_cast<LdsPointer>(address.byte_address)));
