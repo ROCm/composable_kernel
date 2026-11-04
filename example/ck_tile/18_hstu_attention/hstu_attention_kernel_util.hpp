@@ -206,6 +206,18 @@ __device__ __attribute__((noinline)) inline float hstu_resolve_scale_p(const flo
     return __builtin_amdgcn_classf(s, 0x60) ? host_default : s;
 }
 
+// Lane mask of `pred` over the whole wave, on wave32 (gfx12/gfx125) and wave64 (gfx9) targets.
+CK_TILE_DEVICE static uint64_t wave_ballot(bool pred)
+{
+    if constexpr(get_warp_size() == 32)
+        return __builtin_amdgcn_ballot_w32(pred);
+    else
+        return __builtin_amdgcn_ballot_w64(pred);
+}
+
+// True if `pred` holds on any lane of the wave (a wave-uniform result).
+CK_TILE_DEVICE static bool wave_any(bool pred) { return wave_ballot(pred) != 0; }
+
 } // namespace detail
 
 } // namespace ck_tile
