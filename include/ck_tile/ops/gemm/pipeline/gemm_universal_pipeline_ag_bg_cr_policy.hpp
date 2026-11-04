@@ -172,6 +172,25 @@ struct UniversalGemmBasePolicy
             return DefaultBTileAccessPattern;
     }
 
+    // K sub-tile count for BlockGemmARegBRegCRegV1 when a K tile holds k_iter_per_warp warp GEMMs
+    // and a register estimate asks for `requested` sub-tiles (both at least 1; a request below 1
+    // counts as 1). More sub-tiles mean smaller LDS reads and fewer A and B registers (see
+    // KSubTileNum in BlockGemmARegBRegCRegV1). The block GEMM runs k_iter_per_warp / count warp
+    // GEMMs per sub-tile and asserts that the count divides k_iter_per_warp, so this returns the
+    // smallest divisor of k_iter_per_warp that is at least min(requested, k_iter_per_warp).
+    // Rounding up, never down, keeps every sub-tile within the register budget of the request;
+    // for example a request of 2 becomes 3 for a K tile of three warp GEMMs.
+    CK_TILE_HOST_DEVICE static constexpr index_t GetDividingSubTileNum(index_t requested,
+                                                                       index_t k_iter_per_warp)
+    {
+        index_t sub_tile_num = max(index_t{1}, min(requested, k_iter_per_warp));
+        while(k_iter_per_warp % sub_tile_num != 0)
+        {
+            ++sub_tile_num;
+        }
+        return sub_tile_num;
+    }
+
     // =====================================================
     // Architecture-specific A LDS Block Descriptor implementations
     // =====================================================

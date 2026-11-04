@@ -3,8 +3,8 @@
 
 /**
  * @file
- * @brief Host-only tests of the MX GEMM test helpers in test_mx_gemm_host_helpers.hpp. Nothing is
- *        launched.
+ * @brief Host-only tests of the MX GEMM test helpers in test_mx_gemm_host_helpers.hpp and of the
+ *        host reference reference_mx_gemm. Nothing is launched.
  */
 
 #include <algorithm>
@@ -25,6 +25,7 @@ using ck_tile::index_t;
 using F6  = ck_tile::pk_fp6x16_t;
 using BF6 = ck_tile::pk_bf6x16_t;
 using F4  = ck_tile::pk_fp4_t;
+using F8  = ck_tile::fp8_t;
 
 // ------------------------------------------------------------------------------------------
 // 6-bit packs
@@ -448,6 +449,189 @@ TEST(MxGemmHostHelpers, Fp6ReferenceMatchesDequantizedGemmFp16C)
 TEST(MxGemmHostHelpers, Fp4ReferenceMatchesDequantizedGemmBf16C)
 {
     check_reference<F4, ck_tile::bf16_t>(4, 4, 512);
+}
+
+// ------------------------------------------------------------------------------------------
+// reference_mx_gemm with an explicit scale block size
+// ------------------------------------------------------------------------------------------
+
+constexpr index_t kExplicitScaleBlock = 32;
+// Scale columns of A and rows of B in the test problems: ceil(K / 32) rounded up to a multiple of 4
+// (four E8M0 scales per packed int32), which is 4 for every K up to 128.
+// ReferenceChecksScaleBlockArguments uses K = 136, which needs 5, with 4 on purpose.
+constexpr index_t kPaddedScaleBlocks = 4;
+constexpr auto kRowMajor             = ck_tile::bool_constant<true>{};
+constexpr auto kColMajor             = ck_tile::bool_constant<false>{};
+
+// MX operands and scales with kPaddedScaleBlocks scale blocks along K, filled at random. The
+// blocks past the first ceil(K / 32) are padding and hold E8M0 0xFF (NaN): a reference that read
+// them would return NaN.
+template <typename T>
+struct PaddedScaleProblem
+{
+    static constexpr index_t M = 4;
+    static constexpr index_t N = 4;
+
+    explicit PaddedScaleProblem(index_t K)
+        : a(ck_tile::host_tensor_descriptor(M, K, K, kRowMajor)),
+          b(ck_tile::host_tensor_descriptor(K, N, K, kColMajor)),
+          scale_a(ck_tile::host_tensor_descriptor(
+              M, kPaddedScaleBlocks, kPaddedScaleBlocks, kRowMajor)),
+          scale_b(
+              ck_tile::host_tensor_descriptor(kPaddedScaleBlocks, N, kPaddedScaleBlocks, kColMajor))
+    {
+        mx_test::fill_mx_operand(a, -4.0f, 4.0f, 21);
+        mx_test::fill_mx_operand(b, -4.0f, 4.0f, 22);
+        mx_test::fill_random_e8m0(scale_a, -2, 2, 23);
+        mx_test::fill_random_e8m0(scale_b, -2, 2, 24);
+        const auto nan = ck_tile::numeric<ck_tile::e8m0_t>::quiet_NaN();
+        for(index_t kb = ck_tile::integer_divide_ceil(K, kExplicitScaleBlock);
+            kb < kPaddedScaleBlocks;
+            ++kb)
+        {
+            for(index_t m = 0; m < M; ++m)
+            {
+                scale_a(m, kb) = nan;
+            }
+            for(index_t n = 0; n < N; ++n)
+            {
+                scale_b(kb, n) = nan;
+            }
+        }
+    }
+
+    ck_tile::HostTensor<T> a;
+    ck_tile::HostTensor<T> b;
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_a;
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_b;
+};
+
+// reference_mx_gemm with an explicit 32-element scale block against a dequantize-then-multiply
+// reference in double: a partial last block scales only the last K % 32 elements, and the padding
+// blocks are never read.
+template <typename T>
+void check_explicit_scale_block(index_t K)
+{
+    const PaddedScaleProblem<T> p(K);
+    ck_tile::HostTensor<float> c(ck_tile::host_tensor_descriptor(p.M, p.N, p.N, kRowMajor));
+    ck_tile::reference_mx_gemm<T, T, ck_tile::e8m0_t, ck_tile::e8m0_t, float, float>(
+        p.a, p.b, c, p.scale_a, p.scale_b, kExplicitScaleBlock);
+
+    const double s_max =
+        mx_test::mx_sum_abs_max(p.a, p.b, p.scale_a, p.scale_b, kExplicitScaleBlock);
+    const auto tol = mx_test::mx_gemm_tolerance<T, T, float>(K, s_max);
+    for(index_t m = 0; m < p.M; ++m)
+    {
+        for(index_t n = 0; n < p.N; ++n)
+        {
+            double exact = 0.0;
+            for(index_t k = 0; k < K; ++k)
+            {
+                exact += static_cast<double>(mx_test::mx_operand_value(p.a, m, k)) *
+                         mx_test::mx_operand_value(p.b, k, n) *
+                         ck_tile::type_convert<float>(p.scale_a(m, k / kExplicitScaleBlock)) *
+                         ck_tile::type_convert<float>(p.scale_b(k / kExplicitScaleBlock, n));
+            }
+            const double got = c(m, n);
+            ASSERT_FALSE(std::isnan(got)) << "K " << K << ", " << m << " " << n;
+            EXPECT_LE(std::abs(got - exact), tol.atol + tol.rtol * std::abs(exact))
+                << "K " << K << ", " << m << " " << n << " exact " << exact << " got " << got;
+        }
+    }
+}
+
+TEST(MxGemmHostHelpers, ReferenceExplicitScaleBlockPartialLastBlock)
+{
+    for(const index_t K : {80, 24})
+    {
+        // K = 80: 3 scale blocks, the last covering 16 elements, and 1 padding block.
+        // K = 24: 1 partial block of 24 elements and 3 padding blocks.
+        {
+            SCOPED_TRACE("F8");
+            check_explicit_scale_block<F8>(K);
+        }
+        {
+            SCOPED_TRACE("F4");
+            check_explicit_scale_block<F4>(K);
+        }
+    }
+}
+
+TEST(MxGemmHostHelpers, ReferenceExplicitScaleBlockWholeBlocksSkipsPadding)
+{
+    // K = 96: 3 whole scale blocks and 1 padding block, which must not be read.
+    {
+        SCOPED_TRACE("F8");
+        check_explicit_scale_block<F8>(96);
+    }
+    {
+        SCOPED_TRACE("F4");
+        check_explicit_scale_block<F4>(96);
+    }
+}
+
+TEST(MxGemmHostHelpers, ReferenceDerivedScaleBlockMatchesExplicit)
+{
+    // Without padding, the derived block size (K / scale columns = 128 / 4) is the explicit one.
+    const PaddedScaleProblem<F8> p(kExplicitScaleBlock * kPaddedScaleBlocks);
+    ck_tile::HostTensor<float> c_derived(ck_tile::host_tensor_descriptor(p.M, p.N, p.N, kRowMajor));
+    ck_tile::HostTensor<float> c_explicit(c_derived.mDesc);
+    ck_tile::reference_mx_gemm<F8, F8, ck_tile::e8m0_t, ck_tile::e8m0_t, float, float>(
+        p.a, p.b, c_derived, p.scale_a, p.scale_b);
+    ck_tile::reference_mx_gemm<F8, F8, ck_tile::e8m0_t, ck_tile::e8m0_t, float, float>(
+        p.a, p.b, c_explicit, p.scale_a, p.scale_b, kExplicitScaleBlock);
+    EXPECT_EQ(c_derived.mData, c_explicit.mData);
+}
+
+TEST(MxGemmHostHelpers, ReferenceChecksScaleBlockArguments)
+{
+    const auto run = [](const PaddedScaleProblem<F8>& q,
+                        const ck_tile::HostTensor<ck_tile::e8m0_t>& scale_a,
+                        const ck_tile::HostTensor<ck_tile::e8m0_t>& scale_b,
+                        index_t block) {
+        ck_tile::HostTensor<float> c(ck_tile::host_tensor_descriptor(q.M, q.N, q.N, kRowMajor));
+        ck_tile::reference_mx_gemm<F8, F8, ck_tile::e8m0_t, ck_tile::e8m0_t, float, float>(
+            q.a, q.b, c, scale_a, scale_b, block);
+    };
+    // K = 136 needs ceil(136 / 32) = 5 scale blocks of 32 elements, one more than K / 32. The
+    // problem has 4 for both operands; the 5-block tensors below lengthen one operand at a time,
+    // so that each operand's check has to throw on its own.
+    const PaddedScaleProblem<F8> p(136);
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_a5(
+        ck_tile::host_tensor_descriptor(p.M, 5, 5, kRowMajor));
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_b5(
+        ck_tile::host_tensor_descriptor(5, p.N, 5, kColMajor));
+    mx_test::fill_random_e8m0(scale_a5, -2, 2, 25);
+    mx_test::fill_random_e8m0(scale_b5, -2, 2, 26);
+    EXPECT_THROW(run(p, p.scale_a, scale_b5, kExplicitScaleBlock), std::invalid_argument);
+    EXPECT_THROW(run(p, scale_a5, p.scale_b, kExplicitScaleBlock), std::invalid_argument);
+    EXPECT_THROW(run(p, p.scale_a, p.scale_b, -1), std::invalid_argument); // a negative block size
+    EXPECT_NO_THROW(run(p, scale_a5, scale_b5, kExplicitScaleBlock)); // exactly ceil(K / 32) blocks
+    EXPECT_NO_THROW(run(p, p.scale_a, p.scale_b, 64)); // reads ceil(136 / 64) = 3 of the 4 blocks
+
+    // Scales too small along M or N.
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_a_short_m(
+        ck_tile::host_tensor_descriptor(p.M - 1, 5, 5, kRowMajor));
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_b_short_n(
+        ck_tile::host_tensor_descriptor(5, p.N - 1, 5, kColMajor));
+    EXPECT_THROW(run(p, scale_a_short_m, scale_b5, kExplicitScaleBlock), std::invalid_argument);
+    EXPECT_THROW(run(p, scale_a5, scale_b_short_n, kExplicitScaleBlock), std::invalid_argument);
+
+    // The derived block size (0) needs K to be a multiple of the scale columns of A.
+    const PaddedScaleProblem<F8> p_k2(2); // 2 / 4 would be 0
+    EXPECT_THROW(run(p_k2, p_k2.scale_a, p_k2.scale_b, 0), std::invalid_argument);
+    EXPECT_NO_THROW(run(p_k2, p_k2.scale_a, p_k2.scale_b, kExplicitScaleBlock));
+    const PaddedScaleProblem<F8> p_k130(130); // 130 / 4 = 32.5: the last column would be overrun
+    EXPECT_THROW(run(p_k130, p_k130.scale_a, p_k130.scale_b, 0), std::invalid_argument);
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_a_no_cols(
+        ck_tile::host_tensor_descriptor(p.M, 0, 1, kRowMajor));
+    EXPECT_THROW(run(p, scale_a_no_cols, p.scale_b, 0), std::invalid_argument);
+    // Edges that must not throw: K = 0 reads no scale, and K equal to the 4 scale columns derives a
+    // block size of 1.
+    const PaddedScaleProblem<F8> p_k0(0);
+    EXPECT_NO_THROW(run(p_k0, p_k0.scale_a, p_k0.scale_b, 0));
+    const PaddedScaleProblem<F8> p_k4(kPaddedScaleBlocks);
+    EXPECT_NO_THROW(run(p_k4, p_k4.scale_a, p_k4.scale_b, 0));
 }
 
 } // namespace

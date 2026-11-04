@@ -26,6 +26,10 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     target_compile_options(test_ck_tile_gemm_compv3_tail_dispatch PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
     list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_compv3_tail_dispatch)
 
+    # Host-only: the K sub-tile count rounding of the TDM and async default policies.
+    add_gtest_executable(test_ck_tile_gemm_sub_tile_num test_gemm_sub_tile_num.cpp)
+    list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_sub_tile_num)
+
     if(GPU_TARGETS MATCHES "gfx94|gfx95")
         # This synthetic argument-validation fixture models the XDL pipeline
         # interface; keep it out of the gfx11/gfx12 WMMA build.

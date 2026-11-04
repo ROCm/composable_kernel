@@ -69,10 +69,29 @@ struct BlockGemmARegBRegCRegV1
     static constexpr index_t MIterPerWarp = Traits::MIterPerWarp;
     static constexpr index_t NIterPerWarp = Traits::NIterPerWarp;
 
+    // K sub-tiles trade the size of LDS reads for registers. The warp GEMMs take their A and B
+    // fragments from registers (VGPRs), which LocalPrefetch reads from the LDS copy of the K tile.
+    // KSubTileNum splits the K tile (KPerBlock, KIterPerWarp warp GEMMs) into KSubTileNum
+    // sub-tiles of KPerSubTile warp GEMMs. The pipeline reads one sub-tile of A and B
+    // (KPerBlock / KSubTileNum of K) into one of two register buffers while the block GEMM
+    // multiplies the sub-tile in the other buffer, so each lane holds about
+    //     2 * (MPerBlock / MWarp + NPerBlock / NWarp) * (KPerBlock / KSubTileNum)
+    //       * bytes per element / (warp size * 4 bytes per VGPR)
+    // A and B VGPRs, next to MPerBlock * NPerBlock / kBlockSize accumulators. A larger count reads
+    // the same LDS bytes per K tile in more, smaller reads and needs fewer VGPRs, so a deep K tile
+    // fits in the register file: for FP8 128x128x384 on 2 x 2 waves of 32 lanes, the A and B
+    // buffers take 768 VGPRs with one sub-tile and 256 with three, next to 128 accumulator VGPRs.
+    // The pipeline policy picks the count from its register estimate (GetPipelineSubTileNum).
     static constexpr index_t KSubTileNum = Traits::KSubTileNum;
 
     static constexpr bool PackMNIter = Traits::PackMNIter;
 
+    // Protects the K loop: each of the KSubTileNum sub-tiles runs KPerSubTile warp GEMMs, so a
+    // KSubTileNum that does not divide KIterPerWarp would skip the last
+    // KIterPerWarp % KSubTileNum warp GEMMs of every K tile and drop the K values they cover.
+    static_assert(KSubTileNum > 0 && KIterPerWarp % KSubTileNum == 0,
+                  "BlockGemmARegBRegCRegV1: KSubTileNum (from the block GEMM policy, e.g. "
+                  "GetPipelineSubTileNum) must divide KIterPerWarp (KPerBlock / WarpGemm::kK).");
     static constexpr index_t KPerSubTile = KIterPerWarp / KSubTileNum;
 
     static constexpr index_t MWarp            = Traits::MWarp;
