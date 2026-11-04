@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_gather.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/moe_silu.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_common.hpp"
 #define DEBUG_LOG 0
 
@@ -172,8 +173,7 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
           typename LDSTypeB                           = BDataType,
-          bool NonTemporalLoadB                       = false,
-          bool RuntimeSwigluLimit                     = false>
+          bool NonTemporalLoadB                       = false>
 struct GridwiseMoeGemmBlockScale
     : public GridwiseGemm_xdl_cshuffle_base<
           ALayout,
@@ -713,15 +713,9 @@ struct GridwiseMoeGemmBlockScale
 
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(0, 0, 0, 0, {}))>;
 
-    // gpt-oss default. RuntimeSwigluLimit reads Problem::SwigluLimit instead.
-    // false keeps the old epilogue: SiLU, then clamp at 7.
+    // swiglustep is SiLU then clamp at 7. Runtime SiLU is a separate
+    // opt-in: SiLU(min(gate, L)) * clamp(up, -L, L), without alpha or +1.
     static constexpr float kSwiGluClamp = 7.0f;
-
-    __host__ __device__ static void clamp_gate_up(float& gate, float& up, float limit)
-    {
-        gate = math::min(gate, limit);
-        up   = math::min(math::max(up, -limit), limit);
-    }
 
     struct Problem
     {
@@ -735,7 +729,8 @@ struct GridwiseMoeGemmBlockScale
                                     std::array<index_t, NumDTensor> StrideDs_,
                                     index_t StrideC_,
                                     index_t KBatch_,
-                                    float SwigluLimit_ = kSwiGluClamp)
+                                    float SwigluLimit_       = kSwiGluClamp,
+                                    bool SwigluLimitEnabled_ = false)
             : NumTokens{NumTokens_},
               TopK{TopK_},
               M{M_},
@@ -754,7 +749,8 @@ struct GridwiseMoeGemmBlockScale
               BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
-              SwigluLimit{SwigluLimit_}
+              SwigluLimit{SwigluLimit_},
+              SwigluLimitEnabled{SwigluLimitEnabled_}
         {
         }
 
@@ -787,7 +783,8 @@ struct GridwiseMoeGemmBlockScale
         index_t BK0;
         index_t MBlock;
         index_t NBlock;
-        float SwigluLimit; // read only when RuntimeSwigluLimit
+        float SwigluLimit;
+        bool SwigluLimitEnabled;
     };
 
     // Argument
@@ -815,7 +812,8 @@ struct GridwiseMoeGemmBlockScale
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation c_element_op_,
-                          float swiglu_limit_ = kSwiGluClamp)
+                          float swiglu_limit_        = kSwiGluClamp,
+                          bool swiglu_limit_enabled_ = false)
             : Problem{NumTokens_,
                       TopK_,
                       M_,
@@ -826,7 +824,8 @@ struct GridwiseMoeGemmBlockScale
                       StrideDs_,
                       StrideC_,
                       k_batch_,
-                      swiglu_limit_},
+                      swiglu_limit_,
+                      swiglu_limit_enabled_},
               p_sorted_token_ids{p_sorted_token_ids_},
               p_sorted_expert_ids{p_sorted_expert_ids_},
               p_max_token_id{p_max_token_id_},
@@ -1636,8 +1635,8 @@ struct GridwiseMoeGemmBlockScale
                                     gate *= 16;
                                     up *= 16;
                                 }
-                                tensor_operation::element_wise::Silu{}(gate, gate);
-                                c_thread_buf(cidx) = gate * up;
+                                c_thread_buf(cidx) = MoeSilu::Run(
+                                    gate, up, problem.SwigluLimitEnabled, problem.SwigluLimit);
                             }
                             else if constexpr(ActivationOperation == Activation::swiglustep_and_mul)
                             {
@@ -1653,19 +1652,7 @@ struct GridwiseMoeGemmBlockScale
                                     gate *= 16;
                                     up *= 16;
                                 }
-                                // RuntimeSwigluLimit clamps before SiLU. The default keeps
-                                // the old order: SiLU, then clamp at 7.
-                                if constexpr(RuntimeSwigluLimit)
-                                    clamp_gate_up(gate, up, problem.SwigluLimit);
-                                tensor_operation::element_wise::Silu{}(gate, gate);
-                                if constexpr(!RuntimeSwigluLimit)
-                                {
-                                    gate = gate < kSwiGluClamp ? gate : kSwiGluClamp;
-                                    up   = up < kSwiGluClamp
-                                               ? (up > -kSwiGluClamp ? up : -kSwiGluClamp)
-                                               : kSwiGluClamp;
-                                }
-                                c_thread_buf(cidx) = gate * up;
+                                c_thread_buf(cidx) = MoeSilu::Swiglustep(gate, up);
                             }
                             else if(ActivationOperation == Activation::gelu_and_mul)
                             {
@@ -2213,8 +2200,8 @@ struct GridwiseMoeGemmBlockScale
                                     gate *= 16;
                                     up *= 16;
                                 }
-                                tensor_operation::element_wise::Silu{}(gate, gate);
-                                c_thread_buf(cidx) = gate * up;
+                                c_thread_buf(cidx) = MoeSilu::Run(
+                                    gate, up, problem.SwigluLimitEnabled, problem.SwigluLimit);
                             }
                             else if constexpr(ActivationOperation == Activation::swiglustep_and_mul)
                             {
@@ -2230,19 +2217,7 @@ struct GridwiseMoeGemmBlockScale
                                     gate *= 16;
                                     up *= 16;
                                 }
-                                // RuntimeSwigluLimit clamps before SiLU. The default keeps
-                                // the old order: SiLU, then clamp at 7.
-                                if constexpr(RuntimeSwigluLimit)
-                                    clamp_gate_up(gate, up, problem.SwigluLimit);
-                                tensor_operation::element_wise::Silu{}(gate, gate);
-                                if constexpr(!RuntimeSwigluLimit)
-                                {
-                                    gate = gate < kSwiGluClamp ? gate : kSwiGluClamp;
-                                    up   = up < kSwiGluClamp
-                                               ? (up > -kSwiGluClamp ? up : -kSwiGluClamp)
-                                               : kSwiGluClamp;
-                                }
-                                c_thread_buf(cidx) = gate * up;
+                                c_thread_buf(cidx) = MoeSilu::Swiglustep(gate, up);
                             }
                             else if(ActivationOperation == Activation::gelu_and_mul)
                             {
