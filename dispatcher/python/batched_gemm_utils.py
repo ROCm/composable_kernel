@@ -459,16 +459,13 @@ class GpuBatchedGemmRunner:
 
         dtype = _gu._dtype_from_kernel_name(self._kernel_name)
         la, lb, lc = _gu._layout_from_kernel_name(self._kernel_name)
-
-        # Per-batch layout transform: a 'c' (column-major) operand is stored as
-        # the transpose of its logical (rows, cols) so the contiguous per-batch
-        # slab matches column-major memory order (leading batch axis untouched).
-        A_lay = A if la == "r" else np.transpose(A, (0, 2, 1))
-        B_lay = B if lb == "r" else np.transpose(B, (0, 2, 1))
         C_shape = (batch, M, N) if lc == "r" else (batch, N, M)
 
-        A_h = _gu._encode_operand(A_lay, dtype, self._use_ocp)
-        B_h = _gu._encode_operand(B_lay, dtype, self._use_ocp)
+        # A/B host buffers in the kernel's element dtype and per-batch layout; the
+        # kernels of a sweep worker's shape reuse them (see _gu._sweep_inputs).
+        A_h, B_h = _gu._encode_ab_cached(
+            A, B, dtype, la, lb, self._use_ocp, self._kernel_name
+        )
         out_dtype, c_np = _gu._c_numpy_dtype(dtype)
         # F6: the host C buffer is memcpy'd byte-for-byte to/from the device
         # buffer the kernel writes as CDataType, so the numpy element size MUST
