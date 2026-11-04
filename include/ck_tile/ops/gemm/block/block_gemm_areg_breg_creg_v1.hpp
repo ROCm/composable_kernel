@@ -340,6 +340,108 @@ struct BlockGemmARegBRegCRegV1
         });
     }
 
+    // C += A[:, KSlice] * B[:, KSlice]
+    //
+    // Accumulates only the KSlice-th warp-gemm K iteration of the sub-tile held
+    // in A/B; the other KPerSubTile - 1 iterations are left out. Calling it for
+    // every KSlice in [0, KPerSubTile) is equivalent to one operator()(C, A, B).
+    template <index_t KSlice, typename CBlockTensor, typename ABlockTensor, typename BBlockTensor>
+    CK_TILE_DEVICE void RunKSlice(CBlockTensor& c_block_tensor,
+                                  const ABlockTensor& a_block_tensor,
+                                  const BBlockTensor& b_block_tensor) const
+    {
+        static_assert(KSlice >= 0 && KSlice < KPerSubTile,
+                      "RunKSlice: KSlice must be in [0, KPerSubTile)");
+        static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
+                          std::is_same_v<BDataType, remove_cv_t<typename BBlockTensor::DataType>> &&
+                          std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+                      "wrong!");
+
+        // check ABC-block-distribution
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(MakeABlockDistributionEncode())>,
+                           remove_cvref_t<decltype(ABlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "A distribution is wrong!");
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(MakeBBlockDistributionEncode())>,
+                           remove_cvref_t<decltype(BBlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "B distribution is wrong!");
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(MakeCBlockDistributionEncode())>,
+                           remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "C distribution is wrong!");
+
+        using AWarpDstr = typename WarpGemm::AWarpDstr;
+        using BWarpDstr = typename WarpGemm::BWarpDstr;
+        using CWarpDstr = typename WarpGemm::CWarpDstr;
+
+        using AWarpTensor = typename WarpGemm::AWarpTensor;
+        using BWarpTensor = typename WarpGemm::BWarpTensor;
+        using CWarpTensor = typename WarpGemm::CWarpTensor;
+
+        constexpr auto a_warp_y_lengths =
+            to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto b_warp_y_lengths =
+            to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+        constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+        constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
+        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+        // hot loop: A/B block tensors hold a single K sub-tile when KSubTileNum > 1
+        static_ford<sequence<KPerSubTile, MIterPerWarp>>{}([&](auto km) {
+            constexpr auto kIter = number<km[number<0>{}]>{};
+            constexpr auto mIter = number<km[number<1>{}]>{};
+            if constexpr(kIter == KSlice)
+            {
+                // read A warp tensor from A Block window
+                AWarpTensor a_warp_tensor;
+                a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    // read B warp tensor from B block tensor
+                    BWarpTensor b_warp_tensor;
+                    b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
+                        merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+
+                    // read C warp tensor from C block tensor
+                    using c_iter_idx = std::
+                        conditional_t<TransposeC, sequence<nIter, mIter>, sequence<mIter, nIter>>;
+                    CWarpTensor c_warp_tensor;
+                    c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                        merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                    // warp GEMM
+                    if constexpr(nIter != 0)
+                    {
+                        WarpGemm{}.template operator()<ReuseA<true>, ReuseB<false>>(
+                            c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                    }
+                    else
+                    {
+                        WarpGemm{}.template operator()<ReuseA<false>, ReuseB<false>>(
+                            c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                    }
+
+                    // write C warp tensor into C block tensor
+                    c_block_tensor.set_y_sliced_thread_data(
+                        merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                        c_warp_tensor.get_thread_buffer());
+                });
+            }
+        });
+    }
+
     // C += A * B with scale value. SubTileIdx: which sub_tile in [0, KSubTileNum), compile-time.
     // used for sub tile based pipelining, where K dimension of block-gemm is divided into
     // KSubTileNum sub-tiles

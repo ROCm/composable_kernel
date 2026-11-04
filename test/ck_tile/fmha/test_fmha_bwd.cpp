@@ -284,6 +284,57 @@ TEST_P(DecodeDropout, DataTypeConfig)
     fmha_bwd_test(GetParam(), true);
 }
 
+// gfx1250 d128 decode tile without a mask. It only dispatches once
+// batch * nhead_q >= 768, which none of the short-query cases above reach.
+// seqlen_k covers one K/V tile (32), several (96) and a partial tail (65).
+class DecodeD128NoMask : public TestWithParam<FmhaBwdTestParam>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
+                         DecodeD128NoMask,
+                         Combine(ModeValues,
+                                 Values(std::tuple{128, -1}),
+                                 Values(std::tuple{true, true}),
+                                 Values("n"),
+                                 Values(false),
+                                 Values(0.0f),
+                                 Values(std::tuple{0, 0, false}),
+                                 Values(std::tuple{128, 6, 6, 16, 32, "0"},
+                                        std::tuple{128, 6, 6, 32, 96, "0"},
+                                        std::tuple{128, 6, 2, 8, 65, "0"}),
+                                 Values(false)));
+
+TEST_P(DecodeD128NoMask, DataTypeConfig)
+{
+    if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp32>)
+        GTEST_SKIP() << "Decode instances support fp16 and bf16";
+    if(ck_tile::get_device_name().compare(0, 6, "gfx125") != 0)
+        GTEST_SKIP() << "d128 no-mask decode dispatch is gfx1250 only";
+    const auto& [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = std::get<7>(GetParam());
+    const bool group            = std::get<0>(GetParam()) == mode_enum::group;
+    const std::string data_type = std::is_same_v<DataTypeConfig, FmhaBwdFp16> ? "fp16" : "bf16";
+    fmha_bwd_launcher launcher(fmha_bwd_traits{group ? batch * seqlen_q : seqlen_q,
+                                               group ? batch * seqlen_k : seqlen_k,
+                                               batch,
+                                               seqlen_q,
+                                               seqlen_k,
+                                               128,
+                                               128,
+                                               nhead,
+                                               nhead_k,
+                                               data_type,
+                                               group,
+                                               mask_enum::no_mask,
+                                               bias_enum::no_bias,
+                                               false,
+                                               false,
+                                               false,
+                                               false});
+    ASSERT_EQ(launcher.selected_max_seqlen_q(), 32);
+    fmha_bwd_test(GetParam(), true);
+}
+
 class Deterministic : public TestWithParam<FmhaBwdTestParam>
 {
 };
