@@ -871,8 +871,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
               K1 <= 4) ||
              (is_same<ComputeTypeA, int8_t>::value && K1 <= 8) ||
-             ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
-              K1 < 32))
+             ((is_f8_type_v<ComputeTypeA> || is_bf8_type_v<ComputeTypeA>) && K1 < 32))
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;
@@ -1070,8 +1069,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
               K1 <= 4) ||
              (is_same<ComputeTypeA, int8_t>::value && K1 <= 8) ||
-             ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
-              K1 < 32))
+             ((is_f8_type_v<ComputeTypeA> || is_bf8_type_v<ComputeTypeA>) && K1 < 32))
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;

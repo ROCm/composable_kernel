@@ -3,12 +3,16 @@
 
 /**
  * @file
- * @brief Host-only checks of the MX GEMM shape gates for the gfx125 TDM pipelines.
- * @details Nothing is launched. The shape checks and the logged rejection reasons are checked on
- *          any host; that IsSupportedArgument accepts an argument also needs a gfx125 device and
- *          is skipped without one.
+ * @brief Host-only checks of the MX GEMM argument gates and LDS sizing for the gfx125 TDM
+ *        pipelines.
+ * @details Nothing is launched. The shape and pointer-alignment checks, the policies' LDS padding,
+ *          the LDS sizes of policies, pipelines and kernels, and the logged rejection reasons are
+ *          checked on any host; that IsSupportedArgument accepts an argument also needs a gfx125
+ *          device and is skipped without one.
  */
 
+#include <array>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -63,8 +67,40 @@ std::pair<bool, std::string> logged(F&& f)
     return {result, log};
 }
 
-// An MX GEMM with a TDM pipeline: tile 64 x 64 x KTile, warps 2x2x1, a WarpTile x WarpTile x 128
-// warp tile and 32-element scales, as in the TDM gtests.
+// The pipeline problem of TdmMxGemm: tile 64 x 64 x KTile, warps 2x2x1, a WarpTile x WarpTile x
+// 128 warp tile and 32-element scales, as in the TDM gtests. It names no pipeline, so a policy can
+// be checked with it on its own.
+template <typename A,
+          typename B,
+          typename ALayout = Row,
+          typename BLayout = Col,
+          typename AScale  = E8M0,
+          typename BScale  = E8M0,
+          index_t KTile    = 128,
+          index_t WarpTile = 16>
+struct TdmMxProblem
+{
+    using Shape = ck_tile::TileGemmShape<ck_tile::sequence<64, 64, KTile>,
+                                         ck_tile::sequence<2, 2, 1>,
+                                         ck_tile::sequence<WarpTile, WarpTile, 128>>;
+    using Traits =
+        ck_tile::TileGemmUniversalTraits<false, false, false, true, ALayout, BLayout, Row, true>;
+    using type = ck_tile::MxGemmPipelineProblem<A,
+                                                B,
+                                                float,
+                                                Shape,
+                                                Traits,
+                                                ck_tile::GemmPipelineScheduler::Intrawave,
+                                                ck_tile::element_wise::PassThrough,
+                                                ck_tile::element_wise::PassThrough,
+                                                A,
+                                                B,
+                                                AScale,
+                                                BScale,
+                                                32>;
+};
+
+// An MX GEMM with a TDM pipeline over TdmMxProblem.
 template <template <typename...> class Pipeline,
           typename A,
           typename B,
@@ -76,25 +112,10 @@ template <template <typename...> class Pipeline,
           index_t WarpTile = 16>
 struct TdmMxGemm
 {
-    using Shape       = ck_tile::TileGemmShape<ck_tile::sequence<64, 64, KTile>,
-                                               ck_tile::sequence<2, 2, 1>,
-                                               ck_tile::sequence<WarpTile, WarpTile, 128>>;
-    using Partitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<Shape, 8, 4>;
-    using Traits =
-        ck_tile::TileGemmUniversalTraits<false, false, false, true, ALayout, BLayout, Row, true>;
-    using Problem         = ck_tile::MxGemmPipelineProblem<A,
-                                                           B,
-                                                           float,
-                                                           Shape,
-                                                           Traits,
-                                                           ck_tile::GemmPipelineScheduler::Intrawave,
-                                                           ck_tile::element_wise::PassThrough,
-                                                           ck_tile::element_wise::PassThrough,
-                                                           A,
-                                                           B,
-                                                           AScale,
-                                                           BScale,
-                                                           32>;
+    using ProblemDef      = TdmMxProblem<A, B, ALayout, BLayout, AScale, BScale, KTile, WarpTile>;
+    using Shape           = typename ProblemDef::Shape;
+    using Partitioner     = ck_tile::GemmSpatiallyLocalTilePartitioner<Shape, 8, 4>;
+    using Problem         = typename ProblemDef::type;
     using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<A,
                                                              B,
                                                              ck_tile::tuple<>,
@@ -143,6 +164,75 @@ struct TdmMxGemm
         return Kernel::MakeKernelArgs(args);
     }
 };
+
+// The policy a pipeline template uses, read from its default template argument without
+// instantiating the pipeline, so that only the policy is checked.
+template <typename Pipeline>
+struct PipelinePolicyOf;
+
+template <template <typename, typename> class PipelineTemplate, typename Problem, typename Policy>
+struct PipelinePolicyOf<PipelineTemplate<Problem, Policy>>
+{
+    using type = Policy;
+};
+
+template <template <typename...> class Pipeline, typename A, typename B>
+using TdmPolicy = typename PipelinePolicyOf<Pipeline<typename TdmMxProblem<A, B>::type>>::type;
+
+// The TDM policies never pad 6-bit LDS rows, in any compilation pass: this file's host pass and
+// each device pass check it for the V1 and V2 policies, so the host's GetSmemSize agrees with the
+// gfx125 device's. Only the Problem is built, so each policy is checked on its own.
+// PolicyF6LdsRowsAreDense below shows the check is not vacuous: the base policy pads these rows.
+template <typename Policy, typename Problem, bool IsA>
+constexpr bool kTdmLdsPadded =
+    Policy::template GetLdsPaddingConfig<Problem, IsA>()[ck_tile::number<0>{}];
+
+using F6Problem  = typename TdmMxProblem<F6, F6>::type;
+using F6PolicyV1 = TdmPolicy<ck_tile::GemmPipelineAgBgCrCompTDMV1, F6, F6>;
+using F6PolicyV2 = TdmPolicy<ck_tile::GemmPipelineAgBgCrCompTDMV2, F6, F6>;
+static_assert(!kTdmLdsPadded<F6PolicyV1, F6Problem, true> &&
+                  !kTdmLdsPadded<F6PolicyV1, F6Problem, false>,
+              "6-bit LDS rows must not be padded (V1 policy)");
+static_assert(!kTdmLdsPadded<F6PolicyV2, F6Problem, true> &&
+                  !kTdmLdsPadded<F6PolicyV2, F6Problem, false>,
+              "6-bit LDS rows must not be padded (V2 policy)");
+
+// GetLdsPaddingConfig as {padded, pad_amount, pad_interval}.
+template <typename Config>
+std::array<index_t, 3> lds_padding(const Config& config)
+{
+    return {static_cast<index_t>(config[ck_tile::number<0>{}]),
+            static_cast<index_t>(config[ck_tile::number<1>{}]),
+            static_cast<index_t>(config[ck_tile::number<2>{}])};
+}
+
+// A dense 6-bit LDS row of TdmMxProblem's K tile: KPerBlock / 16 packs of 12 bytes.
+using F6Shape = typename TdmMxProblem<F6, F6>::Shape;
+constexpr index_t kF6LdsRowBytes =
+    F6Shape::kK / ck_tile::numeric_traits<F6>::PackedSize * static_cast<index_t>(sizeof(F6));
+// One LDS buffer of that tile: MPerBlock rows of A and NPerBlock rows of B, unpadded.
+constexpr index_t kF6DenseLdsBufferBytes = (F6Shape::kM + F6Shape::kN) * kF6LdsRowBytes;
+
+// A 256-byte aligned address, as hipMalloc returns, standing in for a device pointer: the TDM
+// argument checks only look at its value.
+constexpr std::uintptr_t kDeviceAddress = 0x10000;
+constexpr char kAlignmentReason[] =
+    "requires A/B/E pointers aligned to TDMElementTraits<T>::alignment";
+
+// UniversalGemmKernel::IsTdmArgumentSupported with a valid k_batch and K and the given addresses,
+// with what it logged. It does not query the device, so acceptance is checked on any host.
+template <typename Gemm>
+std::pair<bool, std::string> tdm_pointers_ok(std::uintptr_t a, std::uintptr_t b, std::uintptr_t e)
+{
+    return logged([&] {
+        return Gemm::Kernel::IsTdmArgumentSupported("MX GEMM",
+                                                    1,
+                                                    128,
+                                                    reinterpret_cast<const void*>(a),
+                                                    reinterpret_cast<const void*>(b),
+                                                    reinterpret_cast<const void*>(e));
+    });
+}
 
 // K values of the TDM gtests (1..4 x K_Tile and 512^3), the grouped MX TDM gtests (512 + 128 i) and
 // the dispatcher bridge TDM tests with tile_k 128 (1, 2, 3, 4, 5, 8 x tile_k).
@@ -319,6 +409,27 @@ void check_rcr_kernel_gates()
     }
 }
 
+// The kernel forwards FP6's 16-element pack to the stride gate: 520 is a multiple of 8 but not of
+// 16, so an FP8 kernel would accept it.
+template <typename Gemm>
+void check_f6_kernel_stride_gates()
+{
+    expect_shape_rejection<Gemm>(
+        64,
+        64,
+        512,
+        520,
+        512,
+        "requires the stride of a packed A to be a multiple of its pack size 16");
+    expect_shape_rejection<Gemm>(
+        64,
+        64,
+        512,
+        512,
+        520,
+        "requires the stride of a packed B to be a multiple of its pack size 16");
+}
+
 TEST(MxGemmTdmGates, KernelF8TdmV1)
 {
     check_rcr_kernel_gates<TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F8, F8>>();
@@ -340,6 +451,22 @@ TEST(MxGemmTdmGates, KernelF4TdmV1)
 TEST(MxGemmTdmGates, KernelF4TdmV2)
 {
     check_rcr_kernel_gates<TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV2, F4, F4>>();
+    skip_without_gfx125();
+}
+
+TEST(MxGemmTdmGates, KernelF6TdmV1)
+{
+    using Gemm = TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F6, F6>;
+    check_rcr_kernel_gates<Gemm>();
+    check_f6_kernel_stride_gates<Gemm>();
+    skip_without_gfx125();
+}
+
+TEST(MxGemmTdmGates, KernelF6TdmV2)
+{
+    using Gemm = TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV2, F6, F6>;
+    check_rcr_kernel_gates<Gemm>();
+    check_f6_kernel_stride_gates<Gemm>();
     skip_without_gfx125();
 }
 
@@ -374,6 +501,111 @@ TEST(MxGemmTdmGates, KernelPassesItsLayouts)
     expect_shape_rejection<Gemm>(
         63, 64, 256, 64, 64, "requires M of a column-major packed A to be a multiple");
     skip_without_gfx125();
+}
+
+TEST(MxGemmTdmGates, KernelPointerAlignment)
+{
+    // 1-byte A and B (FP8, and FP4 packs) take any address; the fp16 E needs an even one.
+    using F8Gemm = TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F8, F8>;
+    using F4Gemm = TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F4, F4>;
+    for(std::uintptr_t offset : {0, 1, 2, 3})
+    {
+        const std::uintptr_t ab = kDeviceAddress + offset;
+        EXPECT_TRUE(tdm_pointers_ok<F8Gemm>(ab, ab, kDeviceAddress).first) << offset;
+        EXPECT_TRUE(tdm_pointers_ok<F4Gemm>(ab, ab, kDeviceAddress).first) << offset;
+    }
+    EXPECT_TRUE(tdm_pointers_ok<F8Gemm>(kDeviceAddress, kDeviceAddress, kDeviceAddress + 2).first);
+    for(std::uintptr_t offset : {1, 3})
+    {
+        const auto [ok, log] =
+            tdm_pointers_ok<F8Gemm>(kDeviceAddress, kDeviceAddress, kDeviceAddress + offset);
+        EXPECT_FALSE(ok) << offset;
+        EXPECT_NE(log.find(kAlignmentReason), std::string::npos) << log;
+    }
+}
+
+TEST(MxGemmTdmGates, KernelF6PointerAlignment)
+{
+    // 12-byte FP6 packs need 4-byte aligned A and B, not 12-byte aligned ones: kDeviceAddress is 4
+    // mod 12, and kDeviceAddress + 4 is 8 mod 12.
+    using F6Gemm = TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F6, F6>;
+    ASSERT_EQ(kDeviceAddress % sizeof(F6), 4u)
+        << "the accepted addresses must not be 12-byte aligned";
+    for(std::uintptr_t offset : {0, 4})
+    {
+        const std::uintptr_t ab = kDeviceAddress + offset;
+        EXPECT_TRUE(tdm_pointers_ok<F6Gemm>(ab, ab, kDeviceAddress).first) << offset;
+    }
+    for(std::uintptr_t offset : {1, 2, 3})
+    {
+        const std::uintptr_t bad = kDeviceAddress + offset;
+        const auto [a_ok, a_log] = tdm_pointers_ok<F6Gemm>(bad, kDeviceAddress, kDeviceAddress);
+        EXPECT_FALSE(a_ok) << offset;
+        EXPECT_NE(a_log.find(kAlignmentReason), std::string::npos) << a_log;
+        const auto [b_ok, b_log] = tdm_pointers_ok<F6Gemm>(kDeviceAddress, bad, kDeviceAddress);
+        EXPECT_FALSE(b_ok) << offset;
+        EXPECT_NE(b_log.find(kAlignmentReason), std::string::npos) << b_log;
+    }
+}
+
+template <typename Policy>
+void expect_dense_f6_lds()
+{
+    using Problem = F6Problem;
+    using Base    = typename Policy::Base;
+    // The base policy pads these A and B rows, so the TDM policy is what removes the padding.
+    EXPECT_EQ(lds_padding(Base::template GetLdsPaddingConfig<Problem, true>())[0], 1);
+    EXPECT_EQ(lds_padding(Base::template GetLdsPaddingConfig<Problem, false>())[0], 1);
+    const std::array<index_t, 3> no_padding{0, 0, 0};
+    EXPECT_EQ(lds_padding(Policy::template GetLdsPaddingConfig<Problem, true>()), no_padding);
+    EXPECT_EQ(lds_padding(Policy::template GetLdsPaddingConfig<Problem, false>()), no_padding);
+    EXPECT_EQ(Policy::template GetSmemSize<Problem>(), kF6DenseLdsBufferBytes);
+}
+
+// 6-bit LDS rows are never padded, in the host pass as in the gfx125 device pass, so the host's LDS
+// size is that of the dense rows.
+TEST(MxGemmTdmGates, PolicyF6LdsRowsAreDense)
+{
+    expect_dense_f6_lds<F6PolicyV1>();
+    expect_dense_f6_lds<F6PolicyV2>();
+}
+
+// An FP6 pipeline allocates two dense LDS buffers, because the TDM pipelines double-buffer LDS.
+// Its kernel allocates the larger of the pipeline's and the TDM epilogue's LDS, which is the
+// pipeline's.
+template <template <typename...> class Pipeline>
+void expect_dense_f6_kernel_lds()
+{
+    using Gemm = TdmMxGemm<Pipeline, F6, F6>;
+    EXPECT_EQ(Pipeline<typename Gemm::Problem>::GetSmemSize(), 2 * kF6DenseLdsBufferBytes);
+    EXPECT_EQ(Gemm::Kernel::GetSmemSize(), 2 * kF6DenseLdsBufferBytes);
+}
+
+TEST(MxGemmTdmGates, KernelF6LdsRowsAreDense)
+{
+    expect_dense_f6_kernel_lds<ck_tile::GemmPipelineAgBgCrCompTDMV1>();
+    expect_dense_f6_kernel_lds<ck_tile::GemmPipelineAgBgCrCompTDMV2>();
+}
+
+// Every other operand type keeps the base policy's LDS padding in the host pass; only the gfx125
+// device pass may drop it (IsTDMLdsPaddingConsistent).
+template <typename Policy, typename A, typename B>
+void expect_base_lds_padding()
+{
+    using Problem     = typename TdmMxProblem<A, B>::type;
+    using Base        = typename Policy::Base;
+    const auto base_a = lds_padding(Base::template GetLdsPaddingConfig<Problem, true>());
+    const auto base_b = lds_padding(Base::template GetLdsPaddingConfig<Problem, false>());
+    EXPECT_EQ(base_a[0], 1);
+    EXPECT_EQ(base_b[0], 1);
+    EXPECT_EQ(lds_padding(Policy::template GetLdsPaddingConfig<Problem, true>()), base_a);
+    EXPECT_EQ(lds_padding(Policy::template GetLdsPaddingConfig<Problem, false>()), base_b);
+}
+
+TEST(MxGemmTdmGates, PolicyKeepsBaseLdsPaddingOnTheHost)
+{
+    expect_base_lds_padding<TdmPolicy<ck_tile::GemmPipelineAgBgCrCompTDMV1, F8, F8>, F8, F8>();
+    expect_base_lds_padding<TdmPolicy<ck_tile::GemmPipelineAgBgCrCompTDMV1, F4, F4>, F4, F4>();
 }
 
 } // namespace

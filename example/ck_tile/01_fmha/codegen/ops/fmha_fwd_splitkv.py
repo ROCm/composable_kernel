@@ -1011,6 +1011,16 @@ def get_fwd_splitkv_blobs(
                     cond &= pipeline.F_sink == "f"
                     if not cond:
                         continue
+                # CK Tile Python API
+                elif receipt == 5:
+                    cond = dtype in ["fp16", "bf16"] and hdim <= 256
+                    cond &= pipeline.F_vlayout == "row"
+                    cond &= pipeline.F_bias in ["no", "alibi"]
+                    cond &= pipeline.F_logits == "f"
+                    cond &= pipeline.F_squant == "f"
+                    cond &= pipeline.F_sink == "f"
+                    if not cond:
+                        continue
                 # Aiter(mha_varlen_fwd) integration
                 elif receipt == 200:
                     cond = dtype in ["fp16", "bf16"]
@@ -1076,8 +1086,14 @@ def get_fwd_splitkv_combine_blobs(
                 if optdim_list != [-1]:
                     if hdim not in optdim_list:
                         continue
+                # CK Tile Python API. The shared dispatcher references both LSE variants.
+                if receipt == 5:
+                    cond = dtype in ["fp16", "bf16"] and hdim <= 256
+                    cond &= pipeline.F_squant == "f"
+                    if not cond:
+                        continue
                 # Aiter(mha_varlen_fwd) integration
-                if receipt == 200:
+                elif receipt == 200:
                     cond = dtype in ["fp16", "bf16"]
                     cond &= mode == "group"
                     if not cond:

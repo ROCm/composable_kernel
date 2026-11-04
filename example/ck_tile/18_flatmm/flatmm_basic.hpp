@@ -104,7 +104,7 @@ struct FlatmmConfig16_Wmma : public FlatmmConfig16<DataType>
     static constexpr ck_tile::index_t K_Warp_Tile = ck_tile::get_k_warp_tile<DataType, 16>();
 };
 
-template <typename ADataType>
+template <typename ADataType, typename = void>
 struct GemmBasicTypeConfig;
 
 template <>
@@ -125,28 +125,17 @@ struct GemmBasicTypeConfig<ck_tile::bf16_t>
     using AccDataType = float;
     using CDataType   = ck_tile::bf16_t;
 };
-template <>
-struct GemmBasicTypeConfig<ck_tile::fp8_t>
+template <typename T>
+struct GemmBasicTypeConfig<T, std::enable_if_t<ck_tile::is_fp8_type_v<T>>>
 {
-    using ADataType   = ck_tile::fp8_t;
-    using BDataType   = ck_tile::fp8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-    // ToDo: Add more bias config to support different categories of GEMM.
-};
-
-template <>
-struct GemmBasicTypeConfig<ck_tile::bf8_t>
-{
-    using ADataType   = ck_tile::bf8_t;
-    using BDataType   = ck_tile::bf8_t;
+    using ADataType   = T;
+    using BDataType   = T;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
 };
 
 template <typename T>
-struct is_8bit_type
-    : std::bool_constant<std::is_same_v<T, ck_tile::fp8_t> || std::is_same_v<T, ck_tile::bf8_t>>
+struct is_8bit_type : std::bool_constant<ck_tile::is_fp8_type_v<T>>
 {
 };
 

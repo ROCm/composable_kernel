@@ -35,12 +35,9 @@ template <typename GemmConfig,
 float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-    constexpr bool IS_FP8BLOCKSCALE =
-        QuantMode == ck_tile::QuantType::ABQuantGrouped &&
-        (std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
-         std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t>) &&
-        (std::is_same_v<typename TypeConfig::BDataType, ck_tile::fp8_t> ||
-         std::is_same_v<typename TypeConfig::BDataType, ck_tile::bf8_t>);
+    constexpr bool IS_FP8BLOCKSCALE = QuantMode == ck_tile::QuantType::ABQuantGrouped &&
+                                      ck_tile::is_fp8_type_v<typename TypeConfig::ADataType> &&
+                                      ck_tile::is_fp8_type_v<typename TypeConfig::BDataType>;
     constexpr bool transpose_c = GemmConfig::TransposeC;
     constexpr bool eight_waves =
 #ifdef CK_GFX950_SUPPORT
@@ -1016,8 +1013,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
 
     if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
                  std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_fp4_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t> ||
+                 ck_tile::is_fp8_type_v<typename TypeConfig::ADataType> ||
                  std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf16_t>)
     {
         std::string a_layout = arg_parser.get_str("a_layout");

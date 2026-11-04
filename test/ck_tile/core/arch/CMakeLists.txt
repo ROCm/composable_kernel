@@ -33,3 +33,8 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
 else()
     message(DEBUG "Skipping test_barrier_device: requires a gfx125x target")
 endif()
+
+# Ungated: split_barrier.hpp has a split-barrier path on gfx12 and a full-barrier fallback
+# elsewhere, so the test builds and passes on every target. add_gtest_executable labels it
+# SMOKE_TEST, which is what the gfx1250 CI stage runs ("ninja smoke"); nothing here relabels it.
+add_gtest_executable(test_split_barrier test_split_barrier.cpp)

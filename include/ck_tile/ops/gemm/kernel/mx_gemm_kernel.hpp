@@ -65,9 +65,10 @@ struct MxGemmKernelArgs : public UniversalGemmKernelArgs<NumATensor, NumBTensor,
  *          - K not a multiple of KPerBlock: the MX kernel never pads K (kPadK is false), so its
  *            scale view does not cover a partial final K tile. This check is conservative;
  *          - for a packed A or B (PackedSize > 1, such as pk_fp4_t or pk_fp6x16_t), a stride or a
- *            contiguous extent that is not a whole number of packs: the TDM descriptor divides
- *            both by PackedSize and rounds down. The contiguous extent is K for a row-major A and
- *            a column-major B, M for a column-major A and N for a row-major B.
+ *            contiguous extent that is not a whole number of packs: the TDM load
+ *            (tile_window::tdm_load_to_lds) divides both by PackedSize and rounds down. The
+ *            contiguous extent is K for a row-major A and a column-major B, M for a column-major
+ *            A and N for a row-major B.
  *          Apart from that, M and N are not checked: TDM clips partial tiles in hardware.
  *          The function takes the operand types and tile constants rather than a kernel, so it
  *          can also be checked for operand types that the TDM pipelines cannot instantiate yet.

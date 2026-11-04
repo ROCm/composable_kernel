@@ -507,7 +507,7 @@ struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::Set, 
         is_same<DataType, float>::value || is_same<DataType, double>::value ||
         is_same<DataType, half_t>::value || is_same<DataType, bhalf_t>::value ||
         is_same<DataType, int8_t>::value || is_same<DataType, int32_t>::value ||
-        is_same<DataType, f8_t>::value;
+        is_f8_type_v<DataType>;
 };
 
 template <typename DataType>

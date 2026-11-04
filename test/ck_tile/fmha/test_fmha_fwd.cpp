@@ -411,6 +411,318 @@ TEST(TestCkTileFmhaFwd, QrTdmLdsArenaPrefill)
     }
 }
 
+// Batch-mode XCD remap of the block index (gfx1250): 3 batches, seqlen_q 300, so
+// 3 (bm0=128) or 5 (bm0=64) m-tiles per (batch, head) on grids that are not a
+// multiple of the XCD count, where the remap is not the identity. Each case names
+// the GetTileIndex branch it reaches. Square causal bhsd grids take the
+// batch-local causal order instead, hence seqlen_k 400 for the bhsd causal case.
+// Masked bshd grids remap only with at least 8 (batch, head) rows per m-tile: 3 x
+// 16 heads covers both m-tile counts, 3 x 5 neither.
+class BatchXCDRemap
+    : public TestWithParam<
+          std::tuple<bool, int, int, std::vector<int>, std::vector<int>, const char*>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    BatchXCDRemap,
+    // bhsd/bshd, nhead, seqlen_k, q_eff_lens, kv_eff_lens, mask
+    Values(
+        // bhsd remap
+        std::tuple{true, 5, 300, std::vector<int>{}, std::vector<int>{}, "0"},
+        std::tuple{true, 5, 400, std::vector<int>{}, std::vector<int>{}, "2"},
+        // bshd remap
+        std::tuple{false, 5, 300, std::vector<int>{}, std::vector<int>{}, "0"},
+        std::tuple{false, 16, 300, std::vector<int>{}, std::vector<int>{}, "2"},
+        // bshd masked, too few heads per m-tile: round-robin
+        std::tuple{false, 5, 300, std::vector<int>{}, std::vector<int>{}, "2"},
+        // per-batch lengths: round-robin, early exit past each batch's seqlen_q
+        std::tuple{true, 5, 300, std::vector<int>{300, 64, 1}, std::vector<int>{300, 100, 7}, "0"},
+        std::tuple{
+            false, 16, 300, std::vector<int>{300, 64, 1}, std::vector<int>{300, 100, 7}, "2"}));
+
+TEST_P(BatchXCDRemap, DataTypeConfig)
+{
+    auto [perm, nhead, seqlen_k, q_eff_lens, kv_eff_lens, mask_str] = GetParam();
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode_enum::batch,
+                                               3, // batch
+                                               nhead,
+                                               -1, // nhead_k
+                                               {adjust_seqlen(300)},
+                                               {adjust_seqlen(seqlen_k)},
+                                               adjust_hdim(128),
+                                               adjust_hdim(128),
+                                               0,    // seqlen_knew
+                                               {-1}, // seqlen_qpads
+                                               {-1}, // seqlen_kpads
+                                               q_eff_lens,
+                                               kv_eff_lens,
+                                               0,    // rotary_dim
+                                               perm, // i_perm
+                                               perm, // o_perm
+                                               0,    // scale_s
+                                               0,    // logits_soft_cap
+                                               def_is_v_rowmajor,
+                                               def_lse,
+                                               0,     // page_block_size
+                                               false, // use_cache_batch_idx
+                                               "n",   // bias_str
+                                               0.0f,  // p_drop
+                                               0,     // drop_seed
+                                               0,     // drop_offset
+                                               false, // drop_prefs
+                                               mask_str,
+                                               qscale_str,
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
+    CHECK_RESULT(result);
+}
+
+// d128 runs qr_tdm_pingpong below 640 rows with at least 2 (batch, head) pairs per
+// multiprocessor (GFX125_QR_TDM_PINGPONG_RANGE in fmha_fwd.py), so each case sizes its
+// grid to reach it on this device: the batch in batch mode; in group mode, where this
+// runner passes the packed total length as max_seqlen_q (kept below 640), the head
+// count for a given number of sequences (12 by default). The unpadded instance serves
+// any seqlen_k except with an elementwise bias; causal masks take its causal kernel
+// ("_mc_", without LSE, bias or sink). ALiBi without a mask makes every K tile raise the
+// row maxima of the steep heads past the rebase threshold, so those cases take the
+// finite-to-finite rescale of o_acc and l on every trip, with and without LSE.
+std::pair<int, int> PingPongGrid(mode_enum mode, int nhead, int group_batch = 12)
+{
+    int device = 0;
+    hipDeviceProp_t props{};
+    EXPECT_EQ(hipGetDevice(&device), hipSuccess);
+    EXPECT_EQ(hipGetDeviceProperties(&props, device), hipSuccess);
+    const int pairs = 2 * props.multiProcessorCount;
+    if(mode == mode_enum::batch)
+        return {ck_tile::integer_divide_ceil(pairs, nhead), nhead};
+    return {group_batch, ck_tile::integer_divide_ceil(pairs, group_batch)};
+}
+
+// max_seqlen_q <= 16 takes qr_tdm_pingpong's 16-row tile, which spends its warps on N
+// instead of M and so sends S through LDS on its way from gemm_0 to gemm_1. A
+// distribution mismatch there permutes P's columns within a row: the row sums, and so
+// the LSE, stay right while O is wrong, so O is what these cases check. seqlen_k covers
+// a tile multiple and a padded tail; the masks cover the causal and windowed paths. The
+// grid is sized as for QrTdmPingPong; group mode packs 2 sequences of 8 rows.
+class QrTdmShortQuery : public TestWithParam<std::tuple<mode_enum, int, int, const char*>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         QrTdmShortQuery,
+                         // mode, seqlen_q, seqlen_k, mask
+                         Values(std::tuple{mode_enum::batch, 1, 509, "0"},
+                                std::tuple{mode_enum::batch, 8, 64, "0"},
+                                std::tuple{mode_enum::batch, 16, 509, "1"},
+                                std::tuple{mode_enum::batch, 8, 509, "2"},
+                                std::tuple{mode_enum::batch, 16, 64, "t:50,64"},
+                                std::tuple{mode_enum::group, 8, 509, "2"}));
+
+TEST_P(QrTdmShortQuery, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm_pingpong is only supported on gfx1250";
+
+        auto [mode, seqlen_q, seqlen_k, mask_str] = GetParam();
+        const auto [batch, nhead]                 = PingPongGrid(mode, 4, 2);
+
+        std::string selected_kernel;
+        // MHA: pack-GQA would fold the heads into seqlen_q and move the tile choice.
+        auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                                   batch,
+                                                   nhead,
+                                                   -1,
+                                                   {seqlen_q},
+                                                   {seqlen_k},
+                                                   128,
+                                                   128,
+                                                   0,
+                                                   {-1},
+                                                   {-1},
+                                                   {},
+                                                   {},
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   0,
+                                                   true,
+                                                   true,
+                                                   0,
+                                                   false,
+                                                   "n",
+                                                   0.0f,
+                                                   0,
+                                                   0,
+                                                   false,
+                                                   mask_str,
+                                                   qscale_str,
+                                                   true,
+                                                   1,
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_qr_tdm_pingpong_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_b16x64"), std::string::npos) << selected_kernel;
+    }
+}
+
+class QrTdmPingPong
+    : public TestWithParam<
+          std::tuple<mode_enum, int, int, int, const char*, const char*, bool, const char*, bool>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    QrTdmPingPong,
+    // mode, nhead (group mode: from the grid), seqlen_q, seqlen_k, mask, bias, lse, name part,
+    // BHSD (i_perm/o_perm; BSHD otherwise)
+    Values(std::tuple{mode_enum::batch, 4, 64, 64, "0", "n", true, "_npad_", false},
+           std::tuple{mode_enum::batch, 4, 64, 100, "0", "n", true, "_npad_", false},
+           std::tuple{mode_enum::batch, 4, 64, 100, "0", "e", true, "_pssk_", false},
+           std::tuple{mode_enum::batch, 4, 64, 128, "0", "e", true, "_npad_", false},
+           std::tuple{mode_enum::batch, 8, 64, 192, "0", "a", true, "_alibi_", false},
+           std::tuple{mode_enum::batch, 8, 64, 192, "0", "a", false, "_alibi_", false},
+           std::tuple{mode_enum::batch, 4, 232, 232, "t:50,64", "n", true, "_mask_", false},
+           std::tuple{mode_enum::batch, 8, 100, 100, "2", "n", false, "_mc_", false},
+           std::tuple{mode_enum::group, 4, 50, 100, "2", "n", true, "", false},
+           std::tuple{mode_enum::batch, 4, 64, 64, "0", "n", true, "_npad_", true},
+           std::tuple{mode_enum::batch, 8, 64, 192, "0", "a", true, "_alibi_", true},
+           std::tuple{mode_enum::group, 4, 50, 100, "2", "n", true, "", true}));
+
+TEST_P(QrTdmPingPong, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm_pingpong is only supported on gfx1250";
+
+        auto [mode, nhead_hint, seqlen_q, seqlen_k, mask_str, bias_str, lse, tag, perm] =
+            GetParam();
+        const auto [batch, nhead] = PingPongGrid(mode, nhead_hint);
+
+        std::string selected_kernel;
+        auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                                   batch,
+                                                   nhead,
+                                                   -1,
+                                                   {seqlen_q},
+                                                   {seqlen_k},
+                                                   128,
+                                                   128,
+                                                   0,
+                                                   {-1},
+                                                   {-1},
+                                                   {},
+                                                   {},
+                                                   0,
+                                                   perm,
+                                                   perm,
+                                                   0,
+                                                   0,
+                                                   true,
+                                                   lse,
+                                                   0,
+                                                   false,
+                                                   bias_str,
+                                                   0.0f,
+                                                   0,
+                                                   0,
+                                                   false,
+                                                   mask_str,
+                                                   qscale_str,
+                                                   true,
+                                                   1,
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_b64x"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_qr_tdm_pingpong_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find(tag), std::string::npos) << selected_kernel;
+    }
+}
+
+// qr_tdm_pingpong with a sink, and below d128: the dpad/dvpad instances, whose O goes
+// through the LDS-shuffle epilogue with a padded N. Same grids as QrTdmPingPong.
+class QrTdmPingPongEdges
+    : public TestWithParam<std::tuple<int, int, const char*, const char*, int, const char*>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         QrTdmPingPongEdges,
+                         // hdim_q, hdim_v, mask, bias, init_sink, name part
+                         Values(std::tuple{128, 128, "0", "n", 1, "_sink"},
+                                std::tuple{128, 128, "t:50,64", "n", 1, "_sink"},
+                                std::tuple{120, 120, "2", "n", 0, "_pddv_"},
+                                std::tuple{128, 120, "0", "e", 0, "_psskddv_"}));
+
+TEST_P(QrTdmPingPongEdges, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm_pingpong is only supported on gfx1250";
+
+        auto [hdim_q, hdim_v, mask_str, bias_str, init_sink, tag] = GetParam();
+        const auto [batch, nhead] = PingPongGrid(mode_enum::batch, 4);
+
+        std::string selected_kernel;
+        auto result = fmha_fwd_run<DataTypeConfig>(
+            mode_enum::batch,
+            batch,
+            nhead,
+            -1,
+            {100},
+            {300},
+            hdim_q,
+            hdim_v,
+            0,
+            {-1},
+            {-1},
+            {},
+            {},
+            0,
+            false,
+            false,
+            0,
+            0,
+            true,
+            true, // lse
+            0,
+            false,
+            bias_str,
+            0.0f,
+            0,
+            0,
+            false,
+            mask_str,
+            qscale_str,
+            true,
+            1,
+            init_method,
+            static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+            1, // do_validation
+            init_sink,
+            1, // pack_gqa
+            stream_config,
+            std::nullopt,
+            &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success);
+        EXPECT_NE(selected_kernel.find("_qr_tdm_pingpong_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find(tag), std::string::npos) << selected_kernel;
+    }
+}
+
 // gfx125x-only: qr_tdm correctness at the head dims this PR added but that the
 // generic General sweep does not cover -- (160,160) and (96,96). The generic
 // suite already exercises 32/64/128/192-128 through qr_tdm but never asserts
@@ -500,6 +812,142 @@ TEST_P(QrTdmNewHeadDim, DataTypeConfig)
             else
                 EXPECT_NE(selected_kernel.find("_b64x"), std::string::npos) << selected_kernel;
         }
+    }
+}
+
+// gfx125x-only: qr_tdm at the large head dims whose LDS arena only fits a single
+// unguarded bm0=64 tile with no bm0=128 fallback -- (256,256) and (512,512).
+// General reaches 256 through HDimValues but never 512. Keeping 512 out of
+// HDimValues is a deliberate cost choice rather than a hard constraint: AllLong
+// crosses that list with dropout and bias tuples, qr_tdm emits no dropout
+// instance and the qr fallback stops at head dim 256 (the hdim <= 256 gate in
+// fmha_fwd.py), so those rows would only ever CHECK_RESULT-skip -- paying full
+// d512 codegen and build time to produce skips.
+//
+// Beyond the numerics these cases pin the codegen-level dispatch properties:
+// bm0 stays 64 at every seqlen_q (the crossover QrTdmNewHeadDim checks does not
+// apply -- there is no second tile to cross to), V stays single-buffered
+// (_nkvlp_), progressive K reload stays on (_plk_), and the mask variant matches
+// what the trait combination is supposed to select. The LDS layout behind those
+// flags is already pinned at compile time by test_qr_tdm_lds_padding.cpp and
+// test_qr_tdm_progressive_k_lds.cpp; what is new here is that the instance the
+// runtime dispatcher actually hands out still has them. At 512 a regression to
+// double-buffered V would not even link (the policy static_assert fires first),
+// so there _nkvlp_ is belt-and-braces; at 256 it is load-bearing, since a double
+// buffer still fits 128 KiB and would silently cost the bank-conflict padding.
+class QrTdmLargeHeadDim
+    : public TestWithParam<
+          std::tuple<mode_enum, std::tuple<int, int, int, const char*, const char*, bool, bool>>>
+{
+};
+
+// hdim, seqlen_q, seqlen_k, mask, bias, lse, perm. Non-multiple seqlens select the
+// seqlen-padded instances; seqlen_k > seqlen_q and seqlen_q > seqlen_k are both
+// represented, as are top-left, bottom-right and a live sliding window.
+//
+// lse is a parameter rather than def_lse because the simplified-mask causal
+// specialisation (_mc, see get_pipelines in fmha_fwd.py) is only emitted for
+// bias == "no" && lse == "f" && sink == "f". Pinning lse to def_lse (true for
+// fp16/bf16) would route every causal row to the generic _mask instance and
+// leave _mc with no coverage at these head dims at all.
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaFwd,
+    QrTdmLargeHeadDim,
+    Combine(Values(mode_enum::batch, mode_enum::group),
+            Values(std::tuple{512, 127, 509, "0", "n", true, false}, // padded seqlens, bshd
+                   std::tuple{512, 128, 256, "0", "n", false, true}, // tile-multiple seqlen_q
+                   std::tuple{512, 99, 256, "1", "n", false, true},  // causal top-left -> _mc
+                   std::tuple{512, 256, 256, "2", "n", false, true}, // causal bottom-r -> _mc
+                   std::tuple{512, 99, 256, "1", "n", true, true},   // lse -> generic _mask
+                   std::tuple{512, 200, 520, "t:128,30", "n", false, true}, // window -> _mask
+                   std::tuple{512, 127, 509, "0", "e", true, true},         // elementwise bias
+                   std::tuple{512, 99, 256, "1", "a", false, true}, // alibi -> generic _mask
+                   std::tuple{256, 127, 509, "0", "n", true, false},
+                   std::tuple{256, 128, 256, "0", "n", false, true},
+                   std::tuple{256, 99, 256, "1", "n", false, true},
+                   std::tuple{256, 256, 256, "2", "n", false, true},
+                   std::tuple{256, 99, 256, "1", "n", true, true},
+                   std::tuple{256, 200, 520, "t:128,30", "n", false, true},
+                   std::tuple{256, 127, 509, "0", "e", true, true},
+                   std::tuple{256, 99, 256, "1", "a", false, true})));
+
+TEST_P(QrTdmLargeHeadDim, DataTypeConfig)
+{
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value)
+    {
+        if(!ck_tile::is_gfx125_supported())
+            GTEST_SKIP() << "qr_tdm is only supported on gfx1250";
+
+        auto [mode, dims]                                              = GetParam();
+        auto [hdim, seqlen_q, seqlen_k, mask_str, bias_str, lse, perm] = dims;
+
+        const int adjusted_hdim = adjust_hdim(hdim);
+
+        std::string selected_kernel;
+        auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                                   2, // batch
+                                                   2, // nhead
+                                                   2, // nhead_k
+                                                   {adjust_seqlen(seqlen_q)},
+                                                   {adjust_seqlen(seqlen_k)},
+                                                   adjusted_hdim,     // hdim_q
+                                                   adjusted_hdim,     // hdim_v
+                                                   0,                 // seqlen_knew
+                                                   {-1},              // seqlen_qpads
+                                                   {-1},              // seqlen_kpads
+                                                   {},                // q_eff_lens_per_batch
+                                                   {},                // kv_eff_lens_per_batch
+                                                   0,                 // rotary_dim
+                                                   perm,              // i_perm
+                                                   perm,              // o_perm
+                                                   0,                 // scale_s
+                                                   0,                 // logits_soft_cap
+                                                   def_is_v_rowmajor, // is_v_rowmajor
+                                                   lse,               // lse
+                                                   0,                 // page_block_size
+                                                   false,             // use_cache_batch_idx
+                                                   bias_str,          // bias_str
+                                                   0.0f,              // p_drop
+                                                   0,                 // drop_seed
+                                                   0,                 // drop_offset
+                                                   false,             // drop_prefs
+                                                   mask_str,          // mask_str
+                                                   qscale_str,
+                                                   true, // is_rotary_interleaved
+                                                   1,    // num_splits
+                                                   COMMON_ARGS,
+                                                   std::nullopt,
+                                                   &selected_kernel);
+        ASSERT_EQ(result, fwd_result::success)
+            << "no instance for d" << adjusted_hdim << "; check that --optdim in "
+            << "example/ck_tile/01_fmha/CMakeLists.txt still lists this head dim";
+
+        EXPECT_NE(selected_kernel.find("_qr_tdm_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_d" + std::to_string(adjusted_hdim) + "_"),
+                  std::string::npos)
+            << selected_kernel;
+        // Single tile: bm0 is 64 regardless of seqlen_q and of batch vs group,
+        // unlike the head dims QrTdmNewHeadDim covers.
+        EXPECT_NE(selected_kernel.find("_b64x"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_nkvlp_"), std::string::npos) << selected_kernel;
+        EXPECT_NE(selected_kernel.find("_plk_"), std::string::npos) << selected_kernel;
+
+        // Mask variant: no mask stays _nmask_; causal takes the _mc specialisation
+        // only when nothing else forces the generic path (see the INSTANTIATE
+        // comment); windows and causal+bias/+lse fall back to generic _mask.
+        const bool is_causal      = mask_str == std::string("1") || mask_str == std::string("2");
+        const char* expected_mask = mask_str == std::string("0") ? "_nmask_"
+                                    : (is_causal && bias_str == std::string("n") && !lse)
+                                        ? "_mc_"
+                                        : "_mask_";
+        EXPECT_NE(selected_kernel.find(expected_mask), std::string::npos)
+            << "expected " << expected_mask << " in " << selected_kernel;
+        EXPECT_NE(selected_kernel.find(lse ? "_lse_" : "_nlse_"), std::string::npos)
+            << selected_kernel;
+    }
+    else
+    {
+        GTEST_SKIP() << "qr_tdm large head dims (256/512) are fp16/bf16 only";
     }
 }
 

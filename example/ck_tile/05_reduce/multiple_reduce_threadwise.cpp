@@ -148,8 +148,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::make_tuple(problem_shape[0], problem_shape[1], problem_shape[2], problem_shape[3]);
     auto input_strides = ck_tile::make_tuple(strides[0], strides[1], strides[2], strides[3]);
 
-    if(!Kernel::IsSupportedArgument(
-           C, input_strides)) // output tensor's continuous dimension and input strides
+    if(!Kernel::IsSupportedArgument(C, input_strides, output_tensor_offset))
     {
         throw std::runtime_error("Wrong! Arguments not supported!\n");
     }

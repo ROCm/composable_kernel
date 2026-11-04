@@ -87,6 +87,7 @@ DOUBLE_SMEM_BUFFER_PIPELINES = (
     "comp_async",
     "comp_tdm",
     "comp_tdm_v2",
+    "comp_tdm_pc",
     "preshuffle_tdm",
 )
 
@@ -2100,6 +2101,8 @@ class UnifiedGemmCodegen:
             trait.scheduler,
             num_waves=tile.warp_m * tile.warp_n * tile.warp_k,
             warp_tile_k=tile.warp_tile_k,
+            warp_tile_m=tile.warp_tile_m,
+            warp_tile_n=tile.warp_tile_n,
             dtype_a=self.datatype,
             dtype_b=self.datatype,
             layout=self.layout,
@@ -2108,6 +2111,9 @@ class UnifiedGemmCodegen:
             variant_name=variant.value,
             persistent=bool(trait.persistent),
             pads=(bool(trait.pad_m), bool(trait.pad_n), bool(trait.pad_k)),
+            batched=variant == GemmVariant.BATCHED,
+            tile_mn=(tile.tile_m, tile.tile_n),
+            warp_k=tile.warp_k,
         )
 
     def _is_tile_arch_valid(

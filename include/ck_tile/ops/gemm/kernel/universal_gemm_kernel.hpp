@@ -16,6 +16,7 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/persistent_async_input_scheduler.hpp"
 #include "ck_tile/core/arch/workgroup_barrier.hpp"
+#include "ck_tile/core/arch/amd_tdm_descriptor.hpp"
 #include "ck_tile/ops/gemm/kernel/wavelet_utils.hpp"
 
 namespace ck_tile {
@@ -217,22 +218,36 @@ struct UniversalGemmKernel
     /**
      * @brief Whether this epilogue can accumulate C across k_batch splits.
      *
-     * With k_batch > 1 every split atomically adds into the same C tile, which requires a vector
-     * width the atomic store path can express. A half-precision epilogue with an odd
-     * GetVectorSizeC() has no such path and emits no store at all, leaving C untouched rather than
-     * partial. Both the host rejection in IsSupportedArgument and the device-side epilogue dispatch
-     * read this constant, so the two cannot drift apart.
+     * With k_batch > 1 every split atomically adds into the same C tile. An epilogue that stores
+     * without honouring the atomic_add memory operation (TdmEpilogue) declares
+     * `SupportsSplitK = false`, whatever its output type. Otherwise the atomic store needs a
+     * vector width it can express: a half-precision epilogue with an odd GetVectorSizeC() has no
+     * such path and emits no store at all, leaving C untouched rather than partial. Both the host
+     * rejection in IsSupportedArgument and the device-side epilogue dispatch read this constant,
+     * so the two cannot drift apart.
      *
      * CK_TILE_FORCE_SINGLE_TAIL_HANDLER elides the atomic_add arm of that dispatch entirely, so in
      * that build no epilogue has a split-K store path. It belongs in this constant rather than in a
      * second #if at the use site, or the host answers "supported" for a device that cannot store.
      */
-    static constexpr bool EpilogueSupportsSplitK =
+    template <typename T>
+    using epilogue_supports_split_k_t = decltype(T::SupportsSplitK);
+
+    static constexpr bool EpilogueSupportsSplitK = []() {
 #if defined(CK_TILE_FORCE_SINGLE_TAIL_HANDLER)
-        false;
+        return false;
 #else
-        EpiloguePipeline::GetVectorSizeC() % 2 == 0 || !is_any_of<EDataType, fp16_t, bf16_t>::value;
+        if constexpr(is_detected<epilogue_supports_split_k_t, EpiloguePipeline>{})
+        {
+            if constexpr(!EpiloguePipeline::SupportsSplitK)
+            {
+                return false;
+            }
+        }
+        return EpiloguePipeline::GetVectorSizeC() % 2 == 0 ||
+               !is_any_of<EDataType, fp16_t, bf16_t>::value;
 #endif
+    }();
 
     // Wavelet pipelines launch load waves beyond the math waves BlockGemm maps onto the C tile.
     static constexpr index_t kBlockSize = GemmPipelineLaunchBlockSize<GemmPipeline>;
@@ -497,10 +512,25 @@ struct UniversalGemmKernel
     /// Kernels that host them take a dedicated TDM path.
     static constexpr bool kIsTdmPipeline = has_skip_check_valid_launch_params::value;
 
+    template <typename T>
+    using has_plain_gemm_only = decltype(T::kPlainGemmOnly);
+    /// True for a pipeline tested only in the plain GEMM kernel (comp_tdm_v3). The kernels that
+    /// derive from or wrap this one static_assert against it.
+    static constexpr bool kIsPlainGemmOnlyPipeline = []() {
+        if constexpr(is_detected<has_plain_gemm_only, GemmPipeline>{})
+            return GemmPipeline::kPlainGemmOnly;
+        else
+            return false;
+    }();
+
     /// @brief Host checks shared by the kernels that host a TDM pipeline.
     /// @details The TDM epilogues overwrite E, so split-K is not possible, and the pipelines
-    ///          need at least one K tile. TDM addresses global memory in elements from a byte
-    ///          base address, so A, B and E must be aligned to their element size.
+    ///          need at least one K tile. A, B and E must be aligned to
+    ///          TDMElementTraits<T>::alignment: the TDM unit, so that every address the TDM
+    ///          generates (a byte base address plus whole units) is unit-aligned, and at least
+    ///          alignof(T), because buffer_view holds the pointer as a T* and offsets it in
+    ///          elements of T. That is the element size for 1-, 2-, 4- and 8-byte scalars; a
+    ///          12-byte 6-bit pack has a 1-byte unit, so its 4 comes from alignof(T) alone.
     ///          IsSupportedArgument returns true for TDM pipelines, so each hosting kernel calls
     ///          this (and IsTdmDeviceSupported) instead.
     CK_TILE_HOST static bool IsTdmArgumentSupported(const char* op_name,
@@ -510,8 +540,8 @@ struct UniversalGemmKernel
                                                     const void* b_ptr,
                                                     const void* e_ptr)
     {
-        const auto aligned = [](const void* p, std::size_t elem_size) {
-            return reinterpret_cast<std::uintptr_t>(p) % elem_size == 0;
+        const auto aligned = [](const void* p, std::size_t alignment) {
+            return reinterpret_cast<std::uintptr_t>(p) % alignment == 0;
         };
         if(k_batch != 1)
         {
@@ -521,10 +551,13 @@ struct UniversalGemmKernel
         {
             return RejectTdm(op_name, "requires K > 0");
         }
-        if(!aligned(a_ptr, sizeof(ADataType)) || !aligned(b_ptr, sizeof(BDataType)) ||
-           !aligned(e_ptr, sizeof(EDataType)))
+        if(!aligned(a_ptr, TDMElementTraits<ADataType>::alignment) ||
+           !aligned(b_ptr, TDMElementTraits<BDataType>::alignment) ||
+           !aligned(e_ptr, TDMElementTraits<EDataType>::alignment))
         {
-            return RejectTdm(op_name, "requires element-aligned A/B/E pointers");
+            return RejectTdm(op_name,
+                             "requires A/B/E pointers aligned to TDMElementTraits<T>::alignment "
+                             "(the element size, or 4 bytes for the 12-byte 6-bit packs)");
         }
         return true;
     }
@@ -718,7 +751,11 @@ struct UniversalGemmKernel
 
         if constexpr(has_skip_check_valid_launch_params::value)
         {
-            return true;
+            // A TDM pipeline paired with a split-K-capable epilogue (comp_tdm_v3 with CShuffle)
+            // passes the EpilogueSupportsSplitK guard above, but no TDM pipeline is tested with
+            // k_batch != 1, so apply the same TDM checks as the kernels that host one.
+            return IsTdmArgumentSupported(
+                "GEMM", kargs.k_batch, kargs.K, kargs.as_ptr[0], kargs.bs_ptr[0], kargs.e_ptr);
         }
 
         const auto vectorSizeA = is_wave32() ? GemmPipeline::template GetVectorSizeA<true>()

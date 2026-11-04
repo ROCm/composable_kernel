@@ -184,14 +184,18 @@ struct PassThroughPack8
 #endif
     }
 
-    __host__ __device__ constexpr void operator()(ck::f8x8_t& y, const ck::pk_i4x4_t& x) const
+    template <typename T, enable_if_t<is_f8_type_v<T>, bool> = true>
+    __host__ __device__ constexpr void operator()(non_native_vector_base<T, 8>& y,
+                                                  const ck::pk_i4x4_t& x) const
     {
 #if CK_USE_PK4_LAYOUT_SHUFFLE
-        y = i4_to_fp8x8(bit_cast<int>(x));
+        if constexpr(!is_same_v<T, f8_t> && !is_native_fp8_type<T>())
+            __builtin_trap();
+        y = bit_cast<non_native_vector_base<T, 8>>(i4_to_fp8x8(bit_cast<int>(x)));
 
 #else
         // Added pk_i4_t to f8x2_fnuz_t conversion
-        vector_type<f8_t, 8> dst;
+        vector_type<T, 8> dst;
         vector_type<float, 8> dst_tmp;
         vector_type<pk_i4_t, 4> src{x};
 
@@ -208,28 +212,28 @@ struct PassThroughPack8
         dst_tmp.template AsType<float2_t>()(Number<3>{}) =
             type_convert<float2_t>(src.template AsType<pk_i4_t>()[Number<3>{}]);
 
-        // float to f8_t conversion
-        dst.template AsType<f8_t>()(Number<0>{}) =
-            type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<0>{}]);
-        dst.template AsType<f8_t>()(Number<1>{}) =
-            type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<1>{}]);
+        // float to T conversion
+        dst.template AsType<T>()(Number<0>{}) =
+            type_convert<T>(dst_tmp.template AsType<float>()[Number<0>{}]);
+        dst.template AsType<T>()(Number<1>{}) =
+            type_convert<T>(dst_tmp.template AsType<float>()[Number<1>{}]);
 
-        dst.template AsType<f8_t>()(Number<2>{}) =
-            type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<2>{}]);
-        dst.template AsType<f8_t>()(Number<3>{}) =
-            type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<3>{}]);
+        dst.template AsType<T>()(Number<2>{}) =
+            type_convert<T>(dst_tmp.template AsType<float>()[Number<2>{}]);
+        dst.template AsType<T>()(Number<3>{}) =
+            type_convert<T>(dst_tmp.template AsType<float>()[Number<3>{}]);
 
-        dst.template AsType<f8_t>()(Number<4>{}) =
-            type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<4>{}]);
-        dst.template AsType<f8_t>()(Number<5>{}) =
-            type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<5>{}]);
+        dst.template AsType<T>()(Number<4>{}) =
+            type_convert<T>(dst_tmp.template AsType<float>()[Number<4>{}]);
+        dst.template AsType<T>()(Number<5>{}) =
+            type_convert<T>(dst_tmp.template AsType<float>()[Number<5>{}]);
 
-        dst.template AsType<f8_t>()(Number<6>{}) =
-            type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<6>{}]);
-        dst.template AsType<f8_t>()(Number<7>{}) =
-            type_convert<f8_t>(dst_tmp.template AsType<float>()[Number<7>{}]);
+        dst.template AsType<T>()(Number<6>{}) =
+            type_convert<T>(dst_tmp.template AsType<float>()[Number<6>{}]);
+        dst.template AsType<T>()(Number<7>{}) =
+            type_convert<T>(dst_tmp.template AsType<float>()[Number<7>{}]);
 
-        y = dst.template AsType<f8x8_t>()[Number<0>{}];
+        y = dst.template AsType<typename vector_type<T, 8>::type>()[Number<0>{}];
 #endif
     }
 
@@ -337,7 +341,11 @@ struct PassThrough
     static constexpr const char* name = "PassThrough";
 
     template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        static_assert(is_fp8_type_v<X> || is_fp8_type_v<Y>, "Unsupported PassThrough types");
+        y = type_convert<Y>(x);
+    }
 
     template <>
     __host__ __device__ void operator()<pk_i4_t, pk_i4_t>(pk_i4_t& y, const pk_i4_t& x) const
@@ -1797,20 +1805,13 @@ struct ConvInvscale
     }
 
     template <typename E, typename C>
-    __host__ __device__ void operator()(E& e, const C& c) const;
-
-    template <>
-    __host__ __device__ void operator()<f8_t, float>(f8_t& e, const float& c) const
+    __host__ __device__ void operator()(E& e, const C& c) const
     {
-        e = type_convert<f8_t>(c / scale_in_ / scale_wei_ / scale_out_);
-    };
-
-    template <>
-    __host__ __device__ void operator()<f8_t, f8_t>(f8_t& e, const f8_t& c) const
-    {
+        static_assert(is_f8_type_v<E> && (is_f8_type_v<C> || is_same_v<C, float>),
+                      "Unsupported convolution scaling types");
         const float c_float = type_convert<float>(c);
-        e                   = type_convert<f8_t>(c_float / scale_in_ / scale_wei_ / scale_out_);
-    };
+        e                   = type_convert<E>(c_float / scale_in_ / scale_wei_ / scale_out_);
+    }
 
     float scale_in_;
     float scale_wei_;
@@ -1829,20 +1830,13 @@ struct ConvScale
     }
 
     template <typename E, typename C>
-    __host__ __device__ void operator()(E& e, const C& c) const;
-
-    template <>
-    __host__ __device__ void operator()<f8_t, float>(f8_t& e, const float& c) const
+    __host__ __device__ void operator()(E& e, const C& c) const
     {
-        e = type_convert<f8_t>(c * scale_in_ * scale_wei_ * scale_out_);
-    };
-
-    template <>
-    __host__ __device__ void operator()<f8_t, f8_t>(f8_t& e, const f8_t& c) const
-    {
+        static_assert(is_f8_type_v<E> && (is_f8_type_v<C> || is_same_v<C, float>),
+                      "Unsupported convolution scaling types");
         const float c_float = type_convert<float>(c);
-        e                   = type_convert<f8_t>(c_float * scale_in_ * scale_wei_ * scale_out_);
-    };
+        e                   = type_convert<E>(c_float * scale_in_ * scale_wei_ * scale_out_);
+    }
 
     float scale_in_;
     float scale_wei_;
@@ -1861,24 +1855,15 @@ struct ConvScaleRelu
     }
 
     template <typename E, typename C>
-    __host__ __device__ void operator()(E& e, const C& c) const;
-
-    template <>
-    __host__ __device__ void operator()<f8_t, float>(f8_t& e, const float& c) const
+    __host__ __device__ void operator()(E& e, const C& c) const
     {
-        float x;
-        Relu{}.template operator()<float>(x, c * scale_in_ * scale_wei_);
-        e = type_convert<f8_t>(x * scale_out_);
-    };
-
-    template <>
-    __host__ __device__ void operator()<f8_t, f8_t>(f8_t& e, const f8_t& c) const
-    {
+        static_assert(is_f8_type_v<E> && (is_f8_type_v<C> || is_same_v<C, float>),
+                      "Unsupported convolution scaling types");
         const float c_float = type_convert<float>(c);
         float x;
         Relu{}.template operator()<float>(x, c_float * scale_in_ * scale_wei_);
-        e = type_convert<f8_t>(x * scale_out_);
-    };
+        e = type_convert<E>(x * scale_out_);
+    }
 
     float scale_in_;
     float scale_wei_;

@@ -357,9 +357,11 @@ class FmhaBwdDQDKDVTileSize:
         return (
             f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bk1}x{self.F_bk2}x{self.F_bk3}x{self.F_bk4}x{self.F_bhdq}x{self.F_bhdv}"
             + f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}_r{self.F_rm1}x{self.F_rn1}x{self.F_rk1}_r{self.F_rm2}x{self.F_rn2}x{self.F_rk2}"
-            + f"_w{self.F_wm0}x{self.F_wn0}x{self.F_wk0}_w{self.F_wm1}x{self.F_wn1}x{self.F_wk1}_o{self.F_occupancy}_maxq{self.max_seq_q}"
+            + f"_w{self.F_wm0}x{self.F_wn0}x{self.F_wk0}_w{self.F_wm1}x{self.F_wn1}x{self.F_wk1}"
+            + ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
+            + f"_maxq{self.max_seq_q}"
             + (f"_dmaxq{self.dispatch_max_seq_q}" if self.dispatch_max_seq_q else "")
-            + (f"_qdo{self.qdo_slots}" if self.qdo_slots else "")
+            + (f"_q{self.qdo_slots}" if self.qdo_slots else "")
             + (f"_dmaxk{self.dispatch_max_seq_k}" if self.dispatch_max_seq_k else "")
             + (f"_dmingrid{self.dispatch_min_grid}" if self.dispatch_min_grid else "")
             + ("_tdm" if self.tdm_kr_ktr else "")
@@ -477,7 +479,9 @@ class FmhaBwdDQDKDVKernel:
                 n += "_nmask"
 
         if self.F_dropout != "no":
-            n += f"_{self.F_dropout}"
+            n += "_" + self.F_dropout.replace("storerandval", "srv").replace(
+                "_wg", "_w"
+            )
         else:
             n += "_ndropout"
 
@@ -487,9 +491,9 @@ class FmhaBwdDQDKDVKernel:
             n += "_ndeterministic"
 
         if self.F_trload == "t":
-            n += "_trload"
+            n += "_tl"
         else:
-            n += "_ntrload"
+            n += "_ntl"
         return n
 
     @property
@@ -731,7 +735,10 @@ class FmhaBwdOGradDotOKernel:
             return n
 
         pn = pad_name()
-        n = f"fmha_bwd_dot_do_o_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}_{self.F_mode}_o{self.F_occupancy}"
+        n = (
+            f"fmha_bwd_dot_do_o_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}_{self.F_mode}"
+            + ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
+        )
         if pn != "":
             n += f"_{pn}"
         else:
@@ -854,7 +861,10 @@ class FmhaBwdConvertQGradKernel:
             return n
 
         pn = pad_name()
-        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}_{self.F_mode}_o{self.F_occupancy}"
+        n = (
+            f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}_{self.F_mode}"
+            + ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
+        )
         if pn != "":
             n += f"_{pn}"
         else:
@@ -943,7 +953,12 @@ class FmhaBwdApiTrait:
 
     @property
     def extra_cond(self) -> str:
-        if self.tr_load == "t" and self.tile.max_seq_q == 0 and self.tile.F_bn0 == 128 and self.tile.F_bhdq == 128:
+        if (
+            self.tr_load == "t"
+            and self.tile.max_seq_q == 0
+            and self.tile.F_bn0 == 128
+            and self.tile.F_bhdq == 128
+        ):
             if self.mode == "group":
                 return " && (t.max_seqlen_k <= 256)"
             else:
@@ -1062,9 +1077,12 @@ class FmhaBwdApiPool:
                 F_arch=trait.arch,
                 F_convert_dq_enabled=BOOL_MAP[not trait.convert_dq_kernel.disabled],
             )
-            inners_launcher += inners_common + FMHA_BWD_API_INNER_DISPATCH_LAUNCHER.format(
-                F_arch=trait.arch,
-                F_convert_dq_enabled=BOOL_MAP[not trait.convert_dq_kernel.disabled],
+            inners_launcher += (
+                inners_common
+                + FMHA_BWD_API_INNER_DISPATCH_LAUNCHER.format(
+                    F_arch=trait.arch,
+                    F_convert_dq_enabled=BOOL_MAP[not trait.convert_dq_kernel.disabled],
+                )
             )
         return inners, inners_launcher
 
@@ -1089,7 +1107,9 @@ class FmhaBwdApiPool:
             per_dtypes = ""
             for i_dtype, (dtype, pool_by_dtype) in enumerate(pool_by_arch.items()):
                 per_hdim_case = ""
-                for i_hdim, (hdim, pool_by_hdim) in enumerate(sorted(pool_by_dtype.items())):
+                for i_hdim, (hdim, pool_by_hdim) in enumerate(
+                    sorted(pool_by_dtype.items())
+                ):
                     traits = sorted(pool_by_hdim, key=self.max_seq_q_sort_key)
                     inners = self._api_inners(traits)
                     per_hdim_case += FMHA_BWD_API_COND_STATEMENT(
@@ -1105,6 +1125,7 @@ class FmhaBwdApiPool:
             # empty string we add some ignore to suppress warning in api
             per_arch = ("(void)t; (void)s; (void)a;", "(void)t;")[variant]
         return per_arch
+
     @property
     def api(self) -> str:
         result = FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(
@@ -1232,6 +1253,15 @@ def get_bwd_blobs(
                 cond &= dropout in ["no", "dropout_wg32", "dropout_wg16"]
                 cond &= dpad == dvpad
                 cond &= deterministic == "f"
+                if not cond:
+                    continue
+            # CK Tile Python API
+            elif receipt == 5:
+                # CK Tile Python pads equal Q/V head dimensions to multiples of 8.
+                cond = dtype in ["fp16", "bf16"] and hdim <= 256
+                cond &= bias in ["no", "alibi"] or (mode == "batch" and bias == "bias")
+                cond &= dropout in ["no", "dropout_wg32", "dropout_wg16"]
+                cond &= dpad == dvpad and dpad in [0, 8]
                 if not cond:
                     continue
             # Aiter (mha_bwd) integration

@@ -291,6 +291,101 @@ TEST(MxGemmHostHelpers, ToleranceFormula)
     }
 }
 
+// mx_sum_abs_max against a direct loop over (m, n, k). M != N catches a swap of the two, random
+// per-block scales catch a misindexed block, rows longer than K catch an operand read without its
+// stride, and a middle row with the largest scales catches a reduction that keeps the first or the
+// last row. Every product and partial sum is exact in double, so the two must agree exactly.
+template <typename T>
+void check_sum_abs_max(index_t M, index_t N, index_t K, index_t lda, index_t ldb)
+{
+    constexpr index_t kScaleBlock = 32;
+    const index_t KB              = K / kScaleBlock;
+    constexpr auto row            = ck_tile::bool_constant<true>{};
+    constexpr auto col            = ck_tile::bool_constant<false>{};
+
+    ck_tile::HostTensor<T> a(ck_tile::host_tensor_descriptor(M, K, lda, row));
+    ck_tile::HostTensor<T> b(ck_tile::host_tensor_descriptor(K, N, ldb, col));
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_a(ck_tile::host_tensor_descriptor(M, KB, KB, row));
+    ck_tile::HostTensor<ck_tile::e8m0_t> scale_b(ck_tile::host_tensor_descriptor(KB, N, KB, col));
+    mx_test::fill_mx_operand(a, -4.0f, 4.0f, 21);
+    mx_test::fill_mx_operand(b, -4.0f, 4.0f, 22);
+    mx_test::fill_random_e8m0(scale_a, -3, 3, 23);
+    mx_test::fill_random_e8m0(scale_b, -3, 3, 24);
+    // Above every random scale (at most 8), and different in adjacent blocks.
+    for(index_t kb = 0; kb < KB; ++kb)
+    {
+        scale_a(M / 2, kb) = ck_tile::e8m0_t{kb % 2 == 0 ? 16.0f : 32.0f};
+    }
+
+    double expected  = 0.0;
+    index_t best_row = -1;
+    for(index_t m = 0; m < M; ++m)
+    {
+        for(index_t n = 0; n < N; ++n)
+        {
+            double s = 0.0;
+            for(index_t k = 0; k < K; ++k)
+            {
+                s += std::abs(static_cast<double>(mx_test::mx_operand_value(a, m, k)) *
+                              mx_test::mx_operand_value(b, k, n) *
+                              ck_tile::type_convert<float>(scale_a(m, k / kScaleBlock)) *
+                              ck_tile::type_convert<float>(scale_b(k / kScaleBlock, n)));
+            }
+            if(s > expected)
+            {
+                expected = s;
+                best_row = m;
+            }
+        }
+    }
+    ASSERT_GT(expected, 0.0);
+    if(M > 2)
+    {
+        EXPECT_EQ(best_row, M / 2);
+    }
+    EXPECT_EQ(mx_test::mx_sum_abs_max(a, b, scale_a, scale_b, kScaleBlock), expected)
+        << M << "x" << N << "x" << K << " lda " << lda << " ldb " << ldb;
+}
+
+TEST(MxGemmHostHelpers, SumAbsMaxMatchesADirectLoop)
+{
+    check_sum_abs_max<F6>(1, 7, 96, 96, 96);   // one row
+    check_sum_abs_max<F6>(5, 7, 96, 96, 96);   // M != N
+    check_sum_abs_max<F6>(5, 7, 96, 112, 144); // rows longer than K, by one and three packs
+    // FP4 shares the helper through the bf16 C tests.
+    check_sum_abs_max<F4>(6, 4, 64, 64, 64);
+}
+
+// mx_sum_abs_max rejects a non-positive scale block size, and shapes it would otherwise read out
+// of bounds since HostTensor does not check bounds.
+TEST(MxGemmHostHelpers, SumAbsMaxRejectsInvalidArguments)
+{
+    constexpr index_t kScaleBlock = 32;
+    constexpr index_t M = 4, N = 4, K = 64, KB = K / kScaleBlock;
+    constexpr auto row = ck_tile::bool_constant<true>{};
+    constexpr auto col = ck_tile::bool_constant<false>{};
+    const ck_tile::HostTensor<F6> a(ck_tile::host_tensor_descriptor(M, K, K, row));
+    const ck_tile::HostTensor<F6> b(ck_tile::host_tensor_descriptor(K, N, K, col));
+    const ck_tile::HostTensor<F6> b_short(
+        ck_tile::host_tensor_descriptor(K - kScaleBlock, N, K - kScaleBlock, col));
+    const ck_tile::HostTensor<ck_tile::e8m0_t> scale_a(
+        ck_tile::host_tensor_descriptor(M, KB, KB, row));
+    const ck_tile::HostTensor<ck_tile::e8m0_t> scale_a_short(
+        ck_tile::host_tensor_descriptor(M, KB - 1, KB - 1, row));
+    const ck_tile::HostTensor<ck_tile::e8m0_t> scale_b(
+        ck_tile::host_tensor_descriptor(KB, N, KB, col));
+    const ck_tile::HostTensor<ck_tile::e8m0_t> scale_b_short(
+        ck_tile::host_tensor_descriptor(KB - 1, N, KB - 1, col));
+
+    EXPECT_THROW(mx_test::mx_sum_abs_max(a, b_short, scale_a, scale_b, kScaleBlock),
+                 std::invalid_argument);
+    EXPECT_THROW(mx_test::mx_sum_abs_max(a, b, scale_a_short, scale_b, kScaleBlock),
+                 std::invalid_argument);
+    EXPECT_THROW(mx_test::mx_sum_abs_max(a, b, scale_a, scale_b_short, kScaleBlock),
+                 std::invalid_argument);
+    EXPECT_THROW(mx_test::mx_sum_abs_max(a, b, scale_a, scale_b, 0), std::invalid_argument);
+}
+
 // A host-only MX GEMM: reference_mx_gemm on proxy-filled (FP6) or uniformly filled (FP4) data
 // against a dequantize-then-multiply reference in double, within the derived tolerance.
 template <typename T, typename CDataType>

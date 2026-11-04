@@ -210,6 +210,8 @@
         "The 8-bit shapes are the dense WmmaTraits<gfx125_t, ...> specialisations in",
         "include/ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_8bit_traits.hpp:",
         "fp8/fp8 and bf8/bf8 each have a 16x16x64 and a 16x16x128 form.",
+        "The 32x32x128 warp tile is 2x2 of the 16x16x128 atom (f8f6f4 WMMA,",
+        "ds_load_b128 operands); no default config lists warp_tile_m = 32.",
         "The mixed fp8/bf8 and bf8/fp8 pairs exist there too but are not listed",
         "here; enabling them would newly generate kernels for combinations this",
         "bridge has never exercised, which needs its own device validation."
@@ -227,8 +229,8 @@
         "fp32_fp32_fp32": [[16, 16, 4]],
         "fp16_fp16_fp32": [[16, 16, 32]],
         "bf16_bf16_fp32": [[16, 16, 32]],
-        "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128]],
-        "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128]],
+        "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128], [32, 32, 128]],
+        "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128], [32, 32, 128]],
         "fp32_fp32_fp32": [[16, 16, 4]],
         "int8_int8_int32": [[16, 16, 64]]
       }
@@ -346,6 +348,17 @@
         "pipeline_lds_budget_aliases."
       ]
     },
+    "comp_tdm_pc": {
+      "basis": "fraction",
+      "value": 0.25,
+      "_reason": [
+        "Ring of NumSlots LDS buffers, no configuration choice:",
+        "GemmPipelineAgBgCrCompTDMProducerConsumer::GetSmemSize() returns",
+        "NumSlots * Policy::GetSmemSize() with the policy default NumSlots_ = 4.",
+        "Emitted to C++ as Pipeline::CompTDMPC. Matches the Tile Engine",
+        "PIPELINE_SMEM_SLOTS entry; raise both if NumSlots_ changes."
+      ]
+    },
     "wavelet": {
       "basis": "fraction",
       "value": 1.0,
@@ -408,7 +421,10 @@
       ["comp_tdm", "tdm", "interwave"],
       ["comp_tdm_v2", "cshuffle", "interwave"],
       ["comp_tdm_v2", "default", "interwave"],
-      ["comp_tdm_v2", "tdm", "interwave"]
+      ["comp_tdm_v2", "tdm", "interwave"],
+      ["comp_tdm_pc", "cshuffle", "interwave"],
+      ["comp_tdm_pc", "default", "interwave"],
+      ["comp_tdm_pc", "tdm", "interwave"]
     ]
   },
   

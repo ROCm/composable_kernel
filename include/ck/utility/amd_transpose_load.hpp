@@ -52,7 +52,7 @@ __device__ auto amd_lds_load_transpose_to_vgpr(const T* __restrict__ in_ptr)
     using vector_t = typename vector_type<T, 8>::type;
     if constexpr(is_same<T, half_t>::value)
     {
-        using llvm_fp16x8_t = __fp16 __attribute__((ext_vector_type(8)));
+        using llvm_fp16x8_t = NativeVectorT<llvm_half_t, 8>;
         auto lds_ptr        = reinterpret_cast<CK_LDS_ADDR llvm_fp16x8_t*>(in_ptr_);
         return bit_cast<vector_t>(__builtin_amdgcn_ds_load_tr16_b128_v8f16(lds_ptr));
     }

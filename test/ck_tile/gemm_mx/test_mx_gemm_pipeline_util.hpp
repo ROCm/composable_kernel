@@ -32,7 +32,8 @@ constexpr ck_tile::index_t get_k_warp_tile()
                              std::is_same_v<PrecType, ck_tile::int8_t>;
     constexpr bool is_mxtype = std::is_same_v<PrecType, ck_tile::fp8_t> ||
                                std::is_same_v<PrecType, ck_tile::bf8_t> ||
-                               std::is_same_v<PrecType, ck_tile::pk_fp4_t>;
+                               std::is_same_v<PrecType, ck_tile::pk_fp4_t> ||
+                               std::is_same_v<PrecType, ck_tile::pk_fp6x16_t>;
     if constexpr(is_mxtype && (M_Warp_Tile == 32 || M_Warp_Tile == 16))
     {
         return 128;
@@ -285,12 +286,16 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
 
     static constexpr ck_tile::index_t ScaleBlockSize = std::tuple_element_t<15, Tuple>{};
 
-    static constexpr ck_tile::index_t M_Warp =
-        PipelineType == MxGemmPipelineType::WeightPreshuffle
-            ? 1
-            : (PipelineType == MxGemmPipelineType::CompEightWaves ? 4 : 2);
-    static constexpr ck_tile::index_t N_Warp =
-        PipelineType == MxGemmPipelineType::WeightPreshuffle ? 4 : 2;
+    // Warps along M and N, from tuple slot 18 (ck_tile::sequence<M_Warp, N_Warp>) if present;
+    // otherwise 1 x 4 for weight preshuffle, 4 x 2 for eight waves and 2 x 2 for the rest.
+    using DefaultWarpLayout =
+        ck_tile::sequence<PipelineType == MxGemmPipelineType::WeightPreshuffle
+                              ? 1
+                              : (PipelineType == MxGemmPipelineType::CompEightWaves ? 4 : 2),
+                          PipelineType == MxGemmPipelineType::WeightPreshuffle ? 4 : 2>;
+    using WarpLayout = ck_tile::tuple_element_or_default_t<Tuple, 18, DefaultWarpLayout>;
+    static constexpr ck_tile::index_t M_Warp = WarpLayout::at(ck_tile::number<0>{});
+    static constexpr ck_tile::index_t N_Warp = WarpLayout::at(ck_tile::number<1>{});
     static constexpr ck_tile::index_t K_Warp = 1;
 
     protected:
@@ -601,6 +606,16 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                 elem    = pk_fp4_t::_pack(lo, hi);
             }
         }
+        else if constexpr(std::is_same_v<ADataType, pk_fp6x16_t>)
+        {
+            // The integer filler would write one value into all three words of a 12-byte pack;
+            // FP6 is filled through its pk_fp6_t proxy. With |a|, |b| <= 4 and scales <= 2, every
+            // output is bounded by 64 * K, which exceeds the fp16 maximum once K >= 1024 (the
+            // deepest fp16 case is K = 1024). Reaching it needs all K products at the largest
+            // magnitude with the same sign; random signs keep |C| near sqrt(K) times the typical
+            // product.
+            mx_test::fill_mx_operand(a_m_k, -4.f, 4.f, 11939);
+        }
         else
         {
             FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
@@ -615,6 +630,10 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                 auto hi = float_to_mxfp4(std::round(dis(gen)), 1.f);
                 elem    = pk_fp4_t::_pack(lo, hi);
             }
+        }
+        else if constexpr(std::is_same_v<BDataType, pk_fp6x16_t>)
+        {
+            mx_test::fill_mx_operand(b_k_n, -4.f, 4.f, 11940);
         }
         else
         {
@@ -817,6 +836,9 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
             {
                 const double s_max =
                     mx_test::mx_sum_abs_max(a_m_k, b_k_n, scale_a_ref, scale_b_ref, ScaleBlockSize);
+                // A zero S_max means a zero reference and a zero tolerance, which an untouched
+                // (zeroed) output would pass.
+                EXPECT_GT(s_max, 0.0) << "the reference is identically zero";
                 const auto tolerance =
                     mx_test::mx_gemm_tolerance<ADataType, BDataType, CDataType>(K, s_max);
                 return ck_tile::make_tuple(tolerance.rtol, tolerance.atol);

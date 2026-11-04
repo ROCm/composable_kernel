@@ -950,7 +950,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
              (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
-             ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
+             ((is_fp8_type_v<ComputeTypeA>) &&
 #if defined(__gfx125__)
               lcm_AK1_BK1 < 128))
 #else

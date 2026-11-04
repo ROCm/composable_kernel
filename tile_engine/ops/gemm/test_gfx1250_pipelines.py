@@ -110,6 +110,7 @@ class TestTraitParse(unittest.TestCase):
             "comp_tdm_tdm_intrawave_False_False_False",
             "comp_tdm_v2_tdm_intrawave_True_False_False_False",
             "comp_tdm_pc_tdm_intrawave_False_False_False_False",
+            "comp_tdm_v3_cshuffle_intrawave_False_False_False_False",
             "comp_async_eight_waves_cshuffle_intrawave_False_False_False",
             "weight_preshuffle_default_intrawave_False_False_False",
         ]
@@ -237,6 +238,42 @@ class TestValidationRules(unittest.TestCase):
             self.assertFalse(valid("comp_async", dt, 64), dt)
             self.assertTrue(valid("comp_async", dt, 128), dt)
             self.assertTrue(valid("compv3", dt, 64), dt)
+
+    def test_8bit_32x32x128_warp_tile(self):
+        # fp8/bf8 32x32x128 is two 16x16x128 WMMA atoms per warp tile side; it
+        # is allowed on gfx1250 for 8-bit inputs only.
+        for dt in ("fp8", "bf8"):
+            self.assertTrue(vu.op_warp_tile_allowed("gfx1250", dt, [32, 32, 128]))
+            self.assertIn([32, 32, 128], vu.GFX1250_WARP_TILES[dt])
+        for dt in ("fp16", "bf16", "fp32", "int8"):
+            self.assertFalse(vu.op_warp_tile_allowed("gfx1250", dt, [32, 32, 128]))
+        for dt in ("fp8", "bf8"):
+            self.assertFalse(vu.op_warp_tile_allowed("gfx1250", dt, [32, 32, 64]))
+            self.assertFalse(vu.op_warp_tile_allowed("gfx1250", dt, [32, 16, 128]))
+        tile = (128, 128, 256, 2, 2, 1, 32, 32, 128)
+
+        def valid(dt, pipe):
+            return vu.is_tile_config_valid(
+                *tile, dt, dt, "fp16", pipe, "rcr", "gfx1250", "gemm_universal"
+            )
+
+        for dt in ("fp8", "bf8"):
+            for pipe in ("comp_tdm", "comp_tdm_v2", "compv3", "compv4", "mem"):
+                self.assertTrue(valid(dt, pipe), (dt, pipe))
+            # comp_async does not compile with the 32x32 warp tile.
+            self.assertFalse(valid(dt, "comp_async"), dt)
+
+    def test_comp_async_8bit_warp_tile_mn_reject_reason(self):
+        r = vu.gfx1250_comp_async_8bit_warp_tile_mn_reject_reason
+        reason = vu.GFX1250_COMP_ASYNC_8BIT_WARP_TILE_MN_REJECT_REASON
+        for dt in ("fp8", "bf8"):
+            self.assertEqual(r("comp_async", dt, dt, 32, 32), reason, dt)
+            self.assertEqual(r("comp_async", dt, "fp16", 32, 32), reason, dt)
+            self.assertEqual(r("comp_async", dt, dt, 16, 16), "", dt)
+            for p in ("compv3", "compv4", "mem", "comp_tdm", "comp_tdm_v2"):
+                self.assertEqual(r(p, dt, dt, 32, 32), "", (p, dt))
+        self.assertEqual(r("comp_async", "fp16", "fp16", 32, 32), "")
+        self.assertIn("warp_tile_m = warp_tile_n = 16", reason)
 
     def test_comp_async_pad_trait_gate(self):
         ok = vu.is_trait_combination_valid
@@ -652,6 +689,260 @@ class TestBuilderGolden(_BuilderCase):
         self.assertNotIn(("comp_tdm", "cshuffle", False), combos)
         self.assertNotIn(("compv3", "tdm", False), combos)
         self.assertIn(("comp_async", "cshuffle", True), combos)
+
+
+# The comp_tdm_v3 instance of gemm_universal/configs/gfx1250_fp8_comp_tdm_v3.json:
+# 16 waves, 32x32x128 fp8 warp tile.
+_V3_TILE = {
+    "tile_m": 256,
+    "tile_n": 256,
+    "tile_k": 256,
+    "warp_m": 4,
+    "warp_n": 4,
+    "warp_k": 1,
+    "warp_tile_m": 32,
+    "warp_tile_n": 32,
+    "warp_tile_k": 128,
+}
+_V3_CONFIG = os.path.join(
+    _HERE, "gemm_universal", "configs", "gfx1250_fp8_comp_tdm_v3.json"
+)
+
+
+def _v3_tile_ok(
+    pipeline,
+    tile=None,
+    dtype="fp8",
+    arch="gfx1250",
+    prefix="gemm_universal",
+    layout="rcr",
+):
+    t = dict(_V3_TILE, **(tile or {}))
+    args = [t[k] for k in _V3_TILE] + [dtype, dtype, "bf16"]
+    return vu.is_tile_config_valid(*args, pipeline, layout, arch, prefix)
+
+
+class TestCompTdmV3(unittest.TestCase):
+    """comp_tdm_v3: [4, 4, 1] and the CShuffle epilogue for it only, fp8/bf8
+    A/B, gemm_universal only, plain row-major tile partitioner."""
+
+    OTHER_PIPELINES = (
+        "comp_tdm",
+        "comp_tdm_v2",
+        "comp_tdm_pc",
+        "mem",
+        "compv3",
+        "compv4",
+        "comp_async",
+    )
+
+    def test_warp_4x4x1_for_v3_only(self):
+        w = vu.validate_warp_configuration
+        self.assertTrue(w(4, 4, 1, "gfx1250", "comp_tdm_v3"))
+        self.assertTrue(w(4, 4, 1, "gfx1250:xnack-", "comp_tdm_v3"))
+        self.assertFalse(w(4, 4, 1, "gfx1250"))
+        for p in self.OTHER_PIPELINES:
+            self.assertFalse(w(4, 4, 1, "gfx1250", p), p)
+        for arch in ("gfx942", "gfx950", "gfx1201"):
+            self.assertFalse(w(4, 4, 1, arch, "comp_tdm_v3"), arch)
+        # The shared table is untouched.
+        self.assertNotIn([4, 4, 1], vu.WARP_SUPPORTED_COMBINATIONS["gfx1250"])
+
+    def test_4x4x1_tile_rejected_for_other_pipelines(self):
+        self.assertTrue(_v3_tile_ok("comp_tdm_v3"))
+        for p in self.OTHER_PIPELINES:
+            self.assertFalse(_v3_tile_ok(p), p)
+
+    def test_v3_tile_rules(self):
+        # 2x2x1 is the other tested wave map.
+        self.assertTrue(
+            _v3_tile_ok(
+                "comp_tdm_v3",
+                dict(tile_m=128, tile_n=128, tile_k=128, warp_m=2, warp_n=2),
+            )
+        )
+        self.assertTrue(_v3_tile_ok("comp_tdm_v3", dtype="bf8"))
+        for dtype in ("fp16", "bf16"):
+            self.assertFalse(
+                _v3_tile_ok("comp_tdm_v3", dict(warp_tile_k=32), dtype=dtype), dtype
+            )
+        # Shared-table wave maps outside 2x2x1 / 4x4x1 are not v3 maps.
+        self.assertFalse(_v3_tile_ok("comp_tdm_v3", dict(warp_m=4, warp_n=2)))
+        self.assertFalse(_v3_tile_ok("comp_tdm_v3", prefix="batched_gemm"))
+        self.assertFalse(_v3_tile_ok("comp_tdm_v3", arch="gfx950"))
+        self.assertIn(
+            "2x2x1 and 4x4x1",
+            vu.gfx1250_tdm_v3_reject_reason("comp_tdm_v3", "fp8", "fp8", 4, 2, 1),
+        )
+        self.assertEqual(
+            vu.gfx1250_tdm_v3_reject_reason("comp_tdm", "fp16", "fp16", 4, 2, 1), ""
+        )
+
+    def test_v3_rcr_only(self):
+        self.assertTrue(_v3_tile_ok("comp_tdm_v3", layout="rcr"))
+        for layout in ("rrr", "crr", "ccr", "rcc"):
+            self.assertFalse(_v3_tile_ok("comp_tdm_v3", layout=layout), layout)
+            self.assertIn(
+                "'rcr' only",
+                vu.gfx1250_tdm_v3_reject_reason(
+                    "comp_tdm_v3", "fp8", "fp8", 4, 4, 1, layout=layout
+                ),
+            )
+        # An empty layout is not checked; other pipelines are not affected.
+        self.assertEqual(
+            vu.gfx1250_tdm_v3_reject_reason("comp_tdm_v3", "fp8", "fp8", 4, 4, 1), ""
+        )
+        self.assertEqual(
+            vu.gfx1250_tdm_v3_reject_reason(
+                "comp_tdm_v2", "fp8", "fp8", 2, 2, 1, layout="rrr"
+            ),
+            "",
+        )
+
+    def test_v3_lds_budget(self):
+        # Two LDS stages; the per-slot model times 2 is the kernel's 278464 B
+        # (.amdhsa_group_segment_fixed_size of the 256x256x256 fp8 instance).
+        lds = vu.validate_lds_capacity
+        self.assertEqual(vu.PIPELINE_SMEM_SLOTS["comp_tdm_v3"], 2)
+        per_slot = 2 * (256 * 256 + 255 * 16)
+        self.assertEqual(2 * per_slot, 278464)
+        self.assertTrue(
+            lds(256, 256, 256, "fp8", "fp8", "comp_tdm_v3", "gfx1250", True)[0]
+        )
+        ok, reason = lds(256, 256, 512, "fp8", "fp8", "comp_tdm_v3", "gfx1250", True)
+        self.assertFalse(ok)
+        self.assertIn("2 LDS slot(s)", reason)
+
+    def test_v3_trait_rules(self):
+        ok = vu.is_trait_combination_valid
+        self.assertTrue(
+            ok("comp_tdm_v3", "cshuffle", "intrawave", False, "gemm_universal")
+        )
+        self.assertTrue(ok("comp_tdm_v3", "cshuffle", "intrawave", False, ""))
+        self.assertFalse(ok("comp_tdm_v3", "tdm", "intrawave", False, "gemm_universal"))
+        self.assertFalse(
+            ok("comp_tdm_v3", "default", "intrawave", False, "gemm_universal")
+        )
+        self.assertFalse(
+            ok("comp_tdm_v3", "cshuffle", "interwave", False, "gemm_universal")
+        )
+        self.assertFalse(
+            ok("comp_tdm_v3", "cshuffle", "intrawave", True, "gemm_universal")
+        )
+        self.assertFalse(
+            ok(
+                "comp_tdm_v3",
+                "cshuffle",
+                "intrawave",
+                False,
+                "gemm_universal",
+                "rcr",
+                True,
+                False,
+                False,
+            )
+        )
+        for prefix in (
+            "batched_gemm",
+            "gemm_multi_d",
+            "gemm_aquant",
+            "mx_gemm",
+            "gemm_preshuffle",
+        ):
+            self.assertFalse(
+                ok("comp_tdm_v3", "cshuffle", "intrawave", False, prefix), prefix
+            )
+
+    def test_cshuffle_rejected_for_other_tdm_pipelines(self):
+        ok = vu.is_trait_combination_valid
+        for p in ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc"):
+            for prefix in ("gemm_universal", "batched_gemm"):
+                self.assertFalse(
+                    ok(p, "cshuffle", "intrawave", False, prefix), (p, prefix)
+                )
+                self.assertEqual(vu.tdm_pipeline_epilogue(p), "tdm")
+        self.assertEqual(vu.tdm_pipeline_epilogue("comp_tdm_v3"), "cshuffle")
+
+    def test_config_lists_only_the_v3_instance(self):
+        with open(_V3_CONFIG) as f:
+            cfg = json.load(f)
+        self.assertEqual(cfg["trait_config"]["pipeline"]["values"], ["comp_tdm_v3"])
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        b = GemmKernelBuilder(
+            "gemm_universal", tmp, "gfx1250", "fp8", "rcr", _V3_CONFIG
+        )
+        b.USE_OP_WARP_TILE_ROWS = True  # as GemmUniversalKernelBuilder
+        kernels = [
+            (c, t)
+            for t in b._get_tile_configs()
+            for c in b._generate_trait_combinations()
+            if b._validate_tile_config(*[t[k] for k in _V3_TILE], c[0])
+        ]
+        self.assertEqual(len(kernels), 1)
+        combo, tile = kernels[0]
+        self.assertEqual(tuple(combo[:3]), ("comp_tdm_v3", "cshuffle", "intrawave"))
+        self.assertEqual(tile, _V3_TILE)
+
+    def test_default_configs_do_not_list_v3(self):
+        for path in (
+            os.path.join(
+                _HERE, "gemm_universal", "configs", "default_config_gfx1250.json"
+            ),
+            os.path.join(
+                _HERE, "gemm_universal", "configs", "default_ci_config_gfx1250.json"
+            ),
+            os.path.join(_HERE, "configs", "default_ci_config_gfx1250.json"),
+            os.path.join(_HERE, "configs", "default_ci_config_gfx1250_fp8.json"),
+        ):
+            with open(path) as f:
+                pipelines = json.load(f)["trait_config"]["pipeline"]["values"]
+            self.assertNotIn("comp_tdm_v3", pipelines, path)
+
+
+class TestBuilderCompTdmV3(_BuilderCase):
+    def _gen_v3(
+        self, prefix="gemm_universal", epilogue="cshuffle", pipeline="comp_tdm_v3"
+    ):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        b = GemmKernelBuilder(prefix, tmp, "gfx1250", "fp8", "rcr", _V3_CONFIG)
+        combo = (pipeline, epilogue, "intrawave", False, False, False, False)
+        return b._generate_kernel_instance(dict(_V3_TILE), combo)[1]
+
+    def test_v3_instance(self):
+        code = self._gen_v3()
+        self.assertIn(
+            "ck_tile::GemmPipelineAgBgCrCompTDMV3<UniversalGemmProblem>", code
+        )
+        self.assertIn(
+            "using TilePartitioner = ck_tile::GemmTile1DPartitioner<TileShape>;", code
+        )
+        self.assertNotIn("GemmSpatiallyLocalTilePartitioner", code)
+        self.assertIn(
+            "using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;", code
+        )
+        self.assertNotIn("TdmEpilogue<", code)
+        self.assertIn("DoubleSmemBuffer = true", code)
+        self.assertIn("DoubleSmemBuffer>;           // DoubleSmemBuffer_", code)
+        self.assertIn(
+            'throw std::runtime_error("TDM pipeline requires k_batch==1")', code
+        )
+
+    def test_other_pipelines_keep_their_partitioner(self):
+        for pipeline, epilogue in (("comp_tdm", "tdm"), ("comp_tdm_v2", "tdm")):
+            code = self._gen("gemm_universal", pipeline, epilogue)
+            self.assertIn("GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>", code)
+            self.assertNotIn("GemmTile1DPartitioner", code)
+
+    def test_builder_rejects_v3_misuse(self):
+        with self.assertRaisesRegex(ValueError, "requires the cshuffle epilogue"):
+            self._gen_v3(epilogue="tdm")
+        with self.assertRaisesRegex(ValueError, "does not support the comp_tdm_v3"):
+            self._gen_v3(prefix="batched_gemm")
+        for pipeline in ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc"):
+            with self.assertRaisesRegex(ValueError, "requires the tdm epilogue"):
+                self._gen_v3(pipeline=pipeline)
 
 
 if __name__ == "__main__":

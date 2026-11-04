@@ -301,6 +301,9 @@ struct fmha_fwd_args
     const void* sink_ptr;
 
     ck_tile::index_t seqlen_q;
+    // Batch: K length per sequence. Group: total physical K rows, used by the
+    // qr_tdm_sched tile selector as an average-length tuning hint. The kernel
+    // obtains each group's logical K length from its sequence metadata above.
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
     ck_tile::index_t max_seqlen_q;

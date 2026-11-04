@@ -399,7 +399,7 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
     {
         if constexpr(N == 1)
         {
-            return atomicAdd(p_dst, bit_cast<double>(x));
+            atomicAdd(p_dst, bit_cast<double>(x));
         }
         else if constexpr(N == 2)
         {

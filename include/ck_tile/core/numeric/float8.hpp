@@ -247,14 +247,133 @@ struct numeric_traits<bf8_t>
     static constexpr int PackedSize   = 1;
 };
 
+// A format-bearing scalar can coexist with the legacy default FP8 aliases.
+// Its encoding is identical in the host and every device compilation pass.
+template <fp8_interpretation Interpretation>
+struct float8_format_t
+{
+    using type     = std::conditional_t<Interpretation == fp8_interpretation::E4M3_FNUZ ||
+                                            Interpretation == fp8_interpretation::E4M3_OCP,
+                                        _BitInt(8),
+                                        unsigned _BitInt(8)>;
+    using raw_type = float8_storage_t;
+    raw_type data  = 0;
+
+    CK_TILE_HOST_DEVICE constexpr float8_format_t() = default;
+    CK_TILE_HOST_DEVICE explicit constexpr float8_format_t(float x);
+
+    template <typename T>
+    CK_TILE_HOST_DEVICE explicit constexpr float8_format_t(T x)
+        : float8_format_t(type_convert<float>(x))
+    {
+    }
+
+    template <typename T>
+    CK_TILE_HOST_DEVICE float8_format_t& operator=(T x)
+    {
+        *this = float8_format_t(x);
+        return *this;
+    }
+
+    CK_TILE_HOST_DEVICE float8_format_t& operator+=(float8_format_t x)
+    {
+        *this = float8_format_t(to_float() + x.to_float());
+        return *this;
+    }
+
+    CK_TILE_HOST_DEVICE float to_float() const;
+
+    template <typename T>
+    CK_TILE_HOST_DEVICE explicit operator T() const
+    {
+        return type_convert<T>(to_float());
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr float8_format_t bit_cast(raw_type x)
+    {
+        float8_format_t result;
+        result.data = x;
+        return result;
+    }
+};
+
+template <fp8_interpretation I>
+struct numeric_traits<float8_format_t<I>>
+{
+    using bitwise_type = float8_storage_t;
+    static constexpr bool e4m3 =
+        I == fp8_interpretation::E4M3_FNUZ || I == fp8_interpretation::E4M3_OCP;
+    static constexpr bool fnuz =
+        I == fp8_interpretation::E4M3_FNUZ || I == fp8_interpretation::E5M2_FNUZ;
+    static constexpr int exp                         = e4m3 ? 4 : 5;
+    static constexpr int mant                        = e4m3 ? 3 : 2;
+    static constexpr int bias                        = (e4m3 ? 7 : 15) + fnuz;
+    static constexpr fp8_interpretation f8_interpret = I;
+    static constexpr uint8_t abs_mask                = 0x7f;
+    static constexpr int PackedSize                  = 1;
+};
+
+template <typename T>
+struct fp8_format_traits
+{
+    static constexpr bool explicit_format = false;
+    static constexpr bool e4m3            = std::is_same_v<T, fp8_t>;
+    static constexpr bool e5m2            = std::is_same_v<T, bf8_t>;
+    using instruction_type                = T;
+};
+
+template <fp8_interpretation I>
+struct fp8_format_traits<float8_format_t<I>>
+{
+    static constexpr bool explicit_format = true;
+    static constexpr bool e4m3            = numeric_traits<float8_format_t<I>>::e4m3;
+    static constexpr bool e5m2            = !e4m3;
+    using instruction_type                = std::conditional_t<e4m3, fp8_t, bf8_t>;
+};
+
+template <typename T>
+inline constexpr bool is_fp8_type_v = fp8_format_traits<T>::e4m3 || fp8_format_traits<T>::e5m2;
+
+template <typename T>
+using fp8_instruction_type_t = typename fp8_format_traits<T>::instruction_type;
+
+template <typename T>
+CK_TILE_HOST_DEVICE constexpr bool is_native_fp8_type()
+{
+    constexpr auto interp = numeric_traits<T>::f8_interpret;
+#if defined(__gfx94__) && !defined(__gfx950__)
+    return interp == fp8_interpretation::E4M3_FNUZ || interp == fp8_interpretation::E5M2_FNUZ;
+#elif defined(__gfx950__) || defined(__gfx12__)
+    return interp == fp8_interpretation::E4M3_OCP || interp == fp8_interpretation::E5M2_OCP;
+#else
+    (void)interp;
+    return false;
+#endif
+}
+
+template <typename T>
+struct native_t;
+
+template <fp8_interpretation I>
+struct native_t<float8_format_t<I>>
+{
+    using type = std::
+        conditional_t<numeric_traits<float8_format_t<I>>::e4m3, _BitInt(8), unsigned _BitInt(8)>;
+};
+
+using fp8_fnuz_t = float8_format_t<fp8_interpretation::E4M3_FNUZ>;
+using bf8_fnuz_t = float8_format_t<fp8_interpretation::E5M2_FNUZ>;
+using fp8_ocp_t  = float8_format_t<fp8_interpretation::E4M3_OCP>;
+using bf8_ocp_t  = float8_format_t<fp8_interpretation::E5M2_OCP>;
+
 // below is sw fp8 conversion, not utilizing hw instruction
 namespace impl {
 
 template <typename SrcT, typename DstT, bool clip = true, bool stoch = false>
-CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
+CK_TILE_HOST_DEVICE typename numeric_traits<DstT>::bitwise_type
+run_cast_to_f8_raw(SrcT src, unsigned int rng = 0)
 {
-    static_assert(std::is_same<DstT, fp8_t>::value || std::is_same<DstT, bf8_t>::value,
-                  "DstT type must be fp8 or bf8.");
+    static_assert(is_fp8_type_v<DstT>, "DstT type must be fp8 or bf8.");
 
     constexpr bool is_half  = std::is_same<SrcT, half_t>::value;
     constexpr bool is_float = std::is_same<SrcT, float>::value;
@@ -496,11 +615,17 @@ CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
     return (sign << (DstT_exp + DstT_mant)) | (f8_exponent << DstT_mant) | mantissa;
 }
 
-template <typename SrcT, typename DstT, bool clip = true>
-CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
+template <typename SrcT, typename DstT, bool clip = true, bool stoch = false>
+CK_TILE_HOST_DEVICE DstT run_cast_to_f8(SrcT src, unsigned int rng = 0)
 {
-    static_assert(std::is_same<SrcT, fp8_t>::value || std::is_same<SrcT, bf8_t>::value,
-                  "SrcT type must be fp8 or bf8.");
+    return bit_cast<DstT>(run_cast_to_f8_raw<SrcT, DstT, clip, stoch>(src, rng));
+}
+
+template <typename SrcT, typename DstT, bool clip = true>
+CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT value)
+{
+    const auto x = bit_cast<typename numeric_traits<SrcT>::bitwise_type>(value);
+    static_assert(is_fp8_type_v<SrcT>, "SrcT type must be fp8 or bf8.");
     constexpr int SrcT_exp          = numeric_traits<SrcT>::exp;
     constexpr int SrcT_mant         = numeric_traits<SrcT>::mant;
     constexpr uint8_t SrcT_abs_mask = numeric_traits<SrcT>::abs_mask;
@@ -557,7 +682,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
     }
     else
     {
-        if(x == SrcT(0x80))
+        if(x == 0x80)
         {
             return fNeg0;
         }
@@ -774,11 +899,13 @@ CK_TILE_HOST_DEVICE typename numeric_traits<DstT>::bitwise_type float_to_fp8_sr_
 #endif
 
 #if CK_TILE_FP8_CVT_DEVICE
-    return impl::cast_to_f8_from_f32<numeric_traits<DstT>::f8_interpret, clip, true>(x, rng);
-#else
+    if constexpr(!fp8_format_traits<DstT>::explicit_format || is_native_fp8_type<DstT>())
+    {
+        return impl::cast_to_f8_from_f32<numeric_traits<DstT>::f8_interpret, clip, true>(x, rng);
+    }
+#endif
     return bit_cast<typename numeric_traits<DstT>::bitwise_type>(
         impl::cast_to_f8<float, DstT, clip, true>(x, rng));
-#endif
 }
 
 /**
@@ -797,11 +924,35 @@ CK_TILE_HOST_DEVICE typename numeric_traits<DstT>::bitwise_type float_to_fp8_rtn
 {
     constexpr bool clip = true;
 #if CK_TILE_FP8_CVT_DEVICE
-    return impl::cast_to_f8_from_f32<numeric_traits<DstT>::f8_interpret, clip, false>(x, 0);
-#else
+    if constexpr(!fp8_format_traits<DstT>::explicit_format || is_native_fp8_type<DstT>())
+    {
+        return impl::cast_to_f8_from_f32<numeric_traits<DstT>::f8_interpret, clip, false>(x, 0);
+    }
+#endif
     return bit_cast<typename numeric_traits<DstT>::bitwise_type>(
         impl::cast_to_f8<float, DstT, clip, false>(x, 0));
+}
+
+template <fp8_interpretation I>
+CK_TILE_HOST_DEVICE constexpr float8_format_t<I>::float8_format_t(float x)
+    : data(CK_TILE_FLOAT_TO_FP8_DEFAULT == 0 ? float_to_fp8_rtn_raw<float8_format_t<I>>(x)
+                                             : float_to_fp8_sr_raw<float8_format_t<I>>(x))
+{
+}
+
+template <fp8_interpretation I>
+CK_TILE_HOST_DEVICE float float8_format_t<I>::to_float() const
+{
+#if CK_TILE_FP8_CVT_DEVICE
+    if constexpr(is_native_fp8_type<float8_format_t<I>>())
+    {
+        if constexpr(numeric_traits<float8_format_t<I>>::e4m3)
+            return __builtin_amdgcn_cvt_f32_fp8(static_cast<uint32_t>(data), 0);
+        else
+            return __builtin_amdgcn_cvt_f32_bf8(static_cast<uint32_t>(data), 0);
+    }
 #endif
+    return impl::run_cast_from_f8<float8_format_t<I>, float, false>(*this);
 }
 
 template <fp8_rounding_mode rounding>
@@ -1011,6 +1162,34 @@ CK_TILE_HOST_DEVICE fp16_t bf8_to_fp16(bf8_t x) { return bf8_to_fp16_raw(bit_cas
 
 template <class T>
 struct numeric;
+
+template <fp8_interpretation I>
+struct numeric<float8_format_t<I>>
+{
+    using T      = float8_format_t<I>;
+    using Traits = numeric_traits<T>;
+    CK_TILE_HOST_DEVICE static constexpr T min() { return T::bit_cast(1 << Traits::mant); }
+    CK_TILE_HOST_DEVICE static constexpr T max()
+    {
+        return T::bit_cast(Traits::fnuz ? 0x7f : (Traits::e4m3 ? 0x7e : 0x7b));
+    }
+    CK_TILE_HOST_DEVICE static constexpr T lowest() { return T::bit_cast(max().data | 0x80); }
+    CK_TILE_HOST_DEVICE static constexpr T epsilon()
+    {
+        return T::bit_cast((Traits::bias - Traits::mant) << Traits::mant);
+    }
+    CK_TILE_HOST_DEVICE static constexpr T round_error()
+    {
+        return T::bit_cast((Traits::bias - Traits::mant - 1) << Traits::mant);
+    }
+    CK_TILE_HOST_DEVICE static constexpr T quiet_NaN()
+    {
+        return T::bit_cast(Traits::fnuz ? 0x80 : 0x7f);
+    }
+    CK_TILE_HOST_DEVICE static constexpr T signaling_NaN() { return quiet_NaN(); }
+    CK_TILE_HOST_DEVICE static constexpr T denorm_min() { return T::bit_cast(1); }
+    CK_TILE_HOST_DEVICE static constexpr T zero() { return T::bit_cast(0); }
+};
 
 #if CK_TILE_USE_OCP_FP8
 template <>
@@ -1356,5 +1535,16 @@ CK_TILE_TYPE_CONVERT(fp16_t, fp16, bf8_t, bf8)
 #undef CK_TILE_TYPE_CONVERT
 
 #endif
+
+template <fp8_interpretation I>
+CK_TILE_HOST_DEVICE bool isnan(const float8_format_t<I>& x)
+{
+    if constexpr(numeric_traits<float8_format_t<I>>::fnuz)
+        return x.data == 0x80;
+    else if constexpr(numeric_traits<float8_format_t<I>>::e4m3)
+        return (x.data & 0x7f) == 0x7f;
+    else
+        return (x.data & 0x7f) > 0x7c;
+}
 
 } // namespace ck_tile

@@ -65,10 +65,14 @@ if(GPU_TARGETS MATCHES "gfx942|gfx950|amdgcnspirv")
     set_mma_test_arch_define(test_amdgcn_mma_layout_gfx942_and_higher)
 endif()
 
-if(GPU_TARGETS MATCHES "gfx942|amdgcnspirv")
+# These gfx942 TF32 fragments must also execute on gfx950 when a mixed build
+# selects gfx942 as its configure-time target. Keep both device passes in this test.
+set(MMA_TF32_TARGETS ${SUPPORTED_GPU_TARGETS})
+list(FILTER MMA_TF32_TARGETS INCLUDE REGEX "^(gfx(942|950)(:.*)?|amdgcnspirv)$")
+if(MMA_TF32_TARGETS)
     add_gtest_executable(test_amdgcn_mma_layout_gfx942 test_amdgcn_mma_layout_gfx942.cpp)
     target_compile_options(test_amdgcn_mma_layout_gfx942 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    set_mma_test_arch_define(test_amdgcn_mma_layout_gfx942)
+    set_property(TARGET test_amdgcn_mma_layout_gfx942 PROPERTY HIP_ARCHITECTURES ${MMA_TF32_TARGETS})
 endif()
 
 if(GPU_TARGETS MATCHES "gfx950|amdgcnspirv")

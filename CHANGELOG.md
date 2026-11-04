@@ -2,6 +2,47 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## (Unreleased) Composable Kernel
+
+### Fixed
+* Fixed FP8 format selection in the XDL FP8 GEMM, convolution, MoE, elementwise, CK Tile FlatMM, and grouped-quantization examples when built for gfx942 and gfx950 together. The affected examples select FNUZ or OCP types for the active device and retain native FP8 instructions.
+* Fixed CK Tile TF32 compilation for combined gfx942/gfx950 builds that select gfx942 fragments, by lowering their XF32 operations to FP32 MFMA instructions on gfx950 while preserving the fragment layout.
+* Fixed missing store waits in CK Tile Stream-K and the legacy buffer store fence on gfx12 targets.
+* Fixed out-of-bounds stores in CK Tile multi-reduction kernels when the output row count is not a multiple of the block tile size.
+* Fixed padded-row output updates in the global-atomic path of CK Tile multiblock reduction, including float outputs on gfx11.
+* Fixed partial-vector direct reduction stores and scalar atomic output tails, and rejected incomplete packed atomic output vectors.
+
+### Added
+
+* Added gfx1250 support and WMMA regression tests for CK Tile GEMM Stream-K with atomic, linear, and tree reduction.
+* Added FP6 (E2M3) operands to the CK Tile microscaling (MX) GEMM TDM pipelines on gfx1250, for row-major A, column-major B, a 16x16x128 warp tile, and 32-element E8M0 scale blocks, with fp16 or bf16 output.
+
+### Changed
+
+### Removed
+
+### Optimized
+* Improved FMHA forward performance on gfx1250 for the head dimension 128 qr_tdm_sched kernels by writing the output tile back from LDS with asynchronous stores, issuing the Q, K, and V prologue loads together, and removing a per-element scalar operation from the attention mask check.
+
+### Resolved issues
+
+### Known issues
+
+### Upcoming changes
+
+
+## Composable Kernel 1.3.0 for ROCm 10.2.0
+
+### Added
+
+* Added optional instance filters for the CK Tile LayerNorm2D forward and quantized GEMM examples to reduce compilation for selected workloads.
+* Added a CI path-length check that rejects newly added or renamed files whose repository-relative path exceeds 200 characters, keeping the absolute path under the Windows `MAX_PATH` limit of 260.
+* Added bf16, fp32, fp8, and bf8 data types and the rrr, crr, and ccr layouts to the CK Tile Tile Engine batched GEMM and its dispatcher bridge.
+
+### Optimized
+
+* Improved FMHA backward performance on gfx1250 by moving the operand transfers to TDM and the transposed reads to ds_load_tr, keeping the dK and dV accumulators in registers, pairing mirrored tiles under a causal mask, and coalescing the dQ atomic onto a single cache line.
+
 ## Composable Kernel 1.3.0 for ROCm 10.1.0
 
 ### Added
@@ -12,7 +53,6 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added a batched contraction kernel with multiple ABD support to CK Tile.
 * Added CK Tile dispatcher support for more GEMM operators, including weight preshuffle GEMM, batched GEMM, batched contraction, grouped A-quantized and AB-quantized GEMM, grouped row-column and tensor quantized GEMM, and block scale quantized GEMM.
 * Added gfx1250 support to the CK Tile dispatcher GEMM operators, covering universal, grouped, multiple D, multiple ABD, batched, batched contraction, and grouped quantized GEMM.
-* Added bf16, fp32, fp8, and bf8 data types and the rrr, crr, and ccr layouts to the CK Tile Tile Engine batched GEMM and its dispatcher bridge.
 * Added gfx1250 WMMA instance support to the CK backend for PyTorch Inductor, covering universal GEMM, batched GEMM, and grouped convolution forward.
 * Added the tanh approximation of GELU to the XDL two-stage MoE GEMM epilogue.
 * Added double-precision buffer atomic add support on gfx1250.
@@ -21,7 +61,6 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 * Improved FMHA forward performance for head dimension 128 on gfx11 and gfx12 targets by retuning tile selection.
 * Improved FMHA forward performance on gfx1250 for bf16 and fp16 head dimension 128 by padding the LDS layout in the qr_tdm pipeline.
-* Improved FMHA backward performance on gfx1250 by moving the operand transfers to TDM and the transposed reads to ds_load_tr, keeping the dK and dV accumulators in registers, pairing mirrored tiles under a causal mask, and coalescing the dQ atomic onto a single cache line.
 * Improved memory coalescing of microscaling (MX) scale loads on gfx1250 by unifying the scale16 layout with scale32.
 
 ### Changed
@@ -56,7 +95,6 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Added
 
 * Added multiple D (bias) and large tensor support to the CK Tile quantized GEMM kernel for row-column quantization.
-* Added a CI path-length check that rejects newly added or renamed files whose repository-relative path exceeds 200 characters, keeping the absolute path under the Windows `MAX_PATH` limit of 260.
 
 ### Changed
 

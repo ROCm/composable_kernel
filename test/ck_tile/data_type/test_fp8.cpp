@@ -4,6 +4,10 @@
 #include "gtest/gtest.h"
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/device_memory.hpp"
+
+#include <array>
+#include <cmath>
 
 template <typename T>
 class ConvertTest : public ::testing::Test
@@ -612,3 +616,71 @@ TYPED_TEST(ConvertTest, FromBf8AndToBf8)
         EXPECT_EQ(from, to) << "u8: " << i << " f32/f16: " << ck_tile::type_convert<float>(f);
     }
 }
+
+namespace {
+
+template <typename T>
+class ExplicitFP8Formats : public ::testing::Test
+{
+};
+
+using ExplicitFormats = ::testing::
+    Types<ck_tile::fp8_fnuz_t, ck_tile::bf8_fnuz_t, ck_tile::fp8_ocp_t, ck_tile::bf8_ocp_t>;
+TYPED_TEST_SUITE(ExplicitFP8Formats, ExplicitFormats);
+
+template <typename T>
+__global__ void convert_explicit_fp8(const float* input, uint8_t* encoded, float* decoded)
+{
+    const auto i     = threadIdx.x;
+    const auto value = ck_tile::type_convert<T>(input[i]);
+    encoded[i]       = ck_tile::bit_cast<uint8_t>(value);
+    decoded[i]       = ck_tile::type_convert<float>(value);
+}
+
+TYPED_TEST(ExplicitFP8Formats, FiniteValuesRetainTheirEncodingOnDevice)
+{
+    static_assert(sizeof(TypeParam) == 1);
+    static_assert(std::is_trivially_copyable_v<TypeParam>);
+    using Traits = ck_tile::numeric_traits<TypeParam>;
+    EXPECT_EQ(ck_tile::bit_cast<uint8_t>(ck_tile::type_convert<TypeParam>(1.0f)),
+              Traits::bias << Traits::mant);
+
+    std::array<float, 256> input{}, decoded{};
+    std::array<uint8_t, 256> encoded{};
+    for(std::size_t i = 0; i < input.size(); ++i)
+    {
+        const auto raw    = ck_tile::bit_cast<TypeParam>(static_cast<uint8_t>(i));
+        const float value = ck_tile::impl::run_cast_from_f8<TypeParam, float, false>(raw);
+        // Every finite encoded value is exactly representable, so this test
+        // detects a format mismatch without depending on rounding policy.
+        input[i] = std::isfinite(value) ? value : 1.0f;
+    }
+
+    ck_tile::DeviceMem input_device(sizeof(input));
+    ck_tile::DeviceMem encoded_device(sizeof(encoded));
+    ck_tile::DeviceMem decoded_device(sizeof(decoded));
+    input_device.ToDevice(input.data());
+    hipLaunchKernelGGL(convert_explicit_fp8<TypeParam>,
+                       dim3(1),
+                       dim3(256),
+                       0,
+                       nullptr,
+                       static_cast<const float*>(input_device.GetDeviceBuffer()),
+                       static_cast<uint8_t*>(encoded_device.GetDeviceBuffer()),
+                       static_cast<float*>(decoded_device.GetDeviceBuffer()));
+    ASSERT_EQ(hipGetLastError(), hipSuccess);
+    ASSERT_EQ(hipDeviceSynchronize(), hipSuccess);
+    encoded_device.FromDevice(encoded.data());
+    decoded_device.FromDevice(decoded.data());
+
+    for(std::size_t i = 0; i < input.size(); ++i)
+    {
+        SCOPED_TRACE(i);
+        EXPECT_EQ(encoded[i],
+                  ck_tile::bit_cast<uint8_t>(ck_tile::type_convert<TypeParam>(input[i])));
+        EXPECT_EQ(decoded[i], input[i]);
+        EXPECT_EQ(std::signbit(decoded[i]), std::signbit(input[i]));
+    }
+}
+
+} // namespace

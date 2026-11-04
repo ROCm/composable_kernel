@@ -139,6 +139,9 @@ struct GemmKernelMultiD
     /// @brief True for the gfx125 TDM pipelines (see UniversalGemmKernel::kIsTdmPipeline).
     static constexpr bool kIsTdmPipeline = UniversalGemmKernel::kIsTdmPipeline;
 
+    static_assert(!UniversalGemmKernel::kIsPlainGemmOnlyPipeline,
+                  "MultiD GEMM does not support this pipeline (plain GEMM only)");
+
     template <typename T>
     using has_tdm_multi_d_epilogue_marker = decltype(T::kIsTdmMultiDEpilogue);
 

@@ -34,6 +34,20 @@ def loadCk() {
         : 'develop')
     library("ck@${branch}")
 }
+// Compile-only check of the FMHA Python bindings against the current C++ API.
+// Defined here because PR builds load ck.groovy from develop by default.
+def runFmhaPythonBuildCheck(String arch) {
+    ck.checkoutComposableKernel()
+    def image = docker.image(params.fmha_python_base_docker)
+    withDockerRegistry([credentialsId: "ck_docker_cred", url: ""]) {
+        image.pull()
+    }
+    image.inside() {
+        timeout(time: 2, unit: 'HOURS') {
+            sh "GPU_ARCHS=${arch} projects/composablekernel/example/ck_tile/01_fmha/script/check_python_build.sh"
+        }
+    }
+}
 def showCompilerInfo(boolean deferBinaryInfo = false, String dockerImage = "") {
     def image = dockerImage ?: ck.getDockerImageName()
     def requestedVersion = params.COMPILER_VERSION ?: "ROCm ${params.ROCMVERSION} release"
@@ -289,6 +303,18 @@ pipeline {
             defaultValue: CURRENT_BRANCH_NAME,
             description: 'Specify which branch of CK to test with flash-attention (default: current branch)')
         booleanParam(
+            name: "RUN_FMHA_PYTHON_TESTS",
+            defaultValue: false,
+            description: "Manually run FMHA Python tests on a physical gfx1250 GPU (default: OFF)")
+        booleanParam(
+            name: "BUILD_FMHA_PYTHON",
+            defaultValue: true,
+            description: "Compile the FMHA Python bindings with a few kernels, without a GPU (default: ON)")
+        string(
+            name: 'fmha_python_base_docker',
+            defaultValue: 'rocm/pytorch:rocm10.1.0_ubuntu24.04_py3.12_pytorch_release_2.14.0',
+            description: 'Specify which ROCm PyTorch image to use for FMHA Python builds and tests')
+        booleanParam(
             name: "RUN_DISPATCHER_CORRECTNESS_TESTS",
             defaultValue: false,
             description: "Run Correctness Tier for Dispatcher (default: OFF)")
@@ -329,8 +355,10 @@ pipeline {
                         // a docs- or Markdown-only change skips CI but can still
                         // add a path that breaks the Windows checkout.
                         ck.runPathLengthCheck()
-                        env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || ck.shouldRunCICheck())
+                        env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || params.RUN_FMHA_PYTHON_TESTS.toBoolean() || ck.shouldRunCICheck())
                         echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                        env.SHOULD_RUN_FMHA_PYTHON_TESTS = String.valueOf(params.RUN_FMHA_PYTHON_TESTS.toBoolean())
+                        echo "SHOULD_RUN_FMHA_PYTHON_TESTS: ${env.SHOULD_RUN_FMHA_PYTHON_TESTS}"
                         env.BUILD_GFX103 = String.valueOf(env.BRANCH_NAME == 'develop' || params.BUILD_GFX103.toBoolean())
                         echo "BUILD_GFX103: ${env.BUILD_GFX103}"
                         env.BUILD_GFX908 = String.valueOf(env.BRANCH_NAME == 'develop' || params.BUILD_GFX908.toBoolean())
@@ -471,6 +499,23 @@ pipeline {
                                 cleanWs()
                             }
                         }
+                    }
+                }
+            }
+        }
+        stage("Run FMHA Python Tests on gfx1250")
+        {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_FMHA_PYTHON_TESTS.toBoolean() }
+            }
+            agent none
+            steps{
+                script {
+                    loadCk()
+                    ck.runOnHealthyNode(rocmnode("gfx1250")) {
+                        ck.runFmhaPythonTests("gfx1250")
+                        cleanWs()
                     }
                 }
             }
@@ -870,6 +915,24 @@ pipeline {
                         }
                     }
                 }
+                stage("Build FMHA Python API for gfx1250")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_FMHA_PYTHON.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                    }
+                    agent none
+                    steps{
+                        script {
+                            loadCk()
+                            ck.runOnHealthyNode(rocmnode("nogpu")) {
+                                deleteDir()
+                                runFmhaPythonBuildCheck("gfx1250")
+                                cleanWs()
+                            }
+                        }
+                    }
+                }
             }
             post {
                 always {
@@ -955,4 +1018,3 @@ pipeline {
         }
     }
 }
-

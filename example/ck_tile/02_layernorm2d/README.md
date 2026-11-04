@@ -38,6 +38,16 @@ make tile_example_layernorm2d_fwd -j
 ```
 This will result in an executable `build/bin/tile_example_layernorm2d_fwd`
 
+### Build a subset of instances
+
+`LAYERNORM2D_FWD_INSTANCE_FILTER` accepts a shell-style pattern matching generated
+instance names without the `.cpp` extension. For example, configure CK with
+`-DLAYERNORM2D_FWD_INSTANCE_FILTER=layernorm2d_fwd_fp16_n256` to build only the
+FP16, N=256 instance family. The generator applies the same selection to the
+source list and dispatch API. Empty (the default) generates all instances;
+a nonempty pattern matching nothing fails configuration. Inputs requiring
+excluded instances are unsupported by the resulting executable.
+
 ## Example
 ```
 args:
