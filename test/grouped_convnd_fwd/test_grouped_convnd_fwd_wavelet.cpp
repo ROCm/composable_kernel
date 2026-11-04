@@ -71,9 +71,36 @@ class TestGroupedConvndFwdWavelet : public ::testing::Test
 
 using namespace ck::tensor_layout::convolution;
 
+using KernelTypes2d = ::testing::Types<std::tuple<F16, F16, F16, F16, F16, NHWGC, GKYXC, NHWGK>>;
+
 // Wavelet XDL conv3d fwd instances use NDHWGC layout (NSpatialGC),
 // which maps to Wave32Force16MNPerXDL=true on gfx11, so they are valid on gfx9 and gfx11.
 using KernelTypes3d = ::testing::Types<std::tuple<F16, F16, F16, F16, F16, NDHWGC, GKZYXC, NDHWGK>>;
+
+template <typename Tuple>
+class TestGroupedConvndFwdWavelet2d : public TestGroupedConvndFwdWavelet<Tuple>
+{
+};
+
+TYPED_TEST_SUITE(TestGroupedConvndFwdWavelet2d, KernelTypes2d);
+
+TYPED_TEST(TestGroupedConvndFwdWavelet2d, Test2D)
+{
+    this->conv_params.clear();
+
+    // Check GemmN OOB checks TDM grouped conv
+    this->conv_params.push_back(
+        {2, 3, 2, 184, 128, {3, 3}, {12, 12}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back(
+        {2, 3, 2, 264, 128, {3, 3}, {12, 12}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    // Check GemmN + GemmK OOB checks TDM grouped conv
+    this->conv_params.push_back(
+        {2, 3, 2, 184, 48, {1, 1}, {12, 12}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
+    this->conv_params.push_back(
+        {2, 3, 2, 264, 32, {1, 1}, {12, 12}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
+
+    this->template Run<2>();
+}
 
 template <typename Tuple>
 class TestGroupedConvndFwdWavelet3d : public TestGroupedConvndFwdWavelet<Tuple>
@@ -101,6 +128,18 @@ TYPED_TEST(TestGroupedConvndFwdWavelet3d, Test3D)
     // 1x1x1 filter, stride 1
     this->conv_params.push_back(
         {3, 1, 4, 64, 64, {1, 1, 1}, {8, 8, 8}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+
+    // Check GemmN OOB checks TDM grouped conv
+    this->conv_params.push_back(
+        {3, 3, 2, 184, 128, {3, 3, 3}, {12, 12, 12}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 3, 2, 264, 128, {3, 3, 3}, {12, 12, 12}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+
+    // Check GemmN + GemmK OOB checks TDM grouped conv
+    this->conv_params.push_back(
+        {3, 3, 2, 184, 48, {1, 1, 1}, {12, 12, 12}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 3, 2, 264, 32, {1, 1, 1}, {12, 12, 12}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
 
     this->template Run<3>();
 }

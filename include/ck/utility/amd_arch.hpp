@@ -127,4 +127,28 @@ constexpr index_t get_vgpr_count_per_simd<gfx950_t>(gfx950_t)
     return 512;
 }
 
+template <typename DeviceArch>
+static constexpr bool is_tdm_supported(DeviceArch)
+{
+    return false;
+}
+
+template <>
+constexpr bool is_tdm_supported<gfx125_t>(gfx125_t)
+{
+    return true;
+}
+
+template <typename DeviceArch>
+static constexpr bool is_named_barrier_supported(DeviceArch)
+{
+    return false;
+}
+
+template <>
+constexpr bool is_named_barrier_supported<gfx125_t>(gfx125_t)
+{
+    return true;
+}
+
 } // namespace ck

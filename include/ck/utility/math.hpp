@@ -239,6 +239,22 @@ __host__ __device__ constexpr int32_t integer_log2_floor(int32_t x)
     return (x > 0) ? (31 - __builtin_clz(x)) : -1;
 }
 
+template <index_t X>
+__host__ __device__ constexpr index_t integer_log2_exact()
+{
+    static_assert(X > 0 && (X & (X - 1)) == 0,
+                  "integer_log2_exact requires a positive power of two");
+
+    index_t value  = X;
+    index_t result = 0;
+    while(value > 1)
+    {
+        value >>= 1;
+        ++result;
+    }
+    return result;
+}
+
 __host__ __device__ constexpr bool is_power_of_two_integer(int32_t x)
 {
     // x valid for 1 ~ 0x7fffffff

@@ -48,6 +48,7 @@
 #include "ck/utility/amd_cluster_load.hpp"
 #include "ck/utility/static_buffer.hpp"
 #include "ck/utility/dynamic_buffer.hpp"
+#include "ck/utility/amd_named_barrier.hpp"
 
 // TODO: remove this
 #if CK_USE_AMD_INLINE_ASM
