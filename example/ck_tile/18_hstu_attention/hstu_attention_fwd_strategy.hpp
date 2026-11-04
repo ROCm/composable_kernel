@@ -12,7 +12,7 @@
 #include "hstu_attention_host_util.hpp"
 
 // Jagged forward tile / split-kv / grid-order selection on the current device: the first rule of
-// default_hstu_fwd_strategy() whose match accepts the call picks the config, else the max/min
+// hstu_fwd_strategy_for_arch() whose match accepts the call picks the config, else the max/min
 // seqlen heuristics do.
 
 static inline const char* get_hstu_fwd_arch()

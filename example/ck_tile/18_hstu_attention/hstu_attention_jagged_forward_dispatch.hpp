@@ -321,7 +321,7 @@ void run_jagged_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStream
 
         if(param.is_jagged)
         {
-            const HstuFwdStrategy& strategy = default_hstu_fwd_strategy();
+            const HstuFwdStrategy& strategy = hstu_fwd_strategy_for_arch(get_hstu_fwd_arch());
             const HstuFwdCallFeatures features{param.is_cross_attention,
                                                kUseCausal,
                                                param.window_size > 0,

@@ -120,8 +120,10 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
             }
             else if constexpr(kQKHeaddim == 96 || kQKHeaddim == 128)
             {
-                if constexpr(kHasBias)
-                    return 2;
+                // The gfx1250 strategy tile M128xN0_32 is chosen for 3 waves per SIMD (1024 / 3
+                // VGPRs); hold the compiler to that budget.
+                if constexpr(kM0 == 128 && kN0 == 32)
+                    return 3;
                 else
                     return 2;
             }

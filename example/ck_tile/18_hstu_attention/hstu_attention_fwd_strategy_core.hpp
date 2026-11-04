@@ -39,12 +39,14 @@ struct HstuFwdStrategyRule
     HstuFwdRange dtype_bytes, hdim_qk, hdim_v, heads, batch, total_q, total_kv;
 
     // Action. splits_const >= 0 fixes num_splits (0 disables split-kv); otherwise num_splits fills
-    // coverage_factor times of 2 workgroups per CU with Q tiles of mtile rows, rounded to a power
-    // of two, clamped to [splits_min, splits_max] (0 below 1.5), and halved while the average
-    // sequence has fewer than kv_tiles_per_split 64-wide KV tiles per split.
+    // coverage_factor times of blocks_per_cu workgroups per CU (the occupancy of the mtile kernel)
+    // with Q tiles of mtile rows, rounded to a power of two, clamped to [splits_min, splits_max]
+    // (0 below 1.5), and halved while the average sequence has fewer than kv_tiles_per_split
+    // 64-wide KV tiles per split.
     int mtile              = 128;
     int grid_order         = -1;
     int splits_const       = -1;
+    int blocks_per_cu      = 2;
     float coverage_factor  = 3.0f;
     int splits_min         = 2;
     int splits_max         = 32;
@@ -95,6 +97,40 @@ inline const HstuFwdStrategy& default_hstu_fwd_strategy()
     return strategy;
 }
 
+// gfx1250, hdim-128 non-causal cross-attention, fitted on a sweep of split counts {0,2,4,8,16}
+// x mtile {64,128} x grid order over recorded production calls: the MTile-128 Tdm tile runs three
+// workgroups per CU and wins (or ties) everywhere; the length-aware grid always wins; non power of
+// two split counts lose. Splitting pays only while Q tiles fill less than about one and a half
+// waves of workgroup slots, and four splits beat two and eight there. A split's fixed cost is
+// worth many 64-wide KV tiles, so short-KV calls (fewer than 40 per split) are not split. Calls
+// below 16K Q rows (under half a wave of 128-row tiles) were not part of the fit and keep the
+// heuristic's 64-row tiles.
+inline const HstuFwdStrategy& gfx1250_hstu_fwd_strategy()
+{
+    static const HstuFwdStrategy strategy = [] {
+        HstuFwdStrategyRule rule;
+        rule.cross              = 1;
+        rule.causal             = 0;
+        rule.windowed           = 0;
+        rule.hdim_qk            = {128, 128};
+        rule.hdim_v             = {128, 128};
+        rule.total_q            = {16384, INT_MAX};
+        rule.grid_order         = 0;
+        rule.blocks_per_cu      = 3;
+        rule.coverage_factor    = 3.5f;
+        rule.kv_tiles_per_split = 40;
+        return HstuFwdStrategy{"gfx1250", "gfx1250", {rule}};
+    }();
+    return strategy;
+}
+
+inline const HstuFwdStrategy& hstu_fwd_strategy_for_arch(std::string_view arch)
+{
+    if(arch == gfx1250_hstu_fwd_strategy().arch)
+        return gfx1250_hstu_fwd_strategy();
+    return default_hstu_fwd_strategy();
+}
+
 inline bool hstu_fwd_rule_matches(const HstuFwdStrategyRule& r, const HstuFwdCallFeatures& f)
 {
     auto tri = [](int want, bool have) { return want < 0 || (want != 0) == have; };
@@ -112,7 +148,7 @@ hstu_fwd_rule_num_splits(const HstuFwdStrategyRule& r, const HstuFwdCallFeatures
         return r.splits_const;
 
     const float q_tiles = static_cast<float>(f.heads) * f.total_q / r.mtile;
-    const float wanted  = r.coverage_factor * 2.0f * num_cu / q_tiles;
+    const float wanted  = r.coverage_factor * r.blocks_per_cu * num_cu / q_tiles;
     if(wanted < 1.5f)
         return 0;
     int num_splits = std::clamp(
