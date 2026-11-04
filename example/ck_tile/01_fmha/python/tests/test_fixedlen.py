@@ -798,3 +798,36 @@ def test_only_bias_requires_grad(api):
     torch.testing.assert_close(actual, expected, atol=3e-3, rtol=3e-3)
     with torch.no_grad():
         assert not fmha_func(q, k, v, bias=bias).requires_grad
+
+
+@pytest.mark.parametrize("api", ["fixed", "varlen", "kvcache"])
+@pytest.mark.parametrize(
+    "sq,sk,window",
+    [(8, 2, (-1, 2)), (8, 4, (-1, 5)), (2, 8, (7, 1)), (2, 8, (6, 1)), (8, 8, (-1, 2147483647))],
+)
+@pytest.mark.parametrize("causal", [False, True])
+def test_window_bounds(api, sq, sk, window, causal):
+    from ck_tile_fmha import fmha_varlen_func, fmha_with_kvcache
+
+    torch.manual_seed(0)
+    q = torch.randn(1, sq, 4, 64, device="cuda", dtype=torch.float16, requires_grad=True)
+    k = torch.randn(1, sk, 2, 64, device="cuda", dtype=torch.float16, requires_grad=True)
+    v = torch.randn_like(k, requires_grad=True)
+    if api == "fixed":
+        out = fmha_func(q, k, v, window_size=window, causal=causal)
+    elif api == "varlen":
+        cu_q = torch.tensor([0, sq], device=q.device, dtype=torch.int32)
+        cu_k = torch.tensor([0, sk], device=q.device, dtype=torch.int32)
+        out = fmha_varlen_func(
+            q[0], k[0], v[0], cu_q, cu_k, sq, sk, window_size=window, causal=causal
+        ).unsqueeze(0)
+    else:
+        out = fmha_with_kvcache(q, k, v, cache_seqlens=sk, window_size=window, causal=causal)
+    ref, _ = attention_ref(q, k, v, window_size=window, causal=causal)
+    torch.testing.assert_close(out, ref, atol=2e-3, rtol=2e-3)
+    if api != "kvcache":
+        dout = torch.randn_like(out)
+        actual = torch.autograd.grad(out, (q, k, v), dout)
+        expected = torch.autograd.grad(ref, (q, k, v), dout)
+        for grad, ref_grad in zip(actual, expected):
+            torch.testing.assert_close(grad, ref_grad, atol=4e-3, rtol=4e-3)

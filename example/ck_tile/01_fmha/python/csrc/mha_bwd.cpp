@@ -127,12 +127,7 @@ fmha_bwd_args get_ck_fmha_bwd_args(const mask_info& mask,
     else if(alibi_slopes_.has_value())
     {
         auto alibi_slopes = alibi_slopes_.value();
-        CK_TILE_FMHA_CHECK_DEVICE(alibi_slopes);
-        TORCH_CHECK(alibi_slopes.stride(-1) == 1,
-                    "ALiBi slopes tensor must have contiguous last dimension");
-        TORCH_CHECK(alibi_slopes.sizes() == torch::IntArrayRef({h}) ||
-                    alibi_slopes.sizes() == torch::IntArrayRef({b, h}));
-        bias_ptr = alibi_slopes.data_ptr();
+        bias_ptr          = alibi_slopes.data_ptr();
         // alibi_slopes:(batch_size, nheads) or (nhead)
         stride_bias = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
     }
@@ -249,11 +244,6 @@ mha_bwd(const at::Tensor& dout, // batch_size x seqlen_q x num_heads, x multiple
     }
 
     const bool is_dropout = p_dropout > 0.0;
-#ifdef HIPIFY_V2
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
-#else
-    auto stream = at::cuda::getCurrentHIPStream().stream();
-#endif
 
     auto q_dtype = q.dtype();
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16,
@@ -267,6 +257,8 @@ mha_bwd(const at::Tensor& dout, // batch_size x seqlen_q x num_heads, x multiple
     const std::string q_dtype_str = q_dtype == torch::kFloat16 ? "fp16" : "bf16";
 
     CK_TILE_FMHA_CHECK_DEVICE(q);
+    at::cuda::CUDAGuard device_guard{q.device()};
+    auto stream = detail::current_stream();
     CK_TILE_FMHA_CHECK_DEVICE(k);
     CK_TILE_FMHA_CHECK_DEVICE(v);
     CK_TILE_FMHA_CHECK_DEVICE(out);
@@ -288,17 +280,18 @@ mha_bwd(const at::Tensor& dout, // batch_size x seqlen_q x num_heads, x multiple
     const int seqlen_k    = k.size(1);
     const int num_heads_k = k.size(2);
     TORCH_CHECK(batch_size > 0, "batch size must be positive");
+    detail::check_alibi(alibi_slopes_, q, batch_size, num_heads);
     TORCH_CHECK(head_size % 8 == 0, "head_size should be a multiple of 8");
     TORCH_CHECK(head_size <= 256,
                 "CK FlashAttention backward only supports head dimension at most 256");
-    TORCH_CHECK(num_heads % num_heads_k == 0,
+    TORCH_CHECK(num_heads > 0 && num_heads_k > 0 && num_heads % num_heads_k == 0,
                 "Number of heads in key/value must divide number of heads in query");
 
     if(window_size_left >= seqlen_k)
     {
         window_size_left = -1;
     }
-    if(window_size_right >= seqlen_k)
+    if(window_size_right >= seqlen_q)
     {
         window_size_right = -1;
     }
@@ -391,8 +384,6 @@ mha_bwd(const at::Tensor& dout, // batch_size x seqlen_q x num_heads, x multiple
                                                deterministic);
     fmha_bwd_launcher launcher(traits);
 
-    at::cuda::CUDAGuard device_guard{q.device()};
-
     auto opts      = q.options();
     auto softmax_d = torch::empty({batch_size, num_heads, seqlen_q}, opts.dtype(at::kFloat));
 
@@ -444,16 +435,12 @@ mha_bwd(const at::Tensor& dout, // batch_size x seqlen_q x num_heads, x multiple
     else if(is_dropout)
     {
         rng_state = torch::empty({2}, opts.dtype(torch::kInt64));
-        // See Note [Acquire lock when using random generators]
-        std::lock_guard<std::mutex> lock(gen->mutex_);
-        auto philox_args = gen->philox_cuda_state(counter_offset);
-        hipLaunchKernelGGL(detail::ParsePhiloxCudaState,
-                           dim3(1),
-                           dim3(64),
-                           0,
-                           0,
-                           philox_args,
-                           reinterpret_cast<uint64_t*>(rng_state.data_ptr()));
+        detail::init_philox_state(
+            gen, counter_offset, stream, reinterpret_cast<uint64_t*>(rng_state.data_ptr()));
+    }
+    else
+    {
+        rng_state = torch::empty({2}, opts.dtype(torch::kInt64));
     }
 
     if(seqlen_q > 0)

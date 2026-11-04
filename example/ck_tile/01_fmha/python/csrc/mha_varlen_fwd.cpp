@@ -106,12 +106,7 @@ fmha_fwd_args get_ck_fmha_varlen_fwd_args(bool has_lse,
 
     if(alibi_slopes_.has_value())
     {
-        auto alibi_slopes = alibi_slopes_.value();
-        CK_TILE_FMHA_CHECK_DEVICE(alibi_slopes);
-        TORCH_CHECK(alibi_slopes.stride(-1) == 1,
-                    "ALiBi slopes tensor must have contiguous last dimension");
-        TORCH_CHECK(alibi_slopes.sizes() == torch::IntArrayRef({h}) ||
-                    alibi_slopes.sizes() == torch::IntArrayRef({b, h}));
+        auto alibi_slopes   = alibi_slopes_.value();
         alibi_slopes_ptr    = alibi_slopes.data_ptr();
         stride_alibi_slopes = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
     }
@@ -310,13 +305,8 @@ fmha_fwd_splitkv_args get_ck_fmha_varlen_fwd_splitkv_args(bool has_lse,
     if(alibi_slopes_.has_value())
     {
         auto alibi_slopes = alibi_slopes_.value();
-        CK_TILE_FMHA_CHECK_DEVICE(alibi_slopes);
-        TORCH_CHECK(alibi_slopes.stride(-1) == 1,
-                    "ALiBi slopes tensor must have contiguous last dimension");
-        TORCH_CHECK(alibi_slopes.sizes() == torch::IntArrayRef({h}) ||
-                    alibi_slopes.sizes() == torch::IntArrayRef({b, h}));
-        args.bias_ptr    = alibi_slopes.data_ptr();
-        args.stride_bias = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
+        args.bias_ptr     = alibi_slopes.data_ptr();
+        args.stride_bias  = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
     }
 
     args.window_size_left  = mask.left;
@@ -362,6 +352,9 @@ std::vector<at::Tensor> mha_varlen_fwd(
     bool return_lse)
 {
     TORCH_CHECK(softcap == 0.0f, "CK Tile FMHA Python bindings do not support softcap");
+    TORCH_CHECK(!seqused_k.has_value(), "varlen attention does not support seqused_k");
+    TORCH_CHECK(!leftpad_k_.has_value(), "varlen attention does not support leftpad_k");
+    TORCH_CHECK(num_splits_requested == 0, "varlen attention does not support num_splits");
     auto q_dtype      = q.dtype();
     const bool is_fp8 = q.scalar_type() == at::ScalarType::Float8_e4m3fn ||
                         q.scalar_type() == at::ScalarType::Float8_e4m3fnuz;
@@ -429,7 +422,8 @@ std::vector<at::Tensor> mha_varlen_fwd(
 
     const int total_q = q.size(0);
 
-    TORCH_CHECK(batch_size > 0, "batch size must be postive");
+    TORCH_CHECK(batch_size > 0, "batch size must be positive");
+    detail::check_alibi(alibi_slopes_, q, batch_size, num_heads);
     TORCH_CHECK(head_size > 0 && head_size <= 256, "CK only supports head dimension in [1, 256]");
     TORCH_CHECK(head_size % 8 == 0,
                 "query, key, value, and out_ must have a head_size that is a multiple of 8");
@@ -443,10 +437,7 @@ std::vector<at::Tensor> mha_varlen_fwd(
                 qscale);
     if(is_fp8)
     {
-        TORCH_CHECK(
-            !paged_KV && !seqused_k.has_value() && !leftpad_k_.has_value() &&
-                num_splits_requested == 0,
-            "FP8 varlen attention requires contiguous sequences without paged KV or splits");
+        TORCH_CHECK(!paged_KV, "FP8 varlen attention does not support paged KV");
         TORCH_CHECK(p_dropout == 0.0f && !return_dropout_randval,
                     "FP8 attention does not support dropout");
         TORCH_CHECK(!alibi_slopes_.has_value(), "FP8 attention does not support ALiBi");
@@ -504,7 +495,7 @@ std::vector<at::Tensor> mha_varlen_fwd(
     {
         window_size_left = -1;
     }
-    if(window_size_right >= max_seqlen_k)
+    if(window_size_right >= max_seqlen_q)
     {
         window_size_right = -1;
     }
@@ -564,6 +555,7 @@ std::vector<at::Tensor> mha_varlen_fwd(
 
     // Otherwise the kernel will be launched from cuda:0 device
     at::cuda::CUDAGuard device_guard{q.device()};
+    auto stream = detail::current_stream();
 
     auto opts        = q.options();
     bool has_lse     = return_lse;
@@ -597,16 +589,6 @@ std::vector<at::Tensor> mha_varlen_fwd(
         }
     }
 
-    int num_splits = 0;
-    num_splits     = detail::override_num_splits_if_necessary(
-        batch_size, num_heads, max_seqlen_q, head_size, 0, num_splits);
-    TORCH_CHECK(num_splits > 0, "num_splits should greater than 0");
-    TORCH_CHECK(num_splits <= 128, "num_splits greater than 128 is not supported");
-
-    auto softmax_lse_accum = torch::empty({num_heads, num_splits, total_q}, opts.dtype(at::kFloat));
-    auto out_accum =
-        torch::empty({num_heads, num_splits, total_q, head_size}, opts.dtype(at::kFloat));
-
     int64_t counter_offset = batch_size * num_heads * ck_tile::get_warp_size();
     auto rng_state         = torch::empty({2}, opts.dtype(torch::kInt64));
     auto rng_state_ptr     = reinterpret_cast<uint64_t*>(rng_state.data_ptr());
@@ -615,24 +597,26 @@ std::vector<at::Tensor> mha_varlen_fwd(
     {
         auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
             gen_, at::cuda::detail::getDefaultCUDAGenerator());
-        // See Note [Acquire lock when using random generators]
-        std::lock_guard<std::mutex> lock(gen->mutex_);
-        auto philox_args = gen->philox_cuda_state(counter_offset);
-        hipLaunchKernelGGL(
-            detail::ParsePhiloxCudaState, dim3(1), dim3(64), 0, 0, philox_args, rng_state_ptr);
+        detail::init_philox_state(gen, counter_offset, stream, rng_state_ptr);
     }
 
     if(max_seqlen_k > 0 && total_q > 0)
     {
-#ifdef HIPIFY_V2
-        auto stream = at::cuda::getCurrentCUDAStream().stream();
-#else
-        auto stream = at::cuda::getCurrentHIPStream().stream();
-#endif
         ck_tile::stream_config stream_config{stream};
 
         if(paged_KV)
         {
+            int num_splits = 0;
+            num_splits     = detail::override_num_splits_if_necessary(
+                batch_size, num_heads, max_seqlen_q, head_size, 0, num_splits);
+            TORCH_CHECK(num_splits > 0, "num_splits should greater than 0");
+            TORCH_CHECK(num_splits <= 128, "num_splits greater than 128 is not supported");
+
+            auto softmax_lse_accum =
+                torch::empty({num_heads, num_splits, total_q}, opts.dtype(at::kFloat));
+            auto out_accum =
+                torch::empty({num_heads, num_splits, total_q, head_size}, opts.dtype(at::kFloat));
+
             auto traits = get_ck_fmha_varlen_fwd_splitkv_traits(
                 mask, q_dtype_str, head_size, has_lse, alibi_slopes_.has_value());
 
