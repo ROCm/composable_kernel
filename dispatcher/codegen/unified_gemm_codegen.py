@@ -48,6 +48,7 @@ from codegen_common import (
     gemm_default_epilogue_vector_size,
     gemm_vector_size_suffix,
     resolve_gemm_vector_sizes,
+    streamk_c_reject_reason,
     normalize_gfx_arch,
     is_preshuffle_config_valid,  # noqa: F401 (re-exported)
     warp_size_for_arch,
@@ -1889,6 +1890,16 @@ class UnifiedGemmCodegen:
                     streamk_cfg = self.config.get("streamk_config", {})
                     strategies = streamk_cfg.get("reduction_strategy", ["atomic"])
                     for reduction_strategy in strategies:
+                        reason = streamk_c_reject_reason(
+                            reduction_strategy,
+                            trait.vector_size_c,
+                            TypeMappings.get_output_dtype(self.datatype),
+                            self.layout[2],
+                        )
+                        if reason:
+                            key = self._vector_reject(tile, trait.vector_sizes, reason)
+                            vector_rejects[key] = vector_rejects.get(key, 0) + 1
+                            continue
                         configs.append(
                             KernelConfig(
                                 tile=tile,
@@ -2013,6 +2024,7 @@ class UnifiedGemmCodegen:
             pipeline=trait.pipeline,
             epilogue=trait.epilogue,
             variant=variant.value,
+            reduction_strategy=None,  # applied per expanded strategy below
         )
         # Fixed widths only serve misaligned extents, which always need padding.
         pads = dict(pad_m=True, pad_n=True, pad_k=True) if any(vec) else {}
@@ -2020,8 +2032,12 @@ class UnifiedGemmCodegen:
             trait, vector_size_a=vec[0], vector_size_b=vec[1], vector_size_c=vec[2], **pads
         )
         if reason:
-            reason = f"{tile.tile_m}x{tile.tile_n}x{tile.tile_k} vec{vec}: {reason}"
+            reason = self._vector_reject(tile, vec, reason)
         return trait, reason
+
+    @staticmethod
+    def _vector_reject(tile: TileConfig, vec: Tuple[int, int, int], reason: str) -> str:
+        return f"{tile.tile_m}x{tile.tile_n}x{tile.tile_k} vec{vec}: {reason}"
 
     def _get_tile_configs(self) -> List[TileConfig]:
         """Get valid tile configurations, filtered by architecture constraints"""

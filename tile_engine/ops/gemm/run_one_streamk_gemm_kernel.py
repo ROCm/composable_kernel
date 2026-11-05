@@ -17,10 +17,9 @@ Input JSON format:
 
 Optional top-level keys ``verify`` (bool) and ``verify_tol`` (float) enable an
 fp32 numpy reference check; when set, each OK result also carries ``verified``
-and ``max_rel``. Stream-K's Atomic reduction does multiple fp16 atomic-adds (one
-per K-split partial), so it is inherently noisier than a single fp32->fp16 store;
-the default gate tolerance (2e-2) is loose enough to pass while still catching
-gross errors.
+and ``max_rel``. Atomic reduction rounds each partial update to the output
+precision; many contributors can exceed the default gate tolerance (2e-2).
+Linear/tree reduction combines partials in fp32 before converting the output.
 
 Output JSON format (one line per kernel):
     {"idx": 0, "ok": true, "ms": 0.123, "tflops": 456.7, "non_zero": 1, "kernel": "..."}

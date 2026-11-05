@@ -38,7 +38,7 @@ import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -468,15 +468,23 @@ class GemmKernelConfig:
 
         Returns ``(config, reject_reason)``; the reason is None when legal.
         """
-        if not any(requested):
-            return replace(self, vector_size_a=0, vector_size_b=0, vector_size_c=0), None
-        vec, reason = _codegen_common().resolve_gemm_vector_sizes(
-            **self._vector_args(),
-            requested=requested,
-            pipeline=self.pipeline,
-            epilogue=self.epilogue,
-            variant=self.variant,
-        )
+        cc = _codegen_common()
+        vec, reason = (0, 0, 0), None
+        if any(requested):
+            vec, reason = cc.resolve_gemm_vector_sizes(
+                **self._vector_args(),
+                requested=requested,
+                pipeline=self.pipeline,
+                epilogue=self.epilogue,
+                variant=self.variant,
+                reduction_strategy=self.reduction_strategy,
+            )
+        if not reason and not any(vec) and self.variant == "stream_k":
+            # Native widths (unset, or requested ones that resolve to native) skip
+            # resolution's checks; Stream-K's C check still applies.
+            reason = cc.streamk_c_reject_reason(
+                self.reduction_strategy, 0, self.dtype_c, self.layout[2]
+            )
         if reason:
             reason = (
                 f"{self.tile_str} {self.pipeline}/{self.epilogue} "
@@ -2863,6 +2871,21 @@ def _arch_filter_accepts(
     )
 
 
+# Stream-K reduction strategies the codegen can emit (atomic/linear/tree).
+STREAMK_REDUCTION_STRATEGIES = ("atomic", "linear", "tree")
+
+
+def unique_by_name(configs: List[GemmKernelConfig]) -> List[GemmKernelConfig]:
+    """Drop configs whose ``.name`` (the kernel identity) repeats an earlier one.
+
+    First occurrence wins and input order is kept.
+    """
+    first: Dict[str, GemmKernelConfig] = {}
+    for c in configs:
+        first.setdefault(c.name, c)
+    return list(first.values())
+
+
 def expand_sweep(
     config_path: str,
     arch: Optional[str] = None,
@@ -2878,6 +2901,7 @@ def expand_sweep(
     mabd_cli_overrides: Optional[Dict[str, Any]] = None,
     vector_sizes: Optional[List[Tuple[int, int, int]]] = None,
     rejects: Optional[Dict[str, int]] = None,
+    reduction_strategies: Optional[Union[str, List[str]]] = None,
 ) -> List[GemmKernelConfig]:
     """Expand a Tile Engine GEMM JSON sweep config into GemmKernelConfig list.
 
@@ -2908,6 +2932,17 @@ def expand_sweep(
     only. Each base config is emitted once per distinct resolved triple; a
     triple that is illegal for the tile is dropped and its reason counted in
     ``rejects`` (when given).
+
+    ``reduction_strategies`` (``variant='stream_k'`` only; one name or a list)
+    replaces the config's ``streamk_config.reduction_strategy`` list before
+    expansion, so an override never multiplies the sweep by the config's own
+    strategies. An unknown strategy name raises ``ValueError`` before any
+    codegen/build.
+
+    Applying it before expansion also checks each fixed vector width against the
+    strategy that runs it: a C width that is illegal for atomic is legal for
+    linear and tree. The argument with another variant, and Stream-K with a
+    column-major C (which no strategy supports), raise ``ValueError`` too.
     """
     # Multi-ABD is fp16-only end-to-end (codegen, ctypes lib, and GpuMultiABDRunner
     # all assume fp16). Reject other dtypes here -- before any codegen/build -- so
@@ -2969,7 +3004,29 @@ def expand_sweep(
     # variants keep a single dummy value so the product is unaffected.
     if variant == "stream_k":
         sk = cfg.get("streamk_config", {})
-        reductions = _expand_values(sk.get("reduction_strategy"), ["atomic"])
+        if isinstance(reduction_strategies, str):
+            reduction_strategies = [reduction_strategies]
+        reductions = reduction_strategies or _expand_values(
+            sk.get("reduction_strategy"), ["atomic"]
+        )
+        unknown = sorted(set(reductions) - set(STREAMK_REDUCTION_STRATEGIES))
+        if unknown:
+            raise ValueError(
+                f"unknown Stream-K reduction strategy {unknown}; "
+                f"expected one of {STREAMK_REDUCTION_STRATEGIES}"
+            )
+        # The C layout rule holds for every strategy, so a column-major C has no
+        # Stream-K kernel at all: say why instead of returning an empty sweep.
+        c_reason = _codegen_common().streamk_c_reject_reason(
+            None, 0, _output_dtype(dtype), layout[2]
+        )
+        if c_reason:
+            raise ValueError(
+                f"{c_reason}, got layout {layout!r}; "
+                f"expected one of {_codegen_common().STREAMK_GEMM_LAYOUTS}"
+            )
+    elif reduction_strategies:
+        raise ValueError(f"reduction_strategies is Stream-K only, not {variant!r}")
     else:
         reductions = ["atomic"]
 
@@ -3057,7 +3114,6 @@ def expand_sweep(
         md_combos = [("PassThrough", 0)]
 
     configs: List[GemmKernelConfig] = []
-    seen: set = set()
     for (
         tm,
         tn,
@@ -3208,8 +3264,6 @@ def expand_sweep(
                         if rejects is not None:
                             rejects[reason] = rejects.get(reason, 0) + 1
                         continue
-                    if cv.name in seen:
-                        continue
                     if val is None:
                         # After the vector-width rejects, as in the codegen.
                         val = _cu.validate_kernel_config(
@@ -3229,7 +3283,6 @@ def expand_sweep(
                     if not val:
                         # Keep counting the later widths' rejects, as the codegen does.
                         continue
-                    seen.add(cv.name)
                     configs.append(cv)
 
-    return configs
+    return unique_by_name(configs)
