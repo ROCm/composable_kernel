@@ -81,7 +81,8 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
           typename LDSTypeB                           = ComputeTypeB,
-          bool NonTemporalLoadB                       = false>
+          bool NonTemporalLoadB                       = false,
+          bool RuntimeSwigluLimit                     = false>
 struct DeviceMoeGemmBlockScale
     : public DeviceGemmMultipleD_BlockScale_BPreshuffle<ALayout,
                                                         BLayout,
@@ -182,7 +183,8 @@ struct DeviceMoeGemmBlockScale
         ComputeTypeB,
         LDSTypeA,
         LDSTypeB,
-        NonTemporalLoadB>;
+        NonTemporalLoadB,
+        RuntimeSwigluLimit>;
     using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
     using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
@@ -445,11 +447,12 @@ struct DeviceMoeGemmBlockScale
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!MoeSilu::ValidLimit(arg.SwigluLimit))
-            return false; // Reject negative values, NaN and -infinity.
-        if(MoeSilu::ClampEnabled(arg.SwigluLimitEnabled, arg.SwigluLimit) &&
-           (!IsInputGemm || IsSplitK || arg.KBatch != 1 ||
-            ActivationOP != Activation::silu_and_mul))
-            return false; // Never clamp partial sums or change another activation.
+            return false;
+        if constexpr(RuntimeSwigluLimit)
+        {
+            if(!MoeSilu::ValidRuntimeLimit(arg.SwigluLimit) || arg.KBatch != 1)
+                return false;
+        }
         // only impl kbatch 1 for fp32
         if(arg.KBatch > 1 && !std::is_same_v<CDataType, float>)
         {
@@ -532,8 +535,7 @@ struct DeviceMoeGemmBlockScale
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
-                             float swiglu_limit        = 7.0f,
-                             bool swiglu_limit_enabled = false)
+                             float swiglu_limit = 7.0f)
     {
         return Argument{static_cast<const index_t*>(p_sorted_token_ids),
                         static_cast<const index_t*>(p_sorted_expert_ids),
@@ -557,8 +559,7 @@ struct DeviceMoeGemmBlockScale
                         a_element_op,
                         b_element_op,
                         c_element_op,
-                        swiglu_limit,
-                        swiglu_limit_enabled};
+                        swiglu_limit};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

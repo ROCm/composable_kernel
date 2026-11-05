@@ -8,23 +8,19 @@
 namespace ck {
 
 // Runtime SiLU override: clamp BEFORE SiLU, with no alpha or +1.
-// The enabled bit is independent of the value; default SiLU remains unclamped.
 struct MoeSilu
 {
     __host__ __device__ static bool ValidLimit(float limit) { return limit >= 0.0f; }
 
-    __host__ __device__ static bool ClampEnabled(bool enabled, float limit)
+    __host__ __device__ static bool ValidRuntimeLimit(float limit)
     {
-        return enabled && limit > 0.0f && limit < __builtin_inff();
+        return limit > 0.0f && limit < __builtin_inff();
     }
 
-    __host__ __device__ static float Run(float gate, float up, bool enabled, float limit)
+    __host__ __device__ static float Run(float gate, float up, float limit)
     {
-        if(ClampEnabled(enabled, limit))
-        {
-            gate = math::min(gate, limit);
-            up   = math::min(math::max(up, -limit), limit);
-        }
+        gate = math::min(gate, limit);
+        up   = math::min(math::max(up, -limit), limit);
         tensor_operation::element_wise::Silu{}(gate, gate);
         return gate * up;
     }

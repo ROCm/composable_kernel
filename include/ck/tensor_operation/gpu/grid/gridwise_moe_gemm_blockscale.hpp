@@ -173,7 +173,8 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
           typename LDSTypeB                           = BDataType,
-          bool NonTemporalLoadB                       = false>
+          bool NonTemporalLoadB                       = false,
+          bool RuntimeSwigluLimit                     = false>
 struct GridwiseMoeGemmBlockScale
     : public GridwiseGemm_xdl_cshuffle_base<
           ALayout,
@@ -221,6 +222,10 @@ struct GridwiseMoeGemmBlockScale
           ComputeTypeB,
           false>
 {
+    static_assert(!RuntimeSwigluLimit ||
+                      (IsInputGemm && !IsSplitK && ActivationOperation == Activation::silu_and_mul),
+                  "Runtime SwiGLU limits require non-split stage-1 SiLU.");
+
     using Base = GridwiseGemm_xdl_cshuffle_base<
         ALayout,
         BLayout,
@@ -729,8 +734,7 @@ struct GridwiseMoeGemmBlockScale
                                     std::array<index_t, NumDTensor> StrideDs_,
                                     index_t StrideC_,
                                     index_t KBatch_,
-                                    float SwigluLimit_       = kSwiGluClamp,
-                                    bool SwigluLimitEnabled_ = false)
+                                    float SwigluLimit_ = kSwiGluClamp)
             : NumTokens{NumTokens_},
               TopK{TopK_},
               M{M_},
@@ -749,8 +753,7 @@ struct GridwiseMoeGemmBlockScale
               BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
-              SwigluLimit{SwigluLimit_},
-              SwigluLimitEnabled{SwigluLimitEnabled_}
+              SwigluLimit{SwigluLimit_}
         {
         }
 
@@ -784,7 +787,6 @@ struct GridwiseMoeGemmBlockScale
         index_t MBlock;
         index_t NBlock;
         float SwigluLimit;
-        bool SwigluLimitEnabled;
     };
 
     // Argument
@@ -812,8 +814,7 @@ struct GridwiseMoeGemmBlockScale
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation c_element_op_,
-                          float swiglu_limit_        = kSwiGluClamp,
-                          bool swiglu_limit_enabled_ = false)
+                          float swiglu_limit_ = kSwiGluClamp)
             : Problem{NumTokens_,
                       TopK_,
                       M_,
@@ -824,8 +825,7 @@ struct GridwiseMoeGemmBlockScale
                       StrideDs_,
                       StrideC_,
                       k_batch_,
-                      swiglu_limit_,
-                      swiglu_limit_enabled_},
+                      swiglu_limit_},
               p_sorted_token_ids{p_sorted_token_ids_},
               p_sorted_expert_ids{p_sorted_expert_ids_},
               p_max_token_id{p_max_token_id_},
@@ -1635,8 +1635,14 @@ struct GridwiseMoeGemmBlockScale
                                     gate *= 16;
                                     up *= 16;
                                 }
-                                c_thread_buf(cidx) = MoeSilu::Run(
-                                    gate, up, problem.SwigluLimitEnabled, problem.SwigluLimit);
+                                if constexpr(RuntimeSwigluLimit)
+                                    c_thread_buf(cidx) =
+                                        MoeSilu::Run(gate, up, problem.SwigluLimit);
+                                else
+                                {
+                                    tensor_operation::element_wise::Silu{}(gate, gate);
+                                    c_thread_buf(cidx) = gate * up;
+                                }
                             }
                             else if constexpr(ActivationOperation == Activation::swiglustep_and_mul)
                             {
@@ -2200,8 +2206,14 @@ struct GridwiseMoeGemmBlockScale
                                     gate *= 16;
                                     up *= 16;
                                 }
-                                c_thread_buf(cidx) = MoeSilu::Run(
-                                    gate, up, problem.SwigluLimitEnabled, problem.SwigluLimit);
+                                if constexpr(RuntimeSwigluLimit)
+                                    c_thread_buf(cidx) =
+                                        MoeSilu::Run(gate, up, problem.SwigluLimit);
+                                else
+                                {
+                                    tensor_operation::element_wise::Silu{}(gate, gate);
+                                    c_thread_buf(cidx) = gate * up;
+                                }
                             }
                             else if constexpr(ActivationOperation == Activation::swiglustep_and_mul)
                             {
