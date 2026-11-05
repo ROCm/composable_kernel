@@ -148,10 +148,53 @@ struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
 
         statically_indexed_array<b_warp_tensor_type, kSteps> b_warp_tensors;
 
-        // All steps read through the one step-0 window: a step's B tile is the step-0 tile shifted
-        // by the compile-time element offset of the step in the (affine, unswizzled) Lds layout,
-        // so every ds_load_tr shares the step-0 lane address and carries the step in its immediate
-        // offset field instead of a per-step address VALU.
+        // Why the step offset can be folded in as a separate compile-time constant
+        // (with trload read)
+        // --------------------------------------------------------------------------
+        // Every step reads its warp tile through the step-0 warp window and adds
+        //
+        //     kStepOffsetB = offset(R, C),   R = kIter * KPerBlockPerIter,
+        //                                    C = nIter * NPerBlockPerIter
+        //
+        // to the step-0 lane address (folded into the ds_load immediate). This is exact iff, for
+        // every element (r, c) a lane reads from the step-0 tile (e.g. r = tid / 16 + tid % 8,
+        // c = (tid / 8 % 2) * 8),
+        //
+        //     offset(R + r, C + c) == offset(r, c) + offset(R, C)                            (*)
+        //
+        // with row_stride = pad_interval + pad_length:
+        //
+        // 1) hdim128 / hdim256: pad_interval = hdim, one pad per row
+        //
+        //        offset(row, col) = row * row_stride + col
+        //
+        //    linear in (row, col), so
+        //
+        //        offset(R + r, C + c) = (R + r) * row_stride + C + c
+        //                             = (r * row_stride + c) + (R * row_stride + C)
+        //                             = offset(r, c) + offset(R, C)
+        //
+        //    and (*) holds for any (R, C).
+        //
+        // 2) hdim64: pad_interval = 128 fp16/bf16 elements, one pad per row pair
+        //
+        //        offset(row, col) = (row / 2) * row_stride + (row % 2) * 64 + col
+        //
+        //    R is a multiple of WG::kK, hence even: (R + r) / 2 = R / 2 + r / 2 and
+        //    (R + r) % 2 = r % 2, with R % 2 = 0. So
+        //
+        //        offset(R + r, C + c) = (R / 2 + r / 2) * row_stride + (r % 2) * 64 + C + c
+        //                             = ((r / 2) * row_stride + (r % 2) * 64 + c)
+        //                               + ((R / 2) * row_stride + (R % 2) * 64 + C)
+        //                             = offset(r, c) + offset(R, C)
+        //
+        //    and (*) holds.
+        //
+        // 3) hdim96: pad_interval = 128 elements as well
+        //
+        //    Identical to hdim128: 96 is padded to 128 (kN1), and Tdm fills the out-of-bound
+        //    values with zeros when transferring from Dram to Lds.
+
         auto load_step = [&](auto i_step) {
             constexpr index_t kIter = i_step / NIterPerWarp;
             constexpr index_t nIter = i_step % NIterPerWarp;
@@ -159,32 +202,6 @@ struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
             constexpr auto b_lds_desc = typename BBlockWindowTmp::BottomTensorView::TensorDesc{};
             constexpr index_t kStepOffsetB = b_lds_desc.calculate_offset(
                 make_tuple(number<kIter * KPerBlockPerIter>{}, number<nIter * NPerBlockPerIter>{}));
-
-            // the offset must hold for every lane (the warp windows start at iNWarp * kN columns)
-            detail::CheckLdsStepOffset<typename BBlockWindowTmp::BottomTensorView,
-                                       WG::kK,
-                                       WG::kN,
-                                       kIter * KPerBlockPerIter,
-                                       nIter * NPerBlockPerIter,
-                                       NWarp,
-                                       0,
-                                       WG::kN>();
-
-            // as in run_ahead(): static_move_ys = true also folds the access offsets inside the
-            // warp tile into the immediate, which needs a V layout that is linear over every warp
-            // tile read here (the hdim128 V layout pads after every row, so it is). This implies
-            // the shift check of CheckLdsStepOffset() above, which still adds the no-xor and
-            // 16-bit immediate checks.
-            static_assert(
-                detail::IsLdsLinearOverTile<typename BBlockWindowTmp::BottomTensorView,
-                                            WG::kK,
-                                            WG::kN,
-                                            kIter * KPerBlockPerIter,
-                                            nIter * NPerBlockPerIter,
-                                            NWarp,
-                                            0,
-                                            WG::kN>(),
-                "static_move_ys needs an Lds layout that is linear over the V warp tiles");
 
             load_tile_transpose_with_offset(b_warp_tensors(i_step),
                                             b_warp_window_tmp,
@@ -382,8 +399,46 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
 
         statically_indexed_array<b_warp_tensor_type, kSteps> b_warp_tensors;
 
-        // As in the P@V gemm above: one step-0 window, the step folded into the ds_load
-        // immediate offset.
+        // Why the step offset can be folded in as a separate compile-time constant
+        // (with normal read)
+        // --------------------------------------------------------------------------
+        // Every step reads its warp tile through the step-0 warp window and adds
+        //
+        //     kStepOffsetB = offset(R, C),   R = nIter * NPerBlockPerIter,
+        //                                    C = kIter * KPerBlockPerIter
+        //
+        // to the step-0 lane address (folded into the ds_load immediate). This is exact iff, for
+        // every element (r, c) a lane reads from the step-0 tile (r < WG::kN, c < WG::kK, e.g.
+        // r = lane % 16, c = lane / 16 * 8 + ...),
+        //
+        //     offset(R + r, C + c) == offset(r, c) + offset(R, C)                            (*)
+        //
+        // The Tdm Lds layout of K is row-major (Cols = hdim) with pad_length elements inserted
+        // after every pad_interval = P elements (see MakeRowMajorLdsPaddedBlockDescriptor()):
+        //
+        //     offset(row, col) = f(row * hdim + col),   f(L) = (L / P) * stride + L % P,
+        //     stride = P + pad_length
+        //
+        // 1) hdim128 / hdim256: P = hdim, one pad per row
+        //
+        //        offset(row, col) = row * stride + col
+        //
+        //    linear in (row, col), so (*) holds for any (R, C).
+        //
+        // 2) hdim64: P = 128 (the 256 B bank span), one pad per row pair
+        //
+        //        offset(row, col) = (row / 2) * stride + (row % 2) * 64 + col
+        //
+        //    R is a multiple of WG::kN, hence even: (R + r) / 2 = R / 2 + r / 2 and
+        //    (R + r) % 2 = r % 2. The col term is linear, so (*) holds.
+        //
+        // 3) hdim96: P = 32 (the lowest set bit of the 192 B row), three pads per row
+        //
+        //        offset(row, col) = (3 * row + col / 32) * stride + col % 32
+        //
+        //    C is a multiple of WG::kK = 32: (C + c) / 32 = C / 32 + c / 32 and
+        //    (C + c) % 32 = c % 32. The row term is linear, so (*) holds.
+
         auto load_step = [&](auto i_step) {
             constexpr index_t kIter = i_step / NIterPerWarp;
             constexpr index_t nIter = i_step % NIterPerWarp;
@@ -391,12 +446,6 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
             constexpr auto b_lds_desc = typename BBlockWindowTmp::BottomTensorView::TensorDesc{};
             constexpr index_t kStepOffsetB = b_lds_desc.calculate_offset(
                 make_tuple(number<nIter * NPerBlockPerIter>{}, number<kIter * KPerBlockPerIter>{}));
-
-            detail::CheckLdsStepOffset<typename BBlockWindowTmp::BottomTensorView,
-                                       WG::kN,
-                                       WG::kK,
-                                       nIter * NPerBlockPerIter,
-                                       kIter * KPerBlockPerIter>();
 
             b_warp_tensors(i_step) = load_tile_with_offset(b_warp_window_tmp, kStepOffsetB);
         };
@@ -598,6 +647,9 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
             return kDsPerStepB + (i_step % NIterPerWarp == 0 ? MIterPerWarp * kDsPerStepA : 0);
         };
 
+        // The step offset is folded into kStepOffsetB as in
+        // BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1; see the comments there for why this is
+        // exact.
         auto load_step = [&](auto i_step) {
             constexpr index_t kIter = i_step / NIterPerWarp;
             constexpr index_t nIter = i_step % NIterPerWarp;
@@ -610,17 +662,6 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
                     constexpr index_t kStepOffsetA = a_lds_desc.calculate_offset(make_tuple(
                         number<mIter * MWarp * WG::kM>{}, number<kIter * KPerBlockPerIter>{}));
 
-                    // the A windows of the M warps start at iMWarp * kM rows: the offset must
-                    // hold from each of them
-                    detail::CheckLdsStepOffset<typename ABlockWindowTmp::BottomTensorView,
-                                               WG::kM,
-                                               WG::kK,
-                                               mIter * MWarp * WG::kM,
-                                               kIter * KPerBlockPerIter,
-                                               MWarp,
-                                               WG::kM,
-                                               0>();
-
                     a_warp_tensors(number<kIter * MIterPerWarp + mIter>{}) =
                         load_tile_with_offset(a_warp_window_tmp, kStepOffsetA);
                 });
@@ -629,12 +670,6 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
             constexpr auto b_lds_desc = typename BBlockWindowTmp::BottomTensorView::TensorDesc{};
             constexpr index_t kStepOffsetB = b_lds_desc.calculate_offset(
                 make_tuple(number<nIter * NPerBlockPerIter>{}, number<kIter * KPerBlockPerIter>{}));
-
-            detail::CheckLdsStepOffset<typename BBlockWindowTmp::BottomTensorView,
-                                       WG::kN,
-                                       WG::kK,
-                                       nIter * NPerBlockPerIter,
-                                       kIter * KPerBlockPerIter>();
 
             b_warp_tensors(i_step) = load_tile_with_offset(b_warp_window_tmp, kStepOffsetB);
         };
