@@ -1320,8 +1320,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetQLdsByteOffsetPlain()
     {
-        return GetSmemSizeKPlain<Problem>() * 2 + GetSmemSizeVPlain<Problem>() * 2 +
-               GetSmemSizeDropout<Problem>();
+        if constexpr(IsQInLdsTdm<Problem>())
+            return GetSmemSizeKPlain<Problem>() * 2 + GetSmemSizeVPlain<Problem>() * 2;
+        else
+            return GetSmemSizeKPlain<Problem>() * 2 + GetSmemSizeVPlain<Problem>() * 2 +
+                   GetSmemSizeDropout<Problem>();
     }
 
     template <typename Problem>

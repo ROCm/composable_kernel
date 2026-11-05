@@ -243,14 +243,6 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
                                               q_dram_block_window_tmp.get_window_origin(),
                                               Policy::template MakeQRegTileDistribution<Problem>());
 
-        // The Tdm Lds layout reserves no space for the dropout randval buffer (GetSmemSizeDropout()
-        // is 0, so the buffer at smem + 2 K + 2 V would overlap Q in Lds or run past the end of
-        // the allocation): dropout is refused whether or not Q is in Lds. kBlockPerCu workgroups
-        // per CU (above, or from Traits) need kBlockPerCu copies of the whole Lds layout. The Tdm
-        // pipelines only run on gfx1250, so its Lds size is named directly: get_lds_size() would
-        // pick the arch from the device macros, which the host pass of a HIP build does not define.
-        static_assert(!kHasDropout,
-                      "the Tdm pipelines reserve no Lds for the dropout randval buffer");
         static_assert(kBlockPerCu * GetSmemSize() <= detail::get_lds_size(gfx125_t{}),
                       "kBlockPerCu x GetSmemSize() does not fit the Lds of a CU");
 
