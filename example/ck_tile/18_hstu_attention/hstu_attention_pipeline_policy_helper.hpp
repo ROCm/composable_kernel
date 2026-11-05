@@ -303,11 +303,24 @@ CK_TILE_HOST_DEVICE constexpr auto MakeRowMajorLdsPaddedBlockDescriptor()
     return MakeRowMajorLdsPaddedBlockDescriptor<NumBuffers, Rows, Cols, PadInterval, PadLength>();
 };
 
-// Compile-time checks for the step offsets of the group-prefetch block gemms. Such a gemm reads
-// the kTileRows x kTileCols warp tile at (kRow, kCol) of the Lds view BottomTensorView through its
-// step-0 warp window, with the step offset calculate_offset(kRow, kCol) added to the step-0 lane
-// address (load_tile_with_offset(), load_tile_transpose_with_offset()) instead of moving the
-// window by (kRow, kCol). That is only exact if the layout is affine over the tile,
+// The group-prefetch block gemms fold Lds offsets into the ds_load immediate at two levels, and
+// each level has its own compile-time check:
+// - CheckLdsStepOffset(), between the steps of a gemm, for all of its Lds reads: every step reads
+//   its warp tile through the step-0 warp window, with the step offset calculate_offset(kRow,
+//   kCol) added to the step-0 lane address instead of moving the window by (kRow, kCol).
+// - IsLdsLinearOverTile(), inside one warp tile, only for the ds_load_tr reads of V in the P@V
+//   gemm, which pass static_move_ys = true: the offset of each vector access of the warp tile,
+//   taken from (0, 0), is added to the lane's address instead of moving the lane's coordinate.
+// The P@V gemm asserts both, for every step. There the element-wise linearity also implies the
+// shift check of CheckLdsStepOffset(), which then only adds its no-xor and 16-bit immediate
+// checks. The converse does not hold: a layout padded every second row is invariant under a
+// 32-row step, so it passes CheckLdsStepOffset(), but it is not linear inside the warp tile. The
+// other reads (load_tile_with_offset()) get the per-access folding from the xor-free Lds path of
+// the tile window's load_with_offset() itself, which is not checked here; the hdim128 Tdm layouts
+// pad after every row, so they are linear.
+//
+// CheckLdsStepOffset(): folding the step offset of the kTileRows x kTileCols warp tile at (kRow,
+// kCol) of the Lds view BottomTensorView is only exact if the layout is affine over the tile,
 // offset(kRow + r, kCol + c) - offset(r, c) == offset(kRow, kCol) for every (r, c) of the tile (so
 // also offset(0, 0) == 0): checked along every row and every 8-element column vector of the tile
 // (the padded row-major layouts the Tdm pipelines use are; an xor-swizzled one is not and fails
@@ -367,13 +380,14 @@ CK_TILE_HOST_DEVICE constexpr void CheckLdsStepOffset()
                   "the step offset does not fit the 16-bit ds_load immediate");
 }
 
-// Whether the Lds layout of BottomTensorView is linear over the kTileRows x kTileCols warp tile at
-// (kRow, kCol) of every warp window (origins as in CheckLdsStepOffset()), checked element by
-// element: offset(row, col) == row * offset(1, 0) + col * offset(0, 1), with offset(0, 0) == 0.
-// load_tile_transpose_with_offset() with static_move_ys = true adds the offset of each access
-// inside the warp tile, taken from (0, 0), to the lane's address instead of moving the lane's
-// coordinate, which is exact only on such a layout (a row-major layout padded after every row is
-// one; one padded every few rows, or within a row, is not).
+// IsLdsLinearOverTile(): whether the Lds layout of BottomTensorView is linear over the kTileRows
+// x kTileCols warp tile at (kRow, kCol) of every warp window (origins as in CheckLdsStepOffset()),
+// checked element by element: offset(row, col) == row * offset(1, 0) + col * offset(0, 1), with
+// offset(0, 0) == 0. load_tile_transpose_with_offset() with static_move_ys = true adds the offset
+// of each access inside the warp tile, taken from (0, 0), to the lane's address instead of moving
+// the lane's coordinate, which is exact only on such a layout (a row-major layout padded after
+// every row is one; one padded every few rows, or within a row, is not). How this check differs
+// from CheckLdsStepOffset() is described above CheckLdsStepOffset().
 template <typename BottomTensorView,
           index_t kTileRows,
           index_t kTileCols,

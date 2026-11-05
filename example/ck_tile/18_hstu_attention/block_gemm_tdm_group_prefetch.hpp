@@ -172,7 +172,9 @@ struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
 
             // as in run_ahead(): static_move_ys = true also folds the access offsets inside the
             // warp tile into the immediate, which needs a V layout that is linear over every warp
-            // tile read here (the hdim128 V layout pads after every row, so it is)
+            // tile read here (the hdim128 V layout pads after every row, so it is). This implies
+            // the shift check of CheckLdsStepOffset() above, which still adds the no-xor and
+            // 16-bit immediate checks.
             static_assert(
                 detail::IsLdsLinearOverTile<typename BBlockWindowTmp::BottomTensorView,
                                             WG::kK,
