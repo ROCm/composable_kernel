@@ -555,6 +555,14 @@ TEST(MxGemmHostHelpers, ReferenceExplicitScaleBlockPartialLastBlock)
             check_explicit_scale_block<F4>(K);
         }
     }
+    // FP6 packs 16 elements, so K is a multiple of 16. K = 80 as above; K = 48: 2 scale blocks,
+    // the last covering 16 elements, and 2 padding blocks; K = 16: 1 partial block of 16 elements
+    // and 3 padding blocks, as K = 24 above.
+    for(const index_t K : {80, 48, 16})
+    {
+        SCOPED_TRACE("F6");
+        check_explicit_scale_block<F6>(K);
+    }
 }
 
 TEST(MxGemmHostHelpers, ReferenceExplicitScaleBlockWholeBlocksSkipsPadding)
@@ -567,6 +575,10 @@ TEST(MxGemmHostHelpers, ReferenceExplicitScaleBlockWholeBlocksSkipsPadding)
     {
         SCOPED_TRACE("F4");
         check_explicit_scale_block<F4>(96);
+    }
+    {
+        SCOPED_TRACE("F6");
+        check_explicit_scale_block<F6>(96);
     }
 }
 

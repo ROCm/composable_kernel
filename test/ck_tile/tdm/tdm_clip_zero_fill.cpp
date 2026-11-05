@@ -15,8 +15,12 @@
  *          load a 16-row box, the part of the tile one TDM load copies
  *          (GemmPipelineAgBgCrCompTDMV1), or one wave loads the whole tile as one box
  *          (GemmPipelineAgBgCrCompTDMV2). The LDS layout and padding are those of the TDM default
- *          policy: 4 pad dwords after every 256 bytes for 128-deep tiles, no padding for 384-deep
- *          tiles. Odd K values give rows that start at 1- or 2-byte-aligned addresses.
+ *          policy: 4 pad dwords after every 256 bytes for 128-deep fp8 and fp4 tiles, no padding
+ *          for 384-deep tiles or for fp6 tiles. fp8 and fp4 rows whose length in bytes is odd
+ *          (fp8 K = 161, fp4 K = 90) or twice an odd number (fp4 K = 92) start at 1- or
+ *          2-byte-aligned addresses. An fp6 (pk_fp6x16_t) storage element is a 12-byte pack of 16
+ *          values, so fp6 bounds, origins and row strides are whole packs; a row stride of an odd
+ *          number of packs starts every other row 4 bytes past a multiple of 8.
  *
  *          Each case runs twice, with two sentinel bytes. The LDS arena is filled with the
  *          sentinel first; every arena byte is then compared with the expected image: global
@@ -45,11 +49,12 @@ namespace {
 using ck_tile::index_t;
 using F8 = ck_tile::fp8_t;
 using F4 = ck_tile::pk_fp4_t;
+using F6 = ck_tile::pk_fp6x16_t;
 
 constexpr index_t kRows  = 64;
 constexpr index_t kWarps = 4;
-// LDS padding of the TDM default policy for 128-deep tiles (GetLdsPaddingConfig; keep in sync):
-// 16 pad bytes after every 256 bytes.
+// LDS padding of the TDM default policy for 128-deep fp8 and fp4 tiles (GetLdsPaddingConfig;
+// keep in sync): 16 pad bytes after every 256 bytes.
 constexpr index_t kPadIntervalBytes = 256;
 constexpr index_t kPadBytes         = 16;
 // The TDM skips pad_amount + 1 dwords after every 2^(pad_interval + 1) dwords it writes, counted
@@ -63,29 +68,57 @@ constexpr index_t kGuardBytes = 256;
 // Extra global memory after the furthest byte a tile can reach.
 constexpr index_t kGlobalSlackBytes = 256;
 
-// Values per storage element; fp8_t and pk_fp4_t are one byte each, so this is values per byte.
+// Values per storage element, and bytes per storage element: one value in one byte for fp8_t,
+// two in one byte for pk_fp4_t, 16 in 12 bytes for pk_fp6x16_t.
 template <typename DataType>
 constexpr index_t kPackedSize = ck_tile::numeric_traits<DataType>::PackedSize;
+template <typename DataType>
+constexpr index_t kElementBytes = sizeof(DataType);
+// The sizes the byte counts in the comments of this file assume.
+static_assert(kElementBytes<F8> == 1 && kElementBytes<F4> == 1 && kElementBytes<F6> == 12);
+
+// The label of DataType in failure messages; a type without a label here fails to compile
+// instead of printing another type's label.
+template <typename DataType>
+const char* type_name()
+{
+    if constexpr(std::is_same_v<DataType, F8>)
+        return "fp8";
+    else if constexpr(std::is_same_v<DataType, F4>)
+        return "fp4";
+    else
+    {
+        static_assert(std::is_same_v<DataType, F6>, "type_name: no label for this type");
+        return "fp6";
+    }
+}
 
 // The LDS layout of a tile of kRows rows of Cols values (K is the contiguous dimension).
 template <typename DataType, index_t Cols>
 struct TileLayout
 {
-    // The tile depths whose policy padding this layout encodes: the policy pads 128-deep tiles
-    // and does not pad 384-deep ones.
+    // The tile depths whose policy padding this layout encodes: the policy pads 128-deep fp8 and
+    // fp4 tiles and does not pad 384-deep ones, nor any fp6 tile (kPadded below).
     static_assert(Cols == 128 || Cols == 384);
+    // A row is whole storage elements, so kRowBytes below is exact.
+    static_assert(Cols % kPackedSize<DataType> == 0);
 
-    static constexpr index_t kRowBytes = Cols / kPackedSize<DataType>;
-    static constexpr bool kPadded      = Cols == 128;
+    static constexpr index_t kRowBytes = Cols / kPackedSize<DataType> * kElementBytes<DataType>;
+    // The policy never pads rows of 6-bit values (is_pk_f6_v): their length is not a power of
+    // two in dwords (GetLdsPaddingConfig; keep in sync).
+    static constexpr bool kPadded = Cols == 128 && !ck_tile::is_pk_f6_v<DataType>;
     // Rows per pad group, and the LDS bytes of a group including its pad.
     static constexpr index_t kGroupRows  = kPadded ? kPadIntervalBytes / kRowBytes : kRows;
     static constexpr index_t kGroupBytes = kGroupRows * kRowBytes + (kPadded ? kPadBytes : 0);
     static constexpr index_t kTileBytes  = kRows / kGroupRows * kGroupBytes;
     static constexpr index_t kArenaBytes = kTileBytes + kGuardBytes;
-    // A pad group holds whole rows, and every 16-row box starts on a group boundary, where the
-    // TDM starts counting its pad interval.
+    // A pad group holds whole rows, and in a padded layout every 16-row box starts on a group
+    // boundary, where the TDM starts counting its pad interval.
     static_assert(!kPadded || kPadIntervalBytes % kRowBytes == 0);
     static_assert((kRows / kWarps) % kGroupRows == 0 || kGroupRows == kRows);
+    // ClipLoad's LDS descriptor gives the group stride in values, so a group, pad included, must
+    // be whole storage elements.
+    static_assert(kGroupBytes % kElementBytes<DataType> == 0);
 
     // Host-side byte offset of (row, byte): the same layout as ClipLoad's LDS descriptor.
     static constexpr std::size_t lds_offset(index_t row, index_t byte)
@@ -138,12 +171,14 @@ struct ClipLoad
 
         // Row groups of kGroupRows rows, each followed by its pad, as MakeA/BLdsBlockDescriptor of
         // the TDM default policy lay them out (keep in sync); a 384-deep tile is one group without
-        // a pad. Strides are in values; (group, row in group) merge into one row index.
-        constexpr index_t pack          = kPackedSize<DataType>;
+        // a pad, and so is every fp6 tile. Strides are in values; (group, row in group) merge
+        // into one row index.
+        constexpr index_t group_stride =
+            Layout::kGroupBytes / kElementBytes<DataType> * kPackedSize<DataType>;
         constexpr index_t groups        = kRows / Layout::kGroupRows;
         constexpr auto lds_desc_grouped = make_naive_tensor_descriptor(
             make_tuple(number<groups>{}, number<Layout::kGroupRows>{}, number<Cols>{}),
-            make_tuple(number<Layout::kGroupBytes * pack>{}, number<Cols>{}, number<1>{}));
+            make_tuple(number<group_stride>{}, number<Cols>{}, number<1>{}));
         constexpr auto lds_descriptor = transform_tensor_descriptor(
             lds_desc_grouped,
             make_tuple(make_merge_transform_v3_division_mod(
@@ -227,12 +262,12 @@ unsigned char global_byte(std::size_t index)
 template <typename DataType, index_t Cols, bool OneBox, bool FullTile>
 ::testing::AssertionResult run_case(const ClipCase& c)
 {
-    using Kernel                = ClipLoad<DataType, Cols, OneBox, FullTile>;
-    using Layout                = typename Kernel::Layout;
-    constexpr index_t pack      = kPackedSize<DataType>;
-    constexpr index_t row_bytes = Layout::kRowBytes;
-    const std::string label     = std::string(c.name) + " (" +
-                              (std::is_same_v<DataType, F4> ? "fp4" : "fp8") + ", tile " +
+    using Kernel                    = ClipLoad<DataType, Cols, OneBox, FullTile>;
+    using Layout                    = typename Kernel::Layout;
+    constexpr index_t pack          = kPackedSize<DataType>;
+    constexpr index_t element_bytes = kElementBytes<DataType>;
+    constexpr index_t row_bytes     = Layout::kRowBytes;
+    const std::string label = std::string(c.name) + " (" + type_name<DataType>() + ", tile " +
                               std::to_string(kRows) + " x " + std::to_string(Cols) +
                               (OneBox ? ", one " + std::to_string(kRows) + "-row box"
                                       : ", " + std::to_string(kWarps) + " boxes of " +
@@ -240,7 +275,7 @@ template <typename DataType, index_t Cols, bool OneBox, bool FullTile>
                               (FullTile ? ", load_tile_tdm_full_tile)" : ", load_tile_tdm)");
 
     // tdm_load_to_lds divides value offsets and extents by PackedSize, so no case may split a
-    // byte between inside and past the bound.
+    // storage element between inside and past the bound.
     if(c.stride % pack != 0 || c.bound_cols % pack != 0 || c.origin_col % pack != 0 ||
        c.stride < c.bound_cols || c.origin_row < 0 || c.origin_col < 0)
         return ::testing::AssertionFailure()
@@ -250,9 +285,9 @@ template <typename DataType, index_t Cols, bool OneBox, bool FullTile>
     if(!ck_tile::is_wave32())
         return ::testing::AssertionFailure() << label << ": needs wave32";
 
-    const index_t stride_bytes = c.stride / pack;
-    const index_t bound_bytes  = c.bound_cols / pack;
-    const index_t origin_byte  = c.origin_col / pack;
+    const index_t stride_bytes = c.stride / pack * element_bytes;
+    const index_t bound_bytes  = c.bound_cols / pack * element_bytes;
+    const index_t origin_byte  = c.origin_col / pack * element_bytes;
     // The buffer covers the whole tile, so the bytes past the bound are allocated, non-zero
     // memory (the full-tile control reads them).
     const std::size_t global_bytes = static_cast<std::size_t>(c.origin_row + kRows) * stride_bytes +
@@ -350,6 +385,7 @@ void check(const ClipCase& c)
 // Cases shared by a clamped load and its full-tile control.
 constexpr ClipCase kFp8KTail{"K = 240, K tile 1", 64, 240, 240, 0, 128};
 constexpr ClipCase kFp4KTail{"K = 152, K tile 1", 64, 152, 152, 0, 128};
+constexpr ClipCase kFp6KTail{"K = 240, K tile 1", 64, 240, 240, 0, 128};
 
 TEST(TdmClipZeroFill, Fp8)
 {
@@ -389,6 +425,35 @@ TEST(TdmClipZeroFill, Fp4)
     check<F4, 384>({"K = 900, K tile 2", 64, 900, 900, 0, 768});
 }
 
+// fp6 (pk_fp6x16_t): a 128-deep tile row is 8 packs of 12 bytes, unpadded, and every bound below
+// falls on a pack boundary.
+TEST(TdmClipZeroFill, Fp6)
+{
+    if(!ck_tile::is_gfx125_supported())
+        GTEST_SKIP() << "TDM requires a gfx125 device";
+    // The partial last K tile: 7 of its 8 packs (84 of 96 bytes) lie inside K = 240.
+    check<F6, 128>(kFp6KTail);
+    // K below the K tile: one pack of the first tile lies inside K, and the second tile lies
+    // entirely past K.
+    check<F6, 128>({"K = 16, K tile 0", 64, 16, 16, 0, 0});
+    check<F6, 128>({"K = 16, K tile 1", 64, 16, 16, 0, 128});
+    // Rows of 60 bytes (5 packs) and of 84 bytes (7 packs): with an odd number of packs, every
+    // other row starts 4 bytes past a multiple of 8.
+    check<F6, 128>({"K = 80, K tile 0", 64, 80, 80, 0, 0});
+    check<F6, 128>({"K = 112, K tile 0", 64, 112, 112, 0, 0});
+    // The last row tile with a K tail (rows 112-127 lie past the bound), and M = 1 (only rows are
+    // clipped).
+    check<F6, 128>({"112 rows, K = 240, row tile 1, K tile 1", 112, 240, 240, 64, 128});
+    check<F6, 128>({"1 row, K = 512", 1, 512, 512, 0, 0});
+    // Leading dimensions longer than K: 192 bytes (16 packs) for K = 240 and 108 bytes (9 packs)
+    // for K = 80.
+    check<F6, 128>({"K = 240, stride 256, K tile 1", 64, 240, 256, 0, 128});
+    check<F6, 128>({"K = 80, stride 144, K tile 0", 64, 80, 144, 0, 0});
+    // A 384-deep K tile: the last K tile of K = 1840; 19 of its 24 packs (228 of 288 bytes) lie
+    // inside K.
+    check<F6, 384>({"K = 1840, K tile 4", 64, 1840, 1840, 0, 1536});
+}
+
 // The K-tail tiles above, loaded with the TDM tensor dimensions set to the box, read the non-zero
 // global bytes past the bound: the zeros in the other tests come from the clamped TDM tensor
 // dimensions.
@@ -398,6 +463,7 @@ TEST(TdmClipZeroFill, FullTileReadsPastTheBound)
         GTEST_SKIP() << "TDM requires a gfx125 device";
     check<F8, 128, true>(kFp8KTail);
     check<F4, 128, true>(kFp4KTail);
+    check<F6, 128, true>(kFp6KTail);
 }
 
 } // namespace

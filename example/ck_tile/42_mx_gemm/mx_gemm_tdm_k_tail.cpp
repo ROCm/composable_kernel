@@ -6,15 +6,16 @@
  * @brief MX GEMM on the gfx1250 TDM V2 pipeline with a K that is not a multiple of the K tile or
  *        of the 32-element scale block.
  * @details C = (A * scale_a) x (B * scale_b) with row-major A (M x K), column-major B (K x N),
- *          fp16 C, and one E8M0 scale per 32 consecutive elements of K. The block tile is
- *          256 x 128 x 384 on 2 x 2 waves with 16x16x128 warp tiles. The default K = 900 leaves
- *          a last K tile of 132 elements and a last scale block of 4 elements, and the default
- *          M = N = 1000 leaves partial tiles in M and N.
+ *          fp16 C, and one E8M0 scale per 32 consecutive elements of K; A and B have the same
+ *          type, fp8, fp4 or fp6 (-mx_prec). The block tile is 256 x 128 x 384 on 2 x 2 waves
+ *          with 16x16x128 warp tiles. The default K = 912, a multiple of 16 and so valid for every
+ *          -mx_prec, leaves a last K tile of 144 elements and a last scale block of 16 elements,
+ *          and the default M = N = 1000 leaves partial tiles in M and N.
  *
- *          MxGemmKernel accepts such K only with fp8 or fp4 on each side, 32-element scales, a
- *          row-major A and a column-major B (K contiguous in both) and a K tile that is a
- *          multiple of 128 (four 32-element scales) and of the warp tile K; otherwise
- *          IsSupportedArgument requires K to be a multiple of the K tile and of
+ *          MxGemmKernel accepts such K only with fp8 or fp4 on each side or fp6 on both sides,
+ *          32-element scales, a row-major A and a column-major B (K contiguous in both) and a K
+ *          tile that is a multiple of 128 (four 32-element scales) and of the warp tile K;
+ *          otherwise IsSupportedArgument requires K to be a multiple of the K tile and of
  *          ScaleBlockSize * 4. The 384-deep K tile holds three scale packs, so it shows the reads
  *          of scales of later rows described below; it is not a tuned configuration, and the
  *          printed time does not represent the pipeline.
@@ -28,7 +29,8 @@
  *          scale pack and, because a 384-deep K tile holds three scale packs, by scales of later
  *          rows, so one NaN scale can turn other rows of C into NaN. The tensors are pre-shuffled
  *          with preShuffleScaleBuffer_gfx1250, and IsSupportedArgument decides whether the kernel
- *          accepts M, N and K (for fp4xfp4, K must be even: two elements per byte).
+ *          accepts M, N and K (for fp4xfp4, K must be even: two elements per byte; for fp6xfp6,
+ *          a multiple of 16: 16 elements per 12-byte pack).
  */
 
 #include <hip/hip_runtime.h>
@@ -38,6 +40,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <iostream>
 #include <random>
@@ -164,31 +167,59 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("m", "1000", "m dimension")
         .insert("n", "1000", "n dimension")
         .insert("k",
-                "900",
-                "k dimension: any K > 0 for fp8xfp8, an even K for fp4xfp4; need not be a "
-                "multiple of the K tile (384) or of the scale block (32)")
-        .insert("mx_prec", "fp8xfp8", "A x B precision: fp8xfp8 (fp8) or fp4xfp4 (fp4)")
+                "912",
+                "k dimension: any K > 0 for fp8xfp8, an even K for fp4xfp4, a multiple of 16 for "
+                "fp6xfp6; need not be a multiple of the K tile (384) or of the scale block (32)")
+        .insert(
+            "mx_prec", "fp8xfp8", "A x B precision: fp8xfp8 (fp8), fp4xfp4 (fp4) or fp6xfp6 (fp6)")
         .insert("v", "1", "0: no check, 1: check against the CPU reference")
         .insert("warmup", "50", "number of warmup iterations")
         .insert("repeat", "100", "number of timed iterations")
         .insert("init",
                 "0",
-                "0: random integers in [-5, 5] and random scales in [0.125, 2]; 1: all ones, "
-                "scales 1.0");
+                "0: random values in [-5, 5], rounded to the A and B type, and random scales in "
+                "[0.125, 2]; 1: all ones, scales 1.0");
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-// Fills A or B with integers in [-5, 5] (init 0) or with ones (init 1). FP4 stores each integer
-// as the nearest FP4 value (E2M1 has no 5), and a packed FP4 byte gets two independent values.
+// Fills A or B with values drawn uniformly from [-5, 5] and rounded to the nearest value of the
+// operand type (init 0), or with ones (init 1). A packed FP4 byte gets two independent values and a
+// 12-byte FP6 pack 16.
 template <typename T>
 void fill_operand(ck_tile::HostTensor<T>& t, int init, std::uint32_t seed)
 {
-    if constexpr(std::is_same_v<T, ck_tile::pk_fp4_t>)
+    if constexpr(std::is_same_v<T, ck_tile::pk_fp6x16_t>)
+    {
+        // The generic fillers would reach the int constructor of pk_fp6x16_t, which writes one
+        // integer into all three 32-bit words of a pack. As in MX FlatMM, each pack is built in
+        // a pk_fp6_t, whose first 12 bytes hold the same 16 x 6-bit layout, and those 12 bytes
+        // are copied.
+        // Protects the fill and the copy below: the loop sets PackedSize values of T in the
+        // pk_fp6_t proxy and the copy reads sizeof(T) bytes of it, so both must pack the same
+        // number of values, the proxy must be at least sizeof(T) bytes and both types trivially
+        // copyable.
+        static_assert(sizeof(T) <= sizeof(ck_tile::pk_fp6_t) && std::is_trivially_copyable_v<T> &&
+                          std::is_trivially_copyable_v<ck_tile::pk_fp6_t> &&
+                          ck_tile::numeric_traits<T>::PackedSize ==
+                              ck_tile::numeric_traits<ck_tile::pk_fp6_t>::PackedSize,
+                      "fill_operand: the pk_fp6_t proxy must hold a whole pk_fp6x16_t pack");
+        std::mt19937 gen(seed);
+        std::uniform_real_distribution<float> dis(-5.f, 5.f);
+        const auto value = [&]() { return init == 1 ? 1.f : dis(gen); };
+        for(auto& elem : t.mData)
+        {
+            ck_tile::pk_fp6_t pack{};
+            for(ck_tile::index_t i = 0; i < ck_tile::numeric_traits<T>::PackedSize; ++i)
+                pack.set_element(i, ck_tile::float_to_fp6(value(), 1.f));
+            std::memcpy(&elem, &pack, sizeof(elem));
+        }
+    }
+    else if constexpr(std::is_same_v<T, ck_tile::pk_fp4_t>)
     {
         std::mt19937 gen(seed);
         std::uniform_real_distribution<float> dis(-5.f, 5.f);
-        const auto value = [&]() { return init == 1 ? 1.f : std::round(dis(gen)); };
+        const auto value = [&]() { return init == 1 ? 1.f : dis(gen); };
         for(auto& elem : t.mData)
         {
             const auto lo = ck_tile::float_to_mxfp4(value(), 1.f);
@@ -202,7 +233,7 @@ void fill_operand(ck_tile::HostTensor<T>& t, int init, std::uint32_t seed)
     }
     else
     {
-        ck_tile::FillUniformDistributionIntegerValue<T>{-5, 5, seed}(t);
+        ck_tile::FillUniformDistribution<T>{-5.f, 5.f, seed}(t);
     }
 }
 
@@ -484,7 +515,10 @@ int main(int argc, char* argv[])
             return run_mx_gemm_tdm_k_tail<ck_tile::fp8_t, ck_tile::fp8_t>(arg_parser);
         if(prec == "fp4" || prec == "fp4xfp4")
             return run_mx_gemm_tdm_k_tail<ck_tile::pk_fp4_t, ck_tile::pk_fp4_t>(arg_parser);
-        std::cerr << "Unsupported precision " << prec << "; use fp8xfp8 or fp4xfp4." << std::endl;
+        if(prec == "fp6" || prec == "fp6xfp6")
+            return run_mx_gemm_tdm_k_tail<ck_tile::pk_fp6x16_t, ck_tile::pk_fp6x16_t>(arg_parser);
+        std::cerr << "Unsupported precision " << prec << "; use fp8xfp8, fp4xfp4 or fp6xfp6."
+                  << std::endl;
         return EXIT_FAILURE;
     }
     catch(const std::exception& e)

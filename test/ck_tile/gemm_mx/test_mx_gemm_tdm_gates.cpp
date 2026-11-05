@@ -296,6 +296,13 @@ const std::vector<index_t> kTestedMN{1, 17, 63, 64, 127, 257};
 // with kAlignedPitchKs and kNarrowPitchKs of test_mx_gemm_tdm_k_tail.cpp, which run these K.
 const std::vector<index_t> kKTailKs{2, 24, 80, 90, 92, 160, 240, 296, 488, 1840};
 
+// K values with a partial last K tile for pk_fp6x16_t, which packs 16 elements along K: each is a
+// multiple of 16 and none of 128, so none is a multiple of any K tile of the FP6 TDM gtests (128 to
+// 384); 16 to 112 are below one 128-deep K tile; all but 96 and 160 leave a partial last
+// 32-element scale block; with a 128-deep K tile the K loop runs 1, 2, 4, 5 or 15 times. Keep in
+// sync with kF6KTailKs of test_mx_gemm_tdm_k_tail.cpp, which runs these K.
+const std::vector<index_t> kF6KTailKs{16, 48, 96, 112, 144, 160, 240, 400, 528, 1840};
+
 TEST(MxGemmTdmGates, AcceptsTestedShapes)
 {
     for(index_t K : kTestedKsTileK128)
@@ -456,6 +463,51 @@ TEST(MxGemmTdmGates, KTailRejectsKOffAPackBoundary)
         << b_log;
 }
 
+TEST(MxGemmTdmGates, F6KTailAcceptsKOnAPackBoundary)
+{
+    // pk_fp6x16_t on both sides takes K tails for every K that is a multiple of its 16-element
+    // pack, at each K tile of the FP6 TDM gtests (128, 256 and 384), with strides of K, K + 16
+    // and K + 48.
+    for(index_t K : kF6KTailKs)
+    {
+        // Without K tails the K gates reject each of these K.
+        EXPECT_FALSE((shape_ok<F6, F6>(64, 64, K, K, K))) << K;
+        for(index_t stride : {K, K + 16, K + 48})
+        {
+            EXPECT_TRUE((k_tail_shape_ok<F6, F6>(64, 64, K, stride, stride))) << K << " " << stride;
+            EXPECT_TRUE((k_tail_shape_ok<F6, F6, Row, Col, 256>(64, 64, K, stride, stride)))
+                << K << " " << stride;
+            EXPECT_TRUE((k_tail_shape_ok<F6, F6, Row, Col, 384>(64, 64, K, stride, stride)))
+                << K << " " << stride;
+        }
+    }
+    // Multiples of 128 are accepted at every K tile; those that are not a multiple of the K tile
+    // (at 256: 128, 384, 640, 896; at 384: all but 384 and 768) are K tails there.
+    for(index_t K : kTestedKsTileK128)
+    {
+        EXPECT_TRUE((k_tail_shape_ok<F6, F6>(64, 64, K, K, K))) << K;
+        EXPECT_TRUE((k_tail_shape_ok<F6, F6, Row, Col, 256>(64, 64, K, K, K))) << K;
+        EXPECT_TRUE((k_tail_shape_ok<F6, F6, Row, Col, 384>(64, 64, K, K, K))) << K;
+    }
+}
+
+TEST(MxGemmTdmGates, F6KTailRejectsKOffAPackBoundary)
+{
+    // A K that is not a multiple of 16 splits the last pk_fp6x16_t pack of a row. The strides,
+    // rounded up to whole packs, isolate the K check; A is checked first, so the reason names A.
+    for(index_t K : {8, 24, 1832})
+    {
+        const index_t stride = ck_tile::integer_least_multiple(K, 16);
+        const auto [ok, log] =
+            logged([&] { return k_tail_shape_ok<F6, F6>(64, 64, K, stride, stride); });
+        EXPECT_FALSE(ok) << K;
+        EXPECT_NE(
+            log.find("requires K of a row-major packed A to be a multiple of its pack size 16"),
+            std::string::npos)
+            << log;
+    }
+}
+
 TEST(MxGemmTdmGates, RejectsKThatOverflowsTheKLoop)
 {
     // The largest accepted K is INT_MAX - 2 * max(KPerBlock, 128): the K loop count rounds K up by
@@ -479,8 +531,9 @@ TEST(MxGemmTdmGates, RejectsKThatOverflowsTheKLoop)
 
 TEST(MxGemmTdmGates, KTailKeepsTheKGatesOfOtherConfigurations)
 {
-    // K tails need fp8_t or pk_fp4_t on both sides, 32-element scales, a row-major A and a
-    // column-major B; every other configuration keeps the K gates even with AllowKTail.
+    // K tails need fp8_t or pk_fp4_t on each side (or pk_fp6x16_t on both), 32-element scales, a
+    // row-major A and a column-major B; every other configuration keeps the K gates even with
+    // AllowKTail.
     constexpr index_t K          = 160;
     const auto [bf8_ok, bf8_log] = logged([] { return k_tail_shape_ok<BF8, F8>(64, 64, K, K, K); });
     EXPECT_FALSE(bf8_ok);
@@ -497,9 +550,16 @@ TEST(MxGemmTdmGates, KTailKeepsTheKGatesOfOtherConfigurations)
     EXPECT_FALSE((k_tail_shape_ok<F4, F4, Row, Row>(64, 64, K, K, 64)));
     EXPECT_FALSE((k_tail_shape_ok<F4, F8, Col, Row>(64, 64, K, 64, 64)));
     EXPECT_FALSE((k_tail_shape_ok<F8, F8, Col, Col>(64, 64, K, 64, K)));
-    EXPECT_FALSE((k_tail_shape_ok<F6, F6>(64, 64, K, K, K)));
+    // 6-bit operands take K tails only as pk_fp6x16_t on both sides, with K contiguous in A and B
+    // and 32-element scales.
     EXPECT_FALSE((k_tail_shape_ok<BF6, BF6>(64, 64, K, K, K)));
     EXPECT_FALSE((k_tail_shape_ok<F6, F8>(64, 64, K, K, K)));
+    EXPECT_FALSE((k_tail_shape_ok<F8, F6>(64, 64, K, K, K)));
+    EXPECT_FALSE((k_tail_shape_ok<F4, F6>(64, 64, K, K, K)));
+    EXPECT_FALSE((k_tail_shape_ok<F6, BF6>(64, 64, K, K, K)));
+    EXPECT_FALSE((k_tail_shape_ok<F6, F6, Row, Row>(64, 64, K, K, 64)));
+    EXPECT_FALSE((k_tail_shape_ok<F6, F6, Col, Col>(64, 64, K, 64, K)));
+    EXPECT_FALSE((k_tail_shape_ok<F6, F6, Row, Col, 128, 16>(64, 64, K, K, K)));
     // Scales packed other than four to an int32 (the TDM pipelines pack four), and a K tile that
     // is not a whole number of scale packs.
     EXPECT_FALSE(
@@ -512,8 +572,9 @@ TEST(MxGemmTdmGates, KTailKeepsTheKGatesOfOtherConfigurations)
 
 TEST(MxGemmTdmGates, KTailConfigurations)
 {
-    // is_mx_tdm_k_tail_config_v: FP8 and FP4 on each side qualify; BF8, 16-element scales and a
-    // row-major B do not.
+    // is_mx_tdm_k_tail_config_v: FP8 and FP4 on each side qualify, and FP6 (pk_fp6x16_t) on both
+    // sides; BF8, BF6, FP6 paired with another type, the 32-element 6-bit pack, 16-element scales
+    // and a row-major B do not.
     EXPECT_TRUE((ck_tile::is_mx_tdm_k_tail_config_v<F8, F8, Row, Col, 32, kTdmKXdlPack>));
     EXPECT_TRUE((ck_tile::is_mx_tdm_k_tail_config_v<F4, F4, Row, Col, 32, kTdmKXdlPack>));
     EXPECT_TRUE((ck_tile::is_mx_tdm_k_tail_config_v<F8, F4, Row, Col, 32, kTdmKXdlPack>));
@@ -521,6 +582,18 @@ TEST(MxGemmTdmGates, KTailConfigurations)
     EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<BF8, F8, Row, Col, 32, kTdmKXdlPack>));
     EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F8, F8, Row, Col, 16, kTdmKXdlPack>));
     EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F4, F4, Row, Row, 32, kTdmKXdlPack>));
+    EXPECT_TRUE((ck_tile::is_mx_tdm_k_tail_config_v<F6, F6, Row, Col, 32, kTdmKXdlPack>));
+    EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F6, F8, Row, Col, 32, kTdmKXdlPack>));
+    EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F8, F6, Row, Col, 32, kTdmKXdlPack>));
+    EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F4, F6, Row, Col, 32, kTdmKXdlPack>));
+    EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F6, BF6, Row, Col, 32, kTdmKXdlPack>));
+    EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<BF6, BF6, Row, Col, 32, kTdmKXdlPack>));
+    EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F6x32, F6x32, Row, Col, 32, kTdmKXdlPack>));
+    EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F6, F6, Row, Col, 16, kTdmKXdlPack>));
+    EXPECT_FALSE((ck_tile::is_mx_tdm_k_tail_config_v<F6, F6, Row, Row, 32, kTdmKXdlPack>));
+    // cv and reference qualifiers are ignored.
+    EXPECT_TRUE((ck_tile::is_mx_tdm_k_tail_config_v<const F6, F6&, Row, Col, 32, kTdmKXdlPack>));
+    EXPECT_TRUE((ck_tile::is_mx_tdm_k_tail_config_v<const F8&, F4, Row, Col, 32, kTdmKXdlPack>));
 }
 
 // The kernel-level checks: IsTdmShapeSupported forwards the kernel's types, layouts and tile
@@ -629,6 +702,59 @@ void check_rcr_kernel_k_tails()
     }
 }
 
+// The FP6 K-tail configurations of MxGemmKernel accept every K that is a multiple of the 16
+// elements of a pk_fp6x16_t pack, with strides of whole packs; with AllowKTail = false, as
+// MxGroupedGemmKernel checks them, they keep the K gates.
+template <typename Gemm>
+void check_rcr_f6_kernel_k_tails()
+{
+    using Kernel = typename Gemm::Kernel;
+    // Protects the expectations below, which use the FP6 K list and the 16-element pack of
+    // pk_fp6x16_t: this helper applies to FP6 x FP6 kernels only.
+    static_assert(std::is_same_v<typename Kernel::ADataType, F6> &&
+                  std::is_same_v<typename Kernel::BDataType, F6>);
+    for(index_t MN : kTestedMN)
+    {
+        for(const auto& Ks : {kTestedKsTileK128, kF6KTailKs})
+        {
+            for(index_t K : Ks)
+            {
+                expect_shape_accepted<Gemm>(MN, MN, K, K, K);
+            }
+        }
+    }
+    expect_shape_rejection<Gemm>(64, 64, 0, 128, 128, "requires K > 0");
+    // A K that splits a pack, with strides rounded up to whole packs to isolate the K check.
+    expect_shape_rejection<Gemm>(
+        64,
+        64,
+        24,
+        32,
+        32,
+        "requires K of a row-major packed A to be a multiple of its pack size 16");
+    // A K tail whose stride splits a pack: the stride checks still apply. 248 is a multiple of 8
+    // and 252 of 12, the bytes of a pack, but neither of 16, the elements of a pack.
+    expect_shape_rejection<Gemm>(
+        64,
+        64,
+        240,
+        248,
+        248,
+        "requires the stride of a packed A to be a multiple of its pack size 16");
+    expect_shape_rejection<Gemm>(
+        64,
+        64,
+        240,
+        240,
+        252,
+        "requires the stride of a packed B to be a multiple of its pack size 16");
+    // The K gates, as MxGroupedGemmKernel checks them.
+    EXPECT_TRUE(Kernel::template IsTdmShapeSupported</*AllowKTail=*/false>(
+        Gemm::make_args(64, 64, 256, 256, 256)));
+    EXPECT_FALSE(Kernel::template IsTdmShapeSupported</*AllowKTail=*/false>(
+        Gemm::make_args(64, 64, 160, 160, 160)));
+}
+
 // The kernel forwards FP6's 16-element pack to the stride gate: 520 is a multiple of 8 but not of
 // 16, so an FP8 kernel would accept it.
 template <typename Gemm>
@@ -700,7 +826,7 @@ TEST(MxGemmTdmGates, KernelBF8F8TdmV2)
 TEST(MxGemmTdmGates, KernelF6TdmV1)
 {
     using Gemm = TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F6, F6>;
-    check_rcr_kernel_gates<Gemm>();
+    check_rcr_f6_kernel_k_tails<Gemm>();
     check_f6_kernel_stride_gates<Gemm>();
     skip_without_gfx125();
 }
@@ -708,7 +834,7 @@ TEST(MxGemmTdmGates, KernelF6TdmV1)
 TEST(MxGemmTdmGates, KernelF6TdmV2)
 {
     using Gemm = TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV2, F6, F6>;
-    check_rcr_kernel_gates<Gemm>();
+    check_rcr_f6_kernel_k_tails<Gemm>();
     check_f6_kernel_stride_gates<Gemm>();
     skip_without_gfx125();
 }
@@ -745,9 +871,37 @@ TEST(MxGemmTdmGates, KernelF8DeepKTileTakesKTails)
     skip_without_gfx125();
 }
 
-TEST(MxGemmTdmGates, GroupedKernelKeepsTheKGates)
+TEST(MxGemmTdmGates, KernelF6DeepKTileTakesKTails)
 {
-    using Gemm        = TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F8, F8>;
+    // FP6 x FP6 with the 256-deep K tile on V1 and the 384-deep K tile on V2 of the FP6 TDM gtests
+    // accepts K tails: K below one K tile (48, 240), K that is not a multiple of 128 (400, 528,
+    // 1840), and 640, a multiple of 128 but of neither K tile. M = 144 and N = 112 end in partial M
+    // and N tiles.
+    using Deep256 =
+        TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F6, F6, Row, Col, E8M0, E8M0, 256>;
+    using Deep384 =
+        TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV2, F6, F6, Row, Col, E8M0, E8M0, 384>;
+    for(index_t K : {48, 240, 400, 528, 640, 1840})
+    {
+        {
+            SCOPED_TRACE("V1, 256-deep K tile");
+            expect_shape_accepted<Deep256>(144, 112, K, K, K);
+        }
+        {
+            SCOPED_TRACE("V2, 384-deep K tile");
+            expect_shape_accepted<Deep384>(144, 112, K, K, K);
+        }
+    }
+    skip_without_gfx125();
+}
+
+// MxGroupedGemmKernel keeps the K gates for every group, also for K tails that MxGemmKernel
+// accepts for Gemm's configuration. Each K of k_tails must be one that MxGemmKernel accepts for
+// Gemm and that is not a multiple of ScaleBlockSize * KXdlPack = 128 (32-element scales), the first
+// reason the grouped kernel logs.
+template <typename Gemm>
+void check_grouped_kernel_k_gates(std::initializer_list<index_t> k_tails)
+{
     using Grouped     = typename Gemm::GroupedKernel;
     const auto groups = [](std::initializer_list<index_t> Ks) {
         std::vector<ck_tile::MxGemmTransKernelArg<0>> kargs;
@@ -757,11 +911,10 @@ TEST(MxGemmTdmGates, GroupedKernelKeepsTheKGates)
         }
         return kargs;
     };
-    // MxGemmKernel accepts these K for FP8 x FP8. The grouped kernel rejects them before
-    // MxGemmKernel's checks, so its device check, which fails on a host without a gfx125 device,
-    // is not reached; the group under test goes first because IsSupportedArgument stops at the
-    // first group it rejects.
-    for(index_t K : {160, 200})
+    // MxGemmKernel accepts these K. The grouped kernel rejects them before MxGemmKernel's checks,
+    // so its device check, which fails on a host without a gfx125 device, is not reached; the
+    // group under test goes first because IsSupportedArgument stops at the first group it rejects.
+    for(index_t K : k_tails)
     {
         EXPECT_TRUE(Gemm::Kernel::IsTdmShapeSupported(Gemm::make_args(64, 64, K, K, K))) << K;
         const auto kargs            = groups({K, 256});
@@ -775,9 +928,27 @@ TEST(MxGemmTdmGates, GroupedKernelKeepsTheKGates)
     if(ck_tile::is_gfx125_supported())
     {
         // Every group is checked, not only the first.
-        EXPECT_FALSE(Grouped::IsSupportedArgument(groups({256, 160})));
+        for(index_t K : k_tails)
+        {
+            EXPECT_FALSE(Grouped::IsSupportedArgument(groups({256, K}))) << K;
+        }
         EXPECT_TRUE(Grouped::IsSupportedArgument(groups({256, 512})));
     }
+}
+
+TEST(MxGemmTdmGates, GroupedKernelKeepsTheKGates)
+{
+    check_grouped_kernel_k_gates<TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F8, F8>>(
+        {160, 200});
+    skip_without_gfx125();
+}
+
+// FP6 x FP6 takes K tails in MxGemmKernel; the grouped kernel keeps the K gates. The K tested are
+// multiples of 16, the FP6 pack, and not of 128.
+TEST(MxGemmTdmGates, GroupedKernelF6KeepsTheKGates)
+{
+    check_grouped_kernel_k_gates<TdmMxGemm<ck_tile::GemmPipelineAgBgCrCompTDMV1, F6, F6>>(
+        {160, 240});
     skip_without_gfx125();
 }
 

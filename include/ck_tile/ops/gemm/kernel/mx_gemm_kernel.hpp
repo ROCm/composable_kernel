@@ -61,19 +61,27 @@ struct MxGemmKernelArgs : public UniversalGemmKernelArgs<NumATensor, NumBTensor,
 };
 
 namespace detail {
-// The operand types MxGemmKernel takes K tails for on the TDM pipelines.
+// The operand types MxGemmKernel takes K tails for on the TDM pipelines in any pair.
 template <typename T>
 inline constexpr bool is_mx_tdm_k_tail_operand_v =
     std::is_same_v<T, fp8_t> || std::is_same_v<T, pk_fp4_t>;
+
+// MxGemmKernel on the TDM pipelines takes K tails for the following operands: A, B are either fp8_t
+// or pk_fp4_t or A = B = pk_fp6x16_t.
+template <typename A, typename B>
+inline constexpr bool is_mx_tdm_k_tail_pair_v =
+    (is_mx_tdm_k_tail_operand_v<A> && is_mx_tdm_k_tail_operand_v<B>) ||
+    (std::is_same_v<A, pk_fp6x16_t> && std::is_same_v<B, pk_fp6x16_t>);
 } // namespace detail
 
 /**
  * @brief Whether these operands, layouts and scales are K-tail configurations, for which
  *        MxGemmKernel takes K tails on the gfx125 TDM pipelines (see IsMxTdmShapeSupported).
- * @details The K-tail configurations: fp8_t or pk_fp4_t on each side (any pair), 32-element
- *          scales packed four to an int32, a row-major A and a column-major B, so that K is the
- *          contiguous dimension of both. IsMxTdmShapeSupported also requires a KPerBlock that is
- *          a multiple of ScaleBlockSize * KXdlPack; MxGroupedGemmKernel takes no K tails.
+ * @details The K-tail configurations: fp8_t or pk_fp4_t on each side (any pair), or pk_fp6x16_t
+ *          on both sides; 32-element scales packed four to an int32; a row-major A and a
+ *          column-major B, so that K is the contiguous dimension of both. IsMxTdmShapeSupported
+ *          also requires a KPerBlock that is a multiple of ScaleBlockSize * KXdlPack;
+ *          MxGroupedGemmKernel takes no K tails.
  * @tparam ADataType      Element type of A (cv and reference qualifiers are ignored).
  * @tparam BDataType      Element type of B (cv and reference qualifiers are ignored).
  * @tparam ALayout        Layout of A.
@@ -88,9 +96,9 @@ template <typename ADataType,
           index_t ScaleBlockSize,
           index_t KXdlPack>
 inline constexpr bool is_mx_tdm_k_tail_config_v =
-    detail::is_mx_tdm_k_tail_operand_v<remove_cvref_t<ADataType>> &&
-    detail::is_mx_tdm_k_tail_operand_v<remove_cvref_t<BDataType>> && ScaleBlockSize == 32 &&
-    KXdlPack == 4 && std::is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
+    detail::is_mx_tdm_k_tail_pair_v<remove_cvref_t<ADataType>, remove_cvref_t<BDataType>> &&
+    ScaleBlockSize == 32 && KXdlPack == 4 &&
+    std::is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
     std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>;
 
 /**
@@ -113,7 +121,8 @@ inline constexpr bool is_mx_tdm_k_tail_config_v =
  *          partial. With AllowKTail and a KPerBlock that is a multiple of
  *          ScaleBlockSize * KXdlPack, the K-tail configurations (is_mx_tdm_k_tail_config_v)
  *          accept a K that is a multiple of the PackedSize of A and of B (any K for fp8_t, an even
- *          K for pk_fp4_t); it need not be a multiple of ScaleBlockSize, of
+ *          K for pk_fp4_t, a multiple of 16 for pk_fp6x16_t); it need not be a multiple of
+ *          ScaleBlockSize, of
  *          ScaleBlockSize * KXdlPack or of KPerBlock. The TDM writes zeros to LDS for the A and B
  *          elements past K, so a partial last K tile needs no masking. When K is not a multiple of
  *          ScaleBlockSize, the last scale block covers only the remaining K % ScaleBlockSize

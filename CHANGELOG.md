@@ -18,7 +18,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added gfx1250 support and WMMA regression tests for CK Tile GEMM Stream-K with atomic, linear, and tree reduction.
 * Added a gfx1250 WMMA configuration and reduction-strategy selection to the CK Tile GEMM Stream-K dispatcher benchmark.
 * Added FP6 (E2M3) operands to the CK Tile microscaling (MX) GEMM TDM pipelines on gfx1250, for row-major A, column-major B, a 16x16x128 warp tile, and 32-element E8M0 scale blocks, with fp16 or bf16 output.
-* Added K tails to the CK Tile microscaling (MX) GEMM TDM pipelines on gfx1250: they accept any K that is a whole number of storage elements.
+* The CK Tile microscaling (MX) GEMM TDM pipelines on gfx1250 now support more K sizes, not only multiples of the tile size: any K for FP8, an even K for FP4, and a multiple of 16 for FP6.
 
 ### Changed
 

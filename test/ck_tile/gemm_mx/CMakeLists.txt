@@ -40,7 +40,7 @@ if(GPU_TARGETS MATCHES "gfx125")
     add_gtest_executable(test_ck_tile_mx_gemm_tdm_fp6 test_mx_gemm_tdm_fp6.cpp)
     # FP6 with bf16 C on TDM V1/V2 over K loops of 1 to 48 tiles.
     add_gtest_executable(test_ck_tile_mx_gemm_tdm_fp6_kloop_shapes test_mx_gemm_tdm_fp6_kloop_shapes.cpp)
-    # K tails on TDM V1/V2 for FP8 and FP4: K not a multiple of the K tile, of 128 or of the
+    # K tails on TDM V1/V2 for FP8, FP4 and FP6: K not a multiple of the K tile, of 128 or of the
     # 32-element scale block, sized for the smoke stage.
     add_gtest_executable(test_ck_tile_mx_gemm_tdm_k_tail test_mx_gemm_tdm_k_tail.cpp)
     # TDM exists only on gfx125. add_gtest_executable drops a source whose name carries a type

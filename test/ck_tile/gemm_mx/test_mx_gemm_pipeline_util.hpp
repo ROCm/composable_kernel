@@ -631,10 +631,9 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
         {
             // The integer filler would write one value into all three words of a 12-byte pack;
             // FP6 is filled through its pk_fp6_t proxy. With |a|, |b| <= 4 and scales <= 2, every
-            // output is bounded by 64 * K, which exceeds the fp16 maximum once K >= 1024 (the
-            // deepest fp16 case is K = 1024). Reaching it needs all K products at the largest
-            // magnitude with the same sign; random signs keep |C| near sqrt(K) times the typical
-            // product.
+            // output is bounded by 64 * K, which exceeds the fp16 maximum once K >= 1024 (the FP6
+            // fp16 cases reach K = 1840). Reaching it needs all K products at the largest magnitude
+            // with the same sign; random signs keep |C| near sqrt(K) times the typical product.
             mx_test::fill_mx_operand(a_m_k, -4.f, 4.f, 11939);
         }
         else
