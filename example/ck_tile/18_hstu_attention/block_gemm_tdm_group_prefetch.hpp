@@ -13,16 +13,20 @@ namespace ck_tile {
 
 // Tdm-only P@V block gemm (gfx1250). Same A/B/C distributions as
 // BlockGemmARegBSmemTrLoadCRegV2Hack_1 (it derives from it), but the V ds_load_tr reads run ahead
-// of the WMMAs in groups: the (kIter, nIter) steps are flattened to kSteps and split into groups
-// of kStepsPerGroup steps. The B tiles of the first kPrefetchDepth steps are loaded up front; then
-// every group first issues, back to back, the loads of the steps kPrefetchDepth ahead of its own
-// and then runs its own WMMAs. In ATT traces taken on gfx1250 while tuning this, a DS load issued
-// right after a WMMA waited about 30 cycles (a measured value, not a documented latency), so this
-// replaces one WMMA->DS switch per step by one per group. The sched_group_barriers pin that order
-// and the sched_barrier(0) closing each group keeps later loads from being hoisted into it. That
-// bounds the DS data in flight to kPrefetchDepth + kStepsPerGroup steps only while the WMMAs stay
-// in their group: the barriers act within a basic block, and a cross-attention M128 build (ROCm
-// 7.2) was seen to sink the Q@K WMMAs past the mask branch, behind all of the loads.
+// of the WMMAs in groups: the (kIter, nIter) steps are flattened to steps 0 .. kSteps - 1 and
+// split into groups of kStepsPerGroup steps. The B tiles of steps [0, kPrefetchDepth) are loaded
+// up front; group g then first issues, back to back, the loads of steps
+// [g * kStepsPerGroup + kPrefetchDepth, (g + 1) * kStepsPerGroup + kPrefetchDepth) (clipped to
+// kSteps) and then runs the WMMAs of its own steps [g * kStepsPerGroup, (g + 1) * kStepsPerGroup).
+// So the B tile of step s is loaded by the group that runs step s - kPrefetchDepth (or up front),
+// kPrefetchDepth steps before its own WMMAs. In ATT traces taken on gfx1250 of the Tdm kernel with
+// the base gemms, which switch from WMMA to DS once per step, a DS load issued right after a WMMA
+// waited about 30 cycles (a measured value, not a documented latency); this gemm switches once per
+// group instead. The sched_group_barriers pin that order and the sched_barrier(0) closing each
+// group keeps later loads from being hoisted into it. That bounds the DS data in flight to
+// kPrefetchDepth + kStepsPerGroup steps only while the WMMAs stay in their group: the barriers act
+// within a basic block, and a cross-attention M128 build (ROCm 7.2) was seen to sink the Q@K WMMAs
+// past the mask branch, behind all of the loads.
 template <typename Problem_, typename Policy_, index_t kPrefetchDepth_, index_t kStepsPerGroup_>
 struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
     : public BlockGemmARegBSmemTrLoadCRegV2Hack_1<Problem_, Policy_>
@@ -38,7 +42,9 @@ struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
     using Base::MakeABlockTileDistribution;
     using Base::MakeCBlockTile;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t kBlockSize     = Problem::kBlockSize;
+    static constexpr index_t kPrefetchDepth = kPrefetchDepth_;
+    static constexpr index_t kStepsPerGroup = kStepsPerGroup_;
 
     // The run_ahead() of the base reads ahead with its own depth and would silently ignore
     // kPrefetchDepth_ and kStepsPerGroup_, so it is hidden here.
@@ -79,12 +85,13 @@ struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
         constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-        constexpr index_t kSteps         = KIterPerWarp * NIterPerWarp;
-        constexpr index_t kPrefetchDepth = kPrefetchDepth_ < kSteps ? kPrefetchDepth_ : kSteps;
-        constexpr index_t kStepsPerGroup = kStepsPerGroup_ < kSteps ? kStepsPerGroup_ : kSteps;
+        constexpr index_t kSteps = KIterPerWarp * NIterPerWarp;
 
-        static_assert(kPrefetchDepth >= 1 && kStepsPerGroup >= 1 && kSteps % kStepsPerGroup == 0,
-                      "kStepsPerGroup must divide the number of (kIter, nIter) steps");
+        static_assert(1 <= kPrefetchDepth_ && kPrefetchDepth_ <= kSteps,
+                      "kPrefetchDepth_ must be in [1, kSteps]");
+        static_assert(1 <= kStepsPerGroup_ && kStepsPerGroup_ <= kSteps,
+                      "kStepsPerGroup_ must be in [1, kSteps]");
+        static_assert(kSteps % kStepsPerGroup_ == 0, "kStepsPerGroup_ must divide kSteps");
 
         const index_t iNWarp = get_warp_id<false>() % NWarp;
 
@@ -136,30 +143,32 @@ struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
 
         using b_warp_tensor_type = decltype(load_tile_transpose(b_warp_window_tmp));
 
-        // number of ds_load_tr instructions per B warp tile (b128 each)
-        constexpr index_t kDsPerStep =
-            (b_warp_tensor_type::get_thread_buffer_size() * sizeof(BDataType) + 15) / 16;
+        // number of ds_load_tr instructions per B warp tile, one per vector access of the window
+        constexpr index_t kDsPerStep = b_warp_window_tmp.get_num_of_access();
 
         statically_indexed_array<b_warp_tensor_type, kSteps> b_warp_tensors;
 
         // All steps read through the one step-0 window: a step's B tile is the step-0 tile shifted
-        // by a compile-time element offset of the (affine, unswizzled) Lds layout, so every
-        // ds_load_tr shares the step-0 lane address and carries the step in its immediate offset
-        // field instead of a per-step address VALU.
+        // by the compile-time element offset of the step in the (affine, unswizzled) Lds layout,
+        // so every ds_load_tr shares the step-0 lane address and carries the step in its immediate
+        // offset field instead of a per-step address VALU.
         auto load_step = [&](auto i_step) {
             constexpr index_t kIter = i_step / NIterPerWarp;
             constexpr index_t nIter = i_step % NIterPerWarp;
 
-            // the warp windows start at iNWarp * kN columns
-            constexpr index_t kStepOffsetB =
-                detail::GetLdsAffineStepOffset<typename BBlockWindowTmp::BottomTensorView,
-                                               WG::kK,
-                                               WG::kN,
-                                               kIter * KPerBlockPerIter,
-                                               nIter * NPerBlockPerIter,
-                                               NWarp,
-                                               0,
-                                               WG::kN>();
+            constexpr auto b_lds_desc = typename BBlockWindowTmp::BottomTensorView::TensorDesc{};
+            constexpr index_t kStepOffsetB = b_lds_desc.calculate_offset(
+                make_tuple(number<kIter * KPerBlockPerIter>{}, number<nIter * NPerBlockPerIter>{}));
+
+            // the offset must hold for every lane (the warp windows start at iNWarp * kN columns)
+            detail::CheckLdsStepOffset<typename BBlockWindowTmp::BottomTensorView,
+                                       WG::kK,
+                                       WG::kN,
+                                       kIter * KPerBlockPerIter,
+                                       nIter * NPerBlockPerIter,
+                                       NWarp,
+                                       0,
+                                       WG::kN>();
 
             // as in run_ahead(): static_move_ys = true also folds the access offsets inside the
             // warp tile into the immediate, which needs a V layout that is linear over every warp
@@ -248,10 +257,10 @@ struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
 };
 
 // Tdm-only Q@K block gemm (gfx1250), the K-side counterpart of the P@V gemm above: same
-// distributions as BlockGemmARegBSmemCRegV2Hack_0 (it derives from it), the K tiles read
-// kPrefetchDepth (kIter, nIter) steps ahead in groups of kStepsPerGroup steps, each group first
-// issuing its loads and then running its WMMAs (same step loop and the same limits as the P@V gemm
-// above).
+// distributions as BlockGemmARegBSmemCRegV2Hack_0 (it derives from it) and the same step loop:
+// group g first loads the K tiles of steps [g * kStepsPerGroup + kPrefetchDepth,
+// (g + 1) * kStepsPerGroup + kPrefetchDepth) (clipped to kSteps), i.e. of its own steps shifted by
+// kPrefetchDepth, and then runs the WMMAs of its own steps (same limits as the P@V gemm above).
 template <typename Problem_, typename Policy_, index_t kPrefetchDepth_, index_t kStepsPerGroup_>
 struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
     : public BlockGemmARegBSmemCRegV2Hack_0<Problem_, Policy_>
@@ -267,7 +276,9 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
     using Base::MakeABlockTileDistribution;
     using Base::MakeCBlockTile;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t kBlockSize     = Problem::kBlockSize;
+    static constexpr index_t kPrefetchDepth = kPrefetchDepth_;
+    static constexpr index_t kStepsPerGroup = kStepsPerGroup_;
 
     // The run_ahead() of the base reads ahead with its own depth and would silently ignore
     // kPrefetchDepth_ and kStepsPerGroup_, so it is hidden here.
@@ -308,12 +319,13 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
         constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-        constexpr index_t kSteps         = KIterPerWarp * NIterPerWarp;
-        constexpr index_t kPrefetchDepth = kPrefetchDepth_ < kSteps ? kPrefetchDepth_ : kSteps;
-        constexpr index_t kStepsPerGroup = kStepsPerGroup_ < kSteps ? kStepsPerGroup_ : kSteps;
+        constexpr index_t kSteps = KIterPerWarp * NIterPerWarp;
 
-        static_assert(kPrefetchDepth >= 1 && kStepsPerGroup >= 1 && kSteps % kStepsPerGroup == 0,
-                      "kStepsPerGroup must divide the number of (kIter, nIter) steps");
+        static_assert(1 <= kPrefetchDepth_ && kPrefetchDepth_ <= kSteps,
+                      "kPrefetchDepth_ must be in [1, kSteps]");
+        static_assert(1 <= kStepsPerGroup_ && kStepsPerGroup_ <= kSteps,
+                      "kStepsPerGroup_ must be in [1, kSteps]");
+        static_assert(kSteps % kStepsPerGroup_ == 0, "kStepsPerGroup_ must divide kSteps");
 
         const index_t iNWarp = get_warp_id<false>() % NWarp;
 
@@ -363,8 +375,8 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
 
         using b_warp_tensor_type = decltype(load_tile(b_warp_window_tmp));
 
-        constexpr index_t kDsPerStep =
-            (b_warp_tensor_type::get_thread_buffer_size() * sizeof(BDataType) + 15) / 16;
+        // number of ds_load instructions per B warp tile, one per vector access of the window
+        constexpr index_t kDsPerStep = b_warp_window_tmp.get_num_of_access();
 
         statically_indexed_array<b_warp_tensor_type, kSteps> b_warp_tensors;
 
@@ -374,14 +386,17 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
             constexpr index_t kIter = i_step / NIterPerWarp;
             constexpr index_t nIter = i_step % NIterPerWarp;
 
-            constexpr index_t kStepOffsetB =
-                detail::GetLdsAffineStepOffset<typename BBlockWindowTmp::BottomTensorView,
-                                               WG::kN,
-                                               WG::kK,
-                                               nIter * NPerBlockPerIter,
-                                               kIter * KPerBlockPerIter>();
+            constexpr auto b_lds_desc = typename BBlockWindowTmp::BottomTensorView::TensorDesc{};
+            constexpr index_t kStepOffsetB = b_lds_desc.calculate_offset(
+                make_tuple(number<nIter * NPerBlockPerIter>{}, number<kIter * KPerBlockPerIter>{}));
 
-            b_warp_tensors(i_step) = b_warp_window_tmp.load_with_offset(number<kStepOffsetB>{});
+            detail::CheckLdsStepOffset<typename BBlockWindowTmp::BottomTensorView,
+                                       WG::kN,
+                                       WG::kK,
+                                       nIter * NPerBlockPerIter,
+                                       kIter * KPerBlockPerIter>();
+
+            b_warp_tensors(i_step) = load_tile_with_offset(b_warp_window_tmp, kStepOffsetB);
         };
 
         static_for<0, kPrefetchDepth, 1>{}([&](auto i_step) { load_step(i_step); });
@@ -452,10 +467,10 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
 };
 
 // As BlockGemmARegBSmemCRegTdmGroupPrefetch_0, but the A operand (Q) is read from Lds too: per
-// (kIter, nIter) step the B tile is loaded kPrefetchDepth steps ahead, and the MIterPerWarp A
-// tiles of a kIter are loaded together with the B tile of that kIter's first step, i.e. in the
-// same group of DS loads. Only the A tiles of the current and the next kIter are live (2 x
-// MIterPerWarp x 8 VGPRs) instead of the whole Q tile.
+// (kIter, nIter) step the B tile is loaded kPrefetchDepth steps before its WMMAs, as there, and
+// the MIterPerWarp A tiles of a kIter are loaded together with the B tile of that kIter's first
+// step, i.e. in the same group of DS loads. Only the A tiles of the current and the next kIter
+// are live (2 x MIterPerWarp x 8 VGPRs) instead of the whole Q tile.
 template <typename Problem_, typename Policy_, index_t kPrefetchDepth_, index_t kStepsPerGroup_>
 struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
     : public BlockGemmARegBSmemCRegV2Hack_0<Problem_, Policy_>
@@ -471,7 +486,9 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
     using Base::MakeABlockTileDistribution;
     using Base::MakeCBlockTile;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t kBlockSize     = Problem::kBlockSize;
+    static constexpr index_t kPrefetchDepth = kPrefetchDepth_;
+    static constexpr index_t kStepsPerGroup = kStepsPerGroup_;
 
     // The run_ahead() of the base reads ahead with its own depth and would silently ignore
     // kPrefetchDepth_ and kStepsPerGroup_, so it is hidden here.
@@ -512,12 +529,13 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
         constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-        constexpr index_t kSteps         = KIterPerWarp * NIterPerWarp;
-        constexpr index_t kPrefetchDepth = kPrefetchDepth_ < kSteps ? kPrefetchDepth_ : kSteps;
-        constexpr index_t kStepsPerGroup = kStepsPerGroup_ < kSteps ? kStepsPerGroup_ : kSteps;
+        constexpr index_t kSteps = KIterPerWarp * NIterPerWarp;
 
-        static_assert(kPrefetchDepth >= 1 && kStepsPerGroup >= 1 && kSteps % kStepsPerGroup == 0,
-                      "kStepsPerGroup must divide the number of (kIter, nIter) steps");
+        static_assert(1 <= kPrefetchDepth_ && kPrefetchDepth_ <= kSteps,
+                      "kPrefetchDepth_ must be in [1, kSteps]");
+        static_assert(1 <= kStepsPerGroup_ && kStepsPerGroup_ <= kSteps,
+                      "kStepsPerGroup_ must be in [1, kSteps]");
+        static_assert(kSteps % kStepsPerGroup_ == 0, "kStepsPerGroup_ must divide kSteps");
 
         static_assert(NWarp == 1, "Check failed!");
 
@@ -566,10 +584,9 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
         using a_warp_tensor_type = decltype(a_warp_window_tmp.load_with_offset(number<0>{}));
         using b_warp_tensor_type = decltype(b_warp_window_tmp.load_with_offset(number<0>{}));
 
-        constexpr index_t kDsPerStepA =
-            (a_warp_tensor_type::get_thread_buffer_size() * sizeof(ADataType) + 15) / 16;
-        constexpr index_t kDsPerStepB =
-            (b_warp_tensor_type::get_thread_buffer_size() * sizeof(BDataType) + 15) / 16;
+        // number of ds_load instructions per A / B warp tile, one per vector access of the window
+        constexpr index_t kDsPerStepA = a_warp_window_tmp.get_num_of_access();
+        constexpr index_t kDsPerStepB = b_warp_window_tmp.get_num_of_access();
 
         statically_indexed_array<a_warp_tensor_type, KIterPerWarp * MIterPerWarp> a_warp_tensors;
         statically_indexed_array<b_warp_tensor_type, kSteps> b_warp_tensors;
@@ -586,31 +603,38 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
             if constexpr(nIter == 0)
             {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    // the A windows of the M warps start at iMWarp * kM rows: the offset is
-                    // checked from each of them
-                    constexpr index_t kStepOffsetA =
-                        detail::GetLdsAffineStepOffset<typename ABlockWindowTmp::BottomTensorView,
-                                                       WG::kM,
-                                                       WG::kK,
-                                                       mIter * MWarp * WG::kM,
-                                                       kIter * KPerBlockPerIter,
-                                                       MWarp,
-                                                       WG::kM,
-                                                       0>();
+                    constexpr auto a_lds_desc =
+                        typename ABlockWindowTmp::BottomTensorView::TensorDesc{};
+                    constexpr index_t kStepOffsetA = a_lds_desc.calculate_offset(make_tuple(
+                        number<mIter * MWarp * WG::kM>{}, number<kIter * KPerBlockPerIter>{}));
+
+                    // the A windows of the M warps start at iMWarp * kM rows: the offset must
+                    // hold from each of them
+                    detail::CheckLdsStepOffset<typename ABlockWindowTmp::BottomTensorView,
+                                               WG::kM,
+                                               WG::kK,
+                                               mIter * MWarp * WG::kM,
+                                               kIter * KPerBlockPerIter,
+                                               MWarp,
+                                               WG::kM,
+                                               0>();
 
                     a_warp_tensors(number<kIter * MIterPerWarp + mIter>{}) =
-                        a_warp_window_tmp.load_with_offset(number<kStepOffsetA>{});
+                        load_tile_with_offset(a_warp_window_tmp, kStepOffsetA);
                 });
             }
 
-            constexpr index_t kStepOffsetB =
-                detail::GetLdsAffineStepOffset<typename BBlockWindowTmp::BottomTensorView,
-                                               WG::kN,
-                                               WG::kK,
-                                               nIter * NPerBlockPerIter,
-                                               kIter * KPerBlockPerIter>();
+            constexpr auto b_lds_desc = typename BBlockWindowTmp::BottomTensorView::TensorDesc{};
+            constexpr index_t kStepOffsetB = b_lds_desc.calculate_offset(
+                make_tuple(number<nIter * NPerBlockPerIter>{}, number<kIter * KPerBlockPerIter>{}));
 
-            b_warp_tensors(i_step) = b_warp_window_tmp.load_with_offset(number<kStepOffsetB>{});
+            detail::CheckLdsStepOffset<typename BBlockWindowTmp::BottomTensorView,
+                                       WG::kN,
+                                       WG::kK,
+                                       nIter * NPerBlockPerIter,
+                                       kIter * KPerBlockPerIter>();
+
+            b_warp_tensors(i_step) = load_tile_with_offset(b_warp_window_tmp, kStepOffsetB);
         };
 
         static_for<0, kPrefetchDepth, 1>{}([&](auto i_step) { load_step(i_step); });

@@ -303,14 +303,17 @@ CK_TILE_HOST_DEVICE constexpr auto MakeRowMajorLdsPaddedBlockDescriptor()
     return MakeRowMajorLdsPaddedBlockDescriptor<NumBuffers, Rows, Cols, PadInterval, PadLength>();
 };
 
-// Element offset, in the Lds layout of BottomTensorView, between a kTileRows x kTileCols warp
-// tile at (kRow, kCol) and the same tile at (0, 0). The group-prefetch block gemms add it to the
-// step-0 lane address instead of moving the window, which is only exact if the layout is affine
-// over the tile: checked along every row and every 8-element column vector of the tile (the
-// padded row-major layouts the Tdm pipelines use are; an xor-swizzled one is not and fails here).
-// The warp windows of a gemm start at (i * kOriginRowStep, i * kOriginColStep) of its Lds view, i <
-// kNumOrigins (one window per warp along M or N; cur/next buffers differ by data pointer), and the
-// check is made from each of these origins.
+// Compile-time checks for the step offsets of the group-prefetch block gemms. Such a gemm reads
+// the kTileRows x kTileCols warp tile at (kRow, kCol) of the Lds view BottomTensorView through its
+// step-0 warp window, with the step offset calculate_offset(kRow, kCol) added to the step-0 lane
+// address (load_tile_with_offset(), load_tile_transpose_with_offset()) instead of moving the
+// window by (kRow, kCol). That is only exact if the layout is affine over the tile,
+// offset(kRow + r, kCol + c) - offset(r, c) == offset(kRow, kCol) for every (r, c) of the tile (so
+// also offset(0, 0) == 0): checked along every row and every 8-element column vector of the tile
+// (the padded row-major layouts the Tdm pipelines use are; an xor-swizzled one is not and fails
+// here). The warp windows of a gemm start at (i * kOriginRowStep, i * kOriginColStep) of its Lds
+// view, i < kNumOrigins (one window per warp along M or N; cur/next buffers differ by data
+// pointer), and the check is made from each of these origins.
 template <typename BottomTensorView,
           index_t kTileRows,
           index_t kTileCols,
@@ -319,7 +322,7 @@ template <typename BottomTensorView,
           index_t kNumOrigins    = 1,
           index_t kOriginRowStep = 0,
           index_t kOriginColStep = 0>
-CK_TILE_HOST_DEVICE constexpr index_t GetLdsAffineStepOffset()
+CK_TILE_HOST_DEVICE constexpr void CheckLdsStepOffset()
 {
     using Desc = remove_cvref_t<decltype(BottomTensorView{}.get_tensor_descriptor())>;
 
@@ -333,7 +336,7 @@ CK_TILE_HOST_DEVICE constexpr index_t GetLdsAffineStepOffset()
             make_multi_index(row, col));
     };
 
-    constexpr index_t step_offset = offset_at(kRow, kCol) - offset_at(0, 0);
+    constexpr index_t step_offset = offset_at(kRow, kCol);
 
     constexpr bool is_affine = [=]() constexpr {
         for(index_t i = 0; i < kNumOrigins; ++i)
@@ -362,12 +365,10 @@ CK_TILE_HOST_DEVICE constexpr index_t GetLdsAffineStepOffset()
                           sizeof(typename BottomTensorView::DataType) <
                       65536,
                   "the step offset does not fit the 16-bit ds_load immediate");
-
-    return step_offset;
 }
 
 // Whether the Lds layout of BottomTensorView is linear over the kTileRows x kTileCols warp tile at
-// (kRow, kCol) of every warp window (origins as in GetLdsAffineStepOffset()), checked element by
+// (kRow, kCol) of every warp window (origins as in CheckLdsStepOffset()), checked element by
 // element: offset(row, col) == row * offset(1, 0) + col * offset(0, 1), with offset(0, 0) == 0.
 // load_tile_transpose_with_offset() with static_move_ys = true adds the offset of each access
 // inside the warp tile, taken from (0, 0), to the lane's address instead of moving the lane's

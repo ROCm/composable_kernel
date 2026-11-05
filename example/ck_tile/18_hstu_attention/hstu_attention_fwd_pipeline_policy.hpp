@@ -1114,9 +1114,10 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     // Tdm pipelines: the hdim128 tiles get the group-prefetch variant of the trload P@V block
-    // gemm (same distributions, V ds_load_tr issued in groups ahead of the WMMAs). kPrefetchDepth
-    // is how many (kIter, nIter) B tiles are in flight ahead of the WMMAs, kStepsPerGroup how many
-    // steps share one group of loads; both cost 8 VGPRs per step (16x32 bf16 per wave32).
+    // gemm (same distributions, V ds_load_tr issued in groups ahead of the WMMAs). The B tile of
+    // every (kIter, nIter) step is loaded kPrefetchDepth steps before its WMMAs, and kStepsPerGroup
+    // steps share one group of loads and WMMAs, so up to kPrefetchDepth + kStepsPerGroup B tiles
+    // are live, 8 VGPRs each (16x32 bf16 per wave32).
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetPVTBlockGemmTdm()
     {
