@@ -193,6 +193,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // ---- Tdm staging: plain-Lds descriptors and their pad ------------------------------
     //
     // The Tdm engine writes K and V into Lds itself, in plain row-major order, so the
@@ -217,7 +218,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetTdmPadConfigK()
     {
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
@@ -228,11 +228,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             detail::GetTdmLdsPaddingConfigForNormalRead<WG, false /*inputB*/, kKPerBlock>();
 
         return detail::GetTdmRawPaddingConfig<lds_pad.at(number<0>{}), lds_pad.at(number<1>{})>();
-#else
-        static_assert(sizeof(Problem) == 0,
-                      "GetTdmPadConfigK() is only meaningful where Tdm staging is available");
-        return make_tuple(number<0>{}, number<0>{});
-#endif
     }
 
     // As GetTdmPadConfigK(), for the V copy. V is read back with ds_read_tr, so its pad comes
@@ -240,7 +235,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetTdmPadConfigV()
     {
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
 
         using BlockGemm = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, true /*kUseTrLoad*/>())>;
@@ -251,11 +245,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             detail::GetTdmLdsPaddingConfigForTrLoadRead<WG, false /*inputB*/, kNPerBlock>();
 
         return detail::GetTdmRawPaddingConfig<lds_pad.at(number<0>{}), lds_pad.at(number<1>{})>();
-#else
-        static_assert(sizeof(Problem) == 0,
-                      "GetTdmPadConfigV() is only meaningful where Tdm staging is available");
-        return make_tuple(number<0>{}, number<0>{});
-#endif
     }
 
     // Reader-side descriptor for one Tdm staged K tile, i.e. kN0 rows as n0_loops slices of
@@ -263,7 +252,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsPlainBlockDescriptor()
     {
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
         constexpr index_t n0_loops =
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kN0Sub;
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN0Sub;
@@ -290,12 +278,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                                                             kKPerBlock,
                                                             pad_config.at(number<0>{}),
                                                             pad_config.at(number<1>{})>();
-#else
-        static_assert(sizeof(Problem) == 0,
-                      "MakeKLdsPlainBlockDescriptor() is only meaningful where Tdm staging is "
-                      "available");
-        return 0;
-#endif
     }
 
     // Reader-side descriptor for NumCopies Tdm staged V tiles stacked along the rows, i.e.
@@ -306,7 +288,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, index_t NumCopies = 1>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsPlainBlockDescriptor()
     {
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
         constexpr index_t k1_loops =
             Problem::HstuAttentionTileSetting::kN0 / Problem::HstuAttentionTileSetting::kK1;
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
@@ -333,13 +314,8 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                                                             kNPerBlock,
                                                             pad_config.at(number<0>{}),
                                                             pad_config.at(number<1>{})>();
-#else
-        static_assert(sizeof(Problem) == 0,
-                      "MakeVLdsPlainBlockDescriptor() is only meaningful where Tdm staging is "
-                      "available");
-        return 0;
-#endif
     }
+#endif
 
     template <typename Problem, bool kUseDirectLds = false, bool kUseXor = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
@@ -486,6 +462,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // load_tile_tdm() does not take the hardware box shape as an argument: it recovers it from
     // the Dram window, by reading back the ys_to_d lengths of the window's tile distribution.
     // A Tdm load therefore needs a distribution whose Y dims describe one contiguous rectangle
@@ -551,6 +528,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                 sequence<1, 0>>{},                             // Ys2RHsMinor
             bool_constant<true>{});                            // IsWarpLevelParallelOnly
     }
+#endif
 
     template <typename Problem, bool kUseDirectLds = false>
     CK_TILE_DEVICE static constexpr auto MakeKDramTileDistribution()
@@ -1078,6 +1056,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // Tdm pipelines: the hdim128 tiles with more than one gemm0 warp (M64 and M128) get the
     // group-prefetch variant of the Q@K block gemm, BlockGemmASmemBSmemCRegTdmGroupPrefetch_0 (Q
     // read from Lds as well) where IsQInLdsTdm(); everything else keeps GetQKBlockGemm().
@@ -1133,6 +1112,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         else
             return BaseGemm{};
     }
+#endif
 
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_DEVICE static constexpr auto GetAlignmentO()
@@ -1233,6 +1213,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 #endif
 
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
     // Lds sizes for one Tdm staged K/V tile. Same rounding as GetSmemSizeK/V(), over the
     // plain descriptors.
     template <typename Problem>
@@ -1273,7 +1254,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsPlainBlockDescriptor()
     {
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
         constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
@@ -1290,12 +1270,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                                                             kKPerBlock,
                                                             pad_config.at(number<0>{}),
                                                             pad_config.at(number<1>{})>();
-#else
-        static_assert(sizeof(Problem) == 0,
-                      "MakeQLdsPlainBlockDescriptor() is only meaningful where Tdm staging is "
-                      "available");
-        return 0;
-#endif
     }
 
     template <typename Problem>
@@ -1346,6 +1320,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
         return offset;
     }
+#endif
 };
 
 } // namespace ck_tile
