@@ -650,6 +650,75 @@ struct HstuAttentionFwdKernel
         }
     }
 
+    // Workgroups are handed to the XCDs round-robin by linear id. Enumerate only the live
+    // (batch, q-tile, head) items, batches longest-KV-first, head fastest, so consecutive ids
+    // (consecutive XCDs) carry similar work; the trailing linear ids are the empty q-tiles of
+    // the shorter sequences and exit immediately. Only the linear id is used, so this works on
+    // either grid layout. (Split-KV kernel: GetXcdBalancedTileIndex, from gfx950.)
+    static constexpr bool kUseXcdBalancedTileMap =
+        kIsJagged && !kUseGroup && kIsCrossAttention && !kHasCausalMask && !kHasDropout &&
+        !(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim);
+
+    // q-tiles the kernel walks for one batch with min_full_attn_seqlen == 0: the targets get
+    // their own tiles after the upper scope [0, seqlen_q - num_target)
+    CK_TILE_DEVICE static index_t GetNumQTiles(index_t seqlen_q, index_t num_target)
+    {
+        constexpr index_t kM0 = HstuAttentionPipeline::kM0;
+        if(num_target > 0 && seqlen_q - num_target > 0)
+            return integer_divide_ceil(seqlen_q - num_target, kM0) +
+                   integer_divide_ceil(num_target, kM0);
+        return integer_divide_ceil(seqlen_q, kM0);
+    }
+
+    CK_TILE_DEVICE static auto GetXcdBalancedTileIndex(const Kargs& kargs, index_t batch)
+    {
+        constexpr index_t kM0 = HstuAttentionPipeline::kM0;
+        constexpr index_t kN0 = HstuAttentionPipeline::kN0;
+
+        const index_t nhead      = kargs.num_head;
+        const index_t num_tile_m = gridDim.x * gridDim.y * gridDim.z / (batch * nhead);
+        const index_t lane       = get_lane_id();
+
+        index_t key   = -1;
+        index_t items = 0;
+        if(lane < batch)
+        {
+            const index_t seqlen_q =
+                kargs.seq_q_offsets_ptr[lane + 1] - kargs.seq_q_offsets_ptr[lane];
+            index_t seqlen_kv = kargs.seq_kv_offsets_ptr[lane + 1] - kargs.seq_kv_offsets_ptr[lane];
+            if(kargs.kv_truncate_len > 0)
+                seqlen_kv = min(seqlen_kv, kargs.kv_truncate_len);
+            const index_t num_target =
+                kargs.num_targets_ptr == nullptr ? 0 : kargs.num_targets_ptr[lane];
+            key   = integer_divide_ceil(seqlen_kv, kN0);
+            items = min(GetNumQTiles(seqlen_q, num_target), num_tile_m) * nhead;
+        }
+
+        index_t items_before = 0;
+        for(index_t j = 0; j < batch; ++j)
+        {
+            const index_t key_j   = __builtin_amdgcn_readlane(key, j);
+            const index_t items_j = __builtin_amdgcn_readlane(items, j);
+            if(key_j > key || (key_j == key && j < lane))
+                items_before += items_j;
+        }
+
+        const index_t lin   = blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z);
+        const bool is_mine  = lin >= items_before && lin < items_before + items;
+        const uint64_t mask = detail::wave_ballot(is_mine);
+
+        if(mask == 0)
+            return ck_tile::make_tuple(
+                index_t{0x7fffffff / kM0}, index_t{0}, index_t{0}, index_t{0});
+
+        const index_t i_batch  = __builtin_ctzll(mask);
+        const index_t i_item   = lin - __builtin_amdgcn_readlane(items_before, i_batch);
+        const index_t i_nhead  = i_item % nhead;
+        const index_t i_tile_m = i_item / nhead;
+
+        return ck_tile::make_tuple(i_tile_m, index_t{0}, i_nhead, i_batch);
+    }
+
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
         if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim)
@@ -693,6 +762,16 @@ struct HstuAttentionFwdKernel
         }
         else
         {
+#if defined(__gfx950__) || defined(__gfx1250__)
+            if constexpr(kUseXcdBalancedTileMap)
+            {
+                const index_t batch = kargs.almost_invariant_seqlen
+                                          ? static_cast<index_t>(gridDim.x)
+                                          : static_cast<index_t>(gridDim.z);
+                if(kargs.min_full_attn_seqlen == 0 && batch > 1 && batch <= get_warp_size())
+                    return GetXcdBalancedTileIndex(kargs, batch);
+            }
+#endif
             if(kargs.almost_invariant_seqlen)
             {
                 const index_t i_batch = blockIdx.x;

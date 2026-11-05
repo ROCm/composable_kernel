@@ -727,7 +727,7 @@ struct HstuAttentionFwdSplitKVKernel
         }
         else
         {
-#if defined(__gfx950__)
+#if defined(__gfx950__) || defined(__gfx1250__)
             if constexpr(kUseXcdBalancedTileMap)
             {
                 const index_t batch = kargs.almost_invariant_seqlen
