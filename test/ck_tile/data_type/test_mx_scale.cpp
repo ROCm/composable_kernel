@@ -125,7 +125,7 @@ TYPED_TEST(F8_OCP_Scale, FP8_PkscaleTypeConvertOpsel0_7)
 {
     using DstT = TypeParam;
 
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -136,7 +136,7 @@ TYPED_TEST(F8_OCP_Scale, BF8_PkscaleTypeConvertOpsel0_7)
 {
     using DstT = TypeParam;
 
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -146,7 +146,7 @@ TYPED_TEST(F8_OCP_Scale, BF8_PkscaleTypeConvertOpsel0_7)
 TYPED_TEST(F8_OCP_Scale, FP8_PkscaleTypeConvertOpsel8_11)
 {
     using DstT = TypeParam;
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -162,7 +162,7 @@ TYPED_TEST(F8_OCP_Scale, FP8_PkscaleTypeConvertOpsel8_11)
 TYPED_TEST(F8_OCP_Scale, BF8_PkscaleTypeConvertOpsel8_11)
 {
     using DstT = TypeParam;
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -437,7 +437,7 @@ struct F8TestPkscaleTypeConvert
         if(dst_data == nullptr || p_scale == nullptr)
             return;
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
         using DSTx8_t = ck_tile::ext_vector_t<DST, 8>;
         using Srcx8_t = ck_tile::ext_vector_t<Src, 8>;
         Srcx8_t in_f8(type_convert<Src>(val)); // assume unit matrix

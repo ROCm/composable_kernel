@@ -216,6 +216,8 @@ function(_ck_gpu_target_string_to_id TARGET_STR OUT_VAR)
         set(${OUT_VAR} "0x12FF" PARENT_SCOPE)
     elseif(_tgt STREQUAL "gfx1250" OR _tgt STREQUAL "gfx1250-strict")
         set(${OUT_VAR} "0x1250" PARENT_SCOPE)
+    elseif(_tgt STREQUAL "gfx1251")
+        set(${OUT_VAR} "0x1251" PARENT_SCOPE)
     else()
         message(WARNING "_ck_gpu_target_string_to_id: unknown GPU target '${TARGET_STR}', skipping")
         set(${OUT_VAR} "" PARENT_SCOPE)
@@ -245,9 +247,9 @@ endif()
 # by the preprocessor in headers that host code also instantiates (e.g. via
 # getCMakeCompilerTarget()), so a device-pass-only guard would desync host/device.
 # ---------------------------------------------------------------------------
-if(GPU_TARGETS MATCHES "gfx1250")
+if(GPU_TARGETS MATCHES "gfx125")
     add_compile_definitions(USE_NEW_UNIFIED_FRAMEWORK=0)
-    message(STATUS "gfx1250 target detected: forcing USE_NEW_UNIFIED_FRAMEWORK=0 (unified ck_tile framework not yet supported on gfx1250)")
+    message(STATUS "gfx125x target detected: forcing USE_NEW_UNIFIED_FRAMEWORK=0 (unified ck_tile framework not yet supported on gfx125x)")
 endif()
 
 #for f8/bf8_t type
@@ -528,7 +530,8 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx950")
     add_definitions(-DCK_GFX950_SUPPORT)
     set(CK_GFX950_SUPPORT "ON")
 endif()
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx1250|gfx1250-strict")
+# this will include gfx1250, gfx1250-strict, and gfx1251
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx125")
     add_definitions(-DCK_USE_GFX1250)
     add_definitions(-DCK_USE_NATIVE_MX_SUPPORT)
     set(CK_USE_NATIVE_MX_SUPPORT "ON")

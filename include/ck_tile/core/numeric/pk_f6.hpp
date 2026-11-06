@@ -19,7 +19,8 @@
 #include <cmath>
 #include <type_traits>
 
-#if defined(__HIP_DEVICE_COMPILE__) && defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__HIP_DEVICE_COMPILE__) && defined(__gfx1250__) && !defined(__gfx1250_strict__) && \
+    !defined(__gfx1251__)
 #define CK_TILE_FP6_CVT_DEVICE 1
 #else
 #define CK_TILE_FP6_CVT_DEVICE 0
@@ -460,7 +461,7 @@ struct numeric<pk_bf6_t>
 
 #if CK_TILE_FP6_CVT_DEVICE
 namespace impl {
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
 // Device conversion functions for FP6 E2M3 with pkscale and Opsel
 template <typename T, int Opsel>
 CK_TILE_DEVICE T _from_fp6x16_pkscale(pk_fp6_storage_t src, uint32_t scale)
@@ -1443,7 +1444,7 @@ CK_TILE_SCALED_TYPE_CONVERT(fp32x16_t, fp32x16, pk_bf6_t, pk_bf6)
 
 #undef CK_TILE_SCALED_TYPE_CONVERT
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
 template <typename Y, int Scale_sel>
 struct pk6scaled_type_convert_impl<Y, pk_fp6_t, Scale_sel>
 {

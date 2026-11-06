@@ -16,8 +16,8 @@ list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS
 )
 set(EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS ${EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS})
 
-# Currently test_ck_tile_streamk_smoke is only built on gfx9, gfx11, and gfx12 (but not gfx1250)
-if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950|gfx11|gfx12" AND NOT GPU_TARGETS MATCHES "gfx1250")
+# Currently test_ck_tile_streamk_smoke is only built on gfx9, gfx11, and gfx12 (but not gfx1250/gfx1251)
+if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950|gfx11|gfx12" AND NOT GPU_TARGETS MATCHES "gfx125")
 
     include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 

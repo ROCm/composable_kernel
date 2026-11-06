@@ -41,7 +41,7 @@ list(APPEND GEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllv
 example_compile_options(example_gemm_xdl_fp8_v3 PRIVATE ${GEMM_OPTIONS})
 example_compile_options(example_gemm_xdl_bf16_v3 PRIVATE ${GEMM_OPTIONS})
 
-list(APPEND gpu_list gfx942 gfx950 gfx1200 gfx1201 gfx12-generic gfx1250)
+list(APPEND gpu_list gfx942 gfx950 gfx1200 gfx1201 gfx12-generic gfx1250 gfx1251)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
     if(gpu IN_LIST gpu_list AND target EQUAL 0)
@@ -74,7 +74,7 @@ endif(USE_BITINT_EXTENSION_INT4)
 add_example_executable(example_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp64)
 
-list(APPEND gpu_list gfx90a gfx942 gfx950 gfx1250)
+list(APPEND gpu_list gfx90a gfx942 gfx950 gfx1250 gfx1251)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
     if(gpu IN_LIST gpu_list AND target EQUAL 0)
