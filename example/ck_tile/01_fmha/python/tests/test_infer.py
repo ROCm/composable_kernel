@@ -106,6 +106,22 @@ def test_infer_fp32_reference(with_bias, causal):
     )
 
 
+@pytest.mark.parametrize("sk", [1, 5])
+def test_infer_right_window_longer_than_keys(sk):
+    """More queries than keys: a right window of seqlen_k or more keys still masks the first
+    rows (bottom-right aligned), which then attend to nothing."""
+    torch.random.manual_seed(0)
+    q, k, v = make_qkv("mha", 64, torch.float16, 16, sk)
+    wl, wr = 40, 5
+    out = fmha_infer(q, k, v, window_size=(wl, wr))
+    s = 0.125 * q.float().transpose(1, 2) @ k.float().permute(0, 2, 3, 1)
+    row = torch.arange(16, device="cuda")[:, None] + (sk - 16)
+    col = torch.arange(sk, device="cuda")[None, :]
+    s = s.masked_fill((col > row + wr) | (col < row - wl), float("-inf"))
+    ref = (torch.softmax(s, -1).nan_to_num(0.0) @ v.float().transpose(1, 2)).transpose(1, 2)
+    torch.testing.assert_close(out.float(), ref, atol=2e-3, rtol=0)
+
+
 @pytest.mark.parametrize("d", [128, 256])
 def test_infer_shared_kv_lse_log2(d):
     """One tensor as K and V in the head-less layout: qr_tdm_kvshared's call on gfx1250."""

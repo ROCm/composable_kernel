@@ -33,13 +33,14 @@
 namespace ck_tile::fmha::torch_api::detail {
 // The mask of flash-attention style arguments: causal, or a window of window_size_left keys
 // before and window_size_right after the diagonal (-1: unbounded), aligned to the bottom right,
-// as mask_info::decode("b:left,right") builds it. Windows as long as seqlen_k are unbounded.
+// as mask_info::decode("b:left,right") builds it. A left window of seqlen_k keys, or a right one
+// of seqlen_q, reaches every key from every row and is unbounded.
 inline mask_info make_mask_info(
     bool is_causal, int window_size_left, int window_size_right, int seqlen_q, int seqlen_k)
 {
     if(window_size_left >= seqlen_k)
         window_size_left = -1;
-    if(window_size_right >= seqlen_k)
+    if(window_size_right >= seqlen_q)
         window_size_right = -1;
     if(is_causal)
         window_size_right = 0;
