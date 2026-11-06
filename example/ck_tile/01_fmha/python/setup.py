@@ -66,11 +66,13 @@ def ck_api_digest(root):
     structs (fmha_fwd_args, fmha_fwd_traits, ...) and all of ck_tile (12 MB, well under a
     second)."""
     digest = hashlib.sha256()
-    headers = sorted((PACKAGE_ROOT / "csrc").glob("*.hpp"))
-    headers += sorted((root / "example/ck_tile/01_fmha").glob("*.hpp"))
-    headers += sorted((root / "include/ck_tile").rglob("*.hpp"))
-    for header in headers:
-        digest.update(str(header.relative_to(root)).encode())
+    # (base, header) pairs: the package's own headers need not lie under root (CK_ROOT,
+    # ck_sources)
+    headers = [(PACKAGE_ROOT, h) for h in sorted((PACKAGE_ROOT / "csrc").glob("*.hpp"))]
+    headers += [(root, h) for h in sorted((root / "example/ck_tile/01_fmha").glob("*.hpp"))]
+    headers += [(root, h) for h in sorted((root / "include/ck_tile").rglob("*.hpp"))]
+    for base, header in headers:
+        digest.update(str(header.relative_to(base)).encode())
         digest.update(header.read_bytes())
     return digest.hexdigest()
 
