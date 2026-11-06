@@ -11,6 +11,13 @@ set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 
 set(TEST_NAME "test_ck_tile_fmha")
 
+# Pure coordinate/selector tests also cover targets where XCD remap is disabled.
+add_gtest_executable(test_ck_tile_fmha_fwd_workgroup_mapping
+    test_fmha_fwd_workgroup_mapping.cpp)
+get_test_property(test_ck_tile_fmha_fwd_workgroup_mapping LABELS FMHA_MAPPING_COMMON_LABELS)
+set_tests_properties(test_ck_tile_fmha_fwd_workgroup_mapping PROPERTIES
+    LABELS "${FMHA_MAPPING_COMMON_LABELS};${TEST_NAME};CK_TILE_FMHA_TESTS")
+
 function(add_gtest_fwd test_group)
     set(V_TYPES "fp16" "bf16" "fp8bf16" "fp32" "mxfp8" "mxfp4")
     # fp8/fp8fp32 targets and the quantization-scale sweep only have instances on gfx125x.
@@ -101,7 +108,8 @@ endfunction()
 
 add_gtest_fwd(${TEST_NAME}_fwd)
 add_gtest_bwd(${TEST_NAME}_bwd)
-add_custom_target(${TEST_NAME} DEPENDS ${TEST_NAME}_fwd ${TEST_NAME}_bwd)
+add_custom_target(${TEST_NAME} DEPENDS ${TEST_NAME}_fwd ${TEST_NAME}_bwd
+    test_ck_tile_fmha_fwd_workgroup_mapping)
 
 set(FMHA_QR_TDM_TEST_TARGETS)
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
@@ -305,6 +313,7 @@ set_tests_properties(test_ck_tile_fmha_fwd_codegen PROPERTIES
 add_custom_target(ck_tile_fmha_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_FMHA_TESTS"
     DEPENDS ${TEST_NAME} ${FMHA_QR_TDM_TEST_TARGETS} ${FMHA_QR_TDM_SCHED_TEST_TARGETS}
+        test_ck_tile_fmha_fwd_workgroup_mapping
     USES_TERMINAL
     COMMENT "Running all ck_tile fmha tests..."
 )

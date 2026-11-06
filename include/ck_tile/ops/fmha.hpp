@@ -34,6 +34,7 @@
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_splitkv_combine_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_splitkv_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_v3_kernel.hpp"
+#include "ck_tile/ops/fmha/kernel/fmha_fwd_workgroup_mapping.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async_default_policy.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_convert_dq.hpp"

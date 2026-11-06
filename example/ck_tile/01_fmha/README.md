@@ -72,11 +72,41 @@ count; its square-causal check compares packed Q/K totals. When
 
 WG indexing follows the existing shared kernel rules. For batch BHSD square
 causal attention with one V tile and no dropout, sched D64/D128 visit the longest
-Q tile across heads within each batch first. Sched D192 keeps the existing
+Q tile across heads within each batch first, subject to the grouped XCD path
+described below. Sched D192 keeps the existing
 head-major remap; group mode does not enter this batch-local branch. The XCC
 mode 5/tm5r experiment remains disabled unless `CK_TILE_FMHA_PAIRED_XCC_ORDER`
 is explicitly defined to a nonzero value. Its eight-XCC mapping assumptions
 must be checked on the target hardware before enabling it.
+
+The forward workgroup mapping is defined in
+[`fmha_fwd_workgroup_mapping.hpp`](../../../include/ck_tile/ops/fmha/kernel/fmha_fwd_workgroup_mapping.hpp).
+`GetTileIndex()` normalizes the launch axes and supplies pipeline, architecture,
+layout, and sequence properties to `MapFmhaFwdWorkgroup()`. That single helper
+selects the path and returns the Q tile, V tile, head, and batch together.
+No policy enum or intermediate permutation is exposed to callers.
+
+The measured gfx1250 scheduled BF16 D128/M128/N128 family additionally groups
+whole (batch, head) rows within each XCD for uniform, square causal MHA in
+batch mode with a single V tile.
+This path requires eight XCDs, 2–16 Q tiles, a batch/head product divisible by 32,
+and no bias, dropout, LSE, sink, softcap, or quantization scale. Groups contain
+4, 8, or 16 (batch, head) rows; heavy Q tiles run first within each group.
+Larger sequences and other cases retain the existing mapping. The opt-in paired-XCC experiment,
+including its fallback order, takes precedence over this grouping.
+
+The non-causal XCD path is unchanged. The BHSD and general-grid XCD fallbacks
+have the same logical head-major order. They retain separate batch-first and
+tile-first arithmetic forms because merging them measured slower in the early
+gfx1250 standalone experiment.
+Both share the corrected Q/V decoding: masking reverses the Q dimension only.
+Unit tests check the complete mapping; GPU tests exercise `GetTileIndex()`
+thresholds and fallbacks. The launch interface and Kargs are unchanged.
+
+The mapper's coordinate coverage does not expand a pipeline's supported head
+dimensions. In particular, the QR TDM paths still assume a single V tile when
+loading V; testing multi-V coordinates does not establish multi-V attention
+support for those pipelines.
 
 The implementation separates tile selection, data operations, and placement:
 
