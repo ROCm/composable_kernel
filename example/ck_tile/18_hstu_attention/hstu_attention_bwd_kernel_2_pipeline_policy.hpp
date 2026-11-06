@@ -14,6 +14,7 @@
 #include "block_gemm_areg_bsmem_creg_v2_hack_1.hpp"
 #include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
 #include "block_gemm_asmem_breg_creg_v1_hack.hpp"
+#include "block_gemm_tdm_group_prefetch.hpp"
 
 #include "hstu_attention_config.hpp"
 #include "hstu_attention_kernel_util.hpp"
@@ -1060,7 +1061,21 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
             decltype(warp_gemm)>;
 
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t MIterPerWarp =
+            Problem::HstuAttentionTileSetting::kM0Sub / decltype(warp_gemm)::kM;
+        constexpr index_t KIterPerWarp =
+            Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kK;
+        constexpr index_t kTdmGemmPrefetchDepth = MIterPerWarp * KIterPerWarp / 2;
+        constexpr index_t kTdmGemmStepsPerGroup = 1;
+
+        return BlockGemmASmemBRegCRegTdmGroupPrefetch<GemmProblem,
+                                                      BlockGemmPolicy,
+                                                      kTdmGemmPrefetchDepth,
+                                                      kTdmGemmStepsPerGroup>{};
+#else
         return BlockGemmASmemBRegCRegV1Hack<GemmProblem, BlockGemmPolicy>{};
+#endif
     }
 
     // Same as GetQKBlockGemm but with kM0 (instead of kM0Sub) as the M tile dimension.
@@ -1192,7 +1207,21 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
             decltype(warp_gemm)>;
 
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t MIterPerWarp =
+            Problem::HstuAttentionTileSetting::kM0Sub / decltype(warp_gemm)::kM;
+        constexpr index_t KIterPerWarp =
+            Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kK;
+        constexpr index_t kTdmGemmPrefetchDepth = MIterPerWarp * KIterPerWarp / 2;
+        constexpr index_t kTdmGemmStepsPerGroup = 1;
+
+        return BlockGemmASmemBRegCRegTdmGroupPrefetch<GemmProblem,
+                                                      BlockGemmPolicy,
+                                                      kTdmGemmPrefetchDepth,
+                                                      kTdmGemmStepsPerGroup>{};
+#else
         return BlockGemmASmemBRegCRegV1Hack<GemmProblem, BlockGemmPolicy>{};
+#endif
     }
 
     // is_target_warptile_16_32 == true selects the 16x16x32 (native mfma, WGAttrNumAccessEnum::
@@ -1488,7 +1517,21 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         }
         else
         {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+            constexpr index_t NIterPerWarp =
+                Problem::HstuAttentionTileSetting::kVHeaddim / decltype(warp_gemm)::kN;
+            constexpr index_t KIterPerWarp =
+                Problem::HstuAttentionTileSetting::kK1 / decltype(warp_gemm)::kK;
+            constexpr index_t kTdmGemmPrefetchDepth = NIterPerWarp * KIterPerWarp / 2;
+            constexpr index_t kTdmGemmStepsPerGroup = 1;
+
+            return BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1<GemmProblem,
+                                                                  BlockGemmPolicy,
+                                                                  kTdmGemmPrefetchDepth,
+                                                                  kTdmGemmStepsPerGroup>{};
+#else
             return BlockGemmARegBSmemTrLoadCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+#endif
         }
     }
 
@@ -1594,7 +1637,21 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         }
         else
         {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+            constexpr index_t NIterPerWarp =
+                Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kN;
+            constexpr index_t KIterPerWarp =
+                Problem::HstuAttentionTileSetting::kK1 / decltype(warp_gemm)::kK;
+            constexpr index_t kTdmGemmPrefetchDepth = NIterPerWarp * KIterPerWarp / 2;
+            constexpr index_t kTdmGemmStepsPerGroup = 1;
+
+            return BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1<GemmProblem,
+                                                                  BlockGemmPolicy,
+                                                                  kTdmGemmPrefetchDepth,
+                                                                  kTdmGemmStepsPerGroup>{};
+#else
             return BlockGemmARegBSmemTrLoadCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+#endif
         }
     }
 };

@@ -13,6 +13,7 @@
 #include "block_gemm_areg_bsmem_creg_v2_hack_0.hpp"
 #include "block_gemm_areg_bsmem_creg_v2_hack_1.hpp"
 #include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
+#include "block_gemm_tdm_group_prefetch.hpp"
 
 #include "hstu_attention_config.hpp"
 #include "hstu_attention_kernel_util.hpp"
@@ -1013,7 +1014,21 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
             decltype(warp_gemm)>;
 
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t NIterPerWarp =
+            Problem::HstuAttentionTileSetting::kN0Sub / decltype(warp_gemm)::kN;
+        constexpr index_t KIterPerWarp =
+            Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kK;
+        constexpr index_t kTdmGemmPrefetchDepth = NIterPerWarp * KIterPerWarp / 2;
+        constexpr index_t kTdmGemmStepsPerGroup = 1;
+
+        return BlockGemmARegBSmemCRegTdmGroupPrefetch_0<GemmProblem,
+                                                        BlockGemmPolicy,
+                                                        kTdmGemmPrefetchDepth,
+                                                        kTdmGemmStepsPerGroup>{};
+#else
         return BlockGemmARegBSmemCRegV2Hack_0<GemmProblem, BlockGemmPolicy>{};
+#endif
     }
 
     // Same as GetQKBlockGemm but with kN0 (instead of kN0Sub) as the N tile dimension.
@@ -1145,7 +1160,21 @@ struct HstuAttentionBwdKernel1PipelinePolicy
             typename Problem::HstuAttentionTileSetting::Gemm0Gemm2BlockWarps,
             decltype(warp_gemm)>;
 
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t NIterPerWarp =
+            Problem::HstuAttentionTileSetting::kN0Sub / decltype(warp_gemm)::kN;
+        constexpr index_t KIterPerWarp =
+            Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kK;
+        constexpr index_t kTdmGemmPrefetchDepth = NIterPerWarp * KIterPerWarp / 2;
+        constexpr index_t kTdmGemmStepsPerGroup = 1;
+
+        return BlockGemmARegBSmemCRegTdmGroupPrefetch_0<GemmProblem,
+                                                        BlockGemmPolicy,
+                                                        kTdmGemmPrefetchDepth,
+                                                        kTdmGemmStepsPerGroup>{};
+#else
         return BlockGemmARegBSmemCRegV2Hack_0<GemmProblem, BlockGemmPolicy>{};
+#endif
     }
 
     // Gemm4 single-rep N (used by the epilogue to stride over dQ output)
@@ -1244,7 +1273,21 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         }
         else
         {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+            constexpr index_t NIterPerWarp =
+                Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kN;
+            constexpr index_t KIterPerWarp =
+                Problem::HstuAttentionTileSetting::kK1 / decltype(warp_gemm)::kK;
+            constexpr index_t kTdmGemmPrefetchDepth = NIterPerWarp * KIterPerWarp / 2;
+            constexpr index_t kTdmGemmStepsPerGroup = 1;
+
+            return BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1<GemmProblem,
+                                                                  BlockGemmPolicy,
+                                                                  kTdmGemmPrefetchDepth,
+                                                                  kTdmGemmStepsPerGroup>{};
+#else
             return BlockGemmARegBSmemTrLoadCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+#endif
         }
     }
 };
