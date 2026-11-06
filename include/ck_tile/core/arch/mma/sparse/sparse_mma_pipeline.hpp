@@ -36,6 +36,11 @@ namespace ck_tile::core::arch::mma {
  * Like WaveWiseMmaPipeline, this decomposes WaveTile dimensions into fragments and iterates
  * internally over FragsM x FragsN x FragsK. The A operand is provided in uncompressed form;
  * 2:4 structured sparsity compression (SparseCompressTransform) is applied.
+ *
+ * Requires a full active wavefront: the A/B/C matrix fragments are distributed
+ * per-lane across all 32 lanes of the wave (see kABKPerLane), so the underlying
+ * swmmac builtins are wave-cooperative. Partial-EXEC (inactive lanes) leaves
+ * those fragment lanes undefined and is unsupported for this primitive.
  * @tparam ADataType_      Data type of input WaveTile A
  * @tparam BDataType_      Data type of input WaveTile B
  * @tparam CDataType_      Data type of input/output WaveTile C (accumulator)
@@ -224,7 +229,18 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
     static constexpr index_t InternalAVecSize       = vector_traits<FragAVecT>::vector_size;
     static constexpr index_t ExternalAVecSize       = InternalAVecSize * MmaOp::kCompressionRatio;
     static constexpr index_t TotalUncompressedElems = FragsM * FragsK * ExternalAVecSize;
-    static constexpr index_t TotalCompressedElems   = FragsM * FragsK * InternalAVecSize;
+    // Fix (bug 2): the sparsity idx metadata is one
+    // 2-bit field per LOGICAL compressed element, not per physical storage
+    // element -- these differ for packed sub-byte A types (pk_int4_t,
+    // APackedSize=2). Confirmed against the RDNA4 ISA (Sec 7.12.3 Structured
+    // Sparse Matrices): "Wave32: each lane has 8 index values per lane" for a
+    // K=32 iu4 tile, where InternalAVecSize (physical pk_int4_t BYTE count
+    // per lane) is only 4 -- the ISA's own count is exactly
+    // InternalAVecSize * APackedSize, confirming idx tracks NIBBLES, not
+    // BYTES, for packed A. For APackedSize==1 (int8/fp8/fp16/...) this is a
+    // no-op (matches the original formula exactly).
+    static constexpr index_t TotalCompressedElems =
+        FragsM * FragsK * InternalAVecSize * MmaOp::APackedSize;
 
     // Variable-length idx type for the whole wave-tile (spans multiple int32_t words if needed)
     static constexpr index_t IdxNumWords = sparse::detail::idx_words_needed<TotalCompressedElems>;
@@ -278,7 +294,7 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
                             a_frags[bm][bk],
                             b_buf.at(bn * FragsK + bk),
                             c_buf.at(bm * FragsN + bn),
-                            sparse::detail::extract_fragment_idx<InternalAVecSize, FragsK>(
+                            sparse::detail::extract_fragment_idx<InternalAVecSize * MmaOp::APackedSize, FragsK>(
                                 idx, bm, bk));
                     }
                 }
@@ -296,7 +312,7 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
                             a_frags[bm][bk],
                             b_buf.at(bn * FragsK + bk),
                             c_buf.at(bm * FragsN + bn),
-                            sparse::detail::extract_fragment_idx<InternalAVecSize, FragsK>(
+                            sparse::detail::extract_fragment_idx<InternalAVecSize * MmaOp::APackedSize, FragsK>(
                                 idx, bm, bk));
                     }
                 }
@@ -319,7 +335,8 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
         using ExternalAvecRef = std::add_lvalue_reference_t<AVecType>;
         static_assert(
             std::is_same_v<ATransformResult,
-                           decltype(ATransform::execExtVec(std::declval<ExternalAvecRef>()))>,
+                           decltype(ATransform::template execExtVec<AVecType, ADataType>(
+                               std::declval<ExternalAvecRef>()))>,
             "ATransformResult must match the return type of ATransform::exec");
 
         using CompressedVecType =
