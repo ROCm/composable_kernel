@@ -110,6 +110,39 @@ TEST(MxGemmSplitKSupport, TdmV2RejectsSplitK)
     EXPECT_TRUE(supports(1));
 }
 
+// comp_tdm_v3 declares kSupportsTdmSplitK: with CShuffle each split adds into C atomically and
+// its TDM loads are clipped to its K range, so it takes k_batch > 1.
+TEST(MxGemmSplitKSupport, TdmV3CShuffleAcceptsSplitK)
+{
+    const auto supports =
+        supports_split_k<2, ck_tile::GemmPipelineAgBgCrCompTDMV3, ck_tile::CShuffleEpilogue>;
+    // Accepting an argument also requires a gfx125 device.
+    if(!ck_tile::is_gfx125_supported())
+    {
+        GTEST_SKIP() << "TDM pipelines require a gfx125 device";
+    }
+    EXPECT_TRUE(supports(1));
+    EXPECT_TRUE(supports(2));
+}
+
+// The other TDM pipelines do not declare it and keep rejecting MX split-K, even with an epilogue
+// that could add the splits.
+TEST(MxGemmSplitKSupport, TdmV1V2CShuffleRejectSplitK)
+{
+    const auto v1 =
+        supports_split_k<2, ck_tile::GemmPipelineAgBgCrCompTDMV1, ck_tile::CShuffleEpilogue>;
+    const auto v2 =
+        supports_split_k<2, ck_tile::GemmPipelineAgBgCrCompTDMV2, ck_tile::CShuffleEpilogue>;
+    EXPECT_FALSE(v1(2));
+    EXPECT_FALSE(v2(2));
+    if(!ck_tile::is_gfx125_supported())
+    {
+        GTEST_SKIP() << "TDM pipelines require a gfx125 device";
+    }
+    EXPECT_TRUE(v1(1));
+    EXPECT_TRUE(v2(1));
+}
+
 TEST(MxGemmSplitKSupport, PairedPermuteNRetainsSplitK)
 {
     const auto supports =

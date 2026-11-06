@@ -14,13 +14,13 @@ This example times the `GemmPipelineAgBgCrCompTDMV3` pipeline on gfx1250. It als
 |---|---|
 | Data types | A, B fp8 e4m3 (OCP); fp32 accumulate; C bf16 |
 | Layout | RCR: A row-major M x K, B column-major (N x K), C row-major M x N; packed strides |
-| Block tile | 256 x 256 x 256, 16 waves (warps 4 x 4 x 1), 512 threads, 1 block per CU |
-| Warp tile | 32 x 32 x 128 (WMMA f8f6f4) |
+| Block tile | default 256 x 256 x 256, 16 waves (warps 4 x 4 x 1), 512 threads, 1 block per CU; `-tile` also offers 4-wave tiles for small M (see Arguments) |
+| Warp tile | 32 x 32 x 128 for 256 x 256 x 256; 16 x 16 x 128 for the 4-wave tiles |
 | Pipeline | `GemmPipelineAgBgCrCompTDMV3`, default policy (alternating TDM issuers), double LDS buffer |
-| Epilogue | CShuffle, bf16 out |
+| Epilogue | CShuffle (default, padded in M and N; split-K) or TDM (`-epilogue=tdm`), bf16 out |
 | Partitioner | `GemmTile1DPartitioner` |
-| Limits | M, N and K must be multiples of 256 (no padding); split-K 1 |
-| Resources (both compilers) | 249 VGPRs, 0 scratch, 278,464 B LDS, occupancy 4 waves/SIMD |
+| Limits | `Kernel::IsSupportedArgument` decides which M, N, K and `-k_batch` an instance takes; TDM clips the A/B boxes to the real extent |
+| Resources of the default instance (both compilers) | 249 VGPRs, 0 scratch, 278,464 B LDS, occupancy 4 waves/SIMD |
 
 ## Requirements
 
@@ -53,7 +53,10 @@ Arguments use CK's `-name=value` form. `-?` prints the list.
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `-m`, `-n`, `-k` | 4096, 4096, 65536 | problem size (multiples of 256) |
+| `-m`, `-n`, `-k` | 4096, 4096, 65536 | problem size |
+| `-tile` | `256x256x256` | `256x256x256` (16 waves); `64x256x256`, `32x256x256`, `32x128x256`, `32x64x256` (warps 2 x 2 x 1); `16x512x256`, `16x256x256`, `16x128x256`, `16x64x256` (warps 1 x 4 x 1) |
+| `-epilogue` | `cshuffle` | `cshuffle` (padded) or `tdm` (one TDM store of C, clipped to M x N) |
+| `-k_batch` | 1 | split K into this many ranges added into C atomically (CShuffle only; C is zeroed before every launch, inside the timed loop) |
 | `-mode` | `peak` | `verify-int`, `verify-rand`, `peak`, `sustained` |
 | `-data` | `rand` | input data for `peak` / `sustained`: `rand` or `int` |
 | `-seed` | 12345 | input RNG seed (the same seed gives the same bytes in every mode) |
@@ -61,7 +64,7 @@ Arguments use CK's `-name=value` form. `-?` prints the list.
 | `-warmup`, `-repeat` | peak 1, 3; sustained 50, 100 | untimed and timed launches per sample |
 | `-rounds` | peak 15; sustained 1 | samples |
 | `-gap_ms` | peak 25; sustained 0 | idle time before each sample |
-| `-verify_launches` | 5 | verify modes: launches; every output must be byte-identical to the first |
+| `-verify_launches` | 5 | verify modes: launches; with `-k_batch=1` every output must be byte-identical to the first |
 | `-check` | `auto` | verify modes: `full`, `sample`, or `auto` (full when M·N·K ≤ 2^33) |
 | `-check_per_tile` | 64 | sampled check: random points per 256 x 256 output tile, plus the tile's 4 corners |
 
@@ -71,6 +74,7 @@ Arguments use CK's `-name=value` form. `-?` prints the list.
 - **`verify-rand`** uses the same random data as `peak`. It compares against a double-precision host reference, with the per-element tolerance `|got - ref| <= |ref|·2^-7 + Σ|a·b|·2^-16`. It reports:
   - `max_abs_err`;
   - `max_rel_err`, which is `|got - ref| / |ref|` over points where `|ref|` ≥ 1% of the RMS of the reference. The bf16 rounding alone allows up to 2^-8 ≈ 3.9e-3.
+- **Split-K.** With `-k_batch` > 1 every split rounds its partial sum to bf16 and adds it into C atomically, in no fixed order, so both verify modes use `|got - ref| <= |ref|·2^-7 + k_batch·Σ|a·b|·2^-7`, and the outputs of the launches need not be identical.
 - **Reference cost.** At 4096 x 4096 x 65536 a full CPU reference costs 1.1e12 MACs, so `auto` checks a sample there: 64 random points per output tile plus each tile's corners, 17,408 points in about a second. The sample catches tile-wide and systematic errors, not a single wrong element. `-check=full` forces the full check (CPU-bound and threaded; it can take tens of minutes).
 - **`peak`** runs `-rounds` samples. Each sample is: idle `-gap_ms`, `-warmup` untimed launches, then `-repeat` launches between two `hipEvent`s. The sample value is the mean time per launch. The defaults (warmup 1, repeat 3, 25 ms idle, 15 samples, median) follow the rocKE peak protocol. At 4096 x 4096 x 65536 a 0.4 ms launch gives a timed window of about 1.2 ms. If this kernel is much slower, `-repeat=1` keeps the window near 1.2 ms.
 - **`sustained`** runs 50 warmup and 100 timed launches back to back, with no idle time.

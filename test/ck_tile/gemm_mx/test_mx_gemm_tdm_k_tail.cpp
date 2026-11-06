@@ -19,7 +19,8 @@
  *          NarrowPitchKTails those whose rows are an odd number of bytes or 2 bytes past a
  *          multiple of 4. On gfx1250 asicRevision 0 the harness runs only the non-cluster rows
  *          with 16x16 warp tiles and E8M0 scales (the bf16-C rows and the FP8 256- and 384-deep
- *          rows) and skips the others.
+ *          rows) and skips the others. The FP8 rows of comp_tdm_v3 with the TDM epilogue are
+ *          listed last.
  *
  *          TestCkTileMxGemmTdmFp6KTail runs pk_fp6x16_t on both sides, in the one configuration
  *          the TDM pipelines support for FP6 (row-major A, column-major B, 16x16x128 warp tiles,
@@ -77,7 +78,14 @@ using KernelTypesMxGemmTdmKTail = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I256,       I16,        I16,        CompTDMV1,  I32>,
     std::tuple<    Row,     Col,     Row,       F4,        F4,    E5M3,  E5M3,      F32,       F16,        I64,         I64,          I256,       I32,        I32,        CompTDMV1,  I32>,
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,       I128,        I128,          I384,       I16,        I16,        CompTDMV1,  I32>,
-    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,       I128,        I128,          I384,       I16,        I16,        CompTDMV2,  I32>
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,       I128,        I128,          I384,       I16,        I16,        CompTDMV2,  I32>,
+    // comp_tdm_v3 (FP8 x FP8) with the TDM epilogue: the rows of KernelTypesMxGemmTdmV3 for each C
+    // type, plus a 256-deep K tile, where the last K tile can read a scale pack past
+    // ceil(K / 128). comp_tdm_v3 with the CShuffle epilogue rejects K tails in
+    // IsSupportedArgument, so it has no row here.
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I128,       I16,        I16,        CompTDMV3,          I32>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV3,          I32>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I256,       I16,        I16,        CompTDMV3,          I32>
 >;
 // clang-format on
 

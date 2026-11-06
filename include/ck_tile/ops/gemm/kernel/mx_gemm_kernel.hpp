@@ -285,6 +285,11 @@ struct MxGemmKernel
     using MxGemmPipeline   = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
+    /// Whether this TDM pipeline runs MX split-K correctly with a split-K-capable epilogue: only
+    /// a pipeline that declares kSupportsTdmSplitK (comp_tdm_v3). The others keep the TDM
+    /// split-K rejection whatever the epilogue.
+    using BaseKernel::kPipelineSupportsTdmSplitK;
+
     using BaseKernel::PersistentKernel;
     using typename BaseKernel::AsLayout;
     using typename BaseKernel::BsLayout;
@@ -510,8 +515,16 @@ struct MxGemmKernel
             // UniversalGemmKernel::IsSupportedArgument skips its shape checks for TDM pipelines.
             // The device check comes last so that the argument checks also run on a host without
             // a gfx125 device.
+            // The TDM split-K rejection guards the TDM epilogue, which overwrites C, and the TDM
+            // pipelines whose loads are not clipped to a split's K range. A pipeline that
+            // declares kSupportsTdmSplitK (comp_tdm_v3) with a split-K-capable epilogue
+            // (CShuffle, checked above as kSplitKAtomicAddSupported) adds each split into C
+            // atomically, so k_batch > 1 is not rejected here for it.
+            const index_t tdm_k_batch =
+                (is_tdm_epilogue_v<EpiloguePipeline> || !kPipelineSupportsTdmSplitK) ? kargs.k_batch
+                                                                                     : 1;
             if(!BaseKernel::IsTdmArgumentSupported("MX GEMM",
-                                                   kargs.k_batch,
+                                                   tdm_k_batch,
                                                    kargs.K,
                                                    kargs.as_ptr[0],
                                                    kargs.bs_ptr[0],

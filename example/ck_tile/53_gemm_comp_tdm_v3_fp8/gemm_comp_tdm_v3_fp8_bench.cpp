@@ -3,10 +3,20 @@
 
 // Timed benchmark and verifier for GemmPipelineAgBgCrCompTDMV3 on gfx1250.
 //
-// One instance: fp8 e4m3 A and B, fp32 accumulate, bf16 C, A row-major, B column-major, C
-// row-major (RCR). Block tile 256x256x256, 16 waves (warps 4x4x1), warp tile 32x32x128, double LDS
-// buffer, alternating TDM issuers (the default GemmPipelineAgBgCrCompTDMV3Policy), CShuffle
-// epilogue, GemmTile1DPartitioner, one block per CU.
+// fp8 e4m3 A and B, fp32 accumulate, bf16 C, A row-major, B column-major, C row-major (RCR),
+// double LDS buffer, alternating TDM issuers (the default GemmPipelineAgBgCrCompTDMV3Policy),
+// GemmTile1DPartitioner. Instances, chosen at run time:
+//   -tile     256x256x256                              16 waves (warps 4x4x1), warp tile 32x32x128
+//             64x256x256 | 32x256x256 | 32x128x256 | 32x64x256
+//                                                      4 waves (warps 2x2x1), warp tile 16x16x128
+//             16x512x256 | 16x256x256 | 16x128x256 | 16x64x256
+//                                                      4 waves (warps 1x4x1), warp tile 16x16x128
+//   -epilogue cshuffle | tdm   CShuffle is padded (kPadM, kPadN); TdmEpilogue writes C with one
+//                              TDM store clipped to M x N.
+//   -k_batch  N                split K into N ranges added into C atomically (CShuffle only; C is
+//                              zeroed before every launch, inside the timed loop).
+// TDM clips every A/B box to the real extent, so M and N need not be multiples of the tile;
+// Kernel::IsSupportedArgument decides which M, N, K and k_batch an instance takes.
 //
 // Modes (-mode=):
 //   verify-int   integers in [-5, 5] (exact in e4m3). Every partial sum is an integer below 2^24,
@@ -17,13 +27,18 @@
 //   peak         -rounds samples; before each, -gap_ms of idle, -warmup untimed launches, then
 //                -repeat launches between two hipEvents. A sample is the mean time per launch.
 //   sustained    the same loop with 50 warmup, 100 repeat, no idle gap and one round.
+// With -k_batch > 1 every split rounds its partial sum to bf16 and adds it into C atomically, in
+// no fixed order, so both verify modes use |got - ref| <= |ref| * 2^-7 + k_batch * sum|a*b| * 2^-7
+// and the outputs of the launches need not be identical.
 // The verify modes launch the kernel -verify_launches times and require every output to be
-// byte-identical to the first. The reference covers every output (-check=full) or, for large
-// problems, a sample of -check_per_tile points in every 256x256 output tile plus its four corners
+// byte-identical to the first (k_batch 1). The reference covers every output (-check=full) or, for
+// large problems, a sample of -check_per_tile points in every 256x256 output tile plus its four
+// corners
 // (-check=sample). -check=auto picks full when M*N*K <= 2^33.
 //
 // Output: one JSON line per timed sample ("type":"sample") and one summary line
-// ("type":"summary"); verify modes print one "type":"verify" line. Exit code 0 = pass.
+// ("type":"summary"); verify modes print one "type":"verify" line. Exit code: 0 pass, 1 wrong
+// result, 2 rejected or bad arguments, 3 error.
 
 #include <algorithm>
 #include <chrono>
@@ -35,6 +50,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include <hip/hip_runtime.h>
@@ -55,58 +71,68 @@ using ALayout     = ck_tile::tensor_layout::gemm::RowMajor;
 using BLayout     = ck_tile::tensor_layout::gemm::ColumnMajor;
 using CLayout     = ck_tile::tensor_layout::gemm::RowMajor;
 
-constexpr ck_tile::index_t kTileM  = 256;
-constexpr ck_tile::index_t kTileN  = 256;
-constexpr ck_tile::index_t kTileK  = 256;
-constexpr ck_tile::index_t kWarpsM = 4;
-constexpr ck_tile::index_t kWarpsN = 4;
-constexpr ck_tile::index_t kWarpM  = 32;
-constexpr ck_tile::index_t kWarpN  = 32;
-constexpr ck_tile::index_t kWarpK  = 128;
+// One compiled kernel per (tile, epilogue). The CShuffle epilogue needs kPadM/kPadN for a partial
+// C tile; TDM clips the A/B boxes and the C store, so its instances are unpadded.
+template <ck_tile::index_t TileM,
+          ck_tile::index_t TileN,
+          ck_tile::index_t TileK,
+          ck_tile::index_t WarpsM,
+          ck_tile::index_t WarpsN,
+          ck_tile::index_t WarpM,
+          ck_tile::index_t WarpN,
+          ck_tile::index_t WarpK,
+          bool TdmEpi>
+struct Instance
+{
+    static constexpr bool kPad = !TdmEpi;
+    using TileShape            = ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
+                                                        ck_tile::sequence<WarpsM, WarpsN, 1>,
+                                                        ck_tile::sequence<WarpM, WarpN, WarpK>>;
+    using Partitioner          = ck_tile::GemmTile1DPartitioner<TileShape>;
+    using Traits               = ck_tile::TileGemmUniversalTraits<kPad,
+                                                                  kPad,
+                                                                  false, // kPadK
+                                                                  true,  // DoubleSmemBuffer
+                                                                  ALayout,
+                                                                  BLayout,
+                                                                  CLayout>;
+    using Problem =
+        ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                              BDataType,
+                                              AccDataType,
+                                              TileShape,
+                                              Traits,
+                                              ck_tile::GemmPipelineScheduler::Intrawave>;
+    using Pipeline        = ck_tile::GemmPipelineAgBgCrCompTDMV3<Problem>;
+    using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                             BDataType,
+                                                             ck_tile::tuple<>,
+                                                             AccDataType,
+                                                             CDataType,
+                                                             ck_tile::tuple<>,
+                                                             CLayout,
+                                                             ck_tile::element_wise::PassThrough,
+                                                             TileM,
+                                                             TileN,
+                                                             WarpsM,
+                                                             WarpsN,
+                                                             WarpM,
+                                                             WarpN,
+                                                             WarpK,
+                                                             false, // isCTransposed
+                                                             1,     // kNumWaveGroups
+                                                             false, // FixedVectorSize
+                                                             1,     // VectorSizeC
+                                                             1,     // BlockedXDLN_PerWarp
+                                                             true>; // DoubleSmemBuffer
+    using Epilogue        = std::conditional_t<TdmEpi,
+                                               ck_tile::TdmEpilogue<EpilogueProblem>,
+                                               ck_tile::CShuffleEpilogue<EpilogueProblem>>;
+    using Kernel          = ck_tile::GemmKernel<Partitioner, Pipeline, Epilogue>;
+};
 
-using TileShape       = ck_tile::TileGemmShape<ck_tile::sequence<kTileM, kTileN, kTileK>,
-                                               ck_tile::sequence<kWarpsM, kWarpsN, 1>,
-                                               ck_tile::sequence<kWarpM, kWarpN, kWarpK>>;
-using Partitioner     = ck_tile::GemmTile1DPartitioner<TileShape>;
-using Traits          = ck_tile::TileGemmUniversalTraits<false, // kPadM
-                                                         false, // kPadN
-                                                         false, // kPadK
-                                                         true,  // DoubleSmemBuffer
-                                                         ALayout,
-                                                         BLayout,
-                                                         CLayout>;
-using Problem         = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                              BDataType,
-                                                              AccDataType,
-                                                              TileShape,
-                                                              Traits,
-                                                              ck_tile::GemmPipelineScheduler::Intrawave>;
-using Pipeline        = ck_tile::GemmPipelineAgBgCrCompTDMV3<Problem>;
-using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                         BDataType,
-                                                         ck_tile::tuple<>,
-                                                         AccDataType,
-                                                         CDataType,
-                                                         ck_tile::tuple<>,
-                                                         CLayout,
-                                                         ck_tile::element_wise::PassThrough,
-                                                         kTileM,
-                                                         kTileN,
-                                                         kWarpsM,
-                                                         kWarpsN,
-                                                         kWarpM,
-                                                         kWarpN,
-                                                         kWarpK,
-                                                         false, // isCTransposed
-                                                         1,     // kNumWaveGroups
-                                                         false, // FixedVectorSize
-                                                         1,     // VectorSizeC
-                                                         1,     // BlockedXDLN_PerWarp
-                                                         true>; // DoubleSmemBuffer
-using Epilogue        = ck_tile::CShuffleEpilogue<EpilogueProblem>;
-using Kernel          = ck_tile::GemmKernel<Partitioner, Pipeline, Epilogue>;
-
-constexpr const char* kBenchName = "ck_comp_tdm_v3_fp8_bf16_rcr_256x256x256_w4x4x1_wt32x32x128";
+// The sampled check draws its points per 256x256 output region, whatever the tile.
+constexpr ck_tile::index_t kCheckTile = 256;
 
 #define BENCH_HIP_CHECK(expr)                                                                    \
     do                                                                                           \
@@ -275,11 +301,11 @@ check_points(ck_tile::index_t M, ck_tile::index_t N, bool full, int per_tile, ui
         return pts;
     }
     std::mt19937_64 g(splitmix64(seed ^ 0x5A5A5A5Aull));
-    for(ck_tile::index_t tm = 0; tm < M; tm += kTileM)
-        for(ck_tile::index_t tn = 0; tn < N; tn += kTileN)
+    for(ck_tile::index_t tm = 0; tm < M; tm += kCheckTile)
+        for(ck_tile::index_t tn = 0; tn < N; tn += kCheckTile)
         {
-            const ck_tile::index_t m1 = std::min(M, tm + kTileM) - 1;
-            const ck_tile::index_t n1 = std::min(N, tn + kTileN) - 1;
+            const ck_tile::index_t m1 = std::min(M, tm + kCheckTile) - 1;
+            const ck_tile::index_t n1 = std::min(N, tn + kCheckTile) - 1;
             pts.push_back({tm, tn});
             pts.push_back({tm, n1});
             pts.push_back({m1, tn});
@@ -309,22 +335,17 @@ struct DeviceBuffers
     }
 };
 
-void launch(const auto& kargs, const Problem3& p, hipStream_t stream)
-{
-    const dim3 grids  = Kernel::GridSize(p.M, p.N, 1);
-    const dim3 blocks = Kernel::BlockSize();
-    ck_tile::launch_kernel(ck_tile::stream_config{stream, false},
-                           ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
-}
-
 double tflops(const Problem3& p, double ms)
 {
     return 2.0 * p.M * p.N * static_cast<double>(p.K) / (ms * 1e-3) / 1e12;
 }
 
-int run(const ck_tile::ArgParser& arg)
+template <typename Inst>
+int run(const ck_tile::ArgParser& arg, const std::string& bench_name)
 {
+    using Kernel = typename Inst::Kernel;
     const Problem3 p{arg.get_int("m"), arg.get_int("n"), arg.get_int("k")};
+    const int k_batch      = arg.get_int("k_batch");
     const std::string mode = arg.get_str("mode");
     const uint64_t seed    = arg.get_uint64("seed");
     const float sigma      = arg.get_float("sigma");
@@ -335,14 +356,13 @@ int run(const ck_tile::ArgParser& arg)
         std::printf("unknown -mode=%s (verify-int, verify-rand, peak, sustained)\n", mode.c_str());
         return 2;
     }
-    if(p.M <= 0 || p.N <= 0 || p.K <= 0 || p.M % kTileM != 0 || p.N % kTileN != 0 ||
-       p.K % kTileK != 0)
+    if(p.M <= 0 || p.N <= 0 || p.K <= 0 || k_batch < 1)
     {
-        std::printf("M, N must be multiples of 256 and K a multiple of 256 (no padding in this "
-                    "instance); got %d %d %d\n",
+        std::printf("M, N and K must be positive and k_batch at least 1; got %d %d %d %d\n",
                     p.M,
                     p.N,
-                    p.K);
+                    p.K,
+                    k_batch);
         return 2;
     }
     Data data = Data::Rand;
@@ -369,7 +389,7 @@ int run(const ck_tile::ArgParser& arg)
     BENCH_HIP_CHECK(hipGetDeviceProperties(&prop, dev));
     std::printf("{\"type\":\"info\",\"bench\":\"%s\",\"kernel\":\"%s\",\"device\":\"%s\","
                 "\"arch\":\"%s\",\"cus\":%d,\"hip_version\":%d,\"compiler\":\"%s\"}\n",
-                kBenchName,
+                bench_name.c_str(),
                 Kernel::GetName().c_str(),
                 prop.name,
                 prop.gcnArchName,
@@ -404,14 +424,30 @@ int run(const ck_tile::ArgParser& arg)
     BENCH_HIP_CHECK(hipMemcpy(d.b, b.data(), b_elems, hipMemcpyHostToDevice));
     BENCH_HIP_CHECK(hipMemset(d.c, 0, c_elems * sizeof(CDataType)));
 
-    const ck_tile::GemmHostArgs args(d.a, d.b, d.c, 1, p.M, p.N, p.K, p.K, p.K, p.N);
+    const ck_tile::GemmHostArgs args(d.a, d.b, d.c, k_batch, p.M, p.N, p.K, p.K, p.K, p.N);
     const auto kargs = Kernel::MakeKernelArgs(args);
     if(!Kernel::IsSupportedArgument(kargs))
     {
-        std::printf("Kernel::IsSupportedArgument rejected M=%d N=%d K=%d\n", p.M, p.N, p.K);
+        std::printf("{\"type\":\"reject\",\"bench\":\"%s\",\"M\":%d,\"N\":%d,\"K\":%d,"
+                    "\"k_batch\":%d,\"reason\":\"Kernel::IsSupportedArgument (set "
+                    "CK_TILE_LOGGING=1 for details)\"}\n",
+                    bench_name.c_str(),
+                    p.M,
+                    p.N,
+                    p.K,
+                    k_batch);
         return 2;
     }
     hipStream_t stream = nullptr;
+    const dim3 grids   = Kernel::GridSize(p.M, p.N, k_batch);
+    const dim3 blocks  = Kernel::BlockSize();
+    auto launch        = [&] {
+        // The splits add into C, so it starts from zero every launch.
+        if(k_batch > 1)
+            BENCH_HIP_CHECK(hipMemsetAsync(d.c, 0, c_elems * sizeof(CDataType), stream));
+        ck_tile::launch_kernel(ck_tile::stream_config{stream, false},
+                               ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
+    };
 
     if(is_verify)
     {
@@ -424,7 +460,7 @@ int run(const ck_tile::ArgParser& arg)
         for(int l = 0; l < launches; ++l)
         {
             BENCH_HIP_CHECK(hipMemset(d.c, 0, c_elems * sizeof(CDataType)));
-            launch(kargs, p, stream);
+            launch();
             BENCH_HIP_CHECK(hipGetLastError());
             BENCH_HIP_CHECK(hipDeviceSynchronize());
             BENCH_HIP_CHECK(
@@ -467,7 +503,9 @@ int run(const ck_tile::ArgParser& arg)
             const double gotf  = bf16_to_float(got);
             const double err   = std::fabs(gotf - refs[i]);
             bool ok;
-            if(data == Data::Int)
+            if(k_batch > 1)
+                ok = err <= std::fabs(refs[i]) * 0x1p-7 + k_batch * sabs[i] * 0x1p-7;
+            else if(data == Data::Int)
                 ok = got == bf16_rne(static_cast<float>(refs[i]));
             else
                 ok = err <= std::fabs(refs[i]) * 0x1p-7 + sabs[i] * 0x1p-16;
@@ -481,30 +519,32 @@ int run(const ck_tile::ArgParser& arg)
                 std::printf(
                     "mismatch m=%d n=%d ref=%.9g got=%.9g\n", pts[i].m, pts[i].n, refs[i], gotf);
         }
-        const bool pass = bad == 0 && nondeterministic == 0;
-        std::printf("{\"type\":\"verify\",\"bench\":\"%s\",\"mode\":\"%s\",\"M\":%d,\"N\":%d,"
-                    "\"K\":%d,\"data\":\"%s\",\"seed\":%llu,\"sigma\":%g,\"check\":\"%s\","
-                    "\"checked\":%zu,\"bad\":%zu,\"launches\":%d,\"nondeterministic_launches\":%zu,"
-                    "\"max_abs_err\":%.6g,\"max_rel_err\":%.6g,\"rel_err_points\":%zu,"
-                    "\"ref_seconds\":%.1f,\"result\":\"%s\"}\n",
-                    kBenchName,
-                    mode.c_str(),
-                    p.M,
-                    p.N,
-                    p.K,
-                    data_name,
-                    static_cast<unsigned long long>(seed),
-                    static_cast<double>(sigma),
-                    full ? "full" : "sample",
-                    pts.size(),
-                    bad,
-                    launches,
-                    nondeterministic,
-                    max_abs,
-                    max_rel,
-                    rel_counted,
-                    ref_s,
-                    pass ? "PASS" : "FAIL");
+        const bool pass = bad == 0 && (nondeterministic == 0 || k_batch > 1);
+        std::printf(
+            "{\"type\":\"verify\",\"bench\":\"%s\",\"mode\":\"%s\",\"M\":%d,\"N\":%d,"
+            "\"K\":%d,\"k_batch\":%d,\"data\":\"%s\",\"seed\":%llu,\"sigma\":%g,\"check\":\"%s\","
+            "\"checked\":%zu,\"bad\":%zu,\"launches\":%d,\"nondeterministic_launches\":%zu,"
+            "\"max_abs_err\":%.6g,\"max_rel_err\":%.6g,\"rel_err_points\":%zu,"
+            "\"ref_seconds\":%.1f,\"result\":\"%s\"}\n",
+            bench_name.c_str(),
+            mode.c_str(),
+            p.M,
+            p.N,
+            p.K,
+            k_batch,
+            data_name,
+            static_cast<unsigned long long>(seed),
+            static_cast<double>(sigma),
+            full ? "full" : "sample",
+            pts.size(),
+            bad,
+            launches,
+            nondeterministic,
+            max_abs,
+            max_rel,
+            rel_counted,
+            ref_s,
+            pass ? "PASS" : "FAIL");
         return pass ? 0 : 1;
     }
 
@@ -519,10 +559,10 @@ int run(const ck_tile::ArgParser& arg)
         if(gap_ms > 0)
             std::this_thread::sleep_for(std::chrono::milliseconds(gap_ms));
         for(int w = 0; w < warmup; ++w)
-            launch(kargs, p, stream);
+            launch();
         BENCH_HIP_CHECK(hipEventRecord(start, stream));
         for(int i = 0; i < repeat; ++i)
-            launch(kargs, p, stream);
+            launch();
         BENCH_HIP_CHECK(hipEventRecord(stop, stream));
         BENCH_HIP_CHECK(hipEventSynchronize(stop));
         BENCH_HIP_CHECK(hipGetLastError());
@@ -531,14 +571,16 @@ int run(const ck_tile::ArgParser& arg)
         const double ms = static_cast<double>(total_ms) / std::max(repeat, 1);
         samples.push_back(ms);
         std::printf("{\"type\":\"sample\",\"bench\":\"%s\",\"mode\":\"%s\",\"round\":%d,\"M\":%d,"
-                    "\"N\":%d,\"K\":%d,\"data\":\"%s\",\"seed\":%llu,\"warmup\":%d,\"repeat\":%d,"
+                    "\"N\":%d,\"K\":%d,\"k_batch\":%d,\"data\":\"%s\",\"seed\":%llu,\"warmup\":%d,"
+                    "\"repeat\":%d,"
                     "\"gap_ms\":%d,\"ms\":%.6f,\"tflops\":%.2f}\n",
-                    kBenchName,
+                    bench_name.c_str(),
                     mode.c_str(),
                     r,
                     p.M,
                     p.N,
                     p.K,
+                    k_batch,
                     data_name,
                     static_cast<unsigned long long>(seed),
                     warmup,
@@ -560,14 +602,16 @@ int run(const ck_tile::ArgParser& arg)
     for(double s : samples)
         mean += s / static_cast<double>(n);
     std::printf("{\"type\":\"summary\",\"bench\":\"%s\",\"mode\":\"%s\",\"M\":%d,\"N\":%d,"
-                "\"K\":%d,\"data\":\"%s\",\"seed\":%llu,\"warmup\":%d,\"repeat\":%d,\"rounds\":%d,"
+                "\"K\":%d,\"k_batch\":%d,\"data\":\"%s\",\"seed\":%llu,\"warmup\":%d,\"repeat\":%d,"
+                "\"rounds\":%d,"
                 "\"gap_ms\":%d,\"median_ms\":%.6f,\"best_ms\":%.6f,\"mean_ms\":%.6f,"
                 "\"median_tflops\":%.2f,\"best_tflops\":%.2f,\"best_over_median\":%.4f}\n",
-                kBenchName,
+                bench_name.c_str(),
                 mode.c_str(),
                 p.M,
                 p.N,
                 p.K,
+                k_batch,
                 data_name,
                 static_cast<unsigned long long>(seed),
                 warmup,
@@ -583,14 +627,70 @@ int run(const ck_tile::ArgParser& arg)
     return 0;
 }
 
+// Run time -> instance. Each (tile, epilogue) is one compiled kernel.
+template <bool TdmEpi>
+int dispatch_tile(const ck_tile::ArgParser& arg, const std::string& name)
+{
+    const std::string tile = arg.get_str("tile");
+    if(tile == "256x256x256")
+        return run<Instance<256, 256, 256, 4, 4, 32, 32, 128, TdmEpi>>(arg, name);
+    if(tile == "64x256x256")
+        return run<Instance<64, 256, 256, 2, 2, 16, 16, 128, TdmEpi>>(arg, name);
+    if(tile == "32x256x256")
+        return run<Instance<32, 256, 256, 2, 2, 16, 16, 128, TdmEpi>>(arg, name);
+    if(tile == "32x128x256")
+        return run<Instance<32, 128, 256, 2, 2, 16, 16, 128, TdmEpi>>(arg, name);
+    if(tile == "32x64x256")
+        return run<Instance<32, 64, 256, 2, 2, 16, 16, 128, TdmEpi>>(arg, name);
+    // 16-row tiles: one warp tile in M, the four waves along N (warps 1x4x1)
+    if(tile == "16x512x256")
+        return run<Instance<16, 512, 256, 1, 4, 16, 16, 128, TdmEpi>>(arg, name);
+    if(tile == "16x256x256")
+        return run<Instance<16, 256, 256, 1, 4, 16, 16, 128, TdmEpi>>(arg, name);
+    if(tile == "16x128x256")
+        return run<Instance<16, 128, 256, 1, 4, 16, 16, 128, TdmEpi>>(arg, name);
+    if(tile == "16x64x256")
+        return run<Instance<16, 64, 256, 1, 4, 16, 16, 128, TdmEpi>>(arg, name);
+    std::printf("unknown -tile=%s (256x256x256, 64x256x256, 32x256x256, 32x128x256, 32x64x256, "
+                "16x512x256, 16x256x256, 16x128x256, 16x64x256)\n",
+                tile.c_str());
+    return 2;
+}
+
+int dispatch(const ck_tile::ArgParser& arg)
+{
+    // The default (256x256x256, CShuffle, no split-K) keeps the name it had as the only instance.
+    const std::string tile = arg.get_str("tile");
+    const std::string epi  = arg.get_str("epilogue");
+    const std::string name =
+        "ck_comp_tdm_v3_fp8_bf16_rcr_" + tile +
+        (tile == "256x256x256"
+             ? "_w4x4x1_wt32x32x128"
+             : (tile.rfind("16x", 0) == 0 ? "_w1x4x1_wt16x16x128" : "_w2x2x1_wt16x16x128")) +
+        (epi == "tdm" ? "_tdm" : "") +
+        (arg.get_int("k_batch") > 1 ? "_kb" + arg.get_str("k_batch") : "");
+    if(epi == "cshuffle")
+        return dispatch_tile<false>(arg, name);
+    if(epi == "tdm")
+        return dispatch_tile<true>(arg, name);
+    std::printf("unknown -epilogue=%s (cshuffle, tdm)\n", epi.c_str());
+    return 2;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
 {
     ck_tile::ArgParser arg;
-    arg.insert("m", "4096", "M (multiple of 256)")
-        .insert("n", "4096", "N (multiple of 256)")
-        .insert("k", "65536", "K (multiple of 256)")
+    arg.insert("m", "4096", "M")
+        .insert("n", "4096", "N")
+        .insert("k", "65536", "K")
+        .insert("tile",
+                "256x256x256",
+                "256x256x256 (16 waves) | 64x256x256 | 32x256x256 | 32x128x256 | 32x64x256 | "
+                "16x512x256 | 16x256x256 | 16x128x256 | 16x64x256 (4 waves)")
+        .insert("epilogue", "cshuffle", "cshuffle (padded; split-K) | tdm")
+        .insert("k_batch", "1", "split K into this many atomically added ranges (CShuffle only)")
         .insert("mode", "peak", "verify-int | verify-rand | peak | sustained")
         .insert("data", "rand", "input data for peak/sustained: rand | int")
         .insert("seed", "12345", "RNG seed for the inputs")
@@ -606,7 +706,7 @@ int main(int argc, char* argv[])
         return 2;
     try
     {
-        return run(arg);
+        return dispatch(arg);
     }
     catch(const std::exception& e)
     {
