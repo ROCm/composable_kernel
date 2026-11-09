@@ -5,6 +5,8 @@
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/epilogue/tdm_epilogue.hpp"
+#include "ck_tile/ops/epilogue/tdm_multi_d_epilogue.hpp"
+#include "ck_tile/ops/gemm.hpp"
 
 #include <gtest/gtest.h>
 
@@ -12,17 +14,19 @@
 
 namespace ck_tile {
 
-// Overwrites smem right after TdmEpilogue returns, as the next persistent tile's producers do.
-template <typename Problem, index_t M, index_t N>
-__global__ void
-test_tdm_epilogue_lds_reuse_kernel(const typename Problem::AccDataType* __restrict__ input_data,
-                                   typename Problem::ODataType* __restrict__ output_data,
-                                   typename Problem::ODataType sentinel)
+// Overwrites smem right after Epilogue returns, as the next persistent tile's producers do.
+// d_data backs the D tensors of a multi-D epilogue: M x N row-major, read once per D.
+template <typename Epilogue, index_t M, index_t N>
+__global__ void test_tdm_epilogue_lds_reuse_kernel(
+    const typename Epilogue::Problem::AccDataType* __restrict__ input_data,
+    typename Epilogue::Problem::ODataType* __restrict__ output_data,
+    const typename Epilogue::Problem::ODataType* __restrict__ d_data,
+    typename Epilogue::Problem::ODataType sentinel)
 {
     // TDM exists only on gfx125; discard the body on the other targets of a mixed build.
     if constexpr(CK_TILE_ENABLE_TDM_FEATURE != 0)
     {
-        using Epilogue    = TdmEpilogue<Problem>;
+        using Problem     = typename Epilogue::Problem;
         using AccDataType = typename Problem::AccDataType;
         using ODataType   = typename Problem::ODataType;
 
@@ -68,19 +72,31 @@ test_tdm_epilogue_lds_reuse_kernel(const typename Problem::AccDataType* __restri
                              acc_distribution);
         load_tile(acc_tile, input_tile_window);
 
+        const index_t i_m = static_cast<index_t>(blockIdx.x) * kMPerBlock;
+
         auto output_tensor_view =
             make_naive_tensor_view<address_space_enum::global>(output_data,
                                                                make_tuple(M, N),
                                                                make_tuple(N, 1),
                                                                number<Epilogue::GetVectorSizeC()>{},
                                                                number<1>{});
-        auto output_tile_window =
-            make_tile_window(output_tensor_view,
-                             make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                             {static_cast<index_t>(blockIdx.x) * kMPerBlock, 0});
+        auto output_tile_window = make_tile_window(
+            output_tensor_view, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {i_m, 0});
 
-        auto empty_ds = make_tuple();
-        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem);
+        const auto ds_windows = generate_tuple(
+            [&](auto) {
+                auto d_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+                    const_cast<ODataType*>(d_data),
+                    make_tuple(M, N),
+                    make_tuple(N, 1),
+                    number<1>{},
+                    number<1>{});
+                return make_tile_window(d_tensor_view,
+                                        make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                                        {i_m, 0});
+            },
+            number<Problem::NumDTensor>{});
+        Epilogue{}(output_tile_window, acc_tile, ds_windows, smem);
 
         // Stands in for the persistent loop-top barrier.
         block_sync_lds();
@@ -103,6 +119,7 @@ test_tdm_epilogue_lds_reuse_kernel(const typename Problem::AccDataType* __restri
     {
         ignore = input_data;
         ignore = output_data;
+        ignore = d_data;
         ignore = sentinel;
     }
 }
@@ -119,36 +136,53 @@ constexpr index_t kM         = kTileM * kNumBlocks;
 constexpr index_t kN         = kTileN;
 
 // Same epilogue problem as the persistent RCR F16 producer/consumer GEMM test config.
-using TdmProblem = CShuffleEpilogueProblem<half_t,
-                                           half_t,
-                                           tuple<>,
-                                           float,
-                                           half_t,
-                                           tuple<>,
-                                           tensor_layout::gemm::RowMajor,
-                                           element_wise::PassThrough,
-                                           kTileM,
-                                           kTileN,
-                                           2,   // MWave
-                                           2,   // NWave
-                                           16,  // MPerXdl
-                                           16,  // NPerXdl
-                                           32,  // KPerXdl
-                                           true // isCTransposed
-                                           >;
+template <typename DsDataType, typename DsLayout, typename CDElementwise>
+using TdmProblemWithDs = CShuffleEpilogueProblem<half_t,
+                                                 half_t,
+                                                 DsDataType,
+                                                 float,
+                                                 half_t,
+                                                 DsLayout,
+                                                 tensor_layout::gemm::RowMajor,
+                                                 CDElementwise,
+                                                 kTileM,
+                                                 kTileN,
+                                                 2,   // MWave
+                                                 2,   // NWave
+                                                 16,  // MPerXdl
+                                                 16,  // NPerXdl
+                                                 32,  // KPerXdl
+                                                 true // isCTransposed
+                                                 >;
 
-TEST(TdmEpilogue, OverwritingLdsAfterReturnKeepsC)
+using TdmProblem = TdmProblemWithDs<tuple<>, tuple<>, element_wise::PassThrough>;
+// One zero D: E = C + 0, so the expected output is the same as the plain epilogue's.
+using TdmMultiDProblem =
+    TdmProblemWithDs<tuple<half_t>, tuple<tensor_layout::gemm::RowMajor>, element_wise::MultiDAdd>;
+
+// True when the device lacks TDM. With CK_TILE_REQUIRE_GFX125=1 it has also recorded a
+// failure, so the caller's GTEST_SKIP still reports FAILED (gtest: Skipped() == !Failed() && skip).
+[[nodiscard]] bool skip_without_gfx125()
 {
-    if(!is_gfx125_supported())
+    if(is_gfx125_supported())
     {
-        const char* required = std::getenv("CK_TILE_REQUIRE_GFX125");
-        if(required != nullptr && required[0] == '1')
-        {
-            FAIL() << "CK_TILE_REQUIRE_GFX125=1 but the device reports '" << get_device_name()
-                   << "'";
-        }
-        GTEST_SKIP() << "TDM requires gfx1250; device reports '" << get_device_name() << "'";
+        return false;
     }
+    const char* required = std::getenv("CK_TILE_REQUIRE_GFX125");
+    if(required != nullptr && required[0] == '1')
+    {
+        ADD_FAILURE() << "CK_TILE_REQUIRE_GFX125=1 but the device reports '" << get_device_name()
+                      << "'";
+    }
+    return true;
+}
+
+// Runs Epilogue on kNumBlocks tiles, overwrites LDS right after it returns, and returns the
+// number of output elements that do not match the input tile bit for bit.
+template <typename Epilogue>
+index_t count_mismatches_after_lds_reuse()
+{
+    using Problem = typename Epilogue::Problem;
 
     auto host_input = generate_unique_fp16_input<float, kTileM, kTileN>();
     DeviceMem input_buf(host_input.get_element_space_size_in_bytes());
@@ -159,18 +193,25 @@ TEST(TdmEpilogue, OverwritingLdsAfterReturnKeepsC)
     DeviceMem output_buf(host_output.get_element_space_size_in_bytes());
     output_buf.ToDevice(host_output.data());
 
+    // Zero D: adding it is exact, so it cannot mask or create a mismatch.
+    HostTensor<half_t> host_d({kM, kN});
+    host_d.SetZero();
+    DeviceMem d_buf(host_d.get_element_space_size_in_bytes());
+    d_buf.ToDevice(host_d.data());
+
     int device    = 0;
     int warp_size = 0;
     HIP_CHECK_ERROR(hipGetDevice(&device));
     HIP_CHECK_ERROR(hipDeviceGetAttribute(&warp_size, hipDeviceAttributeWarpSize, device));
     const dim3 grid_size(kNumBlocks, 1, 1);
-    const dim3 block_size(TdmProblem::MWave * TdmProblem::NWave * warp_size, 1, 1);
+    const dim3 block_size(Problem::MWave * Problem::NWave * warp_size, 1, 1);
 
     // Inputs are positive fp16 normals, so -1 can only come from the overwritten LDS.
     const half_t sentinel = type_convert<half_t>(-1.0F);
-    test_tdm_epilogue_lds_reuse_kernel<TdmProblem, kM, kN>
+    test_tdm_epilogue_lds_reuse_kernel<Epilogue, kM, kN>
         <<<grid_size, block_size>>>(static_cast<const float*>(input_buf.GetDeviceBuffer()),
                                     static_cast<half_t*>(output_buf.GetDeviceBuffer()),
+                                    static_cast<const half_t*>(d_buf.GetDeviceBuffer()),
                                     sentinel);
     HIP_CHECK_ERROR(hipGetLastError());
     HIP_CHECK_ERROR(hipDeviceSynchronize());
@@ -189,7 +230,94 @@ TEST(TdmEpilogue, OverwritingLdsAfterReturnKeepsC)
             }
         }
     }
-    EXPECT_EQ(mismatches, 0) << "TdmEpilogue returned while its TDM store still read LDS";
+    return mismatches;
+}
+
+TEST(TdmEpilogue, OverwritingLdsAfterReturnKeepsC)
+{
+    if(skip_without_gfx125())
+    {
+        GTEST_SKIP() << "TDM requires gfx1250; device reports '" << get_device_name() << "'";
+    }
+    EXPECT_EQ(count_mismatches_after_lds_reuse<TdmEpilogue<TdmProblem>>(), 0)
+        << "TdmEpilogue returned while its TDM store still read LDS";
+}
+
+TEST(TdmMultiDEpilogue, OverwritingLdsAfterReturnKeepsC)
+{
+    if(skip_without_gfx125())
+    {
+        GTEST_SKIP() << "TDM requires gfx1250; device reports '" << get_device_name() << "'";
+    }
+    EXPECT_EQ(count_mismatches_after_lds_reuse<TdmMultiDEpilogue<TdmMultiDProblem>>(), 0)
+        << "TdmMultiDEpilogue returned while its TDM store still read LDS";
+}
+
+// TdmEpilogue's split-K trap is deliberately not exercised: a device trap aborts the process
+// through the HSA queue-error handler, a gtest death test would have to fork after HIP init,
+// and on gfx1250 boxes without GPU recovery a trapped queue can wedge the device. The host
+// rejection and the EpilogueSupportsSplitK elision below are what keep the trap unreachable.
+
+// GemmKernel with a TDM pipeline and TdmEpilogue: the TDM store overwrites C, so a k_batch > 1
+// launch would leave one split's partial sum. fp32 E is the case that used to slip through --
+// fp16/bf16 E was already rejected by the odd C vector size. Host-only: nothing is launched and
+// the null pointers are never dereferenced.
+template <template <typename...> class Pipeline>
+struct TdmGemmWithFp32E
+{
+    using Row = tensor_layout::gemm::RowMajor;
+    using Col = tensor_layout::gemm::ColumnMajor;
+    using Shape =
+        TileGemmShape<sequence<kTileM, kTileN, 64>, sequence<2, 2, 1>, sequence<16, 16, 32>>;
+    using Partitioner     = GemmSpatiallyLocalTilePartitioner<Shape, 8, 4>;
+    using Traits          = TileGemmUniversalTraits<false, false, false, true, Row, Col, Row>;
+    using Problem         = UniversalGemmPipelineProblem<half_t, half_t, float, Shape, Traits>;
+    using EpilogueProblem = CShuffleEpilogueProblem<half_t,
+                                                    half_t,
+                                                    tuple<>,
+                                                    float,
+                                                    float,
+                                                    tuple<>,
+                                                    Row,
+                                                    element_wise::PassThrough,
+                                                    kTileM,
+                                                    kTileN,
+                                                    2,    // MWave
+                                                    2,    // NWave
+                                                    16,   // MPerXdl
+                                                    16,   // NPerXdl
+                                                    32,   // KPerXdl
+                                                    false // isCTransposed
+                                                    >;
+    using Kernel = GemmKernel<Partitioner, Pipeline<Problem>, TdmEpilogue<EpilogueProblem>>;
+
+    // K = 256 is 8 K-steps of 32, so k_batch = 2 clears the step-count guard: only the
+    // epilogue's split-K support can reject it.
+    static bool IsSupported(index_t k_batch)
+    {
+        constexpr index_t M = 4 * kTileM;
+        constexpr index_t N = 4 * kTileN;
+        constexpr index_t K = 256;
+        const GemmHostArgs args(nullptr, nullptr, nullptr, k_batch, M, N, K, K, K, N);
+        return Kernel::IsSupportedArgument(Kernel::MakeKernelArgs(args));
+    }
+};
+
+// The constant also compiles out the device atomic_add arm, which would reach TdmEpilogue's trap.
+TEST(TdmEpilogue, GemmKernelTdmV1RejectsSplitKWithFp32E)
+{
+    using Gemm = TdmGemmWithFp32E<GemmPipelineAgBgCrCompTDMV1>;
+    EXPECT_FALSE(Gemm::Kernel::UniversalGemmKernel::EpilogueSupportsSplitK);
+    EXPECT_TRUE(Gemm::IsSupported(1));
+    EXPECT_FALSE(Gemm::IsSupported(2));
+}
+
+TEST(TdmEpilogue, GemmKernelTdmV2RejectsSplitKWithFp32E)
+{
+    using Gemm = TdmGemmWithFp32E<GemmPipelineAgBgCrCompTDMV2>;
+    EXPECT_FALSE(Gemm::Kernel::UniversalGemmKernel::EpilogueSupportsSplitK);
+    EXPECT_TRUE(Gemm::IsSupported(1));
+    EXPECT_FALSE(Gemm::IsSupported(2));
 }
 
 int main(int argc, char** argv)

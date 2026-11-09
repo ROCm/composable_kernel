@@ -359,16 +359,19 @@ struct MxGemmKernel
     // accumulates each k_id's partial C tile with atomic_add; the CShuffle epilogue can only
     // emit atomic_add for fp16/bf16 outputs when the C vector size is even. For an odd vector
     // size that combination is not instantiated, so such a config cannot run split-K.
-    // Epilogues must declare atomic support; TDM stores cannot reduce split-K outputs.
+    // Epilogues must opt in by declaring kAtomicAddRequiresEvenVectorSize, and one whose store
+    // always overwrites (SupportsSplitK == false, e.g. TdmEpilogue) cannot reduce split-K outputs
+    // even if it declares that marker.
     template <typename T>
     using AtomicAddRequiresEvenVectorSize = decltype(T::kAtomicAddRequiresEvenVectorSize);
 
     static constexpr bool kSplitKAtomicAddSupported = [] {
-        if constexpr(is_detected<AtomicAddRequiresEvenVectorSize, EpiloguePipeline>::value)
+        if constexpr(epilogue_can_accumulate_v<EpiloguePipeline> &&
+                     is_detected<AtomicAddRequiresEvenVectorSize, EpiloguePipeline>::value)
             return !EpiloguePipeline::kAtomicAddRequiresEvenVectorSize ||
                    EpiloguePipeline::GetVectorSizeC() % 2 == 0;
         else
-            return false; // Unmarked epilogues (including TDM) cannot reduce split-K outputs.
+            return false; // Unmarked or overwriting epilogues cannot reduce split-K outputs.
     }();
 
     static constexpr index_t MXdlPackEff = MxGemmPipeline::MXdlPackEff;
