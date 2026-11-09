@@ -29,7 +29,6 @@ from ck_tile_fmha import (
 @pytest.mark.parametrize("rotary_interleaved", [False, True])
 @pytest.mark.parametrize("rotary_fraction", [0.0, 0.5, 1.0])
 @pytest.mark.parametrize("paged_kv_block_size", [None, 256])
-@pytest.mark.parametrize("has_leftpad", [False])
 @pytest.mark.parametrize("has_batch_idx", [False, True])
 @pytest.mark.parametrize("d", [32, 59, 64, 80, 128, 256])
 @pytest.mark.parametrize(
@@ -53,7 +52,6 @@ def test_fmha_kvcache(
     seqlen_k,
     d,
     has_batch_idx,
-    has_leftpad,
     paged_kv_block_size,
     rotary_fraction,
     rotary_interleaved,
@@ -66,25 +64,63 @@ def test_fmha_kvcache(
     num_splits,
     dtype,
 ):
+    _check_kvcache(
+        seqlen_q,
+        seqlen_k,
+        d,
+        has_batch_idx,
+        paged_kv_block_size,
+        rotary_fraction,
+        rotary_interleaved,
+        seqlen_new_eq_seqlen_q,
+        causal,
+        local,
+        alibi,
+        new_kv,
+        mha_type,
+        num_splits,
+        dtype,
+    )
+
+
+def _check_kvcache(
+    seqlen_q,
+    seqlen_k,
+    d,
+    has_batch_idx,
+    paged_kv_block_size,
+    rotary_fraction,
+    rotary_interleaved,
+    seqlen_new_eq_seqlen_q,
+    causal,
+    local,
+    alibi,
+    new_kv,
+    mha_type,
+    num_splits,
+    dtype,
+    batch_size=1,
+    check_lse=False,
+    cache_lengths=None,
+    window_size=None,
+):
     if seqlen_q > seqlen_k and new_kv:
         pytest.skip()
     if not new_kv and rotary_fraction > 0.0:
         pytest.skip()
     if has_batch_idx and paged_kv_block_size is not None:
         pytest.skip()
-    if has_leftpad and paged_kv_block_size is not None:
-        pytest.skip()
     device = "cuda"
     # set seed
     torch.random.manual_seed(0)
-    batch_size = 1
     batch_size_cache = batch_size if not has_batch_idx else batch_size * 2
     nheads = 6
     # rotary_dim must be a multiple of 16, and must be <= d
     rotary_dim = math.floor(int(rotary_fraction * d) / 16) * 16
     nheads_k = nheads if mha_type == "mha" else (1 if mha_type == "mqa" else 3)
     assert nheads % nheads_k == 0
-    window_size = (-1, -1) if not local else torch.randint(0, seqlen_k, (2,))
+    if window_size is None:
+        window_size = (-1, -1) if not local else torch.randint(0, seqlen_k, (2,))
     q = torch.randn(batch_size, seqlen_q, nheads, d, device=device, dtype=dtype)
     seqlen_new = seqlen_q if seqlen_new_eq_seqlen_q else torch.randint(1, seqlen_q + 1, (1,)).item()
     if new_kv:
@@ -119,28 +155,11 @@ def test_fmha_kvcache(
         dtype=torch.int32,
         device=device,
     )
-    if has_leftpad:
-        cache_leftpad = torch.cat(
-            [
-                (
-                    torch.randint(
-                        0, cache_seqlens[i].item(), (1,), dtype=torch.int32, device=device
-                    )
-                    if cache_seqlens[i].item() > 0
-                    else torch.zeros(1, dtype=torch.int32, device=device)
-                )
-                for i in range(batch_size)
-            ]
-        )
-    else:
-        cache_leftpad = None
+    if cache_lengths is not None:
+        cache_seqlens = torch.tensor(cache_lengths, device=device, dtype=torch.int32)
     arange = rearrange(torch.arange(seqlen_k, device=device), "s -> 1 s")
     cache_seqlens_expanded = rearrange(cache_seqlens, "b -> b 1")
     key_padding_mask = arange < cache_seqlens_expanded + (seqlen_new if new_kv else 0)
-    if has_leftpad:
-        key_padding_mask = torch.logical_and(
-            key_padding_mask, arange >= cache_leftpad.unsqueeze(-1).expand(-1, seqlen_k)
-        )
     if has_batch_idx:
         cache_batch_idx = torch.randperm(batch_size_cache, dtype=torch.int32, device=device)[
             :batch_size
@@ -156,7 +175,6 @@ def test_fmha_kvcache(
             None,
             key_padding_mask,
             causal=causal,
-            key_leftpad=cache_leftpad,
         )
     else:
         alibi_slopes, attn_bias = None, None
@@ -221,14 +239,16 @@ def test_fmha_kvcache(
         rotary_sin=sin,
         cache_seqlens=cache_seqlens,
         cache_batch_idx=cache_batch_idx,
-        cache_leftpad=cache_leftpad,
         block_table=block_table,
         causal=causal,
         window_size=window_size,
         rotary_interleaved=rotary_interleaved,
         alibi_slopes=alibi_slopes,
         num_splits=num_splits,
+        return_softmax_lse=check_lse,
     )
+    if check_lse:
+        out, lse = out
     # out = fmha_with_kvcache(
     #     q, k_cache, v_cache, cache_seqlens=cache_seqlens, causal=causal, window_size=window_size
     # )
@@ -239,7 +259,7 @@ def test_fmha_kvcache(
     # o1 = torch.einsum('bhst,bthd->bshd', s_tmp, v_cache_ref)
     # lse_ref = torch.logsumexp(qk / math.sqrt(d), -1)
     # probs = torch.softmax(qk, dim=-1)
-    out_ref, _ = attention_ref(
+    reference = attention_ref(
         q_ro,
         k_cache_rep,
         v_cache_rep,
@@ -250,8 +270,11 @@ def test_fmha_kvcache(
         None,
         causal=causal,
         window_size=window_size,
-        key_leftpad=cache_leftpad,
+        return_lse=check_lse,
     )
+    out_ref = reference[0]
+    if check_lse:
+        torch.testing.assert_close(lse, reference[2], atol=1e-3, rtol=1e-3)
     out_pt, _ = attention_ref(
         q_ro,
         k_cache_rep,
@@ -265,7 +288,6 @@ def test_fmha_kvcache(
         window_size=window_size,
         upcast=False,
         reorder_ops=True,
-        key_leftpad=cache_leftpad,
     )
     print(f"Output max diff: {(out - out_ref).abs().max().item()}")
     print(f"Output mean diff: {(out - out_ref).abs().mean().item()}")
@@ -293,8 +315,77 @@ def test_fmha_kvcache(
                 "(b nblocks) block_size ... -> b (nblocks block_size) ...",
                 b=batch_size,
             )[:, :seqlen_k]
-        assert torch.allclose(k_cache_select, k_cache_ref, rtol=1e-3, atol=1e-3)
+        if rotary_dim == 0:
+            assert torch.equal(k_cache_select, k_cache_ref)
+        else:
+            torch.testing.assert_close(k_cache_select, k_cache_ref, rtol=1e-3, atol=1e-3)
         assert torch.equal(v_cache_select, v_cache_ref)
     # mult = 3 if f16, bf16 need 4
     mult = 4 if not alibi else 5
     assert (out - out_ref).abs().max().item() <= mult * (out_pt - out_ref).abs().max().item() + 1e-5
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+@pytest.mark.parametrize(
+    "sq,page,new_kv,rotary,causal,local,splits",
+    [
+        (1, None, False, 0.0, False, False, 1),
+        (1, 128, False, 0.0, False, False, 4),
+        (3, 128, True, 0.0, True, False, 1),
+        (3, 256, True, 0.0, False, True, 4),
+        (3, None, True, 0.5, True, False, 1),
+        (3, 128, True, 0.5, False, True, 4),
+        (64, 256, False, 0.0, True, False, 4),
+        (64, None, False, 0.0, False, True, 1),
+    ],
+)
+def test_kvcache_lse_and_page_boundaries(dtype, sq, page, new_kv, rotary, causal, local, splits):
+    # Different cache lengths cross the 128/256-token page boundaries on append.
+    # Decode also exercises GQA's head/sequence transpose and the LSE reshape.
+    _check_kvcache(
+        sq,
+        512,
+        64,
+        False,
+        page,
+        rotary,
+        False,
+        True,
+        causal,
+        local,
+        False,
+        new_kv,
+        "gqa",
+        splits,
+        dtype,
+        batch_size=2,
+        check_lse=True,
+        cache_lengths=[127, 255],
+    )
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+@pytest.mark.parametrize("sq", [1, 3])
+def test_kvcache_rotary_unbounded_local_window(dtype, sq):
+    # A redundant local mask still rotates each query at cache_seqlens + query_index.
+    _check_kvcache(
+        sq,
+        512,
+        64,
+        False,
+        128,
+        0.5,
+        False,
+        True,
+        False,
+        True,
+        False,
+        True,
+        "gqa",
+        1,
+        dtype,
+        batch_size=2,
+        check_lse=True,
+        cache_lengths=[127, 255],
+        window_size=(512, 512),
+    )

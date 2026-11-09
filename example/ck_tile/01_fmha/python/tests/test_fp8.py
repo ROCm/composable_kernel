@@ -560,8 +560,8 @@ def test_fp8_varlen_native_options(option):
     elif option == "alibi":
         args["alibi_slopes"], message = torch.ones(4, device="cuda"), "does not support ALiBi"
     elif option == "splits":
-        args["num_splits"], message = 2, "without paged KV or splits"
+        args["num_splits"], message = 2, "num_splits"
     else:
-        args["seqused_k"], message = cuk[1:] - cuk[:-1], "without paged KV or splits"
+        args["seqused_k"], message = cuk[1:] - cuk[:-1], "seqused_k"
     with pytest.raises(RuntimeError, match=message):
         _C.varlen_fwd(**args)

@@ -108,6 +108,42 @@ struct LdsShuffle2DEpilogue
         }
     }
 
+    /**
+     * @brief Distribution of the LDS re-read and the global store: thread-raked rows of
+     *        kVector-wide vectors.
+     *
+     * @details When a row is longer than a wavefront of vectors (X2 > 1, e.g. 512 bf16
+     *          columns on wave32), the thread_raked pattern orders a row's X lengths as
+     *          (lanes X0, vector X1, iterations X2), so a "vector" strides by the
+     *          iteration count and the store splits into 4-byte pieces. Here they are
+     *          (iterations X2, lanes X0, vector X1): the vector stays innermost and, in each
+     *          store, adjacent lanes write adjacent vectors of the row.
+     */
+    CK_TILE_HOST_DEVICE static constexpr auto MakeODramTileDistribution()
+    {
+        using Pattern =
+            tile_distribution_encoding_pattern_2d<kNumWarps * get_warp_size(),
+                                                  kMPerBlock,
+                                                  kNPerBlock,
+                                                  kVector,
+                                                  tile_distribution_pattern::thread_raked>;
+        if constexpr(Pattern::X2 == 1)
+        {
+            return Pattern::make_2d_static_tile_distribution();
+        }
+        else
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<Pattern::Y0, Pattern::Y1, Pattern::Y2>,
+                                                 sequence<Pattern::X2, Pattern::X0, Pattern::X1>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<0>, sequence<1, 1>>, // -> <Y0>, <Y1, X0>
+                                           sequence<1, 2, 2>,
+                                           sequence<2, 0, 2>>{}); // -> <Y2, X2, X1>
+        }
+    }
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return IsShuffleTileable() ? static_cast<index_t>(kMPerBlock * kNLds * sizeof(ODataType))
@@ -166,14 +202,7 @@ struct LdsShuffle2DEpilogue
             store_tile(in_lds_window, cast_tile<ODataType>(o_acc_tile));
             block_sync_lds();
 
-            using TileEncodingPattern =
-                tile_distribution_encoding_pattern_2d<kNumWarps * get_warp_size(),
-                                                      kMPerBlock,
-                                                      kNPerBlock,
-                                                      kVector,
-                                                      tile_distribution_pattern::thread_raked>;
-
-            constexpr auto dram_dist = TileEncodingPattern::make_2d_static_tile_distribution();
+            constexpr auto dram_dist = MakeODramTileDistribution();
 
             auto out_lds_window = make_tile_window(
                 o_lds, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {0, 0}, dram_dist);

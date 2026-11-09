@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/variants.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
@@ -21,6 +22,28 @@ namespace detail {
 // hardware fields, qr_tdm uses one configuration to couple writer encoding, reader descriptors,
 // and LDS capacity.
 inline constexpr index_t kQrTdmLdsAccessBytes = 16;
+
+// The TDM pipelines (qr_tdm, qr_tdm_pingpong, qr_tdm_sched) apply the logits soft cap
+// themselves, with qr_tdm_apply_logits_soft_cap, instead of through an attention variant,
+// and implement only its tanh form: a build selecting another
+// CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT must not let their results differ from the
+// other pipelines', so they refuse it.
+inline constexpr bool kQrTdmLogitsSoftCapIsTanh =
+    CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH;
+
+// cap * tanh(s * scale / cap) in the exp2 domain (scale_s carries log2(e)), as
+// LogitsSoftCapParams<..., UseExp2> computes it; applied after scale_s and before the bias
+// (the reference's order).
+template <typename SaccTile>
+CK_TILE_DEVICE void qr_tdm_apply_logits_soft_cap(SaccTile& s_acc,
+                                                 float scale_s,
+                                                 float logits_soft_cap,
+                                                 float logits_soft_cap_rcp)
+{
+    const float cap = log2e_v<float> * logits_soft_cap;
+    const float rcp = scale_s * log2e_rcp_v<float> * logits_soft_cap_rcp;
+    tile_elementwise_inout([&](auto& x) { x = cap * tanh_fast<float>(x * rcp); }, s_acc);
+}
 
 template <index_t X>
 CK_TILE_HOST_DEVICE constexpr index_t integer_log2_exact()
@@ -557,11 +580,19 @@ struct BlockFmhaPipelineQRKSVSTdmDefaultPolicy
         using Padding                = LdsPaddingConfigV<Problem>;
 
         static_assert(!Xor, "qr_tdm V LDS descriptor must remain row-major");
-        return detail::make_qr_tdm_row_major_lds_descriptor<DataType,
-                                                            kKPerBlock,
-                                                            kNPerBlock,
-                                                            Padding,
-                                                            detail::kQrTdmLdsAccessBytes>();
+        // row-major V: [kN0][kN1]; column-major V: [kN1][kN0], as it sits in memory
+        if constexpr(Problem::BlockFmhaShape::IsVLayoutRowMajor)
+            return detail::make_qr_tdm_row_major_lds_descriptor<DataType,
+                                                                kKPerBlock,
+                                                                kNPerBlock,
+                                                                Padding,
+                                                                detail::kQrTdmLdsAccessBytes>();
+        else
+            return detail::make_qr_tdm_row_major_lds_descriptor<DataType,
+                                                                kNPerBlock,
+                                                                kKPerBlock,
+                                                                Padding,
+                                                                detail::kQrTdmLdsAccessBytes>();
     }
 
     template <typename Problem>
@@ -685,19 +716,38 @@ struct BlockFmhaPipelineQRKSVSTdmDefaultPolicy
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0; // V seq dim, 64
         constexpr index_t warpNum    = kBlockSize / get_warp_size();
 
-        static_assert(kKPerBlock % warpNum == 0,
-                      "V kN0 (seq) must be divisible by warpNum for trivial tile-major V dist");
+        if constexpr(!Problem::BlockFmhaShape::IsVLayoutRowMajor)
+        {
+            // column-major V: the hdim rows split over the warps
+            static_assert(kNPerBlock % warpNum == 0);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<warpNum, kNPerBlock / warpNum>, sequence<kKPerBlock>>,
+                    tuple<sequence<1>>,
+                    tuple<sequence<0>>,
+                    sequence<1, 2>,
+                    sequence<1, 0>>{},
+                bool_constant<true>{});
+        }
+        else
+        {
+            static_assert(kKPerBlock % warpNum == 0,
+                          "V kN0 (seq) must be divisible by warpNum for trivial tile-major V dist");
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<>,                                    // R: empty
-                tuple<sequence<warpNum, kKPerBlock / warpNum>, // X[0]: V seq dim, warp split (8, 8)
-                      sequence<kNPerBlock>>, // X[1]: V hdim, single full vector per thread (128)
-                tuple<sequence<1>>,          // PsToRH: warp dim mapping
-                tuple<sequence<0>>,          // PsToRH_lid
-                sequence<1, 2>,              // YsToD outer
-                sequence<1, 0>>{},           // YsToD inner
-            bool_constant<true>{});          // IsWarpLevelParallelOnly
+            return make_static_tile_distribution(
+                tile_distribution_encoding<
+                    sequence<>,                                    // R: empty
+                    tuple<sequence<warpNum, kKPerBlock / warpNum>, // X[0]: V seq dim, warp split
+                                                                   // (8, 8)
+                          sequence<kNPerBlock>>, // X[1]: V hdim, single full vector per thread
+                                                 // (128)
+                    tuple<sequence<1>>,          // PsToRH: warp dim mapping
+                    tuple<sequence<0>>,          // PsToRH_lid
+                    sequence<1, 2>,              // YsToD outer
+                    sequence<1, 0>>{},           // YsToD inner
+                bool_constant<true>{});          // IsWarpLevelParallelOnly
+        }
     }
 
     template <typename Problem>
@@ -763,12 +813,15 @@ struct BlockFmhaPipelineQRKSVSTdmDefaultPolicy
         constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             v_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
 
-        constexpr auto v_block_dstr =
-            make_static_tile_distribution(typename InputTileDistributionTraits<
-                                          decltype(v_block_dstr_encode),
-                                          typename Problem::VDataType>::TransposedDstrEncode{});
-
-        return v_block_dstr;
+        // a column-major V is read as it is ([kN1][kN0], K-contiguous); a row-major one
+        // through the transposed LDS read
+        if constexpr(!Problem::BlockFmhaShape::IsVLayoutRowMajor)
+            return make_static_tile_distribution(v_block_dstr_encode);
+        else
+            return make_static_tile_distribution(
+                typename InputTileDistributionTraits<
+                    decltype(v_block_dstr_encode),
+                    typename Problem::VDataType>::TransposedDstrEncode{});
     }
 
     template <typename Problem>

@@ -125,12 +125,7 @@ fmha_bwd_args get_ck_fmha_varlen_bwd_args(const mask_info& mask,
     if(alibi_slopes_.has_value())
     {
         auto alibi_slopes = alibi_slopes_.value();
-        CK_TILE_FMHA_CHECK_DEVICE(alibi_slopes);
-        TORCH_CHECK(alibi_slopes.stride(-1) == 1,
-                    "ALiBi slopes tensor must have contiguous last dimension");
-        TORCH_CHECK(alibi_slopes.sizes() == torch::IntArrayRef({h}) ||
-                    alibi_slopes.sizes() == torch::IntArrayRef({b, h}));
-        alibi_slopes_ptr = alibi_slopes.data_ptr();
+        alibi_slopes_ptr  = alibi_slopes.data_ptr();
         // alibi_slopes:(batch_size, nheads) or (nhead)
         stride_alibi_slopes = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
     }
@@ -249,7 +244,6 @@ std::vector<at::Tensor> mha_varlen_bwd(
     }
 
     const bool is_dropout = p_dropout > 0.0;
-    auto stream           = at::cuda::getCurrentCUDAStream().stream();
 
     auto q_dtype = q.dtype();
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16,
@@ -265,6 +259,8 @@ std::vector<at::Tensor> mha_varlen_bwd(
     const std::string q_dtype_str = q_dtype == torch::kFloat16 ? "fp16" : "bf16";
 
     CK_TILE_FMHA_CHECK_DEVICE(q);
+    at::cuda::CUDAGuard device_guard{q.device()};
+    auto stream = detail::current_stream();
     CK_TILE_FMHA_CHECK_DEVICE(k);
     CK_TILE_FMHA_CHECK_DEVICE(v);
     CK_TILE_FMHA_CHECK_DEVICE(out);
@@ -290,10 +286,11 @@ std::vector<at::Tensor> mha_varlen_bwd(
     const int total_k     = k.size(0);
     const int num_heads_k = k.size(1);
     TORCH_CHECK(batch_size > 0, "batch size must be positive");
+    detail::check_alibi(alibi_slopes_, q, batch_size, num_heads);
     TORCH_CHECK(head_size % 8 == 0, "head_size should be a multiple of 8");
     TORCH_CHECK(head_size <= 256,
                 "CK FlashAttention backward only supports head dimension at most 256");
-    TORCH_CHECK(num_heads % num_heads_k == 0,
+    TORCH_CHECK(num_heads > 0 && num_heads_k > 0 && num_heads % num_heads_k == 0,
                 "Number of heads in key/value must divide number of heads in query");
 
     const mask_info mask = detail::make_mask_info(
@@ -362,8 +359,6 @@ std::vector<at::Tensor> mha_varlen_bwd(
                                                       deterministic);
     fmha_bwd_launcher launcher(traits);
 
-    at::cuda::CUDAGuard device_guard{q.device()};
-
     auto opts      = q.options();
     auto softmax_d = torch::empty({batch_size, num_heads, max_seqlen_q}, opts.dtype(at::kFloat));
 
@@ -415,16 +410,8 @@ std::vector<at::Tensor> mha_varlen_bwd(
     else if(is_dropout)
     {
         rng_state = torch::empty({2}, opts.dtype(torch::kInt64));
-        // See Note [Acquire lock when using random generators]
-        std::lock_guard<std::mutex> lock(gen->mutex_);
-        auto philox_args = gen->philox_cuda_state(counter_offset);
-        hipLaunchKernelGGL(detail::ParsePhiloxCudaState,
-                           dim3(1),
-                           dim3(64),
-                           0,
-                           0,
-                           philox_args,
-                           reinterpret_cast<uint64_t*>(rng_state.data_ptr()));
+        detail::init_philox_state(
+            gen, counter_offset, stream, reinterpret_cast<uint64_t*>(rng_state.data_ptr()));
     }
     else
     {

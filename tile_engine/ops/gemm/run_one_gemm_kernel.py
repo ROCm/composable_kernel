@@ -38,7 +38,8 @@ from gemm_utils import (  # noqa: E402
     GemmProblem,
     GpuGemmRunner,
     GpuMultiABDRunner,
-    _dtype_from_kernel_name,
+    _sweep_inputs,
+    _sweep_max_rel,
 )
 import numpy as np  # noqa: E402
 
@@ -94,18 +95,9 @@ def _run_one(
             result = runner.run(problem, verify=verify, verify_tol=verify_tol)
             A = B = None
         else:
-            # Cache host matrices per shape so batch mode doesn't regenerate huge
-            # inputs per kernel.
-            cache = getattr(_run_one, "_ab_cache", {})
-            key = (problem.M, problem.N, problem.K)
-            if key not in cache:
-                rng = np.random.RandomState(42)
-                cache[key] = (
-                    (rng.randn(problem.M, problem.K) * 0.1).astype(np.float32),
-                    (rng.randn(problem.K, problem.N) * 0.1).astype(np.float32),
-                )
-                _run_one._ab_cache = cache
-            A, B = cache[key]
+            # Drawn once per shape; kernels of the shape reuse their encoding and
+            # verify reference (gemm_utils._sweep_inputs).
+            A, B = _sweep_inputs((problem.M, problem.K), (problem.K, problem.N))
 
             # CRITICAL: load the library ONLY inside this subprocess.
             runner = GpuGemmRunner(lib_path=so_path)
@@ -136,22 +128,8 @@ def _run_one(
             elif verify and A is not None and B is not None:
                 # Reference uses the SAME quantized inputs the device sees, so the
                 # metric isolates compute error from input quantization (fp8/bf8
-                # rounding alone exceeds the default tolerance). It depends only on
-                # the cached inputs and their host encoding, so batch mode computes
-                # the host matmul once per shape and encoding, not once per kernel.
-                refs = getattr(_run_one, "_ref_cache", {})
-                ref_key = (
-                    key,
-                    _dtype_from_kernel_name(runner.kernel_name),
-                    runner._use_ocp,
-                )
-                if ref_key not in refs:
-                    ref = runner.reference(A, B)
-                    refs[ref_key] = (ref, float(np.max(np.abs(ref))) or 1.0)
-                    _run_one._ref_cache = refs
-                ref, denom = refs[ref_key]
-                got = result.output.astype(np.float32)
-                max_rel = float(np.max(np.abs(got - ref)) / denom)
+                # rounding alone exceeds the default tolerance).
+                max_rel = _sweep_max_rel(runner, A, B, result.output)
                 out["max_rel"] = max_rel
                 out["verified"] = bool(max_rel <= verify_tol)
             print(json.dumps(out), flush=True)

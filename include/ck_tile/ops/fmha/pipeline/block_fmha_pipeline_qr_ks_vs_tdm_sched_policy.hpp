@@ -115,7 +115,7 @@ struct BlockFmhaPipelineQRKSVSTdmSchedPolicy : BlockFmhaPipelineQRKSVSTdmDefault
                   "output fragments do not match the PV geometry");
 
     // Q is used only during the prologue. Its descriptor may span both K buffers
-    // when the KV tile is 64 rows; the LDS barrier precedes the K prologue.
+    // when the KV tile is 64 rows; the LDS barrier precedes the K loads that overwrite it.
     static_assert(Geometry::kM * Geometry::kHeadDimQK * sizeof(typename Geometry::QDataType) <=
                   2 * kKFootprintBytes);
     static_assert(kLdsOffsetK0 % 16 == 0 && kLdsOffsetK1 % 16 == 0 && kLdsOffsetV0 % 16 == 0 &&
@@ -422,8 +422,9 @@ struct BlockFmhaPipelineQRKSVSTdmSchedPolicy : BlockFmhaPipelineQRKSVSTdmDefault
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr bool UseCountdownLoop()
     {
+        // dropout's Philox offsets and randval window follow the forward key tile
         return Geometry::kHeadDimQK == 128 && !Problem::FmhaMask::IsMasking && !Problem::kHasSink &&
-               Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS;
+               Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS && !Problem::kHasDropout;
     }
 
     template <typename Problem>
@@ -454,8 +455,7 @@ struct BlockFmhaPipelineQRKSVSTdmSchedPolicy : BlockFmhaPipelineQRKSVSTdmDefault
         using Softmax = ScoreSoftmax;
         using Mapping = typename Softmax::Mapping;
 
-        static_assert(Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS);
-        static_assert(!Problem::kHasLogitsSoftCap);
+        // log2e_scale is 1 for scores a bias or the soft cap has already scaled
         static_assert(ScoreTensor::get_thread_buffer_size() == Mapping::kThreadBufferSize);
         static_assert(RowTensor::get_thread_buffer_size() == 2);
 
@@ -472,8 +472,10 @@ struct BlockFmhaPipelineQRKSVSTdmSchedPolicy : BlockFmhaPipelineQRKSVSTdmDefault
         const auto p0_m3 = Softmax::template RunPart0<3, ScoreTensor, kUseCompilerMax>(
             score, old_max_m1, log2e_scale);
 
-        constexpr bool kValidateMax = Problem::FmhaMask::IsMasking;
-        const auto p1_m0            = Softmax::template RunPart1<kValidateMax>(
+        // an elementwise bias can leave a whole row at -inf, like a mask
+        constexpr bool kValidateMax = Problem::FmhaMask::IsMasking ||
+                                      Problem::BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS;
+        const auto p1_m0 = Softmax::template RunPart1<kValidateMax>(
             p0_m0.local_max, p0_m1.local_max, p0_m0.old_max_log2e, log2e_scale);
         const auto p1_m1 = Softmax::template RunPart1<kValidateMax>(
             p0_m2.local_max, p0_m3.local_max, p0_m2.old_max_log2e, log2e_scale);
@@ -497,12 +499,13 @@ struct BlockFmhaPipelineQRKSVSTdmSchedPolicy : BlockFmhaPipelineQRKSVSTdmDefault
         using Softmax = ScoreSoftmax;
         using Mapping = typename Softmax::Mapping;
 
-        static_assert(Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS);
-        static_assert(!Problem::kHasLogitsSoftCap);
+        // log2e_scale is 1 for scores a bias or the soft cap has already scaled
         static_assert(ScoreTensor::get_thread_buffer_size() == Mapping::kThreadBufferSize);
         static_assert(RowTensor::get_thread_buffer_size() == 2);
 
-        constexpr bool kValidateMax = Problem::FmhaMask::IsMasking;
+        // an elementwise bias can leave a whole row at -inf, like a mask
+        constexpr bool kValidateMax = Problem::FmhaMask::IsMasking ||
+                                      Problem::BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS;
 
         const auto validated_max = [](float value) {
             if constexpr(kValidateMax)
@@ -612,8 +615,7 @@ struct BlockFmhaPipelineQRKSVSTdmSchedPolicy : BlockFmhaPipelineQRKSVSTdmDefault
         // The problem must describe exactly this policy's geometry (dtypes, block tile, wave
         // layout, WMMA tiles). Both GEMMs share one wave layout: P stays in the lanes that
         // produced S.
-        return Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
-               std::is_same_v<FmhaTdmSchedGeometryFor<Problem, Geometry::kQkSuColumns>, Geometry> &&
+        return std::is_same_v<FmhaTdmSchedGeometryFor<Problem, Geometry::kQkSuColumns>, Geometry> &&
                Shape::Gemm1BlockWarps::at(number<0>{}) == Shape::Gemm0BlockWarps::at(number<0>{}) &&
                Shape::Gemm1BlockWarps::at(number<1>{}) == Shape::Gemm0BlockWarps::at(number<1>{}) &&
                Shape::Gemm1BlockWarps::at(number<2>{}) == Shape::Gemm0BlockWarps::at(number<2>{}) &&

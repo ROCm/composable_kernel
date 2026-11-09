@@ -214,7 +214,7 @@ constexpr std::array<ForwardCase, 16> kCases{{
 }};
 
 // These inputs extend coverage without changing the original sixteen inputs or their indices.
-constexpr std::array<ForwardCase, 14> kAdditionalCases{{
+constexpr std::array<ForwardCase, 23> kAdditionalCases{{
     {"D64GroupDense", 64, 128, 512, mask_enum::no_mask, false, 2, 1, SequencePointers::Packed, 64},
     {"D128GroupDense",
      128,
@@ -400,6 +400,111 @@ constexpr std::array<ForwardCase, 14> kAdditionalCases{{
      512,
      512,
      true},
+    {"D128BatchTail1",
+     128,
+     129,
+     512,
+     mask_enum::no_mask,
+     false,
+     2,
+     1,
+     SequencePointers::Batch,
+     128},
+    {"D128BatchTail17",
+     128,
+     145,
+     513,
+     mask_enum::mask_bottom_right,
+     true,
+     2,
+     1,
+     SequencePointers::Batch,
+     128},
+    {"D128BatchTail49",
+     128,
+     177,
+     512,
+     mask_enum::mask_top_left,
+     false,
+     2,
+     1,
+     SequencePointers::Batch,
+     128},
+    {"D128BatchTail70",
+     128,
+     198,
+     512,
+     mask_enum::no_mask,
+     true,
+     2,
+     1,
+     SequencePointers::Batch,
+     128},
+    {"D128BatchTail80",
+     128,
+     208,
+     513,
+     mask_enum::mask_bottom_right,
+     false,
+     2,
+     1,
+     SequencePointers::Batch,
+     128},
+    {"D128BatchTail127",
+     128,
+     255,
+     512,
+     mask_enum::no_mask,
+     false,
+     2,
+     1,
+     SequencePointers::Batch,
+     128},
+    {"D128GroupTail1",
+     128,
+     128,
+     512,
+     mask_enum::no_mask,
+     false,
+     2,
+     1,
+     SequencePointers::Packed,
+     128,
+     true,
+     -1,
+     0,
+     1,
+     513},
+    {"D128GroupTail17",
+     128,
+     128,
+     512,
+     mask_enum::no_mask,
+     true,
+     2,
+     1,
+     SequencePointers::PerSequence,
+     128,
+     true,
+     -1,
+     0,
+     17,
+     513},
+    {"D128GroupTail70",
+     128,
+     128,
+     512,
+     mask_enum::mask_bottom_right,
+     false,
+     2,
+     1,
+     SequencePointers::Cumulative,
+     128,
+     true,
+     -1,
+     0,
+     70,
+     513},
 }};
 
 constexpr auto kVirtualSinkCases = [] {
@@ -678,8 +783,13 @@ TEST_P(QrTdmSchedForward, GeneratedDispatcherAndIndependentFp32)
         batch, c.kv_heads, sequences.physical_k_rows, c.dimension, c.bhsd, sequences.group);
     const Layout v_layout(
         batch, c.kv_heads, sequences.physical_k_rows, value_dimension, c.bhsd, sequences.group);
-    const Layout o_layout(
-        batch, c.query_heads, sequences.physical_q_rows, value_dimension, c.bhsd, sequences.group);
+    // 128 spare O rows per head/batch catch stores past seqlen_q.
+    const Layout o_layout(batch,
+                          c.query_heads,
+                          sequences.physical_q_rows + 128,
+                          value_dimension,
+                          c.bhsd,
+                          sequences.group);
     const Layout lse_layout(
         batch, c.query_heads, sequences.physical_q_rows, 1, true, sequences.group);
     const auto q       = MakeInput(q_layout,
@@ -992,6 +1102,26 @@ TEST_P(QrTdmSchedForward, GeneratedDispatcherAndIndependentFp32)
     EXPECT_EQ(metrics.checked_lse_rows, lse ? logical_rows : 0);
     EXPECT_EQ(metrics.scanned_lse_rows, lse ? logical_rows : 0);
     EXPECT_TRUE(metrics.passed);
+
+    // O outside the logical rows must keep its NaN fill.
+    std::vector<bool> logical_o(o_float.size(), false);
+    for(int sequence = 0; sequence < batch; ++sequence)
+    {
+        const auto output_offset =
+            o_layout.SequenceOffset(sequence, sequences.q_starts[sequence], sequences.group);
+        for(int head = 0; head < c.query_heads; ++head)
+            for(int row = 0; row < sequences.q_lengths[sequence]; ++row)
+                for(int dim = 0; dim < value_dimension; ++dim)
+                    logical_o[output_offset + head * o_layout.head_stride +
+                              row * o_layout.row_stride + dim] = true;
+    }
+    std::size_t stray_o = 0;
+    for(std::size_t i = 0; i < o_float.size(); ++i)
+    {
+        if(!logical_o[i] && !std::isnan(o_float[i]))
+            ++stray_o;
+    }
+    EXPECT_EQ(stray_o, 0u);
 }
 
 INSTANTIATE_TEST_SUITE_P(

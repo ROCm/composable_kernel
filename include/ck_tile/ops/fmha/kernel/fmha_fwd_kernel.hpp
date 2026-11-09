@@ -9,6 +9,7 @@
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
+#include "ck_tile/ops/fmha/detail/fmha_tdm_sched_output.hpp"
 
 #include <string>
 #include <type_traits>
@@ -280,6 +281,11 @@ struct FmhaFwdKernel
     static constexpr bool kUseTrLoad    = detail::is_using_trload_v<FmhaPipeline>;
     static constexpr bool kIsTdmSchedD128 =
         kPipelineName == "qr_tdm_sched" && FmhaPipeline::BlockFmhaShape::kQKHeaddim == 128;
+    static constexpr bool kUseAsyncLdsOStore =
+        kIsTdmSchedD128 && kUsesFixedSegmentedLdsArena && sizeof(ODataType) == 2;
+    static constexpr index_t kAsyncOStoreBytes          = 16;
+    static constexpr index_t kAsyncOStoreVec            = kAsyncOStoreBytes / sizeof(ODataType);
+    static constexpr uint64_t kAsyncOTileSpanLimitBytes = uint64_t{1} << 32;
     // Match qr_tdm plus the validated sched D64/D128 variants. Sched D192 keeps
     // the existing head-major remap. GetTileIndex additionally requires batch
     // BHSD, square causal attention, one V tile, and no dropout for this order.
@@ -1575,6 +1581,29 @@ struct FmhaFwdKernel
                 if(kargs.sink_ptr != nullptr)
                     return false;
             }
+            // The codegen constraint repeats these checks so the dispatcher falls back to qr_tdm.
+            if constexpr(kUseAsyncLdsOStore)
+            {
+                if(kargs.hdim_v != FmhaPipeline::kN1)
+                    return false;
+                if(reinterpret_cast<uintptr_t>(kargs.o_ptr) % kAsyncOStoreBytes != 0 ||
+                   kargs.stride_o < 0 || kargs.stride_o % kAsyncOStoreVec != 0 ||
+                   kargs.nhead_stride_o % kAsyncOStoreVec != 0)
+                {
+                    return false;
+                }
+                if constexpr(!kIsGroupMode)
+                {
+                    if(kargs.batch_stride_o % kAsyncOStoreVec != 0)
+                        return false;
+                }
+                const uint64_t tile_span_bytes = (FmhaPipeline::kM0 - 1) *
+                                                     static_cast<uint64_t>(kargs.stride_o) *
+                                                     sizeof(ODataType) +
+                                                 FmhaPipeline::kN1 * sizeof(ODataType);
+                if(tile_span_bytes > kAsyncOTileSpanLimitBytes)
+                    return false;
+            }
         }
 
         if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
@@ -2848,12 +2877,13 @@ struct FmhaFwdKernel
             const index_t i_m0                                = i_tile_m * FmhaPipeline::kM0;
             const index_t i_n1                                = i_tile_n * FmhaPipeline::kN1;
 
-            long_index_t batch_offset_q    = 0;
-            long_index_t batch_offset_k    = 0; // unused for paged-kvcache
-            long_index_t batch_offset_v    = 0; // unused for paged-kvcache
-            long_index_t batch_offset_bias = 0;
-            long_index_t batch_offset_lse  = 0;
-            long_index_t batch_offset_o    = 0;
+            long_index_t batch_offset_q                        = 0;
+            long_index_t batch_offset_k                        = 0; // unused for paged-kvcache
+            long_index_t batch_offset_v                        = 0; // unused for paged-kvcache
+            long_index_t batch_offset_bias                     = 0;
+            long_index_t batch_offset_lse                      = 0;
+            long_index_t batch_offset_o                        = 0;
+            [[maybe_unused]] long_index_t batch_offset_randval = 0;
             // index_t kv_l2p_offset =
             //     0; // logical-to-physical offset of seqlen_k coordinate. only used for
             //     paged-kvcache
@@ -2886,6 +2916,8 @@ struct FmhaFwdKernel
                 // LSE layout is [nhead, total_seqlen] following the physical layout for Q/O
                 batch_offset_lse = query_start;
                 batch_offset_o   = query_start * kargs.stride_o;
+                if constexpr(kHasDropout)
+                    batch_offset_randval = query_start * kargs.stride_randval;
 
                 // get real # queries & # keys under group mode (a broadcast Q block keeps
                 // the seqlen_q the host set)
@@ -2945,6 +2977,9 @@ struct FmhaFwdKernel
                     batch_offset_bias =
                         static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
                 }
+                if constexpr(kHasDropout)
+                    batch_offset_randval =
+                        static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
 
                 // If cumulative seqlen pointers are provided, override per-batch effective lengths
                 if(kargs.cu_seqlen_q_ptr != nullptr)
@@ -3294,127 +3329,143 @@ struct FmhaFwdKernel
                 }
             }();
 
-            const auto make_v_dram = [&](const VDataType* data, index_t length) {
-                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global,
-                                                                 memory_operation_enum::set,
-                                                                 kKVCoherence>(
-                    data, // will update this pointer if using paged-kvcache
-                    make_tuple(length, kargs.hdim_v),
-                    make_tuple(kargs.stride_v, 1),
-                    number<FmhaPipeline::kAlignmentV>{},
-                    number<1>{});
-
-                // TODO: Add kVHeadDim
-                constexpr index_t XorGroupSize =
-                    FmhaPipeline::Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
-
-                const auto v_dram_pad = pad_tensor_view(
-                    v_dram_naive,
-                    make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
-                    sequence<kPadSeqLenK, false>{});
-
-                // TDM needs affine DRAM strides and the logical sequence bounds;
-                // software padding would make invalid V rows readable by DMA.
-                // LDS padding is configured separately by the pipeline policy.
-                if constexpr(kUsesTdmAffineDramPath)
+            const auto make_v_dram = [&](const VDataType* data, auto length) {
+                // column-major V, [hdim_v][seqlen_k]: the TDM pipelines stage it as it is
+                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
                 {
-                    return v_dram_naive;
+                    static_assert(kUsesTdmAffineDramPath,
+                                  "column-major V is staged by the TDM pipelines only");
+                    return make_naive_tensor_view<address_space_enum::global,
+                                                  memory_operation_enum::set,
+                                                  kKVCoherence>(data,
+                                                                make_tuple(kargs.hdim_v, length),
+                                                                make_tuple(kargs.stride_v, 1),
+                                                                number<FmhaPipeline::kAlignmentV>{},
+                                                                number<1>{});
                 }
                 else
                 {
-#if CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
-                    constexpr index_t LDSLayerSize =
-                        256 * numeric_traits<VDataType>::PackedSize / sizeof(VDataType);
-                    constexpr index_t XorLengthFold = LDSLayerSize / (FmhaPipeline::kQKHeaddim);
+                    const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global,
+                                                                     memory_operation_enum::set,
+                                                                     kKVCoherence>(
+                        data, // will update this pointer if using paged-kvcache
+                        make_tuple(length, kargs.hdim_v),
+                        make_tuple(kargs.stride_v, 1),
+                        number<FmhaPipeline::kAlignmentV>{},
+                        number<1>{});
 
-                    if constexpr(XorLengthFold > 1)
+                    // TODO: Add kVHeadDim
+                    constexpr index_t XorGroupSize =
+                        FmhaPipeline::Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
+
+                    const auto v_dram_pad = pad_tensor_view(
+                        v_dram_naive,
+                        make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
+                        sequence<kPadSeqLenK, false>{});
+
+                    // TDM needs affine DRAM strides and the logical sequence bounds;
+                    // software padding would make invalid V rows readable by DMA.
+                    // LDS padding is configured separately by the pipeline policy.
+                    if constexpr(kUsesTdmAffineDramPath)
                     {
-                        const auto v_dram_unmerged = transform_tensor_view(
-                            v_dram_pad,
-                            make_tuple(
-                                make_unmerge_transform(
-                                    make_tuple(length / XorLengthFold, XorLengthFold)),
-                                make_pass_through_transform(number<FmhaPipeline::kQKHeaddim>{})),
-                            make_tuple(sequence<0>{}, sequence<1>{}),
-                            make_tuple(sequence<0, 1>{}, sequence<2>{}));
-
-                        const auto v_dram_merged = transform_tensor_view(
-                            v_dram_unmerged,
-                            make_tuple(make_pass_through_transform(length / XorLengthFold),
-                                       make_merge_transform_v3_division_mod(make_tuple(
-                                           XorLengthFold, number<FmhaPipeline::kQKHeaddim>{}))),
-                            make_tuple(sequence<0>{}, sequence<1, 2>{}),
-                            make_tuple(sequence<0>{}, sequence<1>{}));
-
-                        const auto v_dram_unmerged_xor = transform_tensor_view(
-                            v_dram_merged,
-                            make_tuple(make_pass_through_transform(length / XorLengthFold),
-                                       make_unmerge_transform(
-                                           make_tuple(number<LDSLayerSize / XorGroupSize>{},
-                                                      number<XorGroupSize>{}))),
-                            make_tuple(sequence<0>{}, sequence<1>{}),
-                            make_tuple(sequence<0>{}, sequence<1, 2>{}));
-
-                        const auto v_dram_permuted = transform_tensor_view(
-                            v_dram_unmerged_xor,
-                            make_tuple(
-                                make_xor_transform(make_tuple(
-                                    length / XorLengthFold, number<LDSLayerSize / XorGroupSize>{})),
-                                make_pass_through_transform(number<XorGroupSize>{})),
-                            make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                            make_tuple(sequence<0, 1>{}, sequence<2>{}));
-
-                        const auto v_dram_tmp = transform_tensor_view(
-                            v_dram_permuted,
-                            make_tuple(make_pass_through_transform(length / XorLengthFold),
-                                       make_unmerge_transform(make_tuple(
-                                           number<XorLengthFold>{},
-                                           number<FmhaPipeline::kQKHeaddim / XorGroupSize>{})),
-                                       make_pass_through_transform(number<XorGroupSize>{})),
-                            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-                            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
-
-                        return transform_tensor_view(
-                            v_dram_tmp,
-                            make_tuple(make_merge_transform_v3_division_mod(make_tuple(
-                                           length / XorLengthFold, number<XorLengthFold>{})),
-                                       make_merge_transform_v3_division_mod(make_tuple(
-                                           number<FmhaPipeline::kQKHeaddim / XorGroupSize>{},
-                                           number<XorGroupSize>{}))),
-                            make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
-                            make_tuple(sequence<0>{}, sequence<1>{}));
+                        return v_dram_naive;
                     }
                     else
-#endif // CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
                     {
-                        const auto v_dram_unmerged = transform_tensor_view(
-                            v_dram_pad,
-                            make_tuple(make_pass_through_transform(length),
-                                       make_unmerge_transform(make_tuple(
-                                           number<FmhaPipeline::kQKHeaddim / XorGroupSize>{},
-                                           number<XorGroupSize>{}))),
-                            make_tuple(sequence<0>{}, sequence<1>{}),
-                            make_tuple(sequence<0>{}, sequence<1, 2>{}));
+#if CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
+                        constexpr index_t LDSLayerSize =
+                            256 * numeric_traits<VDataType>::PackedSize / sizeof(VDataType);
+                        constexpr index_t XorLengthFold = LDSLayerSize / (FmhaPipeline::kQKHeaddim);
 
-                        const auto v_dram_permuted = transform_tensor_view(
-                            v_dram_unmerged,
-                            make_tuple(
-                                make_xor_transform(make_tuple(
-                                    length, number<FmhaPipeline::kQKHeaddim / XorGroupSize>{})),
-                                make_pass_through_transform(number<XorGroupSize>{})),
-                            make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                            make_tuple(sequence<0, 1>{}, sequence<2>{}));
+                        if constexpr(XorLengthFold > 1)
+                        {
+                            const auto v_dram_unmerged = transform_tensor_view(
+                                v_dram_pad,
+                                make_tuple(make_unmerge_transform(
+                                               make_tuple(length / XorLengthFold, XorLengthFold)),
+                                           make_pass_through_transform(
+                                               number<FmhaPipeline::kQKHeaddim>{})),
+                                make_tuple(sequence<0>{}, sequence<1>{}),
+                                make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
-                        return transform_tensor_view(
-                            v_dram_permuted,
-                            make_tuple(make_pass_through_transform(length),
-                                       make_merge_transform_v3_division_mod(make_tuple(
-                                           number<FmhaPipeline::kQKHeaddim / XorGroupSize>{},
-                                           number<XorGroupSize>{}))),
-                            make_tuple(sequence<0>{}, sequence<1, 2>{}),
-                            make_tuple(sequence<0>{}, sequence<1>{}));
-                    }
-                } // end else (affine-TDM dispatch above returns v_dram_naive early)
+                            const auto v_dram_merged = transform_tensor_view(
+                                v_dram_unmerged,
+                                make_tuple(make_pass_through_transform(length / XorLengthFold),
+                                           make_merge_transform_v3_division_mod(make_tuple(
+                                               XorLengthFold, number<FmhaPipeline::kQKHeaddim>{}))),
+                                make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                                make_tuple(sequence<0>{}, sequence<1>{}));
+
+                            const auto v_dram_unmerged_xor = transform_tensor_view(
+                                v_dram_merged,
+                                make_tuple(make_pass_through_transform(length / XorLengthFold),
+                                           make_unmerge_transform(
+                                               make_tuple(number<LDSLayerSize / XorGroupSize>{},
+                                                          number<XorGroupSize>{}))),
+                                make_tuple(sequence<0>{}, sequence<1>{}),
+                                make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+                            const auto v_dram_permuted = transform_tensor_view(
+                                v_dram_unmerged_xor,
+                                make_tuple(make_xor_transform(
+                                               make_tuple(length / XorLengthFold,
+                                                          number<LDSLayerSize / XorGroupSize>{})),
+                                           make_pass_through_transform(number<XorGroupSize>{})),
+                                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                                make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                            const auto v_dram_tmp = transform_tensor_view(
+                                v_dram_permuted,
+                                make_tuple(make_pass_through_transform(length / XorLengthFold),
+                                           make_unmerge_transform(make_tuple(
+                                               number<XorLengthFold>{},
+                                               number<FmhaPipeline::kQKHeaddim / XorGroupSize>{})),
+                                           make_pass_through_transform(number<XorGroupSize>{})),
+                                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+                            return transform_tensor_view(
+                                v_dram_tmp,
+                                make_tuple(make_merge_transform_v3_division_mod(make_tuple(
+                                               length / XorLengthFold, number<XorLengthFold>{})),
+                                           make_merge_transform_v3_division_mod(make_tuple(
+                                               number<FmhaPipeline::kQKHeaddim / XorGroupSize>{},
+                                               number<XorGroupSize>{}))),
+                                make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
+                                make_tuple(sequence<0>{}, sequence<1>{}));
+                        }
+                        else
+#endif // CK_TILE_FMHA_HANDLE_XOR_LENGTH_FOLD
+                        {
+                            const auto v_dram_unmerged = transform_tensor_view(
+                                v_dram_pad,
+                                make_tuple(make_pass_through_transform(length),
+                                           make_unmerge_transform(make_tuple(
+                                               number<FmhaPipeline::kQKHeaddim / XorGroupSize>{},
+                                               number<XorGroupSize>{}))),
+                                make_tuple(sequence<0>{}, sequence<1>{}),
+                                make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+                            const auto v_dram_permuted = transform_tensor_view(
+                                v_dram_unmerged,
+                                make_tuple(
+                                    make_xor_transform(make_tuple(
+                                        length, number<FmhaPipeline::kQKHeaddim / XorGroupSize>{})),
+                                    make_pass_through_transform(number<XorGroupSize>{})),
+                                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                                make_tuple(sequence<0, 1>{}, sequence<2>{}));
+
+                            return transform_tensor_view(
+                                v_dram_permuted,
+                                make_tuple(make_pass_through_transform(length),
+                                           make_merge_transform_v3_division_mod(make_tuple(
+                                               number<FmhaPipeline::kQKHeaddim / XorGroupSize>{},
+                                               number<XorGroupSize>{}))),
+                                make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                                make_tuple(sequence<0>{}, sequence<1>{}));
+                        }
+                    } // end else (affine-TDM dispatch above returns v_dram_naive early)
+                }
             };
 
             const auto v_dram = [&]() {
@@ -3620,6 +3671,68 @@ struct FmhaFwdKernel
                 else
                     return false;
             }();
+            // Dropout, as the non-TDM path builds it.
+            auto tdm_dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
+                if constexpr(kHasDropout)
+                {
+                    const auto num_head_q_total =
+                        (kargs.num_head_q_total > 0 ? kargs.num_head_q_total : kargs.num_head_q);
+                    return BlockDropout{i_batch_,
+                                        kargs.head_start + i_nhead_,
+                                        num_head_q_total,
+                                        kargs.is_drop_seed_offset_from_host ? kargs.drop_seed.val
+                                                                            : *kargs.drop_seed.ptr,
+                                        kargs.is_drop_seed_offset_from_host
+                                            ? kargs.drop_offset.val
+                                            : *kargs.drop_offset.ptr,
+                                        kargs.rp_undrop,
+                                        kargs.p_undrop_in_uint8_t,
+                                        kargs.is_store_randval};
+                }
+                else
+                    return NullBlockDropout{};
+            }();
+            auto tdm_randval_dram_window = [&, i_nhead_ = i_nhead]() {
+                constexpr auto lengths =
+                    make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
+                if constexpr(kHasDropout)
+                {
+                    RandValOutputDataType* rand_val_ptr =
+                        reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +
+                        static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_randval +
+                        batch_offset_randval;
+                    const auto randval_dram =
+                        pad_tensor_view(make_naive_tensor_view<address_space_enum::global>(
+                                            rand_val_ptr,
+                                            make_tuple(kargs.seqlen_q, kargs.seqlen_k),
+                                            make_tuple(kargs.stride_randval, 1),
+                                            // a buffer store checks only its first element,
+                                            // so a vector would spill past seqlen_k
+                                            number<1>{},
+                                            number<1>{}),
+                                        lengths,
+                                        // the TDM pipelines take unpadded variants for any
+                                        // length (the TDM bounds the K/V reads), so the
+                                        // randval stores are always bounded
+                                        sequence<true, true>{});
+                    return make_tile_window(randval_dram, lengths, {i_m0, 0});
+                }
+                else
+                    return make_null_tile_window(lengths);
+            }();
+            [[maybe_unused]] const float tdm_soft_cap = [&]() {
+                if constexpr(kHasLogitsSoftCap)
+                    return kargs.logits_soft_cap;
+                else
+                    return 0.f;
+            }();
+            [[maybe_unused]] const float tdm_soft_cap_rcp = [&]() {
+                if constexpr(kHasLogitsSoftCap)
+                    return kargs.logits_soft_cap_rcp;
+                else
+                    return 0.f;
+            }();
+
             auto invoke_fmha_pipeline = [&](auto&&... args) -> decltype(auto) {
                 if constexpr(kPipelineName == "qr_tdm" && kBlockQScale)
                 {
@@ -3641,8 +3754,30 @@ struct FmhaFwdKernel
                                           1,
                                           v_descale,
                                           lse_log2);
+                // the qr_tdm family takes lse_log2 ahead of the soft cap and dropout
+                else if constexpr(kStoresLseLog2 && kHasDropout)
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                          lse_log2,
+                                          tdm_soft_cap,
+                                          tdm_soft_cap_rcp,
+                                          tdm_randval_dram_window,
+                                          tdm_dropout);
+                else if constexpr(kStoresLseLog2 && kHasLogitsSoftCap)
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                          lse_log2,
+                                          tdm_soft_cap,
+                                          tdm_soft_cap_rcp);
                 else if constexpr(kStoresLseLog2)
                     return FmhaPipeline{}(static_cast<decltype(args)&&>(args)..., lse_log2);
+                else if constexpr(kHasDropout)
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                          tdm_soft_cap,
+                                          tdm_soft_cap_rcp,
+                                          tdm_randval_dram_window,
+                                          tdm_dropout);
+                else if constexpr(kHasLogitsSoftCap)
+                    return FmhaPipeline{}(
+                        static_cast<decltype(args)&&>(args)..., tdm_soft_cap, tdm_soft_cap_rcp);
                 else
                     return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...);
             };
@@ -3659,6 +3794,7 @@ struct FmhaFwdKernel
                 alignas(256) __shared__ char smem[GetSmemSize()];
                 smem_ptr = smem;
             }
+            [[maybe_unused]] void* o_lds_staging = nullptr;
 
             auto o_acc_tile = [&]() {
                 if constexpr(PrefillCase)
@@ -3667,7 +3803,8 @@ struct FmhaFwdKernel
                     {
                         using Policy = typename FmhaPipeline::Policy;
                         static_assert(FmhaPipeline::GetSmemSize() == Policy::GetLdsArenaSize());
-                        __shared__ char smem_arena[Policy::GetLdsArenaSize()];
+                        alignas(16) __shared__ char smem_arena[Policy::GetLdsArenaSize()];
+                        o_lds_staging = smem_arena + Policy::GetLdsOffsetK0();
                         return invoke_fmha_pipeline(q_dram_window,
                                                     k_dram_window,
                                                     v_dram_window,
@@ -3766,7 +3903,19 @@ struct FmhaFwdKernel
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                 {i_m0, i_n1});
 
-            if constexpr(detail::epilogue_uses_smem_v<EpiloguePipeline>)
+            // Same logical output as the current Default2DEpilogue (cast to ODataType, overwrite
+            // valid rows, no scale or atomic); bounds come from clamping/skipping. Mirror epilogue
+            // changes here.
+            if constexpr(kUseAsyncLdsOStore && PrefillCase)
+            {
+                fmha_tdm_sched_store_o_tile_async_from_lds<FmhaPipeline, kAsyncOStoreBytes>(
+                    o_lds_staging,
+                    o_ptr + static_cast<long_index_t>(i_m0) * kargs.stride_o + i_n1,
+                    kargs.stride_o,
+                    kargs.seqlen_q - i_m0,
+                    o_acc_tile);
+            }
+            else if constexpr(detail::epilogue_uses_smem_v<EpiloguePipeline>)
             {
                 // The pipeline is done with its LDS; pipelines that declare
                 // their own arrays leave none to the epilogue (direct store).

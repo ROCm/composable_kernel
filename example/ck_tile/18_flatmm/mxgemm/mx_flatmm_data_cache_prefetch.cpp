@@ -337,8 +337,13 @@ int run_mx_gemm_tdm_v1_prefetch(int argc, char* argv[])
     stride_B = get_default_stride(K, N, stride_B, is_row_major(BLayout{}));
     stride_C = get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
-    if(K % ScaleBlockSize != 0)
-        throw std::runtime_error("K must be multiple of ScaleBlockSize");
+    // The scale buffers below hold K / ScaleBlockSize columns, unpadded, and the pre-shuffle
+    // assumes whole int32 packs of ScalesPerPack scales.
+    constexpr ck_tile::index_t ScalesPerPack = 4;
+    if(K % (ScaleBlockSize * ScalesPerPack) != 0)
+        throw std::runtime_error("K = " + std::to_string(K) +
+                                 " must be a multiple of ScaleBlockSize * 4 = " +
+                                 std::to_string(ScaleBlockSize * ScalesPerPack));
 
     HostTensor<ADataType> a_host(host_tensor_descriptor(M, K, stride_A, is_row_major(ALayout{})));
     HostTensor<BDataType> b_host(host_tensor_descriptor(K, N, stride_B, is_row_major(BLayout{})));

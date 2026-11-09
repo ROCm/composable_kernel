@@ -17,10 +17,9 @@ Input JSON format:
 
 Optional top-level keys ``verify`` (bool) and ``verify_tol`` (float) enable an
 fp32 numpy reference check; when set, each OK result also carries ``verified``
-and ``max_rel``. Stream-K's Atomic reduction does multiple fp16 atomic-adds (one
-per K-split partial), so it is inherently noisier than a single fp32->fp16 store;
-the default gate tolerance (2e-2) is loose enough to pass while still catching
-gross errors.
+and ``max_rel``. Atomic reduction rounds each partial update to the output
+precision; many contributors can exceed the default gate tolerance (2e-2).
+Linear/tree reduction combines partials in fp32 before converting the output.
 
 Output JSON format (one line per kernel):
     {"idx": 0, "ok": true, "ms": 0.123, "tflops": 456.7, "non_zero": 1, "kernel": "..."}
@@ -39,7 +38,12 @@ if gemm_pypath:
         if p and p not in sys.path:
             sys.path.insert(0, p)
 
-from gemm_utils import GemmProblem, GpuGemmRunner  # noqa: E402
+from gemm_utils import (  # noqa: E402
+    GemmProblem,
+    GpuGemmRunner,
+    _sweep_inputs,
+    _sweep_max_rel,
+)
 import numpy as np  # noqa: E402
 
 
@@ -54,9 +58,9 @@ def _run_one(idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2
     try:
         problem = GemmProblem.from_dict(prob_dict)
 
-        np.random.seed(42)
-        A = (np.random.randn(problem.M, problem.K) * 0.1).astype(np.float32)
-        B = (np.random.randn(problem.K, problem.N) * 0.1).astype(np.float32)
+        # Drawn once per shape; kernels of the shape reuse their encoding and
+        # verify reference (gemm_utils._sweep_inputs).
+        A, B = _sweep_inputs((problem.M, problem.K), (problem.K, problem.N))
 
         # CRITICAL: load the library ONLY inside this subprocess. The runner reads
         # dtype + layout off the kernel name and arranges/encodes A/B accordingly.
@@ -80,10 +84,7 @@ def _run_one(idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2
             if verify:
                 # Reference uses the SAME quantized inputs the device sees, so the
                 # metric isolates compute error from input quantization.
-                ref = runner.reference(A, B)
-                got = result.output.astype(np.float32)
-                denom = float(np.max(np.abs(ref))) or 1.0
-                max_rel = float(np.max(np.abs(got - ref)) / denom)
+                max_rel = _sweep_max_rel(runner, A, B, result.output)
                 out["max_rel"] = max_rel
                 out["verified"] = bool(max_rel <= verify_tol)
             print(json.dumps(out), flush=True)

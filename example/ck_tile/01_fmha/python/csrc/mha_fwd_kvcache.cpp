@@ -258,13 +258,8 @@ get_ck_fmha_fwd_splitkv_args(bool has_lse,
     if(alibi_slopes_.has_value())
     {
         auto alibi_slopes = alibi_slopes_.value();
-        CK_TILE_FMHA_CHECK_DEVICE(alibi_slopes);
-        TORCH_CHECK(alibi_slopes.stride(-1) == 1,
-                    "ALiBi slopes tensor must have contiguous last dimension");
-        TORCH_CHECK(alibi_slopes.sizes() == torch::IntArrayRef({h}) ||
-                    alibi_slopes.sizes() == torch::IntArrayRef({b, h}));
-        args.bias_ptr    = alibi_slopes.data_ptr();
-        args.stride_bias = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
+        args.bias_ptr     = alibi_slopes.data_ptr();
+        args.stride_bias  = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
     }
 
     args.window_size_left  = mask.left;
@@ -287,7 +282,7 @@ std::vector<at::Tensor> mha_fwd_kvcache(
     std::optional<const at::Tensor>& rotary_cos_,      // seqlen_ro x (rotary_dim / 2)
     std::optional<const at::Tensor>& rotary_sin_,      // seqlen_ro x (rotary_dim / 2)
     std::optional<const at::Tensor>& cache_batch_idx_, // indices to index into the KV cache
-    std::optional<const at::Tensor>& /*leftpad_k_*/,   // batch_size
+    std::optional<const at::Tensor>& leftpad_k_,       // batch_size
     std::optional<at::Tensor>& block_table_,           // batch_size x max_num_blocks_per_seq
     std::optional<at::Tensor>& alibi_slopes_,          // num_heads or batch_size x num_heads
     std::optional<at::Tensor>& out_, // batch_size x seqlen_q x num_heads x head_size
@@ -301,6 +296,7 @@ std::vector<at::Tensor> mha_fwd_kvcache(
     int num_splits)
 {
     TORCH_CHECK(softcap == 0.0f, "CK Tile FMHA Python bindings do not support softcap");
+    TORCH_CHECK(!leftpad_k_.has_value(), "KV-cache attention does not support cache_leftpad");
     auto q_dtype = q.dtype();
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16,
                 "CK Tile FMHA only supports fp16 and bf16 data type");
@@ -346,10 +342,23 @@ std::vector<at::Tensor> mha_fwd_kvcache(
     const int num_heads_k  = kcache.size(2);
     const int batch_size_c = !paged_KV ? kcache.size(0) : batch_size;
     TORCH_CHECK(batch_size > 0, "batch size must be positive");
+    detail::check_alibi(alibi_slopes_, q, batch_size, num_heads);
     TORCH_CHECK(head_size_og <= 256,
                 "FlashAttention forward only supports head dimension at most 256");
-    TORCH_CHECK(num_heads % num_heads_k == 0,
+    TORCH_CHECK(num_heads > 0 && num_heads_k > 0 && num_heads % num_heads_k == 0,
                 "Number of heads in key/value must divide number of heads in query");
+
+    const bool rotary_seqlen_offsets =
+        seqlen_q > 1 && (is_causal || window_size_left != -1 || window_size_right != -1);
+
+    if(window_size_left >= seqlen_k)
+    {
+        window_size_left = -1;
+    }
+    if(window_size_right >= seqlen_q)
+    {
+        window_size_right = -1;
+    }
 
     // causal=true is the same as causal=false in this case
     if(seqlen_q == 1 && !alibi_slopes_.has_value())
@@ -504,7 +513,7 @@ std::vector<at::Tensor> mha_fwd_kvcache(
         CK_TILE_FMHA_CHECK_SHAPE(rotary_sin, seqlen_ro, rotary_dim / 2);
         CK_TILE_FMHA_CHECK_CONTIGUOUS(rotary_sin);
         TORCH_CHECK(rotary_sin.scalar_type() == q_dtype,
-                    "rotary_cos must have the same dtype as query");
+                    "rotary_sin must have the same dtype as query");
     }
 
     if(cache_batch_idx_.has_value())
@@ -527,7 +536,7 @@ std::vector<at::Tensor> mha_fwd_kvcache(
     auto out_accum = torch::empty({num_splits, batch_size, num_heads, seqlen_q, head_size_8x},
                                   opts.dtype(at::kFloat));
 
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
+    auto stream = detail::current_stream();
     ck_tile::stream_config stream_config{stream};
 
     if(seqlen_knew > 0 || rotary_dim > 0)
@@ -542,7 +551,7 @@ std::vector<at::Tensor> mha_fwd_kvcache(
                                                            num_heads_k,
                                                            head_size_8x,
                                                            rotary_dim,
-                                                           mask.type != mask_enum::no_mask,
+                                                           rotary_seqlen_offsets,
                                                            page_block_size,
                                                            q_padded,
                                                            kcache_padded,
@@ -555,7 +564,8 @@ std::vector<at::Tensor> mha_fwd_kvcache(
                                                            cache_batch_idx_,
                                                            block_table_);
 
-        fmha_fwd_appendkv(appendkv_traits, appendkv_args, stream_config);
+        const float t = fmha_fwd_appendkv(appendkv_traits, appendkv_args, stream_config);
+        TORCH_CHECK(t >= 0, "invalid argument for fmha_fwd_appendkv");
     }
 
     // seqlens_k_ is the seqlen of kvcache. We need to add seqlen_knew for before attention
@@ -593,7 +603,8 @@ std::vector<at::Tensor> mha_fwd_kvcache(
                                                      softmax_lse_accum,
                                                      out_accum);
 
-    fmha_fwd_splitkv(splitkv_traits, splitkv_args, stream_config);
+    const float t = fmha_fwd_splitkv(splitkv_traits, splitkv_args, stream_config);
+    TORCH_CHECK(t >= 0, "invalid argument for fmha_fwd_splitkv");
 
     if(head_size_og % 8 != 0)
     {

@@ -1824,7 +1824,17 @@ struct MoeSortingMultiPhaseKernel_P0_v2
         {
             p_expert_mesh[i] = 0;
         }
-        ck_tile::block_sync_load_raw(0);
+        // The mesh row lives in global memory (the workspace). An entry zeroed by one
+        // wavefront can be filled by another, and an entry filled by one wavefront can be
+        // counted by another, so the barriers between zeroing, filling and counting must also
+        // order those global stores across wavefronts. block_sync_load_raw(0) does not:
+        // on gfx10/gfx11 it waits for vmcnt, which counts loads but not stores (vscnt), and
+        // it does not invalidate the L0 cache. In WGP mode the wavefronts of one block may
+        // run on both CUs of the WGP, each with its own L0, so a zero store can land after
+        // a fill store, or a count load can read before the fill store it should see.
+        // __syncthreads() waits for the stores, synchronizes, and invalidates L0 where the
+        // target needs it.
+        __syncthreads();
 
         index_t total_elem = rounded_tokens * kargs.topk_mdiv.divisor / index_pack;
 
@@ -1848,7 +1858,8 @@ struct MoeSortingMultiPhaseKernel_P0_v2
                 }
             });
         }
-        ck_tile::block_sync_load_raw(0);
+        // The counting below reads mesh entries filled by other wavefronts; see above.
+        __syncthreads();
 
         {
 

@@ -539,13 +539,17 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
         return make_tuple(number<AccVGPRNum>{}, number<TotalInputVGPRNum>{});
     }
 
-    // this function is used to get SubTile Number
+    // K sub-tile count: the register estimate's request, rounded up to a divisor of the number of
+    // warp GEMMs in the K tile
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetPipelineSubTileNum()
     {
         constexpr index_t KPerBlock        = Problem::BlockGemmShape::kK;
         constexpr index_t KPerTile         = Problem::BlockGemmShape::WarpTile::at(Base::I2);
         constexpr index_t max_sub_tile_num = KPerBlock / KPerTile;
+        // Protects the sub-tile split: a K tile shorter than one warp tile has no warp GEMMs.
+        static_assert(max_sub_tile_num > 0,
+                      "TDM pipelines: KPerBlock must be at least WarpTile::K.");
 
         constexpr auto estimated_vgpr = GetEstimatedVgprCount<Problem>();
 
@@ -559,7 +563,9 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
                                              ? 2
                                              : 4;
 
-        return number<min(sub_tile_num, max_sub_tile_num)>{};
+        // The LDS GEMM windows (KPerBlock / count long) and the block GEMM use the count, so it
+        // must divide the number of warp GEMMs in the K tile (max_sub_tile_num).
+        return number<Base::GetDividingSubTileNum(sub_tile_num, max_sub_tile_num)>{};
     }
 
     template <typename Problem>

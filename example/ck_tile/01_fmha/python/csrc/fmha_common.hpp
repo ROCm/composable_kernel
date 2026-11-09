@@ -9,6 +9,7 @@
 #include <torch/nn/functional.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
+#include <mutex>
 #include <optional>
 #include <string>
 
@@ -86,6 +87,23 @@ inline at::Tensor from_ngroups_layout(const at::Tensor& t)
     return t.transpose(1, 2).reshape({b, 1, hk * g, d});
 }
 
+inline void check_alibi(const std::optional<at::Tensor>& slopes,
+                        const at::Tensor& q,
+                        int batch_size,
+                        int num_heads)
+{
+    if(!slopes.has_value())
+        return;
+    const auto& tensor = slopes.value();
+    TORCH_CHECK(tensor.device() == q.device(), "ALiBi slopes must be on the same device as query");
+    TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Float,
+                "ALiBi slopes must have dtype float32");
+    TORCH_CHECK(tensor.sizes() == torch::IntArrayRef({num_heads}) ||
+                    tensor.sizes() == torch::IntArrayRef({batch_size, num_heads}),
+                "ALiBi slopes must have shape [nheads] or [batch_size, nheads]");
+    TORCH_CHECK(tensor.stride(-1) == 1, "ALiBi slopes must have contiguous last dimension");
+}
+
 // Elementwise bias is shared by all batches and heads.
 inline void check_bias(const std::optional<at::Tensor>& bias,
                        const std::optional<at::Tensor>& alibi_slopes,
@@ -120,6 +138,27 @@ inline __global__ void ParsePhiloxCudaState(at::PhiloxCudaState arg, uint64_t* r
         rng_state[0] = arg.seed_.val;
         rng_state[1] = arg.offset_.val;
     }
+}
+
+inline hipStream_t current_stream()
+{
+#ifdef HIPIFY_V2
+    return at::cuda::getCurrentCUDAStream().stream();
+#else
+    return at::cuda::getCurrentHIPStream().stream();
+#endif
+}
+
+inline void init_philox_state(at::CUDAGeneratorImpl* gen,
+                              int64_t counter_offset,
+                              hipStream_t stream,
+                              uint64_t* rng_state_ptr)
+{
+    // See Note [Acquire lock when using random generators]
+    std::lock_guard<std::mutex> lock(gen->mutex_);
+    auto philox_args = gen->philox_cuda_state(counter_offset);
+    hipLaunchKernelGGL(
+        ParsePhiloxCudaState, dim3(1), dim3(64), 0, stream, philox_args, rng_state_ptr);
 }
 
 inline int

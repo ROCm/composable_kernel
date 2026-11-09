@@ -264,6 +264,25 @@ struct PipelineDefaultParams<PT, std::enable_if_t<is_tdm_pipeline(PT)>>
     static constexpr bool Preshuffle = false;
 };
 
+// Skips the current test unless the device has hardware named barriers (gfx1250). A skip
+// reports as PASS; CK_TILE_REQUIRE_GFX125=1 turns it into a failure on runners that are meant to
+// be gfx1250. A macro because GTEST_SKIP/FAIL return from the calling test function.
+#define CK_TILE_SKIP_UNLESS_GFX125()                                                    \
+    do                                                                                  \
+    {                                                                                   \
+        if(!ck_tile::is_gfx125_supported())                                             \
+        {                                                                               \
+            const char* ck_tile_required_ = std::getenv("CK_TILE_REQUIRE_GFX125");      \
+            if(ck_tile_required_ != nullptr && ck_tile_required_[0] == '1')             \
+            {                                                                           \
+                FAIL() << "CK_TILE_REQUIRE_GFX125=1 but the device reports '"           \
+                       << ck_tile::get_device_name() << "'";                            \
+            }                                                                           \
+            GTEST_SKIP() << "hardware named barriers require gfx1250; device reports '" \
+                         << ck_tile::get_device_name() << "'";                          \
+        }                                                                               \
+    } while(false)
+
 template <typename Tuple, typename Derived>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
@@ -551,19 +570,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         }
         if constexpr(PipelineType == GemmPipelineType::CompTDMProducerConsumer)
         {
-            if(!ck_tile::is_gfx125_supported())
-            {
-                // A skip reports as PASS; CK_TILE_REQUIRE_GFX125=1 turns it into a failure on
-                // runners that are meant to be gfx1250.
-                const char* required = std::getenv("CK_TILE_REQUIRE_GFX125");
-                if(required != nullptr && required[0] == '1')
-                {
-                    FAIL() << "CK_TILE_REQUIRE_GFX125=1 but the device reports '"
-                           << ck_tile::get_device_name() << "'";
-                }
-                GTEST_SKIP() << "hardware named barriers require gfx1250; device reports '"
-                             << ck_tile::get_device_name() << "'";
-            }
+            CK_TILE_SKIP_UNLESS_GFX125();
         }
         // TDM pipelines use cluster launch (multicast), not supported on gfx1250 A0 (revision 0)
         if constexpr(PipelineType == GemmPipelineType::CompTDMV1 ||

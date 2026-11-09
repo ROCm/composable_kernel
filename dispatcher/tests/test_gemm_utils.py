@@ -18,6 +18,7 @@ No GPU is touched -- all functions under test are pure host-side logic.
 Run: python3 -m pytest tests/test_gemm_utils.py -v
 """
 
+import hashlib
 import sys
 import unittest
 from pathlib import Path
@@ -39,6 +40,7 @@ from gemm_utils import (  # noqa: E402
     _fnuz_decode_table,
     _fp8_decode_table,
     _fp8_encode,
+    _fp8_encode_ladder,
     numpy_dtype_for,
     _output_dtype,
     _dtype_from_kernel_name,
@@ -330,6 +332,92 @@ class TestFp8EncodeMatchesMlDtypes(unittest.TestCase):
                 self.assertEqual(float(ours[1]), -max_finite)
                 theirs = big.astype(getattr(ml_dtypes, ml_name)).astype(np.float64)
                 self.assertFalse(np.all(np.isfinite(theirs)))
+
+    def test_bit_exact_against_float64_ladder_across_all_codecs(self):
+        # Asserts byte-identical output between the table-driven encoder and the
+        # reference float64 searchsorted ladder across normals, subnormals, +0.0,
+        # -0.0, NaN (quiet/signaling, positive/negative payloads), +/-Inf,
+        # values above max representable magnitude, exact tie points (+/-16
+        # ULPs), and every float32 top-16-bit bucket at lo16 in {0, 1, 0x8000,
+        # 0xFFFF} -- the bucket granularity the lookup tables rely on -- for all
+        # four codecs: FNUZ fp8, OCP fp8, FNUZ bf8, and OCP bf8.
+        u_buckets = (
+            (np.arange(65536, dtype=np.uint32) << np.uint32(16))[:, None]
+            | np.array([0, 1, 0x8000, 0xFFFF], dtype=np.uint32)
+        ).ravel()
+        rng = np.random.default_rng(42)
+        u_rand = rng.integers(0, 2**32, size=100_000, dtype=np.uint32)
+        specials_u32 = np.array(
+            [
+                0x00000000,  # +0.0
+                0x80000000,  # -0.0
+                0x00000001,  # smallest positive float32 subnormal
+                0x80000001,  # smallest negative float32 subnormal
+                0x7F7FFFFF,  # max finite float32
+                0xFF7FFFFF,  # min finite float32
+                0x7F800000,  # +Inf
+                0xFF800000,  # -Inf
+                0x7F800001,  # signaling NaN (low16 != 0, hi16 == 0x7F80)
+                0xFF800001,  # negative signaling NaN (low16 != 0, hi16 == 0xFF80)
+                0x7FC00000,  # canonical quiet NaN
+                0xFFC00000,  # negative quiet NaN
+            ],
+            dtype=np.uint32,
+        )
+        offsets = np.arange(-16, 17, dtype=np.int64)
+        for exp_bits, mant_bits, use_ocp, _ in self._CASES:
+            with self.subTest(bits=(exp_bits, mant_bits), ocp=use_ocp):
+                table = _fp8_decode_table(exp_bits, mant_bits, use_ocp)
+                mags = self._finite_magnitudes(table)
+                mids = ((mags[:-1] + mags[1:]) / 2.0).astype(np.float32)
+                centers = np.unique(
+                    np.concatenate([mags.astype(np.float32), mids])
+                ).view(np.uint32)
+                u_grid = (
+                    np.clip(
+                        centers[:, None].astype(np.int64) + offsets[None, :],
+                        0,
+                        0x7FFFFFFF,
+                    )
+                    .astype(np.uint32)
+                    .ravel()
+                )
+                u_all = np.concatenate(
+                    [
+                        u_grid,
+                        u_grid | np.uint32(0x80000000),
+                        specials_u32,
+                        u_buckets,
+                        u_rand,
+                    ]
+                )
+                x = u_all.view(np.float32)
+                expected = _fp8_encode_ladder(x, exp_bits, mant_bits, use_ocp)
+                got = _fp8_encode(x, exp_bits, mant_bits, use_ocp=use_ocp)
+                np.testing.assert_array_equal(got, expected)
+
+
+class TestFp8EncodeGoldenBytes(unittest.TestCase):
+    """Pins the encoded bytes independently of the in-repo float64 ladder."""
+
+    # sha256 of the bytes of the searchsorted-ladder _fp8_encode (before the
+    # lookup tables) over every float32 top-16-bit bucket at lo16 == 0 and
+    # lo16 == 1; those two inputs per bucket determine the output for all 2^32
+    # inputs (see _fp8_encode_tables).
+    _GOLDEN = {
+        (4, 3, False): "3c94f573a75f08d7a3318ac0f4842b9b9e6922d9d4c99bf6c815beef0206f108",
+        (4, 3, True): "f4c21e5daf2446dcf62ff9ebac214b18e114eaa8a75a79189bb41915cf5eb32f",
+        (5, 2, False): "e92f6b14ffcf15ae2cbc95cfc8c84038fba64b3c71514309735ecad8086ca1f4",
+        (5, 2, True): "d558aeff7e2c0262e84da05a223d8bf8e622980601d4c80bc04db7506a080f52",
+    }
+
+    def test_bytes_match_the_ladder_encoder(self):
+        top = np.arange(65536, dtype=np.uint32) << np.uint32(16)
+        x = np.concatenate([top, top | np.uint32(1)]).view(np.float32)
+        for (exp_bits, mant_bits, use_ocp), digest in self._GOLDEN.items():
+            with self.subTest(bits=(exp_bits, mant_bits), ocp=use_ocp):
+                got = _fp8_encode(x, exp_bits, mant_bits, use_ocp=use_ocp)
+                self.assertEqual(hashlib.sha256(got.tobytes()).hexdigest(), digest)
 
 
 class TestOutputDtype(unittest.TestCase):

@@ -721,3 +721,32 @@ def test_fmha_varlen_deterministic(seqlen_q, seqlen_k, swap_sq_sk, d, causal, lo
         assert torch.equal(dv, dv0)
         assert torch.equal(dk, dk0)
         assert torch.equal(dq, dq0)
+
+
+@pytest.mark.parametrize("window", [(-1, 5), (2147483647, 2147483647)])
+@pytest.mark.parametrize("extra_max", [0, 7])
+def test_varlen_window_bounds_with_different_lengths(window, extra_max):
+    torch.manual_seed(0)
+    q = torch.randn(11, 4, 64, device="cuda", dtype=torch.float16, requires_grad=True)
+    k = torch.randn(7, 2, 64, device="cuda", dtype=torch.float16, requires_grad=True)
+    v = torch.randn_like(k, requires_grad=True)
+    cu_q = torch.tensor([0, 8, 11], device=q.device, dtype=torch.int32)
+    cu_k = torch.tensor([0, 2, 7], device=q.device, dtype=torch.int32)
+    out = fmha_varlen_func(q, k, v, cu_q, cu_k, 8 + extra_max, 5 + extra_max, window_size=window)
+    # Max lengths only select the kernel; each sequence keeps its own bottom-right mask.
+    ref = torch.cat(
+        [
+            attention_ref(
+                q[:8].unsqueeze(0), k[:2].unsqueeze(0), v[:2].unsqueeze(0), window_size=window
+            )[0][0],
+            attention_ref(
+                q[8:].unsqueeze(0), k[2:].unsqueeze(0), v[2:].unsqueeze(0), window_size=window
+            )[0][0],
+        ]
+    )
+    torch.testing.assert_close(out, ref, atol=2e-3, rtol=2e-3)
+    dout = torch.randn_like(out)
+    for grad, ref_grad in zip(
+        torch.autograd.grad(out, (q, k, v), dout), torch.autograd.grad(ref, (q, k, v), dout)
+    ):
+        torch.testing.assert_close(grad, ref_grad, atol=4e-3, rtol=4e-3)

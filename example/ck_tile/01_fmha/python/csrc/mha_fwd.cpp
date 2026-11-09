@@ -66,6 +66,7 @@ mha_fwd(at::Tensor& q,       // batch_size x seqlen_q x num_heads x round_multip
     const int seqlen_k    = k.size(1);
     const int num_heads_k = k.size(2);
     TORCH_CHECK(batch_size > 0, "batch size must be positive");
+    detail::check_alibi(alibi_slopes_, q, batch_size, num_heads);
     TORCH_CHECK_NOT_IMPLEMENTED(head_size > 0 && head_size <= 256,
                                 "CK only supports head dimension in [1, 256]");
     TORCH_CHECK_NOT_IMPLEMENTED(
@@ -203,6 +204,7 @@ mha_fwd(at::Tensor& q,       // batch_size x seqlen_q x num_heads x round_multip
 
     // Otherwise the kernel will be launched from cuda:0 device
     at::cuda::CUDAGuard device_guard{q.device()};
+    auto stream = detail::current_stream();
 
     auto opts        = q.options();
     bool has_lse     = return_lse;
@@ -233,21 +235,12 @@ mha_fwd(at::Tensor& q,       // batch_size x seqlen_q x num_heads x round_multip
     {
         auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
             gen_, at::cuda::detail::getDefaultCUDAGenerator());
-        // See Note [Acquire lock when using random generators]
-        std::lock_guard<std::mutex> lock(gen->mutex_);
-        auto philox_args = gen->philox_cuda_state(counter_offset);
-        hipLaunchKernelGGL(
-            detail::ParsePhiloxCudaState, dim3(1), dim3(64), 0, 0, philox_args, rng_state_ptr);
+        detail::init_philox_state(gen, counter_offset, stream, rng_state_ptr);
     }
 
     if(seqlen_k > 0 && seqlen_q > 0)
     {
         auto drop_seed_offset = std::make_pair(rng_state_ptr, rng_state_ptr + 1);
-#ifdef HIPIFY_V2
-        auto stream = at::cuda::getCurrentCUDAStream().stream();
-#else
-        auto stream = at::cuda::getCurrentHIPStream().stream();
-#endif
         ck_tile::stream_config stream_config{stream};
 
         auto traits =

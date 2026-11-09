@@ -234,6 +234,27 @@ struct ScalesConfig<TypeConfig, true>
     static constexpr ck_tile::index_t kVScaleGranularity  = TypeConfig::kVScaleGranularity;
 };
 
+// On gfx125 fp16/bf16 with hdim_v >= 64, where qr_tdm_pingpong has a 16-row short-query
+// tile, Pack-GQA folding a short query (2..16 rows per head) into more than 16 rows moves
+// it off that tile onto a 64/128-row tile with nhead_ratio times fewer blocks; on a grid
+// under two (batch, head) pairs per CU that loses more parallelism than the shared K/V
+// loads save (d128, 32 heads, 8:1 GQA, 4..16 query rows: up to -45%).
+inline bool pack_gqa_costs_parallelism(const std::string& data_type,
+                                       ck_tile::index_t hdim_v,
+                                       ck_tile::index_t batch,
+                                       ck_tile::index_t nhead,
+                                       ck_tile::index_t nhead_ratio,
+                                       ck_tile::index_t seqlen_q)
+{
+    if((data_type != "fp16" && data_type != "bf16") || hdim_v < 64)
+        return false;
+    if(seqlen_q <= 1 || seqlen_q > 16 || nhead_ratio * seqlen_q <= 16)
+        return false;
+    if(ck_tile::get_device_name().rfind("gfx125", 0) != 0)
+        return false;
+    return static_cast<size_t>(batch) * static_cast<size_t>(nhead) < 2 * ck_tile::get_num_cus();
+}
+
 template <typename DataTypeConfig>
 fwd_result fmha_fwd_run(mode_enum mode,
                         ck_tile::index_t batch,
@@ -768,6 +789,13 @@ fwd_result fmha_fwd_run(mode_enum mode,
             std::cerr << "pack_gqa needs seqlen_q to be a multiple of block_scale_size_q ("
                       << shape_seqlen_q << " % " << block_scale_size_q_
                       << "). ignoring the 'pack_gqa' option" << std::endl;
+        }
+        else if(pack_gqa_costs_parallelism(
+                    data_type, hdim_v, shape_batch, nhead, nhead_ratio, shape_seqlen_q))
+        {
+            std::cerr << "pack_gqa would leave this short query too few blocks on a small grid "
+                         "(see pack_gqa_costs_parallelism). ignoring the 'pack_gqa' option"
+                      << std::endl;
         }
         else
         {

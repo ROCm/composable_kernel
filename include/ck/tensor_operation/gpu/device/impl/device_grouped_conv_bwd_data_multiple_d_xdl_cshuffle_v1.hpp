@@ -183,8 +183,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
                 gemm_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
                 gemm_kernel_args[group_id].block_2_ctile_map_,
                 KBatch,
-                k_idx,
-                gemm_kernel_args[group_id].e_grid_desc_m_n_);
+                k_idx);
         }
         else
         {
@@ -205,8 +204,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
                     gemm_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
                     gemm_kernel_args[group_id].block_2_ctile_map_,
                     KBatch,
-                    k_idx,
-                    gemm_kernel_args[group_id].e_grid_desc_m_n_);
+                    k_idx);
             }
             else
             {
@@ -225,8 +223,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
                     gemm_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
                     gemm_kernel_args[group_id].block_2_ctile_map_,
                     KBatch,
-                    k_idx,
-                    gemm_kernel_args[group_id].e_grid_desc_m_n_);
+                    k_idx);
             }
         }
     }

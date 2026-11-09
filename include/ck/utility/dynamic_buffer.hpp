@@ -15,6 +15,7 @@
 #include "amd_transpose_load.hpp"
 #include "generic_memory_space_atomic.hpp"
 #include "data_cache_prefetch.hpp"
+#include "amd_tdm.hpp"
 
 #if __clang_major__ >= 23
 #pragma clang diagnostic push
@@ -298,6 +299,32 @@ struct DynamicBuffer
                                                   coherence>(
                 p_uniform_ptr, src_offset, dst_buf.p_data_, dst_offset, is_valid_element);
         }
+    }
+
+    template <index_t nDim,
+              typename DstBuffer,
+              typename TensorDims,
+              typename GlobalStrides,
+              typename BoxDims,
+              typename TDMConfig>
+    __device__ void TdmCopyToLds(DstBuffer& dst_buf,
+                                 IndexType src_offset,
+                                 IndexType dst_offset,
+                                 const TensorDims& tensor_dims,
+                                 const GlobalStrides& global_strides,
+                                 const BoxDims& box_dims,
+                                 const TDMConfig& tdm_config) const
+    {
+        auto tdm_desc =
+            detail::MakeTDMDescriptorPack<remove_cvref_t<typename DstBuffer::type>, nDim>(
+                p_data_ + src_offset,
+                dst_buf.p_data_ + dst_offset,
+                tensor_dims,
+                global_strides,
+                box_dims,
+                tdm_config);
+
+        amd_tensor_load_to_lds<coherence>(tdm_desc);
     }
 
     template <typename X,

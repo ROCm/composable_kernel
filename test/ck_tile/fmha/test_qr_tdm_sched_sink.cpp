@@ -142,6 +142,28 @@ void Launch(const Config& c, fmha_fwd_args args)
         fmha_fwd_create_kargs_and_grids<NoVirtualSinkKernel>(args);
     EXPECT_EQ(NoVirtualSinkKernel::IsSupportedArgument(no_virtual_sink_kargs),
               args.sink_ptr == nullptr);
+    if constexpr(NoVirtualSinkKernel::kUseAsyncLdsOStore)
+    {
+        if(args.sink_ptr == nullptr)
+        {
+            auto supported = [&](auto mutate) {
+                fmha_fwd_args mutated = args;
+                mutate(mutated);
+                auto [mutated_kargs, mutated_grids] =
+                    fmha_fwd_create_kargs_and_grids<NoVirtualSinkKernel>(mutated);
+                return NoVirtualSinkKernel::IsSupportedArgument(mutated_kargs);
+            };
+            EXPECT_FALSE(supported([](fmha_fwd_args& a) { a.stride_o += 4; }));
+            EXPECT_FALSE(supported([](fmha_fwd_args& a) { a.nhead_stride_o += 4; }));
+            EXPECT_FALSE(supported([](fmha_fwd_args& a) { a.batch_stride_o += 4; }));
+            EXPECT_FALSE(supported([](fmha_fwd_args& a) { a.hdim_v = 64; }));
+            EXPECT_FALSE(
+                supported([](fmha_fwd_args& a) { a.o_ptr = static_cast<char*>(a.o_ptr) + 2; }));
+            // Limit: 127 * stride_o * 2 + 256 <= 2^32.
+            EXPECT_TRUE(supported([](fmha_fwd_args& a) { a.stride_o = 16909312; }));
+            EXPECT_FALSE(supported([](fmha_fwd_args& a) { a.stride_o = 16909320; }));
+        }
+    }
     const bool finite_virtual_sink = args.sink_ptr != nullptr;
     std::cout << "sink_kernel=qr_tdm_sched dtype=" << kDtype << " dq=" << kD << " n=" << kN
               << " mask=" << Mask << " token_sink=" << HasSink << " lse=" << Lse

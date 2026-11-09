@@ -275,44 +275,59 @@ struct MultiReduce2d
             if(is_first_n_thread)
             {
                 tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute);
-                const index_t output_offset =
-                    (i * output_tensor_offset) +                     // operation offset
-                    partitioner.GetOutputTileOffset(block_group_id); // tile offset
+                const index_t output_tile_offset = partitioner.GetOutputTileOffset(block_group_id);
+                // Bound each view to its logical output. Padded rows in the final tile must not
+                // overwrite the next operation's results or write beyond the output allocation.
                 // Single-block vs multi-block output strategy
                 if constexpr(!ForceMultiBlock)
                 {
                     // Single-block case: direct store without atomics
-                    auto y_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-                        p_y_tuple + output_offset,
-                        make_tuple(S::Block_M),
-                        make_tuple(1),
-                        number<output_vector_size>{},
-                        number<1>{});
-
-                    auto y_window = make_tile_window(y_tensor_view,
-                                                     make_tuple(number<S::ThreadTile_M>{}),
-                                                     {0},
-                                                     y_compute.get_tile_distribution());
-
-                    auto y_output = cast_tile<YDataType>(y_compute);
-                    store_tile(y_window, y_output); // Direct store, no atomics
+                    auto y_output           = cast_tile<YDataType>(y_compute);
+                    const auto store_output = [&](auto vector_size) {
+                        auto y_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+                            p_y_tuple + i * output_tensor_offset,
+                            make_tuple(output_tensor_offset),
+                            make_tuple(1),
+                            vector_size,
+                            number<1>{});
+                        // Explicit validity checks keep scalar tail stores individually masked.
+                        const auto padded_y_tensor_view = pad_tensor_view(
+                            y_tensor_view, make_tuple(number<S::Block_M>{}), sequence<true>{});
+                        auto y_window = make_tile_window(padded_y_tensor_view,
+                                                         make_tuple(number<S::ThreadTile_M>{}),
+                                                         {output_tile_offset},
+                                                         y_compute.get_tile_distribution());
+                        store_tile(y_window, y_output);
+                    };
+                    // A vector crossing the resource bound can drop valid tail elements.
+                    if(output_tensor_offset % output_vector_size == 0)
+                        store_output(number<output_vector_size>{});
+                    else
+                        store_output(number<1>{});
                 }
                 else
                 {
                     // Multi-block case: use atomic operations for interblock reduction
-
+                    // Scalar atomics validate each row. Packed atomics require whole output
+                    // vectors.
+                    constexpr index_t atomic_output_vector_size =
+                        sizeof(YDataType) >= sizeof(float) ? 1 : output_vector_size;
                     auto y_tensor_view =
                         make_naive_tensor_view<address_space_enum::global,
                                                interblock_reduce_ops.get(number<i>{}).GetAtomic()>(
-                            p_y_tuple + output_offset,
-                            make_tuple(S::Block_M),
+                            p_y_tuple + i * output_tensor_offset,
+                            make_tuple(output_tensor_offset),
                             make_tuple(1),
-                            number<output_vector_size>{},
+                            number<atomic_output_vector_size>{},
                             number<1>{});
 
-                    auto y_window = make_tile_window(y_tensor_view,
+                    // Global atomics (used for float on gfx11) have no buffer resource
+                    // bounds. Mark padded rows invalid so those updates are skipped too.
+                    const auto padded_y_tensor_view = pad_tensor_view(
+                        y_tensor_view, make_tuple(number<S::Block_M>{}), sequence<true>{});
+                    auto y_window = make_tile_window(padded_y_tensor_view,
                                                      make_tuple(number<S::ThreadTile_M>{}),
-                                                     {0},
+                                                     {output_tile_offset},
                                                      y_compute.get_tile_distribution());
 
                     auto y_output = cast_tile<YDataType>(y_compute);
@@ -324,12 +339,16 @@ struct MultiReduce2d
 
     /// @brief Validates if the given arguments are supported by the 2D multi reduction kernel.
     ///
-    /// @param y_continous_dim Size of the continuous dimension of the output tensor.
+    /// @param y_continous_dim Total reduction length.
     ///                        Must be a multiple of ThreadTile_N for proper thread mapping.
     ///
     /// @param input_strides   The stride configuration of the input tensor.
     ///                        The last stride must be 1 to ensure contiguous memory access
     ///                        and enable efficient vectorized loads.
+    ///
+    /// @param output_tensor_offset Logical element count of each tightly packed output tensor.
+    ///                             Also the stride between operations' outputs. Packed multiblock
+    ///                             atomics require a multiple of CalculateOutputVectorSize().
     ///
     /// @return true if the arguments are supported, false otherwise.
     ///         Error messages are logged when CK_TILE_LOGGING is enabled.
@@ -340,7 +359,8 @@ struct MultiReduce2d
     ///       - All reduce operations must have the same identity value
     template <typename InputStrides>
     CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim,
-                                                 InputStrides input_strides)
+                                                 InputStrides input_strides,
+                                                 index_t output_tensor_offset)
     {
         using S = typename Problem::BlockShape;
 
@@ -361,6 +381,20 @@ struct MultiReduce2d
                     "Input tensor's last stride must be 1 to support correct vector access!");
             }
             return false;
+        }
+
+        if constexpr(ForceMultiBlock && sizeof(YDataType) < sizeof(float))
+        {
+            // Packed atomics cannot mask individual elements at the output boundary.
+            if(output_tensor_offset % CalculateOutputVectorSize() != 0)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Packed atomic output length must be a multiple of the output "
+                                  "vector size!");
+                }
+                return false;
+            }
         }
 
         // Check that all reduce operations have the same identity value

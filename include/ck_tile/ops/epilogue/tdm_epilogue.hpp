@@ -52,6 +52,10 @@ struct TdmEpilogue
 
     static constexpr index_t NumDTensor = Problem::NumDTensor;
 
+    // C leaves through a plain TDM store that ignores the atomic_add memory operation, so split-K
+    // would overwrite C rather than sum the splits, for every output type.
+    static constexpr bool SupportsSplitK = false;
+
     // no use of vector store in TDM epilogue
     CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeC() { return 1; }
     template <index_t I>

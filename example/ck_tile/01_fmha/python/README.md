@@ -150,9 +150,9 @@ out = fmha_varlen_gdpa_func(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, m
 ```
 
 `act` is `fast_gelu`, GELU with the tanh approximation; `P` is rounded to `q`'s dtype before the
-second GEMM. `scale` defaults to 1.0, not `1 / sqrt(d)`. Head dims 64, 128 and 256, FP16/BF16; no
-mask, ALiBi, dropout, paged KV or FP8. Few keys per batch run on `qr_tdm_pingpong`, many on
-`qr_tdm_sched`.
+second GEMM. `scale` defaults to 1.0, not `1 / sqrt(d)`. Head dims 32, 64, 96, 128, 160 and 256,
+FP16/BF16; no mask, ALiBi, dropout, paged KV or FP8. Few keys per batch run on `qr_tdm_pingpong`,
+many on `qr_tdm_sched` (d64, d128) or `qr_tdm`.
 
 ## Unsupported arguments
 

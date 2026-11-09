@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_fmha_lse.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_activation_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_masking.hpp"
@@ -86,19 +87,27 @@ struct BlockFmhaPipelineQRKSVSTdmSched
     using ActivationTraits                = BlockAttentionActivationTraits<Activation>;
     static constexpr bool kIsSoftmax      = ActivationTraits::is_softmax;
     static constexpr bool kIgnoreFastExp2 = !kIsSoftmax; // GDPA: the kernel passes scale_s as is
-    static_assert(kIsSoftmax || (!kStoreLSE && !kHasSink), "qr_tdm_sched GDPA: no LSE or sink");
+    static_assert(kIsSoftmax || (!kStoreLSE && !kHasSink && !kHasDropout && !kHasLogitsSoftCap &&
+                                 BiasEnum == BlockAttentionBiasEnum::NO_BIAS),
+                  "qr_tdm_sched GDPA: no LSE, sink, dropout, logits soft cap or bias");
     // The score a masked or padded key gets (see BlockAttentionActivationTraits)
     static constexpr float kMaskedScore = ActivationTraits::masked_score;
 
     static_assert(CK_TILE_FMHA_FWD_FAST_EXP2,
                   "qr_tdm_sched: every softmax site calls exp2, so log2(e) must be folded into "
                   "scale_s");
-    static_assert(BiasEnum == BlockAttentionBiasEnum::NO_BIAS,
-                  "qr_tdm_sched does not implement attention bias");
-    static_assert(!kHasLogitsSoftCap, "qr_tdm_sched does not implement logits soft cap");
-    static_assert(!kHasDropout, "qr_tdm_sched does not support dropout");
+    // With a bias or the soft cap, S reaches the softmax already scaled (the reference's
+    // order: scale_s, then the soft cap, then the bias); otherwise scale_s is applied in the
+    // exponent.
+    static constexpr bool kScoresPreScaled = BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                             BiasEnum == BlockAttentionBiasEnum::ALIBI ||
+                                             kHasLogitsSoftCap;
     static_assert(QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE,
                   "qr_tdm_sched does not implement quantized attention yet");
+    static_assert(!kHasLogitsSoftCap || detail::kQrTdmLogitsSoftCapIsTanh,
+                  "qr_tdm_sched: the logits soft cap is implemented only as tanh; "
+                  "CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT must be "
+                  "CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -125,6 +134,10 @@ struct BlockFmhaPipelineQRKSVSTdmSched
     static constexpr bool kUsesTdmAffineDramPath       = true;
     static constexpr bool kUsesFixedSegmentedLdsArena  = true;
     static constexpr index_t kBlockPerCu               = Policy::kBlockPerCu;
+    // Q is staged in the K1 slot so Q, K0 and V0 load together.
+    static constexpr bool kOverlapQKVPrologue =
+        Geometry::kHeadDimQK == 128 && Geometry::kN == 128 &&
+        Policy::template GetSmemSizeQ<Problem>() <= Policy::kKFootprintBytes;
 
 #if defined(__HIP_DEVICE_COMPILE__) && defined(__gfx125__)
     using QKBlockGemm = remove_cvref_t<decltype(Policy::template GetQKBlockGemm<Problem>())>;
@@ -183,7 +196,9 @@ struct BlockFmhaPipelineQRKSVSTdmSched
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename RandValDramBlockWindowTmp = std::nullptr_t,
+              typename Dropout                   = NullBlockDropout>
     CK_TILE_HOST_DEVICE auto
     run(const QDramBlockWindowTmp& __restrict__ q_dram_block_window_tmp,       // M0*K0 tile
         const KDramBlockWindowTmp& __restrict__ k_dram_block_window_tmp,       // N0*K0 tile
@@ -198,8 +213,14 @@ struct BlockFmhaPipelineQRKSVSTdmSched
         void* __restrict__ smem_ptrv0,
         void* __restrict__ smem_ptrv1,
         float sink_v,
-        bool lse_log2) const
+        bool lse_log2,
+        float logits_soft_cap                                   = 0.f,
+        float logits_soft_cap_rcp                               = 0.f,
+        RandValDramBlockWindowTmp randval_dram_block_window_tmp = {},
+        Dropout dropout                                         = {}) const
     {
+        // the exponent's scale: scale_s, or 1 once S is pre-scaled
+        const float softmax_scale = kScoresPreScaled ? 1.f : scale_s;
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
                 std::is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
@@ -261,7 +282,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
         auto m = MLBlockTileType{};
         auto l = MLBlockTileType{};
 
-        if constexpr(BiasEnum == BlockAttentionBiasEnum::NO_BIAS)
+        if constexpr(!kScoresPreScaled)
         {
             // A virtual sink has V=0. Merge it only at normalization so its
             // logit cannot change the BF16 rounding of the real-token P operand.
@@ -270,7 +291,8 @@ struct BlockFmhaPipelineQRKSVSTdmSched
         }
         else if(__builtin_isinf_sign(sink_v) >= 0)
         {
-            set_tile(m, sink_v * C_LOG2E);
+            // pre-scaled S: the sink logit in the exp2 domain, sink * log2(e)
+            set_tile(m, sink_v * scale_s * C_LOG2E);
             set_tile(l, SMPLComputeDataType{1.0f});
         }
         else
@@ -358,33 +380,6 @@ struct BlockFmhaPipelineQRKSVSTdmSched
             tdm_config_v.pad_config.pad_interval = LdsPaddingConfigV[number<2>{}];
         }
 
-        // Q tile in LDS
-        auto q_dram_window = make_tile_window(
-            q_dram_block_window_tmp, Policy::template MakeQDramTileDistribution<Problem>());
-
-        auto q_lds_write_view = make_tensor_view<address_space_enum::lds>(
-            static_cast<QDataType*>(smem_ptrk0),
-            Policy::template MakeQLdsBlockDescriptor<Problem>());
-
-        auto q_lds_read_view = make_tensor_view<address_space_enum::lds>(
-            static_cast<QDataType*>(smem_ptrk0),
-            Policy::template MakeQLdsBlockDescriptor<Problem>());
-
-        auto q_lds_store_window =
-            make_tile_window(q_lds_write_view,
-                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
-                             {0, 0});
-
-        auto q_lds_read_window =
-            make_tile_window(q_lds_read_view,
-                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
-                             {0, 0},
-                             Policy::template MakeQRegTileDistribution<Problem>());
-
-        load_tile_tdm(tdm_config_q, q_lds_store_window, q_dram_window);
-        s_wait_tensorcnt_barrier<0>();
-        auto q_tile = load_tile(q_lds_read_window);
-
         // K tile in LDS (sink-aware start)
         const auto kv_load_start =
             (sink_seq_end == 0 && logical_seqlen_k_start > 0) ? logical_seqlen_k_start : 0;
@@ -454,15 +449,75 @@ struct BlockFmhaPipelineQRKSVSTdmSched
 
         constexpr bool kUseCountdownLoop = Policy::template UseCountdownLoop<Problem>();
         bool even_buffer                 = true;
-        index_t i_total_loops            = 0;
-        index_t remaining_loops          = num_total_loop;
-        constexpr index_t k1_loops       = kN0 / kK1;
+        // dropout's randval window walks the keys with the loop (BlockDropout::Run moves it)
+        [[maybe_unused]] auto randval_dram_window = [&]() {
+            if constexpr(kHasDropout)
+                return dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
+                    randval_dram_block_window_tmp, kv_load_start);
+            else
+            {
+                ignore = randval_dram_block_window_tmp;
+                ignore = dropout;
+                return nullptr;
+            }
+        }();
+        index_t i_total_loops      = 0;
+        index_t remaining_loops    = num_total_loop;
+        constexpr index_t k1_loops = kN0 / kK1;
 
         static_assert(1 <= k1_loops);
+
+        // Q tile in LDS
+        auto q_dram_window = make_tile_window(
+            q_dram_block_window_tmp, Policy::template MakeQDramTileDistribution<Problem>());
+
+        void* const smem_ptrq = kOverlapQKVPrologue ? smem_ptrk1 : smem_ptrk0;
+
+        auto q_lds_write_view = make_tensor_view<address_space_enum::lds>(
+            static_cast<QDataType*>(smem_ptrq),
+            Policy::template MakeQLdsBlockDescriptor<Problem>());
+
+        auto q_lds_read_view = make_tensor_view<address_space_enum::lds>(
+            static_cast<QDataType*>(smem_ptrq),
+            Policy::template MakeQLdsBlockDescriptor<Problem>());
+
+        auto q_lds_store_window =
+            make_tile_window(q_lds_write_view,
+                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0});
+
+        auto q_lds_read_window =
+            make_tile_window(q_lds_read_view,
+                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0},
+                             Policy::template MakeQRegTileDistribution<Problem>());
+
+        if constexpr(kOverlapQKVPrologue)
+        {
+            static_assert(Policy::template GetSmemSizeQ<Problem>() <=
+                              Policy::kLdsOffsetV0 - Policy::kLdsOffsetK1,
+                          "Q in the K1 slot overlaps the V0 buffer");
+            // No TDM completion order is assumed.
+            load_tile_tdm(tdm_config_q, q_lds_store_window, q_dram_window);
+            load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+            load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
+            s_wait_tensorcnt_barrier<0>();
+        }
+        else
+        {
+            load_tile_tdm(tdm_config_q, q_lds_store_window, q_dram_window);
+            s_wait_tensorcnt_barrier<0>();
+        }
+        auto q_tile = load_tile(q_lds_read_window);
+
         block_sync_lds<0>();
-        // Fixed TDM prologue: current K/V and the first look-ahead K buffer.
-        load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
-        load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
+        // Fixed TDM prologue: current K/V and the first look-ahead K buffer. With
+        // kOverlapQKVPrologue K0 and V0 were already issued above, so only K1 follows.
+        if constexpr(!kOverlapQKVPrologue)
+        {
+            load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+            load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
+        }
         move_tile_window(k_dram_window, {kN0, 0});
         // K1 is consumed at iteration 1. A one-tile prefix must jump before K1 loads.
         if constexpr(kHasSink)
@@ -680,10 +735,21 @@ struct BlockFmhaPipelineQRKSVSTdmSched
 
             auto process_score = [&]() {
                 // QK scores are ready for bias, masking, and softmax.
-                // STAGE 2: scale_s, add bias (prefill path, mirrors baseline)
+                // STAGE 2: scale_s, then the soft cap, then the bias.
+                if constexpr(kHasLogitsSoftCap)
+                {
+                    detail::qr_tdm_apply_logits_soft_cap(
+                        s_acc, scale_s, logits_soft_cap, logits_soft_cap_rcp);
+                }
+                else
+                {
+                    ignore = logits_soft_cap;
+                    ignore = logits_soft_cap_rcp;
+                }
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
-                    tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                    if constexpr(!kHasLogitsSoftCap)
+                        tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
                     const auto bias_tile = load_tile(bias_dram_window);
                     tile_elementwise_inout(
                         [](auto& x, const auto& y) {
@@ -710,7 +776,8 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = current_k_origin.at(I0) + tile_idx.at(number<1>{});
                             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                            s_acc(i_j_idx) *= scale_s;
+                            if constexpr(!kHasLogitsSoftCap)
+                                s_acc(i_j_idx) *= scale_s;
                             position_encoding.update(s_acc(i_j_idx), row, col);
                         });
                     });
@@ -855,7 +922,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                     Schedule::template RunSplitSoftmax<Mode>(
                         [&]() {
                             Policy::template RunSplitSoftmaxPart01<Problem>(
-                                s_new, m, scale_s, delta_m0, delta_m1);
+                                s_new, m, softmax_scale, delta_m0, delta_m1);
                         },
                         [&]() { s_wait_tensorcnt_barrier<Policy::kVPrefetchTensorCount>(); },
                         [&](auto ordinal) {
@@ -873,12 +940,36 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                                 s_new,
                                 m,
                                 l,
-                                scale_s,
+                                softmax_scale,
                                 delta_m0,
                                 delta_m1,
                                 pv_output_scale_m0,
                                 pv_output_scale_m1);
                         });
+                    if constexpr(kHasDropout)
+                    {
+                        // l above sums the undropped P; dropout scales the kept P by 1/(1-p)
+                        const bool in_sink = num_sink_loop > i_total_loops;
+                        const index_t kv_tile_start =
+                            in_sink
+                                ? kN0 * i_total_loops + kv_load_start
+                                : kN0 * (i_total_loops - num_sink_loop) + physical_seqlen_k_start;
+                        if constexpr(kHasSink)
+                        {
+                            // past the sink tiles the keys jump to physical_seqlen_k_start
+                            if(num_sink_loop > 0 && i_total_loops == num_sink_loop)
+                                move_tile_window(randval_dram_window,
+                                                 {0, physical_seqlen_k_start - sink_seq_end});
+                        }
+                        // the randval shuffle's own LDS, outside the K/V buffers
+                        __shared__ char dropout_lds
+                            [BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
+                                 .get_element_space_size()];
+                        dropout.template Run<decltype(gemm_0),
+                                             SMPLComputeDataType,
+                                             RandValOutputDataType>(
+                            dropout_lds, kv_tile_start, s_new, randval_dram_window);
+                    }
                     return MakePForGemm1<decltype(gemm_1)>(s_new);
                 }();
                 return p_tile;
@@ -952,8 +1043,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                 constexpr auto lse_acc_spans = decltype(lse_acc)::get_distributed_spans();
                 sweep_tile_span(lse_acc_spans[I0], [&, m_ = m, l_ = l](auto idx0) {
                     constexpr auto i_idx = make_tuple(idx0);
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                    if constexpr(kScoresPreScaled)
                     {
                         lse_acc(i_idx) = fmha_lse(m_[i_idx], l_[i_idx], lse_log2);
                     }
@@ -985,8 +1075,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                 });
         };
 
-        if constexpr(kEnableVirtualSink && kIsSoftmax &&
-                     BiasEnum == BlockAttentionBiasEnum::NO_BIAS)
+        if constexpr(kEnableVirtualSink && kIsSoftmax && !kScoresPreScaled)
         {
             if(__builtin_isinf_sign(sink_v) != -1)
             {
@@ -1058,21 +1147,28 @@ struct BlockFmhaPipelineQRKSVSTdmSched
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
-    CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
-                                        const KDramBlockWindowTmp& k_dram_block_window_tmp,
-                                        const VDramBlockWindowTmp& v_dram_block_window_tmp,
-                                        const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
-                                        LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,
-                                        FmhaMask mask,
-                                        PositionEncoding position_encoding,
-                                        float scale_s,
-                                        float sink_v,
-                                        void* smem_ptrk0,
-                                        void* smem_ptrk1,
-                                        void* smem_ptrv0,
-                                        void* smem_ptrv1,
-                                        bool lse_log2 = false) const
+              typename PositionEncoding,
+              typename RandValDramBlockWindowTmp = std::nullptr_t,
+              typename Dropout                   = NullBlockDropout>
+    CK_TILE_HOST_DEVICE auto
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
+               LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,
+               FmhaMask mask,
+               PositionEncoding position_encoding,
+               float scale_s,
+               float sink_v,
+               void* smem_ptrk0,
+               void* smem_ptrk1,
+               void* smem_ptrv0,
+               void* smem_ptrv1,
+               bool lse_log2                                           = false,
+               float logits_soft_cap                                   = 0.f,
+               float logits_soft_cap_rcp                               = 0.f,
+               RandValDramBlockWindowTmp randval_dram_block_window_tmp = {},
+               Dropout dropout                                         = {}) const
     {
         return run(q_dram_block_window_tmp,
                    k_dram_block_window_tmp,
@@ -1087,7 +1183,11 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                    smem_ptrv0,
                    smem_ptrv1,
                    sink_v,
-                   lse_log2);
+                   lse_log2,
+                   logits_soft_cap,
+                   logits_soft_cap_rcp,
+                   randval_dram_block_window_tmp,
+                   dropout);
     }
 };
 

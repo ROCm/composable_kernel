@@ -125,7 +125,10 @@ auto create_args(int argc, char* argv[])
                 "Comma-separated list of length 'b'. If empty, no override.")
         .insert("init_sink", "0", "value to init the output tensor sink value for validation")
         .insert(
-            "pack_gqa", "1", "1: enable Pack-GQA (fold GQA Q heads into seqlen for non-causal)");
+            "pack_gqa",
+            "1",
+            "1: enable Pack-GQA (fold GQA Q heads into seqlen for non-causal; on gfx125 fp16/bf16 "
+            "not for 2..16 query rows on a small grid, see pack_gqa_costs_parallelism)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

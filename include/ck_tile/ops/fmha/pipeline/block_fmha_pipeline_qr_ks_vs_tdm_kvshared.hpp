@@ -74,6 +74,7 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
                       BlockFmhaShape::NumWarps == kNWarp && kSubQKHeaddim % 32 == 0,
                   "qr_tdm_kvshared: 16 queries, one or two warps of 32 keys each");
     static_assert(!kHasLogitsSoftCap, "qr_tdm_kvshared: no logits soft-cap");
+    static_assert(!PingPong::kHasDropout, "qr_tdm_kvshared: no dropout");
     static_assert(PingPong::kIsSoftmax, "qr_tdm_kvshared: softmax only (no GDPA mode)");
     static_assert(std::is_same_v<SMPLComputeDataType, float> &&
                   std::is_same_v<SaccDataType, float> && std::is_same_v<OaccDataType, float>);
@@ -481,8 +482,14 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
                 load_s_and_v(kv_read_ptr, bool_constant<false>{});
 
             // STAGE 2: scale_s, add bias, mask
-            PingPong::ApplyScaleAndBias(
-                s_acc, bias_dram_window, q_origin, kv_tile_start, scale_s, position_encoding);
+            PingPong::ApplyScaleAndBias(s_acc,
+                                        bias_dram_window,
+                                        q_origin,
+                                        kv_tile_start,
+                                        scale_s,
+                                        position_encoding,
+                                        0.f, // no logits soft cap
+                                        0.f);
             PingPong::MaskScores(s_acc,
                                  mask,
                                  q_origin,

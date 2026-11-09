@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <vector>
 #include <cmath>
 #include <tuple>
@@ -82,10 +83,15 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
 
         auto output_buffer_size =
             number_operations * h_ys.get(ck_tile::number<0>{}).get_element_space_size_in_bytes();
+        constexpr auto guard_elements = TestReduce2dShape::Block_M;
+        // Adding a padded row's +0 leaves an ordinary sentinel unchanged, but changes
+        // -0 to +0. Compare the guard bits so even these atomic writes are detected.
+        const auto guard_value = ck_tile::type_convert<YDataType>(-0.0f);
         ck_tile::DeviceMem d_x_mem(h_x.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem d_y_mem(output_buffer_size);
+        ck_tile::DeviceMem d_y_mem(output_buffer_size + guard_elements * sizeof(YDataType));
 
-        std::vector<YDataType> h(number_operations * output_number_elements);
+        std::vector<YDataType> h(number_operations * output_number_elements + guard_elements,
+                                 guard_value);
 
         // Init the output data with identity values respective to each reduce op
         ck_tile::static_for<0, number_operations, 1>{}([&](auto i) {
@@ -141,8 +147,7 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
         auto input_strides_tuple = make_shape_tuple.template operator()<InputDim>(input_strides);
 
         if(!Kernel::IsSupportedArgument(
-               total_reduce_elements,
-               input_strides_tuple)) // output tensor's continuous dimension
+               total_reduce_elements, input_strides_tuple, output_number_elements))
         {
             throw std::runtime_error("Wrong! Arguments not supported!\n");
         }
@@ -189,8 +194,15 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
         const auto atol = 1e-1;
 
         // Transfer data from device and check error for each operation
-        std::vector<YDataType> h_y_tmp(output_number_elements * number_operations);
+        std::vector<YDataType> h_y_tmp(h.size());
         d_y_mem.FromDevice(h_y_tmp.data());
+        EXPECT_TRUE(std::all_of(h_y_tmp.begin() + output_number_elements * number_operations,
+                                h_y_tmp.end(),
+                                [guard_value](auto value) {
+                                    return std::memcmp(&value, &guard_value, sizeof(YDataType)) ==
+                                           0;
+                                }))
+            << "Reduction wrote beyond the logical output tensor";
         bool result = true;
         ck_tile::static_for<0, number_operations, 1>{}([&](auto i) {
             std::memcpy(h_ys.get(ck_tile::number<i>{}).data(),

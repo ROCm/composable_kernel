@@ -106,12 +106,7 @@ fmha_fwd_args get_ck_fmha_varlen_fwd_args(bool has_lse,
 
     if(alibi_slopes_.has_value())
     {
-        auto alibi_slopes = alibi_slopes_.value();
-        CK_TILE_FMHA_CHECK_DEVICE(alibi_slopes);
-        TORCH_CHECK(alibi_slopes.stride(-1) == 1,
-                    "ALiBi slopes tensor must have contiguous last dimension");
-        TORCH_CHECK(alibi_slopes.sizes() == torch::IntArrayRef({h}) ||
-                    alibi_slopes.sizes() == torch::IntArrayRef({b, h}));
+        auto alibi_slopes   = alibi_slopes_.value();
         alibi_slopes_ptr    = alibi_slopes.data_ptr();
         stride_alibi_slopes = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
     }
@@ -310,13 +305,8 @@ fmha_fwd_splitkv_args get_ck_fmha_varlen_fwd_splitkv_args(bool has_lse,
     if(alibi_slopes_.has_value())
     {
         auto alibi_slopes = alibi_slopes_.value();
-        CK_TILE_FMHA_CHECK_DEVICE(alibi_slopes);
-        TORCH_CHECK(alibi_slopes.stride(-1) == 1,
-                    "ALiBi slopes tensor must have contiguous last dimension");
-        TORCH_CHECK(alibi_slopes.sizes() == torch::IntArrayRef({h}) ||
-                    alibi_slopes.sizes() == torch::IntArrayRef({b, h}));
-        args.bias_ptr    = alibi_slopes.data_ptr();
-        args.stride_bias = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
+        args.bias_ptr     = alibi_slopes.data_ptr();
+        args.stride_bias  = alibi_slopes.dim() == 2 ? alibi_slopes.stride(0) : 0;
     }
 
     args.window_size_left  = mask.left;
@@ -365,6 +355,9 @@ std::vector<at::Tensor> mha_varlen_fwd(
     bool lse_log2)
 {
     TORCH_CHECK(softcap == 0.0f, "CK Tile FMHA Python bindings do not support softcap");
+    TORCH_CHECK(!seqused_k.has_value(), "varlen attention does not support seqused_k");
+    TORCH_CHECK(!leftpad_k_.has_value(), "varlen attention does not support leftpad_k");
+    TORCH_CHECK(num_splits_requested == 0, "varlen attention does not support num_splits");
     // softmax, or GDPA: out = act(softmax_scale * q k^T) v, with no normalization and no LSE
     ck_tile::BlockAttentionActivationEnum activation_type;
     if(activation == "softmax")
@@ -452,7 +445,8 @@ std::vector<at::Tensor> mha_varlen_fwd(
                                     "broadcast_q takes no paged KV or FP8");
     }
 
-    TORCH_CHECK(batch_size > 0, "batch size must be postive");
+    TORCH_CHECK(batch_size > 0, "batch size must be positive");
+    detail::check_alibi(alibi_slopes_, q, batch_size, num_heads);
     TORCH_CHECK_NOT_IMPLEMENTED(head_size > 0 && head_size <= 256,
                                 "CK only supports head dimension in [1, 256]");
     TORCH_CHECK_NOT_IMPLEMENTED(
@@ -468,10 +462,7 @@ std::vector<at::Tensor> mha_varlen_fwd(
                 qscale);
     if(is_fp8)
     {
-        TORCH_CHECK_NOT_IMPLEMENTED(
-            !paged_KV && !seqused_k.has_value() && !leftpad_k_.has_value() &&
-                num_splits_requested == 0,
-            "FP8 varlen attention requires contiguous sequences without paged KV or splits");
+        TORCH_CHECK_NOT_IMPLEMENTED(!paged_KV, "FP8 varlen attention does not support paged KV");
         TORCH_CHECK_NOT_IMPLEMENTED(p_dropout == 0.0f && !return_dropout_randval,
                                     "FP8 attention does not support dropout");
         TORCH_CHECK_NOT_IMPLEMENTED(!alibi_slopes_.has_value(),
@@ -572,6 +563,7 @@ std::vector<at::Tensor> mha_varlen_fwd(
 
     // Otherwise the kernel will be launched from cuda:0 device
     at::cuda::CUDAGuard device_guard{q.device()};
+    auto stream = detail::current_stream();
 
     auto opts        = q.options();
     bool has_lse     = return_lse;
@@ -613,20 +605,11 @@ std::vector<at::Tensor> mha_varlen_fwd(
     {
         auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
             gen_, at::cuda::detail::getDefaultCUDAGenerator());
-        // See Note [Acquire lock when using random generators]
-        std::lock_guard<std::mutex> lock(gen->mutex_);
-        auto philox_args = gen->philox_cuda_state(counter_offset);
-        hipLaunchKernelGGL(
-            detail::ParsePhiloxCudaState, dim3(1), dim3(64), 0, 0, philox_args, rng_state_ptr);
+        detail::init_philox_state(gen, counter_offset, stream, rng_state_ptr);
     }
 
     if(max_seqlen_k > 0 && total_q > 0)
     {
-#ifdef HIPIFY_V2
-        auto stream = at::cuda::getCurrentCUDAStream().stream();
-#else
-        auto stream = at::cuda::getCurrentHIPStream().stream();
-#endif
         ck_tile::stream_config stream_config{stream};
 
         if(paged_KV)

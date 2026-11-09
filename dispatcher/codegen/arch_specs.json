@@ -348,6 +348,17 @@
         "pipeline_lds_budget_aliases."
       ]
     },
+    "comp_tdm_pc": {
+      "basis": "fraction",
+      "value": 0.25,
+      "_reason": [
+        "Ring of NumSlots LDS buffers, no configuration choice:",
+        "GemmPipelineAgBgCrCompTDMProducerConsumer::GetSmemSize() returns",
+        "NumSlots * Policy::GetSmemSize() with the policy default NumSlots_ = 4.",
+        "Emitted to C++ as Pipeline::CompTDMPC. Matches the Tile Engine",
+        "PIPELINE_SMEM_SLOTS entry; raise both if NumSlots_ changes."
+      ]
+    },
     "wavelet": {
       "basis": "fraction",
       "value": 1.0,
@@ -410,7 +421,10 @@
       ["comp_tdm", "tdm", "interwave"],
       ["comp_tdm_v2", "cshuffle", "interwave"],
       ["comp_tdm_v2", "default", "interwave"],
-      ["comp_tdm_v2", "tdm", "interwave"]
+      ["comp_tdm_v2", "tdm", "interwave"],
+      ["comp_tdm_pc", "cshuffle", "interwave"],
+      ["comp_tdm_pc", "default", "interwave"],
+      ["comp_tdm_pc", "tdm", "interwave"]
     ]
   },
   

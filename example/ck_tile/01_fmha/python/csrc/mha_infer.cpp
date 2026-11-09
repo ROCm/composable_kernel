@@ -141,11 +141,7 @@ mha_infer(const at::Tensor& q_, // b x s_q [x h] x d
     }
 
     at::cuda::CUDAGuard device_guard{q.device()};
-#ifdef HIPIFY_V2
-    const ck_tile::stream_config stream_config{at::cuda::getCurrentCUDAStream().stream()};
-#else
-    const ck_tile::stream_config stream_config{at::cuda::getCurrentHIPStream().stream()};
-#endif
+    const ck_tile::stream_config stream_config{detail::current_stream()};
 
     const fmha_fwd_traits traits =
         get_ck_fmha_fwd_traits(mask,

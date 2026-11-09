@@ -45,7 +45,7 @@ def rel_l2(a, b):
 
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
-@pytest.mark.parametrize("d", [64, 128, 256])  # the head dims with GDPA instances
+@pytest.mark.parametrize("d", [32, 64, 96, 128, 160, 256])  # the GDPA head dims
 @pytest.mark.parametrize("mha_type", ["mha", "gqa"])
 @pytest.mark.parametrize(
     "q_lens, k_lens",
@@ -95,13 +95,16 @@ def test_gdpa_rejects_unknown_activation():
         fmha_varlen_gdpa_func(q, q, q, lens, lens, 64, 64, activation="softmax")
 
 
-def test_gdpa_rejects_head_dims_without_instances():
-    # GDPA instances are d64, d128 and d256; other head dims find no kernel and say so
-    q = torch.randn(10, 2, 96, device="cuda", dtype=torch.bfloat16)
-    k = torch.randn(20, 2, 96, device="cuda", dtype=torch.bfloat16)
+@pytest.mark.parametrize("d", [40, 200])
+def test_gdpa_pads_other_head_dims(d):
+    # every head dim up to 256 lands on a padded GDPA instance of the next head dim up
+    torch.random.manual_seed(0)
+    q = torch.randn(10, 2, d, device="cuda", dtype=torch.bfloat16) * 0.5
+    k = torch.randn(20, 2, d, device="cuda", dtype=torch.bfloat16) * 0.5
+    v = torch.randn(20, 2, d, device="cuda", dtype=torch.bfloat16)
     qo, ko = offsets([10], "cuda"), offsets([20], "cuda")
-    with pytest.raises(NotImplementedError, match="activation=fast_gelu"):
-        fmha_varlen_gdpa_func(q, k, k, qo, ko, 10, 20)
+    out = fmha_varlen_gdpa_func(q, k, v, qo, ko, 10, 20, scale=d**-0.5)
+    assert rel_l2(out, gdpa_ref(q, k, v, [10], [20], d**-0.5)) < 1e-2
 
 
 def test_gdpa_is_forward_only():

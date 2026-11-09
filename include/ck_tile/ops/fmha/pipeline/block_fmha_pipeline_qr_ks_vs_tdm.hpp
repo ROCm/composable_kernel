@@ -8,6 +8,7 @@
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_fmha_lse.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/block/cast_tile_mx.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_tdm_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
@@ -85,8 +86,12 @@ struct BlockFmhaPipelineQRKSVSTdm
 
     static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
-    static constexpr auto BiasEnum          = Problem::BiasEnum;
-    static constexpr auto QScaleEnum        = Problem::QScaleEnum;
+    // BlockDropout::Run walks P in the QK gemm's output layout; with QK warps on N, P comes
+    // back through LDS in another distribution
+    static_assert(!kHasDropout || BlockFmhaShape::Gemm0BlockWarps::at(number<1>{}) == 1,
+                  "qr_tdm: dropout needs the QK gemm warps on M");
+    static constexpr auto BiasEnum    = Problem::BiasEnum;
+    static constexpr auto QScaleEnum  = Problem::QScaleEnum;
     static constexpr bool kBlockScale = QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE;
     static constexpr bool kQuantized  = QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR ||
                                        QScaleEnum == BlockAttentionQuantScaleEnum::PERHEAD ||
@@ -312,14 +317,13 @@ struct BlockFmhaPipelineQRKSVSTdm
                   "qr_tdm pipeline: FAST_EXP2=0 has no code path here - log2(e) is never folded "
                   "into scale_s, so the kernel would return 2^logit instead of e^logit");
 
-    static_assert(!kHasLogitsSoftCap,
-                  "qr_tdm pipeline does not implement logits soft cap - LogitsTransform is never "
-                  "applied, so scores would reach softmax uncapped and unscaled");
-
-    // Bias and sink are now supported (mirrors baseline qr_ks_vs logic).
-    // Dropout requires kernel dispatch interface expansion (dropout object +
-    // randval window) and is deferred to a follow-up task.
-    static_assert(!kHasDropout, "qr_tdm pipeline does not yet support dropout");
+    // Bias, sink tokens, the logits soft cap and dropout are supported (mirrors baseline
+    // qr_ks_vs logic). The soft cap is applied here, not through an attention variant, and
+    // only in its tanh form (see detail::kQrTdmLogitsSoftCapIsTanh).
+    static_assert(!kHasLogitsSoftCap || detail::kQrTdmLogitsSoftCapIsTanh,
+                  "qr_tdm pipelines: the logits soft cap is implemented only as tanh; "
+                  "CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT must be "
+                  "CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH");
 
     static_assert(QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE ||
                       QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR ||
@@ -356,6 +360,33 @@ struct BlockFmhaPipelineQRKSVSTdm
 
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    // V's sequence axis is its rows when row-major, its columns when column-major. A
+    // column-major V is staged [kN1][kN0] and is already K-contiguous for gemm_1's B
+    // operand, so it is read like K (no transposed LDS read).
+    static constexpr bool kVColMajor = !BlockFmhaShape::IsVLayoutRowMajor;
+    CK_TILE_HOST_DEVICE static constexpr auto VSeqOffset(index_t n)
+    {
+        if constexpr(kVColMajor)
+            return multi_index<2>{0, n};
+        else
+            return multi_index<2>{n, 0};
+    }
+    CK_TILE_HOST_DEVICE static constexpr auto VReadLengths()
+    {
+        if constexpr(kVColMajor)
+            return make_tuple(number<kN1>{}, number<kK1>{});
+        else
+            return make_tuple(number<kK1>{}, number<kN1>{});
+    }
+    template <typename VLdsReadWindow>
+    CK_TILE_DEVICE static auto LoadVTile(const VLdsReadWindow& window)
+    {
+        if constexpr(kVColMajor)
+            return load_tile(window);
+        else
+            return load_tile_transpose(window);
+    }
+
     static constexpr index_t kAlignmentRandVal =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentRandVal<Problem>();
 
@@ -556,7 +587,9 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename RandValDramBlockWindowTmp = std::nullptr_t,
+              typename Dropout                   = NullBlockDropout>
     CK_TILE_HOST_DEVICE auto run_single_v_double_k_lds_buffer(
         const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
         const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
@@ -572,7 +605,11 @@ struct BlockFmhaPipelineQRKSVSTdm
         const float* v_descale_ptr,
         index_t block_scale_size_kv,
         float v_descale,
-        bool lse_log2) const
+        bool lse_log2,
+        float logits_soft_cap                                   = 0.f,
+        float logits_soft_cap_rcp                               = 0.f,
+        RandValDramBlockWindowTmp randval_dram_block_window_tmp = {},
+        Dropout dropout                                         = {}) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
         auto* smem_ptrq =
@@ -826,7 +863,7 @@ struct BlockFmhaPipelineQRKSVSTdm
         // view kept plain row-major (matches the write view).
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp,
-                             {kv_load_start, 0},
+                             VSeqOffset(kv_load_start),
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         auto v_lds_write_view = make_tensor_view<address_space_enum::lds>(
@@ -849,7 +886,7 @@ struct BlockFmhaPipelineQRKSVSTdm
 
         auto v_lds_read_window =
             make_tile_window(v_lds_read_view,
-                             make_tuple(number<kK1>{}, number<kN1>{}),
+                             VReadLengths(),
                              {0, 0},
                              Policy::template MakeVRegTileDistribution<Problem>());
 
@@ -860,6 +897,18 @@ struct BlockFmhaPipelineQRKSVSTdm
             integer_divide_ceil(physical_seqlen_k_end - physical_seqlen_k_start, kN0) +
             num_sink_loop;
 
+        // dropout's randval window walks the keys with the loop (BlockDropout::Run moves it)
+        [[maybe_unused]] auto randval_dram_window = [&]() {
+            if constexpr(kHasDropout)
+                return dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
+                    randval_dram_block_window_tmp, kv_load_start);
+            else
+            {
+                ignore = randval_dram_block_window_tmp;
+                ignore = dropout;
+                return nullptr;
+            }
+        }();
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
@@ -927,7 +976,7 @@ struct BlockFmhaPipelineQRKSVSTdm
             load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window); // prefetch load v tile
 
             // move V tile windows
-            move_tile_window(v_dram_window, {kN0, 0});
+            move_tile_window(v_dram_window, VSeqOffset(kN0));
 
             // The K load below prefetches the NEXT iteration's tile, so the
             // sink->normal jump has to be applied one iteration earlier than it
@@ -1040,10 +1089,22 @@ struct BlockFmhaPipelineQRKSVSTdm
             }
 
             // STAGE 2: scale_s, add bias (mirrors baseline qr_ks_vs line 715-776)
+            // the reference's order: scale_s, then the soft cap, then the bias.
+            if constexpr(kHasLogitsSoftCap)
+            {
+                detail::qr_tdm_apply_logits_soft_cap(
+                    s_acc, scale_s, logits_soft_cap, logits_soft_cap_rcp);
+            }
+            else
+            {
+                ignore = logits_soft_cap;
+                ignore = logits_soft_cap_rcp;
+            }
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 // Pre-scale s_acc by scale_s before adding bias
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                if constexpr(!kHasLogitsSoftCap)
+                    tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
                 const auto bias_tile = load_tile(bias_dram_window);
                 tile_elementwise_inout(
                     [](auto& x, const auto& y) {
@@ -1067,7 +1128,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                         const auto col = current_k_origin.at(I0) + tile_idx.at(number<1>{});
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        s_acc(i_j_idx) *= scale_s;
+                        if constexpr(!kHasLogitsSoftCap)
+                            s_acc(i_j_idx) *= scale_s;
                         position_encoding.update(s_acc(i_j_idx), row, col);
                     });
                 });
@@ -1116,7 +1178,8 @@ struct BlockFmhaPipelineQRKSVSTdm
             {
                 if(i_total_loops == num_sink_loop - 1)
                 {
-                    move_tile_window(v_dram_window, {physical_seqlen_k_start - sink_seq_end, 0});
+                    move_tile_window(v_dram_window,
+                                     VSeqOffset(physical_seqlen_k_start - sink_seq_end));
                     move_tile_window(bias_dram_window, {0, physical_seqlen_k_start - sink_seq_end});
                 }
             }
@@ -1214,6 +1277,24 @@ struct BlockFmhaPipelineQRKSVSTdm
                 block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
             }
 
+            if constexpr(kHasDropout)
+            {
+                // the row sum above is of the undropped P; dropout scales the kept P by
+                // 1/(1-p) before the PV gemm
+                if constexpr(kHasSink)
+                {
+                    // past the sink tiles the keys jump to physical_seqlen_k_start
+                    if(num_sink_loop > 0 && i_total_loops == num_sink_loop)
+                        move_tile_window(randval_dram_window,
+                                         {0, physical_seqlen_k_start - sink_seq_end});
+                }
+                // the randval shuffle's own LDS, outside the arena
+                __shared__ char
+                    dropout_lds[BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
+                                    .get_element_space_size()];
+                dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                    dropout_lds, kv_tile_start, p_compute, randval_dram_window);
+            }
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
 
@@ -1266,7 +1347,7 @@ struct BlockFmhaPipelineQRKSVSTdm
             // K prefetch is still outstanding, hence <1> rather than <0>.
             s_wait_tensorcnt_barrier<1>();
 
-            auto v_tile = load_tile_transpose(v_lds_read_window);
+            auto v_tile = LoadVTile(v_lds_read_window);
 
             const auto p_scale_arg = make_gemm1_scale<decltype(gemm_1)>(p_scale);
 
@@ -1295,11 +1376,11 @@ struct BlockFmhaPipelineQRKSVSTdm
                            v_scale(i_k1));
 
                     // loop over along the [V]alue Sequence length
-                    move_tile_window(v_lds_read_window, {kK1, 0});
-                    v_tile = load_tile_transpose(v_lds_read_window);
+                    move_tile_window(v_lds_read_window, VSeqOffset(kK1));
+                    v_tile = LoadVTile(v_lds_read_window);
                 });
                 // move back to the origin
-                move_tile_window(v_lds_read_window, {-kK1 * (k1_loops - 1), 0});
+                move_tile_window(v_lds_read_window, VSeqOffset(-kK1 * (k1_loops - 1)));
             }
 
             gemm_1(o_acc,
@@ -1396,7 +1477,9 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename RandValDramBlockWindowTmp = std::nullptr_t,
+              typename Dropout                   = NullBlockDropout>
     CK_TILE_HOST_DEVICE auto run_double_kv_lds_buffer(
         const QDramBlockWindowTmp& __restrict__ q_dram_block_window_tmp,       // M0*K0 tile
         const KDramBlockWindowTmp& __restrict__ k_dram_block_window_tmp,       // N0*K0 tile
@@ -1412,7 +1495,11 @@ struct BlockFmhaPipelineQRKSVSTdm
         const float* v_descale_ptr,
         index_t block_scale_size_kv,
         float v_descale,
-        bool lse_log2) const
+        bool lse_log2,
+        float logits_soft_cap                                   = 0.f,
+        float logits_soft_cap_rcp                               = 0.f,
+        RandValDramBlockWindowTmp randval_dram_block_window_tmp = {},
+        Dropout dropout                                         = {}) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
         auto* smem_ptrq =
@@ -1659,7 +1746,7 @@ struct BlockFmhaPipelineQRKSVSTdm
         // V tile in LDS (sink-aware start)
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp,
-                             {kv_load_start, 0},
+                             VSeqOffset(kv_load_start),
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         auto v_lds_write_view = make_tensor_view<address_space_enum::lds>(
@@ -1675,7 +1762,7 @@ struct BlockFmhaPipelineQRKSVSTdm
 
         auto v_lds_read_window =
             make_tile_window(v_lds_read_view,
-                             make_tuple(number<kK1>{}, number<kN1>{}),
+                             VReadLengths(),
                              {0, 0},
                              Policy::template MakeVRegTileDistribution<Problem>());
 
@@ -1683,6 +1770,18 @@ struct BlockFmhaPipelineQRKSVSTdm
             integer_divide_ceil(physical_seqlen_k_end - physical_seqlen_k_start, kN0) +
             num_sink_loop;
 
+        // dropout's randval window walks the keys with the loop (BlockDropout::Run moves it)
+        [[maybe_unused]] auto randval_dram_window = [&]() {
+            if constexpr(kHasDropout)
+                return dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
+                    randval_dram_block_window_tmp, kv_load_start);
+            else
+            {
+                ignore = randval_dram_block_window_tmp;
+                ignore = dropout;
+                return nullptr;
+            }
+        }();
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
@@ -1756,12 +1855,14 @@ struct BlockFmhaPipelineQRKSVSTdm
             {
                 if(i_total_loops == num_sink_loop - 1 && i_total_loops + 1 < num_total_loop)
                 {
-                    move_tile_window(v_dram_window, {physical_seqlen_k_start - sink_seq_end, 0});
+                    move_tile_window(v_dram_window,
+                                     VSeqOffset(physical_seqlen_k_start - sink_seq_end));
                 }
             }
             // Preserve the TDM counter schedule in the tail, but re-read the last
             // valid tile instead of forming an unused out-of-allocation address.
-            move_tile_window(v_dram_window, {i_total_loops + 1 < num_total_loop ? kN0 : 0, 0});
+            move_tile_window(v_dram_window,
+                             VSeqOffset(i_total_loops + 1 < num_total_loop ? kN0 : 0));
             v_lds_write_window.set_bottom_tensor_view_data_ptr(v_lds_write_ptr);
             LoadTdmFullTileOrPadded<true>(tdm_config_v, v_lds_write_window, v_dram_window);
 
@@ -1948,9 +2049,21 @@ struct BlockFmhaPipelineQRKSVSTdm
             }
 
             // STAGE 2: scale_s, add bias (prefill path, mirrors baseline)
+            // the reference's order: scale_s, then the soft cap, then the bias.
+            if constexpr(kHasLogitsSoftCap)
+            {
+                detail::qr_tdm_apply_logits_soft_cap(
+                    s_acc, scale_s, logits_soft_cap, logits_soft_cap_rcp);
+            }
+            else
+            {
+                ignore = logits_soft_cap;
+                ignore = logits_soft_cap_rcp;
+            }
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                if constexpr(!kHasLogitsSoftCap)
+                    tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
                 const auto bias_tile = load_tile(bias_dram_window);
                 tile_elementwise_inout(
                     [](auto& x, const auto& y) {
@@ -1974,7 +2087,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                         const auto col = current_k_origin.at(I0) + tile_idx.at(number<1>{});
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        s_acc(i_j_idx) *= scale_s;
+                        if constexpr(!kHasLogitsSoftCap)
+                            s_acc(i_j_idx) *= scale_s;
                         position_encoding.update(s_acc(i_j_idx), row, col);
                     });
                 });
@@ -1982,7 +2096,7 @@ struct BlockFmhaPipelineQRKSVSTdm
 
             s_wait_tensorcnt_barrier<1>();
             v_lds_read_window.set_bottom_tensor_view_data_ptr(v_lds_read_ptr);
-            auto v_tile = load_tile_transpose(v_lds_read_window);
+            auto v_tile = LoadVTile(v_lds_read_window);
 
             const auto k_origin = make_tuple(kv_tile_start, 0);
 
@@ -2151,8 +2265,9 @@ struct BlockFmhaPipelineQRKSVSTdm
             // The current PV consumes P and corrected O, not the denominator.
             // Keep whole-P production unchanged and defer only l's reduction
             // in the guarded path. The original left-fold and row sync remain.
-            constexpr bool kDeferDenominator = kStagedKPairs && FmhaMask::IsMasking && kIsSoftmax;
-            [[maybe_unused]] auto rowsum_p   = [&]() {
+            constexpr bool kDeferDenominator =
+                kStagedKPairs && FmhaMask::IsMasking && kIsSoftmax && !kHasDropout;
+            [[maybe_unused]] auto rowsum_p = [&]() {
                 if constexpr(kDeferDenominator || !kIsSoftmax)
                 {
                     return m;
@@ -2167,6 +2282,24 @@ struct BlockFmhaPipelineQRKSVSTdm
             }();
             [[maybe_unused]] auto l_correction = m;
 
+            if constexpr(kHasDropout)
+            {
+                // the row sum above is of the undropped P; dropout scales the kept P by
+                // 1/(1-p) before the PV gemm
+                if constexpr(kHasSink)
+                {
+                    // past the sink tiles the keys jump to physical_seqlen_k_start
+                    if(num_sink_loop > 0 && i_total_loops == num_sink_loop)
+                        move_tile_window(randval_dram_window,
+                                         {0, physical_seqlen_k_start - sink_seq_end});
+                }
+                // the randval shuffle's own LDS, outside the arena
+                __shared__ char
+                    dropout_lds[BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
+                                    .get_element_space_size()];
+                dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                    dropout_lds, kv_tile_start, p_compute, randval_dram_window);
+            }
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
 
@@ -2259,8 +2392,8 @@ struct BlockFmhaPipelineQRKSVSTdm
             {
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     // loop over along the [V]alue Sequence length
-                    move_tile_window(v_lds_read_window, {kK1, 0});
-                    auto v_tile_switch = load_tile_transpose(v_lds_read_window);
+                    move_tile_window(v_lds_read_window, VSeqOffset(kK1));
+                    auto v_tile_switch = LoadVTile(v_lds_read_window);
 
                     gemm_1(o_acc,
                            get_slice_tile(p_tile,
@@ -2273,7 +2406,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                     v_tile = v_tile_switch;
                 });
                 // move back to the origin
-                move_tile_window(v_lds_read_window, {-kK1 * (k1_loops - 1), 0});
+                move_tile_window(v_lds_read_window, VSeqOffset(-kK1 * (k1_loops - 1)));
             }
 
             gemm_1(o_acc,
@@ -2400,18 +2533,25 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
-    CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
-                                        const KDramBlockWindowTmp& k_dram_block_window_tmp,
-                                        const VDramBlockWindowTmp& v_dram_block_window_tmp,
-                                        const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
-                                        LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,
-                                        FmhaMask mask,
-                                        PositionEncoding position_encoding,
-                                        float scale_s,
-                                        void* smem_ptr,
-                                        float sink_v,
-                                        bool lse_log2 = false) const
+              typename PositionEncoding,
+              typename RandValDramBlockWindowTmp = std::nullptr_t,
+              typename Dropout                   = NullBlockDropout>
+    CK_TILE_HOST_DEVICE auto
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
+               LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,
+               FmhaMask mask,
+               PositionEncoding position_encoding,
+               float scale_s,
+               void* smem_ptr,
+               float sink_v,
+               bool lse_log2                                           = false,
+               float logits_soft_cap                                   = 0.f,
+               float logits_soft_cap_rcp                               = 0.f,
+               RandValDramBlockWindowTmp randval_dram_block_window_tmp = {},
+               Dropout dropout                                         = {}) const
     {
         static_assert(!kQuantized, "qr_tdm pipeline: this granularity needs the descale arguments");
         if constexpr(Problem::kUseDoubleKVLdsBuffer)
@@ -2429,7 +2569,11 @@ struct BlockFmhaPipelineQRKSVSTdm
                                             nullptr,
                                             1,
                                             1.0f,
-                                            lse_log2);
+                                            lse_log2,
+                                            logits_soft_cap,
+                                            logits_soft_cap_rcp,
+                                            randval_dram_block_window_tmp,
+                                            dropout);
         else
             return run_single_v_double_k_lds_buffer(q_dram_block_window_tmp,
                                                     k_dram_block_window_tmp,
@@ -2445,7 +2589,11 @@ struct BlockFmhaPipelineQRKSVSTdm
                                                     nullptr,
                                                     1,
                                                     1.0f,
-                                                    lse_log2);
+                                                    lse_log2,
+                                                    logits_soft_cap,
+                                                    logits_soft_cap_rcp,
+                                                    randval_dram_block_window_tmp,
+                                                    dropout);
     }
 
     template <typename QDramBlockWindowTmp,
@@ -2511,18 +2659,25 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
-    CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
-                                        const KDramBlockWindowTmp& k_dram_block_window_tmp,
-                                        const VDramBlockWindowTmp& v_dram_block_window_tmp,
-                                        const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
-                                        LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,
-                                        FmhaMask mask,
-                                        PositionEncoding position_encoding,
-                                        float scale_s,
-                                        float sink_v,
-                                        void* smem_arena,
-                                        bool lse_log2 = false) const
+              typename PositionEncoding,
+              typename RandValDramBlockWindowTmp = std::nullptr_t,
+              typename Dropout                   = NullBlockDropout>
+    CK_TILE_HOST_DEVICE auto
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
+               LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,
+               FmhaMask mask,
+               PositionEncoding position_encoding,
+               float scale_s,
+               float sink_v,
+               void* smem_arena,
+               bool lse_log2                                           = false,
+               float logits_soft_cap                                   = 0.f,
+               float logits_soft_cap_rcp                               = 0.f,
+               RandValDramBlockWindowTmp randval_dram_block_window_tmp = {},
+               Dropout dropout                                         = {}) const
     {
         static_assert(!kQuantized, "qr_tdm pipeline: this granularity needs the descale arguments");
         if constexpr(Problem::kUseDoubleKVLdsBuffer)
@@ -2540,7 +2695,11 @@ struct BlockFmhaPipelineQRKSVSTdm
                                             nullptr,
                                             1,
                                             1.0f,
-                                            lse_log2);
+                                            lse_log2,
+                                            logits_soft_cap,
+                                            logits_soft_cap_rcp,
+                                            randval_dram_block_window_tmp,
+                                            dropout);
         else
             return run_single_v_double_k_lds_buffer(q_dram_block_window_tmp,
                                                     k_dram_block_window_tmp,
@@ -2556,7 +2715,11 @@ struct BlockFmhaPipelineQRKSVSTdm
                                                     nullptr,
                                                     1,
                                                     1.0f,
-                                                    lse_log2);
+                                                    lse_log2,
+                                                    logits_soft_cap,
+                                                    logits_soft_cap_rcp,
+                                                    randval_dram_block_window_tmp,
+                                                    dropout);
     }
 
     template <typename QDramBlockWindowTmp,

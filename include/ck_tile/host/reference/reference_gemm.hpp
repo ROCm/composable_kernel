@@ -12,6 +12,8 @@
 #include <array>
 #include <cstddef>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 #include <thread>
 #include <tuple>
 #include <type_traits>
@@ -656,6 +658,29 @@ reference_gemm_multiple_abd(const std::array<HostTensor<ADataType>, AsDataType::
     make_ParallelTensorFunctor(f_mk_kn_mn, M, N)(std::thread::hardware_concurrency());
 }
 
+/**
+ * @brief Host reference for MX GEMM.
+ *
+ * Multiplies each element of A and B by the scale of its block of K in AccDataType, accumulates
+ * C = A * B in AccDataType, and converts C to CDataType. B below is the block size:
+ * scale_block_size, or the derived one when scale_block_size is 0.
+ *
+ * @param a_m_k            A, M x K.
+ * @param b_k_n            B, K x N.
+ * @param c_m_n            C, M x N; overwritten.
+ * @param scale_a          Scales of A: element (m, k) uses scale_a(m, k / B).
+ * @param scale_b          Scales of B: element (k, n) uses scale_b(k / B, n).
+ * @param scale_block_size Number of consecutive K elements that share one scale. The last block
+ *                         may be partial. Scale columns of A and scale rows of B beyond the first
+ *                         ceil(K / B) are padding and are never read. 0 (the default) derives B as
+ *                         K / scale_a.get_length(1) and requires K to be a multiple of
+ *                         scale_a.get_length(1); with padded scales it derives the wrong B, so
+ *                         pass the block size explicitly for them.
+ * @note Only ck_tile::identity element operations are supported.
+ * @throws std::invalid_argument if scale_block_size is negative; if it is 0 and K is not a
+ *         multiple of the (non-zero) number of scale columns of scale_a; or if scale_a has fewer
+ *         than M rows or ceil(K / B) columns, or scale_b fewer than ceil(K / B) rows or N columns.
+ */
 template <typename ADataType,
           typename BDataType,
           typename AScaleDataType,
@@ -670,9 +695,10 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
                                     HostTensor<CDataType>& c_m_n,
                                     const HostTensor<AScaleDataType>& scale_a,
                                     const HostTensor<BScaleDataType>& scale_b,
-                                    const AElementOp&   = {},
-                                    const BElementOp&   = {},
-                                    const ACCElementOp& = {})
+                                    index_t scale_block_size = 0,
+                                    const AElementOp&        = {},
+                                    const BElementOp&        = {},
+                                    const ACCElementOp&      = {})
 {
     static_assert(std::is_same_v<AElementOp, ck_tile::identity>);
     static_assert(std::is_same_v<BElementOp, ck_tile::identity>);
@@ -682,7 +708,40 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
 
-    const std::size_t ScaleBlockSize = K / scale_a.get_length(1);
+    const std::size_t block_size = [&] {
+        if(scale_block_size < 0)
+        {
+            throw std::invalid_argument("reference_mx_gemm: scale_block_size " +
+                                        std::to_string(scale_block_size) + " is negative");
+        }
+        if(scale_block_size > 0)
+        {
+            return static_cast<std::size_t>(scale_block_size);
+        }
+        // Derived: every scale column of A is one whole block.
+        const std::size_t num_scale_cols = scale_a.get_length(1);
+        if(num_scale_cols == 0 || K % num_scale_cols != 0)
+        {
+            throw std::invalid_argument(
+                "reference_mx_gemm: cannot derive the scale block size: K = " + std::to_string(K) +
+                " is not a multiple of the " + std::to_string(num_scale_cols) +
+                " scale columns of scale_a");
+        }
+        return K / num_scale_cols;
+    }();
+    // The scales must cover M and N and the ceil(K / block_size) blocks along K that the loops
+    // below read. K = 0 derives a block size of 0 and reads no scale.
+    const std::size_t num_scale_k = block_size == 0 ? 0 : integer_divide_ceil(K, block_size);
+    if(scale_a.get_length(0) < M || scale_a.get_length(1) < num_scale_k ||
+       scale_b.get_length(0) < num_scale_k || scale_b.get_length(1) < N)
+    {
+        throw std::invalid_argument(
+            "reference_mx_gemm: the scales are too small: need scale_a " + std::to_string(M) +
+            " x " + std::to_string(num_scale_k) + " and scale_b " + std::to_string(num_scale_k) +
+            " x " + std::to_string(N) + ", got " + std::to_string(scale_a.get_length(0)) + " x " +
+            std::to_string(scale_a.get_length(1)) + " and " +
+            std::to_string(scale_b.get_length(0)) + " x " + std::to_string(scale_b.get_length(1)));
+    }
 
     HostTensor<AccDataType> a_m_k_scaled({std::size_t(M), std::size_t(K)},
                                          {std::size_t(K), std::size_t(1)});
@@ -696,7 +755,7 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
             if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
             {
                 auto a_f4x2  = a_m_k(m, k);
-                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
+                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / block_size));
                 std::size_t flat_offset = a_m_k.mDesc.GetOffsetFromMultiIndex(m, k);
                 auto a_val =
                     (flat_offset % 2 == 0)
@@ -708,15 +767,14 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
             {
                 std::size_t raw_off = m * a_m_k.get_stride(0) + k * a_m_k.get_stride(1);
                 std::size_t idx     = raw_off % pk_fp6x16_t::packed_size;
-                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
+                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / block_size));
                 a_m_k_scaled(m, k) =
                     pk_fp6x16_t::fp6_e2m3_to_float(a_m_k(m, k).unpack(idx)) * a_scale;
             }
             else
             {
-                a_m_k_scaled(m, k) =
-                    ck_tile::type_convert<AccDataType>((a_m_k(m, k))) *
-                    ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
+                a_m_k_scaled(m, k) = ck_tile::type_convert<AccDataType>((a_m_k(m, k))) *
+                                     ck_tile::type_convert<AccDataType>(scale_a(m, k / block_size));
             }
         }
     }
@@ -728,7 +786,7 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
             if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
             {
                 auto b_f4x2  = b_k_n(k, n);
-                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
+                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / block_size, n));
                 std::size_t flat_offset = b_k_n.mDesc.GetOffsetFromMultiIndex(k, n);
                 auto b_val =
                     (flat_offset % 2 == 0)
@@ -740,15 +798,14 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
             {
                 std::size_t raw_off = k * b_k_n.get_stride(0) + n * b_k_n.get_stride(1);
                 std::size_t idx     = raw_off % pk_fp6x16_t::packed_size;
-                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
+                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / block_size, n));
                 b_k_n_scaled(k, n) =
                     pk_fp6x16_t::fp6_e2m3_to_float(b_k_n(k, n).unpack(idx)) * b_scale;
             }
             else
             {
-                b_k_n_scaled(k, n) =
-                    ck_tile::type_convert<AccDataType>((b_k_n(k, n))) *
-                    ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
+                b_k_n_scaled(k, n) = ck_tile::type_convert<AccDataType>((b_k_n(k, n))) *
+                                     ck_tile::type_convert<AccDataType>(scale_b(k / block_size, n));
             }
         }
     }

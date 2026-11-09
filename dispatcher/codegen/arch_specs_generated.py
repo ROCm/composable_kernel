@@ -4,7 +4,7 @@
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2026-10-25T20:57:27.671022
+Generated at: 2026-10-30T14:59:00.519447
 
 To update this file:
 1. Edit arch_specs.json
@@ -162,6 +162,7 @@ LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
         "preshufflev2": 32768,
         "preshuffle_tdm": 32768,
         "comp_async": 32768,
+        "comp_tdm_pc": 16384,
         "wavelet": 65536,
         "compv6": 32768,
         "preshufflev1": 32768,
@@ -178,6 +179,7 @@ LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
         "preshufflev2": 32768,
         "preshuffle_tdm": 32768,
         "comp_async": 32768,
+        "comp_tdm_pc": 16384,
         "wavelet": 65536,
         "compv6": 32768,
         "preshufflev1": 32768,
@@ -194,6 +196,7 @@ LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
         "preshufflev2": 32768,
         "preshuffle_tdm": 32768,
         "comp_async": 32768,
+        "comp_tdm_pc": 16384,
         "wavelet": 65536,
         "compv6": 32768,
         "preshufflev1": 32768,
@@ -210,6 +213,7 @@ LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
         "preshufflev2": 81920,
         "preshuffle_tdm": 81920,
         "comp_async": 81920,
+        "comp_tdm_pc": 40960,
         "wavelet": 163840,
         "compv6": 81920,
         "preshufflev1": 81920,
@@ -226,6 +230,7 @@ LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
         "preshufflev2": 32768,
         "preshuffle_tdm": 32768,
         "comp_async": 32768,
+        "comp_tdm_pc": 16384,
         "wavelet": 65536,
         "compv6": 32768,
         "preshufflev1": 32768,
@@ -242,6 +247,7 @@ LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
         "preshufflev2": 32768,
         "preshuffle_tdm": 32768,
         "comp_async": 32768,
+        "comp_tdm_pc": 16384,
         "wavelet": 65536,
         "compv6": 32768,
         "preshufflev1": 32768,
@@ -258,6 +264,7 @@ LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
         "preshufflev2": 32768,
         "preshuffle_tdm": 32768,
         "comp_async": 32768,
+        "comp_tdm_pc": 16384,
         "wavelet": 65536,
         "compv6": 32768,
         "preshufflev1": 32768,
@@ -274,6 +281,7 @@ LDS_CAPACITY_LIMITS_BY_ARCH: Dict[str, Dict[str, int]] = {
         "preshufflev2": 163840,
         "preshuffle_tdm": 163840,
         "comp_async": 163840,
+        "comp_tdm_pc": 81920,
         "wavelet": 327680,
         "compv6": 163840,
         "preshufflev1": 163840,
@@ -319,6 +327,9 @@ TRAIT_UNSUPPORTED_COMBINATIONS: Set[Tuple[str, str, str]] = {
     ("comp_tdm_v2", "cshuffle", "interwave"),
     ("comp_tdm_v2", "default", "interwave"),
     ("comp_tdm_v2", "tdm", "interwave"),
+    ("comp_tdm_pc", "cshuffle", "interwave"),
+    ("comp_tdm_pc", "default", "interwave"),
+    ("comp_tdm_pc", "tdm", "interwave"),
 }
 
 # Valid dtype combinations: (A_dtype, B_dtype) -> acc_dtype and notes

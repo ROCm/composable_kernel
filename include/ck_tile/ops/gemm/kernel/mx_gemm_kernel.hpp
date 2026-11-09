@@ -7,6 +7,12 @@
 
 namespace ck_tile {
 
+/**
+ * @brief Host arguments of MxGemmKernel: the UniversalGemmHostArgs plus the A and B scale pointers.
+ * @note On the gfx125 TDM pipelines, IsMxTdmShapeSupported describes the scale layout the kernel
+ *       reads, the K values each configuration accepts, and the scale padding a K tail (K not a
+ *       multiple of KPerBlock) needs.
+ */
 template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
 struct MxGemmHostArgs : public UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>
 {
@@ -54,22 +60,100 @@ struct MxGemmKernelArgs : public UniversalGemmKernelArgs<NumATensor, NumBTensor,
     const std::array<const void*, NumBTensor> bs_scale_ptr;
 };
 
+namespace detail {
+// The operand types MxGemmKernel takes K tails for on the TDM pipelines in any pair.
+template <typename T>
+inline constexpr bool is_mx_tdm_k_tail_operand_v =
+    std::is_same_v<T, fp8_t> || std::is_same_v<T, pk_fp4_t>;
+
+// MxGemmKernel on the TDM pipelines takes K tails for the following operands: A, B are either fp8_t
+// or pk_fp4_t or A = B = pk_fp6x16_t.
+template <typename A, typename B>
+inline constexpr bool is_mx_tdm_k_tail_pair_v =
+    (is_mx_tdm_k_tail_operand_v<A> && is_mx_tdm_k_tail_operand_v<B>) ||
+    (std::is_same_v<A, pk_fp6x16_t> && std::is_same_v<B, pk_fp6x16_t>);
+} // namespace detail
+
+/**
+ * @brief Whether these operands, layouts and scales are K-tail configurations, for which
+ *        MxGemmKernel takes K tails on the gfx125 TDM pipelines (see IsMxTdmShapeSupported).
+ * @details The K-tail configurations: fp8_t or pk_fp4_t on each side (any pair), or pk_fp6x16_t
+ *          on both sides; 32-element scales packed four to an int32; a row-major A and a
+ *          column-major B, so that K is the contiguous dimension of both. IsMxTdmShapeSupported
+ *          also requires a KPerBlock that is a multiple of ScaleBlockSize * KXdlPack;
+ *          MxGroupedGemmKernel takes no K tails.
+ * @tparam ADataType      Element type of A (cv and reference qualifiers are ignored).
+ * @tparam BDataType      Element type of B (cv and reference qualifiers are ignored).
+ * @tparam ALayout        Layout of A.
+ * @tparam BLayout        Layout of B.
+ * @tparam ScaleBlockSize Elements per scale.
+ * @tparam KXdlPack       Scale blocks per packed int32 of scales.
+ */
+template <typename ADataType,
+          typename BDataType,
+          typename ALayout,
+          typename BLayout,
+          index_t ScaleBlockSize,
+          index_t KXdlPack>
+inline constexpr bool is_mx_tdm_k_tail_config_v =
+    detail::is_mx_tdm_k_tail_pair_v<remove_cvref_t<ADataType>, remove_cvref_t<BDataType>> &&
+    ScaleBlockSize == 32 && KXdlPack == 4 &&
+    std::is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
+    std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>;
+
 /**
  * @brief Host shape checks for MX GEMM on the gfx125 TDM pipelines.
  * @details For TDM pipelines UniversalGemmKernel::IsSupportedArgument checks only tensor size and
- *          split-K and skips its shape checks, so MxGemmKernel applies these checks instead. They
- *          reject:
+ *          split-K and skips its shape checks, so MxGemmKernel applies these checks instead.
+ *
+ *          Scale layout. The A scales are an M' x S matrix and the B scales an N' x S matrix, one
+ *          row per row of A or column of B, where M' (N') is M (N) rounded up to a multiple of
+ *          the warp tile M (N) (MxGemmKernel::MThreadPerXdl and NThreadPerXdl); the rows past M
+ *          (N) are padding rows. S is ceil(K / ScaleBlockSize) scale blocks rounded up to a
+ *          multiple of KXdlPack, one int32 scale pack per ScaleBlockSize * KXdlPack elements of K;
+ *          the columns past ceil(K / ScaleBlockSize) are padding columns. Both matrices are
+ *          pre-shuffled with preShuffleScaleBuffer_gfx1250<ScaleType, ScaleBlockSize, true>
+ *          (ck_tile/host/mx_processing.hpp), passing the padded row count, S and the warp tile
+ *          M (N), and the device buffers hold every padding row and column, because the kernel
+ *          can read any of them.
+ *
+ *          K tails. A K tail is a K that is not a multiple of KPerBlock, so the last K tile is
+ *          partial. With AllowKTail and a KPerBlock that is a multiple of
+ *          ScaleBlockSize * KXdlPack, the K-tail configurations (is_mx_tdm_k_tail_config_v)
+ *          accept a K that is a multiple of the PackedSize of A and of B (any K for fp8_t, an even
+ *          K for pk_fp4_t, a multiple of 16 for pk_fp6x16_t); it need not be a multiple of
+ *          ScaleBlockSize, of
+ *          ScaleBlockSize * KXdlPack or of KPerBlock. The TDM writes zeros to LDS for the A and B
+ *          elements past K, so a partial last K tile needs no masking. When K is not a multiple of
+ *          ScaleBlockSize, the last scale block covers only the remaining K % ScaleBlockSize
+ *          elements. Every scale must be finite, padding rows and columns included: the kernel
+ *          multiplies the zeros past K by the padding columns of the last scale pack and, when a K
+ *          tile holds more than one scale pack, by scales of later rows of A (columns of B) (see
+ *          MxGemmKernel::GetScalePacksK). NaN x 0 is NaN, so a NaN scale there turns the result of
+ *          its own row (column), or of an earlier one, into NaN. Pad with a finite value, for
+ *          example 0x00, which is finite for e8m0_t, e5m3_t and e4m3_t (0x7F is 1.0 for e8m0_t but
+ *          NaN for e4m3_t). The scale types default-construct to their NaN encoding, so padding
+ *          left at its default value is not finite.
+ *
+ *          The checks reject:
  *          - K <= 0;
- *          - K not a multiple of ScaleBlockSize * KXdlPack: the kernel sizes the packed scale view
- *            as K / ScaleBlockSize / KXdlPack and drops the remainder;
- *          - K not a multiple of KPerBlock: the MX kernel never pads K (kPadK is false), so its
- *            scale view does not cover a partial final K tile. This check is conservative;
+ *          - K > INT_MAX - 2 * max(KPerBlock, ScaleBlockSize * KXdlPack): the rounded-up K loop and
+ *            scale pack counts, or the K window offset the pipelines reach after the last K tile,
+ *            (GetLoopNum(K) + 1) * KPerBlock, would overflow index_t;
+ *          - without K-tail support (AllowKTail false, a configuration outside
+ *            is_mx_tdm_k_tail_config_v, or a KPerBlock that is not a multiple of
+ *            ScaleBlockSize * KXdlPack): K not a multiple of ScaleBlockSize * KXdlPack or of
+ *            KPerBlock (a caller pads K to a multiple of both, with zero A and B elements and
+ *            finite scales);
  *          - for a packed A or B (PackedSize > 1, such as pk_fp4_t or pk_fp6x16_t), a stride or a
  *            contiguous extent that is not a whole number of packs: the TDM load
  *            (tile_window::tdm_load_to_lds) divides both by PackedSize and rounds down. The
  *            contiguous extent is K for a row-major A and a column-major B, M for a column-major
  *            A and N for a row-major B.
  *          Apart from that, M and N are not checked: TDM clips partial tiles in hardware.
+ *          MxGemmKernel::IsTdmShapeSupported adds one check that depends on M and N: the B-scale
+ *          matrix (N' x S), and the A-scale matrix (M' x S, or one M tile of it when the kernel
+ *          shifts the A-scale pointer per M tile), must each be smaller than 2^31 bytes.
  *          The function takes the operand types and tile constants rather than a kernel, so it
  *          can also be checked for operand types that the TDM pipelines cannot instantiate yet.
  * @tparam ADataType      Type of A.
@@ -79,12 +163,18 @@ struct MxGemmKernelArgs : public UniversalGemmKernelArgs<NumATensor, NumBTensor,
  * @tparam KPerBlock      K tile size.
  * @tparam ScaleBlockSize Elements per scale (16 or 32).
  * @tparam KXdlPack       Scale blocks per packed int32 of scales (the pipeline's KXdlPackEff).
+ * @tparam AllowKTail     Whether the K-tail configurations accept K that is not a multiple of
+ *                        ScaleBlockSize * KXdlPack or of KPerBlock, when KPerBlock is a multiple
+ *                        of ScaleBlockSize * KXdlPack. The default, false, keeps
+ *                        those checks for every configuration. MxGemmKernel::IsSupportedArgument
+ *                        passes true; MxGroupedGemmKernel::IsSupportedArgument also checks every
+ *                        group with false.
  * @param M        Rows of A and C.
  * @param N        Columns of B and C.
  * @param K        Reduction length.
  * @param stride_A Stride of A in elements, as in MxGemmHostArgs.
  * @param stride_B Stride of B in elements, as in MxGemmHostArgs.
- * @return true if the TDM MX path supports the shape.
+ * @return true if the shape passes these checks.
  */
 template <typename ADataType,
           typename BDataType,
@@ -92,11 +182,17 @@ template <typename ADataType,
           typename BLayout,
           index_t KPerBlock,
           index_t ScaleBlockSize,
-          index_t KXdlPack>
+          index_t KXdlPack,
+          bool AllowKTail = false>
 CK_TILE_HOST bool
 IsMxTdmShapeSupported(index_t M, index_t N, index_t K, index_t stride_A, index_t stride_B)
 {
     static_assert(KPerBlock > 0 && ScaleBlockSize > 0 && KXdlPack > 0);
+    using A = remove_cvref_t<ADataType>;
+    using B = remove_cvref_t<BDataType>;
+    constexpr bool kKTailSupported =
+        AllowKTail && is_mx_tdm_k_tail_config_v<A, B, ALayout, BLayout, ScaleBlockSize, KXdlPack> &&
+        KPerBlock % (ScaleBlockSize * KXdlPack) == 0;
     const auto reject = [](const auto&... reason) {
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
@@ -108,18 +204,32 @@ IsMxTdmShapeSupported(index_t M, index_t N, index_t K, index_t stride_A, index_t
     {
         return reject("requires K > 0");
     }
-    if(K % (ScaleBlockSize * KXdlPack) != 0)
+    // GetLoopNum and MxGemmKernel::GetScalePacksK round K up as (K + d - 1) / d with d = KPerBlock
+    // and d = ScaleBlockSize * KXdlPack respectively, and the pipelines, which load one K tile past
+    // the last when the loop count is odd, move their K windows up to
+    // (GetLoopNum(K) + 1) * KPerBlock <= K + 2 * KPerBlock - 1; none of them may overflow index_t.
+    constexpr index_t kKRoundUp = max(KPerBlock, ScaleBlockSize * KXdlPack);
+    constexpr index_t kMaxK     = numeric<index_t>::max() - 2 * kKRoundUp;
+    if(K > kMaxK)
     {
-        return reject("requires K to be a multiple of ScaleBlockSize * KXdlPack = ",
-                      ScaleBlockSize * KXdlPack);
+        return reject("requires K <= INT_MAX - 2 * max(KPerBlock, ScaleBlockSize * KXdlPack) = ",
+                      kMaxK);
     }
-    if(K % KPerBlock != 0)
+    if constexpr(!kKTailSupported)
     {
-        return reject("requires K to be a multiple of KPerBlock = ", KPerBlock);
+        if(K % (ScaleBlockSize * KXdlPack) != 0)
+        {
+            return reject("requires K to be a multiple of ScaleBlockSize * KXdlPack = ",
+                          ScaleBlockSize * KXdlPack);
+        }
+        if(K % KPerBlock != 0)
+        {
+            return reject("requires K to be a multiple of KPerBlock = ", KPerBlock);
+        }
     }
-    if constexpr(numeric_traits<remove_cvref_t<ADataType>>::PackedSize > 1)
+    if constexpr(numeric_traits<A>::PackedSize > 1)
     {
-        constexpr index_t pack = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+        constexpr index_t pack = numeric_traits<A>::PackedSize;
         if(stride_A % pack != 0)
         {
             return reject("requires the stride of a packed A to be a multiple of its pack size ",
@@ -130,10 +240,15 @@ IsMxTdmShapeSupported(index_t M, index_t N, index_t K, index_t stride_A, index_t
             return reject(
                 "requires M of a column-major packed A to be a multiple of its pack size ", pack);
         }
+        if(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor> && K % pack != 0)
+        {
+            return reject("requires K of a row-major packed A to be a multiple of its pack size ",
+                          pack);
+        }
     }
-    if constexpr(numeric_traits<remove_cvref_t<BDataType>>::PackedSize > 1)
+    if constexpr(numeric_traits<B>::PackedSize > 1)
     {
-        constexpr index_t pack = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+        constexpr index_t pack = numeric_traits<B>::PackedSize;
         if(stride_B % pack != 0)
         {
             return reject("requires the stride of a packed B to be a multiple of its pack size ",
@@ -143,6 +258,11 @@ IsMxTdmShapeSupported(index_t M, index_t N, index_t K, index_t stride_A, index_t
         {
             return reject("requires N of a row-major packed B to be a multiple of its pack size ",
                           pack);
+        }
+        if(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> && K % pack != 0)
+        {
+            return reject(
+                "requires K of a column-major packed B to be a multiple of its pack size ", pack);
         }
     }
     return true;
@@ -250,6 +370,14 @@ struct MxGemmKernel
     static constexpr index_t NXdlPackEff = MxGemmPipeline::NXdlPackEff;
     static constexpr index_t KXdlPackEff = MxGemmPipeline::KXdlPackEff;
 
+    // Protects the K loop of the TDM pipelines' block GEMM (BlockGemmARegBRegCRegV1): it runs
+    // KPerBlock / (WarpTile K) warp GEMMs per K tile (KIterPerWarp) and drops any remainder, so a
+    // K tile that is not a whole number of warp tiles would skip K values in every K tile.
+    // IsMxTdmShapeSupported checks K, not KPerBlock against the warp tile.
+    static_assert(!BaseKernel::kIsTdmPipeline ||
+                      TilePartitioner::KPerBlock % BlockGemmShape::WarpTile::at(number<2>{}) == 0,
+                  "MX GEMM (TDM pipelines): KPerBlock must be a multiple of WarpTile K.");
+
     // Large tensor support (when M is large, N and K are relatively small): RunGemm shifts the
     // A / E / A-scale base pointers by the M tile and clamps kargs.M, so those descriptors span
     // at most one M tile however large M is.
@@ -272,6 +400,27 @@ struct MxGemmKernel
     CK_TILE_HOST_DEVICE static constexpr bool IsLargeTensorMOffsettingSupported()
     {
         return kOffsetPtrsByTileCoords;
+    }
+
+    // Number of int32 scale packs in each row of the packed scale views. Each pack covers
+    // BlockScaleSize * KXdlPackEff elements of K; the count rounds up, so it includes a partial
+    // last pack when K is not a multiple of BlockScaleSize * KXdlPackEff.
+    //
+    // On a K tail the kernel reads scales that multiply only the zeros the TDM loads for A and B
+    // past K. NaN x 0 is NaN, so every scale the caller passes, padding included, must be finite.
+    // Those reads are:
+    // - the K padding columns, if any, of the last pack, GetScalePacksK(K) - 1;
+    // - on the TDM pipelines, when a K tile holds more than one scale pack and K is not a
+    //   multiple of KPerBlock, the packs p >= P = GetScalePacksK(K) that the last K tile can
+    //   read, because the scale views are not padded in K. For row r of the view, pack p is pack
+    //   p % P of row r + (p / P) * MThreadPerXdl (for B, NThreadPerXdl): a scale of a later row,
+    //   which can be one of the caller's M or N padding rows. Reads past the end of the view (for
+    //   an A view shifted to its M tile, the end of that tile) return 0.
+    // The pipelines also load one scale tile past the last K tile when the loop count is odd;
+    // those values are never used.
+    CK_TILE_HOST_DEVICE static constexpr index_t GetScalePacksK(index_t K)
+    {
+        return integer_divide_ceil(K, BlockScaleSize * KXdlPackEff);
     }
 
     using KernelArgs = MxGemmKernelArgs<NumATensor, NumBTensor, NumDTensor>;
@@ -378,10 +527,17 @@ struct MxGemmKernel
     }
 
     /**
-     * @brief Runs only the IsMxTdmShapeSupported checks of IsSupportedArgument.
-     * @details Skips the split-K, pointer-alignment and device checks, so it runs on any host.
-     * @return true if the TDM MX path supports the shape in kargs.
+     * @brief Runs the shape checks of IsSupportedArgument: IsMxTdmShapeSupported and
+     *        IsScaleViewSizeSupported.
+     * @details Skips the split-K, pointer-alignment and device checks and the A, B, D and E size
+     *          checks of UniversalGemmKernel::IsSupportedArgument.
+     * @tparam AllowKTail Passed to IsMxTdmShapeSupported. The default, true, gives the checks of
+     *                    IsSupportedArgument; false keeps the K checks for every configuration, as
+     *                    MxGroupedGemmKernel::IsSupportedArgument requires.
+     * @param kargs Kernel arguments; M, N, K and the A and B strides are read.
+     * @return true if the shape in kargs passes these checks.
      */
+    template <bool AllowKTail = true>
     CK_TILE_HOST static bool IsTdmShapeSupported(const KernelArgs& kargs)
     {
         static_assert(BaseKernel::kIsTdmPipeline,
@@ -390,16 +546,81 @@ struct MxGemmKernel
                       "MX GEMM: the TDM pipelines take a single A and a single B tensor.");
         using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
         using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+        // IsMxTdmShapeSupported goes first, so a shape it rejects is logged with its own reason.
         return IsMxTdmShapeSupported<ADataType,
                                      BDataType,
                                      ALayout,
                                      BLayout,
                                      TilePartitioner::KPerBlock,
                                      BlockScaleSize,
-                                     KXdlPackEff>(
-            kargs.M, kargs.N, kargs.K, kargs.stride_As[0], kargs.stride_Bs[0]);
+                                     KXdlPackEff,
+                                     AllowKTail>(
+                   kargs.M, kargs.N, kargs.K, kargs.stride_As[0], kargs.stride_Bs[0]) &&
+               IsScaleViewSizeSupported(kargs);
     }
 
+    private:
+    /**
+     * @brief Whether the packed scale views of MakeScaleABlockWindow and MakeScaleBBlockWindow
+     *        are smaller than 2^31 bytes.
+     * @details The scales are read with buffer loads, which compute byte offsets in index_t, so
+     *          the kernel keeps each scale view below 2^31 bytes, the limit
+     *          UniversalGemmKernel::IsSupportedArgument applies to A, B, D and E but not to the
+     *          scales. A scale view holds GetScalePacksK(K) int32 packs in each of its
+     *          ceil(M / (MThreadPerXdl * MXdlPackEff)) * MThreadPerXdl rows (for B: N,
+     *          NThreadPerXdl and NXdlPackEff); with MXdlPackEff and NXdlPackEff of 1 on the TDM
+     *          pipelines, these are the M' (N') rows of IsMxTdmShapeSupported. A scale view can be
+     *          larger than A (B): with a K tail, for an fp8_t B with K < 4, a column of B holds
+     *          fewer than 4 bytes and its row of scales holds 4; and as N is rounded up to the
+     *          warp tile, with 16-element scales, a 32-wide warp tile and N = 1, the B-scale view
+     *          holds 2K bytes for a K-byte B (likewise for A and M). The A-scale view spans one M
+     *          tile when RunGemm shifts the A-scale pointer to it (kOffsetPtrsByTileCoords), and
+     *          all of M otherwise, as with cluster launch or a column-major A or C.
+     * @param kargs Kernel arguments; M, N and K are read.
+     * @return true if both scale views are smaller than 2^31 bytes.
+     */
+    CK_TILE_HOST static bool IsScaleViewSizeSupported(const KernelArgs& kargs)
+    {
+        // The byte size of a scale view: the rows and packs of its descriptor (see
+        // MakeScaleABlockWindow), all in 64 bits, so that no rounding up or product overflows for
+        // any M, N and K.
+        constexpr long_index_t kScalePackK = BlockScaleSize * KXdlPackEff;
+        constexpr long_index_t kScaleBytes = sizeof(remove_pointer_t<ScalePtrType>);
+        const long_index_t packs_k =
+            integer_divide_ceil(static_cast<long_index_t>(kargs.K), kScalePackK);
+        const auto view_bytes = [&](index_t extent, index_t thread_per_xdl, index_t xdl_pack) {
+            const long_index_t row_groups =
+                integer_divide_ceil(static_cast<long_index_t>(extent),
+                                    static_cast<long_index_t>(thread_per_xdl) * xdl_pack);
+            return row_groups * thread_per_xdl * packs_k * kScaleBytes;
+        };
+        const auto reject = [](const char* operand, long_index_t bytes) {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("MX GEMM with a TDM pipeline requires the packed ",
+                              operand,
+                              "-scale view to be smaller than 2^31 bytes, but it holds ",
+                              bytes,
+                              " bytes!");
+            }
+            return false;
+        };
+        constexpr long_index_t kSizeLimit = long_index_t{1} << 31;
+        const long_index_t a_bytes =
+            view_bytes(BaseKernel::ClampMToOffsettedTile(kargs.M, 0), MThreadPerXdl, MXdlPackEff);
+        if(a_bytes >= kSizeLimit)
+        {
+            return reject("A", a_bytes);
+        }
+        const long_index_t b_bytes = view_bytes(kargs.N, NThreadPerXdl, NXdlPackEff);
+        if(b_bytes >= kSizeLimit)
+        {
+            return reject("B", b_bytes);
+        }
+        return true;
+    }
+
+    public:
     template <typename KernelArgs>
     CK_TILE_DEVICE static auto
     MakeScaleABlockWindow(const std::array<ScalePtrType, NumATensor>& as_scale_ptr,
@@ -407,8 +628,10 @@ struct MxGemmKernel
                           index_t block_idx_m,
                           const index_t k_elem_offset = 0)
     {
+        // IsScaleViewSizeSupported recomputes this view's lengths in 64 bits to bound its byte
+        // size; change both together.
         const auto&& scale_packs_m = integer_divide_ceil(kargs.M, MThreadPerXdl * MXdlPackEff);
-        const auto&& scale_packs_k = kargs.K / BlockScaleSize / KXdlPackEff;
+        const auto&& scale_packs_k = GetScalePacksK(kargs.K);
 
         // For split-K (k_batch > 1) advance the scale origin into this k_id's packed-K slice.
         const index_t k_scale_offset = k_elem_offset / BlockScaleSize / KXdlPackEff;
@@ -431,8 +654,9 @@ struct MxGemmKernel
             number<NumATensor>{});
 
         // Pad the scale view so partial trailing tiles along M are handled safely (OOB scale
-        // loads return zero; with A also zero on the padded region the contribution is zero
-        // regardless of scale value). kPadK is statically disabled, so K never actually pads.
+        // loads return zero, a finite scale, so with A also zero on the padded region the
+        // contribution is zero). kPadK is statically disabled, so K never actually pads; see
+        // GetScalePacksK for the scale reads past K on a K tail.
         const auto& scale_a_pad_view = generate_tuple(
             [&](auto i) {
                 return pad_tensor_view(
@@ -464,8 +688,10 @@ struct MxGemmKernel
                           index_t block_idx_n,
                           const index_t k_elem_offset = 0)
     {
+        // IsScaleViewSizeSupported recomputes this view's lengths in 64 bits to bound its byte
+        // size; change both together.
         const auto&& scale_packs_n = integer_divide_ceil(kargs.N, NThreadPerXdl * NXdlPackEff);
-        const auto&& scale_packs_k = kargs.K / BlockScaleSize / KXdlPackEff;
+        const auto&& scale_packs_k = GetScalePacksK(kargs.K);
 
         // For split-K (k_batch > 1) advance the scale origin into this k_id's packed-K slice.
         const index_t k_scale_offset = k_elem_offset / BlockScaleSize / KXdlPackEff;
@@ -485,8 +711,9 @@ struct MxGemmKernel
             number<NumBTensor>{});
 
         // Pad the scale view so partial trailing tiles along N are handled safely (OOB scale
-        // loads return zero; with B also zero on the padded region the contribution is zero
-        // regardless of scale value). kPadK is statically disabled, so K never actually pads.
+        // loads return zero, a finite scale, so with B also zero on the padded region the
+        // contribution is zero). kPadK is statically disabled, so K never actually pads; see
+        // GetScalePacksK for the scale reads past K on a K tail.
         const auto& scale_b_pad_view = generate_tuple(
             [&](auto i) {
                 return pad_tensor_view(
@@ -578,7 +805,7 @@ struct MxGemmKernel
             static_for<0, NumATensor, 1>{}([&](auto i) {
                 as_scale_ptr[i] = reinterpret_cast<ScalePtrType>(kargs.as_scale_ptr[i]) +
                                   static_cast<std::ptrdiff_t>(block_idx_m / MXdlPackEff) *
-                                      (kargs.K / BlockScaleSize / KXdlPackEff);
+                                      GetScalePacksK(kargs.K);
             });
 
             kargs.M      = BaseKernel::ClampMToOffsettedTile(kargs.M, block_idx_m);
