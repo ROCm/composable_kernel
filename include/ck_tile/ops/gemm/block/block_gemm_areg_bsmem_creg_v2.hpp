@@ -25,13 +25,15 @@ struct BlockGemmARegBSmemCRegV2
     static constexpr bool kSupportsPartialK = true;
     static constexpr bool kSupportsPartialN = true;
 
-    template <bool UsePartialN,
+    template <bool UsePartialK,
+              bool UsePartialN,
               typename CBlockTensor,
               typename ABlockTensorTmp,
               typename BBlockWindowTmp>
     CK_TILE_DEVICE void Impl(CBlockTensor& c_block_tensor,
                              const ABlockTensorTmp& a_block_tensor_tmp,
                              const BBlockWindowTmp& b_block_window_tmp,
+                             [[maybe_unused]] const index_t valid_k_iters,
                              [[maybe_unused]] const index_t valid_n_iters) const
     {
         static_assert(
@@ -171,15 +173,18 @@ struct BlockGemmARegBSmemCRegV2
         };
 
         // hot loop:
-        if constexpr(UsePartialN)
+        if constexpr(UsePartialK || UsePartialN)
         {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                    if(static_cast<index_t>(nIter.value) < valid_n_iters)
-                    {
-                        run_n_iter(kIter, nIter);
-                    }
-                });
+                if(!UsePartialK || static_cast<index_t>(kIter.value) < valid_k_iters)
+                {
+                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                        if(!UsePartialN || static_cast<index_t>(nIter.value) < valid_n_iters)
+                        {
+                            run_n_iter(kIter, nIter);
+                        }
+                    });
+                }
             });
         }
         else
@@ -190,14 +195,24 @@ struct BlockGemmARegBSmemCRegV2
         }
     }
 
+    // C += A * B (executing only the first valid_k_iters K sub-iterations)
+    template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockWindowTmp>
+    CK_TILE_DEVICE void RunPartialK(CBlockTensor& c_block_tensor,
+                                    const ABlockTensorTmp& a_block_tensor_tmp,
+                                    const BBlockWindowTmp& b_block_window_tmp,
+                                    const index_t valid_k_iters) const
+    {
+        Impl<true, false>(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, valid_k_iters, 0);
+    }
+
     // C += A * B (executing only the first valid_n_iters N sub-iterations)
     template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockWindowTmp>
-    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                   const ABlockTensorTmp& a_block_tensor_tmp,
-                                   const BBlockWindowTmp& b_block_window_tmp,
-                                   const index_t valid_n_iters) const
+    CK_TILE_DEVICE void RunPartialN(CBlockTensor& c_block_tensor,
+                                    const ABlockTensorTmp& a_block_tensor_tmp,
+                                    const BBlockWindowTmp& b_block_window_tmp,
+                                    const index_t valid_n_iters) const
     {
-        Impl<true>(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, valid_n_iters);
+        Impl<false, true>(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, 0, valid_n_iters);
     }
 
     template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockWindowTmp>
@@ -205,7 +220,7 @@ struct BlockGemmARegBSmemCRegV2
                                    const ABlockTensorTmp& a_block_tensor_tmp,
                                    const BBlockWindowTmp& b_block_window_tmp) const
     {
-        Impl<false>(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, 0);
+        Impl<false, false>(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, 0, 0);
     }
 
     template <index_t MPerBlock = BlockGemmShape::kM, index_t KPerBlock = BlockGemmShape::kK>
@@ -263,17 +278,6 @@ struct BlockGemmARegBSmemCRegV2
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
         auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
-        return c_block_tensor;
-    }
-
-    // C = A * B (executing only the first valid_n_iters N sub-iterations)
-    template <typename ABlockTensorTmp, typename BBlockWindowTmp>
-    CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
-                                   const BBlockWindowTmp& b_block_window_tmp,
-                                   const index_t valid_n_iters) const
-    {
-        auto c_block_tensor = MakeCBlockTile();
-        operator()(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, valid_n_iters);
         return c_block_tensor;
     }
 
