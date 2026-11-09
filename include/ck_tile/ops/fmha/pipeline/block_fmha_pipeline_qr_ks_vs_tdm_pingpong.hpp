@@ -189,9 +189,9 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             return Base::kBlockPerCu;
     }();
 
-    // Whether a row's elements sit in the thread buffer as neighbouring pairs (2k, 2k+1).
+    // A row's thread-buffer offsets in ascending order.
     template <typename PComputeTensor, typename Idx0, typename Ids>
-    CK_TILE_HOST_DEVICE static constexpr bool RowPairsAdjacent(Idx0, Ids)
+    CK_TILE_HOST_DEVICE static constexpr auto SortedRowOffsets(Idx0, Ids)
     {
         constexpr index_t kN = Ids::size();
         array<index_t, kN> o{};
@@ -208,6 +208,15 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 o(j)            = o[j - 1];
                 o(j - 1)        = t;
             }
+        return o;
+    }
+
+    // Whether a row's elements sit in the thread buffer as neighbouring pairs (2k, 2k+1).
+    template <typename PComputeTensor, typename Idx0, typename Ids>
+    CK_TILE_HOST_DEVICE static constexpr bool RowPairsAdjacent(Idx0, Ids)
+    {
+        constexpr index_t kN = Ids::size();
+        constexpr auto o     = SortedRowOffsets<PComputeTensor>(Idx0{}, Ids{});
         for(index_t k = 0; k < kN / 2; ++k)
             if(o[2 * k] % 2 != 0 || o[2 * k + 1] != o[2 * k] + 1)
                 return false;
@@ -242,29 +251,11 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                     if constexpr(!kSyncLanes && kN >= 4 &&
                                  RowPairsAdjacent<PComputeTensor>(idx0, ids))
                     {
-                        // the row's thread-buffer offsets in ascending order, summed as
-                        // register pairs (v_pk_add_f32 of neighbouring registers)
-                        constexpr auto offs = [&]() {
-                            array<index_t, kN> o{};
-                            static_for<0, kN, 1>{}([&](auto i) {
-                                constexpr auto y_idx =
-                                    PComputeTensor::get_tile_distribution()
-                                        .get_y_indices_from_distributed_indices(
-                                            make_tuple(idx0, ids.at(number<i>{})));
-                                o(i) = typename PComputeTensor::ThreadTensorDesc{}.calculate_offset(
-                                    y_idx);
-                            });
-                            for(index_t i = 1; i < kN; ++i)
-                                for(index_t j = i; j > 0 && o[j - 1] > o[j]; --j)
-                                {
-                                    const index_t t = o[j];
-                                    o(j)            = o[j - 1];
-                                    o(j - 1)        = t;
-                                }
-                            return o;
-                        }();
-                        using f2        = ext_vector_t<float, 2>;
-                        const auto& buf = p_compute.get_thread_buffer();
+                        // the row summed as register pairs (v_pk_add_f32 of
+                        // neighbouring registers)
+                        constexpr auto offs = SortedRowOffsets<PComputeTensor>(idx0, ids);
+                        using f2            = ext_vector_t<float, 2>;
+                        const auto& buf     = p_compute.get_thread_buffer();
                         array<f2, kN / 4> w;
                         static_for<0, kN / 4, 1>{}([&](auto k) {
                             const f2 a{buf[number<offs[2 * k]>{}], buf[number<offs[2 * k + 1]>{}]};
@@ -1271,51 +1262,54 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 if constexpr(kEarlyPConvert)
                     p_tile_early = make_p_tile();
                 auto part = BlockRowSum<false>(p_compute);
-                bool redo = false;
-                if(!row_max_tile)
-                    sweep_tile_span(o_spans[I0], [&](auto idx0) {
-                        redo |= !(part[make_tuple(idx0)] <=
-                                  SMPLComputeDataType{256} /* 2^kRebaseThreshold */);
-                    });
-                if(kSkipRowMax && __builtin_expect(__builtin_amdgcn_ballot_w32(redo) != 0, 0))
+                if constexpr(kSkipRowMax)
                 {
-                    // a p over 2^kRebaseThreshold, or one that does not fit the 16-bit P:
-                    // S again (K_i is still in LDS, the TDM stages K_{i+1} into the other
-                    // buffer), then the row max way
-                    __builtin_amdgcn_sched_barrier(0);
-                    // S again into P's registers (same layout, P is retaken from it)
-                    clear_tile(p_compute);
-                    static_for<0, k0_loops, 1>{}([&](auto i_k0) {
-                        gemm_0(p_compute,
-                               get_slice_tile(q_tile,
-                                              sequence<0, i_k0 * kK0>{},
-                                              sequence<kM0, (i_k0 + 1) * kK0>{}),
-                               (k_tile = load_tile(k_lds_read_window), k_tile));
-                        move_tile_window(k_lds_read_window, {0, kK0});
+                    bool redo = false;
+                    if(!row_max_tile)
+                        sweep_tile_span(o_spans[I0], [&](auto idx0) {
+                            redo |= !(part[make_tuple(idx0)] <=
+                                      SMPLComputeDataType{256} /* 2^kRebaseThreshold */);
+                        });
+                    if(__builtin_expect(__builtin_amdgcn_ballot_w32(redo) != 0, 0))
+                    {
+                        // a p over 2^kRebaseThreshold, or one that does not fit the 16-bit P:
+                        // S again (K_i is still in LDS, the TDM stages K_{i+1} into the other
+                        // buffer), then the row max way
                         __builtin_amdgcn_sched_barrier(0);
-                    });
-                    move_tile_window(k_lds_read_window, {0, -kK0 * k0_loops});
-                    auto bias_window_2 = bias_window_of_tile;
-                    ApplyScaleAndBias(p_compute,
-                                      bias_window_2,
-                                      q_origin,
-                                      kv_tile_start,
-                                      scale_s,
-                                      position_encoding,
-                                      logits_soft_cap,
-                                      logits_soft_cap_rcp);
-                    MaskScores(p_compute,
-                               mask,
-                               q_origin,
-                               kv_tile_start,
-                               i_total_loops == num_total_loop - 1,
-                               physical_seqlen_k_end);
-                    update_row_max(p_compute);
-                    rebase_rows();
-                    compute_p(p_compute);
-                    if constexpr(kEarlyPConvert)
-                        p_tile_early = make_p_tile();
-                    part = BlockRowSum<false>(p_compute);
+                        // S again into P's registers (same layout, P is retaken from it)
+                        clear_tile(p_compute);
+                        static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+                            gemm_0(p_compute,
+                                   get_slice_tile(q_tile,
+                                                  sequence<0, i_k0 * kK0>{},
+                                                  sequence<kM0, (i_k0 + 1) * kK0>{}),
+                                   (k_tile = load_tile(k_lds_read_window), k_tile));
+                            move_tile_window(k_lds_read_window, {0, kK0});
+                            __builtin_amdgcn_sched_barrier(0);
+                        });
+                        move_tile_window(k_lds_read_window, {0, -kK0 * k0_loops});
+                        auto bias_window_2 = bias_window_of_tile;
+                        ApplyScaleAndBias(p_compute,
+                                          bias_window_2,
+                                          q_origin,
+                                          kv_tile_start,
+                                          scale_s,
+                                          position_encoding,
+                                          logits_soft_cap,
+                                          logits_soft_cap_rcp);
+                        MaskScores(p_compute,
+                                   mask,
+                                   q_origin,
+                                   kv_tile_start,
+                                   i_total_loops == num_total_loop - 1,
+                                   physical_seqlen_k_end);
+                        update_row_max(p_compute);
+                        rebase_rows();
+                        compute_p(p_compute);
+                        if constexpr(kEarlyPConvert)
+                            p_tile_early = make_p_tile();
+                        part = BlockRowSum<false>(p_compute);
+                    }
                 }
                 sweep_tile_span(o_spans[I0], [&](auto idx0) {
                     constexpr auto i_idx = make_tuple(idx0);
