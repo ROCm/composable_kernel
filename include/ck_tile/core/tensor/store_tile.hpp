@@ -229,4 +229,24 @@ store_tile_tdm(const TDMConfig_& tdm_config,
     store_tile_tdm(tdm_config, tile_window, lds_tile, number<i_access>{});
 }
 
+// gfx1250: copies lds_tile (an LDS window) to tile_window with global_store_async_from_lds,
+// tile_window taking lds_tile's distribution (see
+// tile_window_with_static_distribution::async_store_from_lds)
+template <typename LdsTileWindow_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          bool oob_conditional_check = true>
+CK_TILE_DEVICE void async_store_tile_from_lds(
+    tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
+    const LdsTileWindow_& lds_tile,
+    bool_constant<oob_conditional_check> = {})
+{
+    using TileDstr   = remove_cvref_t<typename remove_cvref_t<LdsTileWindow_>::TileDstr>;
+    auto tile_window = make_tile_window(tile_window_tmp.get_bottom_tensor_view(),
+                                        tile_window_tmp.get_window_lengths(),
+                                        tile_window_tmp.get_window_origin(),
+                                        TileDstr{});
+    tile_window.async_store_from_lds(lds_tile, bool_constant<oob_conditional_check>{});
+}
+
 } // namespace ck_tile

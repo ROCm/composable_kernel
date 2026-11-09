@@ -1435,6 +1435,78 @@ struct tile_window_with_static_distribution
 #endif
     }
 
+    // gfx1250: copies lds_tile's elements to this window, one 16-byte
+    // global_store_async_from_lds per access of this window's distribution (each lane copies
+    // the LDS bytes its own accesses address, at the same tile index in lds_tile). Accesses
+    // outside the bottom tensor are skipped when oob_conditional_check (without it, every
+    // access must be inside). The copies run asynchronously (ASYNCcnt): the caller waits
+    // (s_wait_asynccnt) before the LDS is written again, and before the copy's LDS bytes are
+    // read, their writes must be done (s_wait_dscnt, or a barrier across waves).
+    template <typename LdsTileWindow_, bool oob_conditional_check = true>
+    CK_TILE_DEVICE void async_store_from_lds(const LdsTileWindow_& lds_tile,
+                                             bool_constant<oob_conditional_check> = {}) const
+    {
+#if defined(__gfx125__)
+        using Traits   = typename Base::Traits;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+        using DataType = typename Base::DataType;
+        static_assert(sizeof(vector_t) == 16, "async_store_from_lds: 16-byte accesses");
+        static_assert(std::is_same_v<remove_cvref_t<typename LdsTileWindow_::DataType>, DataType>);
+        using v4i_t = int __attribute__((ext_vector_type(4)));
+
+        const auto& lds_view  = lds_tile.get_bottom_tensor_view();
+        const auto lds_origin = lds_tile.get_window_origin();
+        DataType* const lds   = lds_view.get_buffer_view().p_data_;
+        using global_char_t   = __attribute__((address_space(1))) char;
+        global_char_t* const global_bytes =
+            (global_char_t*)(this->get_bottom_tensor_view().get_buffer_view().p_data_);
+        const auto& desc = this->get_bottom_tensor_view().get_tensor_descriptor();
+
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                const index_t lds_offset = lds_view.get_tensor_descriptor().calculate_offset(
+                    lds_origin + window_adaptor_thread_coord.get_bottom_index());
+                if(!oob_conditional_check ||
+                   coordinate_has_valid_offset(desc, bottom_tensor_thread_coord))
+                {
+                    // the global address as the wave-uniform base plus a 32-bit byte offset
+                    // (the store's scalar-base form: the bottom tensor spans under 4 GiB);
+                    // address-space casts are C-style (reinterpret_cast may not change one)
+                    using global_v4i_t                = __attribute__((address_space(1))) v4i_t;
+                    using lds_v4i_t                   = __attribute__((address_space(3))) v4i_t;
+                    const uint32_t global_byte_offset = static_cast<uint32_t>(
+                        bottom_tensor_thread_coord.get_offset() * sizeof(DataType));
+                    __builtin_amdgcn_global_store_async_from_lds_b128(
+                        (global_v4i_t*)(global_bytes + global_byte_offset),
+                        (lds_v4i_t*)(lds + lds_offset),
+                        0,
+                        0);
+                }
+
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
+                        idx_diff_ys);
+
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+                }
+            });
+        });
+#else
+        ignore = lds_tile;
+#endif
+    }
+
     template <typename TDMConfig_, typename LdsTileWindow_, index_t i_access_unsupport_ = -1>
     CK_TILE_DEVICE auto tdm_store_from_lds(const TDMConfig_& tdm_config,
                                            const LdsTileWindow_& lds_tile,
