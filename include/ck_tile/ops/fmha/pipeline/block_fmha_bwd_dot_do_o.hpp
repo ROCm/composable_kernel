@@ -38,8 +38,8 @@ struct BlockFmhaBwdOGradDotO
               typename OGradDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename DDramBlockWindowTmp>
-    // Computes D = diag(dO * O) and optionally accumulates the sink token gradient.
-    // sink_value: log-space sink score; pass -inf and atomic_sink_grad_ptr=nullptr to skip sink.
+    // Computes D = diag(dO * O) and optionally the sink token gradient.
+    // sink_value: log-space sink score; pass -inf and both sink pointers as nullptr to skip sink.
     // atomic_sink_grad_ptr: per-head accumulator in global memory; nullptr disables sink path.
     CK_TILE_HOST_DEVICE void operator()(const ODramBlockWindowTmp& o_dram_block_window_tmp,
                                         const OGradDramBlockWindowTmp& do_dram_block_window_tmp,
@@ -47,7 +47,8 @@ struct BlockFmhaBwdOGradDotO
                                         DDramBlockWindowTmp& d_dram_block_window_tmp,
                                         const LSEDataType sink_value,
                                         float p_undrop,
-                                        LSEDataType* atomic_sink_grad_ptr = nullptr) const
+                                        LSEDataType* atomic_sink_grad_ptr = nullptr,
+                                        float* sink_partial_slot          = nullptr) const
     {
         static_assert(
             std::is_same_v<ODataType, remove_cvref_t<typename ODramBlockWindowTmp::DataType>> &&
@@ -111,7 +112,12 @@ struct BlockFmhaBwdOGradDotO
         // Skipped when the sink is disabled: nullptr, or a -inf sink whose P_sink is 0.
         // A fully masked row carries lse == -inf too, so letting the two meet would make
         // exp2(-inf - -inf) = NaN and poison d_sink for the whole head.
-        if(atomic_sink_grad_ptr != nullptr && sink_value != -numeric<LSEDataType>::infinity())
+        const bool sink_on = (atomic_sink_grad_ptr != nullptr || sink_partial_slot != nullptr) &&
+                             sink_value != -numeric<LSEDataType>::infinity();
+
+        float thread_sum = 0.f;
+
+        if(sink_on)
         {
             // Load LSE only on the sink path to avoid unnecessary global memory reads
             constexpr auto lse_dstr =
@@ -144,15 +150,13 @@ struct BlockFmhaBwdOGradDotO
                 d);
 
             // Reduce contributions held by this thread
-            float thread_sum       = 0.f;
             constexpr auto s_spans = decltype(sink_val_tensor)::get_distributed_spans();
             sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
                 thread_sum += sink_val_tensor(i_idx);
             });
 
-            // Warp-level reduction: fold thread_sum across lanes so only one
-            // atomicAdd per warp is issued instead of one per thread.
+            // Warp-level reduction: fold thread_sum across lanes so lane 0 holds the warp sum.
 #if defined(__HIP_DEVICE_COMPILE__) || defined(__CUDA_ARCH__)
             // The KL lanes of a row hold the same broadcast D, so only the first lane of each
             // row contributes; otherwise every row would be counted KL times.
@@ -166,15 +170,31 @@ struct BlockFmhaBwdOGradDotO
             const index_t warp_sz = get_warp_size();
             for(index_t offset = warp_sz >> 1; offset > 0; offset >>= 1)
                 thread_sum += warp_shuffle_down(thread_sum, offset);
-
-            // Only lane 0 of each warp writes to global memory.
-            // Note: this atomicAdd is non-deterministic across runs regardless of the
-            // -deterministic flag, because d_sink is a single scalar per head accumulated
-            // across all thread-blocks. The practical impact is negligible for this value.
-            if(get_lane_id() == 0)
-                atomicAdd(reinterpret_cast<float*>(atomic_sink_grad_ptr), thread_sum);
 #endif
         }
+
+#if defined(__HIP_DEVICE_COMPILE__) || defined(__CUDA_ARCH__)
+        if(sink_partial_slot != nullptr)
+        {
+            constexpr index_t kWarps = kBlockSize / get_warp_size();
+            __shared__ float warp_sums[kWarps];
+
+            if(get_lane_id() == 0)
+                warp_sums[get_warp_id()] = thread_sum;
+            block_sync_lds();
+
+            if(get_thread_id() == 0)
+            {
+                float block_sum = 0.f;
+                static_for<0, kWarps, 1>{}([&](auto i_w) { block_sum += warp_sums[i_w.value]; });
+                *sink_partial_slot = block_sum;
+            }
+        }
+        else if(sink_on && get_lane_id() == 0)
+        {
+            atomicAdd(reinterpret_cast<float*>(atomic_sink_grad_ptr), thread_sum);
+        }
+#endif
     }
 };
 

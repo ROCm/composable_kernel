@@ -6,6 +6,9 @@
 
 #include "gtest/gtest.h"
 
+#include <string>
+#include <vector>
+
 #ifndef DataTypeConfig
 #define DataTypeConfig FmhaBwdFp16 // or FmhaBwdBf16 / FmhaBwdFp32
 #endif
@@ -1418,4 +1421,156 @@ TEST_P(SinkGradSaturated, DataTypeConfig)
     if(result == bwd_result::no_instance)
         GTEST_SKIP() << "No instance for sink_grad saturated regime";
     ASSERT_EQ(result, bwd_result::success);
+}
+
+// ============================================================================
+// Deterministic runs: bit-for-bit reproducibility and d_sink
+// ============================================================================
+
+static bool is_gfx125() { return ck_tile::get_device_name().compare(0, 6, "gfx125") == 0; }
+
+// A deterministic run without bias or dropout; the gradients land in `capture`.
+static bwd_result fmha_bwd_det_run(mode_enum mode,
+                                   int hdim,
+                                   std::tuple<bool, bool> perm,
+                                   int batch,
+                                   int nhead,
+                                   int nhead_k,
+                                   std::vector<ck_tile::index_t> seqlen_qs,
+                                   std::vector<ck_tile::index_t> seqlen_ks,
+                                   const std::string& mask_str,
+                                   bool sink_grad,
+                                   fmha_bwd_capture& capture)
+{
+    return fmha_bwd_run<DataTypeConfig>(
+        mode,
+        batch,
+        nhead,
+        nhead_k,
+        std::move(seqlen_qs),
+        std::move(seqlen_ks),
+        {-1},
+        {-1},
+        hdim,
+        -1, // hdim_v
+        std::get<0>(perm),
+        std::get<1>(perm),
+        0,     // scale
+        "n",   // bias_str
+        false, // use_dbias
+        0.0f,  // p_drop
+        0,     // drop_seed
+        0,     // drop_offset
+        false, // drop_prefs
+        mask_str,
+        sink_grad,
+        true, // deterministic
+        init_method,
+        static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+        1,
+        stream_config,
+        std::nullopt, // json
+        sink_regime::sensitive,
+        &capture);
+}
+
+// hdim_q, batch, nhead, nhead_k, seqlen_q, seqlen_k, mask
+using DetRepeatParam = std::tuple<int, int, int, int, int, int, std::string>;
+
+class DeterministicRepeat : public TestWithParam<std::tuple<DetRepeatParam, bool>>
+{
+};
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaBwd,
+                         DeterministicRepeat,
+                         Combine(Values(DetRepeatParam{64, 2, 8, 2, 256, 320, "0"}, // GQA 4:1
+                                        DetRepeatParam{128, 2, 12, 3, 200, 384, "t"},
+                                        DetRepeatParam{128, 4, 8, 2, 128, 512, "b"},
+                                        DetRepeatParam{96, 2, 4, 4, 300, 260, "t"}, // padded hdim
+                                        DetRepeatParam{256, 1, 4, 2, 257, 300, "0"},
+                                        DetRepeatParam{32, 3, 2, 1, 1024, 900, "0"}),
+                                 Bool())); // io perm
+TEST_P(DeterministicRepeat, DataTypeConfig)
+{
+    const auto& [shape, iperm]                                              = GetParam();
+    const auto& [hdim, batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = shape;
+
+    fmha_bwd_capture capture;
+    capture.runs      = 3;
+    capture.reprepare = false; // later runs reuse the workspace wherever the launcher allows
+    const auto result = fmha_bwd_det_run(mode_enum::batch,
+                                         hdim,
+                                         {iperm, iperm},
+                                         batch,
+                                         nhead,
+                                         nhead_k,
+                                         {seqlen_q},
+                                         {seqlen_k},
+                                         mask_str,
+                                         false,
+                                         capture);
+    if(result == bwd_result::no_instance)
+        GTEST_SKIP() << "No deterministic instance";
+    // success covers the gradients against the reference and every run matching the first
+    ASSERT_EQ(result, bwd_result::success);
+    EXPECT_TRUE(capture.runs_identical);
+}
+
+// mode, hdim, batch, nhead, nhead_k, seqlen_qs, seqlen_ks, mask. Group-mode lengths missing
+// from the list are drawn at or below its last one.
+using DetSinkParam = std::tuple<mode_enum,
+                                int,
+                                int,
+                                int,
+                                int,
+                                std::vector<ck_tile::index_t>,
+                                std::vector<ck_tile::index_t>,
+                                std::string>;
+
+class DeterministicSink : public TestWithParam<DetSinkParam>
+{
+};
+INSTANTIATE_TEST_SUITE_P(
+    TestCkTileFmhaBwd,
+    DeterministicSink,
+    Values(
+        // ConvertQGrad folds the d_sink partials
+        DetSinkParam{mode_enum::batch, 64, 2, 4, 2, {300}, {280}, "0"},
+        DetSinkParam{mode_enum::batch, 128, 2, 4, 2, {300}, {280}, "t"},
+        DetSinkParam{mode_enum::batch, 128, 3, 2, -1, {259}, {513}, "b"},
+        // the short batches leave most OGradDotO blocks without rows; those still own a slot
+        DetSinkParam{mode_enum::group, 64, 3, 4, 2, {300, 40, 700}, {300, 520, 700}, "0"},
+        DetSinkParam{mode_enum::group, 128, 3, 4, 2, {300, 1, 700}, {300, 64, 700}, "t"},
+        // decode kernel sets have no ConvertQGrad: the last OGradDotO block of a head folds,
+        // elected by a counter that has to re-arm itself for the next run
+        DetSinkParam{mode_enum::batch, 64, 128, 6, 6, {16}, {64}, "0"},
+        DetSinkParam{mode_enum::batch, 64, 128, 6, 6, {32}, {96}, "0"},
+        DetSinkParam{mode_enum::group, 64, 128, 6, 6, {32}, {96}, "0"}));
+TEST_P(DeterministicSink, DataTypeConfig)
+{
+    const auto& [mode, hdim, batch, nhead, nhead_k, seqlen_qs, seqlen_ks, mask_str] = GetParam();
+
+    fmha_bwd_capture capture;
+    capture.runs      = 3;
+    capture.reprepare = false; // later runs reuse the workspace wherever the launcher allows
+    const auto result = fmha_bwd_det_run(mode,
+                                         hdim,
+                                         {true, true},
+                                         batch,
+                                         nhead,
+                                         nhead_k,
+                                         seqlen_qs,
+                                         seqlen_ks,
+                                         mask_str,
+                                         true,
+                                         capture);
+    if(result == bwd_result::no_instance)
+        GTEST_SKIP() << "No deterministic sink instance";
+    // success covers d_sink against the reference and every run matching the first
+    ASSERT_EQ(result, bwd_result::success);
+    EXPECT_TRUE(capture.runs_identical);
+
+    // The decode cases mirror DecodeDropout's shapes, which clear the decode dispatch
+    // threshold on gfx1250; other archs run them through ConvertQGrad instead.
+    if(is_gfx125() && hdim == 64 && seqlen_qs.front() <= 32)
+        EXPECT_GT(capture.decode_max_seq, 0) << "expected a decode kernel set";
 }

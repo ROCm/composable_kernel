@@ -87,7 +87,6 @@ struct mask_info
                 auto found_2          = v.find(',', found_1 + 1);
                 ck_tile::index_t v1   = 0;
                 ck_tile::index_t sink = 0;
-                // ck_tile::index_t v1 = atoi(v.substr(found_1 + 1).c_str());
                 // TODO: some validation
                 if(t == "t")
                 {
@@ -133,6 +132,7 @@ struct mask_info
                 }
                 else if(t == "g")
                 {
+                    v1        = atoi(v.substr(found_1 + 1).c_str());
                     tmp.type  = mask_enum::window_generic;
                     tmp.y     = v0;
                     tmp.x     = v1;

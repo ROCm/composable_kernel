@@ -1118,7 +1118,9 @@ using fmha_problem = ck_tile::BlockFmhaBwdConvertQGradPipelineProblem<
     {_bool_cpp(sig["deterministic"])},
     fmha_trait>;
 using fmha_pipeline = typename ck_tile::BlockFmhaBwdConvertQGrad<fmha_problem>;
-using fmha_kernel = ck_tile::FmhaBwdConvertQGradKernel<fmha_pipeline>;
+// The dispatcher never selects the TDM dq_dk_dv pipeline, so dq_acc rows are not padded
+// (kPadDqAccRow = false); enabling TDM there must set this to its kPadDqAccRow.
+using fmha_kernel = ck_tile::FmhaBwdConvertQGradKernel<fmha_pipeline, false>;
 
 using trait = fmha_bwd_convert_dq_traits_<{sig["hdim_q"]},
                                           {dtype_cpp},
@@ -1126,7 +1128,7 @@ using trait = fmha_bwd_convert_dq_traits_<{sig["hdim_q"]},
                                           {_bool_cpp(pad[0])},
                                           {_bool_cpp(pad[2])},
                                           {_bool_cpp(sig["deterministic"])},
-                                          {tile[1]}>;
+                                          false>;
 }} // namespace {ns}
 
 template <>

@@ -383,13 +383,16 @@ P_sink[h,q] = exp(sink[h] - LSE[h,q])
 d_sink[h]   = -sum_q P_sink[h,q] * D[h,q]
 ```
 
-The sum runs over every query row of every batch, so `d_sink` has shape `[nhead]` and is
-accumulated with `atomicAdd` from `fmha_bwd_dot_do_o`. Two consequences follow:
+The sum runs over every query row of every batch, so `d_sink` has shape `[nhead]`.
+`fmha_bwd_dot_do_o` stores one partial sum per block in the workspace, and the partials are added
+in a fixed order afterwards, by `fmha_bwd_convert_dq` or, for kernel sets without it, by the last
+`fmha_bwd_dot_do_o` block of each head. That makes `d_sink` bit-reproducible. The launcher takes
+this path for every deterministic run, and otherwise only when the traits set `has_sink_grad` and
+the kernel set has `fmha_bwd_convert_dq`; other runs accumulate with `atomicAdd`, whose result
+varies in the low bits from run to run.
 
 - **The caller must zero `d_sink_ptr` before the call.** The kernel only accumulates into it and
   never initialises it.
-- `d_sink` is not bit-reproducible across runs even with `-deterministic=1`, because that flag
-  controls the `dQ` reduction only.
 
 The `LSE` handed to the backward call must be the **post-sink** `LSE`, that is
 `log(exp(LSE_nosink) + exp(sink))`, which is what the forward kernel writes when a sink is
