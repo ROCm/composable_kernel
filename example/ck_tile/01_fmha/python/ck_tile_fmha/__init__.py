@@ -13,6 +13,9 @@ from .interface import (
     fmha_varlen_kvpacked_func,
     fmha_varlen_qkvpacked_func,
     fmha_with_kvcache,
+    gdpa_func,
+    gdpa_infer,
+    gdpa_varlen_func,
 )
 
 __version__ = "0.1.0"
@@ -29,4 +32,7 @@ __all__ = [
     "fmha_varlen_kvpacked_func",
     "fmha_varlen_qkvpacked_func",
     "fmha_with_kvcache",
+    "gdpa_func",
+    "gdpa_infer",
+    "gdpa_varlen_func",
 ]

@@ -415,23 +415,16 @@ else:
     _wrapped_fmha_varlen_forward = _fmha_varlen_forward
 
 
-def _fmha_varlen_gdpa_forward_impl(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    cu_seqlens_q: torch.Tensor,
-    cu_seqlens_k: torch.Tensor,
-    max_seqlen_q: int,
-    max_seqlen_k: int,
-    scale: float,
-    activation: str,
-) -> torch.Tensor:
+def _gdpa_varlen_fwd(
+    q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, scale, activation, out
+):
+    """The GDPA binding call; out: None, or the output tensor the kernel writes."""
     q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
-    out = fmha_gpu.varlen_fwd(
+    return fmha_gpu.varlen_fwd(
         q,
         k,
         v,
-        None,
+        out,
         cu_seqlens_q,
         cu_seqlens_k,
         None,
@@ -457,7 +450,22 @@ def _fmha_varlen_gdpa_forward_impl(
         False,
         activation,
     )[0]
-    return out
+
+
+def _fmha_varlen_gdpa_forward_impl(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    cu_seqlens_q: torch.Tensor,
+    cu_seqlens_k: torch.Tensor,
+    max_seqlen_q: int,
+    max_seqlen_k: int,
+    scale: float,
+    activation: str,
+) -> torch.Tensor:
+    return _gdpa_varlen_fwd(
+        q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, scale, activation, None
+    )
 
 
 _fmha_varlen_gdpa_forward = _torch_custom_op_wrapper(
@@ -480,7 +488,14 @@ else:
     _wrapped_fmha_varlen_gdpa_forward = _fmha_varlen_gdpa_forward
 
 
-def fmha_varlen_gdpa_func(
+def _gdpa_check(name, q, k, v, activation):
+    if activation == "softmax":
+        raise ValueError(f"{name} takes a GDPA activation; softmax is the fmha_* functions")
+    if torch.is_grad_enabled() and any(t.requires_grad for t in (q, k, v)):
+        raise NotImplementedError(f"{name} is forward only")
+
+
+def gdpa_varlen_func(
     q,
     k,
     v,
@@ -491,23 +506,19 @@ def fmha_varlen_gdpa_func(
     scale=1.0,
     activation="fast_gelu",
 ):
-    """Generalized dot-product attention, forward only (gfx1250).
+    """Generalized dot-product attention over jagged batches (group mode), forward only
+    (gfx1250); the GDPA counterpart of fmha_varlen_func.
 
     out = act(scale * q k^T) v per batch and head, with no softmax, no normalization and
-    no LSE: the GDPA mode of CK's gfx1250 pipelines, qr_tdm_pingpong for few keys per batch,
-    qr_tdm_sched for many, qr_tdm otherwise. act is ``fast_gelu``, gelu with the tanh
-    approximation (the hardware tanh); P is rounded to q's dtype before the second gemm.
+    no LSE. act is ``fast_gelu``, gelu with the tanh approximation (the hardware tanh); P
+    is rounded to q's dtype before the second gemm.
 
     q: [total_q, nheads, d], k/v: [total_k, nheads_k, d] (nheads % nheads_k == 0),
-    cu_seqlens_q/k: GPU int32 [batch + 1]. FP16/BF16, d in {64, 128, 256}. No gradient:
-    inputs that need one raise.
+    cu_seqlens_q/k: GPU int32 [batch + 1]. FP16/BF16, d 128 (the kernels are specialized to
+    TCX's calls). No gradient: inputs that need one raise. Arguments no kernel of this build
+    serves raise NotImplementedError.
     """
-    if activation == "softmax":
-        raise ValueError(
-            "fmha_varlen_gdpa_func takes a GDPA activation; softmax is fmha_varlen_func"
-        )
-    if torch.is_grad_enabled() and any(t.requires_grad for t in (q, k, v)):
-        raise NotImplementedError("fmha_varlen_gdpa_func is forward only")
+    _gdpa_check("gdpa_varlen_func", q, k, v, activation)
     return _wrapped_fmha_varlen_gdpa_forward(
         q,
         k,
@@ -519,6 +530,117 @@ def fmha_varlen_gdpa_func(
         float(scale),
         activation,
     )
+
+
+# the earlier name of gdpa_varlen_func
+fmha_varlen_gdpa_func = gdpa_varlen_func
+
+# the offsets of b batches of s rows each, per (b, s, device): batch-mode GDPA runs on the
+# group-mode kernels, whose equal-length batches are the batch layout
+_gdpa_uniform_offsets = {}
+
+
+def _uniform_offsets(b, s, device):
+    # cached only for eager calls with plain sizes: under tracing or a fake mode the tensor
+    # would be a fake one, and a symbolic size no key
+    cacheable = type(b) is int and type(s) is int and not _is_compiling() and _no_dispatch_mode()
+    t = _gdpa_uniform_offsets.get((b, s, device)) if cacheable else None
+    if t is None:
+        t = torch.arange(0, (b + 1) * s, s, dtype=torch.int32, device=device)
+        if cacheable:
+            _gdpa_uniform_offsets[(b, s, device)] = t
+    return t
+
+
+def gdpa_func(q, k, v, scale=1.0, activation="fast_gelu"):
+    """Generalized dot-product attention (batch mode), forward only (gfx1250); the GDPA
+    counterpart of fmha_func.
+
+    q: [b, s_q, nheads, d], k/v: [b, s_k, nheads_k, d]; otherwise as gdpa_varlen_func.
+    """
+    _gdpa_check("gdpa_func", q, k, v, activation)
+    b, s_q = q.shape[0], q.shape[1]
+    s_k = k.shape[1]
+    q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
+    out = _wrapped_fmha_varlen_gdpa_forward(
+        q.reshape(b * s_q, *q.shape[2:]),
+        k.reshape(b * s_k, *k.shape[2:]),
+        v.reshape(b * s_k, *v.shape[2:]),
+        _uniform_offsets(b, s_q, q.device),
+        _uniform_offsets(b, s_k, q.device),
+        s_q,
+        s_k,
+        float(scale),
+        activation,
+    )
+    return out.view(q.shape)
+
+
+def gdpa_infer(
+    q,
+    k,
+    v,
+    cu_seqlens_q=None,
+    cu_seqlens_k=None,
+    max_seqlen_q=None,
+    max_seqlen_k=None,
+    scale=1.0,
+    activation="fast_gelu",
+    out=None,
+):
+    """GDPA for inference with the least host work per call; the GDPA counterpart of
+    fmha_infer.
+
+    Batch mode: q [b, s_q, nheads, d], k/v [b, s_k, nheads_k, d]. Group mode (jagged, given
+    cu_seqlens_q and cu_seqlens_k, GPU int32 [batch + 1], and max_seqlen_q/k): q
+    [total_q, nheads, d], k/v [total_k, nheads_k, d]. out: optional output tensor, q's
+    shape and dtype. Otherwise as gdpa_varlen_func.
+    """
+    group = cu_seqlens_q is not None
+    if group != (cu_seqlens_k is not None):
+        raise ValueError("gdpa_infer takes both cu_seqlens_q and cu_seqlens_k, or neither")
+    if group:
+        if max_seqlen_q is None or max_seqlen_k is None:
+            raise ValueError("gdpa_infer in group mode takes max_seqlen_q and max_seqlen_k")
+        q3, k3, v3 = q, k, v
+        offs_q, offs_k = cu_seqlens_q, cu_seqlens_k
+        mq, mk = max_seqlen_q, max_seqlen_k
+    else:
+        b, s_q, s_k = q.shape[0], q.shape[1], k.shape[1]
+        q3 = q.reshape(b * s_q, *q.shape[2:])
+        k3 = k.reshape(b * s_k, *k.shape[2:])
+        v3 = v.reshape(b * s_k, *v.shape[2:])
+        offs_q = _uniform_offsets(b, s_q, q.device)
+        offs_k = _uniform_offsets(b, s_k, q.device)
+        mq, mk = s_q, s_k
+    if out is not None and (out.shape != q.shape or out.dtype != q.dtype or out.device != q.device):
+        raise RuntimeError("out must match query in dtype, device and shape")
+    Tensor = torch.Tensor
+    if (
+        type(q) is Tensor
+        and type(k) is Tensor
+        and type(v) is Tensor
+        and q.is_cuda
+        and (out is None or (_plain_eager((out,)) and out.is_contiguous()))
+        and not _is_compiling()
+        and _no_dispatch_mode()
+        and not (
+            (q.requires_grad or k.requires_grad or v.requires_grad) and torch.is_grad_enabled()
+        )
+        and activation != "softmax"
+    ):
+        # eager: straight to the binding, which writes out when given
+        out3 = None if out is None else out.view(q3.shape)
+        res = _gdpa_varlen_fwd(q3, k3, v3, offs_q, offs_k, mq, mk, float(scale), activation, out3)
+        return res.view(q.shape) if out is None else out
+    _gdpa_check("gdpa_infer", q, k, v, activation)
+    res = _wrapped_fmha_varlen_gdpa_forward(
+        q3, k3, v3, offs_q, offs_k, mq, mk, float(scale), activation
+    ).view(q.shape)
+    if out is None:
+        return res
+    out.copy_(res)
+    return out
 
 
 def _fmha_infer_impl(

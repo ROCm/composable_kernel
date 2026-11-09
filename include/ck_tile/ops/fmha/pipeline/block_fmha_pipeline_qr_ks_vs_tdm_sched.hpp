@@ -67,31 +67,21 @@ struct BlockFmhaPipelineQRKSVSTdmSched
     static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
     static constexpr index_t kNWarp        = BlockFmhaShape::Gemm0BlockWarps::at(I1);
 
-    static constexpr bool kIsGroupMode       = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ        = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK        = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ       = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV       = Problem::kPadHeadDimV;
-    static constexpr bool kHasLogitsSoftCap  = Problem::kHasLogitsSoftCap;
-    static constexpr bool kHasDropout        = Problem::kHasDropout;
-    static constexpr auto BiasEnum           = Problem::BiasEnum;
-    static constexpr bool kStoreLSE          = Problem::kStoreLSE;
+    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
+    static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr auto BiasEnum          = Problem::BiasEnum;
+    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
+    static_assert(Problem::Activation == BlockAttentionActivationEnum::SOFTMAX,
+                  "qr_tdm_sched: softmax only (GDPA runs on qr_tdm_gdpa_qloop)");
     static constexpr bool kHasUnevenSplits   = true;
     static constexpr bool kHasSink           = Problem::kHasSink;
     static constexpr bool kEnableVirtualSink = EnableVirtualSink_;
     static constexpr auto QScaleEnum         = Problem::QScaleEnum;
-
-    // Softmax, or GDPA: P = act(scale_s * S) elementwise, O = P V, with no row max, row sum,
-    // output rescale or normalization (see BlockAttentionActivationEnum)
-    static constexpr auto Activation      = Problem::Activation;
-    using ActivationTraits                = BlockAttentionActivationTraits<Activation>;
-    static constexpr bool kIsSoftmax      = ActivationTraits::is_softmax;
-    static constexpr bool kIgnoreFastExp2 = !kIsSoftmax; // GDPA: the kernel passes scale_s as is
-    static_assert(kIsSoftmax || (!kStoreLSE && !kHasSink && !kHasDropout && !kHasLogitsSoftCap &&
-                                 BiasEnum == BlockAttentionBiasEnum::NO_BIAS),
-                  "qr_tdm_sched GDPA: no LSE, sink, dropout, logits soft cap or bias");
-    // The score a masked or padded key gets (see BlockAttentionActivationTraits)
-    static constexpr float kMaskedScore = ActivationTraits::masked_score;
 
     static_assert(CK_TILE_FMHA_FWD_FAST_EXP2,
                   "qr_tdm_sched: every softmax site calls exp2, so log2(e) must be folded into "
@@ -577,11 +567,8 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                 constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
 
                 auto rescale_fragment = [&](auto ordinal) {
-                    if constexpr(kIsSoftmax)
-                        Policy::template RescaleOutputFragment<decltype(ordinal)::value>(
-                            o_acc, pv_output_scale_m0, pv_output_scale_m1);
-                    else
-                        ignore = ordinal;
+                    Policy::template RescaleOutputFragment<decltype(ordinal)::value>(
+                        o_acc, pv_output_scale_m0, pv_output_scale_m1);
                 };
                 Schedule::template RunPvStagePrelude<Mode, decltype(stage)::value>(
                     [&](auto ordinal) { rescale_fragment(ordinal); });
@@ -819,14 +806,13 @@ struct BlockFmhaPipelineQRKSVSTdmSched
 
                     if(__builtin_expect(need_split_check || need_mask_check, false))
                     {
-                        set_tile_if(s_acc,
-                                    type_convert<SMPLComputeDataType>(kMaskedScore),
-                                    [&](auto tile_idx) {
-                                        const auto row = q_origin.at(I0) + tile_idx.at(I0);
-                                        const auto col = k_origin.at(I0) + tile_idx.at(I1);
-                                        return (need_split_check && physical_seqlen_k_end <= col) ||
-                                               (need_mask_check && mask.IsOutOfBound(row, col));
-                                    });
+                        set_tile_if(
+                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                                const auto row = q_origin.at(I0) + tile_idx.at(I0);
+                                const auto col = k_origin.at(I0) + tile_idx.at(I1);
+                                return (need_split_check && physical_seqlen_k_end <= col) ||
+                                       (need_mask_check && mask.IsOutOfBound(row, col));
+                            });
                     }
                 }
                 else
@@ -842,7 +828,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                         {
                             set_tile_if(
                                 s_acc,
-                                type_convert<SMPLComputeDataType>(kMaskedScore),
+                                -numeric<SMPLComputeDataType>::infinity(),
                                 [&, physical_seqlen_k_end_ = physical_seqlen_k_end](auto tile_idx) {
                                     const auto col = k_origin.at(I0) + tile_idx.at(I1);
 
@@ -861,7 +847,7 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                         {
                             set_tile_if(
                                 s_acc,
-                                type_convert<SMPLComputeDataType>(kMaskedScore),
+                                -numeric<SMPLComputeDataType>::infinity(),
                                 [&](auto tile_idx) {
                                     const auto row = q_origin.at(I0) + tile_idx.at(I0);
                                     const auto col = k_origin.at(I0) + tile_idx.at(I1);
@@ -901,22 +887,6 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                     static_assert(kNWarp == 1);
                     static_assert(std::is_same_v<SaccDataType, float> &&
                                   std::is_same_v<SMPLComputeDataType, float>);
-                    if constexpr(!kIsSoftmax)
-                    {
-                        // GDPA: P = act(scale_s S) in place, on the softmax's schedule slots
-                        Schedule::template RunSplitSoftmax<Mode>(
-                            [&]() {
-                                tile_elementwise_inout(
-                                    [&](auto& x) {
-                                        x = attention_activation<Activation>(x, scale_s);
-                                    },
-                                    s_new);
-                            },
-                            [&]() { s_wait_tensorcnt_barrier<Policy::kVPrefetchTensorCount>(); },
-                            [&](auto) {},
-                            [&](auto) {});
-                        return MakePForGemm1<decltype(gemm_1)>(s_new);
-                    }
                     float delta_m0;
                     float delta_m1;
                     Schedule::template RunSplitSoftmax<Mode>(
@@ -1056,26 +1026,25 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                 store_tile(lse_acc_dram_window_tmp, lse_acc);
             }
 
-            if constexpr(kIsSoftmax)
-                sweep_tile_span(o_spans[I0], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
-                    const auto tmp       = [&]() {
-                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                     FmhaMask::IsMasking)
-                        {
-                            return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
-                        }
-                        else
-                            return 1 / l[i_idx];
-                    }();
-                    sweep_tile_span(o_spans[I1], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        output(i_j_idx) *= tmp;
-                    });
+            sweep_tile_span(o_spans[I0], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                const auto tmp       = [&]() {
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 FmhaMask::IsMasking)
+                    {
+                        return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
+                    }
+                    else
+                        return 1 / l[i_idx];
+                }();
+                sweep_tile_span(o_spans[I1], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    output(i_j_idx) *= tmp;
                 });
+            });
         };
 
-        if constexpr(kEnableVirtualSink && kIsSoftmax && !kScoresPreScaled)
+        if constexpr(kEnableVirtualSink && !kScoresPreScaled)
         {
             if(__builtin_isinf_sign(sink_v) != -1)
             {

@@ -707,7 +707,9 @@ endforeach()
     def test_d192_m128_emits_batch_and_group_for_every_mask(self):
         mask_options = {
             "simplified": {
-                (mask, lse) for mask in ("s_no", "s_mask", "causal") for lse in ("f", "t")
+                (mask, lse)
+                for mask in ("s_no", "s_mask", "causal")
+                for lse in ("f", "t")
             },
             "generic": {
                 (mask, lse)
@@ -1294,7 +1296,7 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
                 with self.subTest(receipt=receipt, optdims=optdims):
                     dispatch, kernels = self.compile(receipt=receipt, optdims=optdims)
                     modes = sorted({kernel.F_mode for kernel in kernels})
-                    # softmax's: GDPA keeps a d64 qr_tdm_sched too (receipt 0)
+                    # softmax's qr_tdm_sched (GDPA has none)
                     family = [
                         kernel
                         for kernel in _softmax(kernels)
@@ -1653,18 +1655,16 @@ class TestGfx125V128Codegen(unittest.TestCase):
         factory = KernelComponentFactoryGfx125
         for dtype in ("fp16", "bf16"):
             inventory = factory.get_hdim_tile_size_dict(dtype)
-            # softmax's qr_tdm_sched is generated for d128 only, and GDPA's also for
-            # d64 (_QR_TDM_SCHED_GDPA_TILES), so no other head dim lists a tile of it.
-            self.assertEqual(set(factory._QR_TDM_SCHED_GDPA_TILES), {(64, 64)})
+            # qr_tdm_sched is generated for d128 only, so no other head dim lists a tile of it.
             for (hdim, hdim_v), tiles in inventory.items():
-                if (hdim, hdim_v) not in ((128, 128), (64, 64)):
+                if (hdim, hdim_v) != (128, 128):
                     self.assertFalse(
                         any(
                             factory.is_tile_supported_by_qr_tdm_sched(tile, hdim)
                             for tile in tiles
                         )
                     )
-            for hdim in (64, 128):
+            for hdim in (128,):
                 tiles = [
                     tile
                     for tile in inventory[(hdim, hdim)]
@@ -2433,7 +2433,8 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
 
 
 class TestGfx125GdpaCodegen(unittest.TestCase):
-    """GDPA, P = act(scale * Q K^T) with no softmax, on qr_tdm, qr_tdm_pingpong and qr_tdm_sched."""
+    """GDPA, P = act(scale * Q K^T) with no softmax: meta-tcx's d128 calls, on
+    BlockFmhaPipelineQRKSVSTdmGdpaQLoop (qr_tdm_pingpong's 128-row tile)."""
 
     def gdpa_kernels(self, dtype, receipt, dims):
         _, kernels = get_fwd_blobs(
@@ -2448,18 +2449,10 @@ class TestGfx125GdpaCodegen(unittest.TestCase):
                     kernels = self.gdpa_kernels(
                         dtype, receipt, [32, 64, 96, 128, 160, 192, 256, 512]
                     )
-                    pipelines = {(k.F_hdim, k.F_pipeline.tag) for k in kernels}
-                    # every qr_tdm_pingpong head dim (the Python API's receipt: Q and V of
-                    # one head dim, up to 256); qr_tdm wherever it has tiles (not d512),
-                    # qr_tdm_sched at d64 and d128
-                    dims = (32, 64, 96, 128, 160, 256)
-                    if receipt == 0:
-                        dims += (192, 512)
+                    self.assertTrue(kernels)
                     self.assertEqual(
-                        pipelines,
-                        {(d, "qr_tdm") for d in dims if d != 512}
-                        | {(d, "qr_tdm_pingpong") for d in dims}
-                        | {(d, "qr_tdm_sched") for d in (64, 128)},
+                        {(k.F_hdim, k.F_pipeline.tag, k.F_tile.F_bm0) for k in kernels},
+                        {(128, "qr_tdm_pingpong", 128)},
                     )
                     for kernel in kernels:
                         pipeline = kernel.F_pipeline
@@ -2470,13 +2463,12 @@ class TestGfx125GdpaCodegen(unittest.TestCase):
                         self.assertEqual(pipeline.F_logits, "f")
                         self.assertEqual(pipeline.F_mask, "s_no")
                         self.assertIn("_fast_gelu", kernel.name)
+                        rendered = kernel.render()
                         self.assertIn(
-                            "BlockAttentionActivationEnum::FAST_GELU", kernel.render()
+                            "BlockAttentionActivationEnum::FAST_GELU", rendered
                         )
+                        self.assertIn("BlockFmhaPipelineQRKSVSTdmGdpaQLoop", rendered)
                         if kernel.F_mode == "group":
-                            self.assertEqual(pipeline.F_spad, "t")
-                        if (kernel.F_hdim, pipeline.tag) == (128, "qr_tdm_sched"):
-                            # the validated d128 sched specialization pads Q and K
                             self.assertEqual(pipeline.F_spad, "t")
                     names = [k.name for k in kernels]
                     self.assertEqual(len(names), len(set(names)))
@@ -2510,75 +2502,48 @@ class TestCompiledGfx125GdpaDispatch(unittest.TestCase):
             "simplified",
         )
         dispatch = _CompiledDispatcher(self, pool, kernels)
-
-        def ids(pipeline, activation, bm0=None, mode=None):
-            return {
-                index
-                for k, index in dispatch.kernel_ids
-                if k.F_pipeline.tag == pipeline
-                and k.F_pipeline.F_activation == activation
-                and (bm0 is None or k.F_tile.F_bm0 == bm0)
-                and (mode is None or k.F_mode == mode)
-            }
+        gdpa = {
+            index
+            for k, index in dispatch.kernel_ids
+            if k.F_pipeline.F_activation == "fast_gelu"
+            and k.F_pipeline.tag == "qr_tdm_pingpong"
+            and k.F_tile.F_bm0 == 128
+        }
 
         def run(**changes):
-            return dispatch.run(hdim_q=128, hdim_v=128, **changes)[0]
+            return dispatch.run(**{"hdim_q": 128, "hdim_v": 128, **changes})[0]
 
-        return run, ids
+        return run, gdpa
 
-    def test_batch_routes_by_keys(self):
-        run, ids = self.dispatcher()
-        gelu = dict(activation=1)
-        # few keys (at most 512 per batch): qr_tdm_pingpong on any grid (the softmax
-        # range does not hold GDPA back), on the tile qr_tdm_pingpong's row rules pick:
-        # 16 rows up to 16, 128 rows from 512 dense rows, 64 rows otherwise
+    def test_every_call_on_the_q_loop_tile(self):
+        # any queries and keys, any grid: the 128-row tile's GDPA pipeline
+        run, gdpa = self.dispatcher()
+        self.assertTrue(gdpa)
         for grid in ({}, dict(batch=1280, nhead_q=2, nhead_k=2)):
-            self.assertIn(
-                run(seqlen_q=532, seqlen_k=256, **gelu, **grid),
-                ids("qr_tdm_pingpong", "fast_gelu", 128),
-            )
-            self.assertIn(
-                run(seqlen_q=532, seqlen_k=512, **gelu, **grid),
-                ids("qr_tdm_pingpong", "fast_gelu", 128),
-            )
-            self.assertIn(
-                run(seqlen_q=200, seqlen_k=512, **gelu, **grid),
-                ids("qr_tdm_pingpong", "fast_gelu", 64),
-            )
-        self.assertIn(
-            run(seqlen_q=8, seqlen_k=256, **gelu),
-            ids("qr_tdm_pingpong", "fast_gelu", 16),
-        )
-        # many keys: qr_tdm_sched from 128 rows, qr_tdm below (as for softmax)
-        self.assertIn(
-            run(seqlen_q=532, seqlen_k=513, **gelu), ids("qr_tdm_sched", "fast_gelu")
-        )
-        self.assertIn(
-            run(seqlen_q=4096, seqlen_k=8192, **gelu), ids("qr_tdm_sched", "fast_gelu")
-        )
-        self.assertIn(
-            run(seqlen_q=100, seqlen_k=1024, **gelu), ids("qr_tdm", "fast_gelu")
-        )
+            for seqlen_q, seqlen_k in (
+                (8, 256),
+                (200, 512),
+                (532, 256),
+                (532, 513),
+                (4096, 8192),
+                (100, 1024),
+            ):
+                with self.subTest(grid=grid, seqlen_q=seqlen_q, seqlen_k=seqlen_k):
+                    self.assertIn(
+                        run(seqlen_q=seqlen_q, seqlen_k=seqlen_k, activation=1, **grid),
+                        gdpa,
+                    )
 
-    def test_group_routes_by_average_keys(self):
-        run, ids = self.dispatcher("group")
+    def test_group_mode(self):
+        run, gdpa = self.dispatcher("group")
         group = dict(
             group=1, activation=1, batch=8, seqlen_q=8 * 5000, max_seqlen_q=5000
         )
-        # group mode: seqlen_k is the total over the batch
-        self.assertIn(
-            run(seqlen_k=8 * 256, **group), ids("qr_tdm_pingpong", "fast_gelu", 128)
-        )
-        self.assertIn(run(seqlen_k=8 * 4096, **group), ids("qr_tdm_sched", "fast_gelu"))
+        for keys in (256, 4096):
+            self.assertIn(run(seqlen_k=8 * keys, **group), gdpa)
 
     def test_gdpa_and_softmax_never_cross(self):
-        run, ids = self.dispatcher()
-        gdpa = set().union(
-            *(
-                ids(p, "fast_gelu")
-                for p in ("qr_tdm", "qr_tdm_pingpong", "qr_tdm_sched")
-            )
-        )
+        run, gdpa = self.dispatcher()
         big = dict(batch=1280, nhead_q=2, nhead_k=2)
         for shape in (
             dict(seqlen_q=532, seqlen_k=256),
@@ -2595,6 +2560,34 @@ class TestCompiledGfx125GdpaDispatch(unittest.TestCase):
             dict(mask=1, window_size_left=-1, window_size_right=0),
         ):
             self.assertLess(run(activation=1, seqlen_q=532, seqlen_k=256, **feature), 0)
+
+    def test_gdpa_head_dim_and_o_layout(self):
+        # exactly d128 (no head-dim padding: 112, which the d128 bucket also takes, has no
+        # GDPA kernel), and an O the q-loop's 16-byte async O store addresses
+        run, gdpa = self.dispatcher()
+        shape = dict(seqlen_q=532, seqlen_k=256, activation=1)
+        self.assertIn(run(**shape), gdpa)
+        self.assertLess(run(hdim_q=112, hdim_v=112, **shape), 0)
+        for layout in (
+            dict(o_offset=8),
+            dict(stride_o=1028),
+            dict(nhead_stride_o=132),
+            dict(stride_o=16909320),
+        ):
+            with self.subTest(**layout):
+                self.assertLess(run(**layout, **shape), 0)
+
+    def test_gdpa_other_head_dims_have_no_kernel(self):
+        pool, kernels = get_fwd_blobs(
+            ["gfx1250"], "fmha_fwd_d64_bf16_*", 0, [64], "simplified"
+        )
+        dispatch = _CompiledDispatcher(self, pool, kernels)
+        self.assertLess(
+            dispatch.run(
+                hdim_q=64, hdim_v=64, seqlen_q=532, seqlen_k=256, activation=1
+            )[0],
+            0,
+        )
 
 
 class TestCompiledGfx125ForwardOptionDispatch(unittest.TestCase):

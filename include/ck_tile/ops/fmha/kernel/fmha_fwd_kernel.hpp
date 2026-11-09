@@ -51,6 +51,15 @@ struct uses_qr_tdm_lds_arena<Pipeline, std::void_t<decltype(Pipeline::kUsesLdsAr
 template <typename Pipeline>
 inline constexpr bool uses_qr_tdm_lds_arena_v = uses_qr_tdm_lds_arena<Pipeline>::value;
 
+// Pipelines that take several query tiles per workgroup (RunQTiles, kQTilesPerBlock)
+template <typename Pipeline>
+inline constexpr bool is_q_tile_loop_v = [] {
+    if constexpr(requires { Pipeline::kQTileLoop; })
+        return Pipeline::kQTileLoop;
+    else
+        return false;
+}();
+
 // Whether the K/V views take the NT_HT cache hint on gfx1250 (see
 // FmhaFwdKernel::kKVCoherence): TDM pipelines that stage K/V in their LDS arena,
 // fp16/bf16, head dims below 256, tiles of at most 64 rows.
@@ -1557,6 +1566,29 @@ struct FmhaFwdKernel
             head_start);
     }
 
+    // O as the 16-byte async O stores (global_store_async_from_lds_b128) address it: one tile
+    // of the head dim, 16-byte rows, and a tile's rows within 32-bit byte offsets of its first
+    CK_TILE_HOST static bool IsAsyncOStoreLayout(const Kargs& kargs)
+    {
+        if(kargs.hdim_v != FmhaPipeline::kN1)
+            return false;
+        if(reinterpret_cast<uintptr_t>(kargs.o_ptr) % kAsyncOStoreBytes != 0 ||
+           kargs.stride_o < 0 || kargs.stride_o % kAsyncOStoreVec != 0 ||
+           kargs.nhead_stride_o % kAsyncOStoreVec != 0)
+        {
+            return false;
+        }
+        if constexpr(!kIsGroupMode)
+        {
+            if(kargs.batch_stride_o % kAsyncOStoreVec != 0)
+                return false;
+        }
+        const uint64_t tile_span_bytes =
+            (FmhaPipeline::kM0 - 1) * static_cast<uint64_t>(kargs.stride_o) * sizeof(ODataType) +
+            FmhaPipeline::kN1 * sizeof(ODataType);
+        return tile_span_bytes <= kAsyncOTileSpanLimitBytes;
+    }
+
     CK_TILE_HOST static bool IsSupportedArgument([[maybe_unused]] const Kargs& kargs)
     {
         if constexpr(kStoreLSE && !kStoresLseLog2)
@@ -1584,26 +1616,15 @@ struct FmhaFwdKernel
             // The codegen constraint repeats these checks so the dispatcher falls back to qr_tdm.
             if constexpr(kUseAsyncLdsOStore)
             {
-                if(kargs.hdim_v != FmhaPipeline::kN1)
-                    return false;
-                if(reinterpret_cast<uintptr_t>(kargs.o_ptr) % kAsyncOStoreBytes != 0 ||
-                   kargs.stride_o < 0 || kargs.stride_o % kAsyncOStoreVec != 0 ||
-                   kargs.nhead_stride_o % kAsyncOStoreVec != 0)
-                {
-                    return false;
-                }
-                if constexpr(!kIsGroupMode)
-                {
-                    if(kargs.batch_stride_o % kAsyncOStoreVec != 0)
-                        return false;
-                }
-                const uint64_t tile_span_bytes = (FmhaPipeline::kM0 - 1) *
-                                                     static_cast<uint64_t>(kargs.stride_o) *
-                                                     sizeof(ODataType) +
-                                                 FmhaPipeline::kN1 * sizeof(ODataType);
-                if(tile_span_bytes > kAsyncOTileSpanLimitBytes)
+                if(!IsAsyncOStoreLayout(kargs))
                     return false;
             }
+        }
+        if constexpr(detail::is_q_tile_loop_v<FmhaPipeline>)
+        {
+            // the GDPA q-loop's async O store (its codegen constraint repeats this)
+            if(!IsAsyncOStoreLayout(kargs))
+                return false;
         }
 
         if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
@@ -1653,6 +1674,16 @@ struct FmhaFwdKernel
         return true;
     }
 
+    // batches a query-tile-loop grid runs at a time (see GetTileIndex)
+    static constexpr ck_tile::index_t kQLoopBatchGroup = 16;
+    // query rows a workgroup takes: kM0, or kQTilesPerBlock tiles of it
+    static constexpr ck_tile::index_t kGridM0 = [] {
+        if constexpr(detail::is_q_tile_loop_v<FmhaPipeline>)
+            return FmhaPipeline::kM0 * FmhaPipeline::kQTilesPerBlock;
+        else
+            return FmhaPipeline::kM0;
+    }();
+
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
@@ -1665,14 +1696,14 @@ struct FmhaFwdKernel
             // TODO: this may need tuning
             return dim3(nhead_,
                         batch_size_,
-                        ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+                        ck_tile::integer_divide_ceil(seqlen_q_, kGridM0) *
                             ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1));
         }
         else
         {
             // TODO: this may need tuning
             return dim3(nhead_,
-                        ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+                        ck_tile::integer_divide_ceil(seqlen_q_, kGridM0) *
                             ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
                         batch_size_);
         }
@@ -1698,6 +1729,34 @@ struct FmhaFwdKernel
 
         if constexpr(kIsGroupMode)
             has_padded_seqlen_k = (kargs.seqlen_k_ptr != nullptr);
+
+        // Several query tiles per workgroup: the batches' first tile groups (full ones) go
+        // first, the short and empty last groups after them, so the grid ends on short
+        // workgroups (dispatch order: head fastest, then batch, then tile group).
+        if constexpr(detail::is_q_tile_loop_v<FmhaPipeline>)
+        {
+            if(!has_padded_seqlen_k)
+            {
+                const index_t num_head  = gridDim.x;
+                const index_t num_batch = gridDim.z;
+                const index_t linear_id =
+                    blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z);
+                const index_t rest    = linear_id / num_head;
+                const index_t i_nhead = linear_id - rest * num_head;
+                // groups of kQLoopBatchGroup batches, one after another (the K/V the running
+                // workgroups read stays in L2); tile group major within a group
+                const index_t num_block  = gridDim.y;
+                const index_t group_size = kQLoopBatchGroup * num_block;
+                const index_t i_group    = rest / group_size;
+                const index_t in_group   = rest - i_group * group_size;
+                const index_t group_batches =
+                    ck_tile::min(kQLoopBatchGroup, num_batch - i_group * kQLoopBatchGroup);
+                const index_t i_block = in_group / group_batches;
+                const index_t i_batch =
+                    i_group * kQLoopBatchGroup + (in_group - i_block * group_batches);
+                return ck_tile::make_tuple(i_block, index_t{0}, i_nhead, i_batch);
+            }
+        }
 
 #if defined(CK_TILE_FMHA_PAIRED_XCC_ORDER) && CK_TILE_FMHA_PAIRED_XCC_ORDER && defined(__gfx1250__)
         if constexpr(kHasMask)
@@ -2874,7 +2933,7 @@ struct FmhaFwdKernel
                 FmhaPipeline::kM0 > 64 && FmhaPipeline::BlockFmhaShape::kQKHeaddim < 256;
             // divide problem
             const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
-            const index_t i_m0                                = i_tile_m * FmhaPipeline::kM0;
+            const index_t i_m0                                = i_tile_m * kGridM0;
             const index_t i_n1                                = i_tile_n * FmhaPipeline::kN1;
 
             long_index_t batch_offset_q                        = 0;
@@ -3795,6 +3854,41 @@ struct FmhaFwdKernel
                 smem_ptr = smem;
             }
             [[maybe_unused]] void* o_lds_staging = nullptr;
+
+            if constexpr(detail::is_q_tile_loop_v<FmhaPipeline>)
+            {
+                static_assert(!kPipelineDeclaresLds);
+                const index_t num_q_tiles = ck_tile::min(
+                    FmhaPipeline::kQTilesPerBlock,
+                    ck_tile::integer_divide_ceil(kargs.seqlen_q - i_m0, FmhaPipeline::kM0));
+                FmhaPipeline{}.RunQTiles(
+                    q_dram_window,
+                    k_dram_window,
+                    v_dram_window,
+                    mask,
+                    num_q_tiles,
+                    kargs.seqlen_k,
+                    scale_s,
+                    smem_ptr,
+                    [&](const auto& o_acc, index_t i_q, void* o_lds) {
+                        // O from the tile's first row to the batch's last: the store writes no
+                        // row past it, and its 32-bit offsets stay within the tile
+                        // (IsAsyncOStoreLayout)
+                        const index_t row0 = i_m0 + i_q * FmhaPipeline::kM0;
+                        const auto o_dram  = make_naive_tensor_view<address_space_enum::global>(
+                            o_ptr + static_cast<long_index_t>(row0) * kargs.stride_o,
+                            make_tuple(kargs.seqlen_q - row0, kargs.hdim_v),
+                            make_tuple(kargs.stride_o, 1),
+                            number<FmhaPipeline::kAlignmentOacc>{},
+                            number<1>{});
+                        auto o_dram_window = make_tile_window(
+                            o_dram,
+                            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                            {0, i_n1});
+                        FmhaPipeline::StoreOTile(o_dram_window, o_acc, o_lds);
+                    });
+                return;
+            }
 
             auto o_acc_tile = [&]() {
                 if constexpr(PrefillCase)

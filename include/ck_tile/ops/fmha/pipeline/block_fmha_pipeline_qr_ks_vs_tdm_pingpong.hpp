@@ -86,12 +86,6 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
     using Base::VReadLengths;
     using Base::VSeqOffset;
 
-    // softmax, or GDPA (see qr_tdm): P = act(scale_s * S), no row max/sum, no normalization
-    using Base::Activation;
-    using Base::ApplyActivation;
-    using Base::kIsSoftmax;
-    using Base::kMaskedScore;
-
     static constexpr const char* name = "qr_tdm_pingpong";
 
     // the kernel paths qr_tdm takes by name
@@ -126,10 +120,9 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
 
     // The row sum of P: on the matrix unit when one gemm_1 warp tile of columns spans a
     // row, i.e. the gemm_1 warps are all on M; the short-query tile spends them on N and
-    // takes an fp32 sum. GDPA has no row sum, so its main loop schedules no row-sum
-    // WMMAs (kRowSumWmma).
+    // takes an fp32 sum.
     static constexpr bool kRowSumOnMatrixUnit =
-        BlockFmhaShape::Gemm1BlockWarps::at(I1) == 1 && !Base::kHasDropout && kIsSoftmax;
+        BlockFmhaShape::Gemm1BlockWarps::at(I1) == 1 && !Base::kHasDropout;
     // Without a per-tile row max (whole rows in one warp, the tiles with the matrix-unit
     // row sum): P is taken against the running base m_base and its fp32 row sum, which l
     // and the LSE need anyway, bounds every p. A tile whose sum stays at most
@@ -550,10 +543,9 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         {
             if(is_last_tile)
             {
-                set_tile_if(
-                    s_acc, type_convert<SMPLComputeDataType>(kMaskedScore), [&](auto tile_idx) {
-                        return seqlen_k_end <= k_start + tile_idx.at(I1);
-                    });
+                set_tile_if(s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                    return seqlen_k_end <= k_start + tile_idx.at(I1);
+                });
             }
         }
         else
@@ -566,17 +558,16 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         {
             if(NeedsScoreMask(mask, q_origin.at(I0), k_start))
             {
-                set_tile_if(
-                    s_acc, type_convert<SMPLComputeDataType>(kMaskedScore), [&](auto tile_idx) {
-                        const auto row = q_origin.at(I0) + tile_idx.at(I0);
-                        const auto col = k_start + tile_idx.at(I1);
-                        if constexpr(kHasSink)
-                            return mask.IsOutOfSinkBound(row, col);
-                        else if constexpr(kBandMask)
-                            return mask.IsOutOfBoundUnsigned(row, col); // one compare per score
-                        else
-                            return mask.IsOutOfBound(row, col);
-                    });
+                set_tile_if(s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                    const auto row = q_origin.at(I0) + tile_idx.at(I0);
+                    const auto col = k_start + tile_idx.at(I1);
+                    if constexpr(kHasSink)
+                        return mask.IsOutOfSinkBound(row, col);
+                    else if constexpr(kBandMask)
+                        return mask.IsOutOfBoundUnsigned(row, col); // one compare per score
+                    else
+                        return mask.IsOutOfBound(row, col);
+                });
             }
         }
     }
@@ -674,6 +665,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                Dropout dropout                                         = {}) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
+        static_assert(Base::kIsSoftmax,
+                      "qr_tdm_pingpong: softmax only (GDPA runs on qr_tdm_gdpa_qloop)");
 
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -1241,9 +1234,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 else
                     return 0;
             };
-            if constexpr(!kIsSoftmax)
-                ApplyActivation(s_new, p_compute, scale_s);
-            else if constexpr(kRowMaxBySum)
+            if constexpr(kRowMaxBySum)
             {
                 // P against the running base (see kRowMaxBySum)
                 // a row without a key yet has no base (-inf): its tile takes the row max
@@ -1360,7 +1351,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             // l{j}; o_acc is already in p's m_base frame.
             if constexpr(kRowSumOnMatrixUnit && !kRowMaxBySum)
                 AccumulateRowSumOnMatrixUnit(l, p_tile);
-            if constexpr(!kRowSumOnMatrixUnit && kIsSoftmax && !Base::kHasDropout)
+            if constexpr(!kRowSumOnMatrixUnit && !Base::kHasDropout)
             {
                 const auto rowsum_p = BlockRowSum(p_compute); // rowsum(Pcompute{j})
                 sweep_tile_span(o_spans[I0], [&](auto idx0) {
@@ -1482,8 +1473,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             StoreLse(lse_acc_dram_window_tmp, m_lse, l, scale_s, lse_log2);
         }
 
-        if constexpr(kIsSoftmax)
-            NormalizeO(o_acc, l);
+        NormalizeO(o_acc, l);
         return o_acc;
     }
 

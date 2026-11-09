@@ -612,6 +612,7 @@ struct BlockFmhaPipelineQRKSVSTdm
         Dropout dropout                                         = {}) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
+        static_assert(kIsSoftmax, "qr_tdm: softmax only (GDPA runs on qr_tdm_gdpa_qloop)");
         auto* smem_ptrq =
             reinterpret_cast<QDataType*>(static_cast<char*>(smem_arena) + Layout::kQOffset);
         auto* smem_ptrk =
@@ -1142,7 +1143,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                 if(i_total_loops == (num_total_loop - 1))
                 {
                     set_tile_if(s_acc,
-                                type_convert<SMPLComputeDataType>(kMaskedScore),
+                                -numeric<SMPLComputeDataType>::infinity(),
                                 [&, physical_seqlen_k_end_ = physical_seqlen_k_end](auto tile_idx) {
                                     const auto col = k_origin.at(I0) + tile_idx.at(I1);
 
@@ -1160,7 +1161,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                 if(need_perpixel_check)
                 {
                     set_tile_if(
-                        s_acc, type_convert<SMPLComputeDataType>(kMaskedScore), [&](auto tile_idx) {
+                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(I0) + tile_idx.at(I0);
                             const auto col = k_origin.at(I0) + tile_idx.at(I1);
                             if constexpr(kHasSink)
@@ -1204,21 +1205,16 @@ struct BlockFmhaPipelineQRKSVSTdm
                 }
             }();
 
-            [[maybe_unused]] const auto m_old = m; // m{j-1}
-            if constexpr(kIsSoftmax)
-            {
-                auto m_local = block_tile_reduce<SMPLComputeDataType>(
-                    s_new,
-                    sequence<1>{},
-                    f_max,
-                    -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-                block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
+            auto m_local = block_tile_reduce<SMPLComputeDataType>(
+                s_new,
+                sequence<1>{},
+                f_max,
+                -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
+            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
-                tile_elementwise_inout([](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); },
-                                       m,
-                                       m_old,
-                                       m_local); // m{j}
-            }
+            const auto m_old = m; // m{j-1}
+            tile_elementwise_inout(
+                [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local); // m{j}
 
             auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
                 s_new.get_tile_distribution()); // Pcompute{j}
@@ -1240,42 +1236,34 @@ struct BlockFmhaPipelineQRKSVSTdm
             };
 
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
-            if constexpr(!kIsSoftmax)
-                ApplyActivation(s_new, p_compute, scale_s);
-            else
-                sweep_tile_span(p_spans[I0], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
-                    auto row_max         = scale_s * get_validated_m(m[i_idx]);
-                    sweep_tile_span(p_spans[I1], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
+            sweep_tile_span(p_spans[I0], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                auto row_max         = scale_s * get_validated_m(m[i_idx]);
+                sweep_tile_span(p_spans[I1], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                    {
+                        p_compute(i_j_idx) = exp2(s_new[i_j_idx] - get_validated_m(m[i_idx]));
+                    }
+                    else
+                    {
+                        if constexpr(kHasLogitsSoftCap)
                         {
                             p_compute(i_j_idx) = exp2(s_new[i_j_idx] - get_validated_m(m[i_idx]));
                         }
                         else
                         {
-                            if constexpr(kHasLogitsSoftCap)
-                            {
-                                p_compute(i_j_idx) =
-                                    exp2(s_new[i_j_idx] - get_validated_m(m[i_idx]));
-                            }
-                            else
-                            {
-                                p_compute(i_j_idx) = exp2(scale_s * s_new[i_j_idx] - row_max);
-                            }
+                            p_compute(i_j_idx) = exp2(scale_s * s_new[i_j_idx] - row_max);
                         }
-                    });
+                    }
                 });
+            });
 
-            [[maybe_unused]] auto rowsum_p = m;
-            if constexpr(kIsSoftmax)
-            {
-                rowsum_p = block_tile_reduce<SMPLComputeDataType>(
-                    p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
+            auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
+                p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
-                block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
-            }
+            block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
             if constexpr(kHasDropout)
             {
@@ -1300,7 +1288,7 @@ struct BlockFmhaPipelineQRKSVSTdm
 
             // MakePForGemm1 leaves p_compute holding the dequantized values gemm_1 will
             // multiply, so reducing it here gives sum(q(P)) over the same groups.
-            [[maybe_unused]] auto rowsum_p_quant = rowsum_p;
+            auto rowsum_p_quant = rowsum_p;
             if constexpr(kQuantized)
             {
                 rowsum_p_quant = block_tile_reduce<SMPLComputeDataType>(
@@ -1308,39 +1296,38 @@ struct BlockFmhaPipelineQRKSVSTdm
                 block_tile_reduce_sync(rowsum_p_quant, f_sum, bool_constant<false>{});
             }
 
-            // l{j}, Oacc{j}; GDPA has neither
+            // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
-            if constexpr(kIsSoftmax)
-                sweep_tile_span(o_spans[I0], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
-                    const auto tmp       = [&]() {
-                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
+            sweep_tile_span(o_spans[I0], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                const auto tmp       = [&]() {
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                    {
+                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                    }
+                    else
+                    {
+                        if constexpr(kHasLogitsSoftCap)
                         {
                             return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                         }
                         else
                         {
-                            if constexpr(kHasLogitsSoftCap)
-                            {
-                                return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
-                            }
-                            else
-                            {
-                                auto row_max = scale_s * get_validated_m(m[i_idx]);
-                                return exp2(scale_s * m_old[i_idx] - row_max);
-                            }
+                            auto row_max = scale_s * get_validated_m(m[i_idx]);
+                            return exp2(scale_s * m_old[i_idx] - row_max);
                         }
-                    }();
-                    l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
-                    if constexpr(kQuantized)
-                        l_quant(i_idx) = tmp * l_quant[i_idx] + rowsum_p_quant[i_idx];
-                    sweep_tile_span(o_spans[I1], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    }
+                }();
+                l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                if constexpr(kQuantized)
+                    l_quant(i_idx) = tmp * l_quant[i_idx] + rowsum_p_quant[i_idx];
+                sweep_tile_span(o_spans[I1], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                        o_acc(i_j_idx) *= tmp;
-                    });
+                    o_acc(i_j_idx) *= tmp;
                 });
+            });
 
             // V is on the tensorcnt counter (load_tile_tdm). Wait for V's TDM
             // write to commit before ds_load_tr reads it; the next iteration's
@@ -1443,30 +1430,29 @@ struct BlockFmhaPipelineQRKSVSTdm
             store_tile(lse_acc_dram_window_tmp, lse_acc);
         }
 
-        // finally, O (GDPA: as accumulated)
+        // finally, O
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
 
-        if constexpr(kIsSoftmax)
-            sweep_tile_span(o_spans[I0], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
-                auto tmp             = [&]() {
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 FmhaMask::IsMasking)
-                    {
-                        return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
-                    }
-                    else
-                        return 1 / l[i_idx];
-                }();
-                if constexpr(kVScaleOnOacc)
+        sweep_tile_span(o_spans[I0], [&](auto idx0) {
+            constexpr auto i_idx = make_tuple(idx0);
+            auto tmp             = [&]() {
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                             FmhaMask::IsMasking)
                 {
-                    tmp *= v_descale;
+                    return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
                 }
-                sweep_tile_span(o_spans[I1], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    o_acc(i_j_idx) *= tmp;
-                });
+                else
+                    return 1 / l[i_idx];
+            }();
+            if constexpr(kVScaleOnOacc)
+            {
+                tmp *= v_descale;
+            }
+            sweep_tile_span(o_spans[I1], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                o_acc(i_j_idx) *= tmp;
             });
+        });
 
         return o_acc;
     }
@@ -1502,6 +1488,7 @@ struct BlockFmhaPipelineQRKSVSTdm
         Dropout dropout                                         = {}) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
+        static_assert(kIsSoftmax, "qr_tdm: softmax only (GDPA runs on qr_tdm_gdpa_qloop)");
         auto* smem_ptrq =
             reinterpret_cast<QDataType*>(static_cast<char*>(smem_arena) + Layout::kQOffset);
         auto* smem_ptrk0 =
@@ -2113,7 +2100,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                 if(i_total_loops == (num_total_loop - 1))
                 {
                     set_tile_if(s_acc,
-                                type_convert<SMPLComputeDataType>(kMaskedScore),
+                                -numeric<SMPLComputeDataType>::infinity(),
                                 [&, physical_seqlen_k_end_ = physical_seqlen_k_end](auto tile_idx) {
                                     const auto col = k_origin.at(I0) + tile_idx.at(I1);
 
@@ -2131,7 +2118,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                 if(need_perpixel_check)
                 {
                     set_tile_if(
-                        s_acc, type_convert<SMPLComputeDataType>(kMaskedScore), [&](auto tile_idx) {
+                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(I0) + tile_idx.at(I0);
                             const auto col = k_origin.at(I0) + tile_idx.at(I1);
                             if constexpr(kHasSink)
@@ -2176,16 +2163,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                 }
             }();
 
-            [[maybe_unused]] auto m_local = [&]() {
-                if constexpr(kIsSoftmax)
-                {
-                    auto r = ReduceRowMaxLocal(s_new); // m_local = rowmax(S{j})
-                    ReduceRowSync(r, f_max);
-                    return r;
-                }
-                else
-                    return m;
-            }();
+            auto m_local = ReduceRowMaxLocal(s_new); // m_local = rowmax(S{j})
+            ReduceRowSync(m_local, f_max);
 
             if constexpr(kUseIglpBulkScheduling)
             {
@@ -2207,12 +2186,9 @@ struct BlockFmhaPipelineQRKSVSTdm
                 });
             }
 
-            [[maybe_unused]] const auto m_old = m; // m{j-1}
-            if constexpr(kIsSoftmax)
-                tile_elementwise_inout([](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); },
-                                       m,
-                                       m_old,
-                                       m_local); // m{j}
+            const auto m_old = m; // m{j-1}
+            tile_elementwise_inout(
+                [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local); // m{j}
 
             auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
                 s_new.get_tile_distribution()); // Pcompute{j}
@@ -2234,41 +2210,36 @@ struct BlockFmhaPipelineQRKSVSTdm
             };
 
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
-            if constexpr(!kIsSoftmax)
-                ApplyActivation(s_new, p_compute, scale_s);
-            else
-                sweep_tile_span(p_spans[I0], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
-                    auto row_max         = scale_s * get_validated_m(m[i_idx]);
-                    sweep_tile_span(p_spans[I1], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
+            sweep_tile_span(p_spans[I0], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                auto row_max         = scale_s * get_validated_m(m[i_idx]);
+                sweep_tile_span(p_spans[I1], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                    {
+                        p_compute(i_j_idx) = exp2(s_new[i_j_idx] - get_validated_m(m[i_idx]));
+                    }
+                    else
+                    {
+                        if constexpr(kHasLogitsSoftCap)
                         {
                             p_compute(i_j_idx) = exp2(s_new[i_j_idx] - get_validated_m(m[i_idx]));
                         }
                         else
                         {
-                            if constexpr(kHasLogitsSoftCap)
-                            {
-                                p_compute(i_j_idx) =
-                                    exp2(s_new[i_j_idx] - get_validated_m(m[i_idx]));
-                            }
-                            else
-                            {
-                                p_compute(i_j_idx) = exp2(scale_s * s_new[i_j_idx] - row_max);
-                            }
+                            p_compute(i_j_idx) = exp2(scale_s * s_new[i_j_idx] - row_max);
                         }
-                    });
+                    }
                 });
+            });
 
             // The current PV consumes P and corrected O, not the denominator.
             // Keep whole-P production unchanged and defer only l's reduction
             // in the guarded path. The original left-fold and row sync remain.
-            constexpr bool kDeferDenominator =
-                kStagedKPairs && FmhaMask::IsMasking && kIsSoftmax && !kHasDropout;
-            [[maybe_unused]] auto rowsum_p = [&]() {
-                if constexpr(kDeferDenominator || !kIsSoftmax)
+            constexpr bool kDeferDenominator = kStagedKPairs && FmhaMask::IsMasking && !kHasDropout;
+            auto rowsum_p                    = [&]() {
+                if constexpr(kDeferDenominator)
                 {
                     return m;
                 }
@@ -2280,7 +2251,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                     return sum;
                 }
             }();
-            [[maybe_unused]] auto l_correction = m;
+            auto l_correction = m;
 
             if constexpr(kHasDropout)
             {
@@ -2305,7 +2276,7 @@ struct BlockFmhaPipelineQRKSVSTdm
 
             // MakePForGemm1 leaves p_compute holding the dequantized values gemm_1 will
             // multiply, so reducing it here gives sum(q(P)) over the same groups.
-            [[maybe_unused]] auto rowsum_p_quant = rowsum_p;
+            auto rowsum_p_quant = rowsum_p;
             if constexpr(kQuantized)
             {
                 rowsum_p_quant = block_tile_reduce<SMPLComputeDataType>(
@@ -2313,46 +2284,45 @@ struct BlockFmhaPipelineQRKSVSTdm
                 block_tile_reduce_sync(rowsum_p_quant, f_sum, bool_constant<false>{});
             }
 
-            // l{j}, Oacc{j}; GDPA has neither
+            // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
-            if constexpr(kIsSoftmax)
-                sweep_tile_span(o_spans[I0], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
-                    const auto tmp       = [&]() {
-                        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                     BiasEnum == BlockAttentionBiasEnum::ALIBI)
+            sweep_tile_span(o_spans[I0], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                const auto tmp       = [&]() {
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                    {
+                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                    }
+                    else
+                    {
+                        if constexpr(kHasLogitsSoftCap)
                         {
                             return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                         }
                         else
                         {
-                            if constexpr(kHasLogitsSoftCap)
-                            {
-                                return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
-                            }
-                            else
-                            {
-                                auto row_max = scale_s * get_validated_m(m[i_idx]);
-                                return exp2(scale_s * m_old[i_idx] - row_max);
-                            }
+                            auto row_max = scale_s * get_validated_m(m[i_idx]);
+                            return exp2(scale_s * m_old[i_idx] - row_max);
                         }
-                    }();
-                    if constexpr(kDeferDenominator)
-                    {
-                        l_correction(i_idx) = tmp;
                     }
-                    else
-                    {
-                        l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
-                    }
-                    if constexpr(kQuantized)
-                        l_quant(i_idx) = tmp * l_quant[i_idx] + rowsum_p_quant[i_idx];
-                    sweep_tile_span(o_spans[I1], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                }();
+                if constexpr(kDeferDenominator)
+                {
+                    l_correction(i_idx) = tmp;
+                }
+                else
+                {
+                    l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
+                }
+                if constexpr(kQuantized)
+                    l_quant(i_idx) = tmp * l_quant[i_idx] + rowsum_p_quant[i_idx];
+                sweep_tile_span(o_spans[I1], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                        o_acc(i_j_idx) *= tmp;
-                    });
+                    o_acc(i_j_idx) *= tmp;
                 });
+            });
 
             block_sync_lds<v_lds_insts>();
             // K's sink->normal window jump (prefill path). K is prefetched 2
@@ -2500,30 +2470,29 @@ struct BlockFmhaPipelineQRKSVSTdm
             store_tile(lse_acc_dram_window_tmp, lse_acc);
         }
 
-        // finally, O (GDPA: as accumulated)
+        // finally, O
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
 
-        if constexpr(kIsSoftmax)
-            sweep_tile_span(o_spans[I0], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
-                auto tmp             = [&]() {
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 FmhaMask::IsMasking)
-                    {
-                        return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
-                    }
-                    else
-                        return 1 / l[i_idx];
-                }();
-                if constexpr(kVScaleOnOacc)
+        sweep_tile_span(o_spans[I0], [&](auto idx0) {
+            constexpr auto i_idx = make_tuple(idx0);
+            auto tmp             = [&]() {
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                             FmhaMask::IsMasking)
                 {
-                    tmp *= v_descale;
+                    return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
                 }
-                sweep_tile_span(o_spans[I1], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    o_acc(i_j_idx) *= tmp;
-                });
+                else
+                    return 1 / l[i_idx];
+            }();
+            if constexpr(kVScaleOnOacc)
+            {
+                tmp *= v_descale;
+            }
+            sweep_tile_span(o_spans[I1], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                o_acc(i_j_idx) *= tmp;
             });
+        });
 
         return o_acc;
     }

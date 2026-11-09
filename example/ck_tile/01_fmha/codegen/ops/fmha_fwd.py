@@ -551,8 +551,8 @@ class FmhaFwdPipeline:
     F_constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
     F_use_double_kv_lds_buffer: str = "f"  # true/false
     F_progressive_ds_load_k: str = "f"  # true/false
-    # softmax, or a GDPA activation (ACTIVATION_MAP): a mode of qr_tdm, qr_tdm_pingpong
-    # and qr_tdm_sched
+    # softmax, or a GDPA activation (ACTIVATION_MAP): GDPA runs on qr_tdm_pingpong's d128
+    # 128-row tile as BlockFmhaPipelineQRKSVSTdmGdpaQLoop
     F_activation: str = "softmax"
     # qr_tdm_pingpong's LDS read schedule (QrTdmPingPongLdsReadSchedule); FmhaFwdKernel
     # keeps only what takes effect on its tile (see qr_tdm_pingpong_effective_schedule)
@@ -973,6 +973,14 @@ class FmhaFwdKernel:
             f"                               {spad}, {dvpad}>>;"
         )
 
+    # GDPA on qr_tdm_pingpong (its 128-row tile, the only one check_tile_owner gives it) takes
+    # several query tiles per workgroup (BlockFmhaPipelineQRKSVSTdmGdpaQLoop)
+    def _gdpa_q_loop(self):
+        return (
+            self.F_pipeline.tag == "qr_tdm_pingpong"
+            and self.F_pipeline.F_activation != "softmax"
+        )
+
     def render(self) -> str:
         body = type(self)._get_kernel_header(self.F_pipeline.tag) + type(
             self
@@ -1031,7 +1039,11 @@ class FmhaFwdKernel:
                 self.F_pipeline.F_use_double_kv_lds_buffer
             ],
             F_progressive_ds_load_k=BOOL_MAP[self.F_pipeline.F_progressive_ds_load_k],
-            F_pipeline=PIPELINE_MAP[self.F_pipeline.tag],
+            F_pipeline=(
+                "ck_tile::BlockFmhaPipelineQRKSVSTdmGdpaQLoop"
+                if self._gdpa_q_loop()
+                else PIPELINE_MAP[self.F_pipeline.tag]
+            ),
             # The sched sink traits (the example sets has_sink for a sink logit too)
             # merge a finite virtual sink at normalization; the others leave it out of
             # their register allocation (IsSupportedArgument then refuses a sink_ptr).
@@ -1040,8 +1052,12 @@ class FmhaFwdKernel:
                 + ("true" if self.F_pipeline.F_sink == "t" else "false")
                 if self.F_pipeline.tag == "qr_tdm_sched"
                 else (
-                    ", ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPolicy, "
-                    "ck_tile::QrTdmPingPongLdsReadSchedule<"
+                    (
+                        ", ck_tile::BlockFmhaPipelineQRKSVSTdmGdpaQLoopPolicy, "
+                        if self._gdpa_q_loop()
+                        else ", ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPolicy, "
+                    )
+                    + "ck_tile::QrTdmPingPongLdsReadSchedule<"
                     f"{self.F_pipeline.F_pp_slice_prefetch}, "
                     f"{self.F_pipeline.F_pp_v_before_softmax}>"
                     if self.F_pipeline.tag == "qr_tdm_pingpong"
@@ -1777,12 +1793,6 @@ def _gfx125_seqlen_k_at_least(value):
     )
 
 
-# GDPA (a non-softmax activation) by the average keys per batch (group mode: seqlen_k is the
-# total): few keys go to qr_tdm_pingpong, many to qr_tdm_sched; qr_tdm is the fallback. gfx1250
-# bf16 d128, 4096 queries per batch: pingpong is ahead up to 512 keys (1.13 vs 1.18 ms), sched
-# from 1024 (0.91 vs 1.05 ms; 0.72 vs 1.00 ms at 8192). Softmax calls follow
-# _gfx125_qr_tdm_pingpong_range instead.
-GFX125_GDPA_PINGPONG_MAX_AVG_SEQLEN_K = 512
 GFX125_IS_SOFTMAX = "(t.activation == ck_tile::BlockAttentionActivationEnum::SOFTMAX)"
 # Pipelines that compute a base-2 LSE (fmha_fwd_args::lse_log2) themselves, through fmha_lse
 QR_TDM_LSE_LOG2_PIPELINES = (
@@ -1791,36 +1801,24 @@ QR_TDM_LSE_LOG2_PIPELINES = (
     "qr_tdm_sched",
     "qr_tdm_kvshared",
 )
-# Head dims with GDPA instances: every head dim qr_tdm_pingpong serves (the activation, applied
-# elementwise to S in place of the softmax, assumes no head dim), with qr_tdm as the fallback
-# where it has tiles, and qr_tdm_sched where it has a GDPA geometry (_QR_TDM_SCHED_TILES,
-# _QR_TDM_SCHED_GDPA_TILES; Q and V of one head dim).
-GFX125_GDPA_HDIMS = GFX125_QR_TDM_PINGPONG_HDIMS
-
-
-def _gfx125_short_k(max_avg_seqlen_k):
-    """At most max_avg_seqlen_k keys per batch on average (group mode: seqlen_k is the total)."""
-    return (
-        f"(static_cast<long long>(a.seqlen_k) <= {max_avg_seqlen_k}LL"
-        " * (t.is_group_mode ? a.batch : 1))"
-    )
-
-
-GFX125_GDPA_SHORT_K = _gfx125_short_k(GFX125_GDPA_PINGPONG_MAX_AVG_SEQLEN_K)
+# GDPA (a non-softmax activation) is specialized to meta-tcx's calls: d128, group mode, on
+# BlockFmhaPipelineQRKSVSTdmGdpaQLoop (qr_tdm_pingpong's 128-row tile, several query tiles per
+# workgroup). The Python API's batch mode (gdpa_func) runs on it with equal-length batches.
+GFX125_GDPA_HDIMS = ((128, 128),)
 
 
 def _gfx125_qr_tdm_pingpong_tile_range(hdim_pair):
     """The range condition qr_tdm_pingpong's tiles carry for (hdim, hdim_v): softmax calls
-    follow _gfx125_qr_tdm_pingpong_range, while GDPA pipelines carry their own routing in
-    F_constraint (GFX125_GDPA_SHORT_K), which the softmax range must not narrow."""
+    follow _gfx125_qr_tdm_pingpong_range; GDPA, which only the 128-row tile serves, takes
+    every query."""
     rng = _gfx125_qr_tdm_pingpong_range(hdim_pair)
     if rng == "true":
         return rng
     return f"(!{GFX125_IS_SOFTMAX} || ({rng}))"
 
 
-# O layouts the d128 qr_tdm_sched's async O store (kUseAsyncLdsOStore) can address; the
-# others use qr_tdm.
+# O layouts the d128 async O stores (qr_tdm_sched's kUseAsyncLdsOStore, the GDPA q-loop's) can
+# address: 16-byte rows, and a tile's 128 rows within 32-bit byte offsets of its first row.
 GFX125_QR_TDM_SCHED_D128_O_LAYOUT = (
     "reinterpret_cast<uintptr_t>(a.o_ptr) % 16 == 0 && a.stride_o >= 0 && "
     "a.stride_o % 8 == 0 && a.nhead_stride_o % 8 == 0 && "
@@ -1939,22 +1937,11 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             FmhaFwdTileSize(128, 128, 32, 128, 32, 128, 4, 1, 1, 4, 1, 1, 16, 16, 32, 16, 16, 32, 1),
         ),
     }  # fmt: skip
-    # Special case: GDPA keeps qr_tdm_sched at head dims whose softmax calls qr_tdm_pingpong
-    # takes whole (so softmax generates no sched there): GDPA routes its many-key calls
-    # (!GFX125_GDPA_SHORT_K) to qr_tdm_sched at every head dim that has a sched geometry.
-    # These tiles pair with GDPA qr_tdm_sched pipelines only.
-    _QR_TDM_SCHED_GDPA_TILES = {
-        (64, 64): (
-            FmhaFwdTileSize(128, 64, 32, 64, 32, 64, 4, 1, 1, 4, 1, 1, 16, 16, 32, 16, 16, 32, 3),
-        ),
-    }  # fmt: skip
 
     @classmethod
     def qr_tdm_sched_tiles(cls, hdim_pair) -> tuple:
-        """qr_tdm_sched's tiles for (hdim, hdim_v): softmax's and GDPA's."""
-        return cls._QR_TDM_SCHED_TILES.get(
-            hdim_pair, ()
-        ) + cls._QR_TDM_SCHED_GDPA_TILES.get(hdim_pair, ())
+        """qr_tdm_sched's tiles for (hdim, hdim_v)."""
+        return cls._QR_TDM_SCHED_TILES.get(hdim_pair, ())
 
     @classmethod
     def supported_dtypes(cls) -> Tuple[str]:
@@ -2007,20 +1994,6 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             if not is_qr_tdm_sched_tile:
                 return False
 
-            if hdim_pair in cls._QR_TDM_SCHED_GDPA_TILES:
-                # GDPA only (see _QR_TDM_SCHED_GDPA_TILES), with D64's exact head traits.
-                # Aligned batch can use unpadded sequences; group and tails retain padding.
-                return (
-                    kernel_ctx.pipeline.F_activation != "softmax"
-                    and kernel_ctx.pipeline.F_vlayout == "row"
-                    and kernel_ctx.pipeline.F_spad == kernel_ctx.pipeline.F_skpad
-                    and (
-                        problem_ctx.mode != "group" or kernel_ctx.pipeline.F_spad == "t"
-                    )
-                    and kernel_ctx.pipeline.F_dpad == "f"
-                    and kernel_ctx.pipeline.F_dvpad == "f"
-                )
-
             # D128 keeps its measured padded specialization (group lengths live in
             # device memory, so dispatch could not prove them tile aligned anyway).
             return (
@@ -2047,6 +2020,12 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             # A tile with an owner pairs with that pipeline only, and a pipeline
             # that owns tiles runs on its own tiles only.
             owner = kernel_ctx.tile.F_pipeline_tag
+            # GDPA runs on BlockFmhaPipelineQRKSVSTdmGdpaQLoop, qr_tdm_pingpong's 128-row tile
+            if (
+                kernel_ctx.pipeline.F_activation != "softmax"
+                and kernel_ctx.tile.F_bm0 != 128
+            ):
+                return False
             if owner is not None:
                 # BlockDropout::Run walks P in the QK gemm's output layout, so dropout
                 # needs the QK gemm warps on M (the pipelines' static_assert); the
@@ -2128,10 +2107,7 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             # The qr_tdm_sched tiles go last: check_qr_tdm_sched_codegen_compatibility
             # pairs them with the scheduled pipeline only, and dispatch tries that
             # pipeline first (FmhaFwdApiPool.render).
-            for hdim_pair in {
-                **cls._QR_TDM_SCHED_TILES,
-                **cls._QR_TDM_SCHED_GDPA_TILES,
-            }:
+            for hdim_pair in cls._QR_TDM_SCHED_TILES:
                 result[hdim_pair].extend(
                     copy.deepcopy(cls.qr_tdm_sched_tiles(hdim_pair))
                 )
@@ -2245,29 +2221,21 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                         for pad in ("f", "t"):
                             pipelines.append(FmhaFwdPipeline("qr_tdm_kvshared", "row", pad, pad, "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=mask_constraint))  # fmt: skip
                 # GDPA, P = act(S) with no softmax: no mask, bias, LSE, dropout, soft cap
-                # or sink. It keeps its own routing: qr_tdm_pingpong for few keys
-                # (GFX125_GDPA_SHORT_K, which _gfx125_qr_tdm_pingpong_tile_range leaves
-                # alone), qr_tdm_sched for many (below), qr_tdm for the rest. qr_tdm_pingpong
-                # takes softmax's per-head-dim LDS read schedule. Special case: GDPA's
-                # qr_tdm instances are generated wherever qr_tdm has tiles, also where
-                # softmax generates none (not _gfx125_qr_tdm_serves: all but d128), as
-                # GDPA's fallback; they run on the unowned tiles. d512 has none (only
-                # qr_tdm_pingpong's tiles), so there qr_tdm_pingpong takes every GDPA call.
+                # or sink; d128 only (GFX125_GDPA_HDIMS, the head dim exactly: no head-dim
+                # padding), every call on the 128-row tile's
+                # BlockFmhaPipelineQRKSVSTdmGdpaQLoop (check_tile_owner), whose async O
+                # store takes the O layouts of GFX125_QR_TDM_SCHED_D128_O_LAYOUT.
                 if (hdim, hdim_v) in GFX125_GDPA_HDIMS:
                     no_mask = "no" if mask_impl == "generic" else "s_no"
                     pp_sp, pp_vbs = GFX125_QR_TDM_PINGPONG_LDS_READ_SCHEDULE.get(
                         (hdim, hdim_v), (0, 0)
                     )
-                    gdpa_qr_tdm = hdim <= 256
-                    gdpa_pp_constraint = (
-                        CppConstraint(GFX125_GDPA_SHORT_K)
-                        if gdpa_qr_tdm
-                        else CppConstraint()
+                    gdpa_constraint = CppConstraint(
+                        f"a.hdim_q == {hdim} && a.hdim_v == {hdim_v} && "
+                        + GFX125_QR_TDM_SCHED_D128_O_LAYOUT
                     )
-                    for spad, dpad in itertools.product(["f", "t"], ["f", "t"]):
-                        pipelines.append(FmhaFwdPipeline("qr_tdm_pingpong", "row", spad, spad, dpad, dpad, "f", "no", "f", "f", qscale, no_mask, "f", "f", "f", F_constraint=gdpa_pp_constraint, F_pp_slice_prefetch=pp_sp, F_pp_v_before_softmax=pp_vbs, F_activation="fast_gelu"))  # fmt: skip
-                        if gdpa_qr_tdm:
-                            pipelines.append(FmhaFwdPipeline("qr_tdm", "row", spad, spad, dpad, dpad, "f", "no", "f", "f", qscale, no_mask, "f", "f", "f", F_use_double_kv_lds_buffer=tdm_double_kv, F_progressive_ds_load_k=tdm_prog_k, F_activation="fast_gelu"))  # fmt: skip
+                    for spad in ("f", "t"):
+                        pipelines.append(FmhaFwdPipeline("qr_tdm_pingpong", "row", spad, spad, "f", "f", "f", "no", "f", "f", qscale, no_mask, "f", "f", "f", F_constraint=gdpa_constraint, F_pp_slice_prefetch=pp_sp, F_pp_v_before_softmax=pp_vbs, F_activation="fast_gelu"))  # fmt: skip
 
             # qr_tdm_sched serves only the head dims qr_tdm_pingpong leaves queries to (see
             # _gfx125_qr_tdm_pingpong_range); the others would never be dispatched.
@@ -2306,24 +2274,6 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                         )
                     pipelines.append(FmhaFwdPipeline("qr_tdm_sched", "row", "f", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, "f", "f", sink, F_constraint=sched_constraint))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr_tdm_sched", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, "f", "f", sink, F_constraint=sched_constraint))  # fmt: skip
-            # GDPA with many keys per batch: qr_tdm_sched at every GDPA head dim with a sched
-            # geometry, whether or not softmax generates sched there (sched_serves; d64 is
-            # GDPA only, see _QR_TDM_SCHED_GDPA_TILES).
-            if (hdim, hdim_v) in GFX125_GDPA_HDIMS and cls.qr_tdm_sched_tiles(
-                (hdim, hdim_v)
-            ):
-                gdpa_sched_constraint = CppConstraint(
-                    f"a.hdim_q == {hdim} && a.hdim_v == {hdim_v} && a.max_seqlen_q >= 128 && "
-                    f"t.hdim_q == {hdim} && t.hdim_v == {hdim_v} && !{GFX125_GDPA_SHORT_K}"
-                )
-                if hdim == 128:
-                    gdpa_sched_constraint &= CppConstraint(
-                        GFX125_QR_TDM_SCHED_D128_O_LAYOUT
-                    )
-                no_mask = "no" if mask_impl == "generic" else "s_no"
-                head_pad = "f" if hdim == 64 else "t"
-                for spad in ["f", "t"]:
-                    pipelines.append(FmhaFwdPipeline("qr_tdm_sched", "row", spad, spad, head_pad, head_pad, "f", "no", "f", "f", qscale, no_mask, "f", "f", "f", F_constraint=gdpa_sched_constraint, F_activation="fast_gelu"))  # fmt: skip
 
             # qr: the generic fp16/bf16 fallback, for skip (which the TDM pipelines
             # above do not take) and for head-dim pairs they do not serve. It runs on
@@ -2727,7 +2677,8 @@ def _get_product(receipt: int) -> Product:
             )
             # Softmax keeps the LSE that training needs; fmha_infer (batch mode, no dropout) may
             # skip it. GDPA (a non-softmax activation) has no LSE, and the Python API runs it in
-            # group mode only (fmha_varlen_gdpa_func).
+            # group mode only (gdpa_varlen_func; gdpa_func and gdpa_infer's batch mode take
+            # equal-length batches).
             if pipeline.F_activation == "softmax":
                 cond &= pipeline.F_lse == "t" or (
                     problem_ctx.mode == "batch" and pipeline.F_dropout == "f"

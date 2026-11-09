@@ -140,19 +140,23 @@ torch.cuda.synchronize()
 
 ## Generalized dot-product attention
 
-`fmha_varlen_gdpa_func` computes `out = act(scale * q @ k.T) @ v` per batch and head, with no
+`gdpa_func`, `gdpa_varlen_func` and `gdpa_infer` are the GDPA counterparts of `fmha_func`,
+`fmha_varlen_func` and `fmha_infer`: `out = act(scale * q @ k.T) @ v` per batch and head, with no
 softmax, no normalization and no LSE (gfx1250, forward only):
 
 ```python
-from ck_tile_fmha import fmha_varlen_gdpa_func
+from ck_tile_fmha import gdpa_func, gdpa_infer, gdpa_varlen_func
 
-out = fmha_varlen_gdpa_func(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k)
+out = gdpa_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k)  # jagged
+out = gdpa_func(q, k, v)  # [batch, seqlen, nheads, d]
+out = gdpa_infer(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k)  # either layout
 ```
 
 `act` is `fast_gelu`, GELU with the tanh approximation; `P` is rounded to `q`'s dtype before the
-second GEMM. `scale` defaults to 1.0, not `1 / sqrt(d)`. Head dims 32, 64, 96, 128, 160 and 256,
-FP16/BF16; no mask, ALiBi, dropout, paged KV or FP8. Few keys per batch run on `qr_tdm_pingpong`,
-many on `qr_tdm_sched` (d64, d128) or `qr_tdm`.
+second GEMM. `scale` defaults to 1.0, not `1 / sqrt(d)`. The kernels are specialized to TCX's
+calls: head dim 128, FP16/BF16, group mode (`gdpa_func` runs the batch as equal-length groups);
+no mask, ALiBi, dropout, paged KV or FP8. They run on `qr_tdm_gdpa_qloop`, several query tiles per
+workgroup. `fmha_varlen_gdpa_func` is the earlier name of `gdpa_varlen_func`.
 
 ## Unsupported arguments
 
@@ -230,7 +234,7 @@ must be positive powers of two** (E8M0); Q/K descales may be general FP32 values
 | `tests/test_kvcache.py` | Cache updates, decode, rotary embeddings, cache indexing |
 | `tests/test_interface.py` | Validation, native compatibility, fake tensors, `torch.compile` |
 | `tests/test_infer.py` | `fmha_infer`: layouts, masks, bias, LSE, shared KV, validation, `torch.compile` |
-| `tests/test_gdpa.py` | GDPA (`fmha_varlen_gdpa_func`, gfx1250) |
+| `tests/test_gdpa.py` | GDPA (`gdpa_func`, `gdpa_varlen_func`, `gdpa_infer`, gfx1250) |
 | `tests/test_fwd_options.py` | `broadcast_q` and `lse_log2` |
 
 FP8 tests compare against `fmha_func` using dequantized inputs cast to BF16;
