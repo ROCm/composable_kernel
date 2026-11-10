@@ -421,6 +421,22 @@ set_tests_properties(dispatcher_test_gemm_driver_pairs PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# Adaptive kernel search (--search-config): the vendored ck_search core, the
+# op-agnostic coordinator, the GEMM adapter and the driver options. CPU only:
+# builds, workers and strategies are faked or run in-process.
+foreach(_search_test ck_search_core adaptive_search_coordinator gemm_search_adapter gemm_search_cli)
+    add_test(
+        NAME dispatcher_test_${_search_test}
+        COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_${_search_test}.py
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    set_tests_properties(dispatcher_test_${_search_test} PROPERTIES
+        LABELS "dispatcher;python;gemm;validation"
+        TIMEOUT 120
+        ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+    )
+endforeach()
+
 # MX bridge host tests and CMake configuration tests. Report missing host build
 # tools as a skipped CMake test rather than an all-skipped pass.
 foreach(_mx_test bridge cmake)

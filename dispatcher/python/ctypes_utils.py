@@ -129,10 +129,13 @@ def get_generated_kernels_dir() -> Path:
 
 def get_arch_filter_data() -> Dict[str, Any]:
     """Load arch filter data from arch_specs_generated if available."""
-    codegen_dir = get_dispatcher_root() / "codegen"
+    codegen_dir = str(get_dispatcher_root() / "codegen")
     import sys
 
-    sys.path.insert(0, str(codegen_dir))
+    # Called once per expanded config: inserting unconditionally grew sys.path
+    # by one entry per call, and every later import scanned all of them.
+    if codegen_dir not in sys.path:
+        sys.path.insert(0, codegen_dir)
 
     try:
         from arch_specs_generated import (

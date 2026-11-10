@@ -64,7 +64,7 @@ from gemm_utils import (  # noqa: E402
     expand_sweep,
     setup_multiple_gemm_dispatchers,
 )
-from ctypes_utils import listed_warp_tiles  # noqa: E402
+from ctypes_utils import get_build_dir, listed_warp_tiles  # noqa: E402
 from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa: E402
 from smi_utils import detect_gpu_ids  # noqa: E402
 
@@ -213,8 +213,74 @@ def load_problems(path, variant):
     return DEFAULT_PROBLEMS
 
 
+class _Workers:
+    """The measurement subprocesses of one call of ``benchmark_on_devices`` or
+    ``run_repeats``. An interrupt of the main thread (Ctrl-C, or SIGTERM that
+    the adaptive search raises as KeyboardInterrupt) stops the whole
+    measurement before it propagates: no further batch starts, running workers
+    are killed and reaped, the device threads are joined, and a batch cut
+    short is not reported."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.idle = threading.Condition(self.lock)  # no device thread active
+        self.procs = set()
+        self.active = 0  # device threads running device_thread
+        self.cancelled = False
+
+    def start(self, *args, **kwargs):
+        """``subprocess.Popen(*args, **kwargs)``, or None once cancelled."""
+        with self.lock:
+            if self.cancelled:
+                return None
+            proc = subprocess.Popen(*args, **kwargs)
+            self.procs.add(proc)
+            return proc
+
+    def done(self, proc):
+        with self.lock:
+            self.procs.discard(proc)
+
+    def run(self, devices, device_thread):
+        """Run ``device_thread(device_id)`` per device and wait for them. On
+        an interrupt, also one while the threads start, every device thread
+        that got going has returned before it propagates; one whose start the
+        interrupt cut short, or that never started, runs nothing."""
+
+        def guarded(device_id):
+            with self.lock:
+                if self.cancelled:
+                    return
+                self.active += 1
+            try:
+                device_thread(device_id)
+            finally:
+                with self.lock:
+                    self.active -= 1
+                    self.idle.notify_all()
+
+        threads = []
+        try:
+            for d in devices:
+                threads.append(threading.Thread(target=guarded, args=(d,), daemon=True))
+                threads[-1].start()
+            for t in threads:
+                t.join()
+        except BaseException:
+            with self.lock:
+                self.cancelled = True
+                for proc in self.procs:
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                self.idle.wait_for(lambda: self.active == 0)
+            raise
+
+
 def _run_batch_on_device(
-    device_id, unit, args, worker_path, base_env, extra=None, failures=None
+    device_id, unit, args, worker_path, base_env, extra=None, failures=None,
+    workers=None,
 ):
     """Run one (problem, kernel-batch) unit in a device-pinned subprocess.
 
@@ -224,6 +290,8 @@ def _run_batch_on_device(
     counts kernels the worker reported as unsupported for the problem. When
     ``failures`` is a list, one FAILURE_FIELDS dict is appended to it per failed
     kernel, and per kernel reported as unsupported (kind ``unsupported``).
+    ``workers``, if given, is the ``_Workers`` that starts the subprocess; once
+    it is cancelled the unit is not run and the result is empty.
     """
     prob_idx, prob_dict, batch = unit
     M, N, K = prob_dict["M"], prob_dict["N"], prob_dict["K"]
@@ -271,13 +339,15 @@ def _run_batch_on_device(
     rows, lines, n_fail, n_skip = [], [], 0, 0
     proc = None
     try:
-        proc = subprocess.Popen(
+        proc = (subprocess.Popen if workers is None else workers.start)(
             [sys.executable, str(worker_path)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             env=env,
         )
+        if proc is None:
+            return rows, lines, n_fail, n_skip
         stdout_bytes, _ = proc.communicate(
             input=payload.encode("utf-8"),
             timeout=args.kernel_timeout * len(batch),
@@ -381,6 +451,9 @@ def _run_batch_on_device(
         n_fail += len(batch)
         for _, cfg, _ in batch:
             _fail(cfg.name, "batch-error", e)
+    finally:
+        if workers is not None and proc is not None:
+            workers.done(proc)
 
     return rows, lines, n_fail, n_skip
 
@@ -556,17 +629,21 @@ def run_repeats(plan, count, problems, built_kernels, devices, run_args):
             i = index[name]
             work.put((rep, (p, prob_dict, [(i, *built_kernels[i])])))
     stats = {"ok": 0, "failed": 0}
+    workers = _Workers()
 
     def device_thread(device_id):
-        while True:
+        while not workers.cancelled:
             try:
                 rep, unit = work.get_nowait()
             except queue.Empty:
                 return
             fails = []
             rows, _, n_fail, n_skip = _run_batch_on_device(
-                device_id, unit, rargs, worker_path, base_env, failures=fails
+                device_id, unit, rargs, worker_path, base_env, failures=fails,
+                workers=workers,
             )
+            if workers.cancelled:
+                return
             with io_lock:
                 for r in rows:
                     writer.writerow(
@@ -594,13 +671,7 @@ def run_repeats(plan, count, problems, built_kernels, devices, run_args):
                 stats["ok"] += len(rows)
                 stats["failed"] += n_fail + n_skip
 
-    threads = [
-        threading.Thread(target=device_thread, args=(d,), daemon=True) for d in devices
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    workers.run(devices, device_thread)
     return stats["ok"], stats["failed"]
 
 
@@ -617,9 +688,19 @@ def unique_built_kernels(configs, lib_paths):
     return kernels, len(built) - len(kernels)
 
 
+def worker_setup():
+    """The worker script and its environment: the driver's, plus GEMM_PYPATH so
+    the worker finds the dispatcher's python modules."""
+    base_env = os.environ.copy()
+    base_env["GEMM_PYPATH"] = os.pathsep.join(
+        [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
+    )
+    return _THIS_DIR / "run_one_gemm_kernel.py", base_env
+
+
 def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_path,
                          base_env, csv_path, extra=None, *, record_failures=None,
-                         measured=None):
+                         measured=None, device_of=None, title=None):
     """Phase 3: fan (problem, kernel-batch) units out over device-pinned workers.
 
     ``pairs[i]`` lists the indices into ``built_kernels`` to run on
@@ -628,34 +709,43 @@ def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_p
 
     ``record_failures``, if given, is called with each batch's FAILURE_FIELDS
     dicts (under the output lock); ``measured``, if given, is a list every CSV
-    row is also appended to.
+    row is also appended to. ``device_of``, if given, names the device that
+    runs every unit of ``problems[i]`` (the devices still run in parallel).
+    ``title``, if given, is printed as one line instead of the Phase 3 banner.
     """
-    print(f"\n{'=' * 80}")
-    print("Phase 3: Benchmark (multi-GPU, subprocess isolation, batched)")
-    print(f"{'=' * 80}")
-    print(f"  Devices: {len(devices)} -> {', '.join(devices)}")
-    print(f"  Batch size: {args.batch_size} kernels per subprocess")
-    print(f"  Timeout: {args.kernel_timeout}s per kernel\n")
+    if title is None:
+        print(f"\n{'=' * 80}")
+        print("Phase 3: Benchmark (multi-GPU, subprocess isolation, batched)")
+        print(f"{'=' * 80}")
+        print(f"  Devices: {len(devices)} -> {', '.join(devices)}")
+        print(f"  Batch size: {args.batch_size} kernels per subprocess")
+        print(f"  Timeout: {args.kernel_timeout}s per kernel\n")
+    else:
+        print(f"  {title} (timeout {args.kernel_timeout}s per kernel)", flush=True)
 
     csv_file = open(csv_path, "w", newline="")
     writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
     writer.writeheader()
 
     work_q = queue.Queue()
+    pinned = None if device_of is None else {d: queue.Queue() for d in devices}
     for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
         prob_dict = {"M": int(prob["M"]), "N": int(prob["N"]), "K": int(prob["K"])}
+        q = work_q if pinned is None else pinned[device_of[prob_idx]]
         for start in range(0, len(idx), args.batch_size):
             batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
-            work_q.put((prob_idx, prob_dict, batch))
+            q.put((prob_idx, prob_dict, batch))
 
     io_lock = threading.Lock()
     stats = {"measurements": 0, "failures": 0, "skipped": 0}
     t0 = time.perf_counter()
+    workers = _Workers()
 
     def device_thread(device_id):
-        while True:
+        q = work_q if pinned is None else pinned[device_id]
+        while not workers.cancelled:
             try:
-                unit = work_q.get_nowait()
+                unit = q.get_nowait()
             except queue.Empty:
                 return
             # The failure list is passed only when recording, so the call is
@@ -663,8 +753,11 @@ def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_p
             fails = [] if record_failures else None
             kw = {} if fails is None else {"failures": fails}
             rows, lines, n_fail, n_skip = _run_batch_on_device(
-                device_id, unit, args, worker_path, base_env, extra, **kw
+                device_id, unit, args, worker_path, base_env, extra, **kw,
+                workers=workers,
             )
+            if workers.cancelled:
+                return
             with io_lock:
                 for ln in lines:
                     print(ln)
@@ -678,17 +771,12 @@ def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_p
                 stats["measurements"] += len(rows)
                 stats["failures"] += n_fail
                 stats["skipped"] += n_skip
-            work_q.task_done()
+            q.task_done()
 
-    threads = [
-        threading.Thread(target=device_thread, args=(d,), daemon=True) for d in devices
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    csv_file.close()
+    try:
+        workers.run(devices, device_thread)
+    finally:
+        csv_file.close()
     stats["seconds"] = time.perf_counter() - t0
     return stats
 
@@ -852,6 +940,22 @@ def main():
         'names, or "*" for every kernel paired with that problem (a --list-pairs '
         "file is accepted). Only the listed kernels are built",
     )
+    parser.add_argument(
+        "--search-config",
+        default=None,
+        metavar="PATH",
+        help="Adaptive search instead of measuring every pair: a search settings "
+        "JSON (see README). Builds and measures only the kernels the search "
+        "proposes, re-verifies the best and writes the confirmed winners as a "
+        "--pairs file. Needs --search-output-dir; gemm_universal only",
+    )
+    parser.add_argument(
+        "--search-output-dir",
+        default=None,
+        metavar="DIR",
+        help="Output of --search-config (winners.json, run.json, trials.jsonl, "
+        "summary.json, rounds/, artifacts/); must not hold an earlier run",
+    )
     args = parser.parse_args()
     if args.verify_tol is None:
         args.verify_tol = VERIFY_TOL.get(args.dtype, DEFAULT_VERIFY_TOL)
@@ -883,6 +987,15 @@ def main():
                 parser.error(f"{seen[key]} and {opt} name the same file: {path}")
             seen[key] = opt
 
+    search_settings = None
+    if args.search_config is not None or args.search_output_dir is not None:
+        # Imported only in search mode, so a run without it loads nothing new.
+        from gemm_search import SettingsError, check_search_options
+
+        try:
+            search_settings = check_search_options(args)
+        except SettingsError as e:
+            parser.error(str(e))
 
     arch = _resolve_arch(args.arch)
     config_paths = resolve_configs(args, arch)
@@ -1070,9 +1183,52 @@ def main():
                 if problem_key(prob) in star:
                     needed.update(fixed[i].name for i in idx)
         all_configs = [cfg for cfg in all_configs if cfg.name in needed]
+        plan = (
+            f"building {len(needed)} kernels"
+            if search_settings is None
+            else "the search builds only the kernels it proposes"
+        )
         print(
             f"  Pair list: {sum(map(len, wanted.values()))} pairs over "
-            f"{len(wanted)} problems; building {len(needed)} kernels ({args.pairs})"
+            f"{len(wanted)} problems; {plan} ({args.pairs})"
+        )
+    if search_settings is not None:
+        # Search mode replaces the build and the full measurement. A problem's
+        # candidates are the kernels a full run would measure with it (with
+        # --pairs: only the listed problems, and the listed kernels among
+        # those); only proposed ones are built.
+        from gemm_search import DriverHooks, run_gemm_search
+
+        if wanted is None:
+            eligible = [
+                [all_configs[i].name for i in idx]
+                for idx in candidate_pairs(vfb, problems, all_configs)
+            ]
+        else:
+            problems = [p for p in problems if problem_key(p) in wanted]
+            eligible = [
+                [n for n in wanted[k] if n in paired[k]]
+                for k in map(problem_key, problems)
+            ]
+        hooks = DriverHooks(
+            build=setup_multiple_gemm_dispatchers,
+            measure=benchmark_on_devices,
+            record=_kernel_record,
+            problem_key=problem_key,
+            load_pairs=load_pair_list,
+            build_reason=build_failure_summary,
+            build_dir=get_build_dir(),
+        )
+        context = {
+            "arch": arch,
+            "layout": sweep_layout,
+            "variant": codegen_variant,
+            "configs": config_paths,
+        }
+        return run_gemm_search(
+            args, search_settings, hooks, problems=problems, configs=all_configs,
+            eligible=eligible, devices=devices, worker=worker_setup(),
+            context=context,
         )
     print(f"  Build workers: {args.workers}")
     if args.build_timeout:
@@ -1178,11 +1334,7 @@ def main():
         fail_writer.writerows(fails)
         fail_file.flush()
 
-    worker_path = _THIS_DIR / "run_one_gemm_kernel.py"
-    base_env = os.environ.copy()
-    base_env["GEMM_PYPATH"] = os.pathsep.join(
-        [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
-    )
+    worker_path, base_env = worker_setup()
     csv_path = Path(args.csv)
     # The hooks are passed only when asked for, so the call is unchanged otherwise.
     hooks = {}
