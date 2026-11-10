@@ -85,16 +85,22 @@ struct tensor_view
 
     CK_TILE_HOST_DEVICE void init_raw() { buf_.init_raw(); }
 
-    CK_TILE_HOST_DEVICE constexpr auto& get_tensor_descriptor() const { return desc_; }
+    CK_TILE_HOST_DEVICE constexpr auto& get_tensor_descriptor() const [[clang::lifetimebound]]
+    {
+        return desc_;
+    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension()
     {
         return TensorDesc::get_num_of_top_dimension();
     }
 
-    CK_TILE_HOST_DEVICE constexpr const auto& get_buffer_view() const { return buf_; }
+    CK_TILE_HOST_DEVICE constexpr const auto& get_buffer_view() const [[clang::lifetimebound]]
+    {
+        return buf_;
+    }
 
-    CK_TILE_HOST_DEVICE constexpr auto& get_buffer_view() { return buf_; }
+    CK_TILE_HOST_DEVICE constexpr auto& get_buffer_view() [[clang::lifetimebound]] { return buf_; }
 
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X

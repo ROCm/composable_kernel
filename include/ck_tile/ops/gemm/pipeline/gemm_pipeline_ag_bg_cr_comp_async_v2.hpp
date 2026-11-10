@@ -453,7 +453,8 @@ struct GemmPipelineAgBgCrCompAsyncV2 : public BaseGemmPipelineAgBgCrCompAsyncV2<
                 static_for<0, 2, 1>{}([&](auto d) {
                     idx(d) += window.get_window_lengths()[d] - 1 + (num_loop - 1) * step[d];
                 });
-                const auto& desc = window.get_bottom_tensor_view().get_tensor_descriptor();
+                const auto view  = window.get_bottom_tensor_view();
+                const auto& desc = view.get_tensor_descriptor();
                 return desc.calculate_offset(idx) >= desc.get_element_space_size();
             };
             const bool drain_async_loads =
