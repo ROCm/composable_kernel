@@ -43,6 +43,21 @@ There are 2 template parameters for this kernel template.
 ## codegen
 To speed up compile time, we instantiate the kernels into separate file. In this way we can benefit from parallel building from CMake/Make system. This is achieved by `generate.py` script. Besides, you can look into this script to learn how to instantiate a kernel instance step by step, which is described in `FMHA_FWD_KERNEL_BODY` variable.
 
+### Basic TDM forward feature coverage
+
+On gfx125, FP16/BF16 `qr_tdm` supports logits soft cap, dropout, group-mode
+`skip_min_seqlen_q`, and padded Q/V head dimensions that are not multiples of eight.
+Dropout preserves the forward/backward Philox mapping and computes LSE from the
+undropped probability mass. Group skip compares the logical Q length with the
+threshold and leaves skipped outputs untouched. Batch dispatch reuses `skip=false`
+instances because the threshold only applies to group mode. All gfx125 receipts
+accept batch `skip_min_seqlen_q=true`; custom tune `filters.skip` applies only to
+group mode on this architecture.
+
+FP16/BF16 inventories contain only TDM pipelines, with head buckets up to 512.
+The existing D192/V128 bias/dropout and softcap-with-bias exclusions still apply.
+FP8 and the split-KV/paged-KV APIs retain their separate inventories.
+
 ### Scheduled TDM forward pipeline
 
 `qr_tdm_sched` shares the gfx125 TDM architecture requirements with `qr_tdm`.

@@ -62,6 +62,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
 
     static_assert(detail::is_qr_tdm_pingpong_qkv_v<Problem> && !kQuantized,
                   "qr_tdm_pingpong: fp16/bf16 Q/K/V without quantization scales");
+    static_assert(!kHasLogitsSoftCap && !Problem::kHasDropout,
+                  "qr_tdm_pingpong: softcap/dropout require the basic qr_tdm pipeline");
     static_assert(!Problem::kUseDoubleKVLdsBuffer && !Problem::kProgressiveDsLoadK,
                   "qr_tdm_pingpong has its own K/V buffering");
     static_assert(kSubQKHeaddim == kQKHeaddim, "qr_tdm_pingpong stages whole K rows");

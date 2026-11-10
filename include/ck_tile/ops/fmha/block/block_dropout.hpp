@@ -69,6 +69,35 @@ CK_TILE_DEVICE void PermuteBlockDropoutRandval(uint8_t (&random_uint8_t)[N])
 #endif
 }
 
+#if defined(__gfx125__)
+template <index_t X>
+CK_TILE_DEVICE uint32_t dropout_dpp8_xor(uint32_t v)
+{
+    constexpr uint32_t selector = ((0 ^ X) << 0) | ((1 ^ X) << 3) | ((2 ^ X) << 6) |
+                                  ((3 ^ X) << 9) | ((4 ^ X) << 12) | ((5 ^ X) << 15) |
+                                  ((6 ^ X) << 18) | ((7 ^ X) << 21);
+    return __builtin_amdgcn_mov_dpp8(v, selector);
+}
+
+// Each eight-lane group transposes its 8x8 random bytes in registers. All lanes
+// must participate, including those whose score elements are masked/padded.
+CK_TILE_DEVICE void transpose_dropout_bytes(uint32_t& lo, uint32_t& hi, uint32_t lane)
+{
+    const bool b2 = lane & 4, b1 = lane & 2, b0 = lane & 1;
+    const uint32_t a = dropout_dpp8_xor<4>(b2 ? lo : hi);
+    lo               = b2 ? a : lo;
+    hi               = b2 ? hi : a;
+    const uint32_t b =
+        dropout_dpp8_xor<2>(__builtin_amdgcn_perm(hi, lo, b1 ? 0x05040100u : 0x07060302u));
+    lo = __builtin_amdgcn_perm(b, lo, b1 ? 0x03020504u : 0x05040100u);
+    hi = __builtin_amdgcn_perm(b, hi, b1 ? 0x03020706u : 0x07060100u);
+    const uint32_t c =
+        dropout_dpp8_xor<1>(__builtin_amdgcn_perm(hi, lo, b0 ? 0x06040200u : 0x07050301u));
+    lo = __builtin_amdgcn_perm(c, lo, b0 ? 0x03050104u : 0x05020400u);
+    hi = __builtin_amdgcn_perm(c, hi, b0 ? 0x03070106u : 0x07020600u);
+}
+#endif
+
 } // namespace detail
 
 struct NullBlockDropout
@@ -407,6 +436,123 @@ struct BlockDropout
             move_tile_window(randval_dram_window, {kMPerStep, -kNPerBlock});
         });
         move_tile_window(randval_dram_window, {-kMPerBlock, kNPerBlock});
+    }
+
+    // Coordinate-based Philox mapping for pipelines whose score registers do not
+    // use BlockGemm's legacy distribution. No LDS scratch is needed, so prefetched
+    // K/V tiles remain live while dropout runs. Keep the 32x32 mapping shared with
+    // reference_batched_dropout_randval and the backward kernels.
+    // Exact transposed WMMA C encoding, including the partition mapping. An
+    // unfamiliar custom-tune layout keeps the coordinate-based fallback.
+    template <typename PTile>
+    static constexpr bool kUsesTransposedC16Layout = [] {
+        using Enc            = typename PTile::StaticTileDistribution::DstrEncode;
+        constexpr auto spans = PTile::get_distributed_spans();
+        using S0             = remove_cvref_t<decltype(spans[number<0>{}])>;
+        using S1             = remove_cvref_t<decltype(spans[number<1>{}])>;
+        if constexpr(get_warp_size() != 32 || S0::Impl::size() != 1 || S1::Impl::size() != 3)
+            return false;
+        else
+        {
+            constexpr index_t m_iter = S0::Impl::at(0), n_iter = S1::Impl::at(0);
+            constexpr index_t m_warp = Enc::hs_lengthss_[number<0>{}][number<1>{}];
+            using Expected           = tile_distribution_encoding<
+                          sequence<>,
+                          tuple<sequence<m_iter, m_warp, 1, 16>, sequence<n_iter, 1, 1, 1, 2, 8>>,
+                          tuple<sequence<1, 2>, sequence<2, 1>>,
+                          tuple<sequence<1, 1>, sequence<4, 3>>,
+                          sequence<1, 2, 2, 2>,
+                          sequence<0, 0, 3, 5>>;
+            return std::is_same_v<Enc, Expected>;
+        }
+    }();
+
+    template <typename PTile, typename RandValOutputDataType>
+    CK_TILE_DEVICE void RunOnTile(PTile& p,
+                                  index_t start_m,
+                                  index_t start_n,
+                                  RandValOutputDataType* randval,
+                                  index_t stride,
+                                  index_t seqlen_q,
+                                  index_t seqlen_k) const
+    {
+#if defined(__gfx125__)
+        if constexpr(kUsesTransposedC16Layout<PTile>)
+        {
+            // Origins are wave-uniform. The TDM loops use tile-aligned origins;
+            // arbitrary callers can still use the per-element mapping below.
+            if(((start_m | start_n) & 7) == 0)
+            {
+                constexpr auto spans = PTile::get_distributed_spans();
+                constexpr index_t m_iter =
+                    remove_cvref_t<decltype(spans[number<0>{}])>::Impl::at(0);
+                constexpr index_t n_iter =
+                    remove_cvref_t<decltype(spans[number<1>{}])>::Impl::at(0);
+                static_for<0, m_iter, 1>{}([&](auto mi) {
+                    static_for<0, n_iter, 1>{}([&](auto ni) {
+                        constexpr auto i0 = tile_distributed_index<mi>{};
+                        const auto xy     = get_x_indices_from_distributed_indices(
+                            p.get_tile_distribution(),
+                            make_tuple(i0, tile_distributed_index<ni, 0, 0>{}));
+                        const index_t m       = start_m + xy.at(number<0>{});
+                        const index_t n       = start_n + xy.at(number<1>{});
+                        const uint32_t lane   = m & 7;
+                        const index_t ph_lane = (n & 31) + lane + ((m >> 3) & 1) * 32;
+                        const auto subsequence =
+                            bit_cast<unsigned long long>(make_uint2(m >> 5, n >> 5));
+                        const uint4 random =
+                            philox{ph_seed, ph_head_offset + ph_lane}.get_philox_4x32(subsequence);
+                        uint32_t lo = (m & 16) ? random.z : random.x;
+                        uint32_t hi = (m & 16) ? random.w : random.y;
+                        detail::transpose_dropout_bytes(lo, hi, lane);
+                        static_for<0, 8, 1>{}([&](auto j) {
+                            constexpr index_t jj = decltype(j)::value;
+                            constexpr auto idx =
+                                make_tuple(i0, tile_distributed_index<ni, 0, jj>{});
+                            const uint8_t r =
+                                static_cast<uint8_t>((jj < 4 ? lo : hi) >> (8 * (jj % 4)));
+                            p(idx) = r <= p_undrop_in_uint8_t ? p[idx] * rp_undrop : 0;
+                            if(is_store_randval && m < seqlen_q && n + jj < seqlen_k)
+                                randval[static_cast<long_index_t>(m) * stride + n + jj] = r;
+                        });
+                    });
+                });
+                return;
+            }
+        }
+#endif
+        RunOnTilePerElement(p, start_m, start_n, randval, stride, seqlen_q, seqlen_k);
+    }
+
+    template <typename PTile, typename RandValOutputDataType>
+    CK_TILE_DEVICE void RunOnTilePerElement(PTile& p,
+                                            index_t start_m,
+                                            index_t start_n,
+                                            RandValOutputDataType* randval,
+                                            index_t stride,
+                                            index_t seqlen_q,
+                                            index_t seqlen_k) const
+    {
+        constexpr auto spans = PTile::get_distributed_spans();
+        sweep_tile_span(spans[number<0>{}], [&](auto im) {
+            sweep_tile_span(spans[number<1>{}], [&](auto in) {
+                constexpr auto idx = make_tuple(im, in);
+                const auto xy =
+                    get_x_indices_from_distributed_indices(p.get_tile_distribution(), idx);
+                const index_t m        = start_m + xy.at(number<0>{});
+                const index_t n        = start_n + xy.at(number<1>{});
+                const auto subsequence = bit_cast<unsigned long long>(make_uint2(m / 32, n / 32));
+                const index_t lane     = n % 32 + ((m % 16) / 8) * 32;
+                const index_t byte     = (m % 32) / 16 * 8 + m % 8;
+                uint8_t random[4];
+                philox{ph_seed, ph_head_offset + lane}.get_random_4x8(
+                    random, subsequence, byte / 4);
+                const uint8_t r = random[byte % 4];
+                p(idx)          = r <= p_undrop_in_uint8_t ? p[idx] * rp_undrop : 0;
+                if(is_store_randval && m < seqlen_q && n < seqlen_k)
+                    randval[static_cast<long_index_t>(m) * stride + n] = r;
+            });
+        });
     }
 
     const unsigned long long ph_seed;

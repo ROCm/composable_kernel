@@ -505,7 +505,7 @@ endforeach()
                 api_pool, kernels = get_fwd_blobs(
                     targets=["gfx1250"],
                     kernel_filter=kernel_filter,
-                    receipt=100,
+                    receipt=200 if feature == "skip" else 100,
                     optdim_list=[192, 256],
                     mask_impl="simplified",
                 )
@@ -676,14 +676,14 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
         )
 
     @staticmethod
-    def generic_qr_id(dispatch, mode, mask="s_no", lse="f", padded="t", sink="f"):
+    def head_tail_id(dispatch, mode, mask="s_no", lse="f", padded="t", sink="f"):
         return dispatch.expected_id(
             mode=mode,
             hdim=256,
-            pipeline="qr",
+            pipeline="qr_tdm",
             mask=mask,
             lse=lse,
-            spad=padded,
+            spad="t" if mode == "group" else "f",
             dpad=padded,
             sink=sink,
         )
@@ -714,11 +714,11 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
                             dispatch.expected_id(
                                 mode=mode,
                                 hdim=192,
-                                pipeline="qr",
+                                pipeline="qr_tdm",
                                 bm0=128,
                                 mask="s_no",
                                 lse="f",
-                                spad="t",
+                                spad="t" if group else "f",
                                 dpad="t",
                                 sink="f",
                             )
@@ -726,7 +726,7 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
                     )
             self.assertEqual(
                 dispatch.run(group=group, hdim_q=193, hdim_v=128),
-                [self.generic_qr_id(dispatch, mode)],
+                [self.head_tail_id(dispatch, mode)],
             )
             self.assertEqual(
                 dispatch.run(group=group, hdim_q=192, hdim_v=192),
@@ -1059,7 +1059,10 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
             dict(device="gfx942"),
         ):
             with self.subTest(unsupported=changes):
-                self.assertEqual(dispatch.run(**changes), [-1])
+                if changes == dict(skip=1):
+                    self.assertEqual(dispatch.run(**changes), dispatch.run())
+                else:
+                    self.assertEqual(dispatch.run(**changes), [-1])
 
         for device in ("gfx1251", "gfx1252"):
             for mode, group in (("batch", 0), ("group", 1)):
@@ -1279,7 +1282,7 @@ class TestGfx125V128Codegen(unittest.TestCase):
         for targets in (["gfx1250"], ["gfx942", "gfx950", "gfx1250"]):
             for dimensions in self.dimension_cases():
                 for pattern in (
-                    "*bf16*_qr_vr_*",
+                    "*_bf16_*_qr_vr_*",
                     "*not_a_kernel*",
                 ):
                     with self.subTest(
@@ -1298,7 +1301,7 @@ class TestGfx125V128Codegen(unittest.TestCase):
                             [k.filename for k in kernels], [k.filename for k in again]
                         )
                         self.assertEqual(pool.render("test"), again_pool.render("test"))
-                        if pattern != "*bf16*_qr_vr_*":
+                        if targets == ["gfx1250"] or pattern == "*not_a_kernel*":
                             self.assertFalse(kernels)
 
     def test_d64_geometry_and_padding(self):
@@ -1805,9 +1808,15 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
                             dict(sink=1),
                             dict(dtype="fp16"),
                         ):
-                            self.assertNotIn(
-                                dispatch.run(**args, **rejected)[0], family_ids
-                            )
+                            if rejected == dict(skip=1) and not group:
+                                self.assertEqual(
+                                    dispatch.run(**args, **rejected),
+                                    dispatch.run(**args),
+                                )
+                            else:
+                                self.assertNotIn(
+                                    dispatch.run(**args, **rejected)[0], family_ids
+                                )
 
     def test_d128_filtered_priority_and_fallback(self):
         pool, kernels = get_fwd_blobs(
@@ -1879,7 +1888,15 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
                 dict(row=0),
                 dict(dtype="fp16"),
             ):
-                self.assertEqual(dispatch.run(group=group, hdim_q=128, **changes), [-1])
+                if changes == dict(skip=1) and not group:
+                    self.assertEqual(
+                        dispatch.run(group=group, hdim_q=128, **changes),
+                        dispatch.run(group=group, hdim_q=128),
+                    )
+                else:
+                    self.assertEqual(
+                        dispatch.run(group=group, hdim_q=128, **changes), [-1]
+                    )
 
     def test_missing_d128_candidate_does_not_disable_generic(self):
         pool, kernels = get_fwd_blobs(

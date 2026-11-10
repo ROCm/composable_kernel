@@ -2697,6 +2697,12 @@ struct FmhaFwdKernel
                         kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
                 }
 
+                if constexpr(kSkipMinSeqlenQ)
+                {
+                    if(kargs.seqlen_q <= kargs.min_seqlen_q)
+                        return;
+                }
+
                 // # of required blocks is different in each groups, terminate unnecessary blocks
                 // earlier
                 if(kargs.seqlen_q <= i_m0)
@@ -3403,7 +3409,10 @@ struct FmhaFwdKernel
                     ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / scale_s
                     : -numeric<float>::infinity();
 
-            auto invoke_fmha_pipeline = [&](auto&&... args) -> decltype(auto) {
+            auto invoke_fmha_pipeline = [&,
+                                         i_batch_   = i_batch,
+                                         i_nhead_   = i_nhead,
+                                         i_nhead_k_ = i_nhead_k](auto&&... args) -> decltype(auto) {
                 if constexpr(kPipelineName == "qr_tdm" && kBlockQScale)
                 {
                     const float* k_descale_ptr =
@@ -3419,6 +3428,70 @@ struct FmhaFwdKernel
                 else if constexpr(kPipelineName == "qr_tdm" && kFoldedQScale)
                     return FmhaPipeline{}(
                         static_cast<decltype(args)&&>(args)..., nullptr, nullptr, 1, v_descale);
+                else if constexpr(kPipelineName == "qr_tdm" && (kHasLogitsSoftCap || kHasDropout))
+                {
+                    auto transform = [&](auto x) {
+                        if constexpr(kHasLogitsSoftCap)
+                        {
+                            const LogitsSoftCapParams<FmhaMask, CK_TILE_FMHA_FWD_FAST_EXP2> params{
+                                mask, scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
+                            AttentionVariant variant;
+                            return variant.LogitsTransform(params,
+                                                           variant.QueryTransform(params, x),
+                                                           i_batch_,
+                                                           i_nhead_,
+                                                           i_nhead_k_);
+                        }
+                        else
+                            return x;
+                    };
+                    auto apply_dropout = [&] {
+                        if constexpr(kHasDropout)
+                        {
+                            const auto heads = kargs.num_head_q_total > 0 ? kargs.num_head_q_total
+                                                                          : kargs.num_head_q;
+                            const BlockDropout dropout{
+                                i_batch_,
+                                kargs.head_start + i_nhead_,
+                                heads,
+                                kargs.is_drop_seed_offset_from_host ? kargs.drop_seed.val
+                                                                    : *kargs.drop_seed.ptr,
+                                kargs.is_drop_seed_offset_from_host ? kargs.drop_offset.val
+                                                                    : *kargs.drop_offset.ptr,
+                                kargs.rp_undrop,
+                                kargs.p_undrop_in_uint8_t,
+                                kargs.is_store_randval};
+                            RandValOutputDataType* randval = nullptr;
+                            if(kargs.is_store_randval)
+                            {
+                                const long_index_t batch_offset = [&] {
+                                    if constexpr(kIsGroupMode)
+                                        return static_cast<long_index_t>(
+                                                   kargs.seqstart_q_ptr[i_batch_]) *
+                                               kargs.stride_randval;
+                                    else
+                                        return static_cast<long_index_t>(i_batch_) *
+                                               kargs.batch_stride_randval;
+                                }();
+                                randval = static_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +
+                                          batch_offset +
+                                          static_cast<long_index_t>(i_nhead_) *
+                                              kargs.nhead_stride_randval;
+                            }
+                            return [dropout,
+                                    randval,
+                                    stride   = kargs.stride_randval,
+                                    seqlen_q = kargs.seqlen_q,
+                                    seqlen_k = kargs.seqlen_k](auto& p, index_t m, index_t n) {
+                                dropout.RunOnTile(p, m, n, randval, stride, seqlen_q, seqlen_k);
+                            };
+                        }
+                        else
+                            return [](auto&, index_t, index_t) {};
+                    }();
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                          make_tuple(transform, apply_dropout));
+                }
                 else
                     return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...);
             };
@@ -3520,55 +3593,70 @@ struct FmhaFwdKernel
                 }
             }();
 
-            // Oacc DRAM and Oacc DRAM window
-            auto o_dram = [&] {
-                const auto o_dram_naive = [&] {
-                    {
-                        return make_naive_tensor_view<address_space_enum::global>(
-                            o_ptr,
-                            make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                            make_tuple(kargs.stride_o, 1),
-                            number<FmhaPipeline::kAlignmentOacc>{},
-                            number<1>{});
-                    }
+            auto store_output = [&](auto alignment) {
+                // Oacc DRAM and Oacc DRAM window
+                auto o_dram = [&] {
+                    const auto o_dram_naive = [&] {
+                        {
+                            return make_naive_tensor_view<address_space_enum::global>(
+                                o_ptr,
+                                make_tuple(kargs.seqlen_q, kargs.hdim_v),
+                                make_tuple(kargs.stride_o, 1),
+                                alignment,
+                                number<1>{});
+                        }
+                    }();
+
+                    return pad_tensor_view(
+                        o_dram_naive,
+                        make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                        sequence<kPadSeqLenQ, kPadHeadDimV>{});
                 }();
 
-                return pad_tensor_view(
-                    o_dram_naive,
+                auto o_dram_window = make_tile_window(
+                    o_dram,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                    sequence<kPadSeqLenQ, kPadHeadDimV>{});
-            }();
+                    {i_m0, i_n1});
 
-            auto o_dram_window = make_tile_window(
-                o_dram,
-                make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                {i_m0, i_n1});
-
-            // Same logical output as the current Default2DEpilogue (cast to ODataType, overwrite
-            // valid rows, no scale or atomic); bounds come from clamping/skipping. Mirror epilogue
-            // changes here.
-            if constexpr(kUseAsyncLdsOStore && PrefillCase)
-            {
-                fmha_tdm_sched_store_o_tile_async_from_lds<FmhaPipeline, kAsyncOStoreBytes>(
-                    o_lds_staging,
-                    o_ptr + static_cast<long_index_t>(i_m0) * kargs.stride_o + i_n1,
-                    kargs.stride_o,
-                    kargs.seqlen_q - i_m0,
-                    o_acc_tile);
-            }
-            else if constexpr(detail::epilogue_uses_smem_v<EpiloguePipeline>)
-            {
-                // The pipeline is done with its LDS; pipelines that declare
-                // their own arrays leave none to the epilogue (direct store).
-                if constexpr(kPipelineDeclaresLds)
-                    EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, nullptr);
+                // Same logical output as the current Default2DEpilogue (cast to ODataType,
+                // overwrite valid rows, no scale or atomic); bounds come from clamping/skipping.
+                // Mirror epilogue changes here.
+                if constexpr(kUseAsyncLdsOStore && PrefillCase)
+                {
+                    fmha_tdm_sched_store_o_tile_async_from_lds<FmhaPipeline, kAsyncOStoreBytes>(
+                        o_lds_staging,
+                        o_ptr + static_cast<long_index_t>(i_m0) * kargs.stride_o + i_n1,
+                        kargs.stride_o,
+                        kargs.seqlen_q - i_m0,
+                        o_acc_tile);
+                }
+                else if constexpr(detail::epilogue_uses_smem_v<EpiloguePipeline>)
+                {
+                    // The pipeline is done with its LDS; pipelines that declare
+                    // their own arrays leave none to the epilogue (direct store).
+                    if constexpr(kPipelineDeclaresLds)
+                        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, nullptr);
+                    else
+                        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, smem_ptr);
+                }
                 else
-                    EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, smem_ptr);
+                {
+                    EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
+                }
+            };
+            if constexpr(kPipelineName == "qr_tdm" && kPadHeadDimV)
+            {
+                // Keep vector stores for aligned heads, and predicate individual
+                // elements for arbitrary tails and row strides.
+                constexpr index_t alignment = FmhaPipeline::kAlignmentOacc;
+                if(kargs.hdim_v % alignment == 0 && kargs.stride_o % alignment == 0 &&
+                   reinterpret_cast<uintptr_t>(o_ptr) % (alignment * sizeof(ODataType)) == 0)
+                    store_output(number<alignment>{});
+                else
+                    store_output(number<1>{});
             }
             else
-            {
-                EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
-            }
+                store_output(number<FmhaPipeline::kAlignmentOacc>{});
         }
     }
 };
