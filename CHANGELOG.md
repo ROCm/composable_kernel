@@ -5,6 +5,8 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## (Unreleased) Composable Kernel
 
 ### Fixed
+* Fixed all-zero CK Tile FMHA forward output on gfx11 with compilers that promote homogeneous struct allocas to vectors. `PermuteWarpGemmCToA` accessed past its thread buffers.
+* Fixed wrong CK Tile FMHA backward gradients on gfx11 caused by a strict-aliasing violation in `PermuteWarpGemmCToA`, which accessed 16-bit thread buffers through `uint32_t` lvalues.
 * Fixed FP8 format selection in the XDL FP8 GEMM, convolution, MoE, elementwise, CK Tile FlatMM, and grouped-quantization examples when built for gfx942 and gfx950 together. The affected examples select FNUZ or OCP types for the active device and retain native FP8 instructions.
 * Fixed CK Tile TF32 compilation for combined gfx942/gfx950 builds that select gfx942 fragments, by lowering their XF32 operations to FP32 MFMA instructions on gfx950 while preserving the fragment layout.
 * Fixed missing store waits in CK Tile Stream-K and the legacy buffer store fence on gfx12 targets.
