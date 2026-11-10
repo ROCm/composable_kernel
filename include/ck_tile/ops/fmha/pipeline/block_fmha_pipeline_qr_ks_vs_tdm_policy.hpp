@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
@@ -31,18 +32,22 @@ inline constexpr index_t kQrTdmLdsAccessBytes = 16;
 inline constexpr bool kQrTdmLogitsSoftCapIsTanh =
     CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH;
 
-// cap * tanh(s * scale / cap) in the exp2 domain (scale_s carries log2(e)), as
-// LogitsSoftCapParams<..., UseExp2> computes it; applied after scale_s and before the bias
-// (the reference's order).
+// The soft cap of the exp2-domain attention variant (LogitsSoftCap<true>: scale_s carries
+// log2(e)) on every score, applied after scale_s and before the bias (the reference's order).
+// The variant's parameters take a mask they do not use here.
 template <typename SaccTile>
 CK_TILE_DEVICE void qr_tdm_apply_logits_soft_cap(SaccTile& s_acc,
                                                  float scale_s,
                                                  float logits_soft_cap,
                                                  float logits_soft_cap_rcp)
 {
-    const float cap = log2e_v<float> * logits_soft_cap;
-    const float rcp = scale_s * log2e_rcp_v<float> * logits_soft_cap_rcp;
-    tile_elementwise_inout([&](auto& x) { x = cap * tanh_fast<float>(x * rcp); }, s_acc);
+    constexpr struct
+    {
+    } kNoMask{};
+    const LogitsSoftCapParams<decltype(kNoMask), true> params{
+        kNoMask, scale_s, logits_soft_cap, logits_soft_cap_rcp};
+    tile_elementwise_inout(
+        [&](auto& x) { x = LogitsSoftCap<true>{}.LogitsTransform(params, x, 0, 0, 0); }, s_acc);
 }
 
 template <index_t X>
@@ -145,6 +150,18 @@ struct EncodedTdmPadding
     static constexpr index_t kPadInterval = raw_pad_interval;
     static constexpr index_t kPadAmount   = raw_pad_amount;
 };
+
+// The TDM load configuration of an LDS region padded as PaddingConfig.
+template <typename PaddingConfig>
+CK_TILE_DEVICE TDMConfig make_tdm_config()
+{
+    using Raw = EncodedTdmPadding<PaddingConfig>;
+    TDMConfig config;
+    config.pad_enable              = Raw::kEnabled;
+    config.pad_config.pad_amount   = Raw::kPadAmount;
+    config.pad_config.pad_interval = Raw::kPadInterval;
+    return config;
+}
 
 template <
     typename DataType,
@@ -952,6 +969,19 @@ namespace detail {
 //   double K/V LDS buffer: Q/K0=0, K1=17408, V0=34816, V1=53248, end=71680
 //   single-V/double-K LDS buffer: Q/K0=0, K1=17408, S=34816, V0=34832, end=53248
 // Region alignment follows one gfx1250 LDS bank row.
+// The LDS of dropout's randval shuffle (BlockDropout::Run) with the policy's QK gemm, 0
+// without dropout: the TDM arenas end with it.
+template <typename Problem, typename Policy>
+CK_TILE_HOST_DEVICE constexpr index_t qr_tdm_randval_lds_bytes()
+{
+    if constexpr(Problem::kHasDropout)
+        return BlockDropout::MakeRandValLdsBlockDescriptor<
+                   remove_cvref_t<decltype(Policy::template GetQKBlockGemm<Problem>())>>()
+            .get_element_space_size();
+    else
+        return 0;
+}
+
 template <typename Problem, typename QPadding, typename KPadding, typename VPadding>
 struct QrTdmLdsArenaLayout
 {
@@ -1014,16 +1044,17 @@ struct QrTdmLdsArenaLayout
     static constexpr index_t kV1Offset =
         kUseDoubleKVLdsBuffer ? integer_least_multiple(kV0Offset + kVBytes, kRegionAlignment)
                               : kV0Offset;
-    static constexpr index_t kArenaBytes = [] {
+    // dropout's randval shuffle (BlockDropout::Run) past the Q/K/S/V regions
+    static constexpr index_t kRandValOffset = [] {
         if constexpr(kUseDoubleKVLdsBuffer)
-        {
-            return integer_least_multiple(kV1Offset + kVBytes, kArenaAlignment);
-        }
+            return kV1Offset + kVBytes;
         else
-        {
-            return integer_least_multiple(max(kQBytes, kV0Offset + kVBytes), kArenaAlignment);
-        }
+            return max(kQBytes, kV0Offset + kVBytes);
     }();
+    static constexpr index_t kRandValBytes =
+        qr_tdm_randval_lds_bytes<Problem, BlockFmhaPipelineQRKSVSTdmDefaultPolicy>();
+    static constexpr index_t kArenaBytes =
+        integer_least_multiple(kRandValOffset + kRandValBytes, kArenaAlignment);
 
     static constexpr bool kHasProductionAlignment =
         kQOffset % kRegionAlignment == 0 && kK0Offset % kRegionAlignment == 0 &&

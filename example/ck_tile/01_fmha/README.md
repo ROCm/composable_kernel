@@ -72,6 +72,21 @@ single resident block cannot overlap softmax and gemms. Among its head dims `qr_
 generated for d128 only, as the fallback of the calls `qr_tdm_sched` refuses; skip goes
 to the generic `qr` pipeline.
 
+### Basic TDM forward feature coverage
+
+On gfx125, FP16/BF16 `qr_tdm` supports logits soft cap, dropout, group-mode
+`skip_min_seqlen_q`, and padded Q/V head dimensions that are not multiples of eight.
+Dropout preserves the forward/backward Philox mapping and computes LSE from the
+undropped probability mass. Group skip compares the logical Q length with the
+threshold and leaves skipped outputs untouched. Batch dispatch reuses `skip=false`
+instances because the threshold only applies to group mode. All gfx125 receipts
+accept batch `skip_min_seqlen_q=true`; custom tune `filters.skip` applies only to
+group mode on this architecture.
+
+FP16/BF16 inventories contain only TDM pipelines, with head buckets up to 512.
+The existing D192/V128 bias/dropout and softcap-with-bias exclusions still apply.
+FP8 and the split-KV/paged-KV APIs retain their separate inventories.
+
 ### Scheduled TDM forward pipeline
 
 `qr_tdm_sched` shares the gfx125 TDM architecture requirements with `qr_tdm`.
@@ -90,11 +105,41 @@ enable expert scheduling mode.
 
 WG indexing follows the existing shared kernel rules. For batch BHSD square
 causal attention with one V tile and no dropout, sched D64/D128 visit the longest
-Q tile across heads within each batch first. Sched D192 keeps the existing
+Q tile across heads within each batch first, subject to the grouped XCD path
+described below. Sched D192 keeps the existing
 head-major remap; group mode does not enter this batch-local branch. The XCC
 mode 5/tm5r experiment remains disabled unless `CK_TILE_FMHA_PAIRED_XCC_ORDER`
 is explicitly defined to a nonzero value. Its eight-XCC mapping assumptions
 must be checked on the target hardware before enabling it.
+
+The forward workgroup mapping is defined in
+[`fmha_fwd_workgroup_mapping.hpp`](../../../include/ck_tile/ops/fmha/kernel/fmha_fwd_workgroup_mapping.hpp).
+`GetTileIndex()` normalizes the launch axes and supplies pipeline, architecture,
+layout, and sequence properties to `MapFmhaFwdWorkgroup()`. That single helper
+selects the path and returns the Q tile, V tile, head, and batch together.
+No policy enum or intermediate permutation is exposed to callers.
+
+The measured gfx1250 scheduled BF16 D128/M128/N128 family additionally groups
+whole (batch, head) rows within each XCD for uniform, square causal MHA in
+batch mode with a single V tile.
+This path requires eight XCDs, 2–16 Q tiles, a batch/head product divisible by 32,
+and no bias, dropout, LSE, sink, softcap, or quantization scale. Groups contain
+4, 8, or 16 (batch, head) rows; heavy Q tiles run first within each group.
+Larger sequences and other cases retain the existing mapping. The opt-in paired-XCC experiment,
+including its fallback order, takes precedence over this grouping.
+
+The non-causal XCD path is unchanged. The BHSD and general-grid XCD fallbacks
+have the same logical head-major order. They retain separate batch-first and
+tile-first arithmetic forms because merging them measured slower in the early
+gfx1250 standalone experiment.
+Both share the corrected Q/V decoding: masking reverses the Q dimension only.
+Unit tests check the complete mapping; GPU tests exercise `GetTileIndex()`
+thresholds and fallbacks. The launch interface and Kargs are unchanged.
+
+The mapper's coordinate coverage does not expand a pipeline's supported head
+dimensions. In particular, the QR TDM paths still assume a single V tile when
+loading V; testing multi-V coordinates does not establish multi-V attention
+support for those pipelines.
 
 The implementation separates tile selection, data operations, and placement:
 
@@ -380,13 +425,16 @@ P_sink[h,q] = exp(sink[h] - LSE[h,q])
 d_sink[h]   = -sum_q P_sink[h,q] * D[h,q]
 ```
 
-The sum runs over every query row of every batch, so `d_sink` has shape `[nhead]` and is
-accumulated with `atomicAdd` from `fmha_bwd_dot_do_o`. Two consequences follow:
+The sum runs over every query row of every batch, so `d_sink` has shape `[nhead]`.
+`fmha_bwd_dot_do_o` stores one partial sum per block in the workspace, and the partials are added
+in a fixed order afterwards, by `fmha_bwd_convert_dq` or, for kernel sets without it, by the last
+`fmha_bwd_dot_do_o` block of each head. That makes `d_sink` bit-reproducible. The launcher takes
+this path for every deterministic run, and otherwise only when the traits set `has_sink_grad` and
+the kernel set has `fmha_bwd_convert_dq`; other runs accumulate with `atomicAdd`, whose result
+varies in the low bits from run to run.
 
 - **The caller must zero `d_sink_ptr` before the call.** The kernel only accumulates into it and
   never initialises it.
-- `d_sink` is not bit-reproducible across runs even with `-deterministic=1`, because that flag
-  controls the `dQ` reduction only.
 
 The `LSE` handed to the backward call must be the **post-sink** `LSE`, that is
 `log(exp(LSE_nosink) + exp(sink))`, which is what the forward kernel writes when a sink is

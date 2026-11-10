@@ -278,10 +278,10 @@ struct BlockFmhaPipelineQRKSVSTdmKVShared : BlockFmhaPipelineQRKSVSTdmPingPong<P
             }
         }
 
-        TDMConfig tdm_config_q = PingPong::template MakeTdmConfig<
-            typename Policy::template LdsPaddingConfigQ<Problem>>();
-        TDMConfig tdm_config_kv = PingPong::template MakeTdmConfig<
-            typename Policy::template LdsPaddingConfigKV<Problem>>();
+        TDMConfig tdm_config_q =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigQ<Problem>>();
+        TDMConfig tdm_config_kv =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigKV<Problem>>();
 
         // Q tile in LDS, then in registers for the whole loop
         auto q_dram_window = make_tile_window(

@@ -22,9 +22,10 @@ namespace ck_tile {
 //  - row-major E and row-major Ds,
 //  - no ScaleM/ScaleN,
 //  - output window must use memory_operation_enum::set (no split-K accumulation). The TDM store
-//    always overwrites, so any other memory operation traps at run time. A trap is used instead
-//    of a static_assert because the kernel instantiates the atomic-add epilogue branch for
-//    non-fp16/bf16 E even though GemmKernelMultiD rejects k_batch > 1 on the host.
+//    always overwrites, so any other memory operation traps at run time. The inherited
+//    SupportsSplitK == false keeps UniversalGemmKernel from instantiating its atomic-add
+//    branch; a trap rather than a static_assert covers kernels that dispatch on k_batch at run
+//    time without reading that marker.
 //
 // The Problem is reused from CShuffleEpilogueProblem.
 template <typename Problem_>
@@ -142,6 +143,8 @@ struct TdmMultiDEpilogue : public TdmEpilogue<Problem_>
             block_sync_lds();
 
             store_tile_tdm(tdm_config, out_dram_window, out_lds_window);
+            // The store reads p_smem asynchronously; retire it before the caller reuses LDS.
+            s_wait_tensorcnt();
         }
     }
 };

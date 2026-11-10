@@ -43,6 +43,7 @@ if(GPU_TARGETS MATCHES "gfx125")
     # K tails on TDM V1/V2 for FP8, FP4 and FP6: K not a multiple of the K tile, of 128 or of the
     # 32-element scale block, sized for the smoke stage.
     add_gtest_executable(test_ck_tile_mx_gemm_tdm_k_tail test_mx_gemm_tdm_k_tail.cpp)
+    add_gtest_executable(test_ck_tile_mx_gemm_tdm_v3 test_mx_gemm_tdm_v3.cpp)
     # TDM exists only on gfx125. add_gtest_executable drops a source whose name carries a type
     # missing from DTYPES ("_bf16" for the bf16c test), or carries "mx_" (or "wmma") while
     # SUPPORTED_GPU_TARGETS, the requested targets the compiler supports, has no gfx95/gfx125
@@ -51,7 +52,8 @@ if(GPU_TARGETS MATCHES "gfx125")
     # any DTYPES.
     foreach(test_target test_ck_tile_mx_gemm_pipeline_tdm_wmma_smoke test_ck_tile_mx_gemm_tdm_bf16c
                         test_ck_tile_mx_gemm_tdm_gates test_ck_tile_mx_gemm_tdm_fp6
-                        test_ck_tile_mx_gemm_tdm_fp6_kloop_shapes test_ck_tile_mx_gemm_tdm_k_tail)
+                        test_ck_tile_mx_gemm_tdm_fp6_kloop_shapes test_ck_tile_mx_gemm_tdm_k_tail
+                        test_ck_tile_mx_gemm_tdm_v3)
         if(TARGET ${test_target})
             target_compile_options(${test_target} PRIVATE ${TEST_MX_GEMM_COMPILE_OPTIONS})
             ck_tile_restrict_archs(${test_target} "^gfx125")

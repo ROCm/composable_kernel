@@ -89,13 +89,23 @@ struct BlockFmhaBwdDQDKDVPipelineTdmKRKTR
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
     static constexpr bool kUseTrLoad       = Problem::kUseTrLoad;
 
-    static constexpr bool kTunedSched =
-        BlockFmhaShape::kM0 == 64 && BlockFmhaShape::kN0 == 128 &&
-        BlockFmhaShape::kQKHeaddim == 128 && BlockFmhaShape::kVHeaddim == 128 && !kPadHeadDimQ &&
-        !kPadHeadDimV && !kIsDeterministic && !FmhaDropout::IsDropout &&
-        BiasEnum == BlockAttentionBiasEnum::NO_BIAS && !kHasBiasGrad;
-    static constexpr bool kMaskTuned   = kTunedSched && FmhaMask::IsMasking;
-    static constexpr bool kNoMaskTuned = kTunedSched && !FmhaMask::IsMasking;
+    // Elementwise bias stays out: its LDS tile aliases the double-buffered dS.
+    static constexpr bool kTunedShape =
+        (BlockFmhaShape::kM0 == 64 && BlockFmhaShape::kN0 == 128 &&
+         (BlockFmhaShape::kQKHeaddim == 32 || BlockFmhaShape::kQKHeaddim == 64 ||
+          BlockFmhaShape::kQKHeaddim == 128)) ||
+        (BlockFmhaShape::kM0 == 32 && BlockFmhaShape::kN0 == 64 &&
+         BlockFmhaShape::kQKHeaddim == 256);
+    static constexpr bool kTunedSched = kTunedShape &&
+                                        BlockFmhaShape::kVHeaddim == BlockFmhaShape::kQKHeaddim &&
+                                        (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
+                                         BiasEnum == BlockAttentionBiasEnum::ALIBI) &&
+                                        !kHasBiasGrad;
+    // Must match the ConvertQGrad kernel's kPadDqAccRow, which codegen sets alongside.
+    static constexpr bool kPadDqAccRow               = kPadHeadDimQ > 0;
+    static constexpr index_t kPersistentWorkersPerCu = kQKHeaddim <= 32 ? 2 : 1;
+    static constexpr bool kMaskTuned                 = kTunedSched && FmhaMask::IsMasking;
+    static constexpr bool kNoMaskTuned               = kTunedSched && !FmhaMask::IsMasking;
 
     static_assert(!kUseTrLoad, "This pipeline does not use trload!");
 
@@ -897,8 +907,8 @@ struct BlockFmhaBwdDQDKDVPipelineTdmKRKTR
             kTunedSched && decltype(dq_dram_window)::BottomTensorView::DstInMemOp ==
                                memory_operation_enum::atomic_add;
         // A linear view of the current dQ tile, rebased to the tile origin. The
-        // row stride is compile-time (kTunedSched excludes hdim padding and the
-        // deterministic split layout, so a row is exactly kQKHeaddim floats), and
+        // row stride is compile-time (a row is exactly kQKHeaddim floats, padded ones
+        // included -- see kPadDqAccRow; a deterministic split only moves the base), and
         // with the origin folded into the base pointer every lane offset is
         // bounded, so all atomics share one VGPR plus an immediate offset.
         auto make_dq_atomic_window = [&]() {
@@ -958,14 +968,14 @@ struct BlockFmhaBwdDQDKDVPipelineTdmKRKTR
             {
                 const auto dq_atomic_window = make_dq_atomic_window();
                 constexpr index_t kKSlices  = decltype(gemm_0)::KPerSubTile;
-                static_assert(kKSlices >= 2, "dO^T is loaded after the second K slice");
+                constexpr index_t kDotSlice = kKSlices >= 2 ? 1 : 0;
                 constexpr index_t kAtomicsPerSlice =
                     remove_cvref_t<decltype(dq_atomic_window)>::NumAccess / kKSlices;
 
                 clear_tile(s_acc);
                 static_for<0, kKSlices, 1>{}([&](auto k) {
                     gemm_0.template RunKSlice<k>(s_acc, q_reg_tensor, k_reg_tensor);
-                    if constexpr(k == 1)
+                    if constexpr(k == kDotSlice)
                     {
                         dot_reg_tensor = load_tile_transpose(dot_rd_cur);
                         __builtin_amdgcn_sched_barrier(0);

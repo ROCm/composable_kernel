@@ -285,6 +285,11 @@ struct MxGemmKernel
     using MxGemmPipeline   = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
+    /// Whether this TDM pipeline runs MX split-K correctly with a split-K-capable epilogue: only
+    /// a pipeline that declares kSupportsTdmSplitK (comp_tdm_v3). The others keep the TDM
+    /// split-K rejection whatever the epilogue.
+    using BaseKernel::kPipelineSupportsTdmSplitK;
+
     using BaseKernel::PersistentKernel;
     using typename BaseKernel::AsLayout;
     using typename BaseKernel::BsLayout;
@@ -354,16 +359,19 @@ struct MxGemmKernel
     // accumulates each k_id's partial C tile with atomic_add; the CShuffle epilogue can only
     // emit atomic_add for fp16/bf16 outputs when the C vector size is even. For an odd vector
     // size that combination is not instantiated, so such a config cannot run split-K.
-    // Epilogues must declare atomic support; TDM stores cannot reduce split-K outputs.
+    // Epilogues must opt in by declaring kAtomicAddRequiresEvenVectorSize, and one whose store
+    // always overwrites (SupportsSplitK == false, e.g. TdmEpilogue) cannot reduce split-K outputs
+    // even if it declares that marker.
     template <typename T>
     using AtomicAddRequiresEvenVectorSize = decltype(T::kAtomicAddRequiresEvenVectorSize);
 
     static constexpr bool kSplitKAtomicAddSupported = [] {
-        if constexpr(is_detected<AtomicAddRequiresEvenVectorSize, EpiloguePipeline>::value)
+        if constexpr(epilogue_can_accumulate_v<EpiloguePipeline> &&
+                     is_detected<AtomicAddRequiresEvenVectorSize, EpiloguePipeline>::value)
             return !EpiloguePipeline::kAtomicAddRequiresEvenVectorSize ||
                    EpiloguePipeline::GetVectorSizeC() % 2 == 0;
         else
-            return false; // Unmarked epilogues (including TDM) cannot reduce split-K outputs.
+            return false; // Unmarked or overwriting epilogues cannot reduce split-K outputs.
     }();
 
     static constexpr index_t MXdlPackEff = MxGemmPipeline::MXdlPackEff;
@@ -510,8 +518,16 @@ struct MxGemmKernel
             // UniversalGemmKernel::IsSupportedArgument skips its shape checks for TDM pipelines.
             // The device check comes last so that the argument checks also run on a host without
             // a gfx125 device.
+            // The TDM split-K rejection guards the TDM epilogue, which overwrites C, and the TDM
+            // pipelines whose loads are not clipped to a split's K range. A pipeline that
+            // declares kSupportsTdmSplitK (comp_tdm_v3) with a split-K-capable epilogue
+            // (CShuffle, checked above as kSplitKAtomicAddSupported) adds each split into C
+            // atomically, so k_batch > 1 is not rejected here for it.
+            const index_t tdm_k_batch =
+                (is_tdm_epilogue_v<EpiloguePipeline> || !kPipelineSupportsTdmSplitK) ? kargs.k_batch
+                                                                                     : 1;
             if(!BaseKernel::IsTdmArgumentSupported("MX GEMM",
-                                                   kargs.k_batch,
+                                                   tdm_k_batch,
                                                    kargs.K,
                                                    kargs.as_ptr[0],
                                                    kargs.bs_ptr[0],

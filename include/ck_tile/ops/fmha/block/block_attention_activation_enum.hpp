@@ -86,4 +86,59 @@ CK_TILE_DEVICE float attention_activation(float x, float scale)
     }
 }
 
+// The constant factor attention_activation_x2 can leave to the caller: act(scale x) =
+// attention_activation_out_factor(scale) * act'(x).
+template <BlockAttentionActivationEnum Activation>
+CK_TILE_DEVICE constexpr float attention_activation_out_factor(float scale)
+{
+    static_assert(Activation == BlockAttentionActivationEnum::FAST_GELU,
+                  "attention_activation_out_factor: an activation without an implementation");
+    return 0.5f * scale;
+}
+
+// p[i] = attention_activation(s[i], scale) over two equally long thread buffers of fp32, two
+// scores at a time on packed fp32 and in three passes (on gfx125: no hardware tanh waits on its
+// own input or feeds the next instruction). kOutFactor leaves out
+// attention_activation_out_factor(scale) for the caller to take once on the gemm's output: p is
+// then 2 / scale times larger, so a 16-bit P needs the range of bf16 for it.
+template <BlockAttentionActivationEnum Activation, bool kOutFactor, typename SBuf, typename PBuf>
+CK_TILE_DEVICE void attention_activation_x2(const SBuf& s, PBuf& p, float scale)
+{
+    static_assert(Activation == BlockAttentionActivationEnum::FAST_GELU,
+                  "attention_activation_x2: an activation without an implementation");
+    constexpr index_t kN = SBuf::size();
+    static_assert(kN % 2 == 0 && PBuf::size() == kN);
+#if defined(__gfx125__)
+    // y = (h x) (1 + tanh(u)), u = x (a0 + a1 x^2) as in attention_activation; h = 1 with
+    // kOutFactor, else its 0.5 scale
+    constexpr float c0 = 0.7978845608028654f;
+    constexpr float c1 = c0 * 0.044715f;
+    const float a1s    = c1 * scale * scale * scale;
+    const fp32x2_t a0  = {c0 * scale, c0 * scale};
+    const fp32x2_t a1  = {a1s, a1s};
+    const float hs     = attention_activation_out_factor<Activation>(scale);
+    const fp32x2_t h   = {hs, hs};
+    static_for<0, kN / 2, 1>{}([&](auto i) {
+        const fp32x2_t x       = {s[number<2 * i>{}], s[number<2 * i + 1>{}]};
+        const fp32x2_t u       = x * (a1 * (x * x) + a0);
+        p(number<2 * i>{})     = u[0];
+        p(number<2 * i + 1>{}) = u[1];
+    });
+    static_for<0, kN, 1>{}([&](auto i) { p(i) = __builtin_amdgcn_tanhf(p[i]); });
+    static_for<0, kN / 2, 1>{}([&](auto i) {
+        fp32x2_t x = {s[number<2 * i>{}], s[number<2 * i + 1>{}]};
+        if constexpr(!kOutFactor)
+            x = x * h;
+        const fp32x2_t t       = {p[number<2 * i>{}], p[number<2 * i + 1>{}]};
+        const fp32x2_t y       = x * t + x;
+        p(number<2 * i>{})     = y[0];
+        p(number<2 * i + 1>{}) = y[1];
+    });
+#else
+    const float r = kOutFactor ? 1.f / attention_activation_out_factor<Activation>(scale) : 1.f;
+    static_for<0, kN, 1>{}(
+        [&](auto i) { p(i) = attention_activation<Activation>(s[i], scale) * r; });
+#endif
+}
+
 } // namespace ck_tile

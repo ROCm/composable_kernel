@@ -150,7 +150,11 @@ mha_infer(const at::Tensor& q_, // b x s_q [x h] x d
                                false,
                                return_lse,
                                bias_type);
-    fmha_fwd_args args = get_ck_fmha_fwd_args(return_lse,
+    // the head-less layout as its one-head view [b, s, 1, d] ([b, 1, s_q] for the LSE): the
+    // strides fmha_func passes for it, so both pick the same kernels (q.stride(2) of [b, s, d] is
+    // the head dim's 1, which the d128 qr_tdm_sched O-layout check refuses as a head stride)
+    const auto heads_view = [&](const at::Tensor& t) { return has_heads ? t : t.unsqueeze(2); };
+    fmha_fwd_args args    = get_ck_fmha_fwd_args(return_lse,
                                               false, // no dropout random values
                                               mask,
                                               batch_size,
@@ -159,18 +163,18 @@ mha_infer(const at::Tensor& q_, // b x s_q [x h] x d
                                               num_heads,
                                               num_heads_k,
                                               head_size,
-                                              q,
-                                              k,
-                                              v,
+                                              heads_view(q),
+                                              heads_view(k),
+                                              heads_view(v),
                                               alibi_slopes_,
                                               bias_,
-                                              out_run,
-                                              lse,
+                                              heads_view(out_run),
+                                              has_heads || !return_lse ? lse : lse.unsqueeze(1),
                                               at::Tensor(), // dropout random values
                                               softmax_scale,
                                               0.0f, // no dropout
-                                              {nullptr, nullptr});
-    args.lse_log2      = lse_log2 && return_lse; // the LSE in base 2
+                                                 {nullptr, nullptr});
+    args.lse_log2         = lse_log2 && return_lse; // the LSE in base 2
 
     const float t = detail::dispatch_lse_log2(args, lse, [&] {
         float r = -1.0f;

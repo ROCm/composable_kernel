@@ -63,6 +63,28 @@ struct fmha_bwd_qdo_depth<P, std::void_t<decltype(P::kQDOSlotsResolved)>>
     static constexpr index_t value = P::kQDOSlotsResolved;
 };
 
+template <typename P, typename = void>
+struct fmha_bwd_persistent_workers_per_cu
+{
+    static constexpr index_t value = 1;
+};
+template <typename P>
+struct fmha_bwd_persistent_workers_per_cu<P, std::void_t<decltype(P::kPersistentWorkersPerCu)>>
+{
+    static constexpr index_t value = P::kPersistentWorkersPerCu;
+};
+
+template <typename P, typename = void>
+struct fmha_bwd_pad_dq_acc_row
+{
+    static constexpr bool value = false;
+};
+template <typename P>
+struct fmha_bwd_pad_dq_acc_row<P, std::void_t<decltype(P::kPadDqAccRow)>>
+{
+    static constexpr bool value = P::kPadDqAccRow;
+};
+
 // Per-CU state for group-mode deterministic persistent scheduling.
 // alignas(16): enables aligned 128-bit loads; sizeof == 32 (6x4 + 8 pad).
 struct alignas(16) FmhaBwdGroupPersistentCuState
@@ -87,7 +109,10 @@ struct alignas(16) FmhaBwdBatchState
     // 4 bytes implicit padding
 };
 
-template <typename AccDataType, bool kIsGroupMode, bool kIsDeterministic>
+template <typename AccDataType,
+          bool kIsGroupMode,
+          bool kIsDeterministic,
+          index_t kWorkersPerCu = 1> // batch-mode persistent workers per CU
 struct FmhaBwdWorkspaceManager
 {
     // CPU workspace (prepared by host, read-only for kernels):
@@ -450,7 +475,7 @@ struct FmhaBwdWorkspaceManager
         }
         else // deterministic batch mode (kUsePersistent)
         {
-            const index_t dqdqkdv_workers = num_cus;
+            const index_t dqdqkdv_workers = num_cus * kWorkersPerCu;
             const index_t jobs_per_head   = integer_divide_ceil(seqlen_k, kN0);
             const index_t total_jobs      = batch_size * nhead_q * jobs_per_head;
             const index_t jobs_per_worker = integer_divide_ceil(total_jobs, dqdqkdv_workers);
@@ -583,7 +608,7 @@ struct FmhaBwdWorkspaceManager
             }
             else // persistent
             {
-                const index_t dqdqkdv_workers = get_num_cus();
+                const index_t dqdqkdv_workers = get_num_cus() * kWorkersPerCu;
                 const index_t jobs_per_head   = integer_divide_ceil(max_seqlen_k, kN0);
                 const index_t total_jobs      = max_batch * nhead_q * jobs_per_head;
                 const index_t jobs_per_worker = integer_divide_ceil(total_jobs, dqdqkdv_workers);
@@ -604,10 +629,16 @@ struct FmhaBwdWorkspaceManager
 // Tiny single-thread kernel that populates the workspace metadata region on-device via
 // FmhaBwdWorkspaceManager::PrepareWorkspaceDevice. Launched (grid=1, block=1) on the same
 // stream as the backward kernels; fully stream-capturable.
-template <typename AccDataType, bool kIsGroupMode, bool kIsDeterministic, index_t kN0, index_t kM0>
+template <typename AccDataType,
+          bool kIsGroupMode,
+          bool kIsDeterministic,
+          index_t kN0,
+          index_t kM0,
+          index_t kWorkersPerCu = 1>
 struct FmhaBwdPrepareWorkspaceKernel
 {
-    using WorkspaceManager = FmhaBwdWorkspaceManager<AccDataType, kIsGroupMode, kIsDeterministic>;
+    using WorkspaceManager =
+        FmhaBwdWorkspaceManager<AccDataType, kIsGroupMode, kIsDeterministic, kWorkersPerCu>;
 
     // Single-thread launch; required by the kernel_launch.hpp __launch_bounds__ machinery.
     static constexpr index_t kBlockSize  = 1;
@@ -666,6 +697,33 @@ struct FmhaBwdPrepareWorkspaceKernel
                                                                     kargs.seqstart_ks);
     }
 };
+
+template <index_t kBlockSize>
+CK_TILE_DEVICE void FmhaBwdFoldSinkPartials(const float* partials, float* d_sink, index_t num_slots)
+{
+    float sum = 0.f;
+    for(index_t i = get_thread_id(); i < num_slots; i += kBlockSize)
+        sum += partials[i];
+
+    const index_t warp_sz = get_warp_size();
+    for(index_t offset = warp_sz >> 1; offset > 0; offset >>= 1)
+        sum += warp_shuffle_down(sum, offset);
+
+    constexpr index_t kWarps = kBlockSize / get_warp_size();
+    __shared__ float warp_sums[kWarps];
+    if(get_lane_id() == 0)
+        warp_sums[get_warp_id()] = sum;
+    block_sync_lds();
+
+    if(get_thread_id() == 0)
+    {
+        float head_sum = 0.f;
+        static_for<0, kWarps, 1>{}([&](auto i_w) { head_sum += warp_sums[i_w.value]; });
+        *d_sink += head_sum; // accumulate, as the atomic path does; the caller zeroes d_sink
+    }
+}
+
+inline constexpr index_t kFmhaBwdSinkCounterStride = 32;
 
 template <typename FmhaPipeline_,
           typename KGradEpiloguePipeline_,
@@ -739,7 +797,19 @@ struct FmhaBwdDQDKDVKernel
 #endif
 
     static constexpr bool kUsePersistent = kIsDeterministic && !kUseQrQtrDorPipeline;
-    using WorkspaceManager = FmhaBwdWorkspaceManager<AccDataType, kIsGroupMode, kIsDeterministic>;
+    static constexpr index_t kPersistentWorkersPerCu =
+        kIsGroupMode ? 1 : fmha_bwd_persistent_workers_per_cu<FmhaPipeline>::value;
+    static constexpr bool kPadDqAccRow =
+        !kUseQrQtrDorPipeline && fmha_bwd_pad_dq_acc_row<FmhaPipeline>::value;
+    // Row length of dq_acc: hdim_q, or hdim_q rounded up to the tile when kPadDqAccRow.
+    CK_TILE_HOST_DEVICE static constexpr index_t DqAccHdim(index_t hdim_q)
+    {
+        return kPadDqAccRow ? integer_least_multiple(hdim_q, FmhaPipeline::kQKHeaddim) : hdim_q;
+    }
+    using WorkspaceManager = FmhaBwdWorkspaceManager<AccDataType,
+                                                     kIsGroupMode,
+                                                     kIsDeterministic,
+                                                     kPersistentWorkersPerCu>;
 
     static constexpr bool kMaskTilePairing =
 #if CK_TILE_FMHA_BWD_MASK_TILE_PAIRING
@@ -757,7 +827,6 @@ struct FmhaBwdDQDKDVKernel
 
     CK_TILE_HOST static std::string GetName()
     {
-        // sync with generate.py
         // clang-format off
         using bfs  = typename FmhaPipeline::BlockFmhaShape;
         using gbr0 = typename bfs::Gemm0BlockWarps;
@@ -819,7 +888,8 @@ struct FmhaBwdDQDKDVKernel
                                                                  kIsGroupMode,
                                                                  kIsDeterministic,
                                                                  FmhaPipeline::BlockFmhaShape::kN0,
-                                                                 FmhaPipeline::BlockFmhaShape::kM0>;
+                                                                 FmhaPipeline::BlockFmhaShape::kM0,
+                                                                 kPersistentWorkersPerCu>;
     CK_TILE_HOST static constexpr bool NeedsZeroDqAcc()
     {
         return WorkspaceManager::template NeedsZeroDqAcc<kUseQrQtrDorPipeline, kHasMask>();
@@ -1478,7 +1548,7 @@ struct FmhaBwdDQDKDVKernel
         const index_t jobs_per_head =
             kUseQrQtrDorPipeline ? 1 : integer_divide_ceil(seqlen_k_, FmhaPipeline::kN0);
         if constexpr(kUsePersistent)
-            return dim3(get_num_cus(), 1, 1);
+            return dim3(get_num_cus() * kPersistentWorkersPerCu, 1, 1);
         else if constexpr(kMaskTilePairing)
         {
             const index_t paired_x  = integer_divide_ceil(jobs_per_head, 2);
@@ -1594,7 +1664,7 @@ struct FmhaBwdDQDKDVKernel
                         return; // worker_id exceeds total jobs, exit early
                     const index_t end_job_id = min((worker_id + 1) * jobs_per_worker, total_jobs);
 
-                    const auto n_splits = kargs.nsplits_ptr[0];
+                    const auto n_splits = amd_wave_read_first_lane(kargs.nsplits_ptr[0]);
                     index_t job_id      = begin_job_id;
                     index_t i_split = integer_divide_ceil(job_id % jobs_per_head, jobs_per_worker);
                     do
@@ -1647,6 +1717,7 @@ struct FmhaBwdDQDKDVKernel
                                           ibatch),
                                      isplit,
                                      amd_wave_read_first_lane(bs->nsplits));
+                                ck_tile::s_wait_tensorcnt_barrier<0 /*tensorcnt*/, 0 /*lgkmcnt*/>();
                                 w_chunk += amd_wave_read_first_lane(bs->sq);
                                 ++c_start_0;
                             }
@@ -1712,9 +1783,10 @@ struct FmhaBwdDQDKDVKernel
             if constexpr(kUseQrQtrDorPipeline)
                 batch_offset_dq_acc = query_start * kargs.stride_dq;
             else if constexpr(!kIsDeterministic)
-                batch_offset_dq_acc = query_start * kargs.hdim_q * kargs.nhead_q;
-            else
-                batch_offset_dq_acc = kargs.dq_acc_batch_offset_ptr[i_batch];
+                batch_offset_dq_acc = query_start * DqAccHdim(kargs.hdim_q) * kargs.nhead_q;
+            else // wave-uniform, or every dQ atomic runs a readfirstlane loop
+                batch_offset_dq_acc =
+                    amd_wave_read_first_lane(kargs.dq_acc_batch_offset_ptr[i_batch]);
             batch_offset_dk = key_start * kargs.stride_dk;
             batch_offset_dv = key_start * kargs.stride_dv;
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -1786,10 +1858,10 @@ struct FmhaBwdDQDKDVKernel
                 batch_offset_dq_acc = static_cast<long_index_t>(i_batch) * kargs.batch_stride_dq;
             else if constexpr(!kIsDeterministic)
                 batch_offset_dq_acc = static_cast<long_index_t>(i_batch) * kargs.nhead_q *
-                                      kargs.seqlen_q * kargs.hdim_q;
+                                      kargs.seqlen_q * DqAccHdim(kargs.hdim_q);
             else
                 batch_offset_dq_acc = static_cast<long_index_t>(i_batch) * kargs.nhead_q *
-                                      n_splits * kargs.seqlen_q * kargs.hdim_q;
+                                      n_splits * kargs.seqlen_q * DqAccHdim(kargs.hdim_q);
             batch_offset_dk = static_cast<long_index_t>(i_batch) * kargs.batch_stride_dk;
             batch_offset_dv = static_cast<long_index_t>(i_batch) * kargs.batch_stride_dv;
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -1933,13 +2005,13 @@ struct FmhaBwdDQDKDVKernel
                 }
                 else if constexpr(!kIsDeterministic)
                 {
-                    return batch_offset_dq_acc +
-                           static_cast<long_index_t>(i_nhead_) * physical_seqlen_q * kargs.hdim_q;
+                    return batch_offset_dq_acc + static_cast<long_index_t>(i_nhead_) *
+                                                     physical_seqlen_q * DqAccHdim(kargs.hdim_q);
                 }
                 else
                 {
                     const long_index_t split_stride =
-                        static_cast<long_index_t>(physical_seqlen_q) * kargs.hdim_q;
+                        static_cast<long_index_t>(physical_seqlen_q) * DqAccHdim(kargs.hdim_q);
                     const auto nsplits = [&]() {
                         if constexpr(!kIsGroupMode)
                             return n_splits; // batch persistent: passed from nsplits_ptr[0]
@@ -1968,7 +2040,7 @@ struct FmhaBwdDQDKDVKernel
                                   fmha_bwd_qdo_depth<FmhaPipeline>::value > 2)
                     return number<FmhaPipeline::kQKHeaddim>{};
                 else
-                    return kargs.hdim_q;
+                    return DqAccHdim(kargs.hdim_q);
             }();
             const auto dq_acc_dram_naive =
                 make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
@@ -2215,12 +2287,14 @@ struct FmhaBwdDQDKDVKernel
             // Workaround for a compiler bug (SWDEV-559729): v_wmma instructions can be incorrectly
             // placed in divergent branches used to store padded tensors (when some lanes are
             // inactive due to padding). Inline asm with dummy dependencies on VGPRs of the tensors
-            // prevents the compiler doing this.
-            if constexpr(kPadHeadDimQ > 0)
+            // prevents the compiler doing this. The TDM store has no such branches, and the
+            // dependencies pin both accumulators at once: in the persistent kernel that spills
+            // into the hot loop and makes padded hdims 2x slower.
+            if constexpr(kPadHeadDimQ > 0 && !kUseTdmDKDVStore)
             {
                 impl::insert_dummy_dep(dk_acc_tile.get_thread_buffer());
             }
-            if constexpr(kPadHeadDimV > 0)
+            if constexpr(kPadHeadDimV > 0 && !kUseTdmDKDVStore)
             {
                 impl::insert_dummy_dep(dv_acc_tile.get_thread_buffer());
             }
@@ -2302,7 +2376,8 @@ struct FmhaBwdOGradDotOKernel
 
     CK_TILE_HOST static std::string GetName()
     {
-        // sync with generate.py
+        // the codegen name from codegen/ops/fmha_bwd.py instead, which is the one that
+        // matches the generated .cpp file name.
         // clang-format off
         
         #define _SS_  std::string
@@ -2346,6 +2421,9 @@ struct FmhaBwdOGradDotOKernel
         ck_tile::index_t nhead_stride_o;
         // LSE and D always share the same layout; this stride covers both.
         ck_tile::index_t nhead_stride_lsed;
+
+        float* sink_partial_ptr;
+        int* sink_counter_ptr;
     };
 
     struct FmhaBwdOGradDotOBatchModeKargs : FmhaBwdOGradDotOCommonKargs
@@ -2385,7 +2463,9 @@ struct FmhaBwdOGradDotOKernel
               ck_tile::index_t nhead_stride_lsed,
               ck_tile::index_t batch_stride_do,
               ck_tile::index_t batch_stride_o,
-              ck_tile::index_t batch_stride_lsed)
+              ck_tile::index_t batch_stride_lsed,
+              void* sink_partial_ptr = nullptr,
+              void* sink_counter_ptr = nullptr)
     {
         Kargs kargs{{o_ptr,
                      do_ptr,
@@ -2401,7 +2481,9 @@ struct FmhaBwdOGradDotOKernel
                      stride_o,
                      nhead_stride_do,
                      nhead_stride_o,
-                     nhead_stride_lsed},
+                     nhead_stride_lsed,
+                     reinterpret_cast<float*>(sink_partial_ptr),
+                     reinterpret_cast<int*>(sink_counter_ptr)},
                     batch_stride_do,
                     batch_stride_o,
                     batch_stride_lsed};
@@ -2427,7 +2509,9 @@ struct FmhaBwdOGradDotOKernel
               ck_tile::index_t stride_o,
               ck_tile::index_t nhead_stride_do,
               ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t nhead_stride_lsed)
+              ck_tile::index_t nhead_stride_lsed,
+              void* sink_partial_ptr = nullptr,
+              void* sink_counter_ptr = nullptr)
     {
         Kargs kargs{{o_ptr,
                      do_ptr,
@@ -2443,7 +2527,9 @@ struct FmhaBwdOGradDotOKernel
                      stride_o,
                      nhead_stride_do,
                      nhead_stride_o,
-                     nhead_stride_lsed},
+                     nhead_stride_lsed,
+                     reinterpret_cast<float*>(sink_partial_ptr),
+                     reinterpret_cast<int*>(sink_counter_ptr)},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_q_ptr),
                     reinterpret_cast<const int32_t*>(cu_seqlen_q_ptr)};
@@ -2470,12 +2556,54 @@ struct FmhaBwdOGradDotOKernel
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize() { return 0; }
 
+    __attribute__((noinline)) CK_TILE_DEVICE static void
+    FoldSinkIfLast(const float* head_partials, float* d_sink, int* counter, index_t num_blocks)
+    {
+        __shared__ int is_last;
+        if(get_thread_id() == 0)
+        {
+            // Release: publishes the slot stored by this thread along with the count.
+            is_last = __scoped_atomic_fetch_add(
+                          counter, 1, __ATOMIC_RELEASE, __MEMORY_SCOPE_DEVICE) == num_blocks - 1;
+        }
+        block_sync_lds();
+
+        if(is_last)
+        {
+            // Acquire: makes every other block's slot visible.
+            __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent");
+            FmhaBwdFoldSinkPartials<kBlockSize>(head_partials, d_sink, num_blocks);
+            if(get_thread_id() == 0)
+                *counter = 0; // rearm for the next run on this workspace
+        }
+    }
+
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex();
 
         const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * kM0);
+
+        // This block's slot in the two-stage d_sink buffer.
+        const index_t sink_blocks = gridDim.x * gridDim.z; // blocks, and slots, per head
+        float* sink_partial_slot =
+            (kargs.sink_partial_ptr == nullptr || kargs.d_sink_ptr == nullptr)
+                ? nullptr
+                : kargs.sink_partial_ptr +
+                      (static_cast<long_index_t>(i_nhead) * gridDim.z + i_batch) * gridDim.x +
+                      i_tile_m;
+        int* sink_counter = (sink_partial_slot == nullptr || kargs.sink_counter_ptr == nullptr)
+                                ? nullptr
+                                : kargs.sink_counter_ptr + i_nhead * kFmhaBwdSinkCounterStride;
+
+        auto fold_sink_if_last = [&, i_nhead_ = i_nhead]() {
+            FoldSinkIfLast(kargs.sink_partial_ptr +
+                               static_cast<long_index_t>(i_nhead_) * sink_blocks,
+                           reinterpret_cast<float*>(kargs.d_sink_ptr + i_nhead_),
+                           sink_counter,
+                           sink_blocks);
+        };
 
         long_index_t batch_offset_o    = 0;
         long_index_t batch_offset_do   = 0;
@@ -2511,6 +2639,11 @@ struct FmhaBwdOGradDotOKernel
             // earlier
             if(kargs.seqlen_q <= i_m0)
             {
+                // A skipped block still owns a slot and still counts toward the arrivals.
+                if(sink_partial_slot != nullptr && get_thread_id() == 0)
+                    *sink_partial_slot = 0.f;
+                if(sink_counter != nullptr)
+                    fold_sink_if_last();
                 return;
             }
         }
@@ -2585,12 +2718,14 @@ struct FmhaBwdOGradDotOKernel
 
         auto d_dram_window = make_tile_window(d_dram, make_tuple(number<kM0>{}), {i_m0});
 
-        // nullptr when sink grad is disabled; the pipeline checks this to skip the sink path
+        // nullptr when sink grad is off or the two-stage path is used
         LSEDataType* atomic_sink_grad_ptr =
-            kargs.d_sink_ptr == nullptr ? nullptr : kargs.d_sink_ptr + i_nhead;
+            (kargs.d_sink_ptr == nullptr || sink_partial_slot != nullptr)
+                ? nullptr
+                : kargs.d_sink_ptr + i_nhead;
 
         // lse_ptr is always valid (also needed by the main bwd kernel).
-        // The actual load happens inside the pipeline only when atomic_sink_grad_ptr != nullptr.
+        // The actual load happens inside the pipeline only on the sink path.
         auto lse_dram = [&]() {
             const auto lse_dram_naive = make_naive_tensor_view_packed<address_space_enum::global>(
                 lse_ptr, make_tuple(kargs.seqlen_q), number<1>{});
@@ -2607,7 +2742,8 @@ struct FmhaBwdOGradDotOKernel
                                d_dram_window,
                                sink_value,
                                kargs.p_undrop,
-                               atomic_sink_grad_ptr);
+                               atomic_sink_grad_ptr,
+                               sink_partial_slot);
         };
 
         if constexpr(kPadHeadDimV)
@@ -2630,10 +2766,14 @@ struct FmhaBwdOGradDotOKernel
         {
             run(number<FmhaBwdOGradDotO::kAlignmentO>{});
         }
+
+        if(sink_counter != nullptr)
+            fold_sink_if_last();
     }
 };
 
-template <typename FmhaBwdConvertQGrad_>
+// kPadDqAccRow_ must match the FmhaBwdDQDKDVKernel::kPadDqAccRow of the kernel that wrote dq_acc.
+template <typename FmhaBwdConvertQGrad_, bool kPadDqAccRow_ = false>
 struct FmhaBwdConvertQGradKernel
 {
     using FmhaBwdConvertQGrad                     = ck_tile::remove_cvref_t<FmhaBwdConvertQGrad_>;
@@ -2650,6 +2790,7 @@ struct FmhaBwdConvertQGradKernel
     static constexpr bool kPadHeadDimQ     = FmhaBwdConvertQGrad::kPadHeadDimQ;
     static constexpr bool kIsDeterministic = FmhaBwdConvertQGrad::kIsDeterministic;
     static constexpr bool kUsePersistent   = kIsDeterministic;
+    static constexpr bool kPadDqAccRow     = kPadDqAccRow_;
     using WorkspaceManager = FmhaBwdWorkspaceManager<AccDataType, kIsGroupMode, kIsDeterministic>;
 
     // clang-format off
@@ -2677,6 +2818,7 @@ struct FmhaBwdConvertQGradKernel
             + "b" + _TS_(kM0) + "_"
             + (kIsGroupMode ? "group" : "batch") + "_"
             + ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn)
+            + (kPadDqAccRow ? "_dqaccrow" : "")
             + (kIsDeterministic ? "_deterministic" : "_ndeterministic") ;
         #undef _SS_
         #undef _TS_
@@ -2704,6 +2846,10 @@ struct FmhaBwdConvertQGradKernel
 
         ck_tile::index_t stride_dq;
         ck_tile::index_t nhead_stride_dq;
+
+        const float* sink_partial_ptr;
+        float* d_sink_ptr;
+        ck_tile::index_t sink_slots_per_head;
     };
 
     struct FmhaBwdConvertQGradDeterministicKargs
@@ -2751,7 +2897,10 @@ struct FmhaBwdConvertQGradKernel
               ck_tile::index_t hdim_q,
               ck_tile::index_t stride_dq,
               ck_tile::index_t nhead_stride_dq,
-              ck_tile::index_t batch_stride_dq)
+              ck_tile::index_t batch_stride_dq,
+              const void* sink_partial_ptr         = nullptr,
+              void* d_sink_ptr                     = nullptr,
+              ck_tile::index_t sink_slots_per_head = 0)
     {
         const uint8_t* ws = reinterpret_cast<const uint8_t*>(workspace);
         Kargs kargs{
@@ -2762,7 +2911,10 @@ struct FmhaBwdConvertQGradKernel
              seqlen_k,
              hdim_q,
              stride_dq,
-             nhead_stride_dq},
+             nhead_stride_dq,
+             reinterpret_cast<const float*>(sink_partial_ptr),
+             reinterpret_cast<float*>(d_sink_ptr),
+             sink_slots_per_head},
             {},
             batch_stride_dq,
         };
@@ -2789,7 +2941,10 @@ struct FmhaBwdConvertQGradKernel
               const void* cu_seqlen_k_ptr,
               ck_tile::index_t hdim_q,
               ck_tile::index_t stride_dq,
-              ck_tile::index_t nhead_stride_dq)
+              ck_tile::index_t nhead_stride_dq,
+              const void* sink_partial_ptr         = nullptr,
+              void* d_sink_ptr                     = nullptr,
+              ck_tile::index_t sink_slots_per_head = 0)
     {
         const uint8_t* ws = reinterpret_cast<const uint8_t*>(workspace);
         Kargs kargs{{ws + WorkspaceManager::template GetDqAccDataOffset<false>(batch_size),
@@ -2799,7 +2954,10 @@ struct FmhaBwdConvertQGradKernel
                      -1, //
                      hdim_q,
                      stride_dq,
-                     nhead_stride_dq},
+                     nhead_stride_dq,
+                     reinterpret_cast<const float*>(sink_partial_ptr),
+                     reinterpret_cast<float*>(d_sink_ptr),
+                     sink_slots_per_head},
                     {},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
@@ -2843,11 +3001,22 @@ struct FmhaBwdConvertQGradKernel
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex();
 
+        const bool fold_sink = kargs.sink_partial_ptr != nullptr && i_tile_m == 0 && i_batch == 0;
+        auto fold_sink_partials = [&, i_nhead_ = i_nhead]() {
+            FmhaBwdFoldSinkPartials<kBlockSize>(kargs.sink_partial_ptr +
+                                                    static_cast<long_index_t>(i_nhead_) *
+                                                        kargs.sink_slots_per_head,
+                                                kargs.d_sink_ptr + i_nhead_,
+                                                kargs.sink_slots_per_head);
+        };
+
         const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * kM0);
 
         long_index_t batch_offset_dq     = 0;
         long_index_t batch_offset_dq_acc = 0;
         index_t physical_seqlen_q        = 0;
+        const index_t dq_acc_hdim =
+            kPadDqAccRow ? integer_least_multiple(kargs.hdim_q, kQKHeaddim) : kargs.hdim_q;
         if constexpr(kIsGroupMode)
         {
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
@@ -2855,9 +3024,10 @@ struct FmhaBwdConvertQGradKernel
             // get starting offset for each batch
             batch_offset_dq = query_start * kargs.stride_dq;
             if constexpr(!kIsDeterministic)
-                batch_offset_dq_acc = query_start * kargs.hdim_q * kargs.nhead_q;
+                batch_offset_dq_acc = query_start * dq_acc_hdim * kargs.nhead_q;
             else
-                batch_offset_dq_acc = kargs.dq_acc_batch_offset_ptr[i_batch];
+                batch_offset_dq_acc =
+                    amd_wave_read_first_lane(kargs.dq_acc_batch_offset_ptr[i_batch]);
 
             if(kargs.cu_seqlen_q_ptr != nullptr)
                 kargs.seqlen_q =
@@ -2892,6 +3062,8 @@ struct FmhaBwdConvertQGradKernel
             // earlier
             if(kargs.seqlen_q <= i_m0)
             {
+                if(fold_sink)
+                    fold_sink_partials();
                 return;
             }
         }
@@ -2904,7 +3076,7 @@ struct FmhaBwdConvertQGradKernel
             if constexpr(kIsDeterministic)
                 nsplits = kargs.nsplits_ptr[0];
             const long_index_t nhead_stride_dq_acc =
-                static_cast<long_index_t>(nsplits) * kargs.seqlen_q * kargs.hdim_q;
+                static_cast<long_index_t>(nsplits) * kargs.seqlen_q * dq_acc_hdim;
             batch_offset_dq_acc =
                 static_cast<long_index_t>(i_batch) * kargs.nhead_q * nhead_stride_dq_acc;
         }
@@ -2915,10 +3087,10 @@ struct FmhaBwdConvertQGradKernel
                                 batch_offset_dq;
 
         // dQAcc/dQ DRAM and DRAM window
-        // compact layout: stride_dq_acc=hdim_q, split_stride=physical_seqlen_q*hdim_q,
-        //                 nhead_stride=nsplits*physical_seqlen_q*hdim_q
+        // compact layout: stride_dq_acc=dq_acc_hdim, split_stride=physical_seqlen_q*dq_acc_hdim,
+        //                 nhead_stride=nsplits*physical_seqlen_q*dq_acc_hdim
         const long_index_t split_stride_dq_acc =
-            static_cast<long_index_t>(physical_seqlen_q) * kargs.hdim_q;
+            static_cast<long_index_t>(physical_seqlen_q) * dq_acc_hdim;
         const index_t nsplits = [&, i_batch_ = i_batch]() {
             if constexpr(!kIsDeterministic)
                 return 1;
@@ -2942,7 +3114,7 @@ struct FmhaBwdConvertQGradKernel
                     auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                         dq_acc_ptr,
                         make_tuple(nsplits, kargs.seqlen_q, kargs.hdim_q),
-                        make_tuple(split_stride_dq_acc, kargs.hdim_q, 1),
+                        make_tuple(split_stride_dq_acc, dq_acc_hdim, 1),
                         number<kAlign>{},
                         number<1>{});
                     return pad_tensor_view(
@@ -2960,7 +3132,7 @@ struct FmhaBwdConvertQGradKernel
                     auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                         dq_acc_ptr,
                         make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                        make_tuple(kargs.hdim_q, 1),
+                        make_tuple(dq_acc_hdim, 1),
                         number<kAlign>{},
                         number<1>{});
                     return pad_tensor_view(dq_acc_dram_naive,
@@ -3029,6 +3201,9 @@ struct FmhaBwdConvertQGradKernel
                           FmhaBwdConvertQGrad::kAlignmentQGrad);
             run(number<FmhaBwdConvertQGrad::kAlignmentQGrad>{});
         }
+
+        if(fold_sink)
+            fold_sink_partials();
     }
 };
 

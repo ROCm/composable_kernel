@@ -75,6 +75,39 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kPaddedVecLoadStore = PaddedVecLoadStore_;
     static constexpr bool kUseHdimTailArgs    = kPadHeadDimQ || kPadHeadDimV;
 
+    // Separate K from V/dropout LDS to remove K/V aliasing barriers.
+#if defined(__gfx11__) || defined(__gfx120__)
+    static constexpr bool kUseSeparateKVLds =
+#if defined(__gfx115__)
+        // gfx115 separates LDS only for D128, except QK32/PV32.
+        (kQKHeaddim == 128 && kN1 == 128 && !(kK0 == 32 && kK1 == 32)) &&
+#elif defined(__gfx11__)
+        // M64/M128 D64 QK32/PV32 tiles keep shared LDS.
+        !(kQKHeaddim == 64 && kN1 == 64 && kM0 <= 128 && kN0 == 64 && kK0 == 32 && kK1 == 32) &&
+        // D128 shares LDS for QK32/PV32 or elementwise bias with dropout.
+        !(kQKHeaddim == 128 && kN1 == 128 &&
+          ((kK0 == 32 && kK1 == 32) ||
+           (kHasDropout && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS))) &&
+        // D256 keeps shared LDS to preserve long-sequence throughput.
+        !(kQKHeaddim == 256 && kN1 == 256) &&
+#elif defined(__gfx120__)
+        // D64 masked dropout+sink shares LDS for bias and unpadded ALiBi.
+        !(kQKHeaddim == 64 && FmhaMask::IsMasking && kHasDropout && kHasSink &&
+          (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+           (BiasEnum == BlockAttentionBiasEnum::ALIBI && !kUseHdimTailArgs))) &&
+        // Small no-bias tiles share LDS, except D32 dropout.
+        (kM0 > 64 || BiasEnum != BlockAttentionBiasEnum::NO_BIAS ||
+         (kHasDropout && kQKHeaddim == 32)) &&
+#endif
+        // Separate LDS supports matching FP16/BF16 Q/K/V types and row-major V.
+        (std::is_same_v<QDataType, bf16_t> || std::is_same_v<QDataType, half_t>) &&
+        std::is_same_v<KDataType, QDataType> && std::is_same_v<VDataType, QDataType> &&
+        std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>;
+#else
+    // Other architectures, including gfx9, retain shared LDS.
+    static constexpr bool kUseSeparateKVLds = false;
+#endif
+
     static constexpr ck_tile::index_t kQKScaleGranularity = Problem::kQKScaleGranularity;
     static constexpr ck_tile::index_t kVScaleGranularity  = Problem::kVScaleGranularity;
 
@@ -154,7 +187,13 @@ struct BlockFmhaPipelineQRKSVS
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return Policy::template GetSmemSize<Problem>();
+        constexpr auto shared_bytes = Policy::template GetSmemSize<Problem>();
+        if constexpr(kUseSeparateKVLds)
+            return shared_bytes +
+                   sizeof(KDataType) *
+                       Policy::template MakeKLdsBlockDescriptor<Problem>().get_element_space_size();
+        else
+            return shared_bytes;
     }
 
     template <typename QDramBlockWindowTmp,
@@ -255,9 +294,11 @@ struct BlockFmhaPipelineQRKSVS
         }
 
         // K tile in LDS
-        KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
-        auto k_lds           = make_tensor_view<address_space_enum::lds>(
+        KDataType* k_lds_ptr = static_cast<KDataType*>(
+            static_cast<void*>(static_cast<char*>(smem_ptr) +
+                               (kUseSeparateKVLds ? Policy::template GetSmemSize<Problem>()
+                                                  : Policy::template GetSmemSizeQ<Problem>())));
+        auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
         auto k_lds_window =
             make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
@@ -572,57 +613,6 @@ struct BlockFmhaPipelineQRKSVS
             }
 
             auto run_gemm_0 = [&](auto i_k0) {
-                if constexpr(kUsePartialKForGemm0Tail)
-                {
-                    if(static_cast<index_t>(i_k0.value) == (valid_k0_loops - 1) &&
-                       gemm0_tail_k_iters < kGemm0KItersPerBlock)
-                    {
-                        static_for<1, kGemm0KItersPerBlock, 1>{}([&](auto i_tail_k_iter) {
-                            constexpr index_t kTailKIters = i_tail_k_iter;
-
-                            if(gemm0_tail_k_iters == kTailKIters)
-                            {
-                                // gfx12 WMMA accumulates (c = a*b + c), so a K=kTailK0 tail
-                                // equals kTailKIters accumulating warp-K(=kGemm0WarpK) sub-GEMMs.
-                                // Slicing the Q A-operand register tile at warp-K granularity
-                                // divides the register layout cleanly for any tail multiple of
-                                // kGemm0WarpK (16/32/48), avoiding the reverse_slice_sequence
-                                // static_assert that a monolithic K=48 slice triggers on WMMA.
-                                using Gemm0TailProblem = BlockGemmProblem<
-                                    QDataType,
-                                    KDataType,
-                                    SaccDataType,
-                                    Problem::kNumGemm0Warps * get_warp_size(),
-                                    TileGemmShape<
-                                        sequence<kM0, kN0, kGemm0WarpK>,
-                                        typename BlockFmhaShape::Gemm0BlockWarps,
-                                        sequence<BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-                                                 BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-                                                 kGemm0WarpK>>>;
-                                constexpr auto gemm_0_tail =
-                                    BlockGemmARegBSmemCRegV2<Gemm0TailProblem,
-                                                             typename BlockGemm0::Policy>{};
-
-                                static_for<0, kTailKIters, 1>{}([&](auto j) {
-                                    constexpr index_t kSubKOffset = j.value * kGemm0WarpK;
-
-                                    auto q_slice = get_slice_tile(
-                                        q_tile,
-                                        sequence<0, i_k0 * kK0 + kSubKOffset>{},
-                                        sequence<kM0, i_k0 * kK0 + kSubKOffset + kGemm0WarpK>{});
-                                    auto k_tail_window = make_tile_window(
-                                        k_lds,
-                                        make_tuple(number<kN0>{}, number<kGemm0WarpK>{}),
-                                        {0, kSubKOffset});
-
-                                    gemm_0_tail(s_acc, q_slice, k_tail_window);
-                                });
-                            }
-                        });
-                        return;
-                    }
-                }
-
                 auto q_slice = get_slice_tile(
                     q_tile, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{});
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::MX)
@@ -635,8 +625,24 @@ struct BlockFmhaPipelineQRKSVS
                 }
                 else
                 {
-                    gemm_0(s_acc, q_slice, k_lds_window);
-                    schedule_gemm_0();
+                    if constexpr(kUsePartialKForGemm0Tail)
+                    {
+                        const index_t valid_k_iters =
+                            static_cast<index_t>(i_k0.value) == (valid_k0_loops - 1)
+                                ? gemm0_tail_k_iters
+                                : kGemm0KItersPerBlock;
+                        gemm_0.RunPartialK(s_acc, q_slice, k_lds_window, valid_k_iters);
+                        // Full-block scheduling requires all K iterations.
+                        if(valid_k_iters == kGemm0KItersPerBlock)
+                        {
+                            schedule_gemm_0();
+                        }
+                    }
+                    else
+                    {
+                        gemm_0(s_acc, q_slice, k_lds_window);
+                        schedule_gemm_0();
+                    }
                 }
             };
 
@@ -683,12 +689,49 @@ struct BlockFmhaPipelineQRKSVS
                 AfterSoftmax
             };
 
+            // Early V loads overlap QK work; later loads shorten V's register live range.
+            // The balance depends on the architecture, tile and shared/separate LDS.
+            constexpr auto kVPrefetch = []() {
 #if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
-            constexpr auto kVPrefetch =
-                kPadHeadDimV ? VPrefetchPoint::AfterSoftmax : VPrefetchPoint::AfterGemm0Tail;
-#else
-            constexpr auto kVPrefetch = VPrefetchPoint::BeforeGemm0Tail;
+#if defined(__gfx115__)
+                // Separate LDS only serves D128; defer V past no-bias dropout.
+                if constexpr(kUseSeparateKVLds)
+                    return kHasDropout && BiasEnum == BlockAttentionBiasEnum::NO_BIAS
+                               ? VPrefetchPoint::AfterSoftmax
+                               : VPrefetchPoint::AfterGemm0Tail;
+                // Shared bias overlaps QK; D64 sink without LSE keeps V's live range shorter.
+                if constexpr(!kHasDropout && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS &&
+                             (kQKHeaddim == 64 || kK0 == 128))
+                    return (kK0 == 128 || kStoreLSE || !kHasSink) ? VPrefetchPoint::BeforeGemm0Tail
+                                                                  : VPrefetchPoint::AfterGemm0Tail;
+#elif defined(__gfx11__)
+                // D128 no-bias dropout waits for softmax; other separate tiles overlap QK.
+                if constexpr(kUseSeparateKVLds)
+                    return kQKHeaddim == 128 && kN1 == 128 && kHasDropout &&
+                                   BiasEnum == BlockAttentionBiasEnum::NO_BIAS
+                               ? VPrefetchPoint::AfterSoftmax
+                               : VPrefetchPoint::BeforeGemm0Tail;
+#elif defined(__gfx120__)
+                if constexpr(kUseSeparateKVLds)
+                {
+                    // D64/D128 dropout trades V's live range against overlap with softmax.
+                    if constexpr(!kHasDropout || (kQKHeaddim != 64 && kQKHeaddim != 128))
+                        return VPrefetchPoint::BeforeGemm0Tail;
+                    constexpr auto kAfterQKBias = kQKHeaddim == 64
+                                                      ? BlockAttentionBiasEnum::ALIBI
+                                                      : BlockAttentionBiasEnum::ELEMENTWISE_BIAS;
+                    return FmhaMask::IsMasking && kHasSink && BiasEnum == kAfterQKBias
+                               ? VPrefetchPoint::AfterGemm0Tail
+                               : VPrefetchPoint::AfterSoftmax;
+                }
 #endif
+                // Shared LDS waits for softmax with V head padding, otherwise QK.
+                return kPadHeadDimV ? VPrefetchPoint::AfterSoftmax : VPrefetchPoint::AfterGemm0Tail;
+#else
+                // Other targets overlap V with the QK tail.
+                return VPrefetchPoint::BeforeGemm0Tail;
+#endif
+            }();
             if constexpr(kVPrefetch == VPrefetchPoint::BeforeGemm0Tail)
             {
                 load_tile(v_prefetch, v_dram_window); // prefetch load v tile
@@ -1054,7 +1097,10 @@ struct BlockFmhaPipelineQRKSVS
                 load_tile(v_prefetch, v_dram_window);
             }
 
-            block_sync_lds();
+            // With separate K/V buffers, the first QK barrier already protected
+            // the previous iteration's V reads before this V store.
+            if constexpr(!kUseSeparateKVLds)
+                block_sync_lds();
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
@@ -1150,7 +1196,7 @@ struct BlockFmhaPipelineQRKSVS
                 [&](auto& o_acc_tensor, const auto& p_slice, const auto&... gemm_1_args) {
                     if constexpr(kPadHeadDimV && kBlockGemm1SupportsPartialN)
                     {
-                        gemm_1(o_acc_tensor, p_slice, gemm_1_args..., valid_n_iters);
+                        gemm_1.RunPartialN(o_acc_tensor, p_slice, gemm_1_args..., valid_n_iters);
                     }
                     else
                     {
@@ -1240,7 +1286,9 @@ struct BlockFmhaPipelineQRKSVS
             {
                 block_sync_lds();
                 run_gemm_1(number<k1_loops - 1>{});
-                block_sync_lds();
+                // The PV barrier completed all K reads before the next K store.
+                if constexpr(!kUseSeparateKVLds)
+                    block_sync_lds();
             }
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
             {

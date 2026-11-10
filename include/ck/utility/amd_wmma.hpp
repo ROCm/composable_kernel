@@ -24,7 +24,7 @@ namespace ck {
 #define __gfx120__
 #endif
 
-#if defined(__gfx1250__) || defined(__gfx1250_strict__)
+#if defined(__gfx1250__) || defined(__gfx1250_strict__) || defined(__gfx1251__)
 #define __gfx125__
 #endif
 
@@ -1034,6 +1034,33 @@ struct intrin_wmma_f32_16x16x4_f32<16, 16>
                                                   bit_cast<float2_t>(reg_b),
                                                   0,
                                                   reg_c.template AsType<float8_t>()[Number<0>{}],
+                                                  false,
+                                                  false);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_wmma_f64_16x16x4_f64;
+
+template <>
+struct intrin_wmma_f64_16x16x4_f64<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const double2_t& reg_a, const double2_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx1251__)
+        reg_c.template AsType<double8_t>()(Number<0>{}) =
+            __builtin_amdgcn_wmma_f64_16x16x4_f64(0,
+                                                  bit_cast<double2_t>(reg_a),
+                                                  0,
+                                                  bit_cast<double2_t>(reg_b),
+                                                  0,
+                                                  reg_c.template AsType<double8_t>()[Number<0>{}],
                                                   false,
                                                   false);
 #else

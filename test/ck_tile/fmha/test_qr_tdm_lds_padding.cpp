@@ -741,7 +741,8 @@ static_assert(is_disabled_selection<
 #endif
 
 // qr_tdm_pingpong: Q/K rows padded by one 16 B vector, V rows by two, one pad per row as
-// a plain row stride; [K0][K1][V, aliased by Q].
+// a plain row stride; [K0][K1][V0][V1], Q starting on the last V buffer (the 128-row tile
+// double-buffers V; Q runs past V1's end into the arena's tail).
 template <typename DataType, ck_tile::index_t M>
 constexpr bool validate_pingpong_layout()
 {
@@ -767,15 +768,18 @@ constexpr bool validate_pingpong_layout()
     static_assert(Layout::kKBytes == 17392 && Layout::kVBytes == 18400);
     static_assert(Layout::kK0Offset == 0 && Layout::kK1Offset == 17408);
     static_assert(Layout::kSBytes == 0);
-    static_assert(Layout::kV0Offset == 34816 && Layout::kQOffset == Layout::kV0Offset);
+    static_assert(Layout::kDoubleV == (M == 128));
+    static_assert(Layout::kV0Offset == 34816);
+    static_assert(Layout::kV1Offset == (M == 128 ? 53248 : 34816));
+    static_assert(Layout::kQOffset == Layout::kV1Offset);
     static_assert(Layout::kQBytes == (M == 128 ? 34800 : 17392));
-    static_assert(Layout::kArenaBytes == (M == 128 ? 69632 : 53248));
+    static_assert(Layout::kArenaBytes == (M == 128 ? 88064 : 53248));
     static_assert(Pipeline::GetSmemSize() == Layout::kArenaBytes);
     static_assert(ck_tile::detail::uses_qr_tdm_lds_arena_v<Pipeline>);
 
     using Unpadded = typename Policy::template LdsArenaLayout<Problem, NoPad, NoPad, NoPad>;
     static_assert(Unpadded::kK1Offset == 16384 && Unpadded::kV0Offset == 32768);
-    static_assert(Unpadded::kArenaBytes == (M == 128 ? 65536 : 49152));
+    static_assert(Unpadded::kArenaBytes == (M == 128 ? 81920 : 49152));
     return true;
 }
 

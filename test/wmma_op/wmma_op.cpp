@@ -262,3 +262,11 @@ TEST(WMMATest, F32_16x16x4_F32)
     auto pass = run_test<float, float, float, float, float, 4>();
     EXPECT_TRUE(pass);
 }
+
+#if defined(__gfx1251__)
+TEST(WMMATest, F64_16x16x4_F64)
+{
+    auto pass = run_test<double, double, double, double, double, 4>();
+    EXPECT_TRUE(pass);
+}
+#endif

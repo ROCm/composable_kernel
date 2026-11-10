@@ -50,6 +50,7 @@ from dispatcher_common import (  # noqa: E402
     fp8_uses_ocp,
     ocp_arch_defines,
     arch_feature_defines,
+    gpu_target_id_define,
     unified_framework_flags,
 )
 
@@ -361,13 +362,16 @@ class TestFp8ArchPredicates(unittest.TestCase):
 class TestArchFeatureDefines(unittest.TestCase):
     """arch_feature_defines mirrors the top-level CMakeLists.txt arch block."""
 
-    def test_gfx942_gets_no_feature_defines(self):
-        self.assertEqual(arch_feature_defines("gfx942"), [])
+    def test_gfx942_gets_only_its_target_id(self):
+        self.assertEqual(
+            arch_feature_defines("gfx942"), ["-DCK_CMAKE_GPU_TARGET_IDS=0x942"]
+        )
 
     def test_gfx950_gets_ocp_plus_mx(self):
         self.assertEqual(
             arch_feature_defines("gfx950"),
             [
+                "-DCK_CMAKE_GPU_TARGET_IDS=0x950",
                 "-DCK_USE_OCP_FP8",
                 "-DCK_TILE_USE_OCP_FP8",
                 "-DCK_USE_NATIVE_MX_SUPPORT",
@@ -414,6 +418,60 @@ class TestArchFeatureDefines(unittest.TestCase):
                 self.assertEqual(
                     arch_feature_defines(f"{arch}:sramecc+:xnack-"),
                     arch_feature_defines(arch),
+                )
+
+
+class TestGpuTargetIdDefine(unittest.TestCase):
+    """The JIT bridges pass CK_CMAKE_GPU_TARGET_IDS exactly as CK's CMake does.
+
+    Without it the host pass of a ck_tile kernel resolves the target as HOST, so
+    host-side checks run against a different warp GEMM than the device's. On
+    gfx942 the default 2D epilogue's GetVectorSizeC() came out 0 on the host and
+    IsSupportedArgument divided by it (N % 0), rejecting a 128x128x64 preshuffle
+    GEMM at random depending on how the compiler folded the undefined result.
+    """
+
+    def test_matches_the_dispatcher_cmake_spelling(self):
+        # bindings/ctypes/CMakeLists.txt builds the same define for its
+        # single-target libraries by replacing "gfx" with "0x"; the JIT path and
+        # the CMake path must agree (test_quant_review_regressions checks both).
+        text = (DISPATCHER_DIR / "bindings" / "ctypes" / "CMakeLists.txt").read_text()
+        self.assertIn('string(REGEX REPLACE "^gfx" "0x"', text)
+        for arch, value in (
+            ("gfx908", "0x908"),
+            ("gfx90a", "0x90a"),
+            ("gfx942", "0x942"),
+            ("gfx950", "0x950"),
+            ("gfx1201", "0x1201"),
+            ("gfx1250", "0x1250"),
+        ):
+            with self.subTest(arch=arch):
+                self.assertEqual(
+                    gpu_target_id_define(arch), [f"-DCK_CMAKE_GPU_TARGET_IDS={value}"]
+                )
+
+    def test_target_triple_and_case_are_normalized(self):
+        self.assertEqual(
+            gpu_target_id_define("GFX942:sramecc+:xnack-"),
+            ["-DCK_CMAKE_GPU_TARGET_IDS=0x942"],
+        )
+
+    def test_unknown_arch_gets_nothing(self):
+        for arch in (None, "", "host", "sm_90"):
+            with self.subTest(arch=arch):
+                self.assertEqual(gpu_target_id_define(arch), [])
+
+    def test_every_dispatcher_arch_passes_it_to_the_bridges(self):
+        # arch_feature_defines is what the bridges' hipcc lines use.
+        for arch in ("gfx90a", "gfx942", "gfx950", "gfx1201", "gfx1250"):
+            with self.subTest(arch=arch):
+                self.assertEqual(
+                    [
+                        d
+                        for d in arch_feature_defines(arch)
+                        if "CK_CMAKE_GPU_TARGET_IDS" in d
+                    ],
+                    gpu_target_id_define(arch),
                 )
 
 
@@ -468,7 +526,9 @@ class _FakeHip:
         # rather than ptr._obj: _obj is a CPython implementation detail of
         # CArgObject, while cast is public API and raises if byref() is ever
         # dropped from the call site -- which is the regression worth catching.
-        ctypes.cast(ptr, ctypes.POINTER(ctypes.c_int)).contents.value = self.device_count
+        ctypes.cast(
+            ptr, ctypes.POINTER(ctypes.c_int)
+        ).contents.value = self.device_count
         return self.count_err
 
     def hipGetLastError(self):
@@ -566,9 +626,11 @@ class TestHipDeviceProblem(_HipHelperTestCase):
         # This is develop #2687/#2698 verbatim: BUILD_INSTANCES_ONLY starts the
         # container without --device=/dev/kfd, so the fix an operator needs is
         # the docker flag, not the device count.
-        with self._patch_hip(_FakeHip(device_count=0, count_err=100)), patch(
-            "os.path.exists", return_value=False
-        ), patch.dict(os.environ, {}, clear=True):
+        with (
+            self._patch_hip(_FakeHip(device_count=0, count_err=100)),
+            patch("os.path.exists", return_value=False),
+            patch.dict(os.environ, {}, clear=True),
+        ):
             problem = hip_device_problem()
         self.assertIn("/dev/kfd does not exist", problem)
         self.assertIn("--device=/dev/kfd", problem)
@@ -576,10 +638,11 @@ class TestHipDeviceProblem(_HipHelperTestCase):
     def test_unreadable_kfd_is_called_out(self):
         # /dev/kfd present but not group-accessible is a different fix
         # (--group-add), so it must not be reported as a missing device node.
-        with self._patch_hip(_FakeHip(device_count=0, count_err=100)), patch(
-            "os.path.exists", return_value=True
-        ), patch("os.access", return_value=False), patch.dict(
-            os.environ, {}, clear=True
+        with (
+            self._patch_hip(_FakeHip(device_count=0, count_err=100)),
+            patch("os.path.exists", return_value=True),
+            patch("os.access", return_value=False),
+            patch.dict(os.environ, {}, clear=True),
         ):
             problem = hip_device_problem()
         self.assertNotIn("does not exist", problem)
@@ -595,9 +658,10 @@ class TestHipDeviceProblem(_HipHelperTestCase):
         ):
             with self.subTest(var=var):
                 _hip_runtime_once.cache_clear()
-                with self._patch_hip(
-                    _FakeHip(device_count=0, count_err=100)
-                ), patch.dict(os.environ, {var: ""}, clear=True):
+                with (
+                    self._patch_hip(_FakeHip(device_count=0, count_err=100)),
+                    patch.dict(os.environ, {var: ""}, clear=True),
+                ):
                     problem = hip_device_problem()
                 self.assertIn(f"{var}=''", problem)
 

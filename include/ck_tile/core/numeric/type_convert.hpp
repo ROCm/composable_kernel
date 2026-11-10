@@ -49,7 +49,7 @@ CK_TILE_HOST_DEVICE constexpr Y type_convert(X x)
 template <typename Y, typename X>
 CK_TILE_HOST_DEVICE constexpr Y scaled_type_convert(X x, float scale);
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
 // Declare a template function for wave-wise scaled conversion
 /* scale is packed 4 form, see details for FP8/BF8, FP4, FP6 */
 template <typename Y, typename X, int Scale_sel>

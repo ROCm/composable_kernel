@@ -130,7 +130,8 @@ enum struct MfmaInstr
     wmma_f32_16x16x128_bf8bf8_gfx125,
     wmma_f32_16x16x128_bf8f8_gfx125,
     wmma_f32_16x16x128_f8bf8_gfx125,
-    wmma_f32_16x16x128_f8f8_gfx125
+    wmma_f32_16x16x128_f8f8_gfx125,
+    wmma_f64_16x16x4_f64_gfx1251
 };
 
 template <MfmaInstr instr>
@@ -1465,6 +1466,16 @@ struct mfma_type<MfmaInstr::wmma_f32_16x16x4_f32_gfx125> : public mfma_type_gfx1
 };
 
 template <>
+struct mfma_type<MfmaInstr::wmma_f64_16x16x4_f64_gfx1251> : public mfma_type_gfx125_base_4
+{
+    template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_wmma_f64_16x16x4_f64<MPerWmma, NPerWmma>::Run(a, b, reg_c);
+    }
+};
+
+template <>
 struct mfma_type<MfmaInstr::wmma_scale_f32_16x16x128_f8f6f4_gfx125>
     : public mfma_type_gfx125_base_128
 {
@@ -1777,7 +1788,9 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<double, 16, 16>()
     {
-#if defined(__gfx12__) || defined(__gfx117__)
+#if defined(__gfx1251__)
+        return MfmaInstr::wmma_f64_16x16x4_f64_gfx1251;
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;

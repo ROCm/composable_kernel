@@ -1539,6 +1539,12 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
             if constexpr(std::is_same_v<fmha_fwd_args, std::decay_t<decltype(args)>>)
             {
+                // Fix group-mode tile selection: use the longest sequence length instead of
+                // the total Q length, which incorrectly selected large tiles for short sequences.
+                if(mode == mode_enum::group &&
+                   (ck_tile::is_gfx11_supported() || ck_tile::is_gfx120_supported()))
+                    args.max_seqlen_q = max_seqlen_q;
+
                 if(qscale.type == quant_scale_enum::pertensor)
                 {
                     args.q_descale_ptr = q_descale_buf.GetDeviceBuffer();

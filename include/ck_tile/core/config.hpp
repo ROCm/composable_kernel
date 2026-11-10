@@ -40,7 +40,7 @@
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
 #define __gfx120__
 #endif
-#if defined(__gfx1250__) || defined(__gfx1250_strict__)
+#if defined(__gfx1250__) || defined(__gfx1250_strict__) || defined(__gfx1251__)
 #define __gfx125__
 #endif
 #if defined(__gfx120__) || defined(__gfx125__)
@@ -440,6 +440,7 @@ namespace ck_tile::core {
  * @var CK_TILE_ARCH_GFX1201 Indicates if the compiler target architecture is GFX1201.
  * @var CK_TILE_ARCH_GFX12_GENERIC Indicates if the compiler target architecture is GFX12 generic.
  * @var CK_TILE_ARCH_GFX1250 Indicates if the compiler target architecture is GFX1250.
+ * @var CK_TILE_ARCH_GFX1251 Indicates if the compiler target architecture is GFX1251.
  */
 struct amdgcn_compiler_target_state
 {
@@ -646,11 +647,17 @@ struct amdgcn_compiler_target_state
 #endif // __gfx12_generic__
 
     // GFX12.5
-#if defined(__gfx125__)
+#if defined(__gfx1250__)
     static constexpr bool CK_TILE_ARCH_GFX1250 = true;
 #else
     static constexpr bool CK_TILE_ARCH_GFX1250 = false;
-#endif // __gfx125__
+#endif // __gfx1250__
+
+#if defined(__gfx1251__)
+    static constexpr bool CK_TILE_ARCH_GFX1251 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1251 = false;
+#endif // __gfx1251__
 
     // SPIR-V (target-agnostic, JIT-compiled at runtime)
     // Guard with __HIP_DEVICE_COMPILE__ because __SPIRV__ is defined during
@@ -715,7 +722,8 @@ CK_TILE_HOST_DEVICE static constexpr std::uint32_t count_values_of(T search, Ts.
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1200,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1201,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX12_GENERIC,   \
-        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1250
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1250,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1251
 
 // Sanity check: make sure only one target architecture is defined during device compile
 // SPIR-V is target-agnostic, so none of the specific arch flags will be set

@@ -754,28 +754,12 @@ struct BlockFmhaPipelineQRKSVSTdm
         // as Q / K, with V dram dist switched to trivial tile-major and the
         // V LDS read view kept plain row-major (matches the write view).
         // ---------------------------------------------------------------------
-        TDMConfig tdm_config_q;
-        TDMConfig tdm_config_k;
-        TDMConfig tdm_config_v;
-        {
-            using QRaw =
-                detail::EncodedTdmPadding<typename Policy::template LdsPaddingConfigQ<Problem>>;
-            tdm_config_q.pad_enable              = QRaw::kEnabled;
-            tdm_config_q.pad_config.pad_amount   = QRaw::kPadAmount;
-            tdm_config_q.pad_config.pad_interval = QRaw::kPadInterval;
-
-            using KRaw =
-                detail::EncodedTdmPadding<typename Policy::template LdsPaddingConfigK<Problem>>;
-            tdm_config_k.pad_enable              = KRaw::kEnabled;
-            tdm_config_k.pad_config.pad_amount   = KRaw::kPadAmount;
-            tdm_config_k.pad_config.pad_interval = KRaw::kPadInterval;
-
-            using VRaw =
-                detail::EncodedTdmPadding<typename Policy::template LdsPaddingConfigV<Problem>>;
-            tdm_config_v.pad_enable              = VRaw::kEnabled;
-            tdm_config_v.pad_config.pad_amount   = VRaw::kPadAmount;
-            tdm_config_v.pad_config.pad_interval = VRaw::kPadInterval;
-        }
+        TDMConfig tdm_config_q =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigQ<Problem>>();
+        TDMConfig tdm_config_k =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigK<Problem>>();
+        TDMConfig tdm_config_v =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigV<Problem>>();
 
         // Q tile in LDS
         auto q_dram_window = make_tile_window(
@@ -1276,12 +1260,14 @@ struct BlockFmhaPipelineQRKSVSTdm
                         move_tile_window(randval_dram_window,
                                          {0, physical_seqlen_k_start - sink_seq_end});
                 }
-                // the randval shuffle's own LDS, outside the arena
-                __shared__ char
-                    dropout_lds[BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
-                                    .get_element_space_size()];
+                // the randval shuffle's LDS, the arena's last region
+                static_assert(BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
+                                  .get_element_space_size() <= Layout::kRandValBytes);
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    dropout_lds, kv_tile_start, p_compute, randval_dram_window);
+                    static_cast<char*>(smem_arena) + Layout::kRandValOffset,
+                    kv_tile_start,
+                    p_compute,
+                    randval_dram_window);
             }
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
@@ -1627,28 +1613,12 @@ struct BlockFmhaPipelineQRKSVSTdm
         // as Q / K, with V dram dist switched to trivial tile-major and the
         // V LDS read view kept plain row-major (matches the write view).
         // ---------------------------------------------------------------------
-        TDMConfig tdm_config_q;
-        TDMConfig tdm_config_k;
-        TDMConfig tdm_config_v;
-        {
-            using QRaw =
-                detail::EncodedTdmPadding<typename Policy::template LdsPaddingConfigQ<Problem>>;
-            tdm_config_q.pad_enable              = QRaw::kEnabled;
-            tdm_config_q.pad_config.pad_amount   = QRaw::kPadAmount;
-            tdm_config_q.pad_config.pad_interval = QRaw::kPadInterval;
-
-            using KRaw =
-                detail::EncodedTdmPadding<typename Policy::template LdsPaddingConfigK<Problem>>;
-            tdm_config_k.pad_enable              = KRaw::kEnabled;
-            tdm_config_k.pad_config.pad_amount   = KRaw::kPadAmount;
-            tdm_config_k.pad_config.pad_interval = KRaw::kPadInterval;
-
-            using VRaw =
-                detail::EncodedTdmPadding<typename Policy::template LdsPaddingConfigV<Problem>>;
-            tdm_config_v.pad_enable              = VRaw::kEnabled;
-            tdm_config_v.pad_config.pad_amount   = VRaw::kPadAmount;
-            tdm_config_v.pad_config.pad_interval = VRaw::kPadInterval;
-        }
+        TDMConfig tdm_config_q =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigQ<Problem>>();
+        TDMConfig tdm_config_k =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigK<Problem>>();
+        TDMConfig tdm_config_v =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigV<Problem>>();
 
         // Q tile in LDS
         auto q_dram_window = make_tile_window(
@@ -2264,12 +2234,14 @@ struct BlockFmhaPipelineQRKSVSTdm
                         move_tile_window(randval_dram_window,
                                          {0, physical_seqlen_k_start - sink_seq_end});
                 }
-                // the randval shuffle's own LDS, outside the arena
-                __shared__ char
-                    dropout_lds[BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
-                                    .get_element_space_size()];
+                // the randval shuffle's LDS, the arena's last region
+                static_assert(BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
+                                  .get_element_space_size() <= Layout::kRandValBytes);
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    dropout_lds, kv_tile_start, p_compute, randval_dram_window);
+                    static_cast<char*>(smem_arena) + Layout::kRandValOffset,
+                    kv_tile_start,
+                    p_compute,
+                    randval_dram_window);
             }
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);

@@ -689,6 +689,14 @@ std::vector<at::Tensor> mha_varlen_fwd(
             traits.activation  = activation_type;
             args.broadcast_q   = broadcast_q;
             args.seqlen_q      = total_q; // group mode: the rows of out, as without broadcast_q
+            // the XCD-locality hint: the longest query and key lengths within 1/8 of the means,
+            // taken from the rows of q and k (the packed totals the API's shapes promise; a
+            // broadcast Q block is every batch's)
+            const auto near_mean = [&](int64_t max_len, int64_t rows) {
+                return 8 * max_len * batch_size <= 9 * rows;
+            };
+            args.uniform_seqlens = near_mean(max_seqlen_k, k.size(0)) &&
+                                   (broadcast_q || near_mean(max_seqlen_q, q.size(0)));
             if(is_fp8 && qscale_type != quant_scale_enum::no_scale)
             {
                 args.q_descale_ptr = q_descale_.value().data_ptr();

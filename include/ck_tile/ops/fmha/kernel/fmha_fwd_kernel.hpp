@@ -10,6 +10,7 @@
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 #include "ck_tile/ops/fmha/detail/fmha_tdm_sched_output.hpp"
+#include "ck_tile/ops/fmha/kernel/fmha_fwd_workgroup_mapping.hpp"
 
 #include <string>
 #include <type_traits>
@@ -302,14 +303,16 @@ struct FmhaFwdKernel
         detail::uses_qr_tdm_lds_arena_v<FmhaPipeline> || kIsTdmSchedD128 ||
         (kPipelineName == "qr_tdm_sched" && FmhaPipeline::BlockFmhaShape::kQKHeaddim == 64);
 
-#if defined(CK_TILE_FMHA_PAIRED_XCC_ORDER) && CK_TILE_FMHA_PAIRED_XCC_ORDER
-    // Experimental mode 5/tm5r assumes eight XCCs and a specific WG-to-WGP mapping.
-    // Recheck those hardware assumptions before enabling this path on a target machine.
-    static constexpr index_t kPairedXccCount             = 8;
-    static constexpr index_t kPairedXccWgpsPerXcc        = 32;
-    static constexpr index_t kPairedXccFullWgsPerXcc     = 512;
-    static constexpr index_t kPairedXccFullStreamsPerXcc = 8;
-#endif
+    // This family was measured without LSE output. Keep LSE-writing variants
+    // on their existing mapping until their performance is validated separately.
+    // GetTileIndex applies architecture and runtime layout/length/topology gates per workgroup.
+    static constexpr bool kSupportsXcdCausalOrder =
+        kHasMask && !kIsGroupMode && kIsTdmSchedD128 && FmhaPipeline::kM0 == 128 &&
+        FmhaPipeline::kN0 == 128 && std::is_same_v<QDataType, ck_tile::bf16_t> &&
+        std::is_same_v<KDataType, ck_tile::bf16_t> && std::is_same_v<VDataType, ck_tile::bf16_t> &&
+        !kStoreLSE && !kHasDropout && !kHasSink && !kHasLogitsSoftCap &&
+        BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
+        QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE;
 
 #if defined(__gfx950__)
     static constexpr bool kIsAvailable = true;
@@ -613,6 +616,8 @@ struct FmhaFwdKernel
         // Every batch reads one Q block of seqlen_q rows (Q's batch offset is 0) and writes
         // its O and LSE rows from i_batch * seqlen_q; seqstart_q_ptr is not read
         bool broadcast_q = false;
+        // the batches' query and key lengths are about equal (see HasUniformSequenceLengths)
+        bool uniform_seqlens = false;
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
@@ -1589,6 +1594,68 @@ struct FmhaFwdKernel
         return tile_span_bytes <= kAsyncOTileSpanLimitBytes;
     }
 
+    // The dropout of head i_nhead (of this launch) in batch i_batch, or NullBlockDropout.
+    CK_TILE_DEVICE static auto
+    MakeBlockDropout([[maybe_unused]] const Kargs& kargs, index_t i_batch, index_t i_nhead)
+    {
+        if constexpr(kHasDropout)
+        {
+            const auto num_head_q_total =
+                (kargs.num_head_q_total > 0 ? kargs.num_head_q_total : kargs.num_head_q);
+            const auto i_head_global = kargs.head_start + i_nhead;
+            return BlockDropout{i_batch,
+                                i_head_global,
+                                num_head_q_total,
+                                kargs.is_drop_seed_offset_from_host ? kargs.drop_seed.val
+                                                                    : *kargs.drop_seed.ptr,
+                                kargs.is_drop_seed_offset_from_host ? kargs.drop_offset.val
+                                                                    : *kargs.drop_offset.ptr,
+                                kargs.rp_undrop,
+                                kargs.p_undrop_in_uint8_t,
+                                kargs.is_store_randval};
+        }
+        else
+        {
+            ignore = i_batch;
+            ignore = i_nhead;
+            return NullBlockDropout{};
+        }
+    }
+
+    // The randval output window of head i_nhead from query row i_m0 (kM0 x kN0, kVectorSize
+    // elements per store, padded as kPadQ/kPadK), or a null window without dropout.
+    template <index_t kVectorSize, bool kPadQ, bool kPadK>
+    CK_TILE_DEVICE static auto
+    MakeRandValDramWindow([[maybe_unused]] const Kargs& kargs,
+                          [[maybe_unused]] index_t i_nhead,
+                          [[maybe_unused]] long_index_t batch_offset_randval,
+                          [[maybe_unused]] index_t i_m0)
+    {
+        constexpr auto lengths =
+            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
+        if constexpr(kHasDropout)
+        {
+            RandValOutputDataType* rand_val_ptr =
+                reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +
+                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_randval +
+                batch_offset_randval;
+            const auto randval_dram =
+                pad_tensor_view(make_naive_tensor_view<address_space_enum::global>(
+                                    rand_val_ptr,
+                                    make_tuple(kargs.seqlen_q, kargs.seqlen_k),
+                                    make_tuple(kargs.stride_randval, 1),
+                                    number<kVectorSize>{},
+                                    number<1>{}),
+                                lengths,
+                                sequence<kPadQ, kPadK>{});
+            return make_tile_window(randval_dram, lengths, {i_m0, 0});
+        }
+        else
+        {
+            return make_null_tile_window(lengths);
+        }
+    }
+
     CK_TILE_HOST static bool IsSupportedArgument([[maybe_unused]] const Kargs& kargs)
     {
         if constexpr(kStoreLSE && !kStoresLseLog2)
@@ -1709,26 +1776,30 @@ struct FmhaFwdKernel
         }
     }
 
-#if CK_TILE_XCD_REMAP_NUM_XCDS
-    // Whether every (batch, head) has the same work. The grid is sized by the
-    // longest sequence, so with per-batch lengths (group mode, or cu_seqlen_q/k
-    // in batch mode) the short batches' blocks exit early and whole-batch XCD
-    // segments would leave the XCDs unbalanced; those keep the round-robin.
-    CK_TILE_DEVICE static bool HasUniformWork([[maybe_unused]] const Kargs& kargs)
+    // Uniform sequence lengths allow locality-oriented XCD partitioning. Causal
+    // tiles within one sequence still have different amounts of work. Group mode
+    // has per-batch lengths, so whole-batch XCD segments could leave the XCDs
+    // unbalanced, except with about equal lengths (uniform_seqlens, from the
+    // caller) or a broadcast Q block, which every batch shares: there the
+    // round-robin spreads the m-tiles of a (batch, head) over the XCDs, and each
+    // XCD's L2 fetches their K/V again (gfx1250, TCX: a 512-row broadcast Q over
+    // 768 x 12288 keys fetched 2.1x the K/V from HBM; 128 queries over 1152 x 772
+    // keys on 64-row tiles: -19% with the partitioning). Checking the lengths in
+    // the kernel (seqstart against max_seqlen_q/k) cost every block two scalar
+    // loads ahead of its tile index: +2% on those 15-60 us kernels.
+    CK_TILE_DEVICE static bool HasUniformSequenceLengths([[maybe_unused]] const Kargs& kargs)
     {
         if constexpr(kIsGroupMode)
-            return false;
+            return kargs.uniform_seqlens || kargs.broadcast_q;
         else
             return kargs.cu_seqlen_q_ptr == nullptr && kargs.cu_seqlen_k_ptr == nullptr;
     }
-#endif
 
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
         bool has_padded_seqlen_k = false;
-
         if constexpr(kIsGroupMode)
-            has_padded_seqlen_k = (kargs.seqlen_k_ptr != nullptr);
+            has_padded_seqlen_k = kargs.seqlen_k_ptr != nullptr;
 
         // Several query tiles per workgroup: the batches' first tile groups (full ones) go
         // first, the short and empty last groups after them, so the grid ends on short
@@ -1758,100 +1829,20 @@ struct FmhaFwdKernel
             }
         }
 
-#if defined(CK_TILE_FMHA_PAIRED_XCC_ORDER) && CK_TILE_FMHA_PAIRED_XCC_ORDER && defined(__gfx1250__)
-        if constexpr(kHasMask)
-        {
-            // Heads vary fastest so concurrent GQA workgroups still share K/V.
-            if(ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1) == 1)
-            {
-                const index_t num_tile_m = has_padded_seqlen_k ? gridDim.z : gridDim.y;
-                const index_t num_batch  = has_padded_seqlen_k ? gridDim.y : gridDim.z;
-                const index_t num_head   = gridDim.x;
-                const index_t linear_id =
-                    blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z);
-                if constexpr(!kIsGroupMode && kIsTdmSchedD128 &&
-                             std::is_same_v<QDataType, ck_tile::bf16_t> &&
-                             FmhaPipeline::BlockFmhaShape::kQKHeaddim == 128 && !kHasDropout &&
-                             !kHasSink && !kHasLogitsSoftCap &&
-                             BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
-                             QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE)
-                {
-                    constexpr index_t kNumXcc  = kPairedXccCount;
-                    constexpr index_t kXccWgps = kPairedXccWgpsPerXcc;
-                    static_assert((kNumXcc & (kNumXcc - 1)) == 0, "NUM_XCC must be a power of two");
-                    // Rows are (batch, q head), batch-major, so a kv head's q heads are adjacent.
-                    const index_t num_row = num_batch * num_head;
-                    // gcd(num_row, kNumXcc): every XCC gets num_row / gcd rows and one of
-                    // `parts` pair stripes of each of them.
-                    const index_t gcd   = ck_tile::min(kNumXcc, num_row & -num_row);
-                    const index_t parts = kNumXcc / gcd;
-                    if(num_tile_m % (2 * parts) == 0)
-                    {
-                        const index_t xcc    = linear_id % kNumXcc;
-                        const index_t slot   = linear_id / kNumXcc;
-                        const index_t rows   = num_row / gcd;
-                        const index_t pairs  = num_tile_m / (2 * parts); // per row and XCC
-                        const index_t deep   = rows * pairs;
-                        const index_t tiles  = 2 * deep;
-                        const index_t first  = xcc * rows;
-                        const index_t stripe = first / num_row;
-                        const index_t row0   = first - stripe * num_row;
-                        // Complementary tile ranks (num_tile_m - 1 - q, q), where
-                        // q = stripe + k * parts, cost num_tile_m + 1 together.
-                        index_t row_off;
-                        index_t k;
-                        bool shallow;
-                        if(tiles <= kPairedXccFullWgsPerXcc &&
-                           rows <= kPairedXccFullStreamsPerXcc * kargs.nhead_ratio_qk)
-                        {
-                            // All of the XCC's tiles, deepest first. If they fit in one fill
-                            // (kXccWgps WGPs x 2 workgroups), queue items s and s + kXccWgps share
-                            // a WGP, so put the shallowest tiles, ascending, after the kXccWgps
-                            // deepest: each deep tile shares its WGP with a short one.
-                            index_t rank = slot;
-                            if(tiles <= 2 * kXccWgps && slot >= kXccWgps)
-                                rank = tiles - 1 - (slot - kXccWgps);
-                            shallow            = rank >= deep;
-                            const index_t r    = shallow ? rank - deep : rank;
-                            const index_t step = r / rows;
-                            row_off            = r - step * rows;
-                            k                  = shallow ? pairs - 1 - step : step;
-                        }
-                        else
-                        {
-                            // One row at a time, deepest first: bounds the concurrent K/V set.
-                            row_off         = slot / (2 * pairs);
-                            const index_t r = slot - row_off * 2 * pairs;
-                            shallow         = r >= pairs;
-                            k               = shallow ? 2 * pairs - 1 - r : r;
-                        }
-                        const index_t q       = stripe + k * parts;
-                        const index_t row     = row0 + row_off;
-                        const index_t i_batch = row / num_head;
-                        const index_t i_nhead = row - i_batch * num_head;
-                        // The divisions above are lowered to VALU; pin the results to SGPRs so
-                        // values derived from them in the main loop stay scalar.
-                        return ck_tile::make_tuple(
-                            amd_wave_read_first_lane(shallow ? q : num_tile_m - 1 - q),
-                            index_t{0},
-                            amd_wave_read_first_lane(i_nhead),
-                            amd_wave_read_first_lane(i_batch));
-                    }
-                    // Plain grid order, deepest tile first. Not the bhsd head-major remap below:
-                    // with num_tile_m % 8 == 0 that one puts equal-depth tiles of different heads
-                    // on the same WGP.
-                    return ck_tile::make_tuple(num_tile_m - 1 - static_cast<index_t>(blockIdx.y),
-                                               index_t{0},
-                                               static_cast<index_t>(blockIdx.x),
-                                               static_cast<index_t>(blockIdx.z));
-                }
-            }
-        }
-#endif
+        const FmhaFwdWorkgroupGrid grid{
+            static_cast<index_t>(gridDim.x),
+            static_cast<index_t>(has_padded_seqlen_k ? gridDim.z : gridDim.y),
+            static_cast<index_t>(has_padded_seqlen_k ? gridDim.y : gridDim.z),
+            ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1),
+            has_padded_seqlen_k};
+        const FmhaFwdWorkgroup block{
+            static_cast<index_t>(blockIdx.x),
+            static_cast<index_t>(has_padded_seqlen_k ? blockIdx.z : blockIdx.y),
+            static_cast<index_t>(has_padded_seqlen_k ? blockIdx.y : blockIdx.z)};
 
+        FmhaFwdWorkgroupFeatures features{};
 #if CK_TILE_FMHA_FORCE_HEAD_MAJOR
-        // compiler-workaround gate (ROCm 7.1 + gfx12).
-        // Keep head-major enabled for all unaffected kernels.
+        // Preserve the ROCm 7.1 + gfx12 compiler-workaround gate.
 #if defined(__gfx12__) && (HIP_VERSION_MAJOR == 7) && (HIP_VERSION_MINOR == 1)
         constexpr bool kSkipHeadMajor = kIsGroupMode && kHasMask && !kHasDropout &&
                                         (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS) &&
@@ -1863,149 +1854,42 @@ struct FmhaFwdKernel
 #else
         constexpr bool kSkipHeadMajor = false;
 #endif
-        if constexpr(!kSkipHeadMajor)
-        {
-            // bhsd should satisfy stride_q == hdim_q and nhead_stride_q > hdim_q
-            // The extra nhead_stride_q guard prevents bshd false-positive when nhead == 1
-            const bool is_bhsd_layout =
-                (kargs.stride_q == kargs.hdim_q) && (kargs.nhead_stride_q > kargs.hdim_q);
-            if(is_bhsd_layout)
-            {
-                const index_t num_tile_n1 =
-                    ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
-                if constexpr(kHasMask && !kIsGroupMode && !kHasDropout && kUseBatchLocalCausalOrder)
-                {
-                    // Square causal tiles have monotonically increasing work along Q.
-                    // Visit the longest tiles across all heads within each batch first.
-                    // Takes precedence over the XCD remap below.
-                    if(kargs.seqlen_q == kargs.seqlen_k && kargs.window_size_left < 0 &&
-                       kargs.window_size_right == 0 && num_tile_n1 == 1)
-                    {
-                        return ck_tile::make_tuple(static_cast<index_t>(gridDim.y) - 1 -
-                                                       static_cast<index_t>(blockIdx.y),
-                                                   index_t{0},
-                                                   static_cast<index_t>(blockIdx.x),
-                                                   static_cast<index_t>(blockIdx.z));
-                    }
-                }
-                const index_t num_tile_total   = has_padded_seqlen_k ? gridDim.z : gridDim.y;
-                const index_t num_head         = gridDim.x;
-                const index_t blocks_per_batch = num_head * num_tile_total;
-                index_t linear_id = blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z);
-
-#if CK_TILE_XCD_REMAP_NUM_XCDS
-                // The m-tiles of one (batch, head) are consecutive in linear_id
-                // and read the same K/V; keep them on one XCD (see remap_xcd).
-                if(HasUniformWork(kargs))
-                    linear_id = remap_xcd_grid(linear_id);
+        constexpr bool kEnableHeadMajor = !kSkipHeadMajor;
+#else
+        constexpr bool kEnableHeadMajor = false;
 #endif
+        constexpr bool kEnableBatchCausal =
+            kHasMask && !kIsGroupMode && !kHasDropout && kUseBatchLocalCausalOrder;
+        // The head-stride guard avoids the single-head BSHD false positive.
+        features.is_bhsd = kargs.stride_q == kargs.hdim_q && kargs.nhead_stride_q > kargs.hdim_q;
+        features.uniform_lengths = HasUniformSequenceLengths(kargs);
+        if constexpr(kHasMask)
+            features.square_causal = kargs.seqlen_q == kargs.seqlen_k &&
+                                     kargs.window_size_left < 0 && kargs.window_size_right == 0;
 
-                const index_t i_batch = linear_id / blocks_per_batch;
-                const index_t rem0    = linear_id - i_batch * blocks_per_batch;
-                const index_t i_nhead = rem0 / num_tile_total;
-                const index_t i_block = rem0 - i_nhead * num_tile_total;
-
-                index_t i_tile_m = i_block / num_tile_n1;
-                index_t i_tile_n = i_block - i_tile_m * num_tile_n1;
-
-                if constexpr(kHasMask)
-                {
-                    const index_t num_tile_m = num_tile_total / num_tile_n1;
-                    i_tile_m                 = num_tile_m - 1 - i_tile_m;
-                }
-                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
-        }
+#if defined(CK_TILE_FMHA_PAIRED_XCC_ORDER) && CK_TILE_FMHA_PAIRED_XCC_ORDER && defined(__gfx1250__)
+        constexpr bool kEnablePaired = kHasMask && !kIsGroupMode && kIsTdmSchedD128 &&
+                                       std::is_same_v<QDataType, ck_tile::bf16_t> &&
+                                       FmhaPipeline::BlockFmhaShape::kQKHeaddim == 128 &&
+                                       !kHasDropout && !kHasSink && !kHasLogitsSoftCap &&
+                                       BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
+                                       QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE;
+#else
+        constexpr bool kEnablePaired = false;
 #endif
-
-        if(has_padded_seqlen_k)
-        {
-            // const index_t num_tile_m0 = seqlen_q / kM0;
-            const index_t num_tile_n1 =
-                ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
-
-            const index_t i_block = blockIdx.z;
-            const index_t i_nhead = blockIdx.x;
-            const index_t i_batch = blockIdx.y;
-
-            const auto f = [](index_t dividend, index_t divisor) {
-                index_t quotient = dividend / divisor;
-                index_t modulus  = dividend - quotient * divisor;
-                return ck_tile::make_tuple(quotient, modulus);
-            };
-
-            const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-
-            if constexpr(kHasMask)
-            {
-                // assume that num_tile_n1 is always 1
-                return ck_tile::make_tuple(
-                    static_cast<index_t>(gridDim.z) - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
-            else
-            {
-                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
-        }
-        else
-        {
-            // const index_t num_tile_m0 = seqlen_q / kM0;
-            const index_t num_tile_n1 =
-                ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
-
-            index_t i_block = blockIdx.y; // blockIdx.x
-            index_t i_nhead = blockIdx.x; // blockIdx.y
-            index_t i_batch = blockIdx.z;
-
-#if CK_TILE_XCD_REMAP_NUM_XCDS
-            // bshd inputs take this path. Dispatch order is blockIdx.x (head)
-            // fastest, so the m-tiles of one (batch, head) sit num_head apart in
-            // linear_id and scatter over the XCDs just like above. Apply the same
-            // bijection, then decode with the m-tile fastest so each (batch, head)
-            // is contiguous inside its XCD segment.
-            //
-            // Masked grids reverse the m-tile order below (long tiles first). Their
-            // round-robin runs every head's long tiles first; remapped, each XCD
-            // runs its heads one after another, which keeps the tail short only
-            // when each XCD holds several heads. This is a locality heuristic, not
-            // a grouping guarantee: an XCD segment need not be a multiple of
-            // gridDim.y, so a head can straddle two segments (3 x 10 heads x 3
-            // m-tiles: segments of 12, 12, then 11). A single m-tile per
-            // (batch, head) (gridDim.y == 1) has no K/V to share, and per-batch
-            // lengths keep the round-robin (see HasUniformWork).
-            const bool remap_masked =
-                gridDim.x * gridDim.z >= CK_TILE_XCD_REMAP_NUM_XCDS * gridDim.y;
-            if(HasUniformWork(kargs) && gridDim.y > 1 && (!kHasMask || remap_masked))
-            {
-                const index_t linear_id =
-                    remap_xcd_grid(blockIdx.x + gridDim.x * (blockIdx.y + gridDim.y * blockIdx.z));
-
-                const index_t rest = linear_id / static_cast<index_t>(gridDim.y);
-                i_block            = linear_id - rest * static_cast<index_t>(gridDim.y);
-                i_batch            = rest / static_cast<index_t>(gridDim.x);
-                i_nhead            = rest - i_batch * static_cast<index_t>(gridDim.x);
-            }
+// The measured device pass is gfx1250; gfx1250-strict retains its fallback.
+#if defined(__gfx1250__)
+        constexpr bool kEnableXcdCausal = kSupportsXcdCausalOrder;
+#else
+        constexpr bool kEnableXcdCausal = false;
 #endif
-
-            const auto f = [](index_t dividend, index_t divisor) {
-                index_t quotient = dividend / divisor;
-                index_t modulus  = dividend - quotient * divisor;
-                return ck_tile::make_tuple(quotient, modulus);
-            };
-
-            const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-
-            if constexpr(kHasMask)
-            {
-                // assume that num_tile_n1 is always 1
-                return ck_tile::make_tuple(
-                    static_cast<index_t>(gridDim.y) - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
-            else
-            {
-                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
-        }
+        const auto tile = MapFmhaFwdWorkgroup<kHasMask,
+                                              kEnableHeadMajor,
+                                              kEnableBatchCausal,
+                                              kEnablePaired,
+                                              kEnableXcdCausal>(
+            features, grid, block, CK_TILE_XCD_REMAP_NUM_XCDS, kargs.nhead_ratio_qk);
+        return ck_tile::make_tuple(tile.q_tile, tile.v_tile, tile.head, tile.batch);
     }
 
     CK_TILE_HOST static dim3 BlockSize()
@@ -2491,61 +2375,11 @@ struct FmhaFwdKernel
                 }
             }();
 
-            auto dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
-                if constexpr(kHasDropout)
-                {
-                    const auto num_head_q_total =
-                        (kargs.num_head_q_total > 0 ? kargs.num_head_q_total : kargs.num_head_q);
-                    const auto i_head_global = kargs.head_start + i_nhead_;
-                    return BlockDropout{i_batch_,
-                                        i_head_global,
-                                        num_head_q_total,
-                                        kargs.is_drop_seed_offset_from_host ? kargs.drop_seed.val
-                                                                            : *kargs.drop_seed.ptr,
-                                        kargs.is_drop_seed_offset_from_host
-                                            ? kargs.drop_offset.val
-                                            : *kargs.drop_offset.ptr,
-                                        kargs.rp_undrop,
-                                        kargs.p_undrop_in_uint8_t,
-                                        kargs.is_store_randval};
-                }
-                else
-                {
-                    return NullBlockDropout{};
-                };
-            }();
+            auto dropout = MakeBlockDropout(kargs, i_batch, i_nhead);
 
-            auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
-                constexpr auto randval_dram_window_lengths =
-                    make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-                if constexpr(kHasDropout)
-                {
-                    RandValOutputDataType* rand_val_ptr =
-                        reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +
-                        static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_randval +
-                        batch_offset_randval;
-
-                    const auto randval_dram = [&]() {
-                        const auto randval_dram_naive =
-                            make_naive_tensor_view<address_space_enum::global>(
-                                rand_val_ptr,
-                                make_tuple(kargs.seqlen_q, kargs.seqlen_k),
-                                make_tuple(kargs.stride_randval, 1),
-                                number<FmhaPipeline::kAlignmentRandVal>{},
-                                number<1>{});
-
-                        return pad_tensor_view(randval_dram_naive,
-                                               randval_dram_window_lengths,
-                                               sequence<kPadSeqLenQ, kPadSeqLenK>{});
-                    }();
-
-                    return make_tile_window(randval_dram, randval_dram_window_lengths, {i_m0, 0});
-                }
-                else
-                {
-                    return make_null_tile_window(randval_dram_window_lengths);
-                }
-            }();
+            auto randval_dram_window =
+                MakeRandValDramWindow<FmhaPipeline::kAlignmentRandVal, kPadSeqLenQ, kPadSeqLenK>(
+                    kargs, i_nhead, batch_offset_randval, i_m0);
 
             FmhaMask mask = [&]() {
                 if constexpr(kHasMask)
@@ -2996,6 +2830,12 @@ struct FmhaFwdKernel
                         kargs.seqlen_q =
                             kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
                     }
+                }
+
+                if constexpr(kSkipMinSeqlenQ)
+                {
+                    if(kargs.seqlen_q <= kargs.min_seqlen_q)
+                        return;
                 }
 
                 // # of required blocks is different in each groups, terminate unnecessary blocks
@@ -3730,55 +3570,12 @@ struct FmhaFwdKernel
                 else
                     return false;
             }();
-            // Dropout, as the non-TDM path builds it.
-            auto tdm_dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
-                if constexpr(kHasDropout)
-                {
-                    const auto num_head_q_total =
-                        (kargs.num_head_q_total > 0 ? kargs.num_head_q_total : kargs.num_head_q);
-                    return BlockDropout{i_batch_,
-                                        kargs.head_start + i_nhead_,
-                                        num_head_q_total,
-                                        kargs.is_drop_seed_offset_from_host ? kargs.drop_seed.val
-                                                                            : *kargs.drop_seed.ptr,
-                                        kargs.is_drop_seed_offset_from_host
-                                            ? kargs.drop_offset.val
-                                            : *kargs.drop_offset.ptr,
-                                        kargs.rp_undrop,
-                                        kargs.p_undrop_in_uint8_t,
-                                        kargs.is_store_randval};
-                }
-                else
-                    return NullBlockDropout{};
-            }();
-            auto tdm_randval_dram_window = [&, i_nhead_ = i_nhead]() {
-                constexpr auto lengths =
-                    make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-                if constexpr(kHasDropout)
-                {
-                    RandValOutputDataType* rand_val_ptr =
-                        reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +
-                        static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_randval +
-                        batch_offset_randval;
-                    const auto randval_dram =
-                        pad_tensor_view(make_naive_tensor_view<address_space_enum::global>(
-                                            rand_val_ptr,
-                                            make_tuple(kargs.seqlen_q, kargs.seqlen_k),
-                                            make_tuple(kargs.stride_randval, 1),
-                                            // a buffer store checks only its first element,
-                                            // so a vector would spill past seqlen_k
-                                            number<1>{},
-                                            number<1>{}),
-                                        lengths,
-                                        // the TDM pipelines take unpadded variants for any
-                                        // length (the TDM bounds the K/V reads), so the
-                                        // randval stores are always bounded
-                                        sequence<true, true>{});
-                    return make_tile_window(randval_dram, lengths, {i_m0, 0});
-                }
-                else
-                    return make_null_tile_window(lengths);
-            }();
+            auto tdm_dropout = MakeBlockDropout(kargs, i_batch, i_nhead);
+            // a buffer store checks only its first element, so a vector would spill past
+            // seqlen_k; the TDM pipelines take unpadded variants for any length (the TDM bounds
+            // the K/V reads), so the randval stores are always bounded
+            auto tdm_randval_dram_window =
+                MakeRandValDramWindow<1, true, true>(kargs, i_nhead, batch_offset_randval, i_m0);
             [[maybe_unused]] const float tdm_soft_cap = [&]() {
                 if constexpr(kHasLogitsSoftCap)
                     return kargs.logits_soft_cap;
@@ -3896,8 +3693,9 @@ struct FmhaFwdKernel
                     if constexpr(kUsesFixedSegmentedLdsArena)
                     {
                         using Policy = typename FmhaPipeline::Policy;
-                        static_assert(FmhaPipeline::GetSmemSize() == Policy::GetLdsArenaSize());
-                        alignas(16) __shared__ char smem_arena[Policy::GetLdsArenaSize()];
+                        // the segmented arena, then (with dropout) the randval shuffle's LDS
+                        static_assert(FmhaPipeline::GetSmemSize() >= Policy::GetLdsArenaSize());
+                        alignas(16) __shared__ char smem_arena[FmhaPipeline::GetSmemSize()];
                         o_lds_staging = smem_arena + Policy::GetLdsOffsetK0();
                         return invoke_fmha_pipeline(q_dram_window,
                                                     k_dram_window,
@@ -3973,55 +3771,70 @@ struct FmhaFwdKernel
                 }
             }();
 
-            // Oacc DRAM and Oacc DRAM window
-            auto o_dram = [&] {
-                const auto o_dram_naive = [&] {
-                    {
-                        return make_naive_tensor_view<address_space_enum::global>(
-                            o_ptr,
-                            make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                            make_tuple(kargs.stride_o, 1),
-                            number<FmhaPipeline::kAlignmentOacc>{},
-                            number<1>{});
-                    }
+            auto store_output = [&](auto alignment) {
+                // Oacc DRAM and Oacc DRAM window
+                auto o_dram = [&] {
+                    const auto o_dram_naive = [&] {
+                        {
+                            return make_naive_tensor_view<address_space_enum::global>(
+                                o_ptr,
+                                make_tuple(kargs.seqlen_q, kargs.hdim_v),
+                                make_tuple(kargs.stride_o, 1),
+                                alignment,
+                                number<1>{});
+                        }
+                    }();
+
+                    return pad_tensor_view(
+                        o_dram_naive,
+                        make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                        sequence<kPadSeqLenQ, kPadHeadDimV>{});
                 }();
 
-                return pad_tensor_view(
-                    o_dram_naive,
+                auto o_dram_window = make_tile_window(
+                    o_dram,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                    sequence<kPadSeqLenQ, kPadHeadDimV>{});
-            }();
+                    {i_m0, i_n1});
 
-            auto o_dram_window = make_tile_window(
-                o_dram,
-                make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                {i_m0, i_n1});
-
-            // Same logical output as the current Default2DEpilogue (cast to ODataType, overwrite
-            // valid rows, no scale or atomic); bounds come from clamping/skipping. Mirror epilogue
-            // changes here.
-            if constexpr(kUseAsyncLdsOStore && PrefillCase)
-            {
-                fmha_tdm_sched_store_o_tile_async_from_lds<FmhaPipeline, kAsyncOStoreBytes>(
-                    o_lds_staging,
-                    o_ptr + static_cast<long_index_t>(i_m0) * kargs.stride_o + i_n1,
-                    kargs.stride_o,
-                    kargs.seqlen_q - i_m0,
-                    o_acc_tile);
-            }
-            else if constexpr(detail::epilogue_uses_smem_v<EpiloguePipeline>)
-            {
-                // The pipeline is done with its LDS; pipelines that declare
-                // their own arrays leave none to the epilogue (direct store).
-                if constexpr(kPipelineDeclaresLds)
-                    EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, nullptr);
+                // Same logical output as the current Default2DEpilogue (cast to ODataType,
+                // overwrite valid rows, no scale or atomic); bounds come from clamping/skipping.
+                // Mirror epilogue changes here.
+                if constexpr(kUseAsyncLdsOStore && PrefillCase)
+                {
+                    fmha_tdm_sched_store_o_tile_async_from_lds<FmhaPipeline, kAsyncOStoreBytes>(
+                        o_lds_staging,
+                        o_ptr + static_cast<long_index_t>(i_m0) * kargs.stride_o + i_n1,
+                        kargs.stride_o,
+                        kargs.seqlen_q - i_m0,
+                        o_acc_tile);
+                }
+                else if constexpr(detail::epilogue_uses_smem_v<EpiloguePipeline>)
+                {
+                    // The pipeline is done with its LDS; pipelines that declare
+                    // their own arrays leave none to the epilogue (direct store).
+                    if constexpr(kPipelineDeclaresLds)
+                        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, nullptr);
+                    else
+                        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, smem_ptr);
+                }
                 else
-                    EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, smem_ptr);
+                {
+                    EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
+                }
+            };
+            if constexpr(kPipelineName == "qr_tdm" && kPadHeadDimV)
+            {
+                // Keep vector stores for aligned heads, and predicate individual
+                // elements for arbitrary tails and row strides.
+                constexpr index_t alignment = FmhaPipeline::kAlignmentOacc;
+                if(kargs.hdim_v % alignment == 0 && kargs.stride_o % alignment == 0 &&
+                   reinterpret_cast<uintptr_t>(o_ptr) % (alignment * sizeof(ODataType)) == 0)
+                    store_output(number<alignment>{});
+                else
+                    store_output(number<1>{});
             }
             else
-            {
-                EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
-            }
+                store_output(number<FmhaPipeline::kAlignmentOacc>{});
         }
     }
 };

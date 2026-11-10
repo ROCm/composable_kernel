@@ -147,10 +147,14 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                   "gemm_1 dispatched a different physical WMMA shape");
 #endif
 
+    // dropout's randval shuffle (BlockDropout::Run) past the policy's segmented arena
+    static constexpr index_t kRandValOffset = Policy::GetLdsArenaSize();
+    static constexpr index_t kRandValBytes  = detail::qr_tdm_randval_lds_bytes<Problem, Policy>();
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         static_assert(Policy::template GetSmemSize<Problem>() == Policy::GetLdsArenaSize());
-        return Policy::GetLdsArenaSize();
+        return integer_least_multiple(kRandValOffset + kRandValBytes, 16);
     }
 
     // Re-pack gemm_0 C into gemm_1 A: C is M-outer (MIter,KIter), A is K-outer.
@@ -931,14 +935,19 @@ struct BlockFmhaPipelineQRKSVSTdmSched
                                 move_tile_window(randval_dram_window,
                                                  {0, physical_seqlen_k_start - sink_seq_end});
                         }
-                        // the randval shuffle's own LDS, outside the K/V buffers
-                        __shared__ char dropout_lds
-                            [BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
-                                 .get_element_space_size()];
+                        // the randval shuffle's LDS, past the segmented arena (whose K0
+                        // segment smem_ptrk0 points at)
+                        static_assert(
+                            BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
+                                .get_element_space_size() <= kRandValBytes);
                         dropout.template Run<decltype(gemm_0),
                                              SMPLComputeDataType,
-                                             RandValOutputDataType>(
-                            dropout_lds, kv_tile_start, s_new, randval_dram_window);
+                                             RandValOutputDataType>(static_cast<char*>(smem_ptrk0) -
+                                                                        Policy::GetLdsOffsetK0() +
+                                                                        kRandValOffset,
+                                                                    kv_tile_start,
+                                                                    s_new,
+                                                                    randval_dram_window);
                     }
                     return MakePForGemm1<decltype(gemm_1)>(s_new);
                 }();

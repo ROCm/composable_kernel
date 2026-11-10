@@ -144,7 +144,7 @@ TEST(PackedFp6, ScaledConvertDevice)
 
 TEST(PackedFp6, PkscaleTypeConvertOpsel0_3)
 {
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -155,7 +155,7 @@ TEST(PackedFp6, PkscaleTypeConvertOpsel0_3)
 
 TEST(PackedFp6, PkscaleTypeConvertOpsel4_7)
 {
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -284,7 +284,7 @@ TEST(PackedBf6, ScaledConvertDevice)
 
 TEST(PackedBf6, PkscaleTypeConvertOpsel0_3)
 {
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -295,7 +295,7 @@ TEST(PackedBf6, PkscaleTypeConvertOpsel0_3)
 
 TEST(PackedBf6, PkscaleTypeConvertOpsel4_7)
 {
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -669,7 +669,7 @@ struct TestPk6scaleTypeConvert
         if(dst_data == nullptr || p_scale == nullptr)
             return;
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
         using DSTx16_t       = ck_tile::ext_vector_t<DST, 16>;
         ck_tile::index_t lid = __lane_id();
         ck_tile::Packed4Scale_E8M0 scale(p_scale[lid]);

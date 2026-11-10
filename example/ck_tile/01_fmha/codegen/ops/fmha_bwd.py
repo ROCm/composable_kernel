@@ -152,7 +152,7 @@ float fmha_bwd_dq_dk_dv_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(const ck_tile::st
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
     if(s.log_level_ > 0)
-        std::cout << ", " << k_::GetName() << std::flush;
+        std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids]                    = fmha_bwd_dq_dk_dv_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
@@ -210,7 +210,7 @@ size_t fmha_bwd_dq_dk_dv_dq_ws_device_upper_bound_<dq_dk_dv_trait_{F_idx}, {F_ar
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
     return k_::GetWorkspaceDeviceSizeUpperBound(
-        max_batch, hdim_q, nhead_q, total_seqlen_q_padded, max_seqlen_k);
+        max_batch, k_::DqAccHdim(hdim_q), nhead_q, total_seqlen_q_padded, max_seqlen_k);
 }}
 
 template <>
@@ -220,8 +220,14 @@ size_t fmha_bwd_dq_dk_dv_dq_prepare_ws_host_<dq_dk_dv_trait_{F_idx}, {F_arch.tag
     const ck_tile::index_t* seqstart_qs, const ck_tile::index_t* seqstart_ks)
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
-    return k_::PrepareWorkspaceHost(
-        cpu_ws, batch_size, hdim_q, nhead_q, seqlen_q, seqlen_k, seqstart_qs, seqstart_ks);
+    return k_::PrepareWorkspaceHost(cpu_ws,
+                                    batch_size,
+                                    k_::DqAccHdim(hdim_q),
+                                    nhead_q,
+                                    seqlen_q,
+                                    seqlen_k,
+                                    seqstart_qs,
+                                    seqstart_ks);
 }}
 
 template <>
@@ -233,7 +239,7 @@ void fmha_bwd_dq_dk_dv_dq_prepare_ws_device_<dq_dk_dv_trait_{F_idx}, {F_arch.tag
 {{
     using k_      = fmha_bwd_dq_dk_dv_kernel_{F_idx};
     using prep_k_ = typename k_::PrepareWorkspaceKernel;
-    auto kargs        = prep_k_::MakeKargs(gpu_ws, batch_size, hdim_q, nhead_q, seqlen_q,
+    auto kargs        = prep_k_::MakeKargs(gpu_ws, batch_size, k_::DqAccHdim(hdim_q), nhead_q, seqlen_q,
                                     seqlen_k, num_cus, seqstart_qs, seqstart_ks);
     const dim3 grids  = prep_k_::GridSize();
     const dim3 blocks = prep_k_::BlockSize();
@@ -251,8 +257,7 @@ bool fmha_bwd_dq_dk_dv_needs_zero_dq_acc_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(
 template <>
 std::string fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>()
 {{
-    using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
-    return k_::GetName();
+    return "{F_kname}";
 }}
 
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
@@ -291,7 +296,7 @@ FMHA_BWD_API_INNER_DISPATCH_COMMON = """{F_if}((t.is_group_mode == {F_mode}) && 
         ({F_scheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.is_deterministic == {F_deterministic}){F_max_seq_q_cond}{F_cond_extra}) {{
     using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dvpad} > 0)>;
     using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_dropout}, {F_bias}, {F_dbias}, {F_dpad}, {F_dvpad}, {F_deterministic}, {F_trload}, {F_tagq}, {F_bn0}>;
-    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dpad} > 0), {F_deterministic}>;
+    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dpad} > 0), {F_deterministic}, {F_pad_dq_acc_row}>;
 """
 FMHA_BWD_API_INNER_DISPATCH_RUN = """
     r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, std::conditional_t<{F_convert_dq_enabled}, convert_dq_trait_, void>, {F_arch.tag}>(s, a);
@@ -393,6 +398,7 @@ class FmhaBwdDQDKDVKernel:
     @property
     def template(self) -> str:
         return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_DQ_DK_DV_KERNEL_BODY.format(
+            F_kname=self.name,
             F_idx=self.F_idx,
             F_arch=self.F_arch,
             F_hdim=self.F_hdim,
@@ -666,7 +672,7 @@ float fmha_bwd_dot_do_o_<dot_do_o_trait_{F_idx}, {F_arch.tag}>(const ck_tile::st
 {{
     using k_ = fmha_bwd_dot_do_o_kernel_{F_idx};
     if(s.log_level_ > 0)
-        std::cout << ", " << k_::GetName() << std::flush;
+        std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids]                    = fmha_bwd_dot_do_o_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
@@ -688,8 +694,14 @@ void fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_{F_idx}, {F_arch.tag}>(const ck_t
 template <>
 std::string fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_{F_idx}, {F_arch.tag}>()
 {{
+    return "{F_kname}";
+}}
+
+template <>
+ck_tile::index_t fmha_bwd_dot_do_o_m0_<dot_do_o_trait_{F_idx}, {F_arch.tag}>()
+{{
     using k_ = fmha_bwd_dot_do_o_kernel_{F_idx};
-    return k_::GetName();
+    return k_::kM0;
 }}
 
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
@@ -711,6 +723,7 @@ class FmhaBwdOGradDotOKernel:
     @property
     def template(self) -> str:
         return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_DOT_DO_O_KERNEL_BODY.format(
+            F_kname=self.name,
             F_idx=self.F_idx,
             F_arch=self.F_arch,
             F_hdim=self.F_hdim,
@@ -775,21 +788,22 @@ using fmha_bwd_convert_dq_{F_idx} =
     typename ck_tile::BlockFmhaBwdConvertQGrad<fmha_bwd_convert_dq_pipeline_problem_{F_idx}>;
 
 using fmha_bwd_convert_dq_kernel_{F_idx} =
-    ck_tile::FmhaBwdConvertQGradKernel<fmha_bwd_convert_dq_{F_idx}>;
+    ck_tile::FmhaBwdConvertQGradKernel<fmha_bwd_convert_dq_{F_idx}, {F_pad_dq_acc_row}>;
 
 using convert_dq_trait_{F_idx} = fmha_bwd_convert_dq_traits_<{F_hdim},
                                                              {F_dtype},
                                                              {F_mode},
                                                              {F_spad},
                                                              {F_dpad},
-                                                             {F_deterministic}>;
+                                                             {F_deterministic},
+                                                             {F_pad_dq_acc_row}>;
 
 template <>
 float fmha_bwd_convert_dq_<convert_dq_trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     using k_ = fmha_bwd_convert_dq_kernel_{F_idx};
     if(s.log_level_ > 0)
-        std::cout << ", " << k_::GetName() << std::flush;
+        std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids]                    = fmha_bwd_convert_dq_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
@@ -811,8 +825,7 @@ void fmha_bwd_convert_dq_oneshot_<convert_dq_trait_{F_idx}, {F_arch.tag}>(const 
 template <>
 std::string fmha_bwd_convert_dq_get_name_<convert_dq_trait_{F_idx}, {F_arch.tag}>()
 {{
-    using k_ = fmha_bwd_convert_dq_kernel_{F_idx};
-    return k_::GetName();
+    return "{F_kname}";
 }}
 
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
@@ -832,10 +845,12 @@ class FmhaBwdConvertQGradKernel:
     F_occupancy: int  #
     F_deterministic: str  #
     disabled: bool  # sometimes this kernel is not used
+    F_pad_dq_acc_row: bool = False
 
     @property
     def template(self) -> str:
         return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_CONVERT_DQ_KERNEL_BODY.format(
+            F_kname=self.name,
             F_idx=self.F_idx,
             F_arch=self.F_arch,
             F_hdim=self.F_hdim,
@@ -846,6 +861,7 @@ class FmhaBwdConvertQGradKernel:
             F_mode=MODE_MAP[self.F_mode],
             F_occupancy=self.F_occupancy,
             F_deterministic=BOOL_MAP[self.F_deterministic],
+            F_pad_dq_acc_row=BOOL_MAP["t" if self.F_pad_dq_acc_row else "f"],
         )
 
     @property
@@ -869,6 +885,8 @@ class FmhaBwdConvertQGradKernel:
             n += f"_{pn}"
         else:
             n += "_npad"
+        if self.F_pad_dq_acc_row:
+            n += "_dqaccrow"
         if self.F_deterministic == "t":
             n += "_deterministic"
         else:
@@ -967,6 +985,11 @@ class FmhaBwdApiTrait:
             return ""
 
     @property
+    def pad_dq_acc_row(self) -> bool:
+        # must match the dq_dk_dv pipeline's kPadDqAccRow: the TDM pipeline pads padded-hdim rows
+        return self.tile.tdm_kr_ktr and self.dpad != 0
+
+    @property
     def dot_do_o_kernel(self) -> FmhaBwdOGradDotOKernel:
         # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
         #       support this in future
@@ -1026,6 +1049,7 @@ class FmhaBwdApiTrait:
             F_occupancy=get_occupancy(self.dtype, self.hdim),
             F_deterministic=self.deterministic,
             disabled=self.tile.max_seq_q != 0,
+            F_pad_dq_acc_row=self.pad_dq_acc_row,
         )
 
 
@@ -1067,6 +1091,7 @@ class FmhaBwdApiPool:
                 F_dpad=trait.dpad,
                 F_dvpad=trait.dvpad,
                 F_deterministic=BOOL_MAP[trait.deterministic],
+                F_pad_dq_acc_row=BOOL_MAP["t" if trait.pad_dq_acc_row else "f"],
                 F_trload=BOOL_MAP[trait.tr_load],
                 F_tagq=trait.tile.seq_q_limit,
                 F_max_seq_q_cond=trait.max_seq_q_cond,

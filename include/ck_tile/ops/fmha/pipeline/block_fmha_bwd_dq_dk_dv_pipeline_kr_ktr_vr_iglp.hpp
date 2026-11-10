@@ -809,6 +809,18 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         // STAGE 1, Q@K Gemm0
         s_acc = gemm_0(q_reg_tensor, k_reg_tensor);
+#if defined(__gfx90a__)
+        // Compiler workaround (AMD clang 24.0.0git, ROCm 10.1): the hazard recognizer misses the
+        // MFMA -> VALU read-after-write wait states on one path out of the edge-tile mask branch
+        // below. gfx90a needs 11 wait states before a VALU reads a 16x16x16 MFMA result; on the
+        // full-tile path the softmax reads s_acc after only 5, so it can pick up a stale S and
+        // corrupt dQ/dK/dV for the last q tile. Whether that happens depends on issue timing, so
+        // it shows up or disappears with unrelated code-layout changes. Pad the wait states here,
+        // before the branch, so every path is covered. Remove once the compiler is fixed.
+        __builtin_amdgcn_sched_barrier(0);
+        asm volatile("s_nop 7\n\ts_nop 3" ::: "memory");
+        __builtin_amdgcn_sched_barrier(0);
+#endif
 
         // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)

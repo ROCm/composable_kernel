@@ -131,6 +131,8 @@ enum struct MxGemmPipelineType
 {
     CompTDMV1,
     CompTDMV2,
+    CompTDMV3,         // comp_tdm_v3 with the TDM epilogue
+    CompTDMV3CShuffle, // comp_tdm_v3 with the CShuffle epilogue (split-K)
     CompAsync,
     CompEightWaves,
     WeightPreshuffle
@@ -155,6 +157,24 @@ struct MxGemmPipelineTypeSelector<MxGemmPipelineType::CompTDMV2, Problem>
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompTDMV2<Problem>;
 
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompTDMV2"; }
+};
+
+template <typename Problem>
+struct MxGemmPipelineTypeSelector<MxGemmPipelineType::CompTDMV3, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompTDM<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompTDMV3<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompTDMV3"; }
+};
+
+template <typename Problem>
+struct MxGemmPipelineTypeSelector<MxGemmPipelineType::CompTDMV3CShuffle, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompTDM<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompTDMV3<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompTDMV3_CShuffle"; }
 };
 
 template <typename Problem>
@@ -199,6 +219,18 @@ template <typename Problem>
 struct MxGemmEpilogueTypeSelector<MxGemmPipelineType::CompTDMV2, Problem, false>
 {
     using epilogue = ck_tile::TdmEpilogue<Problem>;
+};
+
+template <typename Problem>
+struct MxGemmEpilogueTypeSelector<MxGemmPipelineType::CompTDMV3, Problem, false>
+{
+    using epilogue = ck_tile::TdmEpilogue<Problem>;
+};
+
+template <typename Problem>
+struct MxGemmEpilogueTypeSelector<MxGemmPipelineType::CompTDMV3CShuffle, Problem, false>
+{
+    using epilogue = ck_tile::CShuffleEpilogue<Problem>;
 };
 
 template <typename Problem>
@@ -403,30 +435,33 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                                              UniversalGemmProblem::TransposeC,
                                              false, /*FixedVectorSize_*/
                                              1>,    /*VectorSizeC_*/
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             CDataType,
-                                             DsLayout,
-                                             CLayout,
-                                             ck_tile::element_wise::PassThrough,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             1,                  /*kNumWaveGroups_*/
-                                             false,              /*FixedVectorSize_*/
-                                             1,                  /*VectorSizeC_*/
-                                             BlockedXDLNPerWarp, /*BlockedXDLN_PerWarp_*/
-                                             DoubleSmemBuffer,   /*DoubleSmemBuffer*/
-                                             AComputeDataType,   /*AComputeDataType_*/
-                                             BComputeDataType,   /*BComputeDataType_*/
-                                             !preshuffle>>;
+            ck_tile::CShuffleEpilogueProblem<
+                ADataType,
+                BDataType,
+                DsDataType,
+                AccDataType,
+                CDataType,
+                DsLayout,
+                CLayout,
+                ck_tile::element_wise::PassThrough,
+                TilePartitioner::MPerBlock,
+                TilePartitioner::NPerBlock,
+                M_Warp,
+                N_Warp,
+                M_Warp_Tile,
+                N_Warp_Tile,
+                K_Warp_Tile,
+                UniversalGemmProblem::TransposeC,
+                1,                  /*kNumWaveGroups_*/
+                false,              /*FixedVectorSize_*/
+                1,                  /*VectorSizeC_*/
+                BlockedXDLNPerWarp, /*BlockedXDLN_PerWarp_*/
+                DoubleSmemBuffer,   /*DoubleSmemBuffer*/
+                AComputeDataType,   /*AComputeDataType_*/
+                BComputeDataType,   /*BComputeDataType_*/
+                // comp_tdm_v3's C tile is not in the packed MX
+                // iteration order (its block GEMM does not pack)
+                !preshuffle && PipelineType != MxGemmPipelineType::CompTDMV3CShuffle>>;
 
         using GemmEpilogue = typename MxGemmEpilogueTypeSelector<PipelineType,
                                                                  GemmEpilogueProblem,
@@ -494,7 +529,9 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                                                 std::is_same_v<AScaleDataType, ck_tile::e8m0_t> &&
                                                 std::is_same_v<BScaleDataType, ck_tile::e8m0_t>;
         if constexpr(PipelineType == MxGemmPipelineType::CompTDMV1 ||
-                     PipelineType == MxGemmPipelineType::CompTDMV2)
+                     PipelineType == MxGemmPipelineType::CompTDMV2 ||
+                     PipelineType == MxGemmPipelineType::CompTDMV3 ||
+                     PipelineType == MxGemmPipelineType::CompTDMV3CShuffle)
         {
             if(!supports_revision_zero && ck_tile::get_device_revision() == 0)
             {
@@ -502,9 +539,11 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                                 "asicRevision=0";
             }
         }
-        // for TDM it's used tdm_epilogue which don't support split-k
+        // for TDM it's used tdm_epilogue which don't support split-k (comp_tdm_v3 with the
+        // CShuffle epilogue does)
         if constexpr(PipelineType == MxGemmPipelineType::CompTDMV1 ||
                      PipelineType == MxGemmPipelineType::CompTDMV2 ||
+                     PipelineType == MxGemmPipelineType::CompTDMV3 ||
                      std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor> ||
                      std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {

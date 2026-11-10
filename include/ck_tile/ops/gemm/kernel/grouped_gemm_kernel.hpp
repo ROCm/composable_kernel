@@ -306,9 +306,8 @@ struct GroupedGemmKernel
     {
         if constexpr(kIsTdmPipeline)
         {
-            // Base::IsSupportedArgument returns true unconditionally for TDM pipelines, so the
-            // TDM-specific constraints are checked here, before querying the device, so invalid
-            // arguments are rejected deterministically on any host.
+            // The TDM-specific constraints are checked here, before querying the device, so that
+            // invalid arguments are rejected deterministically on any host.
             for(const auto& karg : kargs)
             {
                 const auto& g = karg.group_karg;

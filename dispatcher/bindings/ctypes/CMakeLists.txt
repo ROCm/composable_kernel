@@ -57,6 +57,13 @@ function(set_single_target_arch_features TARGET_NAME GFX_ARCH)
     # Compile options follow directory/target definitions on the command line.
     # Keep both the undefines and replacement defines here to preserve ordering
     # without changing the inherited definitions of any sibling target.
+    # CK_CMAKE_GPU_TARGET_IDS tells the host compile pass the target (core/arch/arch.hpp);
+    # without it host-side kernel checks are evaluated for HOST, not GFX_ARCH. Standalone
+    # dispatcher builds do not inherit the top-level CK definition, so it is set here for
+    # this single target, as dispatcher_common.gpu_target_id_define does for the JIT path.
+    string(REGEX REPLACE "^gfx" "0x" _target_id "${GFX_ARCH}")
+    target_compile_options(${TARGET_NAME} PRIVATE
+        -UCK_CMAKE_GPU_TARGET_IDS "-DCK_CMAKE_GPU_TARGET_IDS=${_target_id}")
     foreach(_feature IN ITEMS
             CK_USE_XDL CK_USE_GFX94 CK_USE_GFX950 CK_GFX1030_SUPPORT
             CK_USE_WMMA CK_TILE_USE_WMMA CK_USE_WMMA_FP8
@@ -383,11 +390,6 @@ if(ROWCOLQUANT_GEMM_KERNEL_HEADERS)
     string(REGEX REPLACE ":.*$" "" CK_TILE_ROWCOLQUANT_GFX_ARCH "${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
     message(STATUS "RowColQuant ctypes lib GFX_ARCH: ${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
 
-    # Standalone dispatcher builds do not inherit the top-level CK definitions.
-    # Override the directory-wide ID for this single-target library.
-    string(REGEX REPLACE "^gfx" "0x" _rowcolquant_target_id "${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
-    target_compile_options(dispatcher_grouped_gemm_rowcolquant_lib PRIVATE
-        -UCK_CMAKE_GPU_TARGET_IDS "-DCK_CMAKE_GPU_TARGET_IDS=${_rowcolquant_target_id}")
     set_single_target_arch_features(dispatcher_grouped_gemm_rowcolquant_lib
         "${CK_TILE_ROWCOLQUANT_GFX_ARCH}")
 
@@ -442,11 +444,6 @@ if(TENSORQUANT_GEMM_KERNEL_HEADERS)
     string(REGEX REPLACE ":.*$" "" CK_TILE_TENSORQUANT_GFX_ARCH "${CK_TILE_TENSORQUANT_GFX_ARCH}")
     message(STATUS "TensorQuant ctypes lib GFX_ARCH: ${CK_TILE_TENSORQUANT_GFX_ARCH}")
 
-    # Standalone dispatcher builds do not inherit the top-level CK definitions.
-    # Override the directory-wide ID for this single-target library.
-    string(REGEX REPLACE "^gfx" "0x" _tensorquant_target_id "${CK_TILE_TENSORQUANT_GFX_ARCH}")
-    target_compile_options(dispatcher_grouped_gemm_tensorquant_lib PRIVATE
-        -UCK_CMAKE_GPU_TARGET_IDS "-DCK_CMAKE_GPU_TARGET_IDS=${_tensorquant_target_id}")
     set_single_target_arch_features(dispatcher_grouped_gemm_tensorquant_lib
         "${CK_TILE_TENSORQUANT_GFX_ARCH}")
 

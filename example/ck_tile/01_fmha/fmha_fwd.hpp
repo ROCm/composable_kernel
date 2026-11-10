@@ -370,6 +370,13 @@ struct fmha_fwd_args
     // With lse_ptr: store the LSE in base 2, log2 sum_j 2^(s_ij log2 e), instead of natural log
     // (the qr_tdm family pipelines)
     bool lse_log2 = false;
+
+    // Group mode: a hint that the batches' query and key lengths are about equal. FmhaFwdKernel
+    // then keeps the m-tiles of a (batch, head), which stream the same K/V, on one XCD, as it
+    // does for batch mode (and always for broadcast_q); with uneven lengths whole-batch XCD
+    // segments would leave the XCDs unbalanced. Performance only: any value gives the same
+    // results.
+    bool uniform_seqlens = false;
 };
 
 struct fmha_fwd_pagedkv_args
@@ -895,7 +902,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
         kargs.lse_log2 = args.lse_log2;
     if constexpr(FmhaKernel::kIsGroupMode)
     {
-        kargs.broadcast_q = args.broadcast_q;
+        kargs.broadcast_q     = args.broadcast_q;
+        kargs.uniform_seqlens = args.uniform_seqlens;
         if(args.broadcast_q)
             kargs.seqlen_q = args.max_seqlen_q; // the Q block's rows
         dim3 grids = FmhaKernel::GridSize(

@@ -220,33 +220,24 @@ struct UniversalGemmKernel
      * @brief Whether this epilogue can accumulate C across k_batch splits.
      *
      * With k_batch > 1 every split atomically adds into the same C tile. An epilogue that stores
-     * without honouring the atomic_add memory operation (TdmEpilogue) declares
-     * `SupportsSplitK = false`, whatever its output type. Otherwise the atomic store needs a
-     * vector width it can express: a half-precision epilogue with an odd GetVectorSizeC() has no
-     * such path and emits no store at all, leaving C untouched rather than partial. Both the host
-     * rejection in IsSupportedArgument and the device-side epilogue dispatch read this constant,
-     * so the two cannot drift apart.
+     * without honouring the atomic_add memory operation (e.g. TdmEpilogue) declares
+     * `SupportsSplitK = false`, whatever its output type: each split would replace C with its own
+     * partial sum. Otherwise the atomic store needs a vector width it can express: a
+     * half-precision epilogue with an odd GetVectorSizeC() has no such path and emits no store at
+     * all, leaving C untouched rather than partial. Both the host rejection in IsSupportedArgument
+     * and the device-side epilogue dispatch read this constant, so the two cannot drift apart.
      *
      * CK_TILE_FORCE_SINGLE_TAIL_HANDLER elides the atomic_add arm of that dispatch entirely, so in
      * that build no epilogue has a split-K store path. It belongs in this constant rather than in a
      * second #if at the use site, or the host answers "supported" for a device that cannot store.
      */
-    template <typename T>
-    using epilogue_supports_split_k_t = decltype(T::SupportsSplitK);
-
     static constexpr bool EpilogueSupportsSplitK = []() {
 #if defined(CK_TILE_FORCE_SINGLE_TAIL_HANDLER)
         return false;
 #else
-        if constexpr(is_detected<epilogue_supports_split_k_t, EpiloguePipeline>{})
-        {
-            if constexpr(!EpiloguePipeline::SupportsSplitK)
-            {
-                return false;
-            }
-        }
-        return EpiloguePipeline::GetVectorSizeC() % 2 == 0 ||
-               !is_any_of<EDataType, fp16_t, bf16_t>::value;
+        return epilogue_can_accumulate_v<EpiloguePipeline> &&
+               (EpiloguePipeline::GetVectorSizeC() % 2 == 0 ||
+                !is_any_of<EDataType, fp16_t, bf16_t>::value);
 #endif
     }();
 
@@ -524,6 +515,18 @@ struct UniversalGemmKernel
             return false;
     }();
 
+    template <typename T>
+    using has_tdm_split_k = decltype(T::kSupportsTdmSplitK);
+    /// True for a TDM pipeline tested with split-K (comp_tdm_v3). With a split-K-capable epilogue
+    /// (CShuffle) only such a pipeline may run k_batch > 1; the other TDM pipelines reject it
+    /// whatever the epilogue, as does any TDM pipeline with a TDM epilogue.
+    static constexpr bool kPipelineSupportsTdmSplitK = []() {
+        if constexpr(is_detected<has_tdm_split_k, GemmPipeline>{})
+            return static_cast<bool>(GemmPipeline::kSupportsTdmSplitK);
+        else
+            return false;
+    }();
+
     /// @brief Host checks of the C tensor against the epilogue's vector stores: if the contiguous
     ///        dimension of C is not a multiple of the tile, it needs padding, and it must be a
     ///        multiple of the C vector size.
@@ -580,8 +583,10 @@ struct UniversalGemmKernel
     ///          alignof(T), because buffer_view holds the pointer as a T* and offsets it in
     ///          elements of T. That is the element size for 1-, 2-, 4- and 8-byte scalars; a
     ///          12-byte 6-bit pack has a 1-byte unit, so its 4 comes from alignof(T) alone.
-    ///          IsSupportedArgument returns true for TDM pipelines, so each hosting kernel calls
-    ///          this (and IsTdmDeviceSupported) instead.
+    ///          IsSupportedArgument ends with this check for TDM pipelines, after its k_batch
+    ///          guards, but checks the device only for named-barrier pipelines. The MultiD GEMM,
+    ///          grouped GEMM, batched contraction and MX GEMM kernels therefore call this and
+    ///          IsTdmDeviceSupported themselves.
     CK_TILE_HOST static bool IsTdmArgumentSupported(const char* op_name,
                                                     index_t k_batch,
                                                     index_t K,
@@ -774,7 +779,7 @@ struct UniversalGemmKernel
         // same reason the large-tensor check above does. Behind it they would report "supported"
         // for a k_batch beyond the K-step count, where SplitKBatchOffset yields a negative
         // splitted_k and the A/B descriptor extents underflow, and for an epilogue with no split-K
-        // store path at all -- a wrong C with no fault and no hang.
+        // store path at all, where RunGemm can only trap.
         if constexpr(!EpilogueSupportsSplitK)
         {
             if(kargs.k_batch != 1)
@@ -800,12 +805,14 @@ struct UniversalGemmKernel
 
         if constexpr(has_skip_check_valid_launch_params::value)
         {
-            // Apply the same TDM checks as the kernels that host a TDM pipeline. Their split-K
-            // rejection is about the TDM epilogue, which overwrites C; a split-K-capable epilogue
-            // (CShuffle, with comp_tdm_v3) adds each split into C atomically, and the TDM loads of
-            // a split are clipped to its own K range, so k_batch > 1 is checked only with a TDM
-            // epilogue.
-            const index_t tdm_k_batch = is_tdm_epilogue_v<EpiloguePipeline> ? kargs.k_batch : 1;
+            // Apply the same TDM checks as the kernels that host a TDM pipeline, including their
+            // split-K rejection: the TDM epilogue overwrites C, and only comp_tdm_v3 is tested with
+            // split-K. A pipeline that declares kSupportsTdmSplitK (comp_tdm_v3) with a
+            // split-K-capable epilogue (CShuffle) adds each split into C atomically, its TDM loads
+            // clipped to the split's K range, so k_batch > 1 is not rejected here for it.
+            const index_t tdm_k_batch =
+                (is_tdm_epilogue_v<EpiloguePipeline> || !kPipelineSupportsTdmSplitK) ? kargs.k_batch
+                                                                                     : 1;
             if(!IsTdmArgumentSupported(
                    "GEMM", tdm_k_batch, kargs.K, kargs.as_ptr[0], kargs.bs_ptr[0], kargs.e_ptr))
             {
@@ -1588,8 +1595,9 @@ struct UniversalGemmKernel
             // IsSupportedArgument rejects k_batch != 1 whenever EpilogueSupportsSplitK is false,
             // ahead of the skipCheckValidLaunchParams short-circuit, so no pipeline can opt out of
             // that rejection. This cannot be a static_assert -- it is a runtime `if` on k_batch, so
-            // both arms are compiled for every epilogue, including a TDM epilogue whose
-            // GetVectorSizeC() is 1 and which is correct and fully supported at k_batch == 1.
+            // both arms are compiled for every epilogue, including a TDM epilogue, which cannot
+            // accumulate (SupportsSplitK == false) yet is correct and fully supported at
+            // k_batch == 1.
             if constexpr(EpilogueSupportsSplitK)
             {
                 RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {

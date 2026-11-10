@@ -480,19 +480,25 @@ endforeach()
                     if kernel not in family:
                         self.assertNotRegex(kernel.filename, _D192_ESM2_FILENAME)
 
-                # qr_tdm_pingpong takes every d192 query, so no qr_tdm instance is
-                # generated for it; the generic qr fallback stays.
-                self.assertFalse(
-                    any(
-                        kernel.F_hdim == 192 and kernel.F_pipeline.tag == "qr_tdm"
-                        for kernel in kernels
+                # qr_tdm_pingpong takes every d192 query of whole 8-element head dims
+                # without skip; qr_tdm, on the tile behind its, takes skip and the
+                # padded head dims off the vector (no unpadded non-skip qr_tdm
+                # instance), and no generic qr is left.
+                d192_qr_tdm = [
+                    kernel
+                    for kernel in kernels
+                    if kernel.F_hdim == 192 and kernel.F_pipeline.tag == "qr_tdm"
+                ]
+                self.assertTrue(d192_qr_tdm)
+                self.assertTrue(
+                    all(
+                        k.F_pipeline.F_skip == "t" or k.F_pipeline.F_dpad == "t"
+                        for k in d192_qr_tdm
                     )
                 )
-                self.assertTrue(
+                self.assertFalse(
                     any(
-                        kernel.F_hdim == 192
-                        and kernel.F_tile.F_bn1 == 128
-                        and kernel.F_pipeline.tag == "qr"
+                        kernel.F_hdim == 192 and kernel.F_pipeline.tag == "qr"
                         for kernel in kernels
                     )
                 )
@@ -564,11 +570,12 @@ endforeach()
                 self.assertNotIn("get_num_blocks(128) <= num_cus", api)
                 self.assertIn("QRKSVS_TDM_PINGPONG", api)
                 d192 = api[api.index("t.hdim_q <= 192") : api.index("t.hdim_q <= 256")]
-                # d192 has no qr_tdm entries; qr_tdm_pingpong's come before qr's.
-                self.assertNotIn("BlockFmhaPipelineEnum::QRKSVS_TDM,", d192)
+                # d192 has no generic qr entries; qr_tdm_pingpong's come before the
+                # qr_tdm fallback's.
+                self.assertNotIn("BlockFmhaPipelineEnum::QRKSVS,", d192)
                 self.assertLess(
                     d192.index("QRKSVS_TDM_PINGPONG"),
-                    d192.index("BlockFmhaPipelineEnum::QRKSVS,"),
+                    d192.index("BlockFmhaPipelineEnum::QRKSVS_TDM,"),
                 )
                 self.assertNotIn("is_gfx125_tdm_v128_enabled", api)
 
@@ -601,7 +608,7 @@ endforeach()
                 api_pool, kernels = get_fwd_blobs(
                     targets=["gfx1250"],
                     kernel_filter=kernel_filter,
-                    receipt=100,
+                    receipt=200 if feature == "skip" else 100,
                     optdim_list=[192, 256],
                     mask_impl="simplified",
                 )
@@ -793,29 +800,29 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
 
     @staticmethod
     def fallback_id(dispatch, mode, mask="s_no", lse="f", sink="f"):
-        # Without qr_tdm_pingpong, d192 is left to the generic qr fallback (qr_tdm is
-        # not generated for it); its padded instance takes the (192, 128) heads.
+        # Without qr_tdm_pingpong, d192 is left to the qr_tdm fallback, whose
+        # padded-head instance takes the (192, 128) heads.
         return dispatch.expected_id(
             mode=mode,
             hdim=192,
-            pipeline="qr",
+            pipeline="qr_tdm",
             bm0=128,
             mask=mask,
             lse=lse,
-            spad="t",
+            spad="t" if mode == "group" else "f",
             dpad="t",
             sink=sink,
         )
 
     @staticmethod
-    def generic_qr_id(dispatch, mode, mask="s_no", lse="f", padded="t", sink="f"):
+    def head_tail_id(dispatch, mode, mask="s_no", lse="f", padded="t", sink="f"):
         return dispatch.expected_id(
             mode=mode,
             hdim=256,
-            pipeline="qr",
+            pipeline="qr_tdm",
             mask=mask,
             lse=lse,
-            spad=padded,
+            spad="t" if mode == "group" else "f",
             dpad=padded,
             sink=sink,
         )
@@ -861,11 +868,11 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
                             dispatch.expected_id(
                                 mode=mode,
                                 hdim=192,
-                                pipeline="qr",
+                                pipeline="qr_tdm",
                                 bm0=128,
                                 mask="s_no",
                                 lse="f",
-                                spad="t",
+                                spad="t" if group else "f",
                                 dpad="t",
                                 sink="f",
                             )
@@ -873,7 +880,7 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
                     )
             self.assertEqual(
                 dispatch.run(group=group, hdim_q=193, hdim_v=128),
-                [self.generic_qr_id(dispatch, mode)],
+                [self.head_tail_id(dispatch, mode)],
             )
             self.assertEqual(
                 dispatch.run(group=group, hdim_q=192, hdim_v=192),
@@ -1204,7 +1211,10 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
             dict(device="gfx942"),
         ):
             with self.subTest(unsupported=changes):
-                self.assertEqual(dispatch.run(**changes), [-1])
+                if changes == dict(skip=1):
+                    self.assertEqual(dispatch.run(**changes), dispatch.run())
+                else:
+                    self.assertEqual(dispatch.run(**changes), [-1])
 
         for device in ("gfx1251", "gfx1252"):
             for mode, group in (("batch", 0), ("group", 1)):
@@ -1230,8 +1240,8 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
                     ),
                 )
                 for mode, group in (("batch", 0), ("group", 1)):
-                    # Without qr_tdm_pingpong (and with no d192 qr_tdm or
-                    # qr_tdm_sched instances) the generic qr fallback serves.
+                    # Without qr_tdm_pingpong (and with no d192 qr_tdm_sched
+                    # instances) the qr_tdm fallback serves.
                     fallback = (
                         self.fallback_id(dispatch, mode)
                         if render_filter
@@ -1266,7 +1276,12 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
                     )
                     self.assertEqual(dispatch.run(group=group, hdim_q=191), [-1])
                     self.assertEqual(dispatch.run(group=group, hdim_q=193), [-1])
-                    self.assertEqual(dispatch.run(group=group, skip=1), [-1])
+                    # skip takes effect in group mode only; batch mode reuses the
+                    # instances without it
+                    self.assertEqual(
+                        dispatch.run(group=group, skip=1),
+                        [-1] if group else dispatch.run(group=group),
+                    )
 
                 # The scheduled family (d128 only) alone serves no d192 query.
                 sched, sched_kernels = self.compile(
@@ -1429,7 +1444,7 @@ class TestGfx125V128Codegen(unittest.TestCase):
         for targets in (["gfx1250"], ["gfx942", "gfx950", "gfx1250"]):
             for dimensions in self.dimension_cases():
                 for pattern in (
-                    "*bf16*_qr_vr_*",
+                    "*_bf16_*_qr_vr_*",
                     "*not_a_kernel*",
                 ):
                     with self.subTest(
@@ -1448,7 +1463,7 @@ class TestGfx125V128Codegen(unittest.TestCase):
                             [k.filename for k in kernels], [k.filename for k in again]
                         )
                         self.assertEqual(pool.render("test"), again_pool.render("test"))
-                        if pattern != "*bf16*_qr_vr_*":
+                        if targets == ["gfx1250"] or pattern == "*not_a_kernel*":
                             self.assertFalse(kernels)
 
     def test_d64_geometry_and_padding(self):
@@ -1456,10 +1471,18 @@ class TestGfx125V128Codegen(unittest.TestCase):
             pool, kernels = get_fwd_blobs(
                 ["gfx1250"], f"*d64_{dtype}*", 600, [64], "simplified"
             )
-            # qr_tdm_pingpong serves every d64 query: neither qr_tdm_sched nor qr_tdm
-            # emits d64 instances, and only the generic qr fallback stays.
+            # qr_tdm_pingpong serves every d64 query of whole 8-element head dims
+            # without skip; no qr_tdm_sched or generic qr is generated, and qr_tdm
+            # takes only skip and the padded head dims off the vector.
             self.assertEqual(
-                {k.F_pipeline.tag for k in kernels}, {"qr_tdm_pingpong", "qr"}
+                {k.F_pipeline.tag for k in kernels}, {"qr_tdm_pingpong", "qr_tdm"}
+            )
+            self.assertTrue(
+                all(
+                    k.F_pipeline.F_skip == "t" or k.F_pipeline.F_dpad == "t"
+                    for k in kernels
+                    if k.F_pipeline.tag == "qr_tdm"
+                )
             )
             pingpong = [
                 k
@@ -1857,8 +1880,8 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
             # qr_tdm_sched emits no d64 instances.
             self.assertFalse(any(_is_sched_kernel(k) for k in kernels))
             dispatch = _CompiledDispatcher(self, pool, kernels)
-            # Without qr_tdm_pingpong (d64 has no qr_tdm instances), the generic qr
-            # fallback serves.
+            # Without qr_tdm_pingpong the qr_tdm fallback (its padded-head instances,
+            # which take every head dim of the bucket) serves.
             without_pingpong = _CompiledDispatcher(
                 self,
                 pool,
@@ -1868,7 +1891,7 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
             qr_ids = {
                 value
                 for kernel, value in without_pingpong.kernel_ids
-                if kernel.F_pipeline.tag == "qr"
+                if kernel.F_pipeline.tag == "qr_tdm"
             }
             # qr_tdm_pingpong takes every d64 query; its unpadded batch instances take
             # any K length, and its 128-row tile needs 1024 keys or 512 dense rows.
@@ -2063,9 +2086,15 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
                             dict(sink=1),
                             dict(dtype="fp16"),
                         ):
-                            self.assertNotIn(
-                                dispatch.run(**args, **rejected)[0], family_ids
-                            )
+                            if rejected == dict(skip=1) and not group:
+                                self.assertEqual(
+                                    dispatch.run(**args, **rejected),
+                                    dispatch.run(**args),
+                                )
+                            else:
+                                self.assertNotIn(
+                                    dispatch.run(**args, **rejected)[0], family_ids
+                                )
 
     def test_d128_filtered_priority_and_fallback(self):
         pool, kernels = get_fwd_blobs(
@@ -2143,7 +2172,15 @@ class TestCompiledGfx125V128Dispatch(unittest.TestCase):
                 dict(row=0),
                 dict(dtype="fp16"),
             ):
-                self.assertEqual(dispatch.run(group=group, hdim_q=128, **changes), [-1])
+                if changes == dict(skip=1) and not group:
+                    self.assertEqual(
+                        dispatch.run(group=group, hdim_q=128, **changes),
+                        dispatch.run(group=group, hdim_q=128),
+                    )
+                else:
+                    self.assertEqual(
+                        dispatch.run(group=group, hdim_q=128, **changes), [-1]
+                    )
 
     def test_missing_d128_candidate_does_not_disable_generic(self):
         pool, kernels = get_fwd_blobs(

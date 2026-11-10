@@ -19,7 +19,12 @@ namespace ck_tile {
  * alternating issuer pairs (waves 0/1 fill LDS stage 0, waves 2/3 fill stage 1), two LDS stages,
  * only the issuing waves wait on TENSORcnt. It is a separate pipeline so that V2 and its
  * default policy stay unchanged while v3 grows 16-wave support and its own register budget
- * (GemmPipelineAgBgCrCompTDMV3Policy). The MX (scaled) entry points of V2 are not copied.
+ * (GemmPipelineAgBgCrCompTDMV3Policy).
+ *
+ * MX (scaled) GEMM: the entry points that take A/B scale windows (MxGemmKernel) load each K
+ * tile's packed E8M0 scales from global memory into registers, one K tile ahead, into one of two
+ * register buffers (buffer s holds the scales of the K tile in LDS stage s), and run the scaled
+ * WMMA. The scales do not go through LDS, as in V2.
  *
  * Synchronisation (Policy::kUseSplitBarrier): one split workgroup barrier per K tile
  * (split_barrier.hpp). Per K tile: wait; the issuers of the other LDS stage fill it with the next
@@ -88,6 +93,12 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
         (Policy::DataCachePrefetchA != DataCachePrefetchKind::None ||
          Policy::DataCachePrefetchB != DataCachePrefetchKind::None);
 
+    /// Split-K with a split-K-capable epilogue (CShuffle): each split's TDM loads are clipped to
+    /// its K range (and with MX scales, its scale loads too), and the split-K path is tested, so
+    /// UniversalGemmKernel and MxGemmKernel let this pipeline run k_batch > 1 (see their
+    /// IsSupportedArgument). TDM pipelines without this member reject k_batch > 1.
+    static constexpr bool kSupportsTdmSplitK = true;
+
     template <GemmPipelineScheduler Scheduler>
     struct PipelineImpl : public PipelineImplBase
     {
@@ -151,27 +162,102 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 typename BlockGemm::WarpGemm::AWarpDstrEncoding{}));
         }
 
+        // MX scales. NoScales: a plain (unscaled) GEMM. ScaleTiles: the A and B scale register
+        // tiles of one K tile, laid out as BlockGemmARegBRegCRegV1's scaled operator() expects
+        // ([M or N iteration, K iteration * scale_k_len, 0] per thread).
+        struct NoScales
+        {
+        };
+        template <typename AScaleTile, typename BScaleTile>
+        struct ScaleTiles
+        {
+            const AScaleTile& a;
+            const BScaleTile& b;
+        };
+
+        // The scale state of one pipeline run. NoScaleState: no-ops. MxScaleState: the A/B scale
+        // DRAM windows and two register buffers per operand; load<Buf>() reads the next K tile's
+        // scales into buffer Buf and moves the windows on by one K tile.
+        struct NoScaleState
+        {
+            template <index_t Buf>
+            CK_TILE_DEVICE void load()
+            {
+            }
+            template <index_t Buf>
+            CK_TILE_DEVICE NoScales get() const
+            {
+                return {};
+            }
+        };
+        template <typename AWindow,
+                  typename BWindow,
+                  typename AStep,
+                  typename BStep,
+                  typename AScaleTile,
+                  typename BScaleTile>
+        struct MxScaleState
+        {
+            AWindow a_window;
+            BWindow b_window;
+            AStep a_step;
+            BStep b_step;
+            AScaleTile a_tile[2];
+            BScaleTile b_tile[2];
+
+            template <index_t Buf>
+            CK_TILE_DEVICE void load()
+            {
+                load_tile(a_tile[Buf], a_window);
+                move_tile_window(a_window, a_step);
+                load_tile(b_tile[Buf], b_window);
+                move_tile_window(b_window, b_step);
+            }
+            template <index_t Buf>
+            CK_TILE_DEVICE ScaleTiles<AScaleTile, BScaleTile> get() const
+            {
+                return {a_tile[Buf], b_tile[Buf]};
+            }
+        };
+        // The ScaleWindows argument of wave_specialized_func: none, or the kernel's A/B scale
+        // block windows (one-element tuples, as for V2).
+        struct NoScaleWindows
+        {
+        };
+        template <typename ScaleAWindowTmp, typename ScaleBWindowTmp>
+        struct ScaleWindows
+        {
+            const ScaleAWindowTmp& a;
+            const ScaleBWindowTmp& b;
+        };
+
         // C += A * B for NumRows warp-GEMM rows of one K sub-tile: A row ARow + j of
         // a_block_tensor updates C row CRow + j. This is the hot loop of
         // BlockGemmARegBRegCRegV1::operator() restricted to an M range, so that A can be read one
-        // row at a time and the split barrier's arrive can sit between two rows.
+        // row at a time and the split barrier's arrive can sit between two rows. With ScaleTiles,
+        // the scaled operator() of the same block GEMM: K sub-tile SubTileIdx, the scales of row
+        // mIter and column nIter.
         template <index_t CRow,
                   index_t ARow,
                   index_t NumRows,
+                  index_t SubTileIdx = 0,
                   typename CBlockTensor,
                   typename ABlockTensor,
-                  typename BBlockTensor>
+                  typename BBlockTensor,
+                  typename Scales = NoScales>
         CK_TILE_DEVICE static void BlockGemmRows(CBlockTensor& c_block_tensor,
                                                  const ABlockTensor& a_block_tensor,
-                                                 const BBlockTensor& b_block_tensor)
+                                                 const BBlockTensor& b_block_tensor,
+                                                 const Scales& scales = {})
         {
-            using WarpGemm    = typename BlockGemm::WarpGemm;
-            using AWarpDstr   = typename WarpGemm::AWarpDstr;
-            using BWarpDstr   = typename WarpGemm::BWarpDstr;
-            using CWarpDstr   = typename WarpGemm::CWarpDstr;
-            using AWarpTensor = typename WarpGemm::AWarpTensor;
-            using BWarpTensor = typename WarpGemm::BWarpTensor;
-            using CWarpTensor = typename WarpGemm::CWarpTensor;
+            constexpr bool kScaled = !std::is_same_v<Scales, NoScales>;
+            using WarpGemm         = typename BlockGemm::WarpGemm;
+            using AWarpDstr        = typename WarpGemm::AWarpDstr;
+            using BWarpDstr        = typename WarpGemm::BWarpDstr;
+            using CWarpDstr        = typename WarpGemm::CWarpDstr;
+            using AWarpTensor      = typename WarpGemm::AWarpTensor;
+            using BWarpTensor      = typename WarpGemm::BWarpTensor;
+            using CWarpTensor      = typename WarpGemm::CWarpTensor;
 
             constexpr auto a_warp_y_lengths =
                 to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
@@ -206,7 +292,37 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                         merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-                    if constexpr(nIter != 0)
+                    if constexpr(kScaled)
+                    {
+                        using AScaleTile = remove_cvref_t<decltype(scales.a)>;
+                        // scale32: one int32 (4 packed E8M0) per M or N iteration and K
+                        // iteration; scale16: two (an int64)
+                        constexpr index_t scale_k_len =
+                            AScaleTile::get_thread_buffer_size() /
+                            (BlockGemm::MIterPerWarp * BlockGemm::KIterPerWarp);
+                        static_assert(scale_k_len == 1 || scale_k_len == 2,
+                                      "scale_k_len must be 1 (scale32) or 2 (scale16)");
+                        using ScaleT = std::conditional_t<scale_k_len == 2, int64_t, int32_t>;
+                        constexpr index_t scale_k_idx =
+                            SubTileIdx * BlockGemm::KPerSubTile + decltype(kIter)::value;
+                        const auto scale_a = bit_cast<ScaleT>(scales.a.get_y_sliced_thread_data(
+                            sequence<mIter, scale_k_idx * scale_k_len, 0>{},
+                            sequence<1, scale_k_len, 1>{}));
+                        const auto scale_b = bit_cast<ScaleT>(scales.b.get_y_sliced_thread_data(
+                            sequence<nIter, scale_k_idx * scale_k_len, 0>{},
+                            sequence<1, scale_k_len, 1>{}));
+                        constexpr index_t AScaleTypeVal =
+                            ScaleDataTypeToEnum<typename Problem::AScaleDataType>::value;
+                        constexpr index_t BScaleTypeVal =
+                            ScaleDataTypeToEnum<typename Problem::BScaleDataType>::value;
+                        WarpGemm{}
+                            .template operator()<ReuseA<(nIter != 0)>,
+                                                 ReuseB<false>,
+                                                 AScaleDataType<AScaleTypeVal>,
+                                                 BScaleDataType<BScaleTypeVal>>(
+                                c_warp_tensor, a_warp_tensor, b_warp_tensor, scale_a, scale_b);
+                    }
+                    else if constexpr(nIter != 0)
                     {
                         WarpGemm{}.template operator()<ReuseA<true>, ReuseB<false>>(
                             c_warp_tensor, a_warp_tensor, b_warp_tensor);
@@ -234,7 +350,8 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                   typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 is_detected<is_tuple, BsDramBlockWindowTmp>::value,
                                             bool>* = nullptr,
-                  typename BlockGemmT              = BlockGemm>
+                  typename BlockGemmT              = BlockGemm,
+                  typename ScaleWindowsT           = NoScaleWindows>
         CK_TILE_DEVICE auto
         wave_specialized_func(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                               const AElementFunction& a_element_func,
@@ -243,8 +360,10 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                               index_t num_loop,
                               void* __restrict__ p_smem,
                               index_t warp_id,
-                              BlockGemmT block_gemm = {}) const
+                              BlockGemmT block_gemm              = {},
+                              const ScaleWindowsT& scale_windows = {}) const
         {
+            constexpr bool kMx = !std::is_same_v<ScaleWindowsT, NoScaleWindows>;
             auto&& [a_lds_block_views, b_lds_block_views] =
                 this->template GetABLdsTensorViews<num_lds_buffers>(static_cast<char*>(p_smem));
             // TDM issuer roles. LDS stage p is filled by wave 2p (A) and 2p+1 (B) with
@@ -394,6 +513,48 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
             using BLdsTile =
                 decltype(make_static_distributed_tensor<BDataType>(b_lds_load_tile_distr));
 
+            // MX: the A/B scale windows over one K tile (KPerBlock / ScaleBlockSize scales per row,
+            // packed four to an int32) and their register buffers, as in V2.
+            auto scales = [&]() {
+                if constexpr(kMx)
+                {
+                    constexpr index_t ScaleSize     = Problem::ScaleBlockSize;
+                    constexpr index_t ScalePackSize = 4;
+                    constexpr index_t kScaleK       = KPerBlock / ScaleSize / ScalePackSize;
+                    const auto& a_tmp               = scale_windows.a[number<0>{}];
+                    const auto& b_tmp               = scale_windows.b[number<0>{}];
+                    auto a_window                   = make_tile_window(
+                        a_tmp.get_bottom_tensor_view(),
+                        make_tuple(number<MPerBlock>{}, number<kScaleK>{}),
+                        a_tmp.get_window_origin(),
+                        Policy::template MakeScaleADramTileDistribution<Problem>());
+                    auto b_window = make_tile_window(
+                        b_tmp.get_bottom_tensor_view(),
+                        make_tuple(number<NPerBlock>{}, number<kScaleK>{}),
+                        b_tmp.get_window_origin(),
+                        Policy::template MakeScaleBDramTileDistribution<Problem>());
+                    using AStep      = typename decltype(a_window)::BottomTensorIndex;
+                    using BStep      = typename decltype(b_window)::BottomTensorIndex;
+                    using AScaleTile = decltype(make_static_distributed_tensor<
+                                                typename decltype(a_window)::DataType>(
+                        Policy::template MakeScaleADramTileDistribution<Problem>()));
+                    using BScaleTile = decltype(make_static_distributed_tensor<
+                                                typename decltype(b_window)::DataType>(
+                        Policy::template MakeScaleBDramTileDistribution<Problem>()));
+                    return MxScaleState<decltype(a_window),
+                                        decltype(b_window),
+                                        AStep,
+                                        BStep,
+                                        AScaleTile,
+                                        BScaleTile>{
+                        a_window, b_window, make_array(0, kScaleK), make_array(0, kScaleK), {}, {}};
+                }
+                else
+                {
+                    return NoScaleState{};
+                }
+            }();
+
             if constexpr(kSplitBarrier)
             {
                 // Issue the TDM fill of LDS stage f from the issuer's DRAM window, then point the
@@ -451,6 +612,7 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                     move_tile_window(b_dram_window1, b_dram_tile_window_step);
                 }
                 fill_stage(I0{});
+                scales.template load<0>();
 
                 auto c_block_tile = block_gemm.MakeCBlockTile();
                 clear_tile(c_block_tile);
@@ -492,6 +654,7 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 // wave-group block GEMM) each sub-tile is read whole, as in the joint form, and
                 // the last sub-tile's WMMAs overlap the barrier.
                 auto stage_gemm_arrive = [&](auto s, auto arrive) {
+                    const auto stage_scales = scales.template get<decltype(s)::value>();
                     static_for<0, sub_tile_num, 1>{}([&](auto i) {
                         constexpr bool is_last_sub_tile = (i.value == sub_tile_num - 1);
                         if constexpr(kStreamARows)
@@ -521,8 +684,8 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                                 {
                                     arrive();
                                 }
-                                BlockGemmRows<r.value, 0, 1>(
-                                    c_block_tile, a_row_tile, b_block_tile);
+                                BlockGemmRows<r.value, 0, 1, i.value>(
+                                    c_block_tile, a_row_tile, b_block_tile, stage_scales);
                             });
                         }
                         else
@@ -540,7 +703,18 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                             {
                                 arrive();
                             }
-                            block_gemm(c_block_tile, a_block_tile, b_block_tile);
+                            if constexpr(kMx)
+                            {
+                                block_gemm.template operator()<i.value>(c_block_tile,
+                                                                        a_block_tile,
+                                                                        b_block_tile,
+                                                                        stage_scales.a,
+                                                                        stage_scales.b);
+                            }
+                            else
+                            {
+                                block_gemm(c_block_tile, a_block_tile, b_block_tile);
+                            }
                         }
                     });
                 };
@@ -565,6 +739,11 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                                   auto early_next,
                                   bool early_next_rt = true) {
                     constexpr index_t si = decltype(s)::value;
+                    // MX: the scales of tile t + 1 go into the other buffer, a K tile ahead
+                    if constexpr(decltype(has_next)::value)
+                    {
+                        scales.template load<1 - si>();
+                    }
                     if constexpr(kRefillAfterArrive && decltype(early_prev)::value)
                     {
                         if(!is_stage_issuer(number<1 - si>{}))
@@ -671,6 +850,7 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                     Base::GlobalPrefetchTDM(
                         tdm_config_b[1], b_copy_lds_windows[number<1>{}], b_dram_window1);
                 }
+                scales.template load<0>();
 
                 // initialize C block tile
                 auto c_block_tile = block_gemm.MakeCBlockTile();
@@ -726,6 +906,7 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 // Runs LDS stage s: for each K sub-tile (k-atom), read it into the registers and
                 // run its WMMAs. Nothing but the accumulators stays live across the stage barrier.
                 auto stage_gemm = [&](auto s) {
+                    const auto stage_scales = scales.template get<decltype(s)::value>();
                     static_for<0, sub_tile_num, 1>{}([&](auto i) {
                         constexpr auto mode = sub_tile_num == 1 ? WindowSlideMode::Stay
                                               : (i.value == sub_tile_num - 1)
@@ -739,7 +920,18 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                                                                 is_b_load_tr_v);
                         // no sched_group_barrier hints: they pull the k-atom's LDS reads ahead of
                         // its WMMAs and raise register pressure
-                        block_gemm(c_block_tile, a_block_tile, b_block_tile);
+                        if constexpr(kMx)
+                        {
+                            block_gemm.template operator()<i.value>(c_block_tile,
+                                                                    a_block_tile,
+                                                                    b_block_tile,
+                                                                    stage_scales.a,
+                                                                    stage_scales.b);
+                        }
+                        else
+                        {
+                            block_gemm(c_block_tile, a_block_tile, b_block_tile);
+                        }
                     });
                 };
 
@@ -792,6 +984,8 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                                     }
                                 }
                             }
+                            // MX: scales of tile i_global_read - 1 (always exists)
+                            scales.template load<1>();
                             stage_gemm(I0{});
 
                             block_sync_lds();
@@ -854,6 +1048,11 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                         }
                         // pong
                         {
+                            // MX: scales of tile i_global_read, if it exists
+                            if(i_global_read < num_loop)
+                            {
+                                scales.template load<0>();
+                            }
                             stage_gemm(I1{});
 
                             block_sync_lds();
@@ -888,6 +1087,7 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
 
                 if constexpr(TailNum == TailNumber::Two)
                 {
+                    scales.template load<1>();
                     stage_gemm(I0{});
                     if(is_a_issuer1 || is_b_issuer1)
                     {
@@ -944,6 +1144,45 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                                                               warp_id,
                                                               block_gemm);
         }
+
+        // MX: as above, with the A/B scale block windows of MxGemmKernel.
+        template <
+            bool HasHotLoop,
+            TailNumber TailNum,
+            typename AsDramBlockWindowTmp,
+            typename BsDramBlockWindowTmp,
+            typename AElementFunction,
+            typename BElementFunction,
+            typename ScaleADramBlockWindowTmp,
+            typename ScaleBDramBlockWindowTmp,
+            typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
+                                          is_detected<is_tuple, BsDramBlockWindowTmp>::value &&
+                                          is_detected<is_tuple, ScaleADramBlockWindowTmp>::value &&
+                                          is_detected<is_tuple, ScaleBDramBlockWindowTmp>::value,
+                                      bool>* = nullptr>
+        CK_TILE_DEVICE auto
+        operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
+                   const AElementFunction& a_element_func,
+                   const BsDramBlockWindowTmp& b_dram_block_window_tmp,
+                   const BElementFunction& b_element_func,
+                   const ScaleADramBlockWindowTmp& scale_a_dram_block_window_tmp,
+                   const ScaleBDramBlockWindowTmp& scale_b_dram_block_window_tmp,
+                   index_t num_loop,
+                   void* __restrict__ p_smem) const
+        {
+            const index_t warp_id = get_warp_id();
+            return wave_specialized_func<HasHotLoop, TailNum>(
+                a_dram_block_window_tmp,
+                a_element_func,
+                b_dram_block_window_tmp,
+                b_element_func,
+                num_loop,
+                p_smem,
+                warp_id,
+                BlockGemm{},
+                ScaleWindows<ScaleADramBlockWindowTmp, ScaleBDramBlockWindowTmp>{
+                    scale_a_dram_block_window_tmp, scale_b_dram_block_window_tmp});
+        }
     };
 
     public:
@@ -992,6 +1231,65 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 p_smem);
         };
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    // MX (MxGemmKernel): A, B and their scale block windows.
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename ScaleADramBlockWindowTmp,
+              typename ScaleBDramBlockWindowTmp,
+              typename AElementFunction,
+              typename BElementFunction>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const AElementFunction& a_element_func,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const BElementFunction& b_element_func,
+                                   const ScaleADramBlockWindowTmp& scale_a_window,
+                                   const ScaleBDramBlockWindowTmp& scale_b_window,
+                                   index_t num_loop,
+                                   void* p_smem) const
+    {
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
+                a_dram_block_window_tmp,
+                a_element_func,
+                b_dram_block_window_tmp,
+                b_element_func,
+                scale_a_window,
+                scale_b_window,
+                num_loop,
+                p_smem);
+        };
+
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename ScaleADramBlockWindowTmp,
+              typename ScaleBDramBlockWindowTmp,
+              typename std::enable_if_t<is_detected<is_tuple, ScaleADramBlockWindowTmp>::value &&
+                                            is_detected<is_tuple, ScaleBDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const ScaleADramBlockWindowTmp& scale_a_window,
+                                   const ScaleBDramBlockWindowTmp& scale_b_window,
+                                   const index_t num_loop,
+                                   void* __restrict__ p_smem) const
+    {
+        return operator()(
+            a_dram_block_window_tmp,
+            [](const typename Base::ADataType & a) { return a; },
+            b_dram_block_window_tmp,
+            [](const typename Base::BDataType & b) { return b; },
+            scale_a_window,
+            scale_b_window,
+            num_loop,
+            p_smem);
     }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()

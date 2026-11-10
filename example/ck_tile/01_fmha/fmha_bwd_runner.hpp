@@ -75,6 +75,17 @@ enum class sink_regime
     saturated,
 };
 
+struct fmha_bwd_capture
+{
+    int runs       = 1;
+    bool reprepare = true;
+
+    size_t workspace_size           = 0;
+    ck_tile::index_t decode_max_seq = 0; // > 0: a decode (QrQtrDor) kernel set was selected
+    bool runs_identical             = true;
+    std::vector<uint8_t> dq, dk, dv, d_sink;
+};
+
 template <typename DataTypeConfig>
 bwd_result fmha_bwd_run(mode_enum mode,
                         ck_tile::index_t batch,
@@ -103,7 +114,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         int do_validation,
                         const ck_tile::stream_config& stream_config,
                         std::optional<std::string> json = std::nullopt,
-                        sink_regime sink_values         = sink_regime::sensitive)
+                        sink_regime sink_values         = sink_regime::sensitive,
+                        fmha_bwd_capture* capture       = nullptr)
 {
     const std::string data_type = []() {
         if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp32>)
@@ -418,12 +430,18 @@ bwd_result fmha_bwd_run(mode_enum mode,
         p_drop > 0.0f,
         s_randval,
         deterministic,
+        sink_grad,
     });
     const auto t1_launcher = std::chrono::high_resolution_clock::now();
     const double launcher_ctor_ms =
         std::chrono::duration<double, std::milli>(t1_launcher - t0_launcher).count();
     const size_t ws_size = launcher.workspace_size;
     ck_tile::DeviceMem ws_buf(ws_size);
+    if(capture)
+    {
+        capture->workspace_size = ws_size;
+        capture->decode_max_seq = launcher.selected_max_seqlen_q();
+    }
 
     // Stage seqstart to device before prepare_workspace_async (read on-device in group mode).
     seqstart_q.ToDevice(seqstart_q_host.data());
@@ -801,7 +819,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                 ck_tile::reference_batched_masking<AccDataType>(
                     s_host_ref,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                        mask.left, mask.right, real_seqlen_q, real_seqlen_k));
+                        mask.left, mask.right, real_seqlen_q, real_seqlen_k, false));
             }
             else
             {
@@ -951,37 +969,72 @@ bwd_result fmha_bwd_run(mode_enum mode,
             }
         }
 
-        // set to bad values to check if the kernel writes to these buffers
-        ck_tile::FillConstant<QGradDataType>{ck_tile::numeric<QGradDataType>::infinity()}(dq_host);
-        ck_tile::FillConstant<KGradDataType>{ck_tile::numeric<KGradDataType>::infinity()}(dk_host);
-        ck_tile::FillConstant<VGradDataType>{ck_tile::numeric<VGradDataType>::infinity()}(dv_host);
-        dq_buf.ToDevice(dq_host.data());
-        dk_buf.ToDevice(dk_host.data());
-        dv_buf.ToDevice(dv_host.data());
-
         o_buf.ToDevice(o_host.data());
         lse_buf.ToDevice(lse_host.data());
-        dbias_buf.SetZero();
-        if(sink_grad)
-            d_sink_buf.SetZero();
+
+        auto bytes_of = [](const auto& host) {
+            const auto* p = reinterpret_cast<const uint8_t*>(host.data());
+            return std::vector<uint8_t>(p, p + host.get_element_space_size_in_bytes());
+        };
 
         ck_tile::stream_config stream_config_v{nullptr, true, 0, 0, 1};
-        // re-initialize workspace for validation run
-        launcher.prepare_workspace_async(
-            ws_buf.GetDeviceBuffer(),
-            (mode == mode_enum::group) ? static_cast<const int*>(seqstart_q.GetDeviceBuffer())
-                                       : nullptr,
-            (mode == mode_enum::group) ? static_cast<const int*>(seqstart_k.GetDeviceBuffer())
-                                       : nullptr,
-            stream_config_v);
-        launcher(fmha_args, stream_config_v);
+        const int runs = capture ? std::max(capture->runs, 1) : 1;
+        for(int run = 0; run < runs; ++run)
+        {
+            // set to bad values to check if the kernel writes to these buffers
+            ck_tile::FillConstant<QGradDataType>{ck_tile::numeric<QGradDataType>::infinity()}(
+                dq_host);
+            ck_tile::FillConstant<KGradDataType>{ck_tile::numeric<KGradDataType>::infinity()}(
+                dk_host);
+            ck_tile::FillConstant<VGradDataType>{ck_tile::numeric<VGradDataType>::infinity()}(
+                dv_host);
+            dq_buf.ToDevice(dq_host.data());
+            dk_buf.ToDevice(dk_host.data());
+            dv_buf.ToDevice(dv_host.data());
+            dbias_buf.SetZero();
+            if(sink_grad)
+                d_sink_buf.SetZero();
 
-        dq_buf.FromDevice(dq_host.data());
-        dk_buf.FromDevice(dk_host.data());
-        dv_buf.FromDevice(dv_host.data());
-        dbias_buf.FromDevice(dbias_host.data());
-        if(sink_grad)
-            d_sink_buf.FromDevice(d_sink_host.data());
+            // re-initialize workspace for validation run
+            if(run == 0 || capture->reprepare || launcher.needs_prepare_per_run())
+                launcher.prepare_workspace_async(
+                    ws_buf.GetDeviceBuffer(),
+                    (mode == mode_enum::group)
+                        ? static_cast<const int*>(seqstart_q.GetDeviceBuffer())
+                        : nullptr,
+                    (mode == mode_enum::group)
+                        ? static_cast<const int*>(seqstart_k.GetDeviceBuffer())
+                        : nullptr,
+                    stream_config_v);
+            launcher(fmha_args, stream_config_v);
+
+            dq_buf.FromDevice(dq_host.data());
+            dk_buf.FromDevice(dk_host.data());
+            dv_buf.FromDevice(dv_host.data());
+            dbias_buf.FromDevice(dbias_host.data());
+            if(sink_grad)
+                d_sink_buf.FromDevice(d_sink_host.data());
+
+            if(!capture)
+                continue;
+            if(run == 0)
+            {
+                capture->dq = bytes_of(dq_host);
+                capture->dk = bytes_of(dk_host);
+                capture->dv = bytes_of(dv_host);
+                if(sink_grad)
+                    capture->d_sink = bytes_of(d_sink_host);
+            }
+            else if(bytes_of(dq_host) != capture->dq || bytes_of(dk_host) != capture->dk ||
+                    bytes_of(dv_host) != capture->dv ||
+                    (sink_grad && bytes_of(d_sink_host) != capture->d_sink))
+            {
+                capture->runs_identical = false;
+                std::cerr << "Error: validation run " << run << " differs from run 0" << std::endl;
+            }
+        }
+        if(capture && !capture->runs_identical)
+            pass = false;
 
         // Track the index into reference vectors (may differ from wb if batches were skipped)
         ck_tile::index_t ref_idx = 0;

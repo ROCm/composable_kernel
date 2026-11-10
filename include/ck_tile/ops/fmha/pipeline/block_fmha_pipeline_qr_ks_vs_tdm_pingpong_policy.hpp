@@ -174,8 +174,12 @@ struct QrTdmPingPongLdsArenaLayout
     // and spans both; V0 is then issued only after Q is read (see the pipeline prologue).
     static constexpr bool kQOnBothV   = kDoubleV && Shape::kSubQKHeaddim >= 512;
     static constexpr index_t kQOffset = kQOnBothV ? kV0Offset : kV1Offset;
+    // dropout's randval shuffle (BlockDropout::Run) past the Q/K/S/V regions
+    static constexpr index_t kRandValOffset = max(kQOffset + kQBytes, kV1Offset + kVBytes);
+    static constexpr index_t kRandValBytes =
+        qr_tdm_randval_lds_bytes<Problem, BlockFmhaPipelineQRKSVSTdmDefaultPolicy>();
     static constexpr index_t kArenaBytes =
-        integer_least_multiple(max(kQOffset + kQBytes, kV1Offset + kVBytes), kArenaAlignment);
+        integer_least_multiple(kRandValOffset + kRandValBytes, kArenaAlignment);
 
     static_assert(!KPadding::kEnabled || (kK1Offset - kK0Offset) % KPadding::kIntervalBytes == 0);
     static_assert(!kDoubleV || !VPadding::kEnabled ||

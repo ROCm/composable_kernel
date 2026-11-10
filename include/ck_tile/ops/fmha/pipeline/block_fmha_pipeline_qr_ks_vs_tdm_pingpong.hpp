@@ -114,6 +114,15 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             ? 6
             : 2;
     static_assert(kSubQKHeaddim == kQKHeaddim, "qr_tdm_pingpong stages whole K rows");
+    // the block gemms give each warp kN / warps whole warp tiles: a remainder would go
+    // uncomputed
+    static_assert(BlockFmhaShape::kN0 % (BlockFmhaShape::Gemm0BlockWarps::at(I1) *
+                                         BlockFmhaShape::Gemm0WarpTile::at(I1)) ==
+                          0 &&
+                      BlockFmhaShape::kN1 % (BlockFmhaShape::Gemm1BlockWarps::at(I1) *
+                                             BlockFmhaShape::Gemm1WarpTile::at(I1)) ==
+                          0,
+                  "qr_tdm_pingpong: the warps on N need whole warp tiles of K rows and V columns");
     // BlockDropout::Run walks P in the QK gemm's output layout
     static_assert(!Base::kHasDropout || kNWarp == 1,
                   "qr_tdm_pingpong: dropout needs the QK gemm warps on M");
@@ -182,26 +191,21 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             return Base::kBlockPerCu;
     }();
 
-    // A row's thread-buffer offsets in ascending order.
+    // A row's thread-buffer offsets (where the tile distribution puts its elements), in
+    // ascending order.
     template <typename PComputeTensor, typename Idx0, typename Ids>
     CK_TILE_HOST_DEVICE static constexpr auto SortedRowOffsets(Idx0, Ids)
     {
-        constexpr index_t kN = Ids::size();
-        array<index_t, kN> o{};
-        static_for<0, kN, 1>{}([&](auto i) {
-            constexpr auto y_idx =
-                PComputeTensor::get_tile_distribution().get_y_indices_from_distributed_indices(
-                    make_tuple(Idx0{}, Ids{}.at(number<i>{})));
-            o(i) = typename PComputeTensor::ThreadTensorDesc{}.calculate_offset(y_idx);
-        });
-        for(index_t i = 1; i < kN; ++i)
-            for(index_t j = i; j > 0 && o[j - 1] > o[j]; --j)
-            {
-                const index_t t = o[j];
-                o(j)            = o[j - 1];
-                o(j - 1)        = t;
-            }
-        return o;
+        constexpr auto offsets = generate_sequence_v2(
+            [](auto i) {
+                constexpr auto y_idx =
+                    PComputeTensor::get_tile_distribution().get_y_indices_from_distributed_indices(
+                        make_tuple(Idx0{}, Ids{}.at(i)));
+                return number<typename PComputeTensor::ThreadTensorDesc{}.calculate_offset(
+                    y_idx)>{};
+            },
+            number<Ids::size()>{});
+        return typename sequence_sort<remove_cvref_t<decltype(offsets)>, less<index_t>>::type{};
     }
 
     // Whether a row's elements sit in the thread buffer as neighbouring pairs (2k, 2k+1).
@@ -210,10 +214,12 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
     {
         constexpr index_t kN = Ids::size();
         constexpr auto o     = SortedRowOffsets<PComputeTensor>(Idx0{}, Ids{});
-        for(index_t k = 0; k < kN / 2; ++k)
-            if(o[2 * k] % 2 != 0 || o[2 * k + 1] != o[2 * k] + 1)
-                return false;
-        return true;
+        bool adjacent        = true;
+        static_for<0, kN / 2, 1>{}([&](auto k) {
+            adjacent &=
+                o[number<2 * k>{}] % 2 == 0 && o[number<2 * k + 1>{}] == o[number<2 * k>{}] + 1;
+        });
+        return adjacent;
     }
 
     // Row sum of P as a pairwise tree per thread, then (kSyncLanes) the cross-lane sync.
@@ -245,17 +251,18 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                                  RowPairsAdjacent<PComputeTensor>(idx0, ids))
                     {
                         // the row summed as register pairs (v_pk_add_f32 of
-                        // neighbouring registers)
+                        // neighbouring registers): pair j of the row is the thread-buffer
+                        // elements offs[2j], offs[2j + 1] (built from the two elements:
+                        // reading them through thread_buffer::get_as moved the schedule)
                         constexpr auto offs = SortedRowOffsets<PComputeTensor>(idx0, ids);
-                        using f2            = ext_vector_t<float, 2>;
                         const auto& buf     = p_compute.get_thread_buffer();
-                        array<f2, kN / 4> w;
-                        static_for<0, kN / 4, 1>{}([&](auto k) {
-                            const f2 a{buf[number<offs[2 * k]>{}], buf[number<offs[2 * k + 1]>{}]};
-                            const f2 b{buf[number<offs[2 * k + kN / 2]>{}],
-                                       buf[number<offs[2 * k + 1 + kN / 2]>{}]};
-                            w(k) = a + b;
-                        });
+                        const auto pair     = [&](auto j) {
+                            return fp32x2_t{buf[number<offs[number<2 * j>{}]>{}],
+                                            buf[number<offs[number<2 * j + 1>{}]>{}]};
+                        };
+                        array<fp32x2_t, kN / 4> w;
+                        static_for<0, kN / 4, 1>{}(
+                            [&](auto k) { w(k) = pair(k) + pair(number<k + kN / 4>{}); });
                         static_for<0, integer_log2_floor(kN / 4), 1>{}([&](auto stage) {
                             constexpr index_t half = (kN / 4) >> (stage + 1);
                             static_for<0, half, 1>{}(
@@ -304,8 +311,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         // constant B operand of ones
         auto ones = make_static_distributed_tensor<PDataType>(
             make_static_tile_distribution(RowSumGemm::MakeBBlockDistributionEncode()));
-        static_for<0, decltype(ones)::get_thread_buffer_size(), 1>{}(
-            [&](auto i) { ones.get_thread_buffer()(i) = type_convert<PDataType>(1.0f); });
+        set_tile(ones, type_convert<PDataType>(1.0f));
 
         auto l_acc = RowSumGemm::MakeCBlockTile();
         clear_tile(l_acc);
@@ -349,13 +355,14 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         constexpr index_t kReadsPerWmma = 2 / kMIterPerWarp;
         constexpr index_t kAhead        = kAheadWmma < kNumWmma ? kAheadWmma : kNumWmma;
         if constexpr(kLeadingWmma > 0)
-            __builtin_amdgcn_sched_group_barrier(0x008, kLeadingWmma, 0);       // WMMA
-        __builtin_amdgcn_sched_group_barrier(0x100, kAhead * kReadsPerWmma, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, kLeadingWmma, 0);
+        __builtin_amdgcn_sched_group_barrier(
+            LLVMSchedGroupMask::DS_READ, kAhead * kReadsPerWmma, 0);
         static_for<0, kNumWmma - kAhead, 1>{}([&](auto) {
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);             // WMMA
-            __builtin_amdgcn_sched_group_barrier(0x100, kReadsPerWmma, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0);
+            __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::DS_READ, kReadsPerWmma, 0);
         });
-        __builtin_amdgcn_sched_group_barrier(0x008, kAhead, 0); // WMMA
+        __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, kAhead, 0);
     }
 
     // One slice region of kPrefetchNextSlice: each WMMA of this slice follows the reads
@@ -369,23 +376,13 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                       "read groups are sized for one or two MIters per B fragment");
         constexpr index_t kReadsPerWmma = 2 / kMIterPerWarp;
         if constexpr(kFirstSlice)
-            __builtin_amdgcn_sched_group_barrier(0x100, kNumWmma * kReadsPerWmma, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(
+                LLVMSchedGroupMask::DS_READ, kNumWmma * kReadsPerWmma, 0);
         static_for<0, kNumWmma, 1>{}([&](auto) {
-            __builtin_amdgcn_sched_group_barrier(0x100, kReadsPerWmma, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);             // WMMA
+            __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::DS_READ, kReadsPerWmma, 0);
+            __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0);
         });
         __builtin_amdgcn_sched_barrier(0);
-    }
-
-    template <typename PaddingConfig>
-    CK_TILE_DEVICE static TDMConfig MakeTdmConfig()
-    {
-        using Raw = detail::EncodedTdmPadding<PaddingConfig>;
-        TDMConfig config;
-        config.pad_enable              = Raw::kEnabled;
-        config.pad_config.pad_amount   = Raw::kPadAmount;
-        config.pad_config.pad_interval = Raw::kPadInterval;
-        return config;
     }
 
     // A finite sink's score in the row max's domain.
@@ -750,11 +747,11 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
 
         // TDM configs for Q / K / V; the LDS padding comes from the policy.
         TDMConfig tdm_config_q =
-            MakeTdmConfig<typename Policy::template LdsPaddingConfigQ<Problem>>();
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigQ<Problem>>();
         TDMConfig tdm_config_k =
-            MakeTdmConfig<typename Policy::template LdsPaddingConfigK<Problem>>();
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigK<Problem>>();
         TDMConfig tdm_config_v =
-            MakeTdmConfig<typename Policy::template LdsPaddingConfigV<Problem>>();
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigV<Problem>>();
 
         // Q tile in LDS
         auto q_dram_window = make_tile_window(
@@ -1333,12 +1330,14 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                         move_tile_window(randval_dram_window,
                                          {0, physical_seqlen_k_start - sink_seq_end});
                 }
-                // the randval shuffle's own LDS, outside the arena
-                __shared__ char
-                    dropout_lds[BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
-                                    .get_element_space_size()];
+                // the randval shuffle's LDS, the arena's last region
+                static_assert(BlockDropout::MakeRandValLdsBlockDescriptor<decltype(gemm_0)>()
+                                  .get_element_space_size() <= Layout::kRandValBytes);
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    dropout_lds, kv_tile_start, p_compute, randval_dram_window);
+                    static_cast<char*>(smem_arena) + Layout::kRandValOffset,
+                    kv_tile_start,
+                    p_compute,
+                    randval_dram_window);
             }
             [[maybe_unused]] int32_t p_scale = 0;
             auto p_tile                      = [&]() {
