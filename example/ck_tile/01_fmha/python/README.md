@@ -118,7 +118,7 @@ Per-tensor scales cover each entire packed tensor; per-head scales retain the
 `[batch, heads]` layout above. Optional LSE is `[nheads, total_q]`.
 Varlen blockscale and paged KV FP8 are not exposed.
 
-- **gfx1250:** all four modes and LSE, head dimensions <= 128.
+- **gfx1250:** all four modes and LSE, head dimensions <= 128 or 256.
 - **gfx950:** no-scale, per-tensor and block-scale, head dimensions <= 256.
   LSE requires no-scale/per-tensor, head dimension 128 and no/causal mask.
   Per-head is unsupported.

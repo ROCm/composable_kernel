@@ -174,7 +174,7 @@ def fmha_fp8_func(
     Dequantized values are ``input.float() * descale``. Supports forward only,
     MHA/GQA/MQA and causal/local masks. LSE has shape [batch, nheads, seqlen_q].
     Use float8_e4m3fnuz on gfx94x and float8_e4m3fn on gfx950/gfx12. Per-head
-    requires gfx1250. All FP8 modes on gfx1250 require head dimension <= 128.
+    requires gfx1250. All FP8 modes on gfx1250 require head dimension <= 128 or 256.
     On gfx942/gfx950, no_scale/pertensor/blockscale support head dimensions <= 256;
     LSE requires gfx950, no_scale/pertensor, head dimension 128 and no/causal mask.
     Other modes, block sizes and LSE availability depend on the target's CK kernels.
@@ -366,7 +366,7 @@ def fmha_varlen_fp8_func(
     qscale supports no_scale (no descales), pertensor (one FP32 scale per
     packed tensor), and perhead (FP32 [batch, heads], K/V using nheads_kv).
     Dequantization is input.float() * descale. Per-head scaling requires
-    gfx1250 and head dimension <= 128. Other dtype, head dimension and LSE
+    gfx1250. Other dtype, head dimension and LSE
     restrictions match fmha_fp8_func. Optional LSE has shape [nheads, total_q].
     Supports MHA/GQA/MQA and causal/local masks; paged KV is not supported.
     """

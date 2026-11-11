@@ -33,7 +33,7 @@ DTYPE_NP = {
     "bf16": np.float16,
     "fp32": np.float32,
     "fp8bf16": np.float16,
-    "fp8fp32": np.float16,
+    "fp8": np.float16,
 }
 
 

@@ -171,17 +171,7 @@ add_library(${FMHA_FWD_INSTANCES} OBJECT EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 set_source_files_properties(${FMHA_FWD_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
-if("gfx1250" IN_LIST INST_TARGETS)
-  foreach(fwd_blob IN LISTS FMHA_FWD_GEN_BLOBS)
-    get_filename_component(fwd_blob_name "${fwd_blob}" NAME)
-    ck_tile_fmha_fwd_get_source_compile_options(
-      "${fwd_blob_name}" fwd_blob_compile_options)
-    if(fwd_blob_compile_options)
-      set_property(SOURCE "${fwd_blob}" APPEND PROPERTY COMPILE_OPTIONS
-        ${fwd_blob_compile_options})
-    endif()
-  endforeach()
-endif()
+ck_tile_fmha_fwd_apply_source_compile_options("${INST_TARGETS}" ${FMHA_FWD_GEN_BLOBS})
 set_property(TARGET ${FMHA_FWD_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 message(DEBUG "adding instances ${FMHA_BWD_INSTANCES}")

@@ -38,7 +38,6 @@ FWD_DTYPE_MAP = {
     "bf8": "FmhaFwdBf8",
     "fp8fp16": "FmhaFwdFp8Fp16",
     "fp8bf16": "FmhaFwdFp8Bf16",
-    "fp8fp32": "FmhaFwdFp8Fp32",
 }
 
 # Backward dtype → C++ type config struct.

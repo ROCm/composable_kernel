@@ -157,13 +157,16 @@ struct FmhaTdmSchedGeometry
 
     // LDS reads per stage and lane: each wave reads the whole B operand of its stage (K for QK,
     // V for PV) with one 16-byte access per event (ds_load_b128 / ds_load_tr16_b128).
-    static constexpr index_t kLdsReadBytes    = 16;
+    static constexpr index_t kLdsReadBytes = 16;
+    // 8-bit K reads one 8-byte lane run (ds_load_b64); 8-bit V uses ds_load_tr8_b64.
+    static constexpr index_t kKLdsReadBytes   = sizeof(K) == 1 ? 8 : kLdsReadBytes;
+    static constexpr index_t kVLdsReadBytes   = sizeof(V) == 1 ? 8 : kLdsReadBytes;
     static constexpr index_t kQkBPerLane      = QkWmma::kBK0PerLane * QkWmma::kBK1PerLane;
     static constexpr index_t kPvBPerLane      = PvWmma::kBK0PerLane * PvWmma::kBK1PerLane;
     static constexpr index_t kKSuLaneBytes    = kQkSuNIter * kQkKIter * kQkBPerLane * sizeof(K);
     static constexpr index_t kVStageLaneBytes = kPvNIter * kPvStageKIter * kPvBPerLane * sizeof(V);
-    static constexpr index_t kKSuLoadCount    = kKSuLaneBytes / kLdsReadBytes;
-    static constexpr index_t kVStageLoadCount = kVStageLaneBytes / kLdsReadBytes;
+    static constexpr index_t kKSuLoadCount    = kKSuLaneBytes / kKLdsReadBytes;
+    static constexpr index_t kVStageLoadCount = kVStageLaneBytes / kVLdsReadBytes;
 
     static_assert(kWaves > 0 && kM % (kWaves * kQkWmmaM) == 0 && kM % (kWaves * kPvWmmaM) == 0,
                   "query rows must split evenly into waves and WMMA row tiles");
@@ -173,8 +176,8 @@ struct FmhaTdmSchedGeometry
     static_assert(kN % kPvStageK == 0 && kPvStageK % kPvWmmaK == 0,
                   "PV stages must tile the KV tile with whole WMMA K steps");
     static_assert(kDv % kPvWmmaN == 0, "V head dim must be whole WMMA column tiles");
-    static_assert(kKSuLaneBytes % kLdsReadBytes == 0 && kVStageLaneBytes % kLdsReadBytes == 0,
-                  "per-lane stage operands must be whole 16-byte LDS reads");
+    static_assert(kKSuLaneBytes % kKLdsReadBytes == 0 && kVStageLaneBytes % kVLdsReadBytes == 0,
+                  "per-lane stage operands must be whole LDS reads");
 
     using PRepackLayout = FmhaTdmSchedPRepackLayout<QkWmma, PvWmma>;
 };

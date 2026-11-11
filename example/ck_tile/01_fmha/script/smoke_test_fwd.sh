@@ -112,12 +112,12 @@ run_fp8bf16_tests() {
     done ; done ; done ; done
 }
 
-run_fp8fp32_tests() {
+run_fp8_tests() {
     for perm in 0 1 ; do
     for b in 1 2 ; do
     for hdim in 128 ; do
 
-    $EXE -prec=fp8fp32 -init=3 -b=$b -h=1 -d=$hdim -s=128 -iperm=$perm -operm=$perm -vlayout=r -qscale=1 -kname=$KNAME $COMMON_ARGS
+    $EXE -prec=fp8 -init=3 -b=$b -h=1 -d=$hdim -s=128 -iperm=$perm -operm=$perm -vlayout=r -qscale=1 -kname=$KNAME $COMMON_ARGS
 
     done ; done ; done
 }
@@ -125,8 +125,8 @@ run_fp8fp32_tests() {
 # perhead is only generated for gfx125x, and the example exits non-zero when an instance is
 # missing, so this cannot be folded into run_fp8bf16_tests without breaking the other targets.
 run_gfx125_qscale_tests() {
-    # hdim 256 is left out: qr_tdm generates no d=256 fp8 instance
-    for prec in fp8 fp8bf16 fp8fp32 ; do
+    # hdim 256 is left out: only qr_tdm_fp8_sched serves it, and the QuantScaleHdim256 gtests cover it
+    for prec in fp8 fp8bf16 ; do
     for scale in n pt ph bs ; do
     for mode in 0 1 ; do
     for hdim in 64 128 ; do
@@ -359,7 +359,7 @@ case "$GPU_arch" in
         ;;
     *)
         run_fp8bf16_tests
-        run_fp8fp32_tests
+        run_fp8_tests
         ;;
 esac
 if [ $TEST_STREAM_SINK -eq 1 ] ; then

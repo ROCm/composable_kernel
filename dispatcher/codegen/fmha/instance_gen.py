@@ -49,7 +49,6 @@ from validation import (  # noqa: E402
     DT_FP16_BF16,
     DT_FP32,
     DT_FP8,
-    DT_FP8FP32,
     ELEMENT_SIZES,
     K0_MAX_SUBMAX_MAP,
     LDS_LIMITS,
@@ -719,7 +718,7 @@ def _fwd_specs_gfx950_extra(hdim: int, hdim_v: int) -> List[PipelineSpec]:
 
 
 def _fwd_specs_fp8(hdim: int, hdim_v: int) -> List[PipelineSpec]:
-    """Pipeline specs for fp8bf16/fp8fp32.
+    """Pipeline specs for fp8/fp8bf16.
 
     Source: fmha_fwd.py KernelComponentFactoryGfx9._DT_FP8 pipelines —
     hdim=64 uses 'qr' (non-async), others use 'qr_async'.
@@ -858,7 +857,7 @@ def get_pipelines_for_config(
         specs = _fwd_specs_fp16bf16(hdim, hdim_v, receipt)
         if arch == "gfx950":
             specs.extend(_fwd_specs_gfx950_extra(hdim, hdim_v))
-    elif dtype in DT_FP8 or dtype in DT_FP8FP32:
+    elif dtype in DT_FP8:
         specs = _fwd_specs_fp8(hdim, hdim_v)
     else:
         return []
@@ -942,7 +941,7 @@ def get_splitkv_pipelines(
                     dvpad="t",
                 )
             )
-    elif dtype in ("fp8", "bf8"):
+    elif dtype == "bf8":
         for logits, mask, bias in itertools.product(BOOLS, SPLITKV_MASKS, BIASES):
             if not check_logits_bias(logits, bias):
                 continue
@@ -1013,12 +1012,12 @@ def get_splitkv_combine_pipelines(
 ) -> List[SplitKVCombineSpec]:
     """Split-KV combine kernel pipelines."""
     specs: List[SplitKVCombineSpec] = []
-    squant = "t" if dtype in ("fp8", "bf8") else "f"
+    squant = "t" if dtype == "bf8" else "f"
 
     if dtype in DT_FP16_BF16:
         for spad, dvpad, lse in itertools.product(BOOLS, BOOLS, BOOLS):
             specs.append(SplitKVCombineSpec(spad, dvpad, lse, squant))
-    elif dtype in ("fp8", "bf8"):
+    elif dtype == "bf8":
         for spad, dvpad in itertools.product(BOOLS, BOOLS):
             specs.append(SplitKVCombineSpec(spad, dvpad, "f", squant))
     return specs
@@ -1069,7 +1068,7 @@ def get_pagedkv_pipelines(
                     dvpad="f",
                 )
             )
-    elif dtype in ("fp8", "bf8"):
+    elif dtype == "bf8":
         for logits, mask, bias in itertools.product(BOOLS, MASKS, BIASES):
             if not check_logits_bias(logits, bias):
                 continue
@@ -2236,7 +2235,7 @@ def _expand_splitkv(
             SPLITKV_COMBINE_HDIMS_FP16
             if dtype in ("fp16", "bf16")
             else SPLITKV_COMBINE_HDIMS_FP8
-            if dtype in ("fp8", "bf8")
+            if dtype == "bf8"
             else []
         )
         for hv in hdims:

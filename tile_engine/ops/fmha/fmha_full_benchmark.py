@@ -71,15 +71,15 @@ VARIANT_YAML_SECTIONS = {
     "bwd": ["backward_tests"],
 }
 
-DTYPE_CK = {"fp16": "fp16", "bf16": "bf16", "fp8bf16": "fp8bf16", "fp8fp32": "fp8fp32"}
+DTYPE_CK = {"fp16": "fp16", "bf16": "bf16", "fp8bf16": "fp8bf16", "fp8": "fp8"}
 DTYPE_NP = {
     "fp16": np.float16,
     "bf16": np.float16,
     "fp32": np.float32,
     "fp8bf16": np.float16,
-    "fp8fp32": np.float16,
+    "fp8": np.float16,
 }
-ELEM_BYTES = {"fp16": 2, "bf16": 2, "fp32": 4, "fp8bf16": 1, "fp8fp32": 1}
+ELEM_BYTES = {"fp16": 2, "bf16": 2, "fp32": 4, "fp8bf16": 1, "fp8": 1}
 
 MASK_INT = {"no": 0, "top_left": 1, "generic": 3}
 BIAS_INT = {"no": 0, "bias": 1, "alibi": 2}

@@ -20,10 +20,10 @@ set_tests_properties(test_ck_tile_fmha_fwd_workgroup_mapping PROPERTIES
 
 function(add_gtest_fwd test_group)
     set(V_TYPES "fp16" "bf16" "fp8bf16" "fp32" "mxfp8" "mxfp4")
-    # fp8/fp8fp32 targets and the quantization-scale sweep only have instances on gfx125x.
+    # fp8/mxfp8bf16 targets and the quantization-scale sweep only have instances on gfx125x.
     # Keep them off every other target so their test time does not grow.
     if(GPU_TARGETS MATCHES "gfx125")
-        list(APPEND V_TYPES "fp8" "fp8fp32")
+        list(APPEND V_TYPES "fp8" "mxfp8bf16")
     endif()
     if(GPU_TARGETS MATCHES "gfx908|gfx90a" AND NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
         # fp8 instances are built for all gfx9, do not test on archs without hardware support
@@ -33,9 +33,9 @@ function(add_gtest_fwd test_group)
     set(CPP_TYPE_bf16 "FmhaFwdBf16")
     set(CPP_TYPE_fp8 "FmhaFwdFp8")
     set(CPP_TYPE_fp8bf16 "FmhaFwdFp8Bf16")
-    set(CPP_TYPE_fp8fp32 "FmhaFwdFp8Fp32")
     set(CPP_TYPE_fp32 "FmhaFwdFp32")
     set(CPP_TYPE_mxfp8 "FmhaFwdMxFp8")
+    set(CPP_TYPE_mxfp8bf16 "FmhaFwdMxFp8Bf16")
     set(CPP_TYPE_mxfp4 "FmhaFwdMxFp4")
 
     set(sources)
@@ -52,8 +52,7 @@ function(add_gtest_fwd test_group)
             continue()
         endif()
         add_gtest_executable(${name} test_fmha_fwd.cpp)
-        # fp8-input types with a wider output only; an fp8 output cannot meet the test's bound.
-        if(GPU_TARGETS MATCHES "gfx125" AND (type STREQUAL "fp8bf16" OR type STREQUAL "fp8fp32"))
+        if(GPU_TARGETS MATCHES "gfx125" AND (type STREQUAL "fp8" OR type STREQUAL "fp8bf16"))
             set_source_files_properties(test_fmha_fwd_sink_exact.cpp PROPERTIES LANGUAGE HIP)
             target_sources(${name} PRIVATE test_fmha_fwd_sink_exact.cpp)
         endif()

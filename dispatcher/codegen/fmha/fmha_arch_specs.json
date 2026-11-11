@@ -14,7 +14,7 @@
     "gfx942": {
       "family": "cdna3",
       "arch_tag": "ck_tile::gfx9_t",
-      "supported_dtypes": ["fp16", "bf16", "fp32", "fp8", "fp8fp16", "fp8bf16", "fp8fp32", "bf8"],
+      "supported_dtypes": ["fp16", "bf16", "fp32", "fp8", "fp8fp16", "fp8bf16", "bf8"],
       "supported_pipelines": ["qr", "qr_async", "qs", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "bwd"],
       "supports_trload": false,
       "supports_v3": false
@@ -22,7 +22,7 @@
     "gfx950": {
       "family": "cdna4",
       "arch_tag": "ck_tile::gfx9_t",
-      "supported_dtypes": ["fp16", "bf16", "fp32", "fp8", "fp8fp16", "fp8bf16", "fp8fp32", "bf8"],
+      "supported_dtypes": ["fp16", "bf16", "fp32", "fp8", "fp8fp16", "fp8bf16", "bf8"],
       "supported_pipelines": ["qr", "qr_async", "qs", "qr_async_trload", "qr_async_trload_v3", "v3", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "bwd"],
       "supports_trload": true,
       "supports_v3": true
@@ -52,7 +52,6 @@
     "fp32":    [[32,32], [48,48], [64,64], [96,128], [128,128], [192,192], [256,256]],
     "fp8":     [[64,64], [128,128], [192,128], [256,256]],
     "fp8bf16": [[64,64], [128,128], [192,128], [256,256]],
-    "fp8fp32": [[128,128]],
     "bf8":     [[64,64], [128,128], [192,128], [256,256]],
     "mxfp8":   [[128,128], [256,256]],
     "mxfp4":   [[128,128], [256,256]]
@@ -65,7 +64,6 @@
     "fp32":    [[16,16,16]],
     "fp8":     [[32,32,32]],
     "fp8bf16": [[32,32,32]],
-    "fp8fp32": [[32,32,32]],
     "bf8":     [[32,32,32]],
     "mxfp8":   [[32,32,64]],
     "mxfp4":   [[16,16,128]]
@@ -74,7 +72,6 @@
   "fmha_element_sizes": {
     "_comment": "FMHA-specific element sizes for composite dtypes not in parent arch_specs.json. Common dtypes (fp16, bf16, fp32, fp8, bf8) use ../arch_specs.json element_sizes.",
     "fp8bf16": 1,
-    "fp8fp32": 1,
     "mxfp8":   1,
     "mxfp4":   1
   },

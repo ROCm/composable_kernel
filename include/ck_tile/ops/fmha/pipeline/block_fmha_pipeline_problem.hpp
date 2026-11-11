@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
+#include "ck_tile/ops/fmha/pipeline/tile_fmha_traits.hpp"
 
 namespace ck_tile {
 
@@ -123,6 +124,9 @@ struct BlockFmhaPipelineProblem
     static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr bool kHasSink          = Traits::kHasSink;
+
+    // Only TileFmhaMergeHeadsTraits sets it; other traits leave it false.
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ = kTraitsMergeNumHeadGroupsSeqLenQ<Traits>;
 };
 
 template <typename QDataType_,

@@ -295,13 +295,9 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) &&
     static_assert({F_bn1} % {F_bn1comb} == 0);
 
     if (t.has_lse) {{
-        if constexpr (std::is_same_v<{F_dtype}, FmhaFwdFp8>) {{
-            return -1;
-        }} else {{
-            using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, true, {F_squant}, {F_spad}, {F_dvpad}>;
+        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, true, {F_squant}, {F_spad}, {F_dvpad}>;
 
-            return fmha_fwd_splitkv_<traits_, traits2_, {F_arch.tag}>(s, a);
-        }}
+        return fmha_fwd_splitkv_<traits_, traits2_, {F_arch.tag}>(s, a);
     }} else {{
         using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, false, {F_squant}, {F_spad}, {F_dvpad}>;
 
@@ -763,7 +759,7 @@ class KernelComponentFactoryBase:
         # TODO: currently for qr pipeline, let "t" padding to appear later!!
         # TODO: how to design this more generic?
         Pipeline = FmhaFwdSplitKVPipeline
-        squant = "t" if dtype == "fp8" else "f"
+        squant = "f"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
             for logits, mask, bias, pagedkv, sink in itertools.product(
@@ -778,7 +774,7 @@ class KernelComponentFactoryBase:
                 pipelines.append(Pipeline("qr", "row", "t", "t", "f", "f", logits, bias, "t", squant, pagedkv, sink, mask))  # fmt: skip
                 pipelines.append(Pipeline("qr", "row", "t", "t", "t", "t", logits, bias, "t", squant, pagedkv, sink, mask))  # fmt: skip
                 pipelines.append(Pipeline("qr_nwarp_sshuffle", "row", "t", "t", "f", "f", logits, bias, "t", squant, pagedkv, sink, mask))  # fmt: skip
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             for logits, mask, bias in itertools.product(
                 ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
             ):
@@ -794,14 +790,14 @@ class KernelComponentFactoryBase:
     @staticmethod
     def get_combine_pipelines(dtype, hdim) -> List[FmhaFwdSplitKVCombinePipeline]:
         Pipeline = FmhaFwdSplitKVCombinePipeline
-        squant = "t" if dtype == "fp8" else "f"
+        squant = "f"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
             for spad, dvpad, lse in itertools.product(
                 ["t", "f"], ["t", "f"], ["t", "f"]
             ):
                 pipelines.append(Pipeline("unused", spad, dvpad, lse, squant))
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             # no need lse kernels
             for spad, dvpad in itertools.product(["t", "f"], ["t", "f"]):
                 pipelines.append(Pipeline("unused", spad, dvpad, "f", squant))
@@ -821,7 +817,7 @@ class KernelComponentFactoryBase:
                 # "160" : FmhaFwdSplitKVCombineTileSize(32, -1),
                 "256": FmhaFwdSplitKVCombineTileSize(32, -1),
             }
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             return {
                 "64": FmhaFwdSplitKVCombineTileSize(32, -1),
                 "128": FmhaFwdSplitKVCombineTileSize(32, -1),
@@ -845,7 +841,7 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
                 # "160" : FmhaFwdTileSize(64, 128, 32, 160, 32, 160, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1),
                 "256": FmhaFwdTileSize( 64, 128, 32, 256, 32, 256, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1),
             }  # fmt: skip
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             return {
                 "64" : FmhaFwdTileSize(128,  64, 32,  64, 32,  64, 2, 1, 1, 2, 1, 1, 32, 32, 32, 32, 32, 32, -1),
                 "128": FmhaFwdTileSize(128, 128, 32, 128, 32, 128, 4, 1, 1, 4, 1, 1, 32, 32, 32, 32, 32, 32, -1),
@@ -892,7 +888,7 @@ class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
                 "256": [FmhaFwdTileSize( 16, 128,  32, 256,  32,  256,  1, 8, 1,  1, 8, 1,  16, 16, 16,  16, 16, 16,  -1),
                         FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
             }  # fmt: skip
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             return {
                 #                      bm0, bn0, bk0, bn1, bk1,
                 "64" : FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
@@ -915,7 +911,7 @@ class KernelComponentFactoryGfx125(KernelComponentFactoryBase):
                 "128": FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                 "256": FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
             }  # fmt: skip
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             return {
                 #                      bm0, bn0, bk0, bn1, bk1,
                 "64" : FmhaFwdTileSize(128,  64,  64,  64,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1),

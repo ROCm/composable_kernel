@@ -359,7 +359,6 @@ BOOLS = ["t", "f"]
 # Dtype groups matching CK's _DT_* classification in fmha_fwd.py factory classes.
 DT_FP16_BF16 = {"fp16", "bf16"}
 DT_FP8 = {"fp8bf16", "fp8", "bf8"}
-DT_FP8FP32 = {"fp8fp32"}
 DT_FP32 = {"fp32"}
 
 # (tile, wave[:6], warp[:6]) of every batch_prefill_gfx11 shape that is built and
@@ -506,7 +505,7 @@ RECEIPT_FILTERS: Dict[int, Callable[[str, object], bool]] = {
     100: lambda dtype, spec: dtype in ("fp16", "bf16", "fp8bf16"),
     200: lambda dtype, spec: dtype in ("fp16", "bf16", "fp8bf16"),
     600: lambda dtype, spec: dtype in ("fp16", "bf16", "fp8bf16"),
-    888: lambda dtype, spec: dtype in ("fp8bf16", "fp8fp32"),
+    888: lambda dtype, spec: dtype in ("fp8bf16", "fp8"),
     800: lambda dtype, spec: (
         dtype == "fp32"
         and getattr(spec, "skip", "f") == "f"
@@ -671,7 +670,7 @@ PROFILES: Dict[str, FmhaProfile] = {
     "fp8_test": FmhaProfile(
         "fp8_test",
         lambda c: (
-            _dtype_is(c, {"fp8bf16", "fp8fp32"})
+            _dtype_is(c, {"fp8bf16", "fp8"})
             and c["signature"]["hdim_q"] in {128, 192}
             and _common_row_major_filter(c)
         ),

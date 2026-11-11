@@ -449,8 +449,8 @@ std::vector<at::Tensor> mha_varlen_fwd(
                                                  : at::ScalarType::Float8_e4m3fn),
                     "FP8 dtype does not match the GPU: expected ",
                     use_fnuz ? "float8_e4m3fnuz" : "float8_e4m3fn");
-        TORCH_CHECK(!perhead || (arch.rfind("gfx1250", 0) == 0 && head_size <= 128),
-                    "FP8 per-head attention requires gfx1250 and head dimension at most 128");
+        TORCH_CHECK(!perhead || arch.rfind("gfx1250", 0) == 0,
+                    "FP8 per-head attention requires gfx1250");
         qscale_type = perhead                 ? quant_scale_enum::perhead
                       : qscale == "pertensor" ? quant_scale_enum::pertensor
                                               : quant_scale_enum::no_scale;

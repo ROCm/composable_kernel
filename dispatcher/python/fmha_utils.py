@@ -818,7 +818,7 @@ class FmhaRunner:
             "bf16": np.uint16,
             "fp32": np.float32,
             "fp8bf16": np.uint8,
-            "fp8fp32": np.uint8,
+            "fp8": np.uint8,
             "bf8": np.uint8,
         }
         _NP_OUT_DTYPE = {
@@ -826,7 +826,7 @@ class FmhaRunner:
             "bf16": np.uint16,
             "fp32": np.float32,
             "fp8bf16": np.float16,
-            "fp8fp32": np.float32,
+            "fp8": np.float32,
             "bf8": np.uint8,
         }
         in_dt = _NP_DTYPE.get(data_type, np.float16)
@@ -1143,7 +1143,7 @@ class FmhaRunner:
             "bf16": np.float16,
             "fp32": np.float32,
             "fp8bf16": np.uint8,
-            "fp8fp32": np.uint8,
+            "fp8": np.uint8,
             "bf8": np.uint8,
         }
         in_dt = _NP_DTYPE.get(data_type, np.float16)

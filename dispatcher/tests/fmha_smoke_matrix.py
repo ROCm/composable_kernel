@@ -303,7 +303,7 @@ def generate_padding_matrix() -> List[TestCase]:
 
 
 def generate_fp8_matrix() -> List[TestCase]:
-    """Generate fp8 smoke test cases (fp8bf16 and fp8fp32)."""
+    """Generate fp8 smoke test cases (fp8bf16 and fp8)."""
     cases = []
     idx = 0
     for prec in ["fp8bf16"]:

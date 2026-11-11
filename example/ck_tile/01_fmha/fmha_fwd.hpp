@@ -46,11 +46,11 @@ struct FmhaFwdFp8Bf16
 {
 };
 
-struct FmhaFwdFp8Fp32
+struct FmhaFwdMxFp8
 {
 };
 
-struct FmhaFwdMxFp8
+struct FmhaFwdMxFp8Bf16
 {
 };
 
@@ -122,7 +122,7 @@ struct FmhaFwdTypeConfig<FmhaFwdFp8>
     using SMPLComputeDataType   = float; // data type for reduction, softmax
     using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
     using OaccDataType          = float;          // data type for second gemm accumulation
-    using ODataType             = ck_tile::fp8_t;
+    using ODataType             = float;
 };
 
 template <>
@@ -158,22 +158,6 @@ struct FmhaFwdTypeConfig<FmhaFwdFp8Bf16>
 };
 
 template <>
-struct FmhaFwdTypeConfig<FmhaFwdFp8Fp32>
-{
-    using QDataType             = ck_tile::fp8_t;
-    using KDataType             = ck_tile::fp8_t;
-    using VDataType             = ck_tile::fp8_t;
-    using BiasDataType          = float;
-    using RandValOutputDataType = uint8_t;
-    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType          = float; // data type for first gemm accumulation
-    using SMPLComputeDataType   = float; // data type for reduction, softmax
-    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
-    using OaccDataType          = float;          // data type for second gemm accumulation
-    using ODataType             = float;
-};
-
-template <>
 struct FmhaFwdTypeConfig<FmhaFwdMxFp8>
 {
     using QDataType             = ck_tile::fp8_t;
@@ -195,6 +179,13 @@ struct FmhaFwdTypeConfig<FmhaFwdMxFp8>
 
     static constexpr ck_tile::index_t kQKScaleGranularity = 32;
     static constexpr ck_tile::index_t kVScaleGranularity  = 32;
+};
+
+// MXFP8 inputs with a BF16 output (gfx125x qr_tdm_fp8_sched only).
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdMxFp8Bf16> : FmhaFwdTypeConfig<FmhaFwdMxFp8>
+{
+    using ODataType = ck_tile::bf16_t;
 };
 
 template <>
@@ -314,7 +305,7 @@ struct fmha_fwd_args
     ck_tile::index_t num_head_q_total = 0;
     ck_tile::index_t head_start       = 0;
 
-    float scale_s;
+    float scale_s; // Must be > 0; the example runner maps 0 to 1/sqrt(hdim_q) before calling.
     float logits_soft_cap;
 
     ck_tile::index_t stride_q;
@@ -888,12 +879,45 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
             args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr);
         return ck_tile::make_tuple(kargs, grids);
     }
+    else if constexpr(FmhaKernel::kMergeNumHeadGroupsSeqLenQ)
+    {
+        // One workgroup row per KV head; its query heads become nhead_q / nhead_k row groups.
+        dim3 grids = FmhaKernel::GridSize(args.batch,
+                                          args.nhead_k,
+                                          args.max_seqlen_q * (args.nhead_q / args.nhead_k),
+                                          args.hdim_v,
+                                          false);
+        return ck_tile::make_tuple(kargs, grids);
+    }
     else
     {
         dim3 grids =
             FmhaKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, false);
         return ck_tile::make_tuple(kargs, grids);
     }
+}
+
+// Batch-mode decode GQA whose query heads fold into one tile of query rows per KV head.
+inline bool fmha_fwd_can_merge_head_groups(const fmha_fwd_args& a,
+                                           ck_tile::index_t max_rows,
+                                           bool has_lse,
+                                           bool has_mx_scale,
+                                           bool allow_one_group = false)
+{
+    if(a.nhead_k <= 0 || a.nhead_q < a.nhead_k || a.nhead_q % a.nhead_k != 0)
+        return false;
+    if(!allow_one_group && a.nhead_q == a.nhead_k)
+        return false;
+    if(a.cu_seqlen_q_ptr != nullptr || a.cu_seqlen_k_ptr != nullptr)
+        return false;
+    const ck_tile::index_t s = a.seqlen_q;
+    if(s != a.max_seqlen_q || s * (a.nhead_q / a.nhead_k) > max_rows)
+        return false;
+    if(s == 1)
+        return true;
+    return a.nhead_stride_q == s * a.stride_q && a.nhead_stride_o == s * a.stride_o &&
+           (!has_lse || a.nhead_stride_lse == s) &&
+           (!has_mx_scale || a.nhead_stride_q_descale == s * a.stride_q_descale);
 }
 
 template <typename FmhaKernel>
@@ -1478,7 +1502,8 @@ template <ck_tile::index_t HDim_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_ = false,
           bool kHasSink_        = false,
-          int kOccupancy_       = -1>
+          int kOccupancy_       = -1,
+          bool kPackGqa_        = false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1511,6 +1536,8 @@ struct fmha_fwd_traits_
     // `fmha_fwd_<traits, arch>`, avoiding `ld: multiple definition` when
     // multiple such tiles are linked into a single shared object.
     static constexpr int kOccupancy = kOccupancy_;
+    // Query heads sharing a KV head are packed into the tile's query rows.
+    static constexpr bool kPackGqa = kPackGqa_;
 };
 
 template <ck_tile::index_t HDim_,

@@ -15,16 +15,14 @@
 
 namespace {
 
-// Built only into the fp8-input binaries that keep a wider output (see CMakeLists). An fp8
-// ODataType is excluded on purpose: e4m3 carries 3 mantissa bits, so the output cast alone
-// costs up to ~6% and would swamp the ~2% gain this test exists to catch.
+// Built only into the fp8 and fp8bf16 binaries (see CMakeLists).
 using QDataType = FmhaFwdTypeConfig<DataTypeConfig>::QDataType;
 using ODataType = FmhaFwdTypeConfig<DataTypeConfig>::ODataType;
 
 constexpr const char* prec_string()
 {
-    if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>)
-        return "fp8fp32";
+    if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+        return "fp8";
     else
         return "fp8bf16";
 }
@@ -179,7 +177,7 @@ TEST_P(SinkExact, MatchesExactAttention)
     // Same 1% output gain bound the quantization-scale suites use.
     EXPECT_LT(result.max_relative_error, 0.01);
     // LSE is the mathematical log-sum-exp: it carries the unquantized row sum, so it is
-    // held to fp32 accumulation error rather than to the fp8 output bound.
+    // held to fp32 accumulation error rather than to the output bound.
     if(store_lse)
         EXPECT_LT(result.max_lse_error, 1e-4);
 }

@@ -552,7 +552,7 @@ class KernelComponentFactoryBase:
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr_pagedkv pipeline, let "t" padding to appear later!!
         # TODO: how to design this more generic?
-        squant = "t" if dtype == "fp8" else "f"
+        squant = "f"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
             for logits, mask, bias, pagedkv, skip, sink in itertools.product(
@@ -565,7 +565,7 @@ class KernelComponentFactoryBase:
             ):
                 pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "f", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip, sink))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip, sink))  # fmt: skip
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             # no need lse/dropout kernels
             for logits, mask, bias in itertools.product(
                 ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
@@ -593,7 +593,7 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
                 # "192": FmhaFwdTileSize(128, 128, 32, 128, 32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 # "256": FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
             }  # fmt: skip
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             return {
                 "64":  FmhaFwdTileSize(128,  64, 32, 64,  32,  64,  2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
                 "128": FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
@@ -635,7 +635,7 @@ class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
               # "192": FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
               # "256": FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
             }  # fmt: skip
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             return {
                 #                      bm0, bn0, bk0, bn1, bk1,
                 "64":  FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
@@ -659,7 +659,7 @@ class KernelComponentFactoryGfx125(KernelComponentFactoryBase):
               # "192": FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 32,  -1),
               # "256": FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 32,  -1),
             }  # fmt: skip
-        elif dtype in ["fp8", "bf8"]:
+        elif dtype in ["bf8"]:
             return {
                 #                      bm0, bn0, bk0, bn1, bk1,
                 "64":  FmhaFwdTileSize(128,  64,  64,  64,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1),

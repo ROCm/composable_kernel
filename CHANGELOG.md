@@ -29,8 +29,10 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added CK Tile GEMM Stream-K support, including in the CK Tile dispatcher, for the gfx1250 TDM pipelines (comp_tdm and comp_tdm_v2) with row-major C and warp_k=1: the CShuffle epilogue for atomic, linear, and tree reduction (N must be a multiple of the block tile N), the TDM epilogue for linear and tree reduction, and persistent or non-persistent data-parallel tiles. The dispatcher also selects these kernels for M, N, or K that are not tile multiples.
 
 ### Changed
+* The CK Tile FMHA forward `fp8` data type now returns an FP32 output, matching `mxfp8`; FP8 output is no longer provided.
 
 ### Removed
+* Removed the CK Tile FMHA forward `fp8fp32` data type; use `fp8`, which now has the same FP32 output.
 
 ### Optimized
 * Improved FMHA forward performance on gfx1250 for eligible scheduled BF16 head dimension 128 causal attention workloads by grouping workgroups within each XCD.

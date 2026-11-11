@@ -262,8 +262,8 @@ mha_fwd(at::Tensor& q,       // batch_size x seqlen_q x num_heads x round_multip
                                                  : at::ScalarType::Float8_e4m3fn),
                     "FP8 dtype does not match the GPU: expected ",
                     use_fnuz ? "float8_e4m3fnuz" : "float8_e4m3fn");
-        TORCH_CHECK(!perhead || (arch.rfind("gfx1250", 0) == 0 && head_size <= 128),
-                    "FP8 per-head attention requires gfx1250 and head dimension at most 128");
+        TORCH_CHECK(!perhead || arch.rfind("gfx1250", 0) == 0,
+                    "FP8 per-head attention requires gfx1250");
         const auto check_descale = [&](const std::optional<at::Tensor>& descale,
                                        int heads,
                                        int seqlen,
