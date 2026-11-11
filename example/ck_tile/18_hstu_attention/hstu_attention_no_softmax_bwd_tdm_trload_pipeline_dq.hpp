@@ -328,27 +328,50 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                 __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q @ K_sub
+                // Gemm2: dpacc_tile = dO @ V_sub
                 if constexpr(EvenIter)
                 {
-                    gemm_0(sacc_tile, q_tile, k_lds_windows_0[i_n0]);
-
                     if constexpr(i_n0 < n0_loops - 1)
                     {
                         load_tile_tdm(
                             tdm_config_k, k_lds_windows_0[number<i_n0 + 1>{}], k_dram_window);
                         move_tile_window(k_dram_window, {kN0Sub, 0});
+                        load_tile_tdm(tdm_config_v, v_lds_windows[i_lds_buf_1], v_dram_window);
+                        move_tile_window(v_dram_window, {kN0Sub, 0});
                     }
+                    else
+                    {
+                        load_tile_tdm(tdm_config_k, k_lds_windows_1[number<0>{}], k_dram_window);
+                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                    }
+
+                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
+                                                   LLVMSchedGroupMask::TRANS);
+
+                    gemm_0(sacc_tile, q_tile, k_lds_windows_0[i_n0]);
+                    gemm_2(dpacc_tile, do_tile, v_lds_windows[i_lds_buf_0]);
                 }
                 else
                 {
-                    gemm_0(sacc_tile, q_tile, k_lds_windows_1[i_n0]);
-
                     if constexpr(i_n0 < n0_loops - 1)
                     {
                         load_tile_tdm(
                             tdm_config_k, k_lds_windows_1[number<i_n0 + 1>{}], k_dram_window);
                         move_tile_window(k_dram_window, {kN0Sub, 0});
+                        load_tile_tdm(tdm_config_v, v_lds_windows[i_lds_buf_1], v_dram_window);
+                        move_tile_window(v_dram_window, {kN0Sub, 0});
                     }
+                    else
+                    {
+                        load_tile_tdm(tdm_config_k, k_lds_windows_0[number<0>{}], k_dram_window);
+                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                    }
+
+                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
+                                                   LLVMSchedGroupMask::TRANS);
+
+                    gemm_0(sacc_tile, q_tile, k_lds_windows_1[i_n0]);
+                    gemm_2(dpacc_tile, do_tile, v_lds_windows[i_lds_buf_0]);
                 }
 
                 auto s_tmp = cast_tile<CompDataType>(sacc_tile);
@@ -357,41 +380,12 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                                sequence<0, i_n0 * kN0Sub>{},
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
 
-                // Gemm2: dpacc_tile = dO @ V_sub
-                gemm_2(dpacc_tile, do_tile, v_lds_windows[i_lds_buf_0]);
-
-                if constexpr(i_n0 < n0_loops - 1)
-                {
-                    load_tile_tdm(tdm_config_v, v_lds_windows[i_lds_buf_1], v_dram_window);
-                    move_tile_window(v_dram_window, {kN0Sub, 0});
-                }
-
                 auto dp_tmp = cast_tile<CompDataType>(dpacc_tile);
                 set_slice_tile(dpcomp_tile,
                                dp_tmp,
                                sequence<0, i_n0 * kN0Sub>{},
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
-
-            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
-
-            if constexpr(EvenIter)
-            {
-                load_tile_tdm(tdm_config_k, k_lds_windows_1[number<0>{}], k_dram_window);
-                move_tile_window(k_dram_window, {kN0Sub, 0});
-            }
-            else
-            {
-                load_tile_tdm(tdm_config_k, k_lds_windows_0[number<0>{}], k_dram_window);
-                move_tile_window(k_dram_window, {kN0Sub, 0});
-            }
-
-            // wait normal reading of the whole v_lds tile in gemm_2() of current iteration to be
-            // done
-            __builtin_amdgcn_s_barrier();
-
-            load_tile_tdm(tdm_config_v, v_lds_windows[number<0>{}], v_dram_window);
-            move_tile_window(v_dram_window, {kN0Sub, 0});
 
             // === STAGE 3: scale, optional bias, mask, then compute P and dS ===
 
@@ -410,6 +404,15 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
             {
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
             }
+
+            __builtin_amdgcn_sched_barrier(0);
+
+            // wait normal reading of the whole v_lds tile in gemm_2() of current iteration to be
+            // done
+            __builtin_amdgcn_s_barrier();
+
+            load_tile_tdm(tdm_config_v, v_lds_windows[number<0>{}], v_dram_window);
+            move_tile_window(v_dram_window, {kN0Sub, 0});
 
             const bool need_mask = !mask.IsFullTileInsideMask(
                 q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{});
