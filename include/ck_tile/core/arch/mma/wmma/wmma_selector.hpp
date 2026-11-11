@@ -12,12 +12,21 @@
 
 namespace ck_tile::core::arch::mma {
 
+// Targets whose dense MMA is WMMA: the RDNA families, plus gfx1250, whose target is CDNA.
+template <typename CompilerTarget>
+using enable_if_target_has_wmma_t = enable_if_target_family_id_t<CompilerTarget,
+                                                                 amdgcn_target_family_id::GFX10_3,
+                                                                 amdgcn_target_family_id::GFX11,
+                                                                 amdgcn_target_family_id::GFX117,
+                                                                 amdgcn_target_family_id::GFX12,
+                                                                 amdgcn_target_family_id::GFX1250>;
+
 // TODO: We do not allow M / N composition for now, since it is not used in current CK Tile and the
 // existing implementation was not able to deal with unusual MxN sizes such as for multi-block
 // intrinsics.
 /**
  * @struct MmaDefaultSelector
- * @brief Implements the rdna default MMA selector strategy for wave-wise MMA decomposition.
+ * @brief Implements the WMMA default MMA selector strategy for wave-wise MMA decomposition.
  * If no supported instruction is found, falls back to an unsupported pass-through implementation.
  * @tparam ADataType      Data type of matrix A
  * @tparam BDataType      Data type of matrix B
@@ -44,7 +53,7 @@ struct MmaDefaultSelector<ADataType,
                           WaveTileK,
                           CompilerTarget,
                           OpFamily,
-                          enable_if_all<enable_if_target_arch_rdna_t<CompilerTarget>,
+                          enable_if_all<enable_if_target_has_wmma_t<CompilerTarget>,
                                         std::enable_if_t<OpFamily == MmaOpFamily::DENSE>>>
 {
     // Search for largest intrinsic K size that fits in WaveTileK.
