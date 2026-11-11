@@ -97,11 +97,17 @@ class philox
 
     CK_TILE_HOST_DEVICE uint2 mulhilo32(const unsigned int a, const unsigned int b) const
     {
+#if defined(__gfx1250__)
+        // gfx1250 lowers the 64-bit product below to v_mul_u64, which is several times
+        // slower than a v_mul_lo_u32 + v_mul_hi_u32 pair. Same result.
+        return make_uint2(a * b, __umulhi(a, b));
+#else
         uint2* res;
         unsigned long long tmp;
         tmp = static_cast<unsigned long long>(a) * b;
         res = reinterpret_cast<uint2*>(&tmp);
         return *res;
+#endif
     }
 
     CK_TILE_HOST_DEVICE uint4 philox_single_round(const uint4 ctr, const uint2 key) const
