@@ -1237,10 +1237,11 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     };
 
     // Q staged in Lds (hdim128 M128 Tdm tile with more than one gemm0 warp, no bias, no dropout):
-    // Q is written to Lds once and the Q@K gemm reads its A operand back from there on every kv
-    // tile, instead of keeping the whole Q tile (64 VGPRs per lane) resident in registers. That is
-    // what lets the M128 kernels fit three workgroups (three waves per SIMD) per CU. Every wave
-    // reads back exactly the Q rows it wrote, so the store needs no barrier. No dropout: the Tdm
+    // Q is copied to Lds once, by Tdm, and the Q@K gemm reads its A operand back from there on
+    // every kv tile, instead of keeping the whole Q tile (64 VGPRs per lane) resident in
+    // registers. That is what lets the M128 kernels fit three workgroups (three waves per SIMD)
+    // per CU. A wave reads Q rows that other waves copied: the first s_wait_tensorcnt_barrier of
+    // the kv loop retires the Q copy before any of them is read. No dropout: the Tdm
     // pipelines refuse it anyway (static_assert), as their Lds layout reserves nothing for the
     // dropout randval buffer (GetSmemSizeDropout() is 0).
     template <typename Problem>
@@ -1264,12 +1265,68 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr auto pad_config =
             detail::GetTdmLdsPaddingConfigForNormalRead<WG, true /*inputA*/, kKPerBlock>();
 
+        // As for K: Q is copied by Tdm (see MakeQDramTdmTileDistribution()), each wave writes
+        // kMPerBlock / kNumWarps rows and has to start on the pad grid.
+        constexpr index_t kNumWarps = Problem::kBlockSize / get_warp_size();
+        static_assert(kMPerBlock / kNumWarps * kKPerBlock * sizeof(typename Problem::QKVDataType) %
+                              pad_config.at(number<0>{}) ==
+                          0,
+                      "each wave's Tdm Q write must start on the Lds pad grid");
+
         return detail::MakeRowMajorLdsPaddedBlockDescriptor<typename Problem::QKVDataType,
                                                             1,
                                                             kMPerBlock,
                                                             kKPerBlock,
                                                             pad_config.at(number<0>{}),
                                                             pad_config.at(number<1>{})>();
+    }
+
+    // As GetTdmPadConfigK(), for the global -> Lds copy of Q where IsQInLdsTdm(): the encoded
+    // form of the pad MakeQLdsPlainBlockDescriptor() reads Q back with.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetTdmPadConfigQ()
+    {
+#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr auto lds_pad =
+            detail::GetTdmLdsPaddingConfigForNormalRead<WG, true /*inputA*/, kKPerBlock>();
+
+        return detail::GetTdmRawPaddingConfig<lds_pad.at(number<0>{}), lds_pad.at(number<1>{})>();
+#else
+        static_assert(sizeof(Problem) == 0,
+                      "GetTdmPadConfigQ() is only meaningful where Tdm staging is available");
+        return make_tuple(number<0>{}, number<0>{});
+#endif
+    }
+
+    // As MakeKDramTdmTileDistribution(), for the Q tile where IsQInLdsTdm(): the kM0 rows are
+    // split across the waves, the head dim is left whole. Only for load_tile_tdm().
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeQDramTdmTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0;
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
+
+        constexpr index_t warpNum = kBlockSize / get_warp_size();
+
+        static_assert(kMPerBlock % warpNum == 0,
+                      "kM0 must be divisible by the number of warps for the Tdm Q distribution");
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<warpNum, kMPerBlock / warpNum>, sequence<kKPerBlock>>,
+                tuple<sequence<1>>,
+                tuple<sequence<0>>,
+                sequence<1, 2>,
+                sequence<1, 0>>{},
+            bool_constant<true>{});
     }
 
     template <typename Problem>

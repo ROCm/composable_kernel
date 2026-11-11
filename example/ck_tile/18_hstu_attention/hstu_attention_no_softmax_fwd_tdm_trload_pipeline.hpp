@@ -21,9 +21,9 @@ template <typename Problem_,
 // register staging and no store_tile for them, and the Lds layout must be the plain row-major
 // one the engine writes rather than an xor-swizzled one.
 //
-// Q is not staged through Tdm: hstu loads Q once into registers. Where Policy::IsQInLdsTdm()
-// each wave then stores its rows of Q to Lds once (plain row-major, behind the K/V copies) and
-// gemm_0 reads Q back from there; otherwise gemm_0 uses the register tile.
+// Q is loaded once into registers, except where Policy::IsQInLdsTdm(): there Tdm copies Q
+// global -> Lds once (plain row-major, placed after the K/V copies in Lds), issued before the
+// first K/V copies, and gemm_0 reads Q back from there; otherwise gemm_0 uses the register tile.
 struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
 {
     using Problem         = remove_cvref_t<Problem_>;
@@ -63,6 +63,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
     // kUseTrLoad is shared with the trload pipeline, so the kernel needs a separate marker
     // to recognise this one and skip the head-dim padding of the K/V Dram views.
     static constexpr bool kUseTdm = true;
+    // Where Policy::IsQInLdsTdm() Q is Tdm-moved as well, so the kernel leaves the head dim of the
+    // Q Dram view unpadded too.
+    static constexpr bool kUseTdmForQ = Policy::template IsQInLdsTdm<Problem>();
 
     static constexpr bool kPadSeqLenQ   = Traits::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = Traits::kPadSeqLenK;
@@ -211,11 +214,15 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
         static_assert(kBlockPerCu * GetSmemSize() <= detail::get_lds_size(gfx125_t{}),
                       "kBlockPerCu x GetSmemSize() does not fit the Lds of a CU");
 
-        // The Q operand of gemm_0: the register tile or, where Policy::IsQInLdsTdm(), an Lds
-        // window over a copy of Q that every wave stores once here (each wave reads back only
-        // the rows it wrote, so no barrier is needed).
+        // The Q operand of gemm_0: the register tile or, where kUseTdmForQ (=
+        // Policy::IsQInLdsTdm()), an Lds window over a copy of Q that Tdm makes here, global ->
+        // Lds. Each wave copies kM0 / NumWarps rows, which are not the rows it reads back. The
+        // copy is issued before the first K/V copies of the same wave, and a wave's tensor ops
+        // complete in order, so the first s_wait_tensorcnt_barrier<0>() of the kv loop retires
+        // it together with them, before gemm_0 reads any of them. Q, K and V tile 0 are then
+        // three Tdm copies in flight per wave, the most a gfx1250 wave may have.
         auto q_tile = [&]() {
-            if constexpr(Policy::template IsQInLdsTdm<Problem>())
+            if constexpr(kUseTdmForQ)
             {
                 auto q_lds = make_tensor_view<address_space_enum::lds>(
                     reinterpret_cast<QKVDataType*>(
@@ -223,16 +230,25 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
                         Policy::template GetQLdsByteOffsetPlain<Problem>()),
                     Policy::template MakeQLdsPlainBlockDescriptor<Problem>());
 
-                auto q_lds_store_window =
-                    make_tile_window(q_lds,
-                                     make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
-                                     {0, 0},
-                                     Policy::template MakeQRegTileDistribution<Problem>());
-
-                store_tile(q_lds_store_window, load_tile(q_dram_window));
-
-                return make_tile_window(
+                auto q_lds_window = make_tile_window(
                     q_lds, make_tuple(number<kM0>{}, number<kQKHeaddim>{}), {0, 0});
+
+                constexpr auto q_pad_config = Policy::template GetTdmPadConfigQ<Problem>();
+
+                TDMConfig tdm_config_q{};
+                tdm_config_q.pad_enable              = true;
+                tdm_config_q.pad_config.pad_interval = q_pad_config.at(number<0>{});
+                tdm_config_q.pad_config.pad_amount   = q_pad_config.at(number<1>{});
+
+                load_tile_tdm(
+                    tdm_config_q,
+                    q_lds_window,
+                    make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                                     make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
+                                     q_dram_block_window_tmp.get_window_origin(),
+                                     Policy::template MakeQDramTdmTileDistribution<Problem>()));
+
+                return q_lds_window;
             }
             else
                 return load_tile(q_dram_window);

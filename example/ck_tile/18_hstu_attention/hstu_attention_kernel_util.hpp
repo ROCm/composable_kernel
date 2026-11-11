@@ -48,6 +48,24 @@ struct has_use_tdm_flag<
 template <typename T>
 static inline constexpr bool is_using_tdm_v = has_use_tdm_flag<T>::value;
 
+// A helper struct for detecting kUseTdmForQ (a Tdm pipeline that moves Q with Tdm as well).
+// T is the pipeline class used by the kernel instance
+template <typename T, typename = void>
+struct has_use_tdm_for_q_flag : std::false_type
+{
+};
+
+template <typename T>
+struct has_use_tdm_for_q_flag<
+    T,
+    std::enable_if_t<std::is_convertible_v<decltype(T::kUseTdmForQ), bool> && T::kUseTdmForQ>>
+    : std::true_type
+{
+};
+
+template <typename T>
+static inline constexpr bool is_using_tdm_for_q_v = has_use_tdm_for_q_flag<T>::value;
+
 // A helper struct for detecting kUseDirectLds (the direct-to-LDS pipelines).
 // T is the pipeline class used by the kernel instance
 template <typename T, typename = void>

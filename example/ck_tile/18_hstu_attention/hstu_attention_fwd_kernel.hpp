@@ -54,14 +54,17 @@ struct HstuAttentionFwdKernel
     static constexpr bool kPadHeadDimQK = HstuAttentionPipeline::kPadHeadDimQK;
     static constexpr bool kPadHeadDimV  = HstuAttentionPipeline::kPadHeadDimV;
 
-    static constexpr bool kUseTrLoad = detail::is_using_trload_v<HstuAttentionPipeline>;
-    static constexpr bool kUseTdm    = detail::is_using_tdm_v<HstuAttentionPipeline>;
+    static constexpr bool kUseTrLoad  = detail::is_using_trload_v<HstuAttentionPipeline>;
+    static constexpr bool kUseTdm     = detail::is_using_tdm_v<HstuAttentionPipeline>;
+    static constexpr bool kUseTdmForQ = detail::is_using_tdm_for_q_v<HstuAttentionPipeline>;
 
     // The V view below branches on !kUseTrLoad before it ever looks at kUseTdm, so a Tdm
     // pipeline that did not also set kUseTrLoad would silently be handed the padded,
     // transposed view -- the very thing the Tdm arms exist to avoid. State the dependency
     // rather than leave it to the branch order.
     static_assert(!kUseTdm || kUseTrLoad, "a Tdm pipeline must set kUseTrLoad as well");
+    // The unpadded Q view below is only safe for a pipeline that moves Q with Tdm.
+    static_assert(!kUseTdmForQ || kUseTdm, "kUseTdmForQ needs a Tdm pipeline");
 
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg
@@ -987,10 +990,20 @@ struct HstuAttentionFwdKernel
                 make_tuple(kargs.seq_stride_q, 1),
                 number<HstuAttentionPipeline::kAlignmentQ>{},
                 number<1>{});
-            return pad_tensor_view(q_dram_naive,
-                                   make_tuple(number<HstuAttentionPipeline::kM0>{},
-                                              number<HstuAttentionPipeline::kQKHeaddim>{}),
-                                   sequence<false, kPadHeadDimQK>{});
+
+            // Where the pipeline moves Q with Tdm as well, leave the head dim unpadded for the
+            // same reason as K/V below.
+            if constexpr(kUseTdmForQ && kPadHeadDimQK)
+            {
+                return q_dram_naive;
+            }
+            else
+            {
+                return pad_tensor_view(q_dram_naive,
+                                       make_tuple(number<HstuAttentionPipeline::kM0>{},
+                                                  number<HstuAttentionPipeline::kQKHeaddim>{}),
+                                       sequence<false, kPadHeadDimQK>{});
+            }
         }();
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -1003,8 +1016,8 @@ struct HstuAttentionFwdKernel
             // K is moved by the Tdm engine, whose box clamp already zero-fills reads past
             // the end of the view. Padding the head dim here would instead round the view
             // length up past the end of the real K buffer, so leave it unpadded and let the
-            // clamp do the work. (Q keeps its pad: it is read with a plain load_tile, which
-            // gets no such zero-fill and would pick up the next row.)
+            // clamp do the work. (Q keeps its pad unless kUseTdmForQ: a plain load_tile gets
+            // no such zero-fill and would pick up the next row.)
             // Where the head dim needs no padding, the naive view is right as well: the Tdm
             // engine is given only the view's start offset, lengths and strides, which
             // pad_tensor_view() would leave unchanged.
