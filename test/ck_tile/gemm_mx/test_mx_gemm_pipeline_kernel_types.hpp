@@ -42,6 +42,7 @@ using Warps2x2 = ck_tile::sequence<2, 2>;
 using Warps4x1 = ck_tile::sequence<4, 1>;
 using Warps1x4 = ck_tile::sequence<1, 4>;
 using Warps2x4 = ck_tile::sequence<2, 4>;
+using Warps4x4 = ck_tile::sequence<4, 4>;
 
 // clang-format off
 // MX GEMM kernel types using TDM pipeline with scale support
@@ -106,13 +107,17 @@ using KernelTypesMxGemmTdmBf16C = ::testing::Types<
 
 // MX FP8 on comp_tdm_v3: fp8 x fp8, 32-element E8M0 scales, A row-major / B column-major (the
 // only 8-bit layout comp_tdm_v3 supports), 16x16 and 32x32 warp tiles, fp16 and bf16 C, with the
-// TDM epilogue and with the CShuffle epilogue (which also runs split-K, k_batch 2).
+// TDM epilogue and with the CShuffle epilogue (which also runs split-K, k_batch 2). The last two
+// rows are the 16-wave 256x256x256 tile with the 32x32x128 warp tile (example 55's), without and
+// with 2x2 cluster launch (TDM multicast).
 using KernelTypesMxGemmTdmV3 = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I128,       I16,        I16,        CompTDMV3,          I32>,
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I128,       I32,        I32,        CompTDMV3,          I32>,
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV3,          I32>,
     std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,       F16,        I64,         I64,          I128,       I16,        I16,        CompTDMV3CShuffle,  I32>,
-    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV3CShuffle,  I32>
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,        I64,         I64,          I128,       I16,        I16,        CompTDMV3CShuffle,  I32>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,       I256,        I256,          I256,       I32,        I32,        CompTDMV3,          I32, std::false_type, ClusterDisable, Warps4x4>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,    E8M0,  E8M0,      F32,      BF16,       I256,        I256,          I256,       I32,        I32,        CompTDMV3,          I32, std::false_type, ClusterEnable,  Warps4x4>
 >;
 
 // FP6 (E2M3) on the TDM pipelines, one row per C type and pipeline. All rows use the one

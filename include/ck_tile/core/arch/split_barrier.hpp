@@ -36,7 +36,11 @@
 //     the caller put it.
 //
 // The fences are "workgroup" scope on purpose: the barrier never leaves one workgroup's LDS, and
-// "agent" scope would add a vector L0 writeback and invalidate on every step.
+// "agent" scope would add a vector L0 writeback and invalidate on every step. For the same reason
+// they order LDS only ("local"): an all-memory fence also waits for every global load in flight
+// (s_wait_loadcnt 0), so a load issued before the barrier for use a K tile later, such as the MX
+// scale prefetch of comp_tdm_v3, would complete at the barrier instead of under the next tile's
+// WMMAs.
 //
 // Rules for callers:
 //   - Every wave of the workgroup calls arrive and wait the same number of times, in
@@ -67,7 +71,7 @@ CK_TILE_DEVICE void workgroup_barrier_arrive()
     {
         s_wait_tensorcnt<TensorCnt>();
     }
-    __builtin_amdgcn_fence(__ATOMIC_RELEASE, "workgroup");
+    __builtin_amdgcn_fence(__ATOMIC_RELEASE, "workgroup", "local");
     __builtin_amdgcn_s_barrier_signal(-1);
     __builtin_amdgcn_sched_barrier(0);
 #else
@@ -84,7 +88,7 @@ CK_TILE_DEVICE void workgroup_barrier_wait()
 #if defined(__gfx12__)
     __builtin_amdgcn_sched_barrier(0);
     __builtin_amdgcn_s_barrier_wait(-1);
-    __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "workgroup");
+    __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "workgroup", "local");
     __builtin_amdgcn_sched_barrier(0);
 #else
     block_sync_lds();
