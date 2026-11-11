@@ -36,6 +36,7 @@ sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
 import ctypes_utils as cu  # noqa: E402
 import gemm_full_benchmark as drv  # noqa: E402
 import gemm_utils as gu  # noqa: E402
+from _gemm_driver_stubs import run_stub_driver  # noqa: E402
 
 PROBLEMS = [{"M": 512, "N": 512, "K": 512}, {"M": 1024, "N": 512, "K": 256}]
 
@@ -638,6 +639,57 @@ def test_failures_csv_records_builds_and_runs(monkeypatch, capsys, tmp_path):
         (str(p["M"]), str(p["N"]), str(p["K"])) for p in PROBLEMS
     }
     assert bad_run not in {r["kernel"] for r in _csv(tmp_path / "out.csv")}
+
+
+@pytest.mark.parametrize("arch", ["gfx1250", "gfx942"])
+def test_repeat_top_worker_payload_keeps_the_selected_arch(
+    monkeypatch, capsys, tmp_path, arch
+):
+    payloads = []
+
+    class Proc(_Proc):
+        def __init__(self, *a, **kw):
+            super().__init__(
+                json.dumps(
+                    {
+                        "idx": 0,
+                        "ok": True,
+                        "ms": 1.0,
+                        "tflops": 2.0,
+                        "non_zero": 1,
+                        "verified": True,
+                        "max_rel": 0.0,
+                    }
+                )
+            )
+
+        def communicate(self, input=None, timeout=None):
+            payloads.append(json.loads(input))
+            return super().communicate(input, timeout)
+
+    monkeypatch.setattr(subprocess, "Popen", Proc)
+    rc, _ = run_stub_driver(
+        drv,
+        monkeypatch,
+        capsys,
+        tmp_path,
+        PROBLEMS[:1],
+        "--max-kernels",
+        "1",
+        "--verify",
+        "--repeat-top",
+        "1",
+        "--repeat-count",
+        "2",
+        arch=arch,
+        dtype="fp8",
+        build=lambda cfgs, **kw: [Path(f"/fake/{c.name}.so") for c in cfgs],
+        run_batch=drv._run_batch_on_device,
+    )
+    assert rc == 0
+    assert [p["verify"] for p in payloads] == [True, False, False]
+    assert [p.get("arch") for p in payloads] == [arch] * 3
+    assert all(p["items"] == payloads[0]["items"] for p in payloads)
 
 
 def test_repeat_top_retimes_the_fastest_in_single_launches(

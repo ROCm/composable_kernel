@@ -39,6 +39,7 @@ import hashlib
 import json
 import math
 import os
+import random
 import shutil
 import signal
 import statistics
@@ -252,6 +253,7 @@ class WarmStartSettings:
     ranked_csv: Optional[str] = None
     top_k: int = 5
     use_prior: bool = False
+    cover: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -331,16 +333,26 @@ class SearchSettings:
                 ranked_csv=_get_file(wd, ww, "ranked_csv", base),
                 top_k=_get(wd, ww, "top_k", int, 5, _positive, ">= 1"),
                 use_prior=_get(wd, ww, "use_prior", bool, False),
+                cover=_get(
+                    wd,
+                    ww,
+                    "cover",
+                    str,
+                    None,
+                    lambda v: bool(v) and v == v.strip(),
+                    "a candidate field name",
+                ),
             )
-            if warm.pairs_file is None and warm.ranked_csv is None:
-                raise SettingsError(f"{ww}: expected pairs_file and/or ranked_csv")
+            if (warm.pairs_file, warm.ranked_csv, warm.cover) == (None, None, None):
+                raise SettingsError(f"{ww}: expected pairs_file, ranked_csv and/or cover")
             if warm.use_prior != (warm.ranked_csv is not None):
                 raise SettingsError(
                     f"{ww}: ranked_csv is read only as a prior: give both "
                     "ranked_csv and use_prior=true, or neither"
                 )
-            if warm.pairs_file is not None and strategy in NO_WARM_STRATEGIES:
-                raise SettingsError(f"{ww}.pairs_file: strategy {strategy!r} ignores it")
+            for what in ("pairs_file", "cover"):
+                if getattr(warm, what) is not None and strategy in NO_WARM_STRATEGIES:
+                    raise SettingsError(f"{ww}.{what}: strategy {strategy!r} ignores it")
             if warm.use_prior and strategy not in PRIOR_STRATEGIES:
                 raise SettingsError(
                     f"{ww}.use_prior: only {PRIOR_STRATEGIES} read a prior, "
@@ -650,6 +662,7 @@ class _Problem:
         self.strategy_name = ""
         self.seed = 0
         self.warm: List[str] = []
+        self.cover: Dict[str, str] = {}  # warm_start.cover value -> its kernel
         self.prior_entries = 0
         self.requeue: list = []  # trials to re-admit (unattempted once)
         self.retried: set = set()  # uids already re-queued once
@@ -858,6 +871,8 @@ class SearchCoordinator:
             except ValueError as e:
                 raise ContractError(f"{p.key}: candidate records: {e}") from None
             p.members = p.space.members
+            if s.warm_start is not None and s.warm_start.cover is not None:
+                self._check_cover(p, s.warm_start.cover)  # exhaustive ones too
             p.seed = s.problem_seed(i)
             p.strategy_name = s.strategy
             warm, prior = (), None
@@ -890,6 +905,7 @@ class SearchCoordinator:
                     "strategy": p.strategy_name or None,
                     "seed": p.seed,
                     "warm_start": p.warm,
+                    "warm_cover": p.cover,
                     "prior_entries": p.prior_entries,
                     "note": p.finished or (
                         "exhaustive: fewer eligible candidates than trials_per_problem"
@@ -911,16 +927,67 @@ class SearchCoordinator:
         self.writer.write_json("run.json", self._run_json)
 
     def _warm_records(self, p: _Problem):
-        """The first ``top_k`` listed names that are eligible, in listed order."""
+        """The first ``top_k`` listed names that are eligible, in listed order,
+        then the ``cover`` picks (``_cover``), which ``top_k`` does not limit."""
+        warm = self.settings.warm_start
         names = self.warm_pairs.get(p.key, ())
         if names == "*":
             names = [c.kernel_name for c in p.cands]
         by_name = {c.kernel_name: c for c in p.cands}
-        picks = [by_name[n] for n in names if n in by_name]
+        picks = [by_name[n] for n in dict.fromkeys(names) if n in by_name]
         if picks:
-            picks = picks[: self.settings.warm_start.top_k]
+            picks = picks[: warm.top_k]
+        if warm is not None and warm.cover is not None:
+            picks += self._cover(p, warm.cover, picks)
+            if len(picks) >= self.settings.trials_per_problem:
+                raise SettingsError(
+                    f"warm_start.cover: {p.key} has {len(picks)} warm picks "
+                    f"({len(p.cover)} from cover {warm.cover!r}) for "
+                    f"trials_per_problem {self.settings.trials_per_problem}: the "
+                    "strategy would never run; raise trials_per_problem, or "
+                    "cover a field with fewer values")
         p.warm = [c.kernel_name for c in picks]
         return tuple(dict(c.record) for c in picks)
+
+    @staticmethod
+    def _check_cover(p: _Problem, name: str) -> None:
+        """Some candidate of ``p`` has the record field ``name``, and its
+        values can be grouped (are hashable)."""
+        values = [c.record[name] for c in p.cands if name in c.record]
+        if not values:
+            raise SettingsError(
+                f"warm_start.cover: no candidate of {p.key} has the field {name!r} "
+                f"(fields: {sorted(p.cands[0].record)})")
+        for v in values:
+            try:
+                hash(v)
+            except TypeError:
+                raise SettingsError(
+                    f"warm_start.cover: field {name!r} of {p.key} has the value "
+                    f"{v!r}, which cannot be covered (not a single value)") from None
+
+    def _cover(self, p: _Problem, name: str, picks) -> List[Candidate]:
+        """One candidate per value of the record field ``name`` that no pick
+        has, values in candidate order; each value's candidate is drawn with
+        its own seeded RNG, so unrelated groups cannot change shared picks."""
+        groups: Dict[Any, List[Candidate]] = {}
+        values: Dict[Any, Any] = {}
+        for c in p.cands:
+            if name in c.record:
+                v = c.record[name]
+                k = (type(v), v)
+                values.setdefault(k, v)
+                groups.setdefault(k, []).append(c)
+        drawn = {
+            k: random.Random(repr(("cover", p.seed, name, values[k]))).choice(cands)
+            for k, cands in groups.items()
+        }
+        have = {
+            (type(c.record[name]), c.record[name]) for c in picks if name in c.record
+        }
+        out = [c for k, c in drawn.items() if k not in have]
+        p.cover = {str(c.record[name]): c.kernel_name for c in out}
+        return out
 
     def _prior(self, p: _Problem):
         pred = self.ranked.get(p.key, {})

@@ -64,6 +64,9 @@ gemm/
 - `user_provided_config.json` — scratch space for custom sweeps.
 - `example_problems.json` — example M/N/K problem set (used when `--problems`
   is omitted).
+- `search_settings_gfx1250_tdm.json` - example search settings for the gfx1250
+  full default config with `--pipelines`, see
+  [gfx1250 / MI450](#gfx1250--mi450-tdm-pipelines).
 
 > The JSON used by **nightly** tests is intended to drop into the same
 > `configs/` directory and be selected with a positional config — no driver
@@ -136,6 +139,18 @@ measures and reports exactly as described above.
   many single timings is biased towards a lucky timing; selecting and reporting
   on the median of the repeats removes that bias. Kernels that failed `--verify`
   or wrote no non-zero output are not re-timed.
+- `--pipelines NAME[,NAME...]` - restrict the selected configs to these bridged
+  pipelines, before `--max-kernels` and `--pairs`, in plain runs, `--list-pairs`
+  and search. Config selection is unchanged: omitted positional configs still
+  use the variant's usual default (typically the small CI config). Pass a full
+  config explicitly when the CI config lacks the pipelines you need. Names
+  are case-sensitive; surrounding whitespace is ignored. Empty, duplicate or
+  unknown names are errors. Known pipelines can be absent for a particular
+  arch, dtype, layout or problem; no surviving configs is an error. Explicit
+  `--pairs` names outside the filtered space are rejected, while `"*"` means
+  all eligible kernels within that space. Explicit selections are recorded
+  under `"pipelines"` in `--list-pairs` and in a search's `run.json`; omitting
+  the flag keeps every pipeline from the selected configs.
 - `--list-pairs PATH` — dry run: expand and pair as a real run would, write every
   `(problem, kernel)` pair it would measure together with each kernel's
   configuration, and exit without building. Use it to see the size of a sweep
@@ -257,6 +272,7 @@ build their own fixed-width variants, about 80).
 | `build_timeout_s` | `180`, native kernels only | limit for each codegen, compile and link step of a kernel's build in the search; when given, it applies to every kernel. Without it, a round that builds a fixed-vector-width kernel keeps the build function's limits, as a full run does (300 s per step, 1200 s to compile a fixed-width kernel). A kernel whose step times out is a `compile_error`. See "Build timeout" below |
 | `warm_start.pairs_file`, `top_k` | none, `5` | a `--pairs` file (e.g. from `select_kernels.py --out_pairs`): the first `top_k` listed kernels of a problem are tried first |
 | `warm_start.ranked_csv`, `use_prior` | none, `false` | `select_kernels.py --out_ranked` predictions as a prior (`tpe`, `gp`, `portfolio` only); give both or neither |
+| `warm_start.cover` | none | a candidate field, e.g. `"pipeline"`: one kernel per value of that field is tried first, after the `pairs_file` picks and not limited by `top_k` (values a pick already has are skipped; each value's kernel is drawn independently from the problem's seed, field and value, so identical groups share a pick regardless of other groups). Needs no `pairs_file`. The picks are trials like any other: they count toward `trials_per_problem` and `new_builds_per_run`, and a problem whose warm picks would use all of its `trials_per_problem` ends the run with an error before any work, so cover a field with few values (the number of pipelines depends on the config and problem, not just the arch). With `hill` the picks replace its stratified start probe (it starts from the best of them); `tpe` and `gp` count them in their startup trials. Not for `random` or `exhaustive`, which take no warm start (an error); a problem with fewer candidates than `trials_per_problem` is measured exhaustively anyway. `run.json` lists the picks per problem under `warm_cover`; a field that no candidate of a problem has ends the run with an error |
 | `confirm.finalists`, `confirm.fresh_calls` | `2`, `3` | the winner is the lowest median among the finalists whose fresh calls all verified |
 | `measurement_policy` | `full` | the only value |
 | `host_cache.dir`, `max_entry_gib`, `max_total_gib` | system temp dir, `4`, a quarter of its free space | the run's cache of verification inputs and references, in a new directory under `dir` (keep it on a local filesystem) that is removed when the run ends. An entry larger than `max_entry_gib`, one past `max_total_gib` in all, or one that would leave the filesystem less than 10% free is not stored, and its calls compute as without the cache: on a filesystem already over 90% full nothing is stored, and the run warns. Both limits count the entries still being written, so they hold with any number of workers. `max_total_gib` `0` turns it off. See "Host cache" and "Host cache space" below |
@@ -293,7 +309,10 @@ Option rules:
 - Every measurement is verified and runs one kernel per worker, whatever
   `--verify` and `--batch-size` say, so a failure always names one kernel.
   The host side of verification (random inputs, an fp32 numpy reference
-  GEMM) comes from the run's host cache (see below). A search makes these
+  GEMM) comes from the run's host cache (see below). Its fp8/bf8 format (OCP
+  or FNUZ) follows the run's `--arch`, as in a plain run, not the local GPU's
+  detection (`rocminfo` / `amd-smi`), which falls back to FNUZ when it fails.
+  A search makes these
   inputs its own way, with other values than a plain run's (see "Host
   verification memory"). Before a problem's
   first measure call the search prepares it: a worker that loads no kernel
@@ -332,9 +351,9 @@ Option rules:
   confirmation calls run on one device (problem `i` on device `i mod n`), so
   its finalists are compared on the same GPU.
 - The candidates of a problem are exactly the kernels a full run measures with
-  it when every kernel builds (its `--list-pairs` pairs). `--pairs` and
-  `--max-kernels` narrow them (recorded in `run.json`); `--pairs` also limits
-  the search to the problems it lists, and is not a warm start. A listed
+  it when every kernel builds (its `--list-pairs` pairs). `--pipelines`,
+  `--pairs` and `--max-kernels` narrow them (recorded in `run.json`); `--pairs`
+  also limits the search to the problems it lists, and is not a warm start. A listed
   problem none of whose listed kernels pair with it stays unresolved. A
   problem with fewer candidates than `trials_per_problem` is measured
   exhaustively. Fixed-vector-width kernels are candidates where a full run
@@ -617,6 +636,117 @@ Troubleshooting: for `no_winner` or `partial`, read `unresolved` in
 memory (see "Host verification memory"). If nearly every candidate gets
 built, the problems are choosing different kernels: lower `new_builds_per_run`
 or keep the default `shared` seed policy.
+
+#### gfx1250 / MI450: TDM pipelines
+
+Use gemm_universal's gfx1250 default config
+(`gemm_universal/configs/default_config_gfx1250.json`) with `--pipelines`
+restricting it to the bridged TDM/async pipelines: `comp_async` (`rcr` only, fully
+padded, persistent or not), `comp_tdm`, `comp_tdm_v2` and `comp_tdm_pc` (`tdm`
+epilogue, unpadded), tile_k 64 to 256, warp tile 16x16; the bridge drops what
+it does not support. In the default config these pipelines are 2.7-3.2% of the
+`rcr` space, so a search there rarely tries them. Kernels per layout, each
+paired with every problem of `example_problems.json` (5 aligned problems):
+
+| Pipeline selection | dtype | `rcr` | `rrr` | `crr` | `ccr` |
+|---|---|---|---|---|---|
+| TDM/async (all four above) | fp16, bf16 | 1207 | 595 | 583 | 595 |
+| | fp8, bf8 | 1618 | 1234 | 1234 | 1234 |
+| TDM/async without `comp_tdm_pc` | fp16, bf16 | 1071 | 459 | 459 | 459 |
+| | fp8, bf8 | 1248 | 864 | 864 | 864 |
+
+By pipeline, fp16 `rcr`: `comp_async` 612, `comp_tdm` 306, `comp_tdm_v2` 153,
+`comp_tdm_pc` 136; fp8 `rcr`: 384, 576, 288, 370. The candidates of a problem
+depend on its shape: fp16 `rcr` 245760x352x3595 (odd K) pairs with 595 kernels,
+no `comp_async`, and a misaligned problem pairs with fixed-vector-width
+variants of its own, so a mixed problem set has more distinct kernels than
+any one problem (fp16 `rcr` over 4 mixed problems: 1819 against 1207 per
+problem). Check your problems with `--list-pairs`.
+
+```bash
+RUN="gemm_universal/configs/default_config_gfx1250.json \
+    --pipelines comp_async,comp_tdm,comp_tdm_v2,comp_tdm_pc --variant gemm_universal \
+    --arch gfx1250 --dtype bf16 --layout rcr --problems problems.json"
+python gemm_full_benchmark.py $RUN --devices 0, --workers 16 \
+    --search-config configs/search_settings_gfx1250_tdm.json \
+    --search-output-dir runs/gfx1250-bf16-rcr-001
+```
+
+`configs/search_settings_gfx1250_tdm.json`: `tpe`, `shared`, 100 trials per
+problem, `warm_start.cover` `"pipeline"` (each pipeline is tried on each
+problem before the strategy's own picks), `new_builds_per_run` 1200 (sized
+for about 8 problems, as in the gfx950 example, whose runs built about 356;
+scale it with your problem count) and `build_timeout_s` 300. The 300 s is a
+placeholder: gfx1250 TDM compile times are not measured yet. Calibrate it
+before ranking runs: build about 20 kernels per pipeline in a plain run with
+`--build-timeout 1200`, then set `build_timeout_s` to 1.6x the slowest one that
+built, the rule used for gfx950 above. `build_timeout_s` applies to every
+kernel, the fixed-vector-width variants of misaligned problems too: if your
+problems include misaligned ones, include one in the calibration run so that
+it builds those variants, or leave `build_timeout_s` out (the build
+function's own limits then apply to them). There is no heuristic warm start on
+gfx1250 (the models are gfx950 only); an earlier run's `winners.json` can be
+the `pairs_file` next to `cover`.
+
+To sample at most 20 kernels **per pipeline and problem**, use the pipeline
+metadata in `--list-pairs`, then pass the sampled pairs to a plain run.
+`--max-kernels 20` alone is a global limit, not a per-pipeline sample:
+
+```bash
+python gemm_full_benchmark.py $RUN --list-pairs calibration-candidates.json
+python - <<'PY'
+import json
+import random
+from collections import defaultdict
+from pathlib import Path
+
+data = json.loads(Path("calibration-candidates.json").read_text())
+rng = random.Random(0)
+picks = {}
+for problem, names in data["pairs"].items():
+    groups = defaultdict(list)
+    for name in names:
+        groups[data["kernels"][name]["pipeline"]].append(name)
+    picks[problem] = [
+        name for group in groups.values()
+        for name in rng.sample(group, min(20, len(group)))
+    ]
+Path("calibration-pairs.json").write_text(json.dumps(picks, indent=2) + "\n")
+PY
+python gemm_full_benchmark.py $RUN --pairs calibration-pairs.json \
+    --devices 0, --workers 16 --verify --build-timeout 1200
+```
+
+`trials_per_problem` 100 is not exhaustive (the TDM selections have 459 to 1618
+candidates per problem). The exhaustive reference for a search is a plain run
+of the same config, `--pipelines` and problems with `--verify`, or `--pairs` with a
+`--list-pairs` file to split it into one problem per run; it builds and
+measures every pair.
+
+Node caveats:
+
+- Pass `--arch gfx1250` and `--devices N,`: without them the driver detects
+  the arch with `rocminfo` and the devices with `amd-smi` or `rocm-smi`, and
+  when `rocminfo` fails the driver stops. The fp8/bf8 host format of the
+  workers (OCP on gfx1250) follows `--arch` in a search and in a plain run.
+- Rank kernels only on production-representative hardware. A run under
+  emulation or binary translation can report false timeouts and wrong
+  results, which a search records as `timeout` or `numeric_fail` and learns
+  from.
+- With the ROCm 10.2 compiler, `comp_tdm_pc` kernels can hang in their named
+  barriers, and each such trial costs a full `--kernel-timeout`. On that
+  toolchain use `--pipelines comp_async,comp_tdm,comp_tdm_v2` for the search
+  and for the reference run; other toolchains can include `comp_tdm_pc`.
+- A run cannot be resumed: an interrupted run confirms nothing. On a host that
+  may hang or reboot, run one problem per run (its own problems file and
+  `--search-output-dir`) and copy each output directory off the node when it
+  ends.
+- Not covered: `comp_tdm_v3` (no dispatcher bridge yet; once it has one and
+  the default config lists it, include it in `--pipelines` and the TDM
+  coverage tests),
+  `preshuffle_tdm` (the
+  `gemm_preshuffle` variant; a search takes `gemm_universal` only), and the MX,
+  Stream-K, batched, grouped and quant TDM kernels.
 
 ### Multi-GPU parallelism
 

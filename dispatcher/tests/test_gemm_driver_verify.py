@@ -651,6 +651,52 @@ def test_prepared_entry_gives_the_uncached_outcome(gemm_worker, tmp_path, monkey
     assert gemm_worker.counts == {"inputs": 0, "reference": 0, "search": 2}
 
 
+@pytest.mark.parametrize("dtype", ["fp8", "bf8"])
+def test_fp8_format_follows_the_runs_arch(monkeypatch, capsys, tmp_path, dtype):
+    # An OCP kernel (gfx1250) on a host whose arch probe fails: the local
+    # default falls back to FNUZ. A plain run and a search pass their --arch
+    # to the worker, so its host data, reference and cache key are OCP like
+    # the kernel's; a worker without it keeps the probe's answer.
+    import gemm_utils
+
+    monkeypatch.setattr(gemm_utils, "_default_use_ocp", lambda: False)
+    name = _runner(dtype, True).kernel_name
+
+    class Lib:  # the real GpuGemmRunner.__init__ runs on it
+        kernel_names = [name]
+
+        def __init__(self, path):
+            self.exact = _ExactKernelLib(dtype, "rcr", True)
+
+        def initialize(self):
+            return True
+
+        def run(self, *a):
+            return self.exact.run(*a)
+
+    monkeypatch.setattr(gemm_utils, "GemmDispatcherLib", Lib)
+
+    def call(search=True, **kw):
+        monkeypatch.setattr(gemm_utils, "_SWEEP_CACHE", {})  # a plain run's inputs
+        run_one_gemm_kernel._run_one(0, "x.so", PROBLEM, name, verify=True,
+                                     search_host_data=search, **kw)
+        return json.loads(capsys.readouterr().out)
+
+    assert call(search=False, arch="gfx1250")["verified"]
+    assert not call(search=False)["verified"]
+    assert call(arch="gfx1250")["verified"]
+    assert not call()["verified"]  # FNUZ host bytes for an OCP kernel
+    assert not call(arch="gfx942")["verified"]  # a FNUZ arch pins FNUZ
+    assert run_one_gemm_kernel._HostCodec(name, "gfx1250")._use_ocp is True
+    assert run_one_gemm_kernel._HostCodec(name)._use_ocp is None
+    # The preparation keys its entry with the same format: the call reads it.
+    with HC.HostCache(tmp_path) as cache:
+        run_one_gemm_kernel._prepare(PROBLEM, name, cache.spec, "gfx1250")
+        assert json.loads(capsys.readouterr().out) == {"ok": True, "stored": True}
+        assert call(arch="gfx1250", host_cache=cache.spec)["verified"]
+        assert HC.usage(cache.dir)[0] == 1
+
+
 def test_preparation_reports_what_it_could_not_store(capsys, tmp_path):
     name = _runner("bf16", None).kernel_name
     for args, want in (((PROBLEM, name, None), {"ok": True, "stored": False}),
@@ -867,7 +913,7 @@ class Lib:  # a kernel that writes every element of C
 
 runner = object.__new__(gemm_utils.GpuGemmRunner)
 runner._kernel_name, runner._use_ocp, runner.lib = name, False, Lib()
-w.GpuGemmRunner = lambda lib_path: runner
+w.GpuGemmRunner = lambda lib_path, arch=None: runner
 
 
 def run(problem):  # _search_host_data alone, or a whole search call without an entry

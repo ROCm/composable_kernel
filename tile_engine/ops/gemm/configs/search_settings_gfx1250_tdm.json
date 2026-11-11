@@ -1,0 +1,13 @@
+{
+    "schema_version": 1,
+    "strategy": "tpe",
+    "seed": 0,
+    "seed_policy": "shared",
+    "trials_per_problem": 100,
+    "batch_per_problem": 8,
+    "new_builds_per_run": 1200,
+    "build_timeout_s": 300,
+    "warm_start": {
+        "cover": "pipeline"
+    }
+}

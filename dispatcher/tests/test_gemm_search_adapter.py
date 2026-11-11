@@ -153,9 +153,9 @@ class Toolchain:
         self.lat, self.wrong = dict(lat or {}), set(wrong)
         self.killed, self.oom = set(killed), set(oom)
         self.builds, self.payloads, self.outputs, self.loaded = [], [], [], []
-        self.prepares = []
+        self.prepares, self.arches = [], []
         monkeypatch.setattr(worker, "GpuGemmRunner", self.runner)
-        monkeypatch.setattr(worker, "_HostCodec", lambda name: _Runner(name, 1.0))
+        monkeypatch.setattr(worker, "_HostCodec", lambda name, arch=None: _Runner(name, 1.0))
         monkeypatch.setattr(AS, "prepare_host_data", self.prepare)
         monkeypatch.setattr(drv, "subprocess", SimpleNamespace(
             Popen=lambda *a, **kw: _InProcess(self), PIPE=subprocess.PIPE,
@@ -198,8 +198,9 @@ class Toolchain:
         """Whether ``which`` (names, or (name, M) pairs) names this pair."""
         return bool({name, (name, m)} & which)
 
-    def runner(self, lib_path):
+    def runner(self, lib_path, arch=None):
         self.loaded.append(Path(lib_path))
+        self.arches.append(arch)
         name = Path(lib_path).read_text()
         return _Runner(name, self.lat.get(name, 1.0),
                        lambda prob: self.hit(self.wrong, name, prob.M),
@@ -538,8 +539,10 @@ def test_failed_build_compacts_indices_and_stale_files_are_never_loaded(
     assert call["built"] == [(A, art / f"{A}.so"), (C, art / f"{C}.so")]
     assert call["pairs"] == [[0], [1]] and call["problems"] == [P1, P1]
     assert (call["verify"], call["batch_size"]) == (True, 1)
-    assert call["extra"] == {"check_identity": True, "search_host_data": True}
+    assert call["extra"] == {"check_identity": True, "search_host_data": True,
+                             "arch": "gfx950"}
     assert tc.loaded == [art / f"{A}.so", art / f"{C}.so"]
+    assert tc.arches == ["gfx950", "gfx950"]  # the run's --arch pins the fp8 format
     assert all(B not in it["so_path"] for p in tc.payloads for it in p["items"])
     # The round's CSV holds both rows; its JSON maps problem_idx to the request.
     rounds = tmp_path / "out" / "rounds"
@@ -677,7 +680,8 @@ def test_first_calls_find_their_problem_prepared(tmp_path, monkeypatch):
     assert [(list(p["payloads"]), p["limits"], p["width"]) for p in tc.prepares] == [
         ([K1], {K1: 70}, 2), ([K2], {K2: 70}, 2)]
     assert tc.prepares[0]["payloads"][K1] == {
-        "prepare": True, "host_cache": cache.spec, "problem": P1, "kernel_name": A}
+        "prepare": True, "host_cache": cache.spec, "problem": P1, "kernel_name": A,
+        "arch": "gfx950"}
     rounds = tmp_path / "out" / "rounds"
     sides = [json.loads((rounds / n).read_text())["prepared"] for n in (
         "0002-measure.json", "0003-measure.json", "0004-confirm.json")]
@@ -1151,11 +1155,12 @@ def test_misleading_rows_never_become_winners(tmp_path, monkeypatch, confirm_ok)
 
 def test_worker_checks_the_library_identity_only_when_asked(monkeypatch, capsys):
     monkeypatch.setattr(gemm_utils, "_SWEEP_CACHE", {})
-    monkeypatch.setattr(worker, "GpuGemmRunner", lambda lib_path: _Runner(C, 1.0))
+    monkeypatch.setattr(worker, "GpuGemmRunner",
+                        lambda lib_path, arch=None: _Runner(C, 1.0))
     worker._run_one(0, "a.so", P1, A, verify=True)
     worker._run_one(1, "a.so", P1, A, verify=True, check_identity=True)
     monkeypatch.setattr(worker, "GpuGemmRunner",
-                        lambda lib_path: _Runner(A, 1.0, status=-3))
+                        lambda lib_path, arch=None: _Runner(A, 1.0, status=-3))
     worker._run_one(2, "a.so", P1, A, check_identity=True)
     legacy, checked, status = (
         json.loads(ln) for ln in capsys.readouterr().out.splitlines())

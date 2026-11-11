@@ -1209,7 +1209,11 @@ BASE = {"schema_version": 1, "strategy": "tpe", "trials_per_problem": 4,
     ({"confirm": {"finalists": 2, "calls": 3}}, "unknown key"),
     ({"confirm": {"fresh_calls": 0}}, ">= 1"),
     ({"confirm": {"finalists": 0}}, ">= 1"),
-    ({"warm_start": {"top_k": 3}}, "pairs_file and/or ranked_csv"),
+    ({"warm_start": {"top_k": 3}}, "pairs_file, ranked_csv and/or cover"),
+    ({"warm_start": {"cover": ""}}, "a candidate field name"),
+    ({"warm_start": {"cover": "   "}}, "a candidate field name"),
+    ({"warm_start": {"cover": " pipeline "}}, "a candidate field name"),
+    ({"warm_start": {"cover": ["pipeline"]}}, "expected type str"),
     ({"warm_start": {"pairs_file": "missing.json"}}, "no such file"),
     ({"warm_start": {"pairs_file": 7}}, "expected type str"),
     ({"warm_start": None}, "expected a JSON object"),
@@ -1231,6 +1235,8 @@ def test_settings_warm_rules_and_files(tmp_path):
     (tmp_path / "picks.csv").write_text("problem,rank,kernel,predicted_tflops\n")
     bad = [
         ({"strategy": "random", "warm_start": {"pairs_file": "picks.json"}}, "ignores"),
+        ({"strategy": "random", "warm_start": {"cover": "pipeline"}}, "cover: .* ignores"),
+        ({"strategy": "exhaustive", "warm_start": {"cover": "pipeline"}}, "ignores"),
         ({"strategy": "de", "warm_start": {"ranked_csv": "picks.csv",
                                           "use_prior": True}}, "read a prior"),
         ({"warm_start": {"ranked_csv": "picks.csv"}}, "use_prior"),
@@ -1330,6 +1336,167 @@ def test_warm_start_order_and_pair_loader(tmp_path):
     meta = strict(tmp_path / "out" / "run.json")
     assert [meta["problems"][p]["warm_start"] for p in ("P1", "P2", "P3")] == [
         ["D", "B"], ["C", "A"], []]
+
+
+PIPES = ("p0", "p1", "p2")
+
+
+class PipeAdapter(FakeAdapter):
+    """``FakeAdapter`` whose records also hold a pipeline, kernel i's PIPES[i % 3]."""
+
+    def enumerate_eligible(self):
+        return {p: [AS.Candidate(n, n, {**rec(n), "pipeline": PIPES[KERNELS.index(n) % 3]},
+                                 None) for n in names]
+                for p, names in self.problems.items()}
+
+
+def test_warm_start_cover_alone_one_kernel_per_value(tmp_path):
+    # No pairs_file or ranked_csv: one candidate per pipeline, values in
+    # candidate order, drawn with the problem's seed (the same on a re-run,
+    # and other seeds draw other kernels).
+    s = AS.SearchSettings.from_json({**BASE, "warm_start": {"cover": "pipeline"}})
+    assert s.warm_start.cover == "pipeline" and s.warm_start.pairs_file is None
+    assert AS.SearchSettings.from_json(s.to_json()) == s
+    names = list(KERNELS[:9])
+    runs = []
+    for i, seed in enumerate((0, 0, 1, 2, 3)):
+        calls = []
+        run(tmp_path / str(i), PipeAdapter({"P1": names}), {}, calls=calls,
+            strategy="hill", seed=seed, warm_start={"cover": "pipeline"})
+        meta = strict(tmp_path / str(i) / "out" / "run.json")["problems"]["P1"]
+        assert [w["pipeline"] for w in calls[0]["warm"]] == list(PIPES)
+        assert meta["warm_start"] == [meta["warm_cover"][v] for v in PIPES]
+        runs.append(meta["warm_start"])
+    assert runs[0] == runs[1] and len({tuple(r) for r in runs}) > 2
+
+
+@pytest.mark.parametrize("leading", ["", "ADG"])
+def test_warm_start_cover_shared_groups_ignore_other_groups(tmp_path, leading):
+    # Odd-K problems can lose comp_async while retaining identical TDM groups.
+    # Removing or resizing that leading group must not cost extra shared builds.
+    shared = "BCEFHIKL"
+    calls = []
+    run(
+        tmp_path,
+        PipeAdapter({"P1": list("ADGJ" + shared), "P2": list(leading + shared)}),
+        {},
+        calls=calls,
+        strategy="tpe",
+        seed=2,
+        warm_start={"cover": "pipeline"},
+    )
+    assert len(calls) == 2 and calls[0]["seed"] == calls[1]["seed"]
+    picks = [{r["pipeline"]: r for r in c["warm"]} for c in calls]
+    assert list(picks[0]) == list(PIPES)
+    assert list(picks[1]) == list(PIPES if leading else PIPES[1:])
+    for pipeline in PIPES[1:]:
+        assert picks[0][pipeline] == picks[1][pipeline]
+
+
+def test_warm_start_cover_is_not_truncated_by_top_k(tmp_path):
+    # top_k limits the pairs_file picks only; cover adds the values they lack.
+    picks = tmp_path / "picks.json"
+    picks.write_text(json.dumps({"P1": ["D", "A", "B"]}))  # D: p0, A: p0, B: p1
+    calls = []
+    run(tmp_path, PipeAdapter({"P1": list(KERNELS[:9])}), {}, calls=calls,
+        strategy="tpe", pair_loader=json_pairs,
+        warm_start={"pairs_file": str(picks), "top_k": 1, "cover": "pipeline"})
+    warm = calls[0]["warm"]
+    assert warm[0] == {**rec("D"), "pipeline": "p0"}
+    assert [w["pipeline"] for w in warm] == ["p0", "p1", "p2"]
+    meta = strict(tmp_path / "out" / "run.json")["problems"]["P1"]
+    assert meta["warm_start"][0] == "D" and set(meta["warm_cover"]) == {"p1", "p2"}
+
+
+def test_warm_start_cover_handles_partial_fields_and_duplicate_pairs(tmp_path):
+    # A pick missing the covered field does not mask a None group, and
+    # duplicate listed names in pairs_file do not consume extra top_k slots.
+    vals = (None, "x", "y")
+
+    class PartialAdapter(FakeAdapter):
+        def enumerate_eligible(self):
+            cands = [AS.Candidate("A", "A", rec("A"), None)]
+            for i, name in enumerate(KERNELS[1:4]):
+                cands.append(
+                    AS.Candidate(name, name, {**rec(name), "tag": vals[i]}, None)
+                )
+            for name in KERNELS[4:6]:
+                cands.append(AS.Candidate(name, name, rec(name), None))
+            return {"P1": cands}
+
+    picks = tmp_path / "picks.json"
+    picks.write_text(json.dumps({"P1": ["A", "A", "C"]}))  # A lacks tag; C has "x"
+    ad = PartialAdapter({"P1": list(KERNELS[:6])})
+    s = AS.SearchCoordinator(
+        ad,
+        settings(
+            strategy="tpe",
+            trials_per_problem=5,
+            new_builds_per_run=10,
+            batch_per_problem=1,
+            warm_start={"pairs_file": str(picks), "top_k": 2, "cover": "tag"},
+        ),
+        tmp_path / "out",
+        pair_loader=json_pairs,
+        clock=FakeClock(),
+    ).run()
+    assert s.exit_code == 0, s.error
+    meta = strict(tmp_path / "out" / "run.json")["problems"]["P1"]
+    assert meta["warm_start"] == ["A", "C", "B", "D"]
+    assert meta["warm_cover"] == {"None": "B", "y": "D"}
+    assert [r.kernel_name for r in ad.measured[:4]] == ["A", "C", "B", "D"]
+
+
+def test_warm_start_cover_unknown_field_ends_the_run(tmp_path):
+    s, _, _ = run(tmp_path, PipeAdapter({"P1": list(KERNELS[:9])}), {},
+                  strategy="tpe", warm_start={"cover": "pipline"})
+    assert s.exit_code == 1 and "no candidate of P1 has the field 'pipline'" in s.error
+
+
+def test_warm_start_cover_checks_every_problem_before_any_work(tmp_path):
+    # A typo is caught when every problem is small (exhaustive, no warm start)
+    # too, and a field whose value is not a single one is a settings error.
+    class ListAdapter(FakeAdapter):
+        def enumerate_eligible(self):
+            return {p: [AS.Candidate(n, n, {**rec(n), "dims": [1, 2]}, None)
+                        for n in names] for p, names in self.problems.items()}
+
+    for i, (ad, cover, want) in enumerate((
+            (PipeAdapter({"P1": list(KERNELS[:2])}), "pipline",
+             "no candidate of P1 has the field 'pipline'"),
+            (ListAdapter({"P1": list(KERNELS[:9])}), "dims",
+             "field 'dims' of P1 has the value [1, 2]"))):
+        s, _, _ = run(tmp_path / str(i), ad, {}, strategy="tpe",
+                      warm_start={"cover": cover})
+        assert s.exit_code == 1 and want in s.error and not ad.measured
+
+
+def test_warm_start_cover_must_leave_trials_to_the_strategy(tmp_path):
+    # As many warm picks as trials_per_problem would only measure the first
+    # values in candidate order and never run the strategy: an error.
+    picks = tmp_path / "picks.json"
+    picks.write_text(json.dumps({"P1": ["D", "B"]}))  # D: p0, B: p1
+    for i, (warm, covered) in enumerate((({}, 3), ({"pairs_file": str(picks)}, 1))):
+        ad = PipeAdapter({"P1": list(KERNELS[:9])})
+        s, _, _ = run(tmp_path / str(i), ad, {}, strategy="tpe", pair_loader=json_pairs,
+                      trials_per_problem=3, warm_start={"cover": "pipeline", **warm})
+        assert s.exit_code == 1 and not ad.measured
+        assert f"P1 has 3 warm picks ({covered} from cover 'pipeline')" in s.error
+
+
+@pytest.mark.parametrize("name", ["hill", "tpe", "gp", "de", "portfolio"])
+def test_warm_start_cover_reaches_the_real_strategies(tmp_path, name):
+    # Every pipeline is measured before the strategy's own picks, whatever the
+    # batch size, so a rare pipeline is never left out of a short search.
+    names = list(KERNELS)
+    ad = PipeAdapter({"P1": names})
+    co = AS.SearchCoordinator(
+        ad, settings(strategy=name, trials_per_problem=6, new_builds_per_run=12,
+                     batch_per_problem=1, warm_start={"cover": "pipeline"}),
+        tmp_path / "out", clock=FakeClock())
+    co.run()
+    first = [PIPES[KERNELS.index(r.kernel_name) % 3] for r in ad.measured[:3]]
+    assert first == list(PIPES)
 
 
 def _ranked_settings(tmp_path, strategy="tpe"):
