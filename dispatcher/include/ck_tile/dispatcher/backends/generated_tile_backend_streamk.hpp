@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/dispatcher/kernel_instance.hpp"
+#include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/gemm.hpp"
@@ -90,16 +91,22 @@ class GeneratedStreamKKernelInstance : public KernelInstance
             return false;
 
         // Stream-K distributes K-iterations across workgroups; padding flags
-        // mirror the regular backend's divisibility guard.
-        constexpr bool pad_m = SelectedKernel::kPadM;
-        constexpr bool pad_n = SelectedKernel::kPadN;
-        constexpr bool pad_k = SelectedKernel::kPadK;
-        if(!pad_m && problem.M % SelectedKernel::TileM != 0)
-            return false;
-        if(!pad_n && problem.N % SelectedKernel::TileN != 0)
-            return false;
-        if(!pad_k && problem.K % SelectedKernel::TileK != 0)
-            return false;
+        // mirror the regular backend's divisibility guard. TDM pipelines clip each
+        // box to the tensor's real extent, so they skip it like the regular backend;
+        // IsSupported() below still rejects a ragged C tile for a non-TDM epilogue.
+        using Pipeline = typename SelectedKernel::StreamKGemmKernel::GemmPipeline;
+        if constexpr(!pipeline_skips_launch_checks<Pipeline>::value)
+        {
+            constexpr bool pad_m = SelectedKernel::kPadM;
+            constexpr bool pad_n = SelectedKernel::kPadN;
+            constexpr bool pad_k = SelectedKernel::kPadK;
+            if(!pad_m && problem.M % SelectedKernel::TileM != 0)
+                return false;
+            if(!pad_n && problem.N % SelectedKernel::TileN != 0)
+                return false;
+            if(!pad_k && problem.K % SelectedKernel::TileK != 0)
+                return false;
+        }
 
         // Final feasibility: enough tiles to partition across CUs. Rejecting here
         // (instead of throwing at launch) lets the dispatcher's first-fit fall back

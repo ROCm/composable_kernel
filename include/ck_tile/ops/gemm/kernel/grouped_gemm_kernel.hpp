@@ -148,7 +148,7 @@ struct GroupedGemmKernel
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
     // Same detection as the base kernel: equals GemmPipeline::UsePersistentKernel when the
-    // pipeline defines it, false otherwise (the TDM pipelines do not define it).
+    // pipeline defines it, false otherwise.
     static constexpr bool UsePersistentKernel = Base::PersistentKernel;
 
     /// @brief True for the gfx125 TDM pipelines (see UniversalGemmKernel::kIsTdmPipeline).

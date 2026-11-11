@@ -458,7 +458,7 @@ class GemmKernelConfig:
         if any(self.vector_sizes):
             return self.vector_sizes
         return _codegen_common().gemm_native_vector_sizes(
-            **self._vector_args(), epilogue=self.epilogue
+            **self._vector_args(), epilogue=self.epilogue, pipeline=self.pipeline
         )
 
     def with_vector_sizes(
@@ -2812,13 +2812,14 @@ def _gfx1250_pipeline_supported(
         dtype_a=dtype,
         dtype_b=dtype,
         layout=layout,
-        variant_supported=variant in ("standard", "batched", "preshuffle"),
+        variant_supported=variant in ("standard", "batched", "preshuffle", "stream_k"),
         variant_name=variant,
         persistent=bool(persistent),
         pads=(bool(pad_m), bool(pad_n), bool(pad_k)),
         batched=variant == "batched",
         tile_mn=tile_mn,
         warp_k=wave_k,
+        streamk=variant == "stream_k",
     )
     return not reason
 
@@ -3213,11 +3214,14 @@ def expand_sweep(
             tm // m_div, tn // n_div, wtm, wtn
         ):
             continue
-        # Stream-K supports only the cshuffle epilogue, and the codegen skips
-        # anything else (unified_gemm_codegen.py, GemmVariant.STREAM_K branch).
-        # Without this gate expand_sweep hands back configs whose header is
-        # never emitted, which surfaces downstream as a spurious build failure.
-        if variant == "stream_k" and epi != "cshuffle":
+        # The codegen emits a Stream-K kernel only for the (pipeline, epilogue,
+        # reduction) triples streamk_trait_reject_reason accepts (unified_gemm_codegen.py,
+        # GemmVariant.STREAM_K branch). Without this gate expand_sweep hands back configs
+        # whose header is never emitted, which surfaces downstream as a spurious build
+        # failure.
+        if variant == "stream_k" and _codegen_common().streamk_trait_reject_reason(
+            pipe, epi, red, pads=(bool(pm), bool(pn), bool(pk))
+        ):
             continue
 
         for (m_na, m_nb, m_nd, m_aop, m_bop, m_cdeop) in mabd_combos:

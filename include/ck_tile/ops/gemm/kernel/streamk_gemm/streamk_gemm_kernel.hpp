@@ -7,6 +7,8 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
+#include "ck_tile/ops/epilogue/tdm_epilogue.hpp"
 #include "streamk_gemm_coherency.hpp"
 
 namespace ck_tile {
@@ -117,6 +119,40 @@ struct StreamKKernel
      */
     static_assert(!is_tuple_v<CLayout> && !is_tuple_v<CDataType>,
                   "CLayout and CDataType must be scalars.");
+
+    /**
+     *@brief Atomic reduction adds every partial tile into C, but TdmEpilogue overwrites C.
+     */
+    static_assert(!is_tdm_epilogue_v<EpiloguePipeline> ||
+                      TilePartitioner::ReductionStrategy != StreamKReductionStrategy::Atomic,
+                  "TdmEpilogue overwrites C: use the Linear or Tree reduction strategy.");
+
+    /**
+     *@brief Stream-K gives every workgroup its own K range, so the TDM pipelines run without
+     *cluster multicast, and the plain-GEMM-only pipelines are not supported.
+     */
+    static_assert(!UniversalGemmKernel::kIsPlainGemmOnlyPipeline,
+                  "Stream-K GEMM does not support this pipeline (plain GEMM only)");
+    static constexpr bool kClusterLaunch =
+        BlockGemmShape::kclusterM * BlockGemmShape::kclusterN * BlockGemmShape::kclusterK > 1;
+    static_assert(!UniversalGemmKernel::kIsTdmPipeline || !kClusterLaunch,
+                  "TDM Stream-K GEMM: cluster launch unsupported (per-workgroup K ranges)");
+
+    /**
+     *@brief True for comp_tdm and comp_tdm_v2: the TDM pipelines other than the wavelet
+     *comp_tdm_pc. They can return with their last, clipped TDM prefetch still writing LDS.
+     *CShuffleEpilogue and TdmEpilogue wait for it; StreamKGemm waits for it after a partial tile,
+     *which runs no epilogue. C must be row-major: CShuffleEpilogue supports nothing else, and
+     *TdmEpilogue's column-major store is not validated with these pipelines.
+     */
+    static constexpr bool kIsCompTdmPipeline =
+        UniversalGemmKernel::kIsTdmPipeline && !is_wavelet_pipeline<GemmPipeline>;
+    static_assert(!kIsCompTdmPipeline || is_tdm_epilogue_v<EpiloguePipeline> ||
+                      is_specialization_of<EpiloguePipeline, CShuffleEpilogue>::value,
+                  "Stream-K with comp_tdm or comp_tdm_v2 requires CShuffleEpilogue or "
+                  "TdmEpilogue (they wait for the pipeline's last TDM prefetch).");
+    static_assert(!kIsCompTdmPipeline || std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>,
+                  "Stream-K with comp_tdm or comp_tdm_v2 supports row-major C only.");
 
     struct StreamKKernelArgs : ck_tile::UniversalGemmKernelArgs<>
     {
@@ -271,6 +307,15 @@ struct StreamKKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const StreamKKernelArgs& kargs)
     {
+        if constexpr(UniversalGemmKernel::kIsTdmPipeline)
+        {
+            // Off gfx125 the TDM instructions compile to no-ops. UniversalGemmKernel checks the
+            // rest: the TDM arguments and, with a non-TDM epilogue, the C tail.
+            if(!UniversalGemmKernel::IsTdmDeviceSupported("Stream-K GEMM"))
+            {
+                return false;
+            }
+        }
         return UniversalGemmKernel::IsSupportedArgument(kargs);
     }
 
@@ -519,6 +564,13 @@ struct StreamKKernel
             {
                 static_assert(
                     false, "An implementation does not exist for the chosen reduction strategy.");
+            }
+
+            // A workgroup that only stores a partial tile runs no epilogue, so wait for the
+            // pipeline's last TDM prefetch here, before the next tile refills the same LDS.
+            if constexpr(kIsCompTdmPipeline)
+            {
+                s_wait_tensorcnt<0>();
             }
 
             // Prepare for next Stream-K loop iteration.

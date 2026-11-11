@@ -42,6 +42,7 @@ from codegen_common import (  # noqa: E402
     GFX1250_COMP_ASYNC_PAD_REJECT_REASON,
     comp_tdm_pc_acc_reject_reason,
     GFX1250_COMPV5_REJECT_REASON,
+    STREAMK_GFX1250_PIPELINES,
     gfx1250_comp_async_8bit_warp_tile_k_rejected,
     gfx1250_comp_async_8bit_warp_tile_mn_rejected,
     gfx1250_pipeline_reject_reason,
@@ -816,10 +817,21 @@ class TestUnifiedCodegenGolden(unittest.TestCase):
         self.assertTrue(names)
         self.assertFalse(any("comp_async" in n or "comp_tdm" in n for n in names))
 
-    def test_stream_k_no_comp_async(self):
+    def test_stream_k_gfx1250_pipelines(self):
+        # Without a streamk_config only atomic reduction is built, which needs the
+        # cshuffle epilogue. Of the gfx1250-only pipelines, only those in
+        # STREAMK_GFX1250_PIPELINES (comp_tdm and comp_tdm_v2 among them) are built;
+        # test_streamk_tdm_gfx1250.py covers the rules.
         _, names = self._gen("gfx1250", "stream_k")
         self.assertTrue(names)
-        self.assertFalse(any("comp_async" in n or "comp_tdm" in n for n in names))
+        self.assertFalse(any("comp_async" in n for n in names))
+        for pipe in ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc"):
+            built = any(f"_{pipe}_cshuffle_" in n for n in names)
+            self.assertEqual(built, pipe in STREAMK_GFX1250_PIPELINES, pipe)
+        tdm = [n for n in names if "_comp_tdm" in n]
+        for n in tdm:
+            self.assertIn("_cshuffle_intrawave_False_False_False_", n)
+            self.assertTrue(n.endswith("_streamk.hpp"), n)
 
 
 class TestGemmUtilsSweepGate(unittest.TestCase):
@@ -857,7 +869,7 @@ class TestGemmUtilsSweepGate(unittest.TestCase):
         self.assertFalse(self._ok("comp_tdm", "cshuffle"))
         self.assertFalse(self._ok("comp_tdm", "tdm", persist=True))
         self.assertFalse(self._ok("comp_tdm", "tdm", sched="interwave"))
-        for variant in ("multi_d", "grouped", "multi_abd", "stream_k"):
+        for variant in ("multi_d", "grouped", "multi_abd"):
             self.assertFalse(self._ok("comp_tdm", "tdm", variant=variant), variant)
         self.assertFalse(self._ok("comp_tdm_v2", "tdm", waves=(4, 2, 1)))
         self.assertFalse(self._ok("compv3", "tdm"))

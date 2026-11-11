@@ -163,14 +163,19 @@ if(GPU_TARGETS MATCHES "gfx1250")
     # Both implementations must finish partial stores before publishing the ready flag.
     # The gfx1250 emulator runs one workgroup at a time, so a Linear or Tree tile owner waits
     # forever there for later workgroups. Both full suites are REGRESSION_TESTS; the smoke
-    # suite keeps a subset of the atomic rows in the emulator stage.
+    # suite keeps a subset of the atomic rows in the emulator stage. The TDM pipeline suite
+    # (comp_tdm, comp_tdm_v2) follows the same split. It is not built with the legacy buffer
+    # addressing, which has no LDS transpose load for the TDM pipelines.
     foreach(variant IN ITEMS builtin legacy smoke)
         set(test_target test_ck_tile_streamk_gfx1250_wmma)
+        set(test_sources test_gemm_streamk_gfx1250_wmma.cpp test_gemm_streamk_util.cpp)
         if(NOT variant STREQUAL "builtin")
             string(APPEND test_target "_${variant}")
         endif()
-        add_gtest_executable(${test_target}
-            test_gemm_streamk_gfx1250_wmma.cpp test_gemm_streamk_util.cpp)
+        if(NOT variant STREQUAL "legacy")
+            list(APPEND test_sources test_gemm_streamk_tdm_gfx1250_wmma.cpp)
+        endif()
+        add_gtest_executable(${test_target} ${test_sources})
         set_property(TARGET ${test_target}
                      PROPERTY HIP_ARCHITECTURES ${GFX1250_STREAMK_TARGETS})
         target_compile_definitions(${test_target} PRIVATE
