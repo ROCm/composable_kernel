@@ -203,4 +203,74 @@ TYPED_TEST(QrTdmSchedConfig, OutputRescaleModesRejectConflictingOwners)
     EXPECT_EQ(Early::kIsLegal, !streaming);
 }
 
+// ---------------------------------------------------------------------------
+// qr_tdm split-kv copy
+//
+// BlockFmhaFwdSplitKVPipelineQRKSVSTdm does not go through
+// FmhaTdmSchedSupportedGeometry, so these cases pin its tile and the flags
+// it declares itself rather than taking from the problem or kernel defaults.
+// ---------------------------------------------------------------------------
+
+template <typename T, int D, int N, int V>
+struct QrTdmSplitConfig
+{
+    // bm0 64 is the tile codegen pairs with this pipeline (occupancy 2).
+    using Model    = test::SplitKVModel<D, false, T, N, V, true, 64>;
+    using Problem  = typename Model::Problem;
+    using Pipeline = typename Model::TdmPipeline;
+    using Policy   = BlockFmhaPipelineQRKSVSTdmDefaultPolicy;
+    using Layout   = typename Policy::template LdsArenaLayout<Problem>;
+};
+
+using QrTdmSplitConfigs = ::testing::Types<QrTdmSplitConfig<bf16_t, 128, 64, 128>,
+                                           QrTdmSplitConfig<half_t, 128, 64, 128>>;
+
+template <typename T>
+class QrTdmSplitKVConfig : public ::testing::Test
+{
+};
+TYPED_TEST_SUITE(QrTdmSplitKVConfig, QrTdmSplitConfigs);
+
+TYPED_TEST(QrTdmSplitKVConfig, UsesTheSingleVArenaLayout)
+{
+    using Layout   = typename TypeParam::Layout;
+    using Pipeline = typename TypeParam::Pipeline;
+    // The whole point of this copy: the shared policy must resolve to the
+    // single-V layout, which it does because split-kv problems hardwire
+    // kUseDoubleKVLdsBuffer to false. V1 collapsing onto V0 is what proves it,
+    // and the S region only exists on this path.
+    EXPECT_EQ(Layout::kV1Offset, Layout::kV0Offset);
+    EXPECT_GT(Layout::kSOffset, 0);
+    EXPECT_EQ(Pipeline::GetSmemSize(), Layout::kArenaBytes);
+}
+
+// These flags are hardwired, so the assertions only guard against dropping
+// them in a refactor. LdsArenaLayout's budget static_asserts fire through
+// UsesTheSingleVArenaLayout above.
+TYPED_TEST(QrTdmSplitKVConfig, KernelPathFlagsAreDeclared)
+{
+    using Pipeline = typename TypeParam::Pipeline;
+    // fmha_fwd_splitkv_kernel.hpp defaults both to false, unlike
+    // fmha_fwd_kernel.hpp; see the declarations in the pipeline.
+    EXPECT_TRUE(Pipeline::kUsesUntransposedVKernelPath);
+    EXPECT_TRUE(Pipeline::kUsesTdmAffineDramPath);
+}
+
+TYPED_TEST(QrTdmSplitKVConfig, ProgressiveKReloadStaysOn)
+{
+    using Pipeline = typename TypeParam::Pipeline;
+    // Progressive K reload needs bn0 64. This model is built
+    // with N = 64, so this only checks the gate tracks kN0; that codegen emits
+    // bn0 64 is asserted in test_fmha_fwd_codegen.py.
+    EXPECT_TRUE(Pipeline::kReloadKProgressively);
+    EXPECT_EQ(Pipeline::kN0, 64);
+}
+
+TYPED_TEST(QrTdmSplitKVConfig, SplitTailIsAlwaysPredicated)
+{
+    using Pipeline = typename TypeParam::Pipeline;
+    EXPECT_TRUE(Pipeline::kHasUnevenSplits);
+    EXPECT_EQ(Pipeline::kM0, 64);
+}
+
 } // namespace

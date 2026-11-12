@@ -515,7 +515,8 @@ struct BlockFmhaPipelineQRKSVSTdm
         return p_tile;
     }
 
-    // Single V, double K LDS buffer path.
+    // Single V, double K LDS buffer path. BlockFmhaFwdSplitKVPipelineQRKSVSTdm
+    // copies this mainloop; its header lists what must stay in sync.
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,

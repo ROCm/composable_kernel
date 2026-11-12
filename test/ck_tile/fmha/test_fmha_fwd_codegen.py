@@ -21,6 +21,7 @@ _CK_ROOT = Path(__file__).resolve().parents[3]
 _FMHA_EXAMPLE_DIR = _CK_ROOT / "example" / "ck_tile" / "01_fmha"
 sys.path.insert(0, str(_FMHA_EXAMPLE_DIR))
 
+from codegen.ops.fmha_fwd_splitkv import get_fwd_splitkv_blobs  # noqa: E402
 from codegen.ops.fmha_fwd import (  # noqa: E402
     CppConstraint,
     FMHA_FWD_API_FOOTER,
@@ -2798,6 +2799,62 @@ int main() {
             run(seqlen_q=100, seqlen_k=512, **big), [kernel("qr_tdm_pingpong", 64)]
         )
         self.assertEqual(run(seqlen_q=100, seqlen_k=512), [kernel("qr_tdm", 64)])
+
+
+
+class SplitKVQrTdmTiles(unittest.TestCase):
+    """The split-kv side of the gfx125 qr_tdm tile contract."""
+
+    def _tdm_kernels(self):
+        kernels = get_fwd_splitkv_blobs(
+            targets=["gfx1250"],
+            kernel_filter="",
+            receipt=600,
+            mask_impl="simplified",
+            optdim_list=[-1],
+        )
+        return [
+            k
+            for k in kernels
+            if getattr(getattr(k, "F_pipeline", None), "tag", None) == "qr_tdm"
+        ]
+
+    def test_every_qr_tdm_tile_keeps_bn0_64(self):
+        # kReloadKProgressively is gated on kN0 == 64 and turns itself off
+        # silently on any other tile, so pin it here in codegen.
+        tdm = self._tdm_kernels()
+        self.assertTrue(tdm, "no qr_tdm split-kv kernels were generated")
+        for kernel in tdm:
+            self.assertEqual(kernel.F_tile.F_bn0, 64, kernel.filename)
+
+    def test_qr_tdm_covers_every_gfx125_split_kv_head_dim(self):
+        self.assertEqual(
+            sorted({kernel.F_hdim for kernel in self._tdm_kernels()}),
+            [32, 64, 128, 256],
+        )
+
+    def test_qr_tdm_owns_logits_soft_cap(self):
+        # The soft cap entries that dispatch on an exact head dim must be
+        # qr_tdm's. The head-dim check at the end keeps the set non-empty, so
+        # the loop cannot pass vacuously.
+        kernels = get_fwd_splitkv_blobs(
+            targets=["gfx1250"],
+            kernel_filter="",
+            receipt=600,
+            mask_impl="simplified",
+            optdim_list=[-1],
+        )
+        exact = [
+            k
+            for k in kernels
+            if k.F_pipeline.F_logits == "t" and k.F_pipeline.F_dpad == "f"
+        ]
+        for kernel in exact:
+            self.assertEqual(kernel.F_pipeline.tag, "qr_tdm", kernel.filename)
+        # d32 is absent by construction: its bucket carries bk0max 64, so the
+        # unpadded head-dim predicate reads 64 and can never hold under
+        # hdim_q <= 32. get_fwd_splitkv_blobs drops those as unreachable.
+        self.assertEqual(sorted({kernel.F_hdim for kernel in exact}), [64, 128, 256])
 
 
 if __name__ == "__main__":

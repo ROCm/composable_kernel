@@ -218,6 +218,18 @@ CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_FMHA_LONG_TESTS)
         ASSERT_EQ(result, fwd_result::success);                   \
     } while(0)
 
+// For the qr_tdm split-kv suites: gfx1250 fp16/bf16 has an instance for every
+// case they run, so no_instance there means codegen dropped one and must fail.
+#define CHECK_SPLITKV_RESULT(result)                                              \
+    do                                                                            \
+    {                                                                             \
+        if(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp16, FmhaFwdBf16>::value && \
+           ck_tile::is_gfx125_supported())                                        \
+            ASSERT_EQ(result, fwd_result::success);                               \
+        else                                                                      \
+            CHECK_RESULT(result);                                                 \
+    } while(0)
+
 const ck_tile::stream_config stream_config{
     nullptr, // stream_id_
     false,   // time_kernel_
@@ -2828,7 +2840,77 @@ TEST_P(SplitKvSinkSoftCap, DataTypeConfig)
         1, // init_sink
         0, // pack_gqa
         stream_config);
-    CHECK_RESULT(result);
+    // This suite sets no kvcache, so num_splits == 1 is exactly when it
+    // dispatches to the prefill API, whose test-build instance filter keeps
+    // nlogits only: a soft cap there has no instance to match.
+    if(num_splits == 1 && soft_cap != 0.f)
+        CHECK_RESULT(result);
+    else
+        CHECK_SPLITKV_RESULT(result);
+}
+
+// SplitKvSinkSoftCap pins the mode to batch, the page size to 0 and the sink
+// to on, so the rest of what a soft-capped split-kv kernel has to handle --
+// group mode, paged KV, no sink -- had no numerical coverage. The cap is
+// always on here; the axes above are what varies.
+class SplitKvSoftCapTraits
+    : public TestWithParam<std::tuple<std::tuple<int, int>, mode_enum, int, int>>
+{
+};
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(SplitKvSoftCapTraits);
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         SplitKvSoftCapTraits,
+                         Combine(SplitKVHDimValues,
+                                 Values(mode_enum::batch, mode_enum::group),
+                                 Values(0, 128), // page_block_size
+                                 Values(0, 1))); // init_sink
+
+TEST_P(SplitKvSoftCapTraits, DataTypeConfig)
+{
+    auto [hdims, mode, page_block_size, init_sink] = GetParam();
+    auto [hdim_q, hdim_v]                          = hdims;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(
+        mode,
+        2,  // batch
+        2,  // nhead
+        -1, // nhead_k
+        {256},
+        {1024},
+        hdim_q,
+        hdim_v,
+        0,     // seqlen_knew
+        {-1},  // seqlen_qpads
+        {-1},  // seqlen_kpads
+        {},    // q_eff
+        {},    // kv_eff
+        0,     // rotary_dim
+        true,  // i_perm
+        false, // o_perm
+        0,     // scale_s
+        30.f,  // logits_soft_cap
+        def_is_v_rowmajor,
+        def_lse,
+        page_block_size,
+        false, // use_cache_batch_idx
+        "n",   // bias
+        0.0f,  // p_drop
+        0,     // drop_seed
+        0,     // drop_offset
+        false, // drop_prefs
+        "0",   // mask_str
+        qscale_str,
+        true, // is_rotary_interleaved
+        3,    // num_splits
+        init_method,
+        static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+        1, // do_validation, without which this checks nothing
+        init_sink,
+        0, // pack_gqa
+        stream_config);
+    CHECK_SPLITKV_RESULT(result);
 }
 
 // Two paths want to contribute the sink logit to the merged denominator: split
@@ -2891,7 +2973,7 @@ TEST_P(SplitKvSinkDoubleCount, DataTypeConfig)
         1, // init_sink
         0, // pack_gqa
         stream_config);
-    CHECK_RESULT(result);
+    CHECK_SPLITKV_RESULT(result);
 }
 
 // Both split-KV pipelines seed m at an i_split > 0 lookback; the nwarp one had
@@ -2955,7 +3037,7 @@ TEST_P(SplitKvSinkNwarpSeed, DataTypeConfig)
         1, // init_sink
         0, // pack_gqa
         stream_config);
-    CHECK_RESULT(result);
+    CHECK_SPLITKV_RESULT(result);
 }
 
 // Query rows past seqlen_k have no ordinary KV work, so every split takes the
@@ -3019,7 +3101,7 @@ TEST_P(SplitKvSinkDroppedSink, DataTypeConfig)
         1, // init_sink
         0, // pack_gqa
         stream_config);
-    CHECK_RESULT(result);
+    CHECK_SPLITKV_RESULT(result);
 }
 #endif // CK_TILE_FMHA_FWD_SPLITKV_API
 
@@ -3455,7 +3537,75 @@ TEST_P(SplitKV, DataTypeConfig)
                                                true,       // is_rotary_interleaved
                                                num_splits, // num_splits
                                                COMMON_ARGS);
-    CHECK_RESULT(result);
+    CHECK_SPLITKV_RESULT(result);
+}
+
+// Paged split-kv. Kept apart from the SplitKV matrix above so that adding a
+// page_block_size axis does not multiply out every existing combination.
+// The cases below are the ones that stress what paging adds on top of a split:
+// a split start that is not kN0 aligned (num_splits 3/5/8 against these
+// seqlen_k), page crossings, a partial last page, and a page larger than kN0.
+class PagedSplitKV
+    : public TestWithParam<std::tuple<std::tuple<int, int>,
+                                      mode_enum,
+                                      int,
+                                      int,
+                                      std::tuple<int, int, int, int, int, std::string>>>
+{
+};
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(PagedSplitKV);
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         PagedSplitKV,
+                         Combine(SplitKVHDimValues,
+                                 Values(mode_enum::batch, mode_enum::group),
+                                 Values(128, 256), // page_block_size
+                                 Values(3, 5, 8),  // num_splits
+                                 Values(std::tuple{2, 8, 2, 1, 4096, "0"},
+                                        std::tuple{2, 8, -1, 1, 1000, "0"},
+                                        std::tuple{1, 4, -1, 1, 300, "0"},
+                                        std::tuple{2, 4, -1, 128, 1024, "t:128,128"})));
+
+TEST_P(PagedSplitKV, DataTypeConfig)
+{
+    auto [hdims, mode, page_block_size, num_splits, dims_mask] = GetParam();
+    auto [hdim_q, hdim_v]                                      = hdims;
+    auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                               batch,
+                                               nhead,
+                                               nhead_k,
+                                               {adjust_seqlen(seqlen_q)},
+                                               {adjust_seqlen(seqlen_k)},
+                                               hdim_q,
+                                               hdim_v,
+                                               0,     // seqlen_knew
+                                               {-1},  // seqlen_qpads
+                                               {-1},  // seqlen_kpads
+                                               {},    // q_eff_lens_per_batch
+                                               {},    // kv_eff_lens_per_batch
+                                               0,     // rotary_dim
+                                               true,  // i_perm
+                                               false, // o_perm
+                                               0,     // scale_s
+                                               0,     // logits_soft_cap
+                                               def_is_v_rowmajor,
+                                               def_lse,         // lse
+                                               page_block_size, // page_block_size
+                                               false,           // use_cache_batch_idx
+                                               "n",             // bias_str
+                                               0.0f,            // p_drop
+                                               0,               // drop_seed
+                                               0,               // drop_offset
+                                               false,           // drop_prefs
+                                               mask_str,        // mask_str
+                                               qscale_str,
+                                               true,       // is_rotary_interleaved
+                                               num_splits, // num_splits
+                                               COMMON_ARGS);
+    CHECK_SPLITKV_RESULT(result);
 }
 
 #endif // CK_TILE_FMHA_FWD_SPLITKV_API

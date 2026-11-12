@@ -300,6 +300,12 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
     static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
     static constexpr bool kHasSink                   = Traits::kHasSink;
+
+    // qr_tdm LDS-arena knobs read by the shared qr_tdm policy. The split-kv
+    // qr_tdm asserts kUseDoubleKVLdsBuffer is false. kProgressiveDsLoadK only
+    // matters behind it, but the policy names it, so it must exist.
+    static constexpr bool kUseDoubleKVLdsBuffer = false;
+    static constexpr bool kProgressiveDsLoadK   = false;
 };
 
 // extract tile size attributes to remove dependency on traits

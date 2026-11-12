@@ -28,6 +28,7 @@ from codegen.ops.fmha_fwd import (
     FmhaFwdTileSize,
     DTYPE_BITS,
     K0_MAX_SUBMAX_MAP,
+    TDM_K0_MAX_SUBMAX_MAP,
     FMHA_FWD_KERNEL_HEADER,
     FMHA_FWD_API_PER_ARCH,
     FMHA_FWD_API_PER_DTYPE,
@@ -35,9 +36,12 @@ from codegen.ops.fmha_fwd import (
 )
 
 
+SPLITKV_PIPELINES_TAG = ["qr", "qr_nwarp_sshuffle", "qr_tdm"]
+
 FMHA_FWD_SPLITKV_PIPELINE_MAP = {
     "qr": "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVS",
     "qr_nwarp_sshuffle": "ck_tile::BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS",
+    "qr_tdm": "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVSTdm",
 }
 
 FMHA_FWD_SPLITKV_KERNEL_BODY = """
@@ -355,7 +359,7 @@ class FmhaFwdSplitKVApiTrait:
                 return "true"  # always support
             else:
                 return "true"
-        elif self.pipeline_tag in ["qr", "qr_nwarp_sshuffle"]:
+        elif self.pipeline_tag in SPLITKV_PIPELINES_TAG:
             if self.spad == "t":
                 return f"true /*a.seqlen_q % {self.bm0} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
             else:
@@ -380,7 +384,7 @@ class FmhaFwdSplitKVApiTrait:
                 return f"a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0"
             else:
                 return f"a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0"
-        elif self.pipeline_tag in ["qr", "qr_nwarp_sshuffle"]:
+        elif self.pipeline_tag in SPLITKV_PIPELINES_TAG:
             if self.skpad == "t":
                 return f"true /*a.seqlen_k_ptr != nullptr || a.seqlen_k % {self.bn0} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
             else:
@@ -396,7 +400,11 @@ class FmhaFwdSplitKVApiTrait:
                 return f"a.hdim_q % {vec} == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qr_nwarp_sshuffle"]:
+        elif self.pipeline_tag == "qr_tdm":
+            if self.dpad == "t":
+                return "a.hdim_q % 8 == 0"
+            return f"a.hdim_q % {TDM_K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
+        elif self.pipeline_tag in SPLITKV_PIPELINES_TAG:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == "t":
                 return f"true /*a.hdim_q % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -413,7 +421,11 @@ class FmhaFwdSplitKVApiTrait:
                 return f"a.hdim_v % {vec} == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qr_nwarp_sshuffle"]:
+        elif self.pipeline_tag == "qr_tdm":
+            if self.dvpad == "t":
+                return "a.hdim_v % 8 == 0"
+            return f"a.hdim_v % {TDM_K0_MAX_SUBMAX_MAP[self.bk0max]} == 0"
+        elif self.pipeline_tag in SPLITKV_PIPELINES_TAG:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == "t":
                 return f"true /*a.hdim_v % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -902,6 +914,44 @@ class KernelComponentFactoryGfx125(KernelComponentFactoryBase):
     arch = ArchTrait("gfx125")
 
     @staticmethod
+    def get_pipelines(dtype, hdim, mask_impl) -> List[FmhaFwdSplitKVPipeline]:
+        # Dispatch returns on the first hit, so emission order is dispatch order.
+        Pipeline = FmhaFwdSplitKVPipeline
+        pipelines = []
+        if dtype in ["fp16", "bf16"]:
+            squant = "f"
+            # Entries with an unpadded seqlen go first: spad/skpad == t predicates
+            # always hold, so the fully padded (t, t) entries must come last.
+            # Soft cap with bias is dropped in get_fwd_splitkv_blobs.
+            for logits, mask, bias, pagedkv, sink in itertools.product(
+                ["t", "f"],
+                get_mask_map(mask_impl).keys(),
+                BIAS_MAP.keys(),
+                ["t", "f"],
+                ["t", "f"],
+            ):
+                #                             vlayout spad skpad dpad dvpad logits bias lse squant pagedkv sink mask
+                pipelines.append(Pipeline("qr_tdm", "row", "f", "t", "f", "f", logits, bias, "t", squant, pagedkv, sink, mask))  # fmt: skip
+                pipelines.append(Pipeline("qr_tdm", "row", "t", "f", "f", "f", logits, bias, "t", squant, pagedkv, sink, mask))  # fmt: skip
+                pipelines.append(Pipeline("qr_tdm", "row", "t", "t", "f", "f", logits, bias, "t", squant, pagedkv, sink, mask))  # fmt: skip
+                pipelines.append(Pipeline("qr_tdm", "row", "t", "t", "t", "t", logits, bias, "t", squant, pagedkv, sink, mask))  # fmt: skip
+            # No qr fallback: every entry needs hdim % 8 == 0, so other head
+            # dims are unsupported here (the prefill api still serves them).
+        elif dtype in ["fp8", "bf8"]:
+            squant = "t" if dtype == "fp8" else "f"
+            for logits, mask, bias in itertools.product(
+                ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
+            ):
+                pipelines.append(Pipeline("qr", "row", "f", "f", "f", "f", logits, bias, "t", squant, "f", "f", mask))  # fmt: skip
+                pipelines.append(Pipeline("qr", "row", "t", "t", "f", "f", logits, bias, "t", squant, "f", "f", mask))  # fmt: skip
+        elif dtype in ["fp8fp16", "fp8bf16"]:
+            # TODO
+            None
+        else:
+            assert False
+        return pipelines
+
+    @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
         if dtype in ["fp16", "bf16"]:
             return {
@@ -959,6 +1009,15 @@ def get_fwd_splitkv_blobs(
             ):
                 # Use qr_nwarp_sshuffle with multiple N warps and qr otherwise
                 if (tile.F_rn0 != 1) != (pipeline.tag == "qr_nwarp_sshuffle"):
+                    continue
+                # qr_tdm's unpadded head-dim check reads the TDM length map. Where
+                # that exceeds the head dim this bucket dispatches on, the
+                # predicate can never hold and the instance is unreachable.
+                if (
+                    pipeline.tag == "qr_tdm"
+                    and pipeline.F_dpad == "f"
+                    and TDM_K0_MAX_SUBMAX_MAP[tile.F_bk0max] > hdim
+                ):
                     continue
                 if mode == "group":
                     if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
