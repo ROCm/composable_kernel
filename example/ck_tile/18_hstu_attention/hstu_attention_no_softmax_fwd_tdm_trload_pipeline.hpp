@@ -22,8 +22,8 @@ template <typename Problem_,
 // one the engine writes rather than an xor-swizzled one.
 //
 // Q is loaded once into registers, except where Policy::IsQInLdsTdm(): there Tdm copies Q
-// global -> Lds once (plain row-major, placed after the K/V copies in Lds), issued before the
-// first K/V copies, and gemm_0 reads Q back from there; otherwise gemm_0 uses the register tile.
+// global -> Lds once (plain row-major, behind the K/V copies) and gemm_0 reads Q back from
+// there; otherwise gemm_0 uses the register tile.
 struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
 {
     using Problem         = remove_cvref_t<Problem_>;
@@ -63,8 +63,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
     // kUseTrLoad is shared with the trload pipeline, so the kernel needs a separate marker
     // to recognise this one and skip the head-dim padding of the K/V Dram views.
     static constexpr bool kUseTdm = true;
-    // Where Policy::IsQInLdsTdm() Q is Tdm-moved as well, so the kernel leaves the head dim of the
-    // Q Dram view unpadded too.
+    // Where Policy::IsQInLdsTdm() Q is Tdm-moved as well, so the kernel gives Q the naive Dram
+    // view too.
     static constexpr bool kUseTdmForQ = Policy::template IsQInLdsTdm<Problem>();
 
     static constexpr bool kPadSeqLenQ   = Traits::kPadSeqLenQ;
@@ -216,10 +216,10 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
         // The Q operand of gemm_0: the register tile or, where kUseTdmForQ (=
         // Policy::IsQInLdsTdm()), an Lds window over a copy of Q that Tdm makes here, global ->
-        // Lds. Each wave copies kM0 / NumWarps rows, which are not the rows it reads back. The
-        // copy is issued before the first K/V copies of the same wave, and a wave's tensor ops
-        // complete in order, so the first s_wait_tensorcnt_barrier<0>() of the kv loop retires
-        // it together with them, before gemm_0 reads any of them. Q, K and V tile 0 are then
+        // Lds. Each wave copies kM0 / NumWarps rows, not only the rows it reads back, so gemm_0
+        // may read Q only once every wave's copy has landed: the first
+        // s_wait_tensorcnt_barrier<0>() of the kv loop waits for all of this wave's tensor ops
+        // (Q and K/V tile 0), then for all waves, before the first gemm_0. Q, K and V tile 0 are
         // three Tdm copies in flight per wave, the most a gfx1250 wave may have.
         auto q_tile = [&]() {
             if constexpr(kUseTdmForQ)

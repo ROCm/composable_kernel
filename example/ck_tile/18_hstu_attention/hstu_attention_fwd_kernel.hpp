@@ -63,8 +63,6 @@ struct HstuAttentionFwdKernel
     // transposed view -- the very thing the Tdm arms exist to avoid. State the dependency
     // rather than leave it to the branch order.
     static_assert(!kUseTdm || kUseTrLoad, "a Tdm pipeline must set kUseTrLoad as well");
-    // The unpadded Q view below is only safe for a pipeline that moves Q with Tdm.
-    static_assert(!kUseTdmForQ || kUseTdm, "kUseTdmForQ needs a Tdm pipeline");
 
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg
@@ -991,9 +989,8 @@ struct HstuAttentionFwdKernel
                 number<HstuAttentionPipeline::kAlignmentQ>{},
                 number<1>{});
 
-            // Where the pipeline moves Q with Tdm as well, leave the head dim unpadded for the
-            // same reason as K/V below.
-            if constexpr(kUseTdmForQ && kPadHeadDimQK)
+            // Where the pipeline moves Q with Tdm as well, Q gets the naive view, as K/V below.
+            if constexpr(kUseTdmForQ)
             {
                 return q_dram_naive;
             }

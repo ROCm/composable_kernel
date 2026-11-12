@@ -1240,10 +1240,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     // Q is copied to Lds once, by Tdm, and the Q@K gemm reads its A operand back from there on
     // every kv tile, instead of keeping the whole Q tile (64 VGPRs per lane) resident in
     // registers. That is what lets the M128 kernels fit three workgroups (three waves per SIMD)
-    // per CU. A wave reads Q rows that other waves copied: the first s_wait_tensorcnt_barrier of
-    // the kv loop retires the Q copy before any of them is read. No dropout: the Tdm
-    // pipelines refuse it anyway (static_assert), as their Lds layout reserves nothing for the
-    // dropout randval buffer (GetSmemSizeDropout() is 0).
+    // per CU. Waves read Q rows that other waves copied; q_tile in the Tdm pipelines says why the
+    // first barrier of the kv loop covers that. No dropout: GetQLdsByteOffsetPlain() places Q
+    // where the dropout randval buffer would otherwise go, so with dropout Q stays in registers.
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr bool IsQInLdsTdm()
     {
@@ -1286,7 +1285,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetTdmPadConfigQ()
     {
-#if HSTU_LDS_STAGING_THROUGH_TDM_AVAILABLE
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kQKHeaddim;
 
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
@@ -1297,11 +1295,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             detail::GetTdmLdsPaddingConfigForNormalRead<WG, true /*inputA*/, kKPerBlock>();
 
         return detail::GetTdmRawPaddingConfig<lds_pad.at(number<0>{}), lds_pad.at(number<1>{})>();
-#else
-        static_assert(sizeof(Problem) == 0,
-                      "GetTdmPadConfigQ() is only meaningful where Tdm staging is available");
-        return make_tuple(number<0>{}, number<0>{});
-#endif
     }
 
     // As MakeKDramTdmTileDistribution(), for the Q tile where IsQInLdsTdm(): the kM0 rows are
@@ -1320,13 +1313,14 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<warpNum, kMPerBlock / warpNum>, sequence<kKPerBlock>>,
-                tuple<sequence<1>>,
-                tuple<sequence<0>>,
-                sequence<1, 2>,
-                sequence<1, 0>>{},
-            bool_constant<true>{});
+                sequence<>,                                    // RsLengths: no replication
+                tuple<sequence<warpNum, kMPerBlock / warpNum>, // HsLengthss[0]: seqlen, by wave
+                      sequence<kKPerBlock>>,                   // HsLengthss[1]: hdim, whole
+                tuple<sequence<1>>,                            // Ps2RHssMajor: P0 -> H[0]
+                tuple<sequence<0>>,                            // Ps2RHssMinor: P0 -> warpNum
+                sequence<1, 2>,                                // Ys2RHsMajor
+                sequence<1, 0>>{},                             // Ys2RHsMinor
+            bool_constant<true>{});                            // IsWarpLevelParallelOnly
     }
 
     template <typename Problem>
