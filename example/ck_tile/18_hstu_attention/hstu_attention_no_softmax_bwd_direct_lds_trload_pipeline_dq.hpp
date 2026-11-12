@@ -262,11 +262,15 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
             reinterpret_cast<QKVDataType*>(static_cast<char*>(smem_ptr) + k_smem_size * 2);
         auto v_lds_write_view = make_tensor_view<address_space_enum::lds>(
             v_lds_ptr, Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseDirectLds*/>());
-        auto v_lds_write_monolithic_window = make_tile_window(
+        auto v_lds_write_monolithic_window_0 = make_tile_window(
             v_lds_write_view,
             Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseDirectLds*/>()
                 .get_lengths(),
             {0, 0});
+
+        auto v_lds_write_monolithic_window_1 = v_lds_write_monolithic_window_0;
+        v_lds_write_monolithic_window_1.set_bottom_tensor_view_data_ptr(
+            v_lds_ptr + v_smem_size / sizeof(QKVDataType));
 
         static_assert(Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseDirectLds*/>()
                               .get_lengths()[number<0>{}] == NumVLdsBuffers * kN0Sub,
@@ -280,7 +284,7 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
             Policy::template MakeVLdsBlockDescriptor<Problem,
                                                      true /*kUseDirectLds*/,
                                                      true /*kUseXor*/>());
-        auto v_lds_read_monolithic_window =
+        auto v_lds_read_monolithic_window_0 =
             make_tile_window(v_lds_read_view,
                              Policy::template MakeVLdsBlockDescriptor<Problem,
                                                                       true /*kUseDirectLds*/,
@@ -288,13 +292,23 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
                                  .get_lengths(),
                              {0, 0});
 
+        auto v_lds_read_monolithic_window_1 = v_lds_read_monolithic_window_0;
+        v_lds_read_monolithic_window_1.set_bottom_tensor_view_data_ptr(
+            v_lds_ptr + v_smem_size / sizeof(QKVDataType));
+
         using v_lds_read_window_type = decltype(get_slice_tile(
-            v_lds_read_monolithic_window, sequence<0, 0>{}, sequence<kN0Sub, kVHeaddim>{}));
-        statically_indexed_array<v_lds_read_window_type, NumVLdsBuffers> v_lds_read_windows;
+            v_lds_read_monolithic_window_0, sequence<0, 0>{}, sequence<kN0Sub, kVHeaddim>{}));
+        statically_indexed_array<v_lds_read_window_type, NumVLdsBuffers> v_lds_read_windows_0;
+        statically_indexed_array<v_lds_read_window_type, NumVLdsBuffers> v_lds_read_windows_1;
         static_for<0, NumVLdsBuffers, 1>{}([&](auto i_buf) {
-            v_lds_read_windows[i_buf] = get_slice_tile(v_lds_read_monolithic_window,
-                                                       sequence<i_buf * kN0Sub, 0>{},
-                                                       sequence<(i_buf + 1) * kN0Sub, kVHeaddim>{});
+            v_lds_read_windows_0[i_buf] =
+                get_slice_tile(v_lds_read_monolithic_window_0,
+                               sequence<i_buf * kN0Sub, 0>{},
+                               sequence<(i_buf + 1) * kN0Sub, kVHeaddim>{});
+            v_lds_read_windows_1[i_buf] =
+                get_slice_tile(v_lds_read_monolithic_window_1,
+                               sequence<i_buf * kN0Sub, 0>{},
+                               sequence<(i_buf + 1) * kN0Sub, kVHeaddim>{});
         });
 
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
@@ -374,10 +388,21 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
         index_t v_row_offset     = amd_wave_read_first_lane(seqlen_k_start * v_row_stride);
         const index_t v_row_step = kN0Sub * v_row_stride;
 
-        const auto v_issues = generate_tuple(
+        const auto v_issues_0 = generate_tuple(
             [&](auto i_buf) {
                 return detail::MakeDirectLdsIssues<NumVLdsBuffers, kBlockSize / get_warp_size()>(
-                    v_lds_write_monolithic_window, number<i_buf % NumVLdsBuffers>{}, v_dram_window);
+                    v_lds_write_monolithic_window_0,
+                    number<i_buf % NumVLdsBuffers>{},
+                    v_dram_window);
+            },
+            number<n0_loops>{});
+
+        const auto v_issues_1 = generate_tuple(
+            [&](auto i_buf) {
+                return detail::MakeDirectLdsIssues<NumVLdsBuffers, kBlockSize / get_warp_size()>(
+                    v_lds_write_monolithic_window_1,
+                    number<i_buf % NumVLdsBuffers>{},
+                    v_dram_window);
             },
             number<n0_loops>{});
 
@@ -389,7 +414,7 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
 
         detail::IssueDirectLds(static_cast<QKVDataType*>(smem_ptr),
                                v_dram_window,
-                               v_issues(number<0>{}),
+                               v_issues_0(number<0>{}),
                                v_row_offset);
         v_row_offset += v_row_step;
 
@@ -450,15 +475,31 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
 
                 // Gemm2: dpacc_tile = dO @ V_sub
-                gemm_2(dpacc_tile, do_tile, v_lds_read_windows[i_lds_buf_0]);
-
-                if constexpr(i_n0 < n0_loops - 1)
+                if constexpr(EvenIter)
                 {
-                    detail::IssueDirectLds(static_cast<QKVDataType*>(smem_ptr),
-                                           v_dram_window,
-                                           v_issues(number<i_n0 + 1>{}),
-                                           v_row_offset);
-                    v_row_offset += v_row_step;
+                    gemm_2(dpacc_tile, do_tile, v_lds_read_windows_0[i_lds_buf_0]);
+
+                    if constexpr(i_n0 < n0_loops - 1)
+                    {
+                        detail::IssueDirectLds(static_cast<QKVDataType*>(smem_ptr),
+                                               v_dram_window,
+                                               v_issues_0(number<i_n0 + 1>{}),
+                                               v_row_offset);
+                        v_row_offset += v_row_step;
+                    }
+                }
+                else
+                {
+                    gemm_2(dpacc_tile, do_tile, v_lds_read_windows_1[i_lds_buf_0]);
+
+                    if constexpr(i_n0 < n0_loops - 1)
+                    {
+                        detail::IssueDirectLds(static_cast<QKVDataType*>(smem_ptr),
+                                               v_dram_window,
+                                               v_issues_1(number<i_n0 + 1>{}),
+                                               v_row_offset);
+                        v_row_offset += v_row_step;
+                    }
                 }
 
                 auto dp_tmp = cast_tile<CompDataType>(dpacc_tile);
@@ -477,6 +518,11 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
                                        k_issues_1(number<0>{}),
                                        k_row_offset);
                 k_row_offset += k_row_step;
+                detail::IssueDirectLds(static_cast<QKVDataType*>(smem_ptr),
+                                       v_dram_window,
+                                       v_issues_1(number<0>{}),
+                                       v_row_offset);
+                v_row_offset += v_row_step;
             }
             else
             {
@@ -485,17 +531,12 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
                                        k_issues_0(number<0>{}),
                                        k_row_offset);
                 k_row_offset += k_row_step;
+                detail::IssueDirectLds(static_cast<QKVDataType*>(smem_ptr),
+                                       v_dram_window,
+                                       v_issues_0(number<0>{}),
+                                       v_row_offset);
+                v_row_offset += v_row_step;
             }
-
-            // wait normal reading of the whole v_lds tile in gemm_2() of current iteration to be
-            // done
-            __builtin_amdgcn_s_barrier();
-
-            detail::IssueDirectLds(static_cast<QKVDataType*>(smem_ptr),
-                                   v_dram_window,
-                                   v_issues(number<0>{}),
-                                   v_row_offset);
-            v_row_offset += v_row_step;
 
             // === STAGE 3: scale, optional bias, mask, then compute P and dS ===
 
@@ -523,7 +564,7 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ
                 __builtin_amdgcn_sched_barrier(0);
 
                 auto randval_lds_ptr =
-                    reinterpret_cast<char*>(smem_ptr) + k_smem_size * 2 + v_smem_size;
+                    reinterpret_cast<char*>(smem_ptr) + k_smem_size * 2 + v_smem_size * 2;
 
                 // Dropout propagates through the chain rule onto dP, NOT onto S. The forward is
                 //   O = dropout(P) @ V,   P = silu(S) * scale_p

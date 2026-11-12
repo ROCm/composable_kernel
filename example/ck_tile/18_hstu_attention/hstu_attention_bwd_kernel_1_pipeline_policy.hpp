@@ -926,10 +926,8 @@ struct HstuAttentionBwdKernel1PipelinePolicy
         {
             if constexpr(kUseDirectLds)
             {
-                // k_lds is ping-pong double-buffered (two regions); v_lds is a single circular
-                // buffer (NumKVLdsBuffers slots inside one region), so V is counted once.
                 return GetSmemSizeK<Problem, kUseTrLoad, true /*kUseDirectLds*/>() * 2 +
-                       GetSmemSizeV<Problem, true /*kUseDirectLds*/>() +
+                       GetSmemSizeV<Problem, true /*kUseDirectLds*/>() * 2 +
                        GetSmemSizeDropout<Problem>();
             }
             else
