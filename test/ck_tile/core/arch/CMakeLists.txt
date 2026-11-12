@@ -34,6 +34,19 @@ else()
     message(DEBUG "Skipping test_barrier_device: requires a gfx125x target")
 endif()
 
+# Compile-only, for every gfx125 variant the compiler supports, whatever GPU_TARGETS is: most
+# CI configurations have no gfx125 target, so a gap in the target detection of config.hpp or
+# arch.hpp would otherwise go unnoticed. A failure is a build error.
+rocm_check_target_ids(CK_TILE_GFX125_TARGETS TARGETS gfx1250 gfx1250-strict gfx1251)
+if(CK_TILE_GFX125_TARGETS)
+    set_source_files_properties(test_compiler_target_gfx125.cpp PROPERTIES LANGUAGE HIP)
+    add_library(test_ck_tile_compiler_target_gfx125 OBJECT test_compiler_target_gfx125.cpp)
+    set_property(TARGET test_ck_tile_compiler_target_gfx125
+        PROPERTY HIP_ARCHITECTURES ${CK_TILE_GFX125_TARGETS})
+    add_dependencies(tests test_ck_tile_compiler_target_gfx125)
+    add_dependencies(smoke test_ck_tile_compiler_target_gfx125)
+endif()
+
 # Ungated: split_barrier.hpp has a split-barrier path on gfx12 and a full-barrier fallback
 # elsewhere, so the test builds and passes on every target. add_gtest_executable labels it
 # SMOKE_TEST, which is what the gfx1250 CI stage runs ("ninja smoke"); nothing here relabels it.
