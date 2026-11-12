@@ -221,8 +221,12 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
             reinterpret_cast<QKVDataType*>(static_cast<char*>(smem_ptr) + k_smem_size * 2);
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             v_lds_ptr, Policy::template MakeVLdsBlockDescriptor<Problem>());
-        auto v_lds_monolithic_window = make_tile_window(
+        auto v_lds_monolithic_window_0 = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+
+        auto v_lds_monolithic_window_1 = v_lds_monolithic_window_0;
+        v_lds_monolithic_window_1.set_bottom_tensor_view_data_ptr(
+            v_lds_ptr + v_smem_size / sizeof(QKVDataType));
 
         static_assert(
             Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths()[number<0>{}] ==
@@ -234,12 +238,16 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
             "Check failed!");
 
         using v_lds_window_type = decltype(get_slice_tile(
-            v_lds_monolithic_window, sequence<0, 0>{}, sequence<kN0Sub, kVHeaddim>{}));
-        statically_indexed_array<v_lds_window_type, NumVLdsBuffers> v_lds_windows;
+            v_lds_monolithic_window_0, sequence<0, 0>{}, sequence<kN0Sub, kVHeaddim>{}));
+        statically_indexed_array<v_lds_window_type, NumVLdsBuffers> v_lds_windows_0;
+        statically_indexed_array<v_lds_window_type, NumVLdsBuffers> v_lds_windows_1;
         static_for<0, NumVLdsBuffers, 1>{}([&](auto i_buf) {
-            v_lds_windows[i_buf] = get_slice_tile(v_lds_monolithic_window,
-                                                  sequence<i_buf * kN0Sub, 0>{},
-                                                  sequence<(i_buf + 1) * kN0Sub, kVHeaddim>{});
+            v_lds_windows_0[i_buf] = get_slice_tile(v_lds_monolithic_window_0,
+                                                    sequence<i_buf * kN0Sub, 0>{},
+                                                    sequence<(i_buf + 1) * kN0Sub, kVHeaddim>{});
+            v_lds_windows_1[i_buf] = get_slice_tile(v_lds_monolithic_window_1,
+                                                    sequence<i_buf * kN0Sub, 0>{},
+                                                    sequence<(i_buf + 1) * kN0Sub, kVHeaddim>{});
         });
 
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
@@ -300,7 +308,7 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
         load_tile_tdm(tdm_config_k, k_lds_windows_0[number<0>{}], k_dram_window);
         move_tile_window(k_dram_window, {kN0Sub, 0});
 
-        load_tile_tdm(tdm_config_v, v_lds_windows[number<0>{}], v_dram_window);
+        load_tile_tdm(tdm_config_v, v_lds_windows_0[number<0>{}], v_dram_window);
         move_tile_window(v_dram_window, {kN0Sub, 0});
 
         // SiLU activation: dsilu(x) = sigmoid(x) * (1 + x * (1 - sigmoid(x)))
@@ -336,20 +344,22 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                         load_tile_tdm(
                             tdm_config_k, k_lds_windows_0[number<i_n0 + 1>{}], k_dram_window);
                         move_tile_window(k_dram_window, {kN0Sub, 0});
-                        load_tile_tdm(tdm_config_v, v_lds_windows[i_lds_buf_1], v_dram_window);
+                        load_tile_tdm(tdm_config_v, v_lds_windows_0[i_lds_buf_1], v_dram_window);
                         move_tile_window(v_dram_window, {kN0Sub, 0});
                     }
                     else
                     {
                         load_tile_tdm(tdm_config_k, k_lds_windows_1[number<0>{}], k_dram_window);
                         move_tile_window(k_dram_window, {kN0Sub, 0});
+                        load_tile_tdm(tdm_config_v, v_lds_windows_1[number<0>{}], v_dram_window);
+                        move_tile_window(v_dram_window, {kN0Sub, 0});
                     }
 
                     __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
                                                    LLVMSchedGroupMask::TRANS);
 
                     gemm_0(sacc_tile, q_tile, k_lds_windows_0[i_n0]);
-                    gemm_2(dpacc_tile, do_tile, v_lds_windows[i_lds_buf_0]);
+                    gemm_2(dpacc_tile, do_tile, v_lds_windows_0[i_lds_buf_0]);
                 }
                 else
                 {
@@ -358,20 +368,22 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                         load_tile_tdm(
                             tdm_config_k, k_lds_windows_1[number<i_n0 + 1>{}], k_dram_window);
                         move_tile_window(k_dram_window, {kN0Sub, 0});
-                        load_tile_tdm(tdm_config_v, v_lds_windows[i_lds_buf_1], v_dram_window);
+                        load_tile_tdm(tdm_config_v, v_lds_windows_1[i_lds_buf_1], v_dram_window);
                         move_tile_window(v_dram_window, {kN0Sub, 0});
                     }
                     else
                     {
                         load_tile_tdm(tdm_config_k, k_lds_windows_0[number<0>{}], k_dram_window);
                         move_tile_window(k_dram_window, {kN0Sub, 0});
+                        load_tile_tdm(tdm_config_v, v_lds_windows_0[number<0>{}], v_dram_window);
+                        move_tile_window(v_dram_window, {kN0Sub, 0});
                     }
 
                     __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
                                                    LLVMSchedGroupMask::TRANS);
 
                     gemm_0(sacc_tile, q_tile, k_lds_windows_1[i_n0]);
-                    gemm_2(dpacc_tile, do_tile, v_lds_windows[i_lds_buf_0]);
+                    gemm_2(dpacc_tile, do_tile, v_lds_windows_1[i_lds_buf_0]);
                 }
 
                 auto s_tmp = cast_tile<CompDataType>(sacc_tile);
@@ -405,15 +417,6 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
             }
 
-            __builtin_amdgcn_sched_barrier(0);
-
-            // wait normal reading of the whole v_lds tile in gemm_2() of current iteration to be
-            // done
-            __builtin_amdgcn_s_barrier();
-
-            load_tile_tdm(tdm_config_v, v_lds_windows[number<0>{}], v_dram_window);
-            move_tile_window(v_dram_window, {kN0Sub, 0});
-
             const bool need_mask = !mask.IsFullTileInsideMask(
                 q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{});
 
@@ -422,7 +425,7 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                 __builtin_amdgcn_sched_barrier(0);
 
                 auto randval_lds_ptr =
-                    reinterpret_cast<char*>(smem_ptr) + k_smem_size * 2 + v_smem_size;
+                    reinterpret_cast<char*>(smem_ptr) + k_smem_size * 2 + v_smem_size * 2;
 
                 // Dropout propagates through the chain rule onto dP, NOT onto S. The forward is
                 //   O = dropout(P) @ V,   P = silu(S) * scale_p

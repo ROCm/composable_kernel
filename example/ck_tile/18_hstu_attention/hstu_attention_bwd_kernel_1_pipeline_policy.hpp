@@ -944,7 +944,7 @@ struct HstuAttentionBwdKernel1PipelinePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return GetSmemSizeK<Problem>() * 2 + GetSmemSizeV<Problem>() +
+        return GetSmemSizeK<Problem>() * 2 + GetSmemSizeV<Problem>() * 2 +
                GetSmemSizeDropout<Problem>();
     }
 #endif
