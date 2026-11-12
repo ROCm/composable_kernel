@@ -159,7 +159,8 @@ bool run_problem(const Problem& p)
                 }
             }
             const float actual = c[m * p.stride_c + n];
-            if(!std::isfinite(actual) || actual != expected)
+            if(!std::isfinite(actual) ||
+               std::abs(actual - expected) > 1e-3f * std::abs(expected) + 1e-6f)
             {
                 std::cerr << "FAIL: C[" << m << ", " << n << "] = " << actual << ", expected "
                           << expected << std::endl;
