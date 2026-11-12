@@ -348,23 +348,26 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
         clear_tile(dk_acc);
         clear_tile(dv_acc);
 
-        // SiLU activation
-        const auto f_dsilu = [](CompDataType x) -> CompDataType {
+        const auto f_sigmoid = [](CompDataType x) -> CompDataType {
             const auto one = type_convert<CompDataType>(1.0f);
             CompDataType sig;
             if constexpr(std::is_same_v<CompDataType, float>)
                 sig = __builtin_amdgcn_rcpf(one + __expf(-x));
             else
                 sig = one / (one + exp(-x));
+
+            return sig;
+        };
+
+        // SiLU activation
+        const auto f_dsilu = [](CompDataType x, CompDataType sig) -> CompDataType {
+            const auto one = type_convert<CompDataType>(1.0f);
+
             return sig * (one + x * (one - sig));
         };
 
-        const auto f_silu = [](CompDataType x) -> CompDataType {
-            const auto one = type_convert<CompDataType>(1.0f);
-            if constexpr(std::is_same_v<CompDataType, float>)
-                return x * __builtin_amdgcn_rcpf(one + __expf(-x));
-            else
-                return x / (one + exp(-x));
+        const auto f_silu = [](CompDataType x, CompDataType sig) -> CompDataType {
+            return x * sig;
         };
 
         auto seqlen_q_curr = seqlen_q_start;
@@ -520,11 +523,13 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 //    P would otherwise be silu(garbage) != 0.
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto ij     = make_tuple(idx0, idx1);
-                        const CompDataType s  = pcomp_tile[ij];
-                        const CompDataType dp = dscomp_tile[ij];
-                        CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
-                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+                        constexpr auto ij      = make_tuple(idx0, idx1);
+                        const CompDataType s   = pcomp_tile[ij];
+                        const CompDataType sig = f_sigmoid(s);
+                        const CompDataType dp  = dscomp_tile[ij];
+                        CompDataType p = f_silu(s, sig) * type_convert<CompDataType>(scale_p);
+                        CompDataType ds =
+                            dp * type_convert<CompDataType>(scale_p) * f_dsilu(s, sig);
                         // Dropout propagates through the chain rule: kept -> *rp_undrop on
                         // BOTH P (-> dV) and dS (-> dK); dropped -> 0. drop_mask > 0 means
                         // kept.
@@ -582,11 +587,13 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 //    P would otherwise be silu(garbage) != 0.
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto ij     = make_tuple(idx0, idx1);
-                        const CompDataType s  = pcomp_tile[ij];
-                        const CompDataType dp = dscomp_tile[ij];
-                        CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
-                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+                        constexpr auto ij      = make_tuple(idx0, idx1);
+                        const CompDataType s   = pcomp_tile[ij];
+                        const CompDataType sig = f_sigmoid(s);
+                        const CompDataType dp  = dscomp_tile[ij];
+                        CompDataType p = f_silu(s, sig) * type_convert<CompDataType>(scale_p);
+                        CompDataType ds =
+                            dp * type_convert<CompDataType>(scale_p) * f_dsilu(s, sig);
 
                         pcomp_tile(ij)  = p * type_convert<CompDataType>(hstu_mask(ij));
                         dscomp_tile(ij) = ds * type_convert<CompDataType>(hstu_mask(ij));
