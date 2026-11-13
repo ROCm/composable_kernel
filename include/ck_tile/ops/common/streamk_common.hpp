@@ -277,12 +277,13 @@ struct StreamKReductionOps
 
             // The M iteration is the outermost Y dimension of both the partials and the C block
             // distribution, so a slice of rows is a contiguous run of each lane's accumulator.
-            // Add in whole warp-GEMM C fragments (the vector each WMMA/MFMA writes): scalar adds
-            // let the SLP vectorizer pair them into <2 x float> values that cut across those
+            // Add in whole per-instruction C fragments (the vector each WMMA/MFMA writes): scalar
+            // adds let the SLP vectorizer pair them into <2 x float> values that cut across those
             // fragments, and the register allocator then copies the accumulator into the
             // pipeline's fragment registers instead of reusing them (~40 VGPRs at 256x128,
             // ~1500 spills at 256x256 on gfx1250).
-            constexpr index_t frag_elems = WarpGemm::CWarpTensor::get_thread_buffer_size();
+            constexpr index_t frag_elems =
+                WarpGemm::CWarpTensor::get_thread_buffer_size() / (C_M_BLOCK * C_N_BLOCK);
             static_assert(slice_lane_elems % frag_elems == 0,
                           "a partial slice must hold whole warp-GEMM C fragments");
             using FragVec                 = ext_vector_t<DataType, frag_elems>;
@@ -339,12 +340,36 @@ struct StreamKReductionOps
     }
 
     private:
+    using WarpGemmImpl = typename WarpGemm::WarpGemmAttribute::Impl;
+
+    template <typename T>
+    using HasWmmaCBlock = decltype(T::kCMBlock, T::kCNBlock);
+
+    // Multi-instruction WMMA warp tiles (e.g. 32x32 built from 16x16 instructions) repeat the
+    // per-instruction C layout kCMBlock x kCNBlock times; MFMA's kAMBlock/kBNBlock (e.g. 4x64
+    // and 64x4) instead describe lane groups within one wave and already match WarpGemm::kM/kN.
+    static constexpr index_t C_M_BLOCK = [] {
+        if constexpr(is_detected<HasWmmaCBlock, WarpGemmImpl>::value)
+            return WarpGemmImpl::kCMBlock;
+        else
+            return 1;
+    }();
+    static constexpr index_t C_N_BLOCK = [] {
+        if constexpr(is_detected<HasWmmaCBlock, WarpGemmImpl>::value)
+            return WarpGemmImpl::kCNBlock;
+        else
+            return 1;
+    }();
+
+    static constexpr index_t WARP_INST_M = WarpGemm::kM / C_M_BLOCK;
+    static constexpr index_t WARP_INST_N = WarpGemm::kN / C_N_BLOCK;
+
     // Upper bound on the partial values per lane that AccumulatePartial holds at once.
     static constexpr index_t MAX_PARTIAL_SLICE_ELEMS = 32;
 
     // M iterations of each math wave over the tile (the outer M dimension of the partials).
     static constexpr index_t PARTIAL_M_ITER_PER_WARP =
-        TilePartitioner::MPerBlock / (BlockGemmShape::BlockWarps::at(number<0>{}) * WarpGemm::kM);
+        TilePartitioner::MPerBlock / (BlockGemmShape::BlockWarps::at(number<0>{}) * WARP_INST_M);
 
     // Largest divisor of the M iterations whose slice holds at most MAX_PARTIAL_SLICE_ELEMS
     // values per lane; 1 when even a single M iteration holds more.
@@ -392,7 +417,7 @@ struct StreamKReductionOps
     {
         // We use kCM1PerLane from the C register layout of the warp GEMM which corresponds to the
         // maximum vector width
-        return WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane;
+        return WarpGemmImpl::kCM1PerLane;
     }
 
     /**
@@ -403,7 +428,7 @@ struct StreamKReductionOps
      * column major. Since the C-Shuffle epilogue only supports C as row major, this is not a
      * current limitation.
      * @tparam MIterPerWarp M iterations covered: all of them for the whole tile, fewer for a
-     * slice of MIterPerWarp * m_warp * WarpGemm::kM rows.
+     * slice of MIterPerWarp * m_warp * WARP_INST_M rows.
      */
     template <index_t MIterPerWarp = PARTIAL_M_ITER_PER_WARP>
     CK_TILE_DEVICE static constexpr auto MakePartialsDistribution()
@@ -413,7 +438,7 @@ struct StreamKReductionOps
         constexpr index_t n_warp = BlockGemmShape::BlockWarps::at(number<1>{});
 
         constexpr index_t m_iter_per_warp = MIterPerWarp;
-        constexpr index_t n_iter_per_warp = TilePartitioner::NPerBlock / (n_warp * WarpGemm::kN);
+        constexpr index_t n_iter_per_warp = TilePartitioner::NPerBlock / (n_warp * WARP_INST_N);
 
         constexpr auto partials_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
@@ -425,8 +450,8 @@ struct StreamKReductionOps
 
         // Create the encoding to describe threads within a wave
         constexpr index_t vector_size         = GetVectorSizePartials();
-        constexpr index_t m_warp_repeat       = WarpGemm::WarpGemmAttribute::Impl::kCM0PerLane;
-        constexpr index_t warp_tile_n_threads = WarpGemm::kN / vector_size;
+        constexpr index_t m_warp_repeat       = WarpGemmImpl::kCM0PerLane;
+        constexpr index_t warp_tile_n_threads = WARP_INST_N / vector_size;
         constexpr index_t warp_tile_m_threads = get_warp_size() / warp_tile_n_threads;
 
         // This inner encoding ensures that contiguous threads perform vectorized writes along the

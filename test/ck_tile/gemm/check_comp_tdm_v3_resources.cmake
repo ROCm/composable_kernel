@@ -1,7 +1,8 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-# Resource check for the comp_tdm_v3 kernels of test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma.
+# Resource check for the comp_tdm_v3 kernels of a test binary: the comp_tdm_v3 GEMM pipeline tests
+# here and the gfx1250 Stream-K tests in ../gemm_streamk.
 # comp_tdm_v3 is laid out to fit 256 VGPRs at 16 waves without spilling; a compiler change that
 # makes it spill would still pass the numerical test, so fail here instead.
 #

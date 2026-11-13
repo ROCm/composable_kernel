@@ -63,8 +63,9 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                        std::is_same_v<typename Base::BLayout, tensor_layout::gemm::ColumnMajor>),
                   "comp_tdm_v3 with 8-bit A/B supports A row-major, B column-major only");
 
-    // Only tested in the plain GEMM kernel; the multi-D, grouped and batched-contraction kernels
-    // reject a pipeline that sets this (UniversalGemmKernel::kIsPlainGemmOnlyPipeline).
+    // Only tested in the plain and Stream-K GEMM kernels; the multi-D, grouped and
+    // batched-contraction kernels reject a pipeline that sets this
+    // (UniversalGemmKernel::kIsPlainGemmOnlyPipeline).
     static constexpr bool kPlainGemmOnly = true;
 
 #if defined(__gfx125__)
@@ -1234,6 +1235,28 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 p_smem);
         };
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    // Stream-K call form (see GemmPipelineAgBgCrCompTDMV1). V3's operator() overloads hide V1's,
+    // so V3 restates it to bind its own PipelineImpl.
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const index_t num_loop,
+                                   const bool /*has_hot_loop*/,
+                                   const TailNumber /*tail_number*/,
+                                   void* __restrict__ p_smem) const
+    {
+        return operator()(make_tuple(a_dram_block_window_tmp),
+                          element_wise::PassThrough{},
+                          make_tuple(b_dram_block_window_tmp),
+                          element_wise::PassThrough{},
+                          num_loop,
+                          p_smem);
     }
 
     // MX (MxGemmKernel): A, B and their scale block windows.

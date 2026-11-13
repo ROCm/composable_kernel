@@ -4,11 +4,9 @@
 // Stream-K on the gfx1250 TDM pipelines (comp_tdm and comp_tdm_v2). The CShuffle epilogue serves
 // every reduction strategy; the TDM epilogue overwrites C, so it pairs with Linear and Tree only.
 
-#include <algorithm>
 #include <cstdint>
-#include <utility>
 
-#include "test_gemm_streamk_types.hpp"
+#include "test_gemm_streamk_tdm_util.hpp"
 
 struct CompTDMV1
 {
@@ -21,10 +19,6 @@ struct CompTDMV2
     template <typename Problem>
     using pipeline = ck_tile::GemmPipelineAgBgCrCompTDMV2<Problem>;
 };
-
-// Epilogues
-using CShuffleStore = std::false_type;
-using TdmStore      = std::true_type;
 
 // Wave layouts (M x N x K waves); comp_tdm_v2 needs exactly four.
 using Waves2x2 = ck_tile::sequence<2, 2, 1>;
@@ -103,233 +97,31 @@ using Gfx1250StreamKTdmTypes = ::testing::Types<
 #endif
 
 template <typename Params>
-class TestGfx1250StreamKTdm : public ::testing::Test
+using TdmStreamKConfig = StreamKTdmConfig<std::tuple_element_t<0, Params>::template pipeline,
+                                          std::tuple_element_t<6, Params>,
+                                          std::tuple_element_t<7, Params>,
+                                          Row,
+                                          std::tuple_element_t<1, Params>,
+                                          std::tuple_element_t<1, Params>,
+                                          F32,
+                                          std::tuple_element_t<1, Params>,
+                                          ck_tile::sequence<std::tuple_element_t<5, Params>::value,
+                                                            std::tuple_element_t<5, Params>::value,
+                                                            64>,
+                                          std::tuple_element_t<8, Params>,
+                                          ck_tile::sequence<16, 16, 32>,
+                                          std::tuple_element_t<2, Params>,
+                                          std::tuple_element_t<4, Params>,
+                                          std::tuple_element_t<3, Params>>;
+
+template <typename Params>
+class TestGfx1250StreamKTdm : public ::testing::Test,
+                              public StreamKTdmHarness<TdmStreamKConfig<Params>>
 {
-    protected:
-    using Pipeline                          = std::tuple_element_t<0, Params>;
-    using ADataType                         = std::tuple_element_t<1, Params>;
-    using BDataType                         = ADataType;
-    using AccDataType                       = F32;
-    using CDataType                         = ADataType;
-    static constexpr auto ReductionStrategy = std::tuple_element_t<2, Params>::value;
-    static constexpr bool UseTdmEpilogue    = std::tuple_element_t<3, Params>::value;
-    static constexpr bool Persistent        = std::tuple_element_t<4, Params>::value;
-    static constexpr ck_tile::index_t Tile  = std::tuple_element_t<5, Params>::value;
-    using ALayout                           = std::tuple_element_t<6, Params>;
-    using BLayout                           = std::tuple_element_t<7, Params>;
-    using CLayout                           = Row;
-    using Waves                             = std::tuple_element_t<8, Params>;
-
-    static constexpr ck_tile::index_t K_Tile = 64;
-
-    using GemmShape = ck_tile::
-        TileGemmShape<ck_tile::sequence<Tile, Tile, K_Tile>, Waves, ck_tile::sequence<16, 16, 32>>;
-    using TilePartitioner =
-        ck_tile::StreamKTilePartitioner<GemmShape, ReductionStrategy, Persistent>;
-    // TDM clips every A and B load to the real extents, so the pipelines run unpadded.
-    using Traits = ck_tile::TileGemmUniversalTraits<false,
-                                                    false,
-                                                    false,
-                                                    /*DoubleSmemBuffer*/ true,
-                                                    ALayout,
-                                                    BLayout,
-                                                    CLayout,
-                                                    false,
-                                                    false,
-                                                    Persistent>;
-    using Problem =
-        ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                              BDataType,
-                                              AccDataType,
-                                              GemmShape,
-                                              Traits,
-                                              ck_tile::GemmPipelineScheduler::Intrawave>;
-    using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                             BDataType,
-                                                             ck_tile::tuple<>,
-                                                             AccDataType,
-                                                             CDataType,
-                                                             ck_tile::tuple<>,
-                                                             CLayout,
-                                                             ck_tile::element_wise::PassThrough,
-                                                             Tile,
-                                                             Tile,
-                                                             Waves::at(ck_tile::number<0>{}),
-                                                             Waves::at(ck_tile::number<1>{}),
-                                                             16,
-                                                             16,
-                                                             32,
-                                                             Problem::TransposeC,
-                                                             1,
-                                                             false,
-                                                             1,
-                                                             1,
-                                                             /*DoubleSmemBuffer*/ true>;
-    using Epilogue        = std::conditional_t<UseTdmEpilogue,
-                                               ck_tile::TdmEpilogue<EpilogueProblem>,
-                                               ck_tile::CShuffleEpilogue<EpilogueProblem>>;
-    using Kernel          = ck_tile::
-        StreamKKernel<TilePartitioner, typename Pipeline::template pipeline<Problem>, Epilogue>;
-
-    template <typename Layout>
-    static ck_tile::index_t DefaultStride(ck_tile::index_t rows, ck_tile::index_t cols)
-    {
-        return std::is_same_v<Layout, Row> ? cols : rows;
-    }
-
-    // num_wgs is passed as num_cu with occupancy one: a fixed workgroup budget, so the partition
-    // does not depend on the device. num_wgs = 0 takes the device's budget (CU count x occupancy).
-    static auto MakeKargs(ck_tile::index_t M,
-                          ck_tile::index_t N,
-                          ck_tile::index_t K,
-                          int num_wgs,
-                          const void* a = nullptr,
-                          const void* b = nullptr,
-                          void* c       = nullptr)
-    {
-        const ck_tile::StreamKHostArgs args{a,
-                                            b,
-                                            c,
-                                            M,
-                                            N,
-                                            K,
-                                            DefaultStride<ALayout>(M, K),
-                                            DefaultStride<BLayout>(K, N),
-                                            DefaultStride<CLayout>(M, N)};
-        return num_wgs > 0 ? Kernel::MakeKernelArgs(args, num_wgs, 1)
-                           : Kernel::MakeKernelArgs(args);
-    }
-
-    // Stream-K workgroups that store a partial tile (their first iteration is not a tile's
-    // first) and that run more than one tile segment.
-    static std::pair<int, int> CountSplitSegments(const TilePartitioner& p)
-    {
-        int partial = 0;
-        int multi   = 0;
-        for(int cta = 0; cta < p.get_sk_ctas(); ++cta)
-        {
-            const int start = cta * p.get_iters_per_sk_cta() + std::min(cta, p.get_extra_iters());
-            const int end   = start + p.get_iters_per_sk_cta() + (cta < p.get_extra_iters());
-            partial += start % p.get_iters_per_tile() != 0;
-            multi +=
-                end > start && start / p.get_iters_per_tile() != (end - 1) / p.get_iters_per_tile();
-        }
-        return {partial, multi};
-    }
-
     public:
-    enum struct Split
-    {
-        None,      // data-parallel tiles only
-        Partial,   // some workgroup stores a partial tile
-        MultiTile, // and some workgroup runs segments of two tiles back to back
-        Any
-    };
-
-    // Runs M x N x K on num_wgs workgroups and checks C, or checks that IsSupportedArgument
-    // rejects the problem when supported is false.
-    void Run(ck_tile::index_t M,
-             ck_tile::index_t N,
-             ck_tile::index_t K,
-             int num_wgs,
-             Split split    = Split::Any,
-             bool supported = true)
-    {
-        SCOPED_TRACE(::testing::Message()
-                     << "M: " << M << ", N: " << N << ", K: " << K << ", workgroups: " << num_wgs);
-
-        const ck_tile::index_t stride_A = DefaultStride<ALayout>(M, K);
-        const ck_tile::index_t stride_B = DefaultStride<BLayout>(K, N);
-        const ck_tile::index_t stride_C = DefaultStride<CLayout>(M, N);
-        const auto f_desc               = [](std::size_t rows, std::size_t cols, auto layout) {
-            const std::size_t stride = DefaultStride<decltype(layout)>(rows, cols);
-            if constexpr(std::is_same_v<decltype(layout), Row>)
-                return ck_tile::HostTensorDescriptor({rows, cols}, {stride, std::size_t{1}});
-            else
-                return ck_tile::HostTensorDescriptor({rows, cols}, {std::size_t{1}, stride});
-        };
-
-        ck_tile::HostTensor<ADataType> a_m_k(f_desc(M, K, ALayout{}));
-        ck_tile::HostTensor<BDataType> b_k_n(f_desc(K, N, BLayout{}));
-        ck_tile::HostTensor<CDataType> c_m_n(f_desc(M, N, CLayout{}));
-        ck_tile::HostTensor<CDataType> c_m_n_ref(f_desc(M, N, CLayout{}));
-        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, /*seed*/ 11939}(a_m_k);
-        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, /*seed*/ 11940}(b_k_n);
-
-        ck_tile::DeviceMem a_buf(a_m_k.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem b_buf(b_k_n.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem c_buf(c_m_n.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem c_ref_buf(c_m_n_ref.get_element_space_size_in_bytes());
-        a_buf.ToDevice(a_m_k.data());
-        b_buf.ToDevice(b_k_n.data());
-        c_buf.SetZero();
-        c_ref_buf.SetZero();
-
-        auto kargs = MakeKargs(M,
-                               N,
-                               K,
-                               num_wgs,
-                               a_buf.GetDeviceBuffer(),
-                               b_buf.GetDeviceBuffer(),
-                               c_buf.GetDeviceBuffer());
-        ASSERT_EQ(Kernel::IsSupportedArgument(kargs), supported);
-        if(!supported)
-        {
-            return;
-        }
-
-        const auto& partitioner     = kargs.tile_partitioner;
-        const auto [partial, multi] = CountSplitSegments(partitioner);
-        if(split == Split::None)
-        {
-            EXPECT_EQ(partitioner.get_sk_tiles(), 0);
-        }
-        // A data-parallel launch cannot validate cross-workgroup reduction.
-        if(split == Split::Partial || split == Split::MultiTile)
-        {
-            EXPECT_GT(partial, 0);
-        }
-        if(split == Split::MultiTile)
-        {
-            EXPECT_GT(multi, 0);
-        }
-
-        ck_tile::DeviceMem workspace(Kernel::GetWorkSpaceSize(kargs));
-        workspace.SetZero();
-        kargs.workspace_ptr = workspace.GetDeviceBuffer();
-        ck_tile::ignore     = ck_tile::launch_kernel(
-            ck_tile::stream_config{nullptr, false, 0, 0, 1},
-            ck_tile::make_kernel<1>(
-                Kernel{}, Kernel::GridSize(partitioner), Kernel::BlockSize(), 0, kargs));
-        c_buf.FromDevice(c_m_n.data());
-
-        ck_tile::reference_gemm_gpu<ADataType,
-                                    BDataType,
-                                    AccDataType,
-                                    CDataType,
-                                    ALayout,
-                                    BLayout,
-                                    CLayout>(static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
-                                             static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-                                             static_cast<CDataType*>(c_ref_buf.GetDeviceBuffer()),
-                                             M,
-                                             N,
-                                             K,
-                                             stride_A,
-                                             stride_B,
-                                             stride_C);
-        c_ref_buf.FromDevice(c_m_n_ref.data());
-
-        const float max_accumulated_value =
-            *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-            K, partitioner.estimate_num_wgs_per_tile(), max_accumulated_value);
-        EXPECT_TRUE(ck_tile::check_err(c_m_n,
-                                       c_m_n_ref,
-                                       "Error: Incorrect results!",
-                                       rtol_atol.at(ck_tile::number<0>{}),
-                                       rtol_atol.at(ck_tile::number<1>{})));
-    }
+    using Harness = StreamKTdmHarness<TdmStreamKConfig<Params>>;
+    using Harness::Run; // ::testing::Test::Run is private
+    static constexpr ck_tile::index_t Tile = std::tuple_element_t<5, Params>::value;
 };
 
 TYPED_TEST_SUITE(TestGfx1250StreamKTdm, Gfx1250StreamKTdmTypes);
