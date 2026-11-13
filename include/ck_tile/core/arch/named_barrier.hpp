@@ -208,6 +208,11 @@ inline constexpr index_t kNamedBarrierGroupSize     = 4;
 inline constexpr index_t kMaxNamedBarrierGroups     = 4;
 inline constexpr index_t kMaxNamedBarrierCountField = 7;
 
+/** Named barriers per WGP shared by its co-resident work-groups (ISA sec. 5.6.2, see above). A
+ * work-group holding G groups therefore shares a WGP with at most (64 / 4) / G - 1 others.
+ */
+inline constexpr index_t kNamedBarriersPerWgp = 64;
+
 static_assert(kMaxNamedBarrierGroups <= kMaxNamedBarrierCountField,
               "the group cap must stay inside the 3-bit .amdhsa_named_barrier_count field, which "
               "saturates at 7 groups and wraps silently past it");
@@ -723,12 +728,18 @@ struct named_barrier_pipeline
     static constexpr bool kIsSupported    = kNamedBarriersSupported;
     static constexpr index_t kNumBarriers = (... + Specs::kNumBarriers);
     static constexpr index_t kNumRings    = sizeof...(Specs);
+    /// Groups of kNamedBarrierGroupSize this pipeline reserves from its WGP's pool.
+    static constexpr index_t kNumGroups =
+        (kNumBarriers + kNamedBarrierGroupSize - 1) / kNamedBarrierGroupSize;
+    /// Work-groups running this pipeline that fit on one WGP by named barriers alone;
+    /// hipOccupancy* does not model the pool.
+    static constexpr index_t kMaxResidentPerWgp =
+        (kNamedBarriersPerWgp / kNamedBarrierGroupSize) / kNumGroups;
 
     static_assert(kNumBarriers <= kMaxNamedBarrierId,
                   "the pipeline needs more named barriers than the hardware has: reduce slots "
                   "or producer waves");
-    static_assert((kNumBarriers + kNamedBarrierGroupSize - 1) / kNamedBarrierGroupSize <=
-                      kMaxNamedBarrierGroups,
+    static_assert(kNumGroups <= kMaxNamedBarrierGroups,
                   "the pipeline needs more named barrier groups than a work-group may "
                   "allocate: reduce slots or producer waves");
 

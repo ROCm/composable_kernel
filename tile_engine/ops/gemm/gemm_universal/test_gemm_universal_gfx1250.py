@@ -62,16 +62,18 @@ GFX1250_LDS = 320 * 1024
 # all-True, TDM only all-False, and the legacy pipelines keep all 8 combos.
 # comp_tdm_pc trails comp_tdm because its 4-slot LDS ring (PIPELINE_SMEM_SLOTS)
 # drops the widest tiles, partly offset by it not being wave-count locked.
+# comp_tdm_pc counts both epilogues: every tdm instance has a cshuffle twin
+# (the split-K capable pairing, see vu.tdm_epilogue_allowed).
 FULL_COUNTS = {
-    ("fp16", "rcr"): (27586, 348, 174, 87, 97),
-    ("fp16", "rrr"): (27238, 0, 174, 87, 97),
-    ("bf16", "rcr"): (27586, 348, 174, 87, 97),
-    ("bf16", "rrr"): (27238, 0, 174, 87, 97),
+    ("fp16", "rcr"): (27683, 348, 174, 87, 194),
+    ("fp16", "rrr"): (27335, 0, 174, 87, 194),
+    ("bf16", "rcr"): (27683, 348, 174, 87, 194),
+    ("bf16", "rrr"): (27335, 0, 174, 87, 194),
     # fp8/bf8 comp_async keeps only warp_tile_k=128 (the 16x16x64 set is gated).
-    ("fp8", "rcr"): (47151, 288, 360, 180, 243),
-    ("fp8", "rrr"): (46863, 0, 360, 180, 243),
-    ("bf8", "rcr"): (47151, 288, 360, 180, 243),
-    ("bf8", "rrr"): (46863, 0, 360, 180, 243),
+    ("fp8", "rcr"): (47394, 288, 360, 180, 486),
+    ("fp8", "rrr"): (47106, 0, 360, 180, 486),
+    ("bf8", "rcr"): (47394, 288, 360, 180, 486),
+    ("bf8", "rrr"): (47106, 0, 360, 180, 486),
 }
 
 
@@ -197,9 +199,11 @@ class _ConfigLintMixin:
             name,
         )
         if pipeline in TDM_PIPELINES:
-            self.assertEqual(
-                (epilogue, scheduler, persistent), ("tdm", "intrawave", False), name
+            # tdm, or cshuffle for the pipelines that may split K with it.
+            self.assertTrue(
+                vu.tdm_epilogue_allowed(pipeline, epilogue, "gemm_universal"), name
             )
+            self.assertEqual((scheduler, persistent), ("intrawave", False), name)
             self.assertEqual((pad_m, pad_n, pad_k), (False, False, False), name)
             c_bytes = t["tile_m"] * t["tile_n"] * vu.element_size(_c_dtype(dtype))
             self.assertLessEqual(c_bytes, GFX1250_LDS, name)

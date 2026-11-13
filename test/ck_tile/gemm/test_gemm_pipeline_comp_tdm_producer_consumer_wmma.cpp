@@ -18,6 +18,34 @@ TYPED_TEST_SUITE(TestCkTileGemmPipelineCompTDMProducerConsumerWmma,
 
 #include "test_gemm_pipeline_ut_cases.inc"
 
+// TdmEpilogue overwrites C, so this pairing must keep rejecting split-K on the host; the
+// CShuffleEpilogue twin (test_gemm_pipeline_comp_tdm_producer_consumer_cshuffle_wmma.cpp) is the
+// only split-K path for this pipeline. Host-only: nothing is allocated or launched.
+TYPED_TEST(TestCkTileGemmPipelineCompTDMProducerConsumerWmma, TdmEpilogueRejectsSplitK)
+{
+    if constexpr(TestFixture::check_data_type())
+    {
+        constexpr int M = TestFixture::M_Tile;
+        constexpr int N = TestFixture::N_Tile;
+        // Whole K tiles for every k_batch below, so only the epilogue can reject the split.
+        constexpr int K = 4 * TestFixture::K_Tile;
+        const auto stride_A =
+            ck_tile::get_default_stride(M, K, 0, is_row_major(typename TestFixture::ALayout{}));
+        const auto stride_B =
+            ck_tile::get_default_stride(K, N, 0, is_row_major(typename TestFixture::BLayout{}));
+        const auto stride_C =
+            ck_tile::get_default_stride(M, N, 0, is_row_major(typename TestFixture::CLayout{}));
+
+        EXPECT_TRUE(TestFixture::IsArgSupported(M, N, K, stride_A, stride_B, stride_C, 1));
+        for(int k_batch : {2, 4})
+        {
+            EXPECT_FALSE(
+                TestFixture::IsArgSupported(M, N, K, stride_A, stride_B, stride_C, k_batch))
+                << "k_batch=" << k_batch;
+        }
+    }
+}
+
 #undef TEST_SUITE_NAME
 
 // TdmEpilogue stores C with a plain TDM store, so a split-K launch would overwrite C rather than

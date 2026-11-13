@@ -107,6 +107,25 @@ def gfx1250_tdm_v3_reject_reason(
 # arch the TDM path compiles to a no-op and produces an all-zero C.
 GFX1250_ONLY_PIPELINE_ARCH = "gfx1250"
 
+# TDM pipelines that may also store C through the cshuffle epilogue, and the
+# ops that may emit that pairing. TdmEpilogue always overwrites C; cshuffle can
+# atomic_add, which is what split-K (k_batch > 1) needs.
+GEMM_TDM_CSHUFFLE_PIPELINES = ("comp_tdm_pc",)
+GEMM_TDM_CSHUFFLE_OPS = ("gemm_universal",)
+
+
+def tdm_epilogue_allowed(pipeline, epilogue, kernel_name_prefix):
+    """Whether a TDM pipeline may be paired with this epilogue on this op: its own
+    epilogue (tdm_pipeline_epilogue), or cshuffle for the split-K capable pipelines."""
+    if epilogue == tdm_pipeline_epilogue(pipeline):
+        return True
+    return (
+        epilogue == "cshuffle"
+        and pipeline in GEMM_TDM_CSHUFFLE_PIPELINES
+        and kernel_name_prefix in GEMM_TDM_CSHUFFLE_OPS
+    )
+
+
 TDM_PAD_REJECT_REASON = (
     "TDM clips every box to the pre-pad extent (tdm_real_lengths), so kPad is a "
     "no-op and a padded TDM kernel would duplicate the unpadded one, which already "
@@ -759,11 +778,12 @@ def is_trait_combination_valid(
     else:
         if kernel_name_prefix != "mx_gemm":
             if pipeline in GEMM_TDM_PIPELINES:
-                # TDM: intrawave only, TdmEpilogue only (CShuffle only for
-                # comp_tdm_v3, see tdm_pipeline_epilogue), no persistent kernel
-                # (TdmEpilogue has no split-K / persistent write path), and no
-                # padding, which would only duplicate the unpadded kernel (see
-                # TDM_PAD_REJECT_REASON).
+                # TDM: intrawave only, the pipeline's own epilogue (TdmEpilogue;
+                # CShuffle for comp_tdm_v3, see tdm_pipeline_epilogue) or cshuffle
+                # for GEMM_TDM_CSHUFFLE_PIPELINES (see tdm_epilogue_allowed), no
+                # persistent kernel (TdmEpilogue has no split-K / persistent write
+                # path), and no padding, which would only duplicate the unpadded
+                # kernel (see TDM_PAD_REJECT_REASON).
                 if tdm_pad_reject_reason(pipeline, epilogue, pad_m, pad_n, pad_k):
                     logging.debug(f"{pipeline}: {TDM_PAD_REJECT_REASON}")
                     return False
@@ -775,7 +795,7 @@ def is_trait_combination_valid(
                     return False
                 return (
                     scheduler == "intrawave"
-                    and epilogue == tdm_pipeline_epilogue(pipeline)
+                    and tdm_epilogue_allowed(pipeline, epilogue, kernel_name_prefix)
                     and persistent_or_preshuffle_quant not in (True, "true")
                 )
             if epilogue == "tdm":

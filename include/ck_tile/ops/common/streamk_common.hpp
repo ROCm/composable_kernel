@@ -5,8 +5,25 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/kernel/streamk_gemm/streamk_gemm_coherency.hpp"
+#include "ck_tile/ops/gemm/kernel/wavelet_utils.hpp"
+
+// Test-only bound on WaitStorePartialDone's spin. Linear and tree reduction deadlock if the
+// workgroup they wait on is never resident; with a non-zero limit each spinning wave executes
+// s_trap 2 after that many polls (wave halted, queue put in error state, process aborted), which
+// tears the queue down instead of hanging the device. Waves parked at a workgroup or named
+// barrier do not poll and are not covered. 0 (the default) spins forever.
+#ifndef CK_TILE_STREAMK_WAIT_SPIN_LIMIT
+#define CK_TILE_STREAMK_WAIT_SPIN_LIMIT 0
+#endif
 
 namespace ck_tile {
+
+/// CK_TILE_STREAMK_WAIT_SPIN_LIMIT as an index_t. Brace initialisation rejects values polls cannot
+/// reach (e.g. 4294967296, 1e6) at compile time. Set it target-wide: each TU bakes in its own
+/// value.
+inline constexpr index_t kStreamKWaitSpinLimit{CK_TILE_STREAMK_WAIT_SPIN_LIMIT};
+static_assert(kStreamKWaitSpinLimit >= 0,
+              "CK_TILE_STREAMK_WAIT_SPIN_LIMIT must be >= 0 (0 spins forever)");
 enum StreamKReductionStrategy : uint32_t
 {
     Atomic = 0u,
@@ -14,12 +31,26 @@ enum StreamKReductionStrategy : uint32_t
     Tree   = 2u
 };
 
+/// @brief Lower-case name of a Stream-K reduction strategy, as used in kernel names.
+CK_TILE_HOST_DEVICE constexpr const char*
+streamk_reduction_strategy_name(StreamKReductionStrategy strategy)
+{
+    switch(strategy)
+    {
+    case StreamKReductionStrategy::Atomic: return "atomic";
+    case StreamKReductionStrategy::Linear: return "linear";
+    case StreamKReductionStrategy::Tree: return "tree";
+    }
+    return "unknown";
+}
+
 /// @brief StreamK reduction helpers: partial store/load, flag signaling, and tile accumulation.
 ///        Shared by StreamK GEMM and StreamK conv bwd weight kernels.
 template <typename TilePartitioner_, typename GemmPipeline_, typename KernelArgs_>
 struct StreamKReductionOps
 {
     using TilePartitioner = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline    = remove_cvref_t<GemmPipeline_>;
     using BlockGemm       = typename GemmPipeline_::BlockGemm;
     using WarpGemm        = typename BlockGemm::WarpGemm;
     using BlockGemmShape  = typename GemmPipeline_::BlockGemmShape;
@@ -39,6 +70,22 @@ struct StreamKReductionOps
                                                core::arch::amdgcn_target_id::GFX12_GENERIC>() ||
                core::arch::is_target_family_gfx11<CompilerTarget_>() ||
                core::arch::is_target_family_gfx117<CompilerTarget_>();
+    }
+
+    // Counts one unanswered poll of WaitStorePartialDone and traps (noreturn) once
+    // kStreamKWaitSpinLimit polls have gone unanswered, so it only ever returns false; the bool
+    // exists so it can sit in the loop condition after `result != 1` and count failed polls only.
+    // Compiles to nothing at the default limit of 0.
+    CK_TILE_DEVICE static bool SpinLimitReached([[maybe_unused]] index_t& polls)
+    {
+        if constexpr(kStreamKWaitSpinLimit > 0)
+        {
+            if(++polls >= kStreamKWaitSpinLimit)
+            {
+                __builtin_trap();
+            }
+        }
+        return false;
     }
 
     /**
@@ -131,6 +178,7 @@ struct StreamKReductionOps
             amd_wave_read_first_lane(reinterpret_cast<uintptr_t>(kargs.workspace_ptr)));
         index_t result;
         index_t offset = amd_wave_read_first_lane(cta_idx) * sizeof(index_t);
+        index_t polls  = 0;
 
         do
         {
@@ -142,7 +190,7 @@ struct StreamKReductionOps
                          : "=s"(result)
                          : "s"(sk_flags_ptr), "s"(offset)
                          : "memory");
-        } while(result != 1);
+        } while(result != 1 && !SpinLimitReached(polls));
     }
 
     template <typename CompilerTarget_ = CompilerTarget>
@@ -158,6 +206,7 @@ struct StreamKReductionOps
             amd_wave_read_first_lane(reinterpret_cast<uintptr_t>(kargs.workspace_ptr)));
         index_t result;
         index_t offset = amd_wave_read_first_lane(cta_idx) * sizeof(index_t);
+        index_t polls  = 0;
         do
         {
             asm volatile("s_load_b32 %0, %1, %2 scope:SCOPE_DEV\n\t"
@@ -165,7 +214,7 @@ struct StreamKReductionOps
                          : "=s"(result)
                          : "s"(sk_flags_ptr), "s"(offset)
                          : "memory");
-        } while(result != 1);
+        } while(result != 1 && !SpinLimitReached(polls));
     }
 
     template <typename CompilerTarget_ = CompilerTarget>
@@ -176,6 +225,7 @@ struct StreamKReductionOps
         auto* sk_flags_ptr = static_cast<index_t*>(kargs.workspace_ptr);
         index_t result;
         index_t offset = cta_idx * sizeof(index_t);
+        index_t polls  = 0;
         do
         {
             asm volatile("s_load_b32 %0, %1, %2 glc dlc\n\t"
@@ -183,7 +233,7 @@ struct StreamKReductionOps
                          : "=s"(result)
                          : "s"(sk_flags_ptr), "s"(offset)
                          : "memory");
-        } while(result != 1);
+        } while(result != 1 && !SpinLimitReached(polls));
     }
 
     template <typename CompilerTarget_ = CompilerTarget>
@@ -196,76 +246,142 @@ struct StreamKReductionOps
     }
 
     /**
-     * @brief Adds the values of a block tile to an output block tile.
-     * @param in_out_block_tile The output block tile to which values are added.
-     * @param in_block_tile The input block tile whose values are added.
-     * @note This function iterates over the distributed spans of the block tiles and updates
-     * the output block tile with accumulated values.
+     * @brief Adds the partial tile stored by @p cta_idx into @p accum_block_tile.
+     * @note Only the math waves of a wavelet pipeline hold an accumulator, so only they load; the
+     * load waves keep their (unused) tile. Issues no barrier, so the branch is safe.
+     * @note The partial is loaded and added in row slices of at most MAX_PARTIAL_SLICE_ELEMS
+     * values per lane. Loading it whole would hold a second accumulator-sized tile in VGPRs and,
+     * for large tiles, raise the kernel's VGPR count (and cut its occupancy) on every launch.
      */
     template <typename OAccTile>
-    CK_TILE_DEVICE void AddBlockTile(OAccTile& in_out_block_tile,
-                                     const OAccTile& in_block_tile) const
+    CK_TILE_DEVICE void
+    AccumulatePartial(const KernelArgs_& kargs, index_t cta_idx, OAccTile& accum_block_tile) const
     {
-        using BlockType        = remove_cvref_t<decltype(in_out_block_tile)>;
-        constexpr auto o_spans = BlockType::get_distributed_spans();
-        sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-            sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-                constexpr auto idx     = make_tuple(idx0, idx1);
-                in_out_block_tile(idx) = in_out_block_tile[idx] + in_block_tile[idx];
+        if(IsMathWave<GemmPipeline>())
+        {
+            using DataType                     = typename OAccTile::DataType;
+            constexpr index_t m_iter_per_slice = GetPartialMIterPerSlice<OAccTile>();
+            constexpr index_t num_slices       = PARTIAL_M_ITER_PER_WARP / m_iter_per_slice;
+            constexpr index_t slice_rows       = TilePartitioner::MPerBlock / num_slices;
+            constexpr index_t slice_lane_elems = OAccTile::get_thread_buffer_size() / num_slices;
+            static_assert(OAccTile::get_thread_buffer_size() % num_slices == 0,
+                          "the accumulator must split evenly into the partial's M slices");
+
+            // Partial results cross workgroup boundaries; see StreamKCoherency::LOAD_COHERENCE.
+            auto partial_tile_window = make_tile_window(
+                MakePartialTensorView<DataType, StreamKCoherency<CompilerTarget>::LOAD_COHERENCE>(
+                    kargs, cta_idx),
+                make_tuple(number<slice_rows>{}, number<TilePartitioner::NPerBlock>{}),
+                {0, 0},
+                MakePartialsDistribution<m_iter_per_slice>());
+
+            // The M iteration is the outermost Y dimension of both the partials and the C block
+            // distribution, so a slice of rows is a contiguous run of each lane's accumulator.
+            // Add in whole warp-GEMM C fragments (the vector each WMMA/MFMA writes): scalar adds
+            // let the SLP vectorizer pair them into <2 x float> values that cut across those
+            // fragments, and the register allocator then copies the accumulator into the
+            // pipeline's fragment registers instead of reusing them (~40 VGPRs at 256x128,
+            // ~1500 spills at 256x256 on gfx1250).
+            constexpr index_t frag_elems = WarpGemm::CWarpTensor::get_thread_buffer_size();
+            static_assert(slice_lane_elems % frag_elems == 0,
+                          "a partial slice must hold whole warp-GEMM C fragments");
+            using FragVec                 = ext_vector_t<DataType, frag_elems>;
+            constexpr index_t slice_frags = slice_lane_elems / frag_elems;
+
+            auto& accum = accum_block_tile.get_thread_buffer();
+            static_for<0, num_slices, 1>{}([&](auto slice) {
+                if constexpr(slice > 0)
+                {
+                    // Keep this slice's loads behind the previous slice's adds, so only one
+                    // slice is live at a time. Scheduling only: ordering against the flag poll
+                    // in WaitStorePartialDone comes from that asm's "memory" clobber.
+                    __builtin_amdgcn_sched_barrier(0);
+                    move_tile_window(partial_tile_window, {slice_rows, 0});
+                }
+                const auto partial = load_tile(partial_tile_window);
+                // Each lane's slice must be exactly the next slice_lane_elems accumulator values;
+                // a C distribution whose M iteration is not the outermost Y would break this.
+                static_assert(remove_cvref_t<decltype(partial)>::get_thread_buffer_size() ==
+                                  slice_lane_elems,
+                              "partial slice and accumulator slice hold different value counts");
+                static_for<0, slice_frags, 1>{}([&](auto f) {
+                    constexpr auto dst = number<slice * slice_frags + f>{};
+                    accum.template set_as<FragVec>(
+                        dst,
+                        accum.template get_as<FragVec>(dst) +
+                            partial.get_thread_buffer().template get_as<FragVec>(f));
+                });
             });
-        });
+        }
     }
 
     /**
-     * @brief Loads a partial block tile from the workspace buffer.
+     * @brief Stores a partial block tile to the workspace buffer.
      * @param kargs Kernel arguments, including the workspace pointer.
      * @param cta_idx The index of the thread block (CTA).
-     * @param c_block_tile_dist The tile distribution for the block.
-     * @return The loaded partial block tile.
-     * @note This function calculates the buffer pointer and uses the tile distribution for
-     * loading the partial block tile.
+     * @param c_block_tile The block tile to be stored.
+     * @note This function calculates the buffer pointer and uses the tile window for storing
+     * the partial block tile.
      */
-    template <typename DataType, typename OAccTileDist>
-    CK_TILE_DEVICE auto LoadPartial(const KernelArgs_& kargs,
-                                    index_t cta_idx,
-                                    const OAccTileDist& c_block_tile_dist) const
+    template <typename OAccTile>
+    CK_TILE_DEVICE void
+    StorePartial(const KernelArgs_& kargs, index_t cta_idx, const OAccTile& c_block_tile) const
     {
-        const auto c_block_tile_buffer_size =
+        // MakePartialsDistribution maps the BlockWarps (math) waves only. The load waves of a
+        // wavelet pipeline hold no partial tile, so they skip the store but still join the
+        // barrier below.
+        if(IsMathWave<GemmPipeline>())
+        {
+            StoreAndFencePartial(kargs, cta_idx, c_block_tile);
+        }
+        // Wait for all wavefronts in this workgroup to arrive here before continuing
+        __builtin_amdgcn_s_barrier();
+    }
+
+    private:
+    // Upper bound on the partial values per lane that AccumulatePartial holds at once.
+    static constexpr index_t MAX_PARTIAL_SLICE_ELEMS = 32;
+
+    // M iterations of each math wave over the tile (the outer M dimension of the partials).
+    static constexpr index_t PARTIAL_M_ITER_PER_WARP =
+        TilePartitioner::MPerBlock / (BlockGemmShape::BlockWarps::at(number<0>{}) * WarpGemm::kM);
+
+    // Largest divisor of the M iterations whose slice holds at most MAX_PARTIAL_SLICE_ELEMS
+    // values per lane; 1 when even a single M iteration holds more.
+    template <typename OAccTile>
+    CK_TILE_DEVICE static constexpr index_t GetPartialMIterPerSlice()
+    {
+        constexpr index_t m_iter         = PARTIAL_M_ITER_PER_WARP;
+        constexpr index_t elems_per_iter = OAccTile::get_thread_buffer_size() / m_iter;
+        index_t per_slice                = 1;
+        for(index_t i = 1; i <= m_iter; ++i)
+        {
+            if(m_iter % i == 0 && i * elems_per_iter <= MAX_PARTIAL_SLICE_ELEMS)
+            {
+                per_slice = i;
+            }
+        }
+        return per_slice;
+    }
+
+    // The partial tile cta_idx stores, as a row-major MPerBlock x NPerBlock global view.
+    template <typename DataType, amd_buffer_coherence_enum Coherence>
+    CK_TILE_DEVICE static auto MakePartialTensorView(const KernelArgs_& kargs, index_t cta_idx)
+    {
+        constexpr auto c_block_tile_buffer_size =
             TilePartitioner::MPerBlock * TilePartitioner::NPerBlock * sizeof(DataType);
         void* partial_buffer_ptr = static_cast<char*>(kargs.workspace_ptr) +
                                    kargs.tile_partitioner.get_flags_buffer_size() +
                                    cta_idx * c_block_tile_buffer_size;
 
-        // Partial results cross workgroup boundaries, so gfx1250 needs device scope for
-        // the data loads as well as the completion flags.
-        constexpr auto load_coherence =
-            core::arch::is_target_id_any_of<CompilerTarget, core::arch::amdgcn_target_id::GFX1250>()
-                ? StreamKCoherency<CompilerTarget>::BUFFER_COHERENCE
-                : amd_buffer_coherence_enum::coherence_default;
-        const auto& partial_tensor_view = make_naive_tensor_view<address_space_enum::global,
-                                                                 memory_operation_enum::set,
-                                                                 load_coherence>(
+        return make_naive_tensor_view<address_space_enum::global,
+                                      memory_operation_enum::set,
+                                      Coherence>(
             static_cast<DataType*>(partial_buffer_ptr),
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             make_tuple(TilePartitioner::NPerBlock, 1),
             number<GetVectorSizePartials()>{},
             number<1>{});
-
-        auto partial_tile_window = make_tile_window(
-            partial_tensor_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            {0, 0},
-            MakePartialsDistribution());
-
-        auto partials_tile = load_tile(partial_tile_window);
-
-        // Since the partials distribution is not the same as the C block distribution, we must
-        // describe the contents in the partials tile with the C block distribution.
-        // Note: The data assigned to threads does not change between distributions.
-        auto partials_tile_with_c_distr = make_static_distributed_tensor<DataType>(
-            c_block_tile_dist, partials_tile.get_thread_buffer());
-
-        return partials_tile_with_c_distr;
     }
 
     /**
@@ -286,14 +402,17 @@ struct StreamKReductionOps
      * Additional functionality should be added to ensure optimized accesses to partials when C is
      * column major. Since the C-Shuffle epilogue only supports C as row major, this is not a
      * current limitation.
+     * @tparam MIterPerWarp M iterations covered: all of them for the whole tile, fewer for a
+     * slice of MIterPerWarp * m_warp * WarpGemm::kM rows.
      */
+    template <index_t MIterPerWarp = PARTIAL_M_ITER_PER_WARP>
     CK_TILE_DEVICE static constexpr auto MakePartialsDistribution()
     {
         // Create the encoding to describe waves within a block
         constexpr index_t m_warp = BlockGemmShape::BlockWarps::at(number<0>{});
         constexpr index_t n_warp = BlockGemmShape::BlockWarps::at(number<1>{});
 
-        constexpr index_t m_iter_per_warp = TilePartitioner::MPerBlock / (m_warp * WarpGemm::kM);
+        constexpr index_t m_iter_per_warp = MIterPerWarp;
         constexpr index_t n_iter_per_warp = TilePartitioner::NPerBlock / (n_warp * WarpGemm::kN);
 
         constexpr auto partials_outer_dstr_encoding = tile_distribution_encoding<
@@ -328,37 +447,16 @@ struct StreamKReductionOps
         return make_static_tile_distribution(partials_dstr_encode);
     }
 
-    /**
-     * @brief Stores a partial block tile to the workspace buffer.
-     * @param kargs Kernel arguments, including the workspace pointer.
-     * @param cta_idx The index of the thread block (CTA).
-     * @param c_block_tile The block tile to be stored.
-     * @note This function calculates the buffer pointer and uses the tile window for storing
-     * the partial block tile.
-     */
+    // Stores this wave's share of the partial tile and waits for the stores to complete.
     template <typename OAccTile>
-    CK_TILE_DEVICE void
-    StorePartial(const KernelArgs_& kargs, index_t cta_idx, const OAccTile& c_block_tile) const
+    CK_TILE_DEVICE void StoreAndFencePartial(const KernelArgs_& kargs,
+                                             index_t cta_idx,
+                                             const OAccTile& c_block_tile) const
     {
-        const auto c_block_tile_buffer_size = TilePartitioner::MPerBlock *
-                                              TilePartitioner::NPerBlock *
-                                              sizeof(typename OAccTile::DataType);
-        void* partial_buffer_ptr = static_cast<char*>(kargs.workspace_ptr) +
-                                   kargs.tile_partitioner.get_flags_buffer_size() +
-                                   cta_idx * c_block_tile_buffer_size;
-
-        const auto& partial_tensor_view = make_naive_tensor_view<
-            address_space_enum::global,
-            memory_operation_enum::set,
-            StreamKCoherency<decltype(core::arch::get_compiler_target())>::BUFFER_COHERENCE>(
-            static_cast<typename OAccTile::DataType*>(partial_buffer_ptr),
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            make_tuple(TilePartitioner::NPerBlock, 1),
-            number<GetVectorSizePartials()>{},
-            number<1>{});
-
         auto partial_tile_window = make_tile_window(
-            partial_tensor_view,
+            MakePartialTensorView<typename OAccTile::DataType,
+                                  StreamKCoherency<CompilerTarget>::BUFFER_COHERENCE>(kargs,
+                                                                                      cta_idx),
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             {0, 0},
             MakePartialsDistribution());
@@ -384,8 +482,6 @@ struct StreamKReductionOps
         {
             s_waitcnt</*vmcnt*/ 0, waitcnt_arg::kMaxExpCnt, waitcnt_arg::kMaxLgkmCnt>();
         }
-        // Wait for all wavefronts in this workgroup to arrive here before continuing
-        __builtin_amdgcn_s_barrier();
     }
 };
 

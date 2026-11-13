@@ -870,11 +870,13 @@ class ArchFilter:
         single source of truth shared with unified_gemm_codegen and
         python/gemm_utils: TDM pipelines are gfx1250-only (off gfx1250 the TDM
         instructions compile to no-ops and the kernel silently writes zeros),
-        need the TDM epilogue (and vice versa), intrawave, unpadded tiles and,
-        for comp_tdm_v2, exactly four waves, for comp_tdm_pc, at most 256 fp32
-        accumulators per lane; only the plain and preshuffle GEMM operators can
-        use them (comp_tdm_pc is plain only). Non-MX comp_async GEMM on gfx1250
-        needs the cshuffle
+        need the TDM epilogue (and vice versa; plain GEMM may also pair
+        codegen_common.GEMM_TDM_CSHUFFLE_PIPELINES with cshuffle), intrawave,
+        unpadded tiles and, for comp_tdm_v2, exactly four waves, for
+        comp_tdm_pc, at most 256 fp32 accumulators per lane; only the plain and
+        preshuffle GEMM operators can use them (comp_tdm_pc is plain only, apart
+        from Stream-K GEMM).
+        Non-MX comp_async GEMM on gfx1250 needs the cshuffle
         epilogue, an rc A/B layout, pad_m=pad_n=pad_k=True and, for fp8/bf8,
         warp_tile_k >= 128 and a 16x16 warp tile (32x32 does not compile).
         Stream-K GEMM can use codegen_common.STREAMK_GFX1250_PIPELINES, whose

@@ -31,7 +31,25 @@ struct StreamKTilePartitionerBase
                                                 ? memory_operation_enum::atomic_add
                                                 : memory_operation_enum::set;
 
+    /**
+     * @brief Partitions an M x N x K GEMM, treating every resident workgroup slot as a CU.
+     * @note Equivalent to the five-argument constructor with `num_cu == max_number_wgs`.
+     */
     StreamKTilePartitionerBase(index_t m, index_t n, index_t k, index_t max_number_wgs);
+
+    /**
+     * @brief Partitions an M x N x K GEMM over resident workgroups spread across `num_cu` CUs.
+     * @param m Number of rows of C.
+     * @param n Number of columns of C.
+     * @param k Length of the reduction (K) dimension.
+     * @param max_number_wgs Number of resident workgroup slots (CUs x occupancy).
+     * @param num_cu Number of CUs; `max_number_wgs` must be a multiple of it.
+     * @note Stream-K is used only when the tile count is not a multiple of `num_cu`. When it is,
+     * the data-parallel waves are already balanced: every CU computes the same number of tiles
+     * however many of them are resident at once.
+     */
+    StreamKTilePartitionerBase(
+        index_t m, index_t n, index_t k, index_t max_number_wgs, index_t num_cu);
 
     /**
      * @brief Calculates the total space needed for the partials buffer.
@@ -310,12 +328,19 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>
                            ck_tile::index_t k,
                            ck_tile::index_t max_active_wgs);
 
+    StreamKTilePartitioner(ck_tile::index_t m,
+                           ck_tile::index_t n,
+                           ck_tile::index_t k,
+                           ck_tile::index_t max_active_wgs,
+                           ck_tile::index_t num_cu);
+
     public:
     static constexpr bool PERSISTENT = true;
     /**
      * @brief Calculates the launching grid size for the Stream-K kernel. In the Persistent
      * case, no extra workgroups are allocated for the data parallel section, making the grid
-     * size num_cu * occupancy.
+     * size num_cu * occupancy, or the number of tiles when that is smaller and there is no
+     * Stream-K work.
      *
      * @return dim_3           The launching grid size for the kernel.
      */
@@ -356,6 +381,12 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>
                            ck_tile::index_t n,
                            ck_tile::index_t k,
                            ck_tile::index_t max_number_wgs);
+
+    StreamKTilePartitioner(ck_tile::index_t m,
+                           ck_tile::index_t n,
+                           ck_tile::index_t k,
+                           ck_tile::index_t max_number_wgs,
+                           ck_tile::index_t num_cu);
 
     public:
     static constexpr bool PERSISTENT = false;

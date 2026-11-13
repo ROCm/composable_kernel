@@ -53,15 +53,18 @@ DOUBLE_SMEM_BUFFER_PIPELINES = (
 ) + TDM_PIPELINES
 
 
-def _check_tdm_epilogue(pipeline, epilogue):
-    """Raise unless a TDM pipeline gets its one epilogue (tdm; cshuffle for
-    comp_tdm_v3) and the tdm epilogue gets a TDM pipeline that writes through it."""
-    if pipeline in TDM_PIPELINES:
+def _check_tdm_epilogue(pipeline, epilogue, kernel_name_prefix):
+    """Raise unless a TDM pipeline gets an epilogue it accepts on this op (its own one:
+    tdm, or cshuffle for comp_tdm_v3; cshuffle also for the split-K capable pipelines,
+    see tdm_epilogue_allowed) and the tdm epilogue gets a TDM pipeline that writes
+    through it."""
+    if pipeline in TDM_PIPELINES and not _validation_utils.tdm_epilogue_allowed(
+        pipeline, epilogue, kernel_name_prefix
+    ):
         want = _validation_utils.tdm_pipeline_epilogue(pipeline)
-        if epilogue != want:
-            raise ValueError(
-                f"{pipeline} pipeline requires the {want} epilogue, got '{epilogue}'"
-            )
+        raise ValueError(
+            f"{pipeline} pipeline requires the {want} epilogue, got '{epilogue}'"
+        )
     tdm_epilogue_pipelines = tuple(
         p for p in TDM_PIPELINES if _validation_utils.tdm_pipeline_epilogue(p) == "tdm"
     )
@@ -292,7 +295,7 @@ class GemmKernelBuilder:
             and prefix not in _validation_utils.GFX1250_TDM_V3_OPS
         ):
             raise ValueError(f"{prefix} does not support the {pipeline} pipeline")
-        _check_tdm_epilogue(pipeline, epilogue)
+        _check_tdm_epilogue(pipeline, epilogue, prefix)
         pad_reason = _validation_utils.tdm_pad_reject_reason(
             pipeline, epilogue, pad_m, pad_n, pad_k
         )
@@ -313,13 +316,19 @@ class GemmKernelBuilder:
             if async_pad_reason:
                 raise ValueError(f"{pipeline}/{epilogue}: {async_pad_reason}")
 
-    def _tdm_k_batch_guard(self, pipeline):
-        """Host-side split-K guard for TDM pipelines (empty for all others).
+    def _tdm_k_batch_guard(self, pipeline, epilogue):
+        """Host-side split-K guard for TDM pipelines on the tdm epilogue (empty
+        for all others).
 
-        TdmEpilogue ignores the memory operation, so k_batch > 1 would produce a
-        partial C without any error.
+        TdmEpilogue cannot accumulate, so k_batch > 1 is impossible; the kernel
+        rejects it too, this just fails earlier and louder. Only the split-K
+        capable pipelines (GEMM_TDM_CSHUFFLE_PIPELINES) can split K on the
+        cshuffle epilogue, and the kernel's IsSupportedArgument checks it.
         """
-        if pipeline not in TDM_PIPELINES:
+        if pipeline not in TDM_PIPELINES or (
+            epilogue == "cshuffle"
+            and pipeline in _validation_utils.GEMM_TDM_CSHUFFLE_PIPELINES
+        ):
             return ""
         return """
 
@@ -1225,7 +1234,10 @@ struct SelectedKernel {{
     // Launch function
     static float launch(const MxGemmHostArgs& args, const ck_tile::stream_config& stream) {"""
 
-        if self.kernel_name_prefix == "gemm_preshuffle" and pipeline in ("comp_tdm", "comp_tdm_v2"):
+        if self.kernel_name_prefix == "gemm_preshuffle" and pipeline in (
+            "comp_tdm",
+            "comp_tdm_v2",
+        ):
             instance_code += """
         if (args.k_batch != 1 || args.N % TileN != 0 || args.K % TileK != 0) {
             throw std::runtime_error("Compute TDM requires complete N/K tiles and k_batch=1");
@@ -1371,9 +1383,10 @@ struct SelectedKernel {{
 
         elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             persistent_check = (
-                'static_assert(GemmKernel::UniversalGemmKernel::PersistentKernel == UsePersistentKernel, '
+                "static_assert(GemmKernel::UniversalGemmKernel::PersistentKernel == UsePersistentKernel, "
                 '"Pipeline and launch disagree on persistent mode");'
-                if self.kernel_name_prefix == "gemm_preshuffle" else ""
+                if self.kernel_name_prefix == "gemm_preshuffle"
+                else ""
             )
             instance_code += f"""
 
@@ -1383,7 +1396,7 @@ struct SelectedKernel {{
         {persistent_check}
 
         // Kernel arguments
-        auto kargs = GemmKernel::MakeKernelArgs(args);{self._tdm_k_batch_guard(pipeline)}
+        auto kargs = GemmKernel::MakeKernelArgs(args);{self._tdm_k_batch_guard(pipeline, epilogue)}
 
         if (!GemmKernel::IsSupportedArgument(kargs)) {{
             throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
@@ -1419,7 +1432,7 @@ struct SelectedKernel {{
         using GemmKernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
         // Kernel arguments
-        auto kargs = GemmKernel::MakeKernelArgs(args);{self._tdm_k_batch_guard(pipeline)}
+        auto kargs = GemmKernel::MakeKernelArgs(args);{self._tdm_k_batch_guard(pipeline, epilogue)}
 
         if (!GemmKernel::IsSupportedArgument(kargs)) {{
             throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
@@ -1714,7 +1727,7 @@ struct SelectedKernel {{
         // Epilogue
         """
 
-        _check_tdm_epilogue(pipeline, epilogue)
+        _check_tdm_epilogue(pipeline, epilogue, self.kernel_name_prefix)
         double_smem = pipeline in DOUBLE_SMEM_EPILOGUE_PIPELINES
 
         if epilogue == "tdm" and self.kernel_name_prefix in [

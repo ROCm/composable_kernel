@@ -30,6 +30,8 @@ using CompTDMV1 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType:
 using CompTDMV2 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompTDMV2>;
 using CompTDMProducerConsumer =
     ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompTDMProducerConsumer>;
+using CompTDMProducerConsumerCShuffle =
+    ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompTDMProducerConsumerCShuffle>;
 
 using Persistent    = std::true_type;
 using NonPersistent = std::false_type;
@@ -348,6 +350,16 @@ using KernelTypesCompTDMProducerConsumerWmma = ::testing::Types<
     // shape above is not in the search grid at all. These two are.
     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer>
+>;
+
+// The producer/consumer pipeline with a CShuffleEpilogue, the pairing that can split K.
+// Non-persistent only: the persistent work loop over num_tiles * k_batch is not covered yet.
+using KernelTypesCompTDMProducerConsumerCShuffleWmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>,
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>,
+    std::tuple<    Row,     Row,     Row,       BF16,      BF16,        F32,       BF16,       I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>,
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>
 >;
 
 // clang-format on

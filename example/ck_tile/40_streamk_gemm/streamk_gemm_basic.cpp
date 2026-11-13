@@ -50,8 +50,8 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
 
     // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
     // This is because num_loop can vary (a) per WG and (b) per iteration of the Stream-K
-    // while loop. Instead, has_hot_loop and tail_num are determined in the Stream-K
-    // Kernel's RunGemm function. This is a similar pattern used by grouped GEMM.
+    // while loop. Instead, the pipeline determines has_hot_loop and tail_num at run time
+    // from num_loop. This is a similar pattern used by grouped GEMM.
     using UniversalGemmProblem =
         ck_tile::UniversalGemmPipelineProblem<ADataType,
                                               BDataType,
@@ -106,9 +106,13 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
     auto reset_data_buffers = [&]() {
         if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
         {
-            // Clear the output C tensor results after each repetition of the kernel
-            hipGetErrorString(hipMemsetAsync(
-                args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream_config.stream_id_));
+            // Clear the output C tensor results after each repetition of the kernel. Without
+            // Stream-K workgroups every tile is stored, not added, so C needs no clearing.
+            if(kernel_args.tile_partitioner.get_sk_ctas() > 0)
+            {
+                hipGetErrorString(hipMemsetAsync(
+                    args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream_config.stream_id_));
+            }
         }
         else if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Linear)
         {

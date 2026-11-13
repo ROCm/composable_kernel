@@ -31,14 +31,30 @@ enum struct GemmPipelineType
     CompAsyncEightWaves,
     CompTDMV1,
     CompTDMV2,
-    CompTDMProducerConsumer
+    CompTDMProducerConsumer,
+    // GemmPipelineAgBgCrCompTDMProducerConsumer with a CShuffleEpilogue instead of TdmEpilogue,
+    // which is what lets it accumulate split-K partial tiles.
+    CompTDMProducerConsumerCShuffle
 };
 
-// Pipelines that load A and B with TDM: no padding, no split-K (TdmEpilogue), ragged extents.
+// Both GemmPipelineType values that instantiate GemmPipelineAgBgCrCompTDMProducerConsumer.
+constexpr bool is_tdm_producer_consumer(GemmPipelineType pt)
+{
+    return pt == GemmPipelineType::CompTDMProducerConsumer ||
+           pt == GemmPipelineType::CompTDMProducerConsumerCShuffle;
+}
+
+// Pipelines that load A and B with TDM: no padding, ragged extents.
 constexpr bool is_tdm_pipeline(GemmPipelineType pt)
 {
     return pt == GemmPipelineType::CompTDMV1 || pt == GemmPipelineType::CompTDMV2 ||
-           pt == GemmPipelineType::CompTDMProducerConsumer;
+           is_tdm_producer_consumer(pt);
+}
+
+// TDM pipelines that store C through TdmEpilogue, which cannot do split-K.
+constexpr bool uses_tdm_epilogue(GemmPipelineType pt)
+{
+    return is_tdm_pipeline(pt) && pt != GemmPipelineType::CompTDMProducerConsumerCShuffle;
 }
 
 // Tail coverage loop shared by the async pipeline tests: calls run(M, N, K) for every {M, N}
@@ -234,6 +250,13 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompTDMProducerConsumer, Probl
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompTDMProducerConsumer"; }
 };
 
+// Same pipeline; only the epilogue differs (see GemmEpilogueTypeSelector).
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompTDMProducerConsumerCShuffle, Problem>
+    : GemmPipelineTypeSelector<GemmPipelineType::CompTDMProducerConsumer, Problem>
+{
+};
+
 template <GemmPipelineType PT, typename Problem, typename Enable = void>
 struct GemmEpilogueTypeSelector
 {
@@ -241,7 +264,7 @@ struct GemmEpilogueTypeSelector
 };
 
 template <GemmPipelineType PT, typename Problem>
-struct GemmEpilogueTypeSelector<PT, Problem, std::enable_if_t<is_tdm_pipeline(PT)>>
+struct GemmEpilogueTypeSelector<PT, Problem, std::enable_if_t<uses_tdm_epilogue(PT)>>
 {
     using epilogue = ck_tile::TdmEpilogue<Problem>;
 };
@@ -385,8 +408,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
              PipelineType == GemmPipelineType::CompAsync ||
              PipelineType == GemmPipelineType::CompAsyncV2 ||
              PipelineType == GemmPipelineType::CompTDMV1 ||
-             PipelineType == GemmPipelineType::CompTDMV2 ||
-             PipelineType == GemmPipelineType::CompTDMProducerConsumer);
+             PipelineType == GemmPipelineType::CompTDMV2 || is_tdm_producer_consumer(PipelineType));
 
 #if defined(CK_USE_GFX1250)
         static constexpr bool TransposeC =
@@ -568,7 +590,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         {
             GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
         }
-        if constexpr(PipelineType == GemmPipelineType::CompTDMProducerConsumer)
+        if constexpr(is_tdm_producer_consumer(PipelineType))
         {
             CK_TILE_SKIP_UNLESS_GFX125();
         }
@@ -594,11 +616,15 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                 "gfx1250 asicRevision=0.";
             }
         }
-        // for TDM it used tdm_epilogue which don't support split-k
-        if constexpr(PipelineType == GemmPipelineType::CompV4 ||
-                     PipelineType == GemmPipelineType::CompAsyncV2 ||
-                     PipelineType == GemmPipelineType::CompAsyncEightWaves || IsAsync_v || IsTdm ||
-                     std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        // TdmEpilogue cannot accumulate, so TDM pipelines only split K with a CShuffleEpilogue.
+        if constexpr(PipelineType == GemmPipelineType::CompTDMProducerConsumerCShuffle)
+        {
+            k_batches_ = {1, 2, 4};
+        }
+        else if constexpr(PipelineType == GemmPipelineType::CompV4 ||
+                          PipelineType == GemmPipelineType::CompAsyncV2 ||
+                          PipelineType == GemmPipelineType::CompAsyncEightWaves || IsAsync_v ||
+                          IsTdm || std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
             // Only do k_batch = 1 when pipeline is CompV4, BDataType is I4 or async pipeline.
             // CompAsyncV2 pins k_batch = 1 so the tests control num_loop (tail) exactly.
@@ -629,6 +655,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
             {
                 // skip test when split k' number is not evenly distributed
                 if((K / K_Tile) % kb != 0)
+                {
+                    continue;
+                }
+                // A TDM pipeline cannot pad K, so every split must hold whole K tiles.
+                if(IsTdm && kb > 1 && K % (K_Tile * kb) != 0)
                 {
                     continue;
                 }

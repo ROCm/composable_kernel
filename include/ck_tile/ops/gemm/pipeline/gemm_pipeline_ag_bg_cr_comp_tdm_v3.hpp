@@ -96,7 +96,10 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
     /// Split-K with a split-K-capable epilogue (CShuffle): each split's TDM loads are clipped to
     /// its K range (and with MX scales, its scale loads too), and the split-K path is tested, so
     /// UniversalGemmKernel and MxGemmKernel let this pipeline run k_batch > 1 (see their
-    /// IsSupportedArgument). TDM pipelines without this member reject k_batch > 1.
+    /// IsSupportedArgument). TDM pipelines without this member reject k_batch > 1, except the
+    /// producer/consumer pipeline in UniversalGemmKernel (whole-K-tile splits only). Declaring it
+    /// also exempts the pipeline from UniversalGemmKernel's whole-tile C and split checks;
+    /// IsCTensorSupported still applies.
     static constexpr bool kSupportsTdmSplitK = true;
 
     template <GemmPipelineScheduler Scheduler>

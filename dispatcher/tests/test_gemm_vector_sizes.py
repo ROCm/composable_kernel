@@ -403,6 +403,19 @@ class TestTdmWidthsAndPairing(unittest.TestCase):
                 fallback.pairs(problems, [(cfg, Path("built.so"))]), [[0]] * 4
             )
 
+    def test_tdm_pipeline_with_cshuffle_needs_c_tile_multiple(self):
+        # The TDM loads clip A and B, but a CShuffle store does not clip C's
+        # contiguous dimension (N for row-major C), so only that extent must still
+        # be a tile multiple; the TDM epilogue clips C too.
+        cfg = replace(self._tdm("comp_tdm_pc"), epilogue="cshuffle")
+        self.assertTrue(_tile_fits(cfg, {"m": 513, "n": cfg.tile_n * 3, "k": 517}))
+        self.assertFalse(_tile_fits(cfg, {"m": 512, "n": cfg.tile_n * 3 + 1, "k": 512}))
+        self.assertTrue(
+            _tile_fits(
+                self._tdm("comp_tdm_pc"), {"m": 512, "n": cfg.tile_n * 3 + 1, "k": 512}
+            )
+        )
+
     def test_non_tdm_still_needs_tile_multiples(self):
         cfg, _ = _bridge_config(vec=(0, 0, 0))
         cfg = replace(cfg, pad_m=False, pad_n=False, pad_k=False)

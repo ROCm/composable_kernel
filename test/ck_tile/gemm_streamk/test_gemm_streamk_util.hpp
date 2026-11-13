@@ -3,40 +3,65 @@
 #pragma once
 #include <gtest/gtest.h>
 #include <hip/hip_runtime.h>
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <iostream>
 #include <string>
 #include <tuple>
+#include <type_traits>
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+// After the umbrella headers: as a TU's first ck_tile include it enters numeric.hpp's include
+// cycle, which on gfx125 reaches mxfp_convert.hpp before numeric_traits is declared.
+#include "ck_tile/core/utility/type_traits.hpp"
 
 enum struct GemmPipelineType
 {
     Mem,
     CompV3,
-    CompV4
+    CompV4,
+    // GemmPipelineAgBgCrCompTDMProducerConsumer (gfx1250 only): TDM loads into a ring of LDS
+    // slots, filled by producer waves and drained by consumer waves.
+    CompTDMProducerConsumer
 };
 
-template <GemmPipelineType PT, typename Problem>
+enum struct StreamKEpilogueType
+{
+    CShuffle,
+    // TdmEpilogue: stores C through the Tensor Data Mover (gfx1250 only). It overwrites C, so it
+    // pairs with linear and tree reduction only.
+    Tdm
+};
+
+// PCPolicy is the GemmPipelineAgBgCrCompTDMProducerConsumerPolicy; other pipelines ignore it.
+template <GemmPipelineType PT, typename Problem, typename PCPolicy>
 struct GemmPipelineTypeSelector;
 
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem>
+template <typename Problem, typename PCPolicy>
+struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem, PCPolicy>
 {
     using pipeline = ck_tile::GemmPipelineAgBgCrMem<Problem>;
 };
 
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem>
+template <typename Problem, typename PCPolicy>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem, PCPolicy>
 {
     using pipeline = ck_tile::GemmPipelineAgBgCrCompV3<Problem>;
 };
 
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
+template <typename Problem, typename PCPolicy>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem, PCPolicy>
 {
     using pipeline = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
+};
+
+template <typename Problem, typename PCPolicy>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompTDMProducerConsumer, Problem, PCPolicy>
+{
+    using pipeline = ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumer<Problem, PCPolicy>;
 };
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
@@ -90,30 +115,36 @@ class TestCkTileStreamK : public ::testing::Test
     static constexpr bool Persistent        = std::tuple_element_t<13, Tuple>::value;
     static constexpr auto PipelineType      = std::tuple_element_t<14, Tuple>::value;
     static constexpr auto ReductionStrategy = std::tuple_element_t<15, Tuple>::value;
+    // Optional trailing parameters, so existing type lists need not spell them out.
+    static constexpr auto EpilogueType = ck_tile::tuple_element_or_default_t<
+        Tuple,
+        16,
+        ck_tile::integral_constant<StreamKEpilogueType, StreamKEpilogueType::CShuffle>>::value;
+    using PCPolicy = ck_tile::tuple_element_or_default_t<
+        Tuple,
+        17,
+        ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<>>;
 
-    template <bool PadM       = true,
-              bool PadN       = true,
-              bool PadK       = true,
-              bool Preshuffle = false,
-              bool TransposeC = false>
-    ck_tile::index_t invoke_streamk(const ck_tile::StreamKHostArgs& args,
-                                    const ck_tile::stream_config& s,
-                                    int num_cu         = 0,
-                                    bool require_split = false)
+    // TDM pipelines clip their loads to the real extents and reject padding.
+    static constexpr bool kIsTdmPipeline =
+        PipelineType == GemmPipelineType::CompTDMProducerConsumer;
+
+    // The kernel type for a given pad/preshuffle combination, kept separate from invoke_streamk
+    // so host-side argument-validation tests can reach Kernel::IsSupportedArgument without
+    // allocating device memory or launching.
+    template <bool PadM, bool PadN, bool PadK, bool Preshuffle, bool TransposeC>
+    struct KernelFor
     {
-        constexpr ck_tile::index_t M_Warp = 2;
-        constexpr ck_tile::index_t N_Warp = 2;
-        constexpr ck_tile::index_t K_Warp = 1;
+        static constexpr ck_tile::index_t M_Warp = 2;
+        static constexpr ck_tile::index_t N_Warp = 2;
+        static constexpr ck_tile::index_t K_Warp = 1;
 
-        constexpr bool kPadM      = PadM;
-        constexpr bool kPadN      = PadN;
-        constexpr bool kPadK      = PadK;
-        constexpr bool preshuffle = Preshuffle;
-
-        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
-        constexpr int kBlockPerCu       = 1;
-        constexpr bool StructuredSparsity = false;
-        constexpr bool NumWaveGroup       = 1;
+        // CompTDMProducerConsumer sizes LDS from its own slot ring and ignores this flag; it is
+        // set to match what the tile engine emits for it.
+        static constexpr bool DoubleSmemBuffer =
+            PipelineType == GemmPipelineType::CompV4 || kIsTdmPipeline;
+        static constexpr bool StructuredSparsity       = false;
+        static constexpr ck_tile::index_t NumWaveGroup = 1;
 
         using GemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -123,9 +154,9 @@ class TestCkTileStreamK : public ::testing::Test
         using TilePartitioner =
             ck_tile::StreamKTilePartitioner<GemmShape, ReductionStrategy, Persistent>;
 
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
-                                                                     kPadN,
-                                                                     kPadK,
+        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<PadM,
+                                                                     PadN,
+                                                                     PadK,
                                                                      DoubleSmemBuffer,
                                                                      ALayout,
                                                                      BLayout,
@@ -134,14 +165,14 @@ class TestCkTileStreamK : public ::testing::Test
                                                                      StructuredSparsity,
                                                                      Persistent,
                                                                      NumWaveGroup,
-                                                                     preshuffle>;
+                                                                     Preshuffle>;
 
-        constexpr auto scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
+        static constexpr auto scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 
         // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
         // This is because num_loop can vary (a) per WG and (b) per iteration of the Stream-K
-        // while loop. Instead, has_hot_loop and tail_num are determined in the Stream-K
-        // Kernel's RunGemm function. This is a similar pattern used by grouped GEMM.
+        // while loop. Instead, the pipeline determines has_hot_loop and tail_num at run time
+        // from num_loop. This is a similar pattern used by grouped GEMM.
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                            BDataType,
                                                                            AccDataType,
@@ -149,27 +180,124 @@ class TestCkTileStreamK : public ::testing::Test
                                                                            GemmUniversalTraits,
                                                                            scheduler>;
 
-        using GemmPipeline = GemmPipelineTypeSelector<PipelineType, UniversalGemmProblem>::pipeline;
+        using GemmPipeline = typename GemmPipelineTypeSelector<PipelineType,
+                                                               UniversalGemmProblem,
+                                                               PCPolicy>::pipeline;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             ck_tile::tuple<>,
-                                             AccDataType,
-                                             CDataType,
-                                             ck_tile::tuple<>,
-                                             CLayout,
-                                             ck_tile::element_wise::PassThrough,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC>>;
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                                 BDataType,
+                                                                 ck_tile::tuple<>,
+                                                                 AccDataType,
+                                                                 CDataType,
+                                                                 ck_tile::tuple<>,
+                                                                 CLayout,
+                                                                 ck_tile::element_wise::PassThrough,
+                                                                 TilePartitioner::MPerBlock,
+                                                                 TilePartitioner::NPerBlock,
+                                                                 M_Warp,
+                                                                 N_Warp,
+                                                                 M_Warp_Tile,
+                                                                 N_Warp_Tile,
+                                                                 K_Warp_Tile,
+                                                                 UniversalGemmProblem::TransposeC>;
+
+        using GemmEpilogue = std::conditional_t<EpilogueType == StreamKEpilogueType::Tdm,
+                                                ck_tile::TdmEpilogue<EpilogueProblem>,
+                                                ck_tile::CShuffleEpilogue<EpilogueProblem>>;
 
         using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    };
+
+    template <bool PadM       = !kIsTdmPipeline,
+              bool PadN       = !kIsTdmPipeline,
+              bool PadK       = !kIsTdmPipeline,
+              bool Preshuffle = false,
+              bool TransposeC = false>
+    using KernelType = typename KernelFor<PadM, PadN, PadK, Preshuffle, TransposeC>::Kernel;
+
+    // Host-side argument validation without any allocation or launch. The pointers are never
+    // dereferenced.
+    static bool IsArgSupported(const ck_tile::StreamKHostArgs& args, int num_cu)
+    {
+        using Kernel = KernelType<>;
+        return Kernel::IsSupportedArgument(Kernel::MakeKernelArgs(args, num_cu, 1));
+    }
+
+    // Checks a device result against reference_gemm_gpu on the same device inputs. With integer
+    // inputs whose fp32 sums stay below 2^24, every summation order gives the same fp32 value,
+    // so @p exact demands equality, provided the results are integers CDataType holds exactly.
+    static void ExpectMatchesReference(const ck_tile::HostTensor<CDataType>& c_result,
+                                       void* a_dev,
+                                       void* b_dev,
+                                       ck_tile::index_t M,
+                                       ck_tile::index_t N,
+                                       ck_tile::index_t K,
+                                       ck_tile::index_t stride_A,
+                                       ck_tile::index_t stride_B,
+                                       ck_tile::index_t stride_C,
+                                       ck_tile::index_t num_accumulations_per_tile,
+                                       bool exact = false)
+    {
+        ck_tile::HostTensor<CDataType> c_ref(c_result.mDesc);
+        ck_tile::DeviceMem c_ref_buf(c_ref.get_element_space_size_in_bytes());
+        c_ref_buf.SetZero();
+        ck_tile::reference_gemm_gpu<ADataType,
+                                    BDataType,
+                                    AccDataType,
+                                    CDataType,
+                                    ALayout,
+                                    BLayout,
+                                    CLayout>(static_cast<ADataType*>(a_dev),
+                                             static_cast<BDataType*>(b_dev),
+                                             static_cast<CDataType*>(c_ref_buf.GetDeviceBuffer()),
+                                             M,
+                                             N,
+                                             K,
+                                             stride_A,
+                                             stride_B,
+                                             stride_C);
+        c_ref_buf.FromDevice(c_ref.data());
+
+        // The tolerance must bound the magnitude the atomic adds accumulate, whatever its sign.
+        float max_accumulated_value = 0.f;
+        for(const auto& v : c_ref.mData)
+        {
+            max_accumulated_value =
+                std::max(max_accumulated_value, std::fabs(ck_tile::type_convert<float>(v)));
+        }
+
+        if(exact)
+        {
+            // Every integer up to 2^(mant + 1) is exact in CDataType, so both sides convert the
+            // same fp32 sum to the same value whatever rounding mode each conversion uses.
+            ASSERT_LE(max_accumulated_value,
+                      std::ldexp(1.f, ck_tile::numeric_traits<CDataType>::mant + 1))
+                << "an exact comparison needs results CDataType represents exactly";
+        }
+
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, num_accumulations_per_tile, max_accumulated_value);
+
+        EXPECT_TRUE(ck_tile::check_err(c_result,
+                                       c_ref,
+                                       "Error: Incorrect results!",
+                                       exact ? 0. : rtol_atol.at(ck_tile::number<0>{}),
+                                       exact ? 0. : rtol_atol.at(ck_tile::number<1>{})));
+    }
+
+    template <bool PadM       = !kIsTdmPipeline,
+              bool PadN       = !kIsTdmPipeline,
+              bool PadK       = !kIsTdmPipeline,
+              bool Preshuffle = false,
+              bool TransposeC = false>
+    ck_tile::index_t invoke_streamk(const ck_tile::StreamKHostArgs& args,
+                                    const ck_tile::stream_config& s,
+                                    int num_cu         = 0,
+                                    bool require_split = false)
+    {
+        constexpr int kBlockPerCu = 1;
+
+        using Kernel = KernelType<PadM, PadN, PadK, Preshuffle, TransposeC>;
 
         auto kargs =
             num_cu > 0 ? Kernel::MakeKernelArgs(args, num_cu, 1) : Kernel::MakeKernelArgs(args);
@@ -291,44 +419,15 @@ class TestCkTileStreamK : public ::testing::Test
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
-        // Calculate reference GEMM on the GPU
-        ck_tile::HostTensor<CDataType> c_m_n_dev_ref(
-            f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
-        ck_tile::DeviceMem ref_c_m_n_dev_buf(c_m_n_dev_ref.get_element_space_size_in_bytes());
-        ref_c_m_n_dev_buf.SetZero();
-
-        ADataType* a_m_k_dev_ref_ptr = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
-        BDataType* b_k_n_dev_ref_ptr = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
-        CDataType* c_m_n_dev_ref_ptr = static_cast<CDataType*>(ref_c_m_n_dev_buf.GetDeviceBuffer());
-        ck_tile::reference_gemm_gpu<ADataType,
-                                    BDataType,
-                                    AccDataType,
-                                    CDataType,
-                                    ALayout,
-                                    BLayout,
-                                    CLayout>(a_m_k_dev_ref_ptr,
-                                             b_k_n_dev_ref_ptr,
-                                             c_m_n_dev_ref_ptr,
-                                             M,
-                                             N,
-                                             K,
-                                             stride_A,
-                                             stride_B,
-                                             stride_C);
-        ref_c_m_n_dev_buf.FromDevice(c_m_n_dev_ref.data());
-
-        const float max_accumulated_value =
-            *std::max_element(c_m_n_dev_ref.mData.begin(), c_m_n_dev_ref.mData.end());
-
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-            K, num_accumulations_per_tile, max_accumulated_value);
-
-        bool pass = ck_tile::check_err(c_m_n_dev_result,
-                                       c_m_n_dev_ref,
-                                       "Error: Incorrect results!",
-                                       rtol_atol.at(ck_tile::number<0>{}),
-                                       rtol_atol.at(ck_tile::number<1>{}));
-
-        EXPECT_TRUE(pass);
+        ExpectMatchesReference(c_m_n_dev_result,
+                               a_m_k_dev_buf.GetDeviceBuffer(),
+                               b_k_n_dev_buf.GetDeviceBuffer(),
+                               M,
+                               N,
+                               K,
+                               stride_A,
+                               stride_B,
+                               stride_C,
+                               num_accumulations_per_tile);
     };
 };

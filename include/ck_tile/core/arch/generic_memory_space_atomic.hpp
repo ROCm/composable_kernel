@@ -137,6 +137,15 @@ CK_TILE_DEVICE void atomic_add<bf16x2_t>(bf16x2_t* p_dst, const bf16x2_t& x)
 template <>
 CK_TILE_DEVICE void atomic_add<bf16x4_t>(bf16x4_t* p_dst, bf16x4_t const& x)
 {
+#if HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN
+    // Same gate and instruction as atomic_add<bf16x2_t> (global_atomic_pk_add_bf16, device
+    // scope; __has_builtin is false on targets without it). Two packed adds replace the 64-bit
+    // CAS loop below: each bf16 pair is still added atomically, which is all a sum needs. The
+    // hardware rounds the sum itself, whereas the CAS loop converts with
+    // CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT (truncation), so results can differ in the last bit.
+    atomic_add(c_style_pointer_cast<bf16x2_t*>(p_dst), x.lo);
+    atomic_add(c_style_pointer_cast<bf16x2_t*>(p_dst) + 1, x.hi);
+#else
     // Union to treat the pointer as either bf16x4_t* or uint64_t*:
     union U64BF164_ADDR
     {
@@ -174,6 +183,7 @@ CK_TILE_DEVICE void atomic_add<bf16x4_t>(bf16x4_t* p_dst, bf16x4_t const& x)
         cur_v.u64 = atomicCAS(addr.u64_a, old_v, new_v);
 
     } while(cur_v.u64 != old_v);
+#endif
 }
 
 template <>
