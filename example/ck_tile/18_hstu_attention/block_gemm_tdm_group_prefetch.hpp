@@ -5,18 +5,18 @@
 
 #include <ck_tile/core.hpp>
 
-#include "block_gemm_areg_bsmem_creg_v2_hack_0.hpp"
-#include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
-#include "block_gemm_asmem_breg_creg_v1_hack.hpp"
+#include "block_gemm_areg_bsmem_creg_full_gemmk_slice_gemmn.hpp"
+#include "block_gemm_areg_bsmem_trload_creg_slice_gemmk_full_gemmn.hpp"
+#include "block_gemm_asmem_breg_creg_full_gemmk_slice_gemmm.hpp"
 #include "hstu_attention_pipeline_policy_helper.hpp"
 
 namespace ck_tile {
 
 // Tdm-only P@V block gemm (gfx1250). Same A/B/C distributions as
-// BlockGemmARegBSmemTrLoadCRegV2Hack_1 (it derives from it), but the V ds_load_tr reads run ahead
-// of the WMMAs in groups: the (kIter, nIter) steps are flattened to steps 0 .. kSteps - 1 and
-// split into groups of kStepsPerGroup steps. The B tiles of steps [0, kPrefetchDepth) are loaded
-// up front; group g then first issues, back to back, the loads of steps
+// BlockGemmARegBSmemTrLoadCRegSliceGemmKFullGemmN (it derives from it), but the V ds_load_tr reads
+// run ahead of the WMMAs in groups: the (kIter, nIter) steps are flattened to steps 0 .. kSteps - 1
+// and split into groups of kStepsPerGroup steps. The B tiles of steps [0, kPrefetchDepth) are
+// loaded up front; group g then first issues, back to back, the loads of steps
 // [g * kStepsPerGroup + kPrefetchDepth, (g + 1) * kStepsPerGroup + kPrefetchDepth) (clipped to
 // kSteps) and then runs the WMMAs of its own steps [g * kStepsPerGroup, (g + 1) * kStepsPerGroup).
 // So the B tile of step s is loaded by the group that runs step s - kPrefetchDepth (or up front),
@@ -29,10 +29,10 @@ namespace ck_tile {
 // within a basic block, and a cross-attention M128 build (ROCm 7.2) was seen to sink the Q@K WMMAs
 // past the mask branch, behind all of the loads.
 template <typename Problem_, typename Policy_, index_t kPrefetchDepth_, index_t kStepsPerGroup_>
-struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
-    : public BlockGemmARegBSmemTrLoadCRegV2Hack_1<Problem_, Policy_>
+struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetchSliceGemmKFullGemmN
+    : public BlockGemmARegBSmemTrLoadCRegSliceGemmKFullGemmN<Problem_, Policy_>
 {
-    using Base           = BlockGemmARegBSmemTrLoadCRegV2Hack_1<Problem_, Policy_>;
+    using Base           = BlockGemmARegBSmemTrLoadCRegSliceGemmKFullGemmN<Problem_, Policy_>;
     using Problem        = remove_cvref_t<Problem_>;
     using Policy         = remove_cvref_t<Policy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -277,15 +277,16 @@ struct BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1
 };
 
 // Tdm-only Q@K block gemm (gfx1250), the K-side counterpart of the P@V gemm above: same
-// distributions as BlockGemmARegBSmemCRegV2Hack_0 (it derives from it) and the same step loop:
+// distributions as BlockGemmARegBSmemCRegFullGemmKSliceGemmN (it derives from it) and the same
+// step loop:
 // group g first loads the K tiles of steps [g * kStepsPerGroup + kPrefetchDepth,
 // (g + 1) * kStepsPerGroup + kPrefetchDepth) (clipped to kSteps), i.e. of its own steps shifted by
 // kPrefetchDepth, and then runs the WMMAs of its own steps (same limits as the P@V gemm above).
 template <typename Problem_, typename Policy_, index_t kPrefetchDepth_, index_t kStepsPerGroup_>
-struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
-    : public BlockGemmARegBSmemCRegV2Hack_0<Problem_, Policy_>
+struct BlockGemmARegBSmemCRegTdmGroupPrefetchFullGemmKSliceGemmN
+    : public BlockGemmARegBSmemCRegFullGemmKSliceGemmN<Problem_, Policy_>
 {
-    using Base           = BlockGemmARegBSmemCRegV2Hack_0<Problem_, Policy_>;
+    using Base           = BlockGemmARegBSmemCRegFullGemmKSliceGemmN<Problem_, Policy_>;
     using Problem        = remove_cvref_t<Problem_>;
     using Policy         = remove_cvref_t<Policy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -518,16 +519,16 @@ struct BlockGemmARegBSmemCRegTdmGroupPrefetch_0
     }
 };
 
-// As BlockGemmARegBSmemCRegTdmGroupPrefetch_0, but the A operand (Q) is read from Lds too: per
-// (kIter, nIter) step the B tile is loaded kPrefetchDepth steps before its WMMAs, as there, and
-// the MIterPerWarp A tiles of a kIter are loaded together with the B tile of that kIter's first
-// step, i.e. in the same group of DS loads. Only the A tiles of the current and the next kIter
-// are live (2 x MIterPerWarp x 8 VGPRs) instead of the whole Q tile.
+// As BlockGemmARegBSmemCRegTdmGroupPrefetchFullGemmKSliceGemmN, but the A operand (Q) is read from
+// Lds too: per (kIter, nIter) step the B tile is loaded kPrefetchDepth steps before its WMMAs, as
+// there, and the MIterPerWarp A tiles of a kIter are loaded together with the B tile of that
+// kIter's first step, i.e. in the same group of DS loads. Only the A tiles of the current and the
+// next kIter are live (2 x MIterPerWarp x 8 VGPRs) instead of the whole Q tile.
 template <typename Problem_, typename Policy_, index_t kPrefetchDepth_, index_t kStepsPerGroup_>
-struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
-    : public BlockGemmARegBSmemCRegV2Hack_0<Problem_, Policy_>
+struct BlockGemmASmemBSmemCRegTdmGroupPrefetchFullGemmKSliceGemmN
+    : public BlockGemmARegBSmemCRegFullGemmKSliceGemmN<Problem_, Policy_>
 {
-    using Base           = BlockGemmARegBSmemCRegV2Hack_0<Problem_, Policy_>;
+    using Base           = BlockGemmARegBSmemCRegFullGemmKSliceGemmN<Problem_, Policy_>;
     using Problem        = remove_cvref_t<Problem_>;
     using Policy         = remove_cvref_t<Policy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -649,8 +650,8 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
         };
 
         // The step offset is folded into kStepOffsetB as in
-        // BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1; see the comments there for why this is
-        // exact.
+        // BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetchSliceGemmKFullGemmN; see the comments there
+        // for why this is exact.
         auto load_step = [&](auto i_step) {
             constexpr index_t kIter = i_step / NIterPerWarp;
             constexpr index_t nIter = i_step % NIterPerWarp;
@@ -747,21 +748,21 @@ struct BlockGemmASmemBSmemCRegTdmGroupPrefetch_0
 };
 
 // Tdm-only block gemm with A in Lds and B in registers (gfx1250), used by the bwd kernel-2 gemms
-// (e.g. S = Q @ K, dP = dO @ V). Same distributions as BlockGemmASmemBRegCRegV1Hack (it
-// derives from it). The base loops over mIter, then kIter, loads one A warp tile from Lds per
+// (e.g. S = Q @ K, dP = dO @ V). Same distributions as BlockGemmASmemBRegCRegFullGemmKSliceGemmM
+// (it derives from it). The base loops over mIter, then kIter, loads one A warp tile from Lds per
 // (mIter, kIter) and runs the NIterPerWarp WMMAs of that A tile against the B tile in registers.
 // Here those (mIter, kIter) pairs are flattened to steps 0 .. kSteps - 1 (i_step = mIter *
 // KIterPerWarp + kIter, the base's order) and run in groups as in
-// BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetch_1: the A tiles of steps [0, kPrefetchDepth) are
-// loaded up front, and group g first issues the loads of steps
+// BlockGemmARegBSmemTrLoadCRegTdmGroupPrefetchSliceGemmKFullGemmN: the A tiles of steps
+// [0, kPrefetchDepth) are loaded up front, and group g first issues the loads of steps
 // [g * kStepsPerGroup + kPrefetchDepth, (g + 1) * kStepsPerGroup + kPrefetchDepth) (clipped to
 // kSteps) back to back, then runs the kStepsPerGroup * NIterPerWarp WMMAs of its own steps (same
 // limits as the P@V gemm above).
 template <typename Problem_, typename Policy_, index_t kPrefetchDepth_, index_t kStepsPerGroup_>
-struct BlockGemmASmemBRegCRegTdmGroupPrefetch
-    : public BlockGemmASmemBRegCRegV1Hack<Problem_, Policy_>
+struct BlockGemmASmemBRegCRegTdmGroupPrefetchFullGemmKSliceGemmM
+    : public BlockGemmASmemBRegCRegFullGemmKSliceGemmM<Problem_, Policy_>
 {
-    using Base           = BlockGemmASmemBRegCRegV1Hack<Problem_, Policy_>;
+    using Base           = BlockGemmASmemBRegCRegFullGemmKSliceGemmM<Problem_, Policy_>;
     using Problem        = remove_cvref_t<Problem_>;
     using Policy         = remove_cvref_t<Policy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -871,8 +872,9 @@ struct BlockGemmASmemBRegCRegTdmGroupPrefetch
         statically_indexed_array<a_warp_tensor_type, kSteps> a_warp_tensors;
 
         // The step offset is folded into kStepOffsetA as kStepOffsetB is in
-        // BlockGemmARegBSmemCRegTdmGroupPrefetch_0 (A and B are both read with normal ds_load from
-        // row-major padded Lds layouts); see the comments there for why this is exact.
+        // BlockGemmARegBSmemCRegTdmGroupPrefetchFullGemmKSliceGemmN (A and B are both read with
+        // normal ds_load from row-major padded Lds layouts); see the comments there for why this is
+        // exact.
         auto load_step = [&](auto i_step) {
             constexpr index_t mIter = i_step / KIterPerWarp;
             constexpr index_t kIter = i_step % KIterPerWarp;

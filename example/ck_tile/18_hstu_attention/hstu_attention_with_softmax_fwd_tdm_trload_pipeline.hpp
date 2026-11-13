@@ -415,9 +415,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
         // exp2(s * exp_scale - m * exp_scale), one fma plus one v_exp_f32 per element, so S leaves
         // gemm_0 unscaled and m / m_old live in the unscaled domain (threshold unscaled too). Used
         // with the vote-gated softmax; the bias / dropout instances keep the scaled exp path.
-        constexpr bool kFoldScaleIntoExp     = kVoteGatedSoftmax;
-        const CompDataType exp_scale         = type_convert<CompDataType>(
-            (kFoldScaleIntoExp ? scale_s : 1.0f) * log2e_v<float>);
+        constexpr bool kFoldScaleIntoExp = kVoteGatedSoftmax;
+        const CompDataType exp_scale =
+            type_convert<CompDataType>((kFoldScaleIntoExp ? scale_s : 1.0f) * log2e_v<float>);
         const CompDataType m_reuse_threshold =
             type_convert<CompDataType>(kFoldScaleIntoExp ? (-8.0f / scale_s) : -8.0f);
         const auto f_exp2 = [](CompDataType x) {
@@ -589,7 +589,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
                 constexpr auto p_spans = decltype(pcomp_tile)::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                    constexpr auto i_idx = make_tuple(idx0);
+                    constexpr auto i_idx     = make_tuple(idx0);
                     const CompDataType nml_i = nml[i_idx];
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -618,7 +618,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                     constexpr auto i_idx = make_tuple(idx0);
 
-                    if(__builtin_expect(m[i_idx] == -numeric<CompDataType>::infinity(), 0)) // unlikely
+                    if(__builtin_expect(m[i_idx] == -numeric<CompDataType>::infinity(),
+                                        0)) // unlikely
                     {
                         sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                             constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -639,8 +640,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
                     }
                 });
 
-                auto rowsum_p =
-                    block_tile_reduce<CompDataType>(pcomp_tile, sequence<1>{}, f_sum, CompDataType{0});
+                auto rowsum_p = block_tile_reduce<CompDataType>(
+                    pcomp_tile, sequence<1>{}, f_sum, CompDataType{0});
 
                 block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
@@ -649,7 +650,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
                 sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                     constexpr auto i_idx = make_tuple(idx0);
 
-                    if(__builtin_expect(m[i_idx] == -numeric<CompDataType>::infinity(), 0)) // unlikely
+                    if(__builtin_expect(m[i_idx] == -numeric<CompDataType>::infinity(),
+                                        0)) // unlikely
                     {
                         l(i_idx) = rowsum_p[i_idx];
                     }
@@ -713,7 +715,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTdmTrLoad
 
             constexpr auto lse_or_lse_acc_spans = decltype(lse_or_lse_acc)::get_distributed_spans();
             sweep_tile_span(lse_or_lse_acc_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
-                constexpr auto i_idx  = make_tuple(idx0);
+                constexpr auto i_idx = make_tuple(idx0);
                 lse_or_lse_acc(i_idx) =
                     m_[i_idx] * (kFoldScaleIntoExp ? scale_s : 1.0f) + log(l_[i_idx]);
             });

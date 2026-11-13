@@ -153,9 +153,9 @@ KV dimension across multiple work-groups and uses a separate combine pass
 ├── reference_hstu_attention_fwd.hpp            # CPU reference implementation for validation
 │
 │-- Custom GEMM hacks --
-├── block_gemm_areg_bsmem_creg_v2_hack_0.hpp
-├── block_gemm_areg_bsmem_creg_v2_hack_1.hpp
-├── block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp
+├── block_gemm_areg_bsmem_creg_full_gemmk_slice_gemmn.hpp
+├── block_gemm_areg_bsmem_creg_slice_gemmk_full_gemmn.hpp
+├── block_gemm_areg_bsmem_trload_creg_slice_gemmk_full_gemmn.hpp
 │
 ├── instances/                                  # Pre-compiled kernel instances (auto-generated)
 │   ├── hstu_attention_{batched,group,jagged}_forward_{fp16,bf16}_*.cpp

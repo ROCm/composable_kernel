@@ -12,7 +12,7 @@ namespace ck_tile {
 // B is block distributed tensor
 // C is block distributed tensor
 template <typename Problem_, typename Policy_ = BlockGemmASmemBRegCRegV1DefaultPolicy>
-struct BlockGemmASmemBRegCRegV1Hack
+struct BlockGemmASmemBRegCRegFullGemmKSliceGemmM
 {
     using Problem        = remove_cvref_t<Problem_>;
     using Policy         = remove_cvref_t<Policy_>;
