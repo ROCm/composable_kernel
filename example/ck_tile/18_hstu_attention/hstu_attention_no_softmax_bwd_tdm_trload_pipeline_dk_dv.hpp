@@ -345,6 +345,8 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
         load_tile_tdm(tdm_config_do, do_lds_windows_0[number<0>{}], do_dram_window);
         move_tile_window(do_dram_window, {kM0Sub, 0});
 
+        __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+
         clear_tile(dk_acc);
         clear_tile(dv_acc);
 
@@ -352,7 +354,7 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
             const auto one = type_convert<CompDataType>(1.0f);
             CompDataType sig;
             if constexpr(std::is_same_v<CompDataType, float>)
-                sig = __builtin_amdgcn_rcpf(one + __expf(-x));
+                sig = 0.5f * __builtin_amdgcn_tanhf(0.5f * x) + 0.5f;
             else
                 sig = one / (one + exp(-x));
 
@@ -363,7 +365,7 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
         const auto f_dsilu = [](CompDataType x, CompDataType sig) -> CompDataType {
             const auto one = type_convert<CompDataType>(1.0f);
 
-            return sig * (one + x * (one - sig));
+            return sig + sig * (one - sig) * x;
         };
 
         const auto f_silu = [](CompDataType x, CompDataType sig) -> CompDataType {

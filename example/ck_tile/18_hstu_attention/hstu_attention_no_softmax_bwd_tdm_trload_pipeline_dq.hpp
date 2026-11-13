@@ -316,10 +316,10 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
             const auto one = type_convert<CompDataType>(1.0f);
             CompDataType sig;
             if constexpr(std::is_same_v<CompDataType, float>)
-                sig = __builtin_amdgcn_rcpf(one + __expf(-x));
+                sig = 0.5f * __builtin_amdgcn_tanhf(0.5f * x) + 0.5f;
             else
                 sig = one / (one + exp(-x));
-            return sig * (one + x * (one - sig));
+            return sig + sig * (one - sig) * x;
         };
 
         auto seqlen_k_curr = seqlen_k_start;
