@@ -1,15 +1,23 @@
-# Common compile options shared by all targets (executables and libraries) below.
-set(EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS)
+# Compile options common to the libraries and the example executables.
+set(HSTU_ATTENTION_COMMON_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
 
-list(APPEND EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
+# The example executables only need the common options.
+set(EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS ${HSTU_ATTENTION_COMMON_COMPILE_OPTIONS})
+
+# The fwd/bwd libraries also need the arch-specific options.
+set(HSTU_ATTENTION_FWD_LIB_COMPILE_OPTIONS ${HSTU_ATTENTION_COMMON_COMPILE_OPTIONS})
+set(HSTU_ATTENTION_BWD_LIB_COMPILE_OPTIONS ${HSTU_ATTENTION_COMMON_COMPILE_OPTIONS})
 
 if(GPU_TARGETS MATCHES "gfx125")
-    list(APPEND EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX125 -fno-slp-vectorize)
+    list(APPEND HSTU_ATTENTION_FWD_LIB_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX125 -fno-slp-vectorize)
+    list(APPEND HSTU_ATTENTION_BWD_LIB_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX125 -fno-slp-vectorize)
 elseif(GPU_TARGETS MATCHES "gfx95")
     ## disable slp-vectorize improve pipelines performance on gfx950
-    list(APPEND EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX95 -fno-slp-vectorize)
+    list(APPEND HSTU_ATTENTION_FWD_LIB_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX95 -fno-slp-vectorize)
+    list(APPEND HSTU_ATTENTION_BWD_LIB_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX95 -fno-slp-vectorize)
 else()
-    list(APPEND EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX94)
+    list(APPEND HSTU_ATTENTION_FWD_LIB_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX94)
+    list(APPEND HSTU_ATTENTION_BWD_LIB_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX94)
 endif()
 
 # Source lists for the forward path
@@ -25,12 +33,12 @@ file(GLOB OTHER_INTERFACE_SRCS "hstu_generate_*_random_number_*.cpp")
 # Forward library: libhstufwd.so
 add_library(hstufwd SHARED EXCLUDE_FROM_ALL ${FWD_INTERFACE_SRCS} ${FWD_INSTANCE_SRCS})
 target_include_directories(hstufwd PUBLIC ${CMAKE_CURRENT_LIST_DIR})
-target_compile_options(hstufwd PRIVATE ${EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS})
+target_compile_options(hstufwd PRIVATE ${HSTU_ATTENTION_FWD_LIB_COMPILE_OPTIONS})
 
 # Backward library: libhstubwd.so
 add_library(hstubwd SHARED EXCLUDE_FROM_ALL ${BWD_INTERFACE_SRCS} ${BWD_INSTANCE_SRCS})
 target_include_directories(hstubwd PUBLIC ${CMAKE_CURRENT_LIST_DIR})
-target_compile_options(hstubwd PRIVATE ${EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS})
+target_compile_options(hstubwd PRIVATE ${HSTU_ATTENTION_BWD_LIB_COMPILE_OPTIONS})
 
 set(EXAMPLE_HSTU_ATTENTION_FWD "tile_example_hstu_attention_fwd")
 # not using add_example_executable() to add this target, since we don't want this to have
