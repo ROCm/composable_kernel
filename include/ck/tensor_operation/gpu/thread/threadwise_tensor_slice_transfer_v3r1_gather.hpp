@@ -43,7 +43,9 @@ template <typename SliceLengths,
                                            // save addr computation
           typename IndexType,
           index_t GatherDim        = 1,
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          // Mask source elements in the padded region of SrcDesc (e.g. K padding).
+          bool CheckSrcValidity = false>
 struct ThreadwiseTensorSliceTransfer_v3r1_gather
 {
     static constexpr index_t nDim = SliceLengths::Size();
@@ -164,14 +166,23 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
 
             const IndexType ld_offset = src_coord_.GetOffset() / PackedSize + gather_offset;
+            // The gather dim of src_coord_ is held at 0, so this only checks the other dims.
+            bool is_src_valid = true;
+            if constexpr(CheckSrcValidity)
+            {
+                is_src_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
+                    src_desc, src_coord_);
+            }
             src_oob_thread_scratch_tuple_(thread_scratch_id)
-                .template SetAsType<bool>(src_data_idx_seq, true);
+                .template SetAsType<bool>(src_data_idx_seq, is_src_valid);
 
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
 
+            // Masking with a select after the load would stall the prefetch on that load.
             auto src_vector_container =
-                src_vector_type{src_buf.template Get<src_vector_t>(ld_offset, true)};
+                src_vector_type{src_buf.template Get<src_vector_t, false, CheckSrcValidity>(
+                    ld_offset, is_src_valid)};
 
             using dst_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;

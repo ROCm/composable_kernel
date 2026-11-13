@@ -364,6 +364,20 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
     // static constexpr index_t NumTokens = 1;
     static constexpr index_t SortedTileSize = MPerBlock;
 
+    // When GemmSpec pads N and/or K, each expert's B only needs zero-padding to whole preshuffle
+    // tiles (N to NLane, K to KLane * KPack / KGroup), so the same weights work with any block
+    // tile. A and E keep their logical K and N.
+    static constexpr bool PadN =
+        GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
+        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding;
+    static constexpr bool PadK =
+        GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
+        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding;
+
     static constexpr auto MakeDsGridPointer()
     {
         return generate_tuple(
@@ -418,6 +432,24 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
     __host__ __device__ static auto CalculateBK0Shuffled(index_t K)
     {
         return math::integer_divide_ceil(K, KLane * KPack / KGroup);
+    }
+
+    // Elements of one expert's preshuffled B with N0 x K0 tiles. With padding, N0 need not be a
+    // multiple of NWave, which the element space of MakeBGridDescriptor_Preshuffled assumes.
+    template <typename BGridDesc>
+    __host__ __device__ static auto
+    GetBPreshuffledSize(const BGridDesc& b_grid_desc, index_t N0, index_t K0)
+    {
+        if constexpr(PadN || PadK)
+        {
+            constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+            constexpr index_t WaveSize = BlockSize / (MWave * NWave);
+            return N0 * K0 * (WaveSize * KPack / KGroup);
+        }
+        else
+        {
+            return b_grid_desc.GetElementSpaceSize();
+        }
     }
 
     __host__ __device__ static auto CalculateKPadded(index_t K)
@@ -1251,8 +1283,13 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
+        // With padding, B reads past its N0 tiles are out of bounds, and reads past K within a
+        // tile row (into the next row) only meet masked A.
         const long_index_t expert_stride = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(problem.N) * problem.K * (IsInputGemm ? 2 : 1));
+            (PadN || PadK ? static_cast<long_index_t>(GetBPreshuffledSize(
+                                b_grid_desc_bpreshuffled, BN0Shuffled, BK0Shuffled))
+                          : static_cast<long_index_t>(problem.N) * problem.K) *
+            (IsInputGemm ? 2 : 1));
         const long_index_t expert_offset =
             static_cast<long_index_t>(expert_id) * expert_stride / BPackedSize;
         // N0, K0, Blocksize*KPack
@@ -1262,7 +1299,8 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid + expert_offset, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+            p_b_grid + expert_offset,
+            GetBPreshuffledSize(b_grid_desc_bpreshuffled, BN0Shuffled, BK0Shuffled));
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 =
             GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch());
@@ -1295,13 +1333,14 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             true,
             IndexType,
             1,
-            BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
-                                                make_multi_index(0, 0, 0),
-                                                a_element_op,
-                                                a_block_desc_ak0_m_ak1,
-                                                make_multi_index(0, 0, 0),
-                                                ck::tensor_operation::element_wise::PassThrough{},
-                                                gather_offsets);
+            BlockwiseGemmPipe::GlobalBufferNum,
+            PadK>(a_grid_desc_ak0_m_ak1,
+                  make_multi_index(0, 0, 0),
+                  a_element_op,
+                  a_block_desc_ak0_m_ak1,
+                  make_multi_index(0, 0, 0),
+                  ck::tensor_operation::element_wise::PassThrough{},
+                  gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
@@ -1352,7 +1391,8 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_grid_up + expert_offset, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+                p_b_grid_up + expert_offset,
+                GetBPreshuffledSize(b_grid_desc_bpreshuffled, BN0Shuffled, BK0Shuffled));
             auto b_blockwise_copy_up = ThreadwiseTensorSliceTransfer_v2<
                 BDataType,
                 BDataType,
@@ -1716,20 +1756,23 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
         const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
-        Base::template RunMoeEpilogue<CGlobalMemoryDataOperation, false, IsInputGemm, IndexType>(
-            blockwise_gemm_pipeline,
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            c_thread_buf_fp32,
-            block_m_id,
-            block_n_id,
-            p_shared,
-            p_sorted_token_ids,
-            p_c_grid,
-            p_ds_grid,
-            c_element_op,
-            problem.TopK,
-            problem.N);
+        Base::template RunMoeEpilogue<CGlobalMemoryDataOperation,
+                                      false,
+                                      IsInputGemm,
+                                      IndexType,
+                                      PadN>(blockwise_gemm_pipeline,
+                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            c_thread_buf_fp32,
+                                            block_m_id,
+                                            block_n_id,
+                                            p_shared,
+                                            p_sorted_token_ids,
+                                            p_c_grid,
+                                            p_ds_grid,
+                                            c_element_op,
+                                            problem.TopK,
+                                            problem.N);
     }
 
     template <bool HasMainKBlockLoop,
@@ -1830,8 +1873,13 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
+        // With padding, B reads past its N0 tiles are out of bounds, and reads past K within a
+        // tile row (into the next row) only meet masked A.
         const long_index_t expert_stride = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(problem.N) * problem.K * (IsInputGemm ? 2 : 1));
+            (PadN || PadK ? static_cast<long_index_t>(GetBPreshuffledSize(
+                                b_grid_desc_bpreshuffled, BN0Shuffled, BK0Shuffled))
+                          : static_cast<long_index_t>(problem.N) * problem.K) *
+            (IsInputGemm ? 2 : 1));
         const long_index_t expert_offset =
             static_cast<long_index_t>(expert_id) * expert_stride / BPackedSize;
         // N0, K0, Blocksize*KPack
@@ -1841,7 +1889,8 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid + expert_offset, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+            p_b_grid + expert_offset,
+            GetBPreshuffledSize(b_grid_desc_bpreshuffled, BN0Shuffled, BK0Shuffled));
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 =
@@ -1875,13 +1924,14 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             true,
             IndexType,
             1,
-            2>(a_grid_desc_ak0_m_ak1,
-               make_multi_index(0, 0, 0),
-               a_element_op,
-               a_block_desc_ak0_m_ak1,
-               make_multi_index(0, 0, 0),
-               ck::tensor_operation::element_wise::PassThrough{},
-               gather_offsets);
+            2,
+            PadK>(a_grid_desc_ak0_m_ak1,
+                  make_multi_index(0, 0, 0),
+                  a_element_op,
+                  a_block_desc_ak0_m_ak1,
+                  make_multi_index(0, 0, 0),
+                  ck::tensor_operation::element_wise::PassThrough{},
+                  gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
@@ -1939,7 +1989,8 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_grid_up + expert_offset, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+                p_b_grid_up + expert_offset,
+                GetBPreshuffledSize(b_grid_desc_bpreshuffled, BN0Shuffled, BK0Shuffled));
             auto b_blockwise_copy_up = ThreadwiseTensorSliceTransfer_v2<
                 BDataType,
                 BDataType,
@@ -2303,20 +2354,23 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
         const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
-        Base::template RunMoeEpilogue<CGlobalMemoryDataOperation, false, IsInputGemm, IndexType>(
-            blockwise_gemm_pipeline,
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            c_thread_buf_fp32,
-            block_m_id,
-            block_n_id,
-            p_shared,
-            p_sorted_token_ids,
-            p_c_grid,
-            p_ds_grid,
-            c_element_op,
-            problem.TopK,
-            problem.N);
+        Base::template RunMoeEpilogue<CGlobalMemoryDataOperation,
+                                      false,
+                                      IsInputGemm,
+                                      IndexType,
+                                      PadN>(blockwise_gemm_pipeline,
+                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            c_thread_buf_fp32,
+                                            block_m_id,
+                                            block_n_id,
+                                            p_shared,
+                                            p_sorted_token_ids,
+                                            p_c_grid,
+                                            p_ds_grid,
+                                            c_element_op,
+                                            problem.TopK,
+                                            problem.N);
     }
 };
 

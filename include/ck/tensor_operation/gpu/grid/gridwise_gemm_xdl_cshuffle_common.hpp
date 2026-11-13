@@ -2349,6 +2349,7 @@ struct GridwiseGemm_xdl_cshuffle_base
               bool TransposeC,
               bool IsInputGemm,
               typename IndexType,
+              bool CheckEValidity = false, // drop stores in the padded N region of E
               typename BlockwiseGemmPipe,
               typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
               typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -2470,14 +2471,15 @@ struct GridwiseGemm_xdl_cshuffle_base
                                        false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
             Sequence<false>,                    // ThreadTransferDstResetCoordinateAfterRunFlags
             IndexType,
-            1,                 // ScatterDim
-            true,              // OutputScatter: false, only use scatter weights
-            scatter_weight_idx // ScatterWeightIdx: ascale
-            >{c_ds_desc_refs,
-              idx_c_ds_block_begin,
-              tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-              make_tuple(make_multi_index(0, 0, block_n_id, 0)),
-              cde_element_op};
+            1,                  // ScatterDim
+            true,               // OutputScatter: false, only use scatter weights
+            scatter_weight_idx, // ScatterWeightIdx: ascale
+            1,                  // NumThreadScratch
+            CheckEValidity>{c_ds_desc_refs,
+                            idx_c_ds_block_begin,
+                            tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                            make_tuple(make_multi_index(0, 0, block_n_id, 0)),
+                            cde_element_op};
 
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global,
                                               AmdBufferCoherenceEnum::DefaultCoherence,

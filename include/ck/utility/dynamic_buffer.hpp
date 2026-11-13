@@ -76,8 +76,12 @@ struct DynamicBuffer
 
     __host__ __device__ constexpr T& operator()(IndexType i) { return p_data_[i]; }
 
+    // UseOobOffsetTrick: for global buffer loads, zero invalid elements by moving their offset
+    // out of the buffer range instead of selecting after the load, so the load does not have to
+    // complete before its result is masked.
     template <typename X,
-              bool DoTranspose               = false,
+              bool DoTranspose       = false,
+              bool UseOobOffsetTrick = CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value ||
                                      !is_native_type<X>(),
@@ -107,7 +111,8 @@ struct DynamicBuffer
             {
                 return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
                                                                    t_per_x,
-                                                                   coherence>(
+                                                                   coherence,
+                                                                   UseOobOffsetTrick>(
                     p_data_, i, is_valid_element, element_space_size_ / PackedSize);
             }
             else

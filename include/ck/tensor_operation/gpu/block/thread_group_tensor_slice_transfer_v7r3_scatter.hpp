@@ -46,7 +46,8 @@ template <typename ThreadGroup,
           index_t ScatterDim       = 1,
           bool OutputScatter       = true,
           index_t ScatterWeightIdx = 3,
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          bool CheckDstValidity    = false>
 struct ThreadGroupTensorSliceTransfer_v7r3_scatter
 {
     static constexpr index_t nDim =
@@ -233,7 +234,8 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
                                                    ScatterDim,
                                                    OutputScatter,
                                                    ScatterWeightIdx,
-                                                   NumThreadScratch>;
+                                                   NumThreadScratch,
+                                                   CheckDstValidity>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

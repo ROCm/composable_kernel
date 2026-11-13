@@ -43,7 +43,8 @@ template <typename ThreadGroup,
           bool ThreadTransferDstResetCoordinateAfterRun,
           typename IndexType,
           index_t GatherDim        = 1,
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          bool CheckSrcValidity    = false>
 struct ThreadGroupTensorSliceTransfer_v4r1_gather
 {
     static constexpr auto I0                   = Number<0>{};
@@ -193,7 +194,8 @@ struct ThreadGroupTensorSliceTransfer_v4r1_gather
                                                   ThreadTransferDstResetCoordinateAfterRun,
                                                   IndexType,
                                                   GatherDim,
-                                                  NumThreadScratch>;
+                                                  NumThreadScratch,
+                                                  CheckSrcValidity>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };
