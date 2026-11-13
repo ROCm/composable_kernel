@@ -35,7 +35,8 @@ FMHA_BWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 #if defined(__HIP_DEVICE_COMPILE__) &&                                                       \\
     (defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) ||                  \\
      defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) ||                  \\
-     defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__))
+     defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__) ||            \\
+     defined(__gfx1170__) || defined(__gfx1171__) || defined(__gfx11_7_generic__))
 #undef CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #endif
@@ -598,6 +599,10 @@ class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
         return []
 
 
+class KernelComponentFactoryGfx117(KernelComponentFactoryGfx12):
+    arch = ArchTrait("gfx117")
+
+
 class KernelComponentFactoryGfx125(KernelComponentFactoryBase):
     arch = ArchTrait("gfx125")
 
@@ -632,6 +637,8 @@ def get_factory(target: str):
         return KernelComponentFactoryGfx950
     if target.startswith("gfx9"):
         return KernelComponentFactoryGfx9
+    if target.startswith(("gfx117", "gfx11-7-generic")):
+        return KernelComponentFactoryGfx117
     if target.startswith("gfx11"):
         return KernelComponentFactoryGfx11
     if target.startswith("gfx125"):

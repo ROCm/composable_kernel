@@ -329,7 +329,8 @@ CK_TILE_HOST_DEVICE constexpr bfloat16_t float_to_bf16(float f, constant<roundin
 {
 // Use builtin bfloat16 conversion on gfx950 and gfx125 as they support native bf16 cvt
 // instructions; Add host side macro check for consistency during accuracy tests.
-#if CK_TILE_USE_LLVM_BUILTIN_BF16 && !defined(__gfx11__) && !defined(__gfx120__) && \
+#if CK_TILE_USE_LLVM_BUILTIN_BF16 && !defined(__gfx11__) && !defined(__gfx117__) && \
+    !defined(__gfx120__) &&                                                         \
     (defined(__gfx950__) || defined(__gfx12__) || defined(CK_GFX950_SUPPORT) ||     \
      defined(CK_GFX12_SUPPORT))
     return static_cast<bfloat16_t>(f);

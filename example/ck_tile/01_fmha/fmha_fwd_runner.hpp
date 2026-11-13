@@ -1523,7 +1523,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 // Fix group-mode tile selection: use the longest sequence length instead of
                 // the total Q length, which incorrectly selected large tiles for short sequences.
                 if(mode == mode_enum::group &&
-                   (ck_tile::is_gfx11_supported() || ck_tile::is_gfx120_supported()))
+                   (ck_tile::is_gfx11_supported() || ck_tile::is_gfx117_supported() ||
+                    ck_tile::is_gfx120_supported()))
                     args.max_seqlen_q = max_seqlen_q;
 
                 if(qscale.type == quant_scale_enum::pertensor)

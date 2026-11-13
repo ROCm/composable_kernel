@@ -76,7 +76,7 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kUseHdimTailArgs    = kPadHeadDimQ || kPadHeadDimV;
 
     // Separate K from V/dropout LDS to remove K/V aliasing barriers.
-#if defined(__gfx11__) || defined(__gfx120__)
+#if defined(__gfx11__) || defined(__gfx117__) || defined(__gfx120__)
     static constexpr bool kUseSeparateKVLds =
 #if defined(__gfx115__)
         // gfx115 separates LDS only for D128, except QK32/PV32.
@@ -90,6 +90,10 @@ struct BlockFmhaPipelineQRKSVS
            (kHasDropout && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS))) &&
         // D256 keeps shared LDS to preserve long-sequence throughput.
         !(kQKHeaddim == 256 && kN1 == 256) &&
+#elif defined(__gfx117__)
+        // D128 bias/dropout uses shared LDS; the throughput tiles stay separate.
+        !(kQKHeaddim == 128 && kN1 == 128 && kHasDropout &&
+          BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS) &&
 #elif defined(__gfx120__)
         // D64 masked dropout+sink shares LDS for bias and unpadded ALiBi.
         !(kQKHeaddim == 64 && FmhaMask::IsMasking && kHasDropout && kHasSink &&
@@ -644,6 +648,10 @@ struct BlockFmhaPipelineQRKSVS
                         schedule_gemm_0();
                     }
                 }
+#if defined(__gfx117__)
+                // Finish QK arithmetic before reusing its LDS operand storage.
+                impl::insert_dummy_dep(s_acc.get_thread_buffer());
+#endif
             };
 
             if constexpr(k0_loops > kK0PrefetchDepth)
@@ -711,6 +719,17 @@ struct BlockFmhaPipelineQRKSVS
                                    BiasEnum == BlockAttentionBiasEnum::NO_BIAS
                                ? VPrefetchPoint::AfterSoftmax
                                : VPrefetchPoint::BeforeGemm0Tail;
+#elif defined(__gfx117__)
+                if constexpr(kUseSeparateKVLds)
+                {
+                    // D256 N32 keeps V's live range short to avoid spills.
+                    if constexpr(kQKHeaddim == 256 && kN0 == 32)
+                        return VPrefetchPoint::AfterSoftmax;
+                    // D64 dropout and small tiles with one PV stage overlap softmax.
+                    return kQKHeaddim == 64 && (kHasDropout || (kM0 <= 64 && kK1 == kN0))
+                               ? VPrefetchPoint::AfterGemm0Tail
+                               : VPrefetchPoint::BeforeGemm0Tail;
+                }
 #elif defined(__gfx120__)
                 if constexpr(kUseSeparateKVLds)
                 {
@@ -799,6 +818,10 @@ struct BlockFmhaPipelineQRKSVS
 
                         s_acc(i_j_idx) *= scale_s;
                         position_encoding.update(s_acc(i_j_idx), row, col);
+#if defined(__gfx117__)
+                        // Limit live ALiBi offsets by consuming each updated score.
+                        impl::insert_dummy_dep(s_acc(i_j_idx));
+#endif
                     });
                 });
             }
@@ -1192,6 +1215,23 @@ struct BlockFmhaPipelineQRKSVS
                 return static_cast<index_t>(0);
             }();
 
+            auto schedule_gemm_1 = [&] {
+#if defined(__gfx117__)
+                if constexpr(kUseSeparateKVLds)
+                {
+                    constexpr index_t kMRepeats =
+                        kM0 / (gemm_1_config.template at<1>() * Gemm1WarpGemm::kM);
+                    constexpr index_t kVLoads = (kN1 / kGemm1NPerIter) * (kK1 / Gemm1WarpGemm::kK);
+                    // Issue a group of V reads before their WMMA consumers.
+                    static_for<0, integer_divide_ceil(kVLoads, 8), 1>{}([&](auto i) {
+                        constexpr index_t kReads = min(index_t{8}, kVLoads - i * 8);
+                        __builtin_amdgcn_sched_group_barrier(DS_READ, kReads, 0);
+                        __builtin_amdgcn_sched_group_barrier(MFMA, kReads * kMRepeats, 0);
+                    });
+                }
+#endif
+            };
+
             auto run_gemm_1_impl =
                 [&](auto& o_acc_tensor, const auto& p_slice, const auto&... gemm_1_args) {
                     if constexpr(kPadHeadDimV && kBlockGemm1SupportsPartialN)
@@ -1200,7 +1240,13 @@ struct BlockFmhaPipelineQRKSVS
                     }
                     else
                     {
+#if defined(__gfx117__)
+                        // Keep preceding operations out of the PV scheduling groups.
+                        if constexpr(kUseSeparateKVLds)
+                            __builtin_amdgcn_sched_barrier(0);
+#endif
                         gemm_1(o_acc_tensor, p_slice, gemm_1_args...);
+                        schedule_gemm_1();
                     }
                 };
 

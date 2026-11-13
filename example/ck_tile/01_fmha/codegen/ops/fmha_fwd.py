@@ -89,6 +89,7 @@ FMHA_FWD_KERNEL_HEADER_QR_HPAD = (
     (defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
      defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
      defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__) || \
+     defined(__gfx1170__) || defined(__gfx1171__) || defined(__gfx11_7_generic__) || \
      defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__))
 #if !defined(CK_TILE_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK)
 #define CK_TILE_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 1
@@ -1826,6 +1827,124 @@ class KernelComponentFactoryGfx12(CompatibilityRuleFactory):
         return pipelines
 
 
+class KernelComponentFactoryGfx117(CompatibilityRuleFactory):
+    arch = ArchTrait("gfx117")
+
+    _DT_FP16_BF16 = ("fp16", "bf16")
+
+    @classmethod
+    def supported_dtypes(cls) -> Tuple[str]:
+        return KernelComponentFactoryGfx12.supported_dtypes()
+
+    @classmethod
+    def get_rules(cls) -> List[CompatibilityRule]:
+        hdim_rules = {
+            (32, 32): cls.check_d32_tile,
+            (64, 64): cls.check_d64_tile,
+            (128, 128): cls.check_d128_tile,
+            (192, 128): cls.check_d192_tile,
+            (256, 256): cls.check_d256_tile,
+        }
+
+        def check_hdim_tile(
+            problem_ctx: ProblemContext, kernel_ctx: KernelContext
+        ) -> bool:
+            if problem_ctx.dtype not in cls._DT_FP16_BF16:
+                return True
+            rule = hdim_rules.get((problem_ctx.hdim, problem_ctx.hdim_v))
+            return rule is None or rule(kernel_ctx.tile, kernel_ctx.pipeline)
+
+        return super().get_rules() + [check_hdim_tile]
+
+    @staticmethod
+    def check_d32_tile(tile, pipeline) -> bool:
+        # The short-Q tile serves aligned, unmasked inputs without bias/dropout.
+        return tile.F_bm0 != 64 or (
+            pipeline.F_bias == "no"
+            and pipeline.F_mask in ("no", "s_no")
+            and pipeline.F_dropout == "f"
+            and pipeline.F_dpad == "f"
+        )
+
+    @staticmethod
+    def check_d64_tile(tile, pipeline) -> bool:
+        # Short aligned heads use PV64; head padding retains PV32.
+        return tile.F_bm0 != 64 or (
+            pipeline.F_bias == "no"
+            and pipeline.F_mask in ("no", "s_no")
+            and tile.F_bk1 == (64 if pipeline.F_dpad == pipeline.F_dvpad == "f" else 32)
+        )
+
+    @staticmethod
+    def check_d128_tile(tile, pipeline) -> bool:
+        # Bias/dropout needs QK32/PV32; no-bias dropout keeps QK64/PV64.
+        bias_dropout = pipeline.F_bias == "bias" and pipeline.F_dropout == "t"
+        if tile.F_bk0 == 32:
+            return bias_dropout
+        if bias_dropout:
+            return False
+        if pipeline.F_bias != "no":
+            return tile.F_bn0 == 128
+        # Keep one padded pipeline; masked no-dropout heads use it as well.
+        if pipeline.F_dpad == "t" and pipeline.tag != "qr_hpad":
+            return False
+        if pipeline.F_dropout == "t":
+            return tile.F_bn0 == 64
+        return tile.F_bn0 == 128 and (
+            pipeline.tag == "qr_hpad" or pipeline.F_mask in ("no", "s_no")
+        )
+
+    @staticmethod
+    def check_d192_tile(tile, pipeline) -> bool:
+        # QK256 cannot serve an unpadded head in the D192 bucket.
+        return pipeline.F_dpad == "t"
+
+    @staticmethod
+    def check_d256_tile(tile, pipeline) -> bool:
+        # N32/QK128/PV32 limits register pressure; keep the bias/dropout fallback.
+        use_n32 = pipeline.F_bias == "no" and pipeline.F_dropout == "f"
+        if tile.F_bn0 == 32:
+            return use_n32 and pipeline.tag == "qr_hpad"
+        return not use_n32
+
+    @classmethod
+    def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
+        if dtype not in cls._DT_FP16_BF16:
+            return KernelComponentFactoryGfx12.get_hdim_tile_size_dict(dtype)
+        # Keep the measured gfx117 tiles independent of gfx12 tuning.
+        # Use warmed crossovers; padding and dropout share the same Q thresholds.
+        m64_d32_constraint = CppConstraint("a.max_seqlen_q < 512")
+        # Short ragged groups retain M64 when average Q is at most 128 rows.
+        # Bound max Q as well so a long tail cannot select the short-Q tile.
+        m64_d64_constraint = CppConstraint(
+            "a.max_seqlen_q <= 128 || "
+            "(t.is_group_mode && a.batch > 1 && a.max_seqlen_q <= 256 && "
+            "a.seqlen_q > 0 && a.seqlen_q / a.batch <= 128)"
+        )
+        return {
+            #                             bm0, bn0, bk0, bn1, bk1,
+            ( 32,  32) : [FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, m64_d32_constraint),
+                          FmhaFwdTileSize(256,  64,  16,  32,  64,   32, 16, 1, 1, 16, 1, 1,  16, 16, 16,  16, 16, 16,   8)],
+            ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  64,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, m64_d64_constraint),
+                          FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, m64_d64_constraint),
+                          FmhaFwdTileSize(128, 128,  32,  64, 128,   64,  8, 1, 1,  8, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+            (128, 128) : [FmhaFwdTileSize(128,  64,  32, 128,  32,  128,  8, 1, 1,  8, 1, 1,  16, 16, 16,  16, 16, 16,   4),
+                          FmhaFwdTileSize(128,  64,  64, 128,  64,  128,  8, 1, 1,  8, 1, 1,  16, 16, 16,  16, 16, 16,   4),
+                          FmhaFwdTileSize(128, 128,  64, 128, 128,  128,  8, 1, 1,  8, 1, 1,  16, 16, 16,  16, 16, 16,   4)],
+            (192, 128) : [FmhaFwdTileSize(128,  64,  64, 128,  64,  256,  8, 1, 1,  8, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+            (256, 256) : [FmhaFwdTileSize(256,  32, 128, 256,  32,  256, 16, 1, 1, 16, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                          FmhaFwdTileSize(256,  64,  64, 256,  64,  256, 16, 1, 1, 16, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+        }  # fmt: skip
+
+    @classmethod
+    def get_pipelines(
+        cls, dtype, hdim, hdim_v, receipt, mask_impl
+    ) -> List[FmhaFwdPipeline]:
+        return KernelComponentFactoryGfx12.get_pipelines(
+            dtype, hdim, hdim_v, receipt, mask_impl
+        )
+
+
 # Measured bm0=64 -> bm0=128 crossover max_seqlen_q on gfx1250 (fp16/bf16), per
 # head dim (hdim_q, hdim_v). Each value is an independent benchmark result, not a
 # shared symbol: they all happen to be 128 under the current double-buffer pipeline
@@ -2528,6 +2647,8 @@ def _tune_config_pick_base(target: str):
         return KernelComponentFactoryGfx9
     if target.startswith("gfx115"):
         return KernelComponentFactoryGfx115
+    if target.startswith(("gfx117", "gfx11-7-generic")):
+        return KernelComponentFactoryGfx117
     if target.startswith("gfx11"):
         return KernelComponentFactoryGfx11
     if target.startswith("gfx125"):
@@ -2715,6 +2836,8 @@ def get_factory(target: str):
         return KernelComponentFactoryGfx9
     if target.startswith("gfx115"):
         return KernelComponentFactoryGfx115
+    if target.startswith(("gfx117", "gfx11-7-generic")):
+        return KernelComponentFactoryGfx117
     if target.startswith("gfx11"):
         return KernelComponentFactoryGfx11
     if target.startswith("gfx125"):

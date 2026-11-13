@@ -370,7 +370,7 @@
 
 #ifndef CK_TILE_USE_OCP_FP8
 #if defined(__HIP_DEVICE_COMPILE__)
-#if defined(__gfx950__) || defined(__gfx12__)
+#if defined(__gfx950__) || defined(__gfx12__) || defined(__gfx117__)
 #define CK_TILE_USE_OCP_FP8 1
 #else
 #define CK_TILE_USE_OCP_FP8 0
