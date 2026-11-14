@@ -348,7 +348,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
                 // Store K to k_lds
                 store_tile(k_lds_windows[i_lds_buf_0], k_tiles[i_current_buf], partition_index);
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Prefetch next K tile while current stores are in flight
                 if constexpr(i_n0 + 1 < n0_loops)
@@ -357,12 +358,14 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
                     move_tile_window(k_dram_window, {kN0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Ensure all LDS stores are visible before Gemm0 reads
                 block_sync_lds();
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q @ K_sub
                 gemm_0(sacc_tile, q_tile, k_lds_windows[i_lds_buf_0]);
@@ -386,7 +389,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
 
                 store_tile(v_lds_windows[i_lds_buf_0], v_tiles[i_current_buf], partition_index);
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Prefetch next V tile while current stores are in flight
                 if constexpr(i_n0 + 1 < n0_loops)
@@ -395,7 +399,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
                     move_tile_window(v_dram_window, {kN0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Ensure all LDS stores are visible before Gemm2 reads
                 block_sync_lds();
@@ -409,7 +414,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
 
-            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                           LLVMSchedGroupMask::TRANS);
 
             // === STAGE 3: scale, optional bias, mask, then compute P and dS ===
 
@@ -434,7 +440,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
 
             if constexpr(kHasDropout)
             {
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 auto randval_lds_ptr =
                     reinterpret_cast<char*>(smem_ptr) + k_smem_size + v_smem_size + kt_smem_size;
@@ -449,7 +456,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
                 dropout.template Run<Gemm0Combined, CompDataType, uint8_t>(
                     randval_lds_ptr, seqlen_k_curr, dpcomp_tile, null_randval_window);
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
             }
 
             // === STAGE 4: dS = dP * scale_p * dsilu(S), then dQ += alpha * dS @ K^T ===

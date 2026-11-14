@@ -446,12 +446,14 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                     move_tile_window(q_dram_window, {kM0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Ensure all stores for q_lds are visible before Gemm0 reads
                 block_sync_lds();
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q_sub @ K
                 gemm_0(sacc_tile, q_lds_windows[i_lds_buf_0], k_tile);
@@ -493,12 +495,14 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                     move_tile_window(do_dram_window, {kM0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Ensure all stores for do_lds are visible before Gemm2 reads
                 block_sync_lds();
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Gemm2: dpacc_tile = dO_sub @ V
                 gemm_2(dpacc_tile, do_lds_windows[i_lds_buf_0], v_tile);
@@ -517,7 +521,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                 });
             });
 
-            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                           LLVMSchedGroupMask::TRANS);
 
             // ---- Scale, optional bias, mask ----
             if constexpr(kHasBias)
