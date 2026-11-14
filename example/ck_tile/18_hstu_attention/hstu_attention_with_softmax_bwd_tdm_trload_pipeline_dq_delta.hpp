@@ -394,7 +394,8 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
 
                 s_wait_tensorcnt_barrier<0>();
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q @ K_sub
                 // Gemm2: dpacc_tile = dO @ V_sub
@@ -416,7 +417,8 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                         move_tile_window(v_dram_window, {kN0Sub, 0});
                     }
 
-                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
+                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU |
+                                                   LLVMSchedGroupMask::SALU |
                                                    LLVMSchedGroupMask::TRANS);
 
                     gemm_0(sacc_tile, q_tile, k_lds_windows_0[i_n0]);
@@ -440,7 +442,8 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                         move_tile_window(v_dram_window, {kN0Sub, 0});
                     }
 
-                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
+                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU |
+                                                   LLVMSchedGroupMask::SALU |
                                                    LLVMSchedGroupMask::TRANS);
 
                     gemm_0(sacc_tile, q_tile, k_lds_windows_1[i_n0]);

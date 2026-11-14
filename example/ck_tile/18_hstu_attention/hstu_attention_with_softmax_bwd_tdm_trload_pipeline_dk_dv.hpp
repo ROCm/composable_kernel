@@ -397,7 +397,8 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
             static_for<0, m0_loops, 1>{}([&](auto i_m0) {
                 s_wait_tensorcnt_barrier<0>();
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q_sub @ K
                 // Gemm2: dpacc_tile = dO_sub @ V
@@ -420,7 +421,8 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         move_tile_window(do_dram_window, {kM0Sub, 0});
                     }
 
-                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
+                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU |
+                                                   LLVMSchedGroupMask::SALU |
                                                    LLVMSchedGroupMask::TRANS);
 
                     gemm_0(sacc_tile, q_lds_windows_0[i_m0], k_tile);
@@ -445,7 +447,8 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         move_tile_window(do_dram_window, {kM0Sub, 0});
                     }
 
-                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU |
+                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU |
+                                                   LLVMSchedGroupMask::SALU |
                                                    LLVMSchedGroupMask::TRANS);
 
                     gemm_0(sacc_tile, q_lds_windows_1[i_m0], k_tile);
@@ -639,7 +642,8 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 }
             });
 
-            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                           LLVMSchedGroupMask::TRANS);
 
             auto ds_gemm_tile = cast_tile<QKVDataType>(dscomp_tile);
 
