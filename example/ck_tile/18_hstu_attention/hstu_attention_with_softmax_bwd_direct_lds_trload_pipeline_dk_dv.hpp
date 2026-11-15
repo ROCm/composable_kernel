@@ -548,7 +548,8 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
                 });
             });
 
-            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                           LLVMSchedGroupMask::TRANS);
 
             if constexpr(EvenIter)
             {

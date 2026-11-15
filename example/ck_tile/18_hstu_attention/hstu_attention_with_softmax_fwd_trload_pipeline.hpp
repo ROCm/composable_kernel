@@ -236,7 +236,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             move_tile_window(k_dram_window, {kN0Sub, 0});
         });
 
-        __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+        __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                       LLVMSchedGroupMask::TRANS);
 
         // provide partition_index for LDS tile window so that warp_id is in vgpr
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
@@ -398,7 +399,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
 
-            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                           LLVMSchedGroupMask::TRANS);
 
             // STAGE 2, scale_s, add bias, mask, siLU
             if constexpr(kHasBias)
@@ -447,7 +449,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             block_tile_reduce(m, pcomp_tile, sequence<1>{}, f_max);
             block_tile_reduce_sync(m, f_max, bool_constant<false>{});
 
-            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                           LLVMSchedGroupMask::TRANS);
 
             constexpr auto p_spans = decltype(pcomp_tile)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {

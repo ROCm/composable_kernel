@@ -375,7 +375,8 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D
                 store_tile(k_lds_windows[i_n0], k_tiles[i_current_buf], partition_index);
                 store_tile(v_lds_windows[i_lds_buf_0], v_tiles[i_current_buf], partition_index);
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Prefetch next K tile while current stores are in flight
                 if constexpr(i_n0 + 1 < n0_loops)
@@ -391,12 +392,14 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D
                     move_tile_window(v_dram_window, {kN0Sub, 0});
                 }
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Ensure all LDS stores are visible before Gemm0 reads
                 block_sync_lds();
 
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
 
                 // Gemm0: sacc_tile = Q @ K_sub
                 gemm_0(sacc_tile, q_tile, k_lds_windows[i_n0]);
@@ -415,7 +418,8 @@ struct HstuAttentionWithSoftmaxBwdTrLoadPipelineQRKSVS_dQ_D
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
 
-            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::ALU | LLVMSchedGroupMask::TRANS);
+            __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                           LLVMSchedGroupMask::TRANS);
 
             // === STAGE 3: scale, bias, mask, then compute P = exp(S - LSE) ===
 
