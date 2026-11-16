@@ -148,6 +148,20 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
                                    void* smem_ptr,
                                    DropoutType& dropout) const
     {
+        // Q/dO are loaded through make_direct_lds_xor_dram_view() via async_load_tile() +
+        // move_tile_window(), so the dram-side XOR uses the global row (row % kGroups), while
+        // the lds-side XOR (MakeSimplySwizzledNativeDesc) uses the row inside one sub-tile.
+        // The two only agree when kM0Sub is a multiple of kGroups = kHeaddim / kSwizzleUnit.
+        constexpr index_t kQXorGroups =
+            kQKHeaddim / Policy::template GetQDirectLdsSwizzleUnit<Problem>();
+        constexpr index_t kOGradXorGroups =
+            kVHeaddim / Policy::template GetOGradDirectLdsSwizzleUnit<Problem>();
+
+        static_assert(kM0Sub % kQXorGroups == 0,
+                      "kM0Sub must be a multiple of the Q direct-lds xor groups!");
+        static_assert(kM0Sub % kOGradXorGroups == 0,
+                      "kM0Sub must be a multiple of the OGrad direct-lds xor groups!");
+
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_2 = Policy::template GetOGradVBlockGemm<Problem>();
         constexpr auto gemm_1 =
