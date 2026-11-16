@@ -74,6 +74,10 @@ def _check_tdm_epilogue(pipeline, epilogue, kernel_name_prefix):
         )
 
 
+# Emitted in place of the pipeline type for a comp_tdm_pc ring variant.
+RING_PIPELINE_ALIAS = "CompTDMPCRingPipeline"
+
+
 def lookup_pipeline(pipeline_map, pipeline, what="pipeline"):
     """Strict map lookup: raise instead of emitting 'None' into generated code."""
     try:
@@ -702,6 +706,16 @@ class GemmKernelBuilder:
         ) = self._normalize_trait_combo(trait_combo)
 
         kernel_name = self._format_kernel_name(trait_combo, tile_config)
+        # A comp_tdm_pc ring variant names the kernel; everything below sees the
+        # base pipeline, and the ring reaches the C++ only through the alias
+        # emitted by _ring_pipeline_alias.
+        ring_reason = _validation_utils.pipeline_ring_reject_reason(pipeline)
+        if ring_reason:
+            raise ValueError(f"{pipeline}: {ring_reason}")
+        pipeline, num_slots, publish_lag = _validation_utils.split_pipeline_ring(
+            pipeline
+        )
+        base_trait_combo = (pipeline, *self._normalize_trait_combo(trait_combo)[1:])
 
         if self.kernel_name_prefix in [
             "gemm_universal",
@@ -791,9 +805,14 @@ class GemmKernelBuilder:
             # umbrella, which the generated headers do not include.
             instance_code += '#include "ck_tile/ops/epilogue/tdm_epilogue.hpp"\n'
         instance_code += self.populate_kernel_dtype_layout()
+        if num_slots:
+            instance_code += self._ring_pipeline_alias(
+                lookup_pipeline(pipeline_impl_map, pipeline), num_slots, publish_lag
+            )
+            pipeline_impl_map = {**pipeline_impl_map, pipeline: RING_PIPELINE_ALIAS}
         instance_code += self.populate_strut_begin(kernel_name)
         instance_code += self.populate_tile_config(tile_config)
-        instance_code += self.populate_trait_config(trait_combo)
+        instance_code += self.populate_trait_config(base_trait_combo)
         instance_code += self.populate_initialization(base_pipeline_map, pipeline)
         instance_code += self.populate_launch(
             scheduler_type_map,
@@ -820,6 +839,18 @@ class GemmKernelBuilder:
         print(f"Generated {header_file}")
 
         return kernel_name, instance_code
+
+    @staticmethod
+    def _ring_pipeline_alias(pipeline_impl, num_slots, publish_lag):
+        """Alias template binding a non-default comp_tdm_pc ring, so every emitter
+        can keep spelling the pipeline as ``<impl><Problem>``."""
+        return f"""
+// comp_tdm_pc ring: NumSlots = {num_slots}, PublishLag = {publish_lag}
+template <typename Problem>
+using {RING_PIPELINE_ALIAS} = {pipeline_impl}<
+    Problem,
+    ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<{num_slots}, {publish_lag}>>;
+"""
 
     def populate_kernel_header(self, kernel_name):
         instance_code = f"""// Generated kernel instance for {kernel_name}

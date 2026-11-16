@@ -179,6 +179,10 @@ struct KernelKey
         std::uint8_t vector_size_a = 0;
         std::uint8_t vector_size_b = 0;
         std::uint8_t vector_size_c = 0;
+        // comp_tdm_pc ring (GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<NumSlots,
+        // PublishLag>); num_slots = 0 is the policy default <4, 0>
+        std::uint8_t num_slots   = 0;
+        std::uint8_t publish_lag = 0;
 
         // Padding support flags (kPadM, kPadN, kPadK in generated kernels)
         bool pad_m = true; // Support arbitrary M dimensions via padding
@@ -243,7 +247,9 @@ struct KernelKey
                         algorithm.workspace,
                         algorithm.vector_size_a,
                         algorithm.vector_size_b,
-                        algorithm.vector_size_c);
+                        algorithm.vector_size_c,
+                        algorithm.num_slots,
+                        algorithm.publish_lag);
     }
 
     /// Equality comparison
@@ -504,6 +510,10 @@ inline std::string KernelKey::encode_identifier() const
     if(algorithm.vector_size_a || algorithm.vector_size_b || algorithm.vector_size_c)
         oss << "_vec" << unsigned(algorithm.vector_size_a) << "_"
             << unsigned(algorithm.vector_size_b) << "_" << unsigned(algorithm.vector_size_c);
+
+    // Must match pipeline_ring_suffix() in codegen_common.py
+    if(algorithm.num_slots)
+        oss << "_s" << unsigned(algorithm.num_slots) << "l" << unsigned(algorithm.publish_lag);
 
     if(signature.split_k > 1)
         oss << "_splitk" << unsigned(signature.split_k);

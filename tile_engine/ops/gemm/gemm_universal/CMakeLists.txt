@@ -137,7 +137,8 @@ function(create_individual_gemm_universal_target datatype layout trait tile_conf
         target_compile_options(${target_name} PRIVATE "SHELL:-mllvm -enable-post-misched=1")
     endif()
 
-    add_dependencies(benchmark_gemm_universal_${pipeline}_pipeline ${target_name})
+    ck_tile_gemm_pipeline_group("${pipeline}" pipeline_group)
+    add_dependencies(benchmark_gemm_universal_${pipeline_group}_pipeline ${target_name})
     add_dependencies(benchmark_gemm_universal_${epilogue}_epilogue ${target_name})
     add_dependencies(benchmark_gemm_universal_${scheduler}_scheduler ${target_name})
 endfunction()

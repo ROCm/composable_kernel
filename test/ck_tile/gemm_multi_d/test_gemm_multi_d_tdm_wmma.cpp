@@ -1,7 +1,8 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-// Multi-D GEMM with the TDM pipelines (CompTDMV1 / CompTDMV2) and TdmMultiDEpilogue (gfx1250).
+// Multi-D GEMM with the TDM pipelines (CompTDMV1 / CompTDMV2 / producer/consumer) and
+// TdmMultiDEpilogue (gfx1250).
 
 #include <tuple>
 
@@ -52,7 +53,13 @@ using KernelTypes = ::testing::Types<
     std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,        F32,        F32,        F32,  MultiplyMultiply,  MultiDTdmV2, NoTransC,   Tile64>,
     std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,        F32,        F32,        F32,  MultiplyMultiply,  MultiDTdmV2, NoTransC,   Tile128>,
     std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,        F32,        F32,        F32,  MultiplyMultiply,  MultiDTdmV2, TransC,     Tile64>,
-    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,        F32,        F32,        F32,  MultiplyMultiply,  MultiDTdmV2, TransC,     Tile128>
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,        F32,        F32,        F32,  MultiplyMultiply,  MultiDTdmV2, TransC,     Tile128>,
+
+    // The producer/consumer pipeline: only its math waves run TdmMultiDEpilogue.
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       BF16,       BF16,       F32,        F16,  ElementWiseAddAdd, MultiDTdmPC, NoTransC,   Tile64>,
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       BF16,       BF16,       F32,        F16,  ElementWiseAddAdd, MultiDTdmPC, TransC,     Tile128>,
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F16,        F16,        F32,        F16,  MultiplyMultiply,  MultiDTdmPC, NoTransC,   Tile128>,
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,        F32,        F32,        F32,  MultiplyMultiply,  MultiDTdmPC, TransC,     Tile64>
     >;
 // clang-format on
 

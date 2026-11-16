@@ -352,11 +352,13 @@
       "basis": "fraction",
       "value": 0.25,
       "_reason": [
-        "Ring of NumSlots LDS buffers, no configuration choice:",
+        "Ring of NumSlots LDS buffers:",
         "GemmPipelineAgBgCrCompTDMProducerConsumer::GetSmemSize() returns",
-        "NumSlots * Policy::GetSmemSize() with the policy default NumSlots_ = 4.",
-        "Emitted to C++ as Pipeline::CompTDMPC. Matches the Tile Engine",
-        "PIPELINE_SMEM_SLOTS entry; raise both if NumSlots_ changes."
+        "NumSlots * Policy::GetSmemSize(). This entry is the policy default",
+        "NumSlots_ = 4; a comp_tdm_pc_s{S}l{L} variant splits the capacity over",
+        "its S slots instead (codegen_common.comp_tdm_pc_lds_limit). Emitted to",
+        "C++ as Pipeline::CompTDMPC. Matches the Tile Engine PIPELINE_SMEM_SLOTS",
+        "entry; raise both if NumSlots_ changes."
       ]
     },
     "wavelet": {

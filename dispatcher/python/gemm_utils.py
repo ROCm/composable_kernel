@@ -66,6 +66,7 @@ try:
     from dispatcher_common import fp8_uses_ocp as _fp8_uses_ocp
     from dispatcher_common import ocp_arch_defines as _ocp_arch_defines
 except Exception:  # noqa: BLE001 - standalone use without dispatcher_common on path
+
     def _detect_gpu_arch_via_amd_smi() -> Optional[str]:
         return None
 
@@ -214,6 +215,8 @@ def _cshuffle_store_ok(
         return repeat > 1 and repeat % 2 == 1 and warp_tile == 32
 
     return not (_dim_bad(m_repeat, warp_tile_m) or _dim_bad(n_repeat, warp_tile_n))
+
+
 # --- end bridge shared helpers ---
 
 
@@ -358,6 +361,11 @@ class GemmKernelConfig:
     vector_size_a: int = 0
     vector_size_b: int = 0
     vector_size_c: int = 0
+    # comp_tdm_pc ring (NumSlots, PublishLag); num_slots=0 is the policy
+    # default <4, 0>. Sweep configs spell a non-default ring as the pipeline
+    # "comp_tdm_pc_s{S}l{L}" (codegen_common.split_pipeline_ring).
+    num_slots: int = 0
+    publish_lag: int = 0
 
     # No silent default: the arch must be resolved (rocminfo-detected or passed
     # explicitly) before this config feeds the compiler. expand_sweep /
@@ -440,6 +448,11 @@ class GemmKernelConfig:
     def vector_sizes(self) -> Tuple[int, int, int]:
         return (self.vector_size_a, self.vector_size_b, self.vector_size_c)
 
+    @property
+    def ring_suffix(self) -> str:
+        """ "_s{S}l{L}" for a non-default comp_tdm_pc ring, else ""."""
+        return _codegen_common().pipeline_ring_suffix(self.num_slots, self.publish_lag)
+
     def _vector_args(self) -> Dict[str, Any]:
         return dict(
             dtype_a=self.dtype_a,
@@ -493,7 +506,11 @@ class GemmKernelConfig:
         # Fixed widths only serve misaligned extents, which always need padding.
         pads = dict(pad_m=True, pad_n=True, pad_k=True) if any(vec) else {}
         cfg = replace(
-            self, vector_size_a=vec[0], vector_size_b=vec[1], vector_size_c=vec[2], **pads
+            self,
+            vector_size_a=vec[0],
+            vector_size_b=vec[1],
+            vector_size_c=vec[2],
+            **pads,
         )
         return cfg, reason
 
@@ -525,6 +542,7 @@ class GemmKernelConfig:
         )
         if any(self.vector_sizes):
             name += _codegen_common().gemm_vector_size_suffix(self.vector_sizes)
+        name += self.ring_suffix
         if self.variant == "preshuffle":
             name += "_preshuffle"
             if self.permute_n:
@@ -576,7 +594,7 @@ class GemmKernelConfig:
                 "warp_tile_k": [self.warp_tile_k],
             },
             "trait_config": {
-                "pipeline": [self.pipeline],
+                "pipeline": [self.pipeline + self.ring_suffix],
                 "epilogue": [self.epilogue],
                 "scheduler": [self.scheduler],
                 "pad_m": [self.pad_m],
@@ -634,6 +652,7 @@ class GemmKernelConfig:
             "pad": [self.pad_m, self.pad_n, self.pad_k],
             "persistent": self.persistent,
             "vector_sizes": list(self.vector_sizes),
+            "ring": [self.num_slots, self.publish_lag],
             "gfx_arch": self.gfx_arch,
             "variant": self.variant,
             "name": self.name,
@@ -669,6 +688,8 @@ class GemmKernelConfig:
             variant=self.variant,
             persistent=self.persistent,
         )
+
+
 # ============================================================================
 # Problem
 # ============================================================================
@@ -705,9 +726,7 @@ class GroupedGemmProblem:
     groups: List[Tuple[int, int, int]]
 
     @classmethod
-    def uniform(
-        cls, group_count: int, M: int, N: int, K: int
-    ) -> "GroupedGemmProblem":
+    def uniform(cls, group_count: int, M: int, N: int, K: int) -> "GroupedGemmProblem":
         """All groups share the same (M, N, K) shape."""
         return cls(groups=[(int(M), int(N), int(K)) for _ in range(int(group_count))])
 
@@ -990,8 +1009,8 @@ class GemmDispatcherLib:
             )
 
         g = len(A_list)
-        c_int64_arr = (ctypes.c_int64 * g)
-        c_void_arr = (ctypes.c_void_p * g)
+        c_int64_arr = ctypes.c_int64 * g
+        c_void_arr = ctypes.c_void_p * g
 
         ms = c_int64_arr(*[int(m) for m in Ms])
         ns = c_int64_arr(*[int(n) for n in Ns])
@@ -1194,8 +1213,11 @@ def _fp8_encode_ladder(
     is_zero = sorted_mag[chosen] == 0
     out = np.where((xf < 0) & ~is_zero, out | sign_byte, out)
     # NaN byte: 0x80 under FNUZ, all-1s exponent and mantissa under OCP.
-    nan_byte = np.uint8(((1 << exp_bits) - 1) << mant_bits | ((1 << mant_bits) - 1)) \
-        if use_ocp else sign_byte
+    nan_byte = (
+        np.uint8(((1 << exp_bits) - 1) << mant_bits | ((1 << mant_bits) - 1))
+        if use_ocp
+        else sign_byte
+    )
     out = np.where(np.isnan(xf), nan_byte, out)
     return out.astype(np.uint8).reshape(np.shape(x))
 
@@ -1279,13 +1301,23 @@ def _bf8_u8_to_fp32(u8: np.ndarray, use_ocp: Optional[bool] = None) -> np.ndarra
 def _fp32_to_fp8_ocp_u8(x):
     """Encode fp32 -> fp8 E4M3 **OCP** (gfx950/gfx12xx) bit pattern (uint8)."""
     import ml_dtypes
-    return np.ascontiguousarray(x, dtype=np.float32).astype(ml_dtypes.float8_e4m3fn).view(np.uint8)
+
+    return (
+        np.ascontiguousarray(x, dtype=np.float32)
+        .astype(ml_dtypes.float8_e4m3fn)
+        .view(np.uint8)
+    )
 
 
 def _fp32_to_bf8_ocp_u8(x):
     """Encode fp32 -> bf8 E5M2 **OCP** (gfx950/gfx12xx) bit pattern (uint8)."""
     import ml_dtypes
-    return np.ascontiguousarray(x, dtype=np.float32).astype(ml_dtypes.float8_e5m2).view(np.uint8)
+
+    return (
+        np.ascontiguousarray(x, dtype=np.float32)
+        .astype(ml_dtypes.float8_e5m2)
+        .view(np.uint8)
+    )
 
 
 _OCP_FP8_CACHE = {}
@@ -1345,7 +1377,9 @@ def _input_codec(dtype: str):
     return _INPUT_CODEC[dtype]
 
 
-def _encode_operand(x: np.ndarray, dtype: str, use_ocp: Optional[bool] = None) -> np.ndarray:
+def _encode_operand(
+    x: np.ndarray, dtype: str, use_ocp: Optional[bool] = None
+) -> np.ndarray:
     """Encode an A/B host operand into the kernel's element dtype; raise if unknown."""
     return _input_codec(dtype)[0](x, use_ocp)
 
@@ -1525,9 +1559,7 @@ class GpuGemmRunner:
         Aq, Bq = (decode(encode(X, self._use_ocp), self._use_ocp) for X in (A, B))
         return Aq @ Bq
 
-    def run(
-        self, A: np.ndarray, B: np.ndarray, problem: GemmProblem
-    ) -> GemmResult:
+    def run(self, A: np.ndarray, B: np.ndarray, problem: GemmProblem) -> GemmResult:
         return self.run_encoded(*self.encode_inputs(A, B), problem)
 
     def encode_inputs(
@@ -1550,9 +1582,7 @@ class GpuGemmRunner:
         la, lb, _ = _layout_from_kernel_name(self._kernel_name)
         # A/B host buffers in the kernel's element dtype and layout; the kernels
         # of a sweep worker's shape reuse them (see _sweep_inputs).
-        return _encode_ab_cached(
-            A, B, dtype, la, lb, self._use_ocp, self._kernel_name
-        )
+        return _encode_ab_cached(A, B, dtype, la, lb, self._use_ocp, self._kernel_name)
 
     def run_encoded(
         self, A_h: np.ndarray, B_h: np.ndarray, problem: GemmProblem
@@ -1790,11 +1820,11 @@ class GpuMultiDGemmRunner:
         la, lb, lc, ld = layout4[0], layout4[1], layout4[2], layout4[3]
 
         if dtype != "fp16":
-            raise ValueError(f"multi_d bridge currently supports fp16 only, got {dtype}")
-        if len(Ds) != self._num_d:
             raise ValueError(
-                f"kernel expects {self._num_d} D tensors, got {len(Ds)}"
+                f"multi_d bridge currently supports fp16 only, got {dtype}"
             )
+        if len(Ds) != self._num_d:
+            raise ValueError(f"kernel expects {self._num_d} D tensors, got {len(Ds)}")
 
         # A/B host buffers, transposed for column-major operands (see GpuGemmRunner).
         A_lay = A if la == "r" else A.T
@@ -1830,7 +1860,15 @@ class GpuMultiDGemmRunner:
 
 # Element size (bytes) per CK dtype -- mirrors the codegen's ELEMENT_SIZE_MAP and
 # lets the ctypes shim size its device buffers without knowing the CK type.
-_ELEM_BYTES = {"fp16": 2, "bf16": 2, "fp32": 4, "fp8": 1, "bf8": 1, "int8": 1, "int32": 4}
+_ELEM_BYTES = {
+    "fp16": 2,
+    "bf16": 2,
+    "fp32": 4,
+    "fp8": 1,
+    "bf8": 1,
+    "int8": 1,
+    "int32": 4,
+}
 
 
 class MultiABDDispatcherLib:
@@ -2149,7 +2187,9 @@ class GpuMultiABDRunner:
             for _ in range(n_tensors):
                 x = rng.uniform(lo, hi, size=(rows, cols)).astype(np.float32)
                 if dtype != "fp16":
-                    raise ValueError(f"multi_abd runner supports fp16 only, got {dtype}")
+                    raise ValueError(
+                        f"multi_abd runner supports fp16 only, got {dtype}"
+                    )
                 x16 = x.astype(np.float16)
                 logical.append(x16)
                 x_lay = x16 if layout_char == "r" else x16.T
@@ -2241,10 +2281,14 @@ class GpuMultiABDRunner:
 # NOTE: -enable-noalias-to-md-conversion=0 is NOT a Tile Engine GEMM flag (it only
 # appears in the standalone CK examples/tests), so it deliberately is NOT here.
 _TILE_ENGINE_CODEGEN_FLAGS = (
-    "-mllvm", "--lsr-drop-solution=1",
-    "-mllvm", "-enable-post-misched=0",
-    "-mllvm", "-amdgpu-early-inline-all=true",
-    "-mllvm", "-amdgpu-function-calls=false",
+    "-mllvm",
+    "--lsr-drop-solution=1",
+    "-mllvm",
+    "-enable-post-misched=0",
+    "-mllvm",
+    "-amdgpu-early-inline-all=true",
+    "-mllvm",
+    "-amdgpu-function-calls=false",
     "-fno-offload-uniform-block",
 )
 
@@ -2252,9 +2296,7 @@ _TILE_ENGINE_CODEGEN_FLAGS = (
 # (newer -mllvm options that some clang builds reject). We mirror that probe so
 # the bridge stays matched to Tile Engine on every toolchain: the flag is present
 # exactly where TE would have it, and absent where TE's CMake would also skip it.
-_PROBED_CODEGEN_FLAGS = (
-    ("-mllvm", "-amdgpu-coerce-illegal-types=1"),
-)
+_PROBED_CODEGEN_FLAGS = (("-mllvm", "-amdgpu-coerce-illegal-types=1"),)
 
 # The single hipcc used for BOTH the flag-acceptance probe and the actual
 # compile/link. Pinned to match Old-TE, which builds via CMake's
@@ -2279,7 +2321,8 @@ def _hipcc_accepts(flag_tuple: Tuple[str, ...]) -> bool:
             src.write_text("int main(){}\n")
             r = subprocess.run(
                 [hipcc, *flag_tuple, "-c", str(src), "-o", str(Path(d) / "probe.o")],
-                capture_output=True, timeout=120,
+                capture_output=True,
+                timeout=120,
             )
             return r.returncode == 0
     except Exception:
@@ -2356,10 +2399,14 @@ def _build_compile_jobs(
         [
             "-std=c++20",
             "-fno-offload-uniform-block",
-            "-mllvm", "--lsr-drop-solution=1",
-            "-mllvm", "-enable-post-misched=0",
-            "-mllvm", "-amdgpu-early-inline-all=true",
-            "-mllvm", "-amdgpu-function-calls=false",
+            "-mllvm",
+            "--lsr-drop-solution=1",
+            "-mllvm",
+            "-enable-post-misched=0",
+            "-mllvm",
+            "-amdgpu-early-inline-all=true",
+            "-mllvm",
+            "-amdgpu-function-calls=false",
             "--offload-compress",
         ]
         if is_streamk
@@ -2626,8 +2673,7 @@ def setup_multiple_gemm_dispatchers(
 
     if verbose and compile_jobs:
         print(
-            f"[gemm-bridge] compile: {len(compile_jobs)} .so "
-            f"(workers={max_workers})..."
+            f"[gemm-bridge] compile: {len(compile_jobs)} .so (workers={max_workers})..."
         )
 
     with ProcessPoolExecutor(max_workers=max_workers) as ex:
@@ -2723,7 +2769,17 @@ _WARP_SUPPORTED_COMBINATIONS_FALLBACK = {
     "gfx90a": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx950": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
-    "gfx1250": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1], [2, 1, 1], [1, 2, 2], [4, 1, 1], [1, 4, 1], [2, 2, 1]],
+    "gfx1250": [
+        [2, 4, 1],
+        [1, 8, 1],
+        [8, 1, 1],
+        [4, 2, 1],
+        [2, 1, 1],
+        [1, 2, 2],
+        [4, 1, 1],
+        [1, 4, 1],
+        [2, 2, 1],
+    ],
     "gfx1201": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
 }
 
@@ -2733,6 +2789,7 @@ def _warp_supported_table():
     hardcoded fallback so the bridge never silently skips the gate."""
     try:
         from gemm_validation_utils import WARP_SUPPORTED_COMBINATIONS as _t
+
         return _t
     except Exception:  # pragma: no cover - fallback keeps the gate active
         return _WARP_SUPPORTED_COMBINATIONS_FALLBACK
@@ -2791,6 +2848,7 @@ def _gfx1250_pipeline_supported(
     warp_tile_m: int = 0,
     warp_tile_n: int = 0,
     tile_mn: Optional[Tuple[int, int]] = None,
+    ring: Tuple[int, int] = (0, 0),
 ) -> bool:
     """False iff the (pipeline, epilogue) pair is a gfx1250 combination that
     the codegen would reject for this arch/variant/trait.
@@ -2799,7 +2857,8 @@ def _gfx1250_pipeline_supported(
     comp_async layout rule. ``dtype``/``warp_tile_k`` feed the comp_async
     8-bit warp_tile_k rule; an empty dtype skips it. ``warp_tile_m``/
     ``warp_tile_n`` feed the comp_async 8-bit warp_tile_m/n rule; 0 skips it.
-    ``tile_mn`` feeds the comp_tdm_pc accumulator rule; None skips it."""
+    ``tile_mn`` feeds the comp_tdm_pc accumulator rule; None skips it.
+    ``ring`` is the comp_tdm_pc (num_slots, publish_lag); (0, 0) is the default."""
     reason = _codegen_common().gfx1250_pipeline_reject_reason(
         arch,
         pipeline,
@@ -2820,6 +2879,7 @@ def _gfx1250_pipeline_supported(
         tile_mn=tile_mn,
         warp_k=wave_k,
         streamk=variant == "stream_k",
+        ring=ring,
     )
     return not reason
 
@@ -2844,6 +2904,7 @@ def _arch_filter_accepts(
     pipeline: str,
     epilogue: str,
     scheduler: str,
+    num_slots: int = 0,
 ) -> bool:
     """Mirror of unified_gemm_codegen's _is_tile_arch_valid ArchFilter call
     (LDS capacity, warp and trait rules), so expand_sweep drops every config
@@ -2880,6 +2941,7 @@ def _arch_filter_accepts(
         scheduler=scheduler,
         layout=layout[:3],
         operator=operator,
+        num_slots=num_slots,
     )
 
 
@@ -3163,6 +3225,8 @@ def expand_sweep(
         persistents,
         reductions,
     ):
+        # "comp_tdm_pc_s{S}l{L}" names a non-default producer/consumer ring.
+        pipe, num_slots, publish_lag = _codegen_common().split_pipeline_ring(pipe)
         # Tile/CShuffle correctness gate. A block tile must split evenly across
         # its waves -- tile % (wave * warp_tile) == 0 -- else the kernel is
         # genuinely invalid.
@@ -3208,6 +3272,7 @@ def expand_sweep(
             warp_tile_m=wtm,
             warp_tile_n=wtn,
             tile_mn=(tm, tn),
+            ring=(num_slots, publish_lag),
         ):
             continue
         if epi == "cshuffle" and not _cshuffle_store_ok(
@@ -3224,7 +3289,7 @@ def expand_sweep(
         ):
             continue
 
-        for (m_na, m_nb, m_nd, m_aop, m_bop, m_cdeop) in mabd_combos:
+        for m_na, m_nb, m_nd, m_aop, m_bop, m_cdeop in mabd_combos:
             for ew_op, md_nd in md_combos:
                 c = GemmKernelConfig(
                     dtype_a=dtype,
@@ -3250,6 +3315,8 @@ def expand_sweep(
                     pad_n=bool(pn),
                     pad_k=bool(pk),
                     persistent=bool(persist),
+                    num_slots=num_slots,
+                    publish_lag=publish_lag,
                     gfx_arch=arch,
                     variant=variant,
                     reduction_strategy=red,
@@ -3267,9 +3334,21 @@ def expand_sweep(
                 # gfx1250 preshuffle pipelines (arch/layout/pad/wave/dtype
                 # rules): same helper the codegen applies, so the sweep never
                 # hands back a config whose header is never emitted.
-                if variant == "preshuffle" and _codegen_common().preshuffle_pipeline_reject_reason(
-                    pipe, arch, layout[:3], pm, pn, pk, wm * wn * wk, dtype,
-                    warp_tile_k=wtk, warp_k=wk, tile_k=tk,
+                if (
+                    variant == "preshuffle"
+                    and _codegen_common().preshuffle_pipeline_reject_reason(
+                        pipe,
+                        arch,
+                        layout[:3],
+                        pm,
+                        pn,
+                        pk,
+                        wm * wn * wk,
+                        dtype,
+                        warp_tile_k=wtk,
+                        warp_k=wk,
+                        tile_k=tk,
+                    )
                 ):
                     continue
                 val = None
@@ -3294,6 +3373,7 @@ def expand_sweep(
                             pipe,
                             epi,
                             sched,
+                            num_slots,
                         )
                     if not val:
                         # Keep counting the later widths' rejects, as the codegen does.

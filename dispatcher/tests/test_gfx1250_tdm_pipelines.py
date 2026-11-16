@@ -36,11 +36,13 @@ from arch_filter import (  # noqa: E402
 )
 from arch_specs_generated import get_lds_limit  # noqa: E402
 from codegen_common import (  # noqa: E402
-    COMP_TDM_PC_BATCHED_REJECT_REASON,
     COMP_TDM_PC_WARP_K_REJECT_REASON,
     CommonTypeMappings,
     GFX1250_COMP_ASYNC_PAD_REJECT_REASON,
     comp_tdm_pc_acc_reject_reason,
+    comp_tdm_pc_ring_reject_reason,
+    pipeline_ring_suffix,
+    split_pipeline_ring,
     GFX1250_COMPV5_REJECT_REASON,
     GEMM_TDM_CSHUFFLE_PIPELINES,
     STREAMK_GFX1250_PIPELINES,
@@ -785,8 +787,8 @@ class TestUnifiedCodegenGolden(unittest.TestCase):
         _, names = self._gen("gfx1250", "batched")
         self.assertTrue(any("_comp_tdm_tdm_" in n for n in names))
         self.assertTrue(any("_comp_tdm_v2_tdm_" in n for n in names))
-        # BatchedGemmKernel does not arm the producer/consumer barriers.
-        self.assertFalse(any("_comp_tdm_pc_" in n for n in names))
+        # BatchedGemmKernel arms the producer/consumer barriers.
+        self.assertTrue(any("_comp_tdm_pc_tdm_" in n for n in names))
 
     def test_gfx1250_batched_comp_async_epilogue_double_smem(self):
         out, names = self._gen("gfx1250", "batched")
@@ -884,6 +886,182 @@ class TestUnifiedCodegenGolden(unittest.TestCase):
         # Stream-K's persistent kernel hosts the comp_tdm_pc ring too.
         tdm_pc = [n for n in tdm if "_comp_tdm_pc_" in n]
         self.assertTrue(any("_False_False_False_True_" in n for n in tdm_pc))
+
+
+class TestCompTdmPcRing(unittest.TestCase):
+    """comp_tdm_pc NumSlots/PublishLag: "comp_tdm_pc_s{S}l{L}" pipeline variants."""
+
+    RING_CONFIG = {
+        "tile_config": dict(TestUnifiedCodegenGolden.CONFIG["tile_config"], warp_m=[2]),
+        "trait_config": dict(
+            TestUnifiedCodegenGolden.CONFIG["trait_config"],
+            pipeline=["comp_tdm_pc", "comp_tdm_pc_s2l1", "comp_tdm_pc_s4l0"],
+            epilogue=["tdm"],
+            pad_m=[False],
+            pad_n=[False],
+            pad_k=[False],
+            persistent=[False],
+        ),
+    }
+
+    def test_split_pipeline_ring(self):
+        self.assertEqual(split_pipeline_ring("comp_tdm_pc"), ("comp_tdm_pc", 0, 0))
+        self.assertEqual(split_pipeline_ring("comp_tdm_pc_s2l1"), ("comp_tdm_pc", 2, 1))
+        # The policy default keeps the default (suffix-free) name.
+        self.assertEqual(split_pipeline_ring("comp_tdm_pc_s4l0"), ("comp_tdm_pc", 0, 0))
+        self.assertEqual(split_pipeline_ring("comp_tdm_s2l1"), ("comp_tdm_s2l1", 0, 0))
+        self.assertEqual(split_pipeline_ring("compv3"), ("compv3", 0, 0))
+        self.assertEqual(pipeline_ring_suffix(0, 0), "")
+        self.assertEqual(pipeline_ring_suffix(3, 2), "_s3l2")
+
+    @unittest.skipIf(te is None, "tile_engine not present")
+    def test_matches_tile_engine(self):
+        for name in (
+            "comp_tdm_pc",
+            "comp_tdm_pc_s2l1",
+            "comp_tdm_pc_s4l0",
+            "comp_tdm_pc_s5l4",
+            "comp_tdm_pc_s1l0",
+            "comp_tdm_pc_s6l0",
+            "comp_tdm_pc_s3l3",
+            "comp_tdm_v2",
+        ):
+            ring = split_pipeline_ring(name)
+            self.assertEqual(te.split_pipeline_ring(name), ring, name)
+            self.assertEqual(
+                bool(te.pipeline_ring_reject_reason(name)),
+                bool(comp_tdm_pc_ring_reject_reason(*ring)),
+                name,
+            )
+
+    def test_ring_reject_reason(self):
+        for slots, lag in ((0, 0), (2, 0), (2, 1), (4, 3), (5, 4)):
+            self.assertEqual(
+                comp_tdm_pc_ring_reject_reason("comp_tdm_pc", slots, lag), ""
+            )
+        for slots, lag in ((1, 0), (6, 0), (3, 3), (2, -1), (0, 1)):
+            self.assertTrue(
+                comp_tdm_pc_ring_reject_reason("comp_tdm_pc", slots, lag), (slots, lag)
+            )
+        self.assertIn("only apply to", comp_tdm_pc_ring_reject_reason("comp_tdm", 2, 1))
+
+    def test_gate_checks_ring(self):
+        args = dict(
+            num_waves=4, warp_tile_k=32, dtype_a="fp16", dtype_b="fp16", layout="rcr"
+        )
+        ok = gfx1250_pipeline_reject_reason(
+            "gfx1250", "comp_tdm_pc", "tdm", "intrawave", ring=(3, 1), **args
+        )
+        self.assertEqual(ok, "")
+        bad = gfx1250_pipeline_reject_reason(
+            "gfx1250", "comp_tdm_pc", "tdm", "intrawave", ring=(6, 0), **args
+        )
+        self.assertIn("num_slots=6", bad)
+        # A ring on a pipeline outside the gfx1250 gate is still rejected.
+        self.assertIn(
+            "only apply to",
+            gfx1250_pipeline_reject_reason(
+                "gfx942", "compv3", "cshuffle", "intrawave", ring=(2, 0), **args
+            ),
+        )
+
+    def test_lds_budget_follows_slots(self):
+        # fp16 rcr 256x128x128 on 4x2x1 waves needs 104416B per slot: over the
+        # default ring's 81920B, under 327680 / 3 and 327680 / 2.
+        tile = dict(TDM_TILE, tile_m=256, tile_n=128, tile_k=128, warp_m=4)
+        filt = ArchFilter("gfx1250")
+        kw = dict(tile, pipeline="comp_tdm_pc", epilogue="tdm")
+        self.assertFalse(filt.is_kernel_valid(**kw))
+        self.assertFalse(filt.is_kernel_valid(**kw, num_slots=4))
+        self.assertTrue(filt.is_kernel_valid(**kw, num_slots=3))
+        self.assertTrue(filt.is_kernel_valid(**kw, num_slots=2))
+
+    def test_codegen_emits_ring_policy(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / "cfg.json"
+            cfg.write_text(json.dumps(self.RING_CONFIG))
+            out = Path(td) / "out"
+            names = _run_codegen(out, "gfx1250", "standard", cfg)
+            # s4l0 is the default ring and folds into the plain comp_tdm_pc kernel.
+            self.assertEqual(len(names), 2, names)
+            ring = [n for n in names if n.endswith("_s2l1.hpp")]
+            self.assertEqual(len(ring), 1, names)
+            text = (out / ring[0]).read_text()
+            self.assertIn(
+                "GemmPipelineAgBgCrCompTDMProducerConsumer<UniversalGemmProblem, "
+                "GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<2, 1>>",
+                text,
+            )
+            self.assertIn("#define GEMM_KEY_NUM_SLOTS 2", text)
+            self.assertIn("#define GEMM_KEY_PUBLISH_LAG 1", text)
+            wrapper = (
+                out / "dispatcher_wrappers" / f"dispatcher_wrapper_{ring[0]}"
+            ).read_text()
+            self.assertIn("key.algorithm.num_slots = 2;", wrapper)
+            self.assertIn("key.algorithm.publish_lag = 1;", wrapper)
+            default = next(n for n in names if n not in ring)
+            self.assertNotIn(
+                "GemmPipelineAgBgCrCompTDMProducerConsumerPolicy",
+                (out / default).read_text(),
+            )
+
+    def test_expand_sweep_names_match_codegen(self):
+        import gemm_utils
+
+        cfg = {
+            section: {k: {"values": v} for k, v in entries.items()}
+            for section, entries in self.RING_CONFIG.items()
+        }
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "cfg.json"
+            path.write_text(json.dumps(cfg))
+            got = gemm_utils.expand_sweep(str(path), "gfx1250", "fp16", "rcr")
+            self.assertEqual(
+                sorted((c.num_slots, c.publish_lag) for c in got), [(0, 0), (2, 1)]
+            )
+            ring = next(c for c in got if c.num_slots)
+            self.assertEqual(ring.pipeline, "comp_tdm_pc")
+            self.assertEqual(
+                ring.to_codegen_json()["trait_config"]["pipeline"], ["comp_tdm_pc_s2l1"]
+            )
+            cg = Path(td) / "cg.json"
+            cg.write_text(json.dumps(self.RING_CONFIG))
+            names = _run_codegen(Path(td) / "out", "gfx1250", "standard", cg)
+        self.assertEqual(sorted(f"{c.name}.hpp" for c in got), names)
+
+    def test_expand_sweep_lds_follows_slots(self):
+        import gemm_utils
+
+        tile = dict(
+            tile_m=[256],
+            tile_n=[128],
+            tile_k=[128],
+            warp_m=[4],
+            warp_n=[2],
+            warp_k=[1],
+            warp_tile_m=[16],
+            warp_tile_n=[16],
+            warp_tile_k=[32],
+        )
+        trait = dict(
+            pipeline=["comp_tdm_pc", "comp_tdm_pc_s3l1", "comp_tdm_pc_s6l0"],
+            epilogue=["tdm"],
+            scheduler=["intrawave"],
+            pad_m=[False],
+            pad_n=[False],
+            pad_k=[False],
+            persistent=[False],
+        )
+        cfg = {
+            "tile_config": {k: {"values": v} for k, v in tile.items()},
+            "trait_config": {k: {"values": v} for k, v in trait.items()},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "cfg.json"
+            path.write_text(json.dumps(cfg))
+            got = gemm_utils.expand_sweep(str(path), "gfx1250", "fp16", "rcr")
+        # The default ring overflows LDS and six slots exceed the named barriers.
+        self.assertEqual([(c.num_slots, c.publish_lag) for c in got], [(3, 1)])
 
 
 class TestStreamKCodegen(unittest.TestCase):
@@ -1112,7 +1290,8 @@ class TestGemmUtilsSweepGate(unittest.TestCase):
     def test_tdm_pc_rules(self):
         self.assertTrue(self._ok("comp_tdm_pc", "tdm"))
         self.assertTrue(self._ok("comp_tdm_pc", "tdm", waves=(4, 2, 1)))
-        self.assertFalse(self._ok("comp_tdm_pc", "tdm", variant="batched"))
+        # BatchedGemmKernel arms the producer/consumer named barriers.
+        self.assertTrue(self._ok("comp_tdm_pc", "tdm", variant="batched"))
         # Plain GEMM also takes cshuffle (split-K), still not batched or persistent.
         self.assertTrue(self._ok("comp_tdm_pc", "cshuffle"))
         self.assertFalse(self._ok("comp_tdm_pc", "cshuffle", variant="batched"))
@@ -1128,21 +1307,6 @@ class TestGemmUtilsSweepGate(unittest.TestCase):
             self._ok("comp_tdm_pc", "tdm", waves=(4, 2, 1), tile_mn=(256, 256))
         )
         self.assertTrue(self._ok("comp_tdm", "tdm", tile_mn=(256, 256)))
-        self.assertEqual(
-            gfx1250_pipeline_reject_reason(
-                "gfx1250",
-                "comp_tdm_pc",
-                "tdm",
-                "intrawave",
-                4,
-                32,
-                "fp16",
-                "fp16",
-                "rcr",
-                batched=True,
-            ),
-            COMP_TDM_PC_BATCHED_REJECT_REASON,
-        )
 
     def _async(self, *args, **kw):
         return self._ok("comp_async", *args, pad_m=True, pad_n=True, pad_k=True, **kw)
@@ -1297,7 +1461,9 @@ class TestExpandSweepGfx1250Waves(unittest.TestCase):
 
 _CPP_PROBE = r"""
 #include "ck_tile/dispatcher/arch_specs_generated.hpp"
+#include "ck_tile/dispatcher/kernel_key.hpp"
 #include <cstdio>
+#include <string>
 using namespace ck_tile::dispatcher;
 using arch_specs::GpuArch;
 
@@ -1345,6 +1511,17 @@ int main()
     CHECK(!arch_specs::is_trait_unsupported(Pipeline::CompTDMV1, Epilogue::Tdm, Scheduler::Intrawave));
     CHECK(arch_specs::is_trait_unsupported(Pipeline::CompTDMPC, Epilogue::Tdm, Scheduler::Interwave));
     CHECK(!arch_specs::is_trait_unsupported(Pipeline::CompTDMPC, Epilogue::Tdm, Scheduler::Intrawave));
+    // A non-default comp_tdm_pc ring follows the vector widths, as pipeline_ring_suffix().
+    KernelKey key{};
+    key.algorithm.pipeline = Pipeline::CompTDMPC;
+    const std::string base = key.encode_identifier();
+    CHECK(base.find("_s") == std::string::npos);
+    key.algorithm.num_slots   = 2;
+    key.algorithm.publish_lag = 1;
+    CHECK(key.encode_identifier() == base + "_s2l1");
+    KernelKey other = key;
+    other.algorithm.publish_lag = 0;
+    CHECK(!(key == other));
     return fails == 0 ? 0 : 1;
 }
 """

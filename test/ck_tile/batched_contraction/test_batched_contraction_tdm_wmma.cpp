@@ -32,7 +32,8 @@ namespace {
 enum class TdmPipeline
 {
     V1,
-    V2
+    V2,
+    PC // GemmPipelineAgBgCrCompTDMProducerConsumer
 };
 
 template <TdmPipeline P, typename Problem>
@@ -48,6 +49,12 @@ template <typename Problem>
 struct TdmPipelineSelector<TdmPipeline::V2, Problem>
 {
     using type = ck_tile::GemmPipelineAgBgCrCompTDMV2<Problem>;
+};
+
+template <typename Problem>
+struct TdmPipelineSelector<TdmPipeline::PC, Problem>
+{
+    using type = ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumer<Problem>;
 };
 
 using Row = ck_tile::tensor_layout::gemm::RowMajor;
@@ -388,7 +395,9 @@ using PipeC = std::integral_constant<TdmPipeline, P>;
 using KernelTypesTdm = ::testing::Types<std::tuple<ck_tile::half_t, PipeC<TdmPipeline::V1>>,
                                         std::tuple<ck_tile::half_t, PipeC<TdmPipeline::V2>>,
                                         std::tuple<ck_tile::bf16_t, PipeC<TdmPipeline::V1>>,
-                                        std::tuple<ck_tile::bf16_t, PipeC<TdmPipeline::V2>>>;
+                                        std::tuple<ck_tile::bf16_t, PipeC<TdmPipeline::V2>>,
+                                        std::tuple<ck_tile::half_t, PipeC<TdmPipeline::PC>>,
+                                        std::tuple<ck_tile::bf16_t, PipeC<TdmPipeline::PC>>>;
 
 TYPED_TEST_SUITE(TestCkTileBatchedContractionTdm, KernelTypesTdm);
 

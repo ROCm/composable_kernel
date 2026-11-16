@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import logging
+import re
 from typing import Tuple, List
 
 
@@ -100,6 +101,50 @@ def gfx1250_tdm_v3_reject_reason(
             f"{pipeline} supports layout {GFX1250_TDM_V3_LAYOUT!r} only (the pipeline "
             f"static_asserts it), got {layout!r}"
         )
+    return ""
+
+
+# comp_tdm_pc ring shape (GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<NumSlots,
+# PublishLag>). A config names a non-default ring as the pipeline
+# "comp_tdm_pc_s{slots}l{lag}"; plain "comp_tdm_pc" is the policy default <4, 0>.
+# The variant name is kept in the trait combo (so it reaches the kernel and CMake
+# target names) and split back into base pipeline + ring wherever a rule or a
+# C++ type depends on the pipeline. Two producer waves need 3 * NumSlots named
+# barriers out of 15 (ring_spec), which caps the ring at 5 slots. Mirrors
+# split_pipeline_ring / comp_tdm_pc_ring_reject_reason in
+# dispatcher/codegen/codegen_common.py; the dispatcher tests pin the two copies.
+COMP_TDM_PC_DEFAULT_RING = (4, 0)
+COMP_TDM_PC_MIN_SLOTS = 2
+COMP_TDM_PC_MAX_SLOTS = 5
+_COMP_TDM_PC_RING_RE = re.compile(r"^comp_tdm_pc_s(\d+)l(\d+)$")
+
+
+def split_pipeline_ring(pipeline):
+    """(base pipeline, num_slots, publish_lag); num_slots = 0 is the default ring."""
+    m = _COMP_TDM_PC_RING_RE.match(pipeline)
+    if not m:
+        return pipeline, 0, 0
+    ring = (int(m.group(1)), int(m.group(2)))
+    return (
+        ("comp_tdm_pc", 0, 0)
+        if ring == COMP_TDM_PC_DEFAULT_RING
+        else ("comp_tdm_pc", *ring)
+    )
+
+
+def pipeline_ring_reject_reason(pipeline):
+    """Why a comp_tdm_pc ring variant name is rejected ("" when accepted)."""
+    _, num_slots, publish_lag = split_pipeline_ring(pipeline)
+    if not num_slots:
+        return ""
+    if not COMP_TDM_PC_MIN_SLOTS <= num_slots <= COMP_TDM_PC_MAX_SLOTS:
+        return (
+            f"comp_tdm_pc num_slots={num_slots} is outside "
+            f"[{COMP_TDM_PC_MIN_SLOTS}, {COMP_TDM_PC_MAX_SLOTS}] (3 * num_slots named "
+            "barriers must fit in 15)"
+        )
+    if not 0 <= publish_lag < num_slots:
+        return f"comp_tdm_pc publish_lag={publish_lag} must be in [0, num_slots={num_slots})"
     return ""
 
 
@@ -320,13 +365,16 @@ GEMM_PRESHUFFLE_PIPELINES = ["preshufflev2"]
 # preshuffle_pipeline_reject_reason in dispatcher/codegen/codegen_common.py.
 GEMM_PACKED_B_PIPELINES = ["preshufflev2", "preshuffle_tdm"]
 # Listed explicitly: comp_tdm_pc is a TDM pipeline without preshuffle wiring.
-GEMM_PRESHUFFLE_GFX1250_PIPELINES = ["preshuffle_tdm", "comp_async", "comp_tdm", "comp_tdm_v2"]
+GEMM_PRESHUFFLE_GFX1250_PIPELINES = [
+    "preshuffle_tdm",
+    "comp_async",
+    "comp_tdm",
+    "comp_tdm_v2",
+]
 PRESHUFFLE_GFX1250_LAYOUT = "rcr"
 # The host shuffle_b_v0 packs whole N x K tiles: a partial N tile overflows the
 # packed buffer and a partial K tile packs the wrong elements.
-PRESHUFFLE_PAD_NK_REJECT_REASON = (
-    "preshuffled B holds whole N/K tiles, so gfx1250 preshuffle requires pad_n=pad_k=False"
-)
+PRESHUFFLE_PAD_NK_REJECT_REASON = "preshuffled B holds whole N/K tiles, so gfx1250 preshuffle requires pad_n=pad_k=False"
 # These block GEMMs ignore K warps while the launch still counts them, so the
 # extra waves run as M warps past the tile and corrupt C (comp_tdm* only survive
 # through their TDM store), on every arch.
@@ -358,7 +406,9 @@ def preshuffle_pipeline_reject_reason(
     yet" and are not checked, so the helper can run at trait level and at tile
     level.
     """
-    unwired = set(UNSUPPORTED_ASYNC_TDM_PIPELINES) - set(GEMM_PRESHUFFLE_GFX1250_PIPELINES)
+    unwired = set(UNSUPPORTED_ASYNC_TDM_PIPELINES) - set(
+        GEMM_PRESHUFFLE_GFX1250_PIPELINES
+    )
     if pipeline in unwired:
         return f"gemm_preshuffle has no {pipeline} kernel"
     # comp_* pipelines are Intrawave-only, the weight-preshuffle ones Default.
@@ -376,7 +426,9 @@ def preshuffle_pipeline_reject_reason(
         on_gfx1250 = arch == GFX1250_ONLY_PIPELINE_ARCH
         return PRESHUFFLE_PAD_NK_REJECT_REASON if pad_nk and on_gfx1250 else ""
     if arch and arch != GFX1250_ONLY_PIPELINE_ARCH:
-        return f"pipeline {pipeline!r} requires {GFX1250_ONLY_PIPELINE_ARCH}, got {arch!r}"
+        return (
+            f"pipeline {pipeline!r} requires {GFX1250_ONLY_PIPELINE_ARCH}, got {arch!r}"
+        )
     # rcr also covers the comp_async A row-major / B col-major requirement.
     if layout and layout != PRESHUFFLE_GFX1250_LAYOUT:
         return f"preshuffle {pipeline} requires layout {PRESHUFFLE_GFX1250_LAYOUT!r}, got {layout!r}"
@@ -387,7 +439,11 @@ def preshuffle_pipeline_reject_reason(
         return f"preshuffle {pipeline} requires epilogue {want_epilogue!r}, got {epilogue!r}"
     if pipeline != "comp_async" and any(_is_true(p) for p in pads):
         return TDM_PAD_REJECT_REASON
-    if pipeline == "comp_async" and None not in pads and not all(_is_true(p) for p in pads):
+    if (
+        pipeline == "comp_async"
+        and None not in pads
+        and not all(_is_true(p) for p in pads)
+    ):
         return GFX1250_COMP_ASYNC_PAD_REJECT_REASON
     if pipeline == "comp_tdm_v2" and num_waves is not None and num_waves != 4:
         return f"comp_tdm_v2 requires exactly 4 waves, got {num_waves}"
@@ -706,6 +762,9 @@ def is_trait_combination_valid(
     pad_m/pad_n/pad_k are optional: None means the caller did not provide the
     padding, so the padding rules are not checked for it.
     """
+    if pipeline_ring_reject_reason(pipeline):
+        return False
+    pipeline = split_pipeline_ring(pipeline)[0]
     if kernel_name_prefix == "mx_gemm":
         return scheduler == "intrawave" and (
             (pipeline in GEMM_MX_PIPELINES_BY_ARCH["gfx950"] and epilogue == "cshuffle")
@@ -868,7 +927,7 @@ def validate_warp_configuration(
     # has been WITHDRAWN. It is attractive on paper -- the 2 non-computing producer
     # waves cost 11% of the workgroup at 16 consumer waves versus 33% at 4, it compiles
     # spill-free at zero scratch (128x128x64 at 62 VGPR/wave, 14 waves/SIMD), and it
-    # fits LDS at the shipped NumSlots=3 (104352 B, 3 workgroups per 327680 B CU).
+    # fits LDS at the shipped NumSlots=4 (139136 B, 2 workgroups per 327680 B CU).
     #
     # It is also UNSAFE at large shapes. The gtest passes SingleTile at 64x64x32 and
     # 128x128x64, and the host ring replay is sound at ring_spec<3, 2, 16> for every
@@ -938,7 +997,8 @@ DEFAULT_LDS_SIZE = 2**16  # 64KB
 # this many times the per-slot size, so the per-slot budget is the hardware LDS
 # divided by the slot count. Every entry here MIRRORS a default declared in C++
 # and diverges silently if that default is retuned -- comp_tdm_pc's 4 tracks
-# GemmPipelineAgBgCrCompTDMProducerConsumerPolicy's NumSlots_. Verified against the
+# GemmPipelineAgBgCrCompTDMProducerConsumerPolicy's NumSlots_ (a comp_tdm_pc_s{S}l{L}
+# variant uses its own S instead, see validate_lds_capacity). Verified against the
 # emitted kernel descriptor: for bf16 rcr 256x256x64 the per-slot model (69600 B)
 # times NumSlots reproduces .amdhsa_group_segment_fixed_size exactly at both
 # settings -- 208800 B at NumSlots=3, 278400 B at NumSlots=4.
@@ -1040,8 +1100,10 @@ def validate_lds_capacity(
     gfx1250_gemm_pipeline marks a non-MX comp_async / comp_tdm* op (see
     _uses_gfx1250_gemm_pipeline); MX comp_async keeps its own descriptor rule.
     layout is the A/B/C layout code; on gfx1250 it selects the transpose-load
-    LDS descriptors (column-major A, row-major B).
+    LDS descriptors (column-major A, row-major B). A comp_tdm_pc ring variant
+    pipeline splits the LDS over its own slot count.
     """
+    pipeline, num_slots, _ = split_pipeline_ring(pipeline)
     matrix_a_size = (tile_m * tile_k) * element_size(a_datatype)
     matrix_b_size = (tile_n * tile_k) * element_size(b_datatype)
     if pipeline == "weight_preshuffle":
@@ -1082,7 +1144,7 @@ def validate_lds_capacity(
 
     base_gpu_target = _base_gfx_arch(gpu_target)
     hw_lds_size = LDS_SIZE_MAP.get(base_gpu_target, DEFAULT_LDS_SIZE)
-    smem_slots = PIPELINE_SMEM_SLOTS.get(pipeline, DEFAULT_SMEM_SLOTS)
+    smem_slots = num_slots or PIPELINE_SMEM_SLOTS.get(pipeline, DEFAULT_SMEM_SLOTS)
     max_tile_size = hw_lds_size // smem_slots
 
     if total_tile_in_lds > max_tile_size:
@@ -1112,7 +1174,13 @@ GFX1250_WARP_TILES = {
     "bf8": ([16, 16, 64], [16, 16, 128], [32, 32, 128]),
     "int8": ([16, 16, 64],),
 }
-GFX9_FP32_WARP_TILES = ([16, 16, 4], [16, 16, 8], [16, 16, 16], [32, 32, 4], [32, 32, 8])
+GFX9_FP32_WARP_TILES = (
+    [16, 16, 4],
+    [16, 16, 8],
+    [16, 16, 16],
+    [32, 32, 4],
+    [32, 32, 8],
+)
 # A (arch, dtype) with no row is left to the shared table (gfx1201 fp16 is
 # covered there), except fp32 and gfx1250, which the shared table lacks.
 OP_ARCH_WARP_TILES = {
@@ -1377,6 +1445,11 @@ def is_tile_config_valid(
     Comprehensive tile configuration validation.
     Returns True if configuration is valid, False otherwise.
     """
+    # A comp_tdm_pc ring variant only changes the LDS slot count.
+    if pipeline_ring_reject_reason(pipeline):
+        return False
+    ring_pipeline = pipeline
+    pipeline = split_pipeline_ring(pipeline)[0]
     # Basic sanity checks
     if tile_m <= 0 or tile_n <= 0 or tile_k <= 0:
         return False
@@ -1435,7 +1508,7 @@ def is_tile_config_valid(
         tile_k,
         a_datatype,
         b_datatype,
-        pipeline,
+        ring_pipeline,
         gpu_target,
         _uses_gfx1250_gemm_pipeline(pipeline, kernel_name_prefix),
         layout,
@@ -1546,7 +1619,9 @@ def is_tile_config_valid(
         if is_preshuffle:
             warp_tile = [warp_tile_m, warp_tile_n, warp_tile_k]
             warp_tile_valid = op_warp_tile_allowed(gpu_target, a_datatype, warp_tile)
-            warp_tile_error = f"warp tile {warp_tile} not listed for {a_datatype} on {gpu_target}"
+            warp_tile_error = (
+                f"warp tile {warp_tile} not listed for {a_datatype} on {gpu_target}"
+            )
         else:
             warp_tile_valid, warp_tile_error = validate_gemm_warp_tile_combination(
                 warp_tile_m,

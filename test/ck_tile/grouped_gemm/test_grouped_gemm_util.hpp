@@ -20,7 +20,9 @@ enum class GroupedGemmPipelineType
 {
     CompV3,
     CompTDMV1,
-    CompTDMV2
+    CompTDMV2,
+    // GemmPipelineAgBgCrCompTDMProducerConsumer: TDM producer waves feed WMMA consumer waves.
+    CompTDMPC
 };
 
 template <GroupedGemmPipelineType PT>
@@ -51,7 +53,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
         8,
         GroupedGemmPipelineTypeConstant<GroupedGemmPipelineType::CompV3>>::value;
     static constexpr bool IsTdmPipeline = PipelineType == GroupedGemmPipelineType::CompTDMV1 ||
-                                          PipelineType == GroupedGemmPipelineType::CompTDMV2;
+                                          PipelineType == GroupedGemmPipelineType::CompTDMV2 ||
+                                          PipelineType == GroupedGemmPipelineType::CompTDMPC;
     static_assert(!(IsTdmPipeline && Persistent),
                   "TDM grouped GEMM tests support only the non-persistent kernel");
 
@@ -229,7 +232,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                        kargs.size()));
     }
 
-    // Kernel type for the TDM pipelines (CompTDMV1 / CompTDMV2) paired with TdmEpilogue.
+    // Kernel type for the TDM pipelines (CompTDMV1 / CompTDMV2 / CompTDMPC) paired with
+    // TdmEpilogue.
     template <typename GroupedGemKernelParam, typename ALayout, typename BLayout, typename CLayout>
     struct TdmGroupedGemmKernelBuilder
     {
@@ -295,10 +299,12 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                   AComputeDataType,
                                                   BComputeDataType>;
 
-        using GemmPipeline =
+        using GemmPipeline = std::conditional_t<
+            PipelineType == GroupedGemmPipelineType::CompTDMPC,
+            ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumer<UniversalGemmProblem>,
             std::conditional_t<PipelineType == GroupedGemmPipelineType::CompTDMV2,
                                ck_tile::GemmPipelineAgBgCrCompTDMV2<UniversalGemmProblem>,
-                               ck_tile::GemmPipelineAgBgCrCompTDMV1<UniversalGemmProblem>>;
+                               ck_tile::GemmPipelineAgBgCrCompTDMV1<UniversalGemmProblem>>>;
 
         using GemmEpilogue = ck_tile::TdmEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,

@@ -49,8 +49,10 @@ from codegen_common import (
     gemm_lockstep_vector_bytes,
     gemm_default_epilogue_vector_size,
     gemm_vector_size_suffix,
+    pipeline_ring_suffix,
     resolve_gemm_vector_sizes,
     streamk_c_reject_reason,
+    split_pipeline_ring,
     normalize_gfx_arch,
     is_preshuffle_config_valid,  # noqa: F401 (re-exported)
     warp_size_for_arch,
@@ -147,6 +149,10 @@ class TraitConfig(TraitConfigBase):
     vector_size_a: int = 0
     vector_size_b: int = 0
     vector_size_c: int = 0
+    # comp_tdm_pc ring (codegen_common.split_pipeline_ring): num_slots=0 is the
+    # policy default <4, 0>.
+    num_slots: int = 0
+    publish_lag: int = 0
 
     @property
     def vector_sizes(self) -> Tuple[int, int, int]:
@@ -217,6 +223,8 @@ class KernelConfig:
         )
         if any(self.trait.vector_sizes):
             parts.append("vec{}_{}_{}".format(*self.trait.vector_sizes))
+        if self.trait.num_slots:
+            parts.append(f"s{self.trait.num_slots}l{self.trait.publish_lag}")
 
         # Traits
         parts.append(f"pipe_{self.trait.pipeline}")
@@ -317,6 +325,7 @@ class KernelNaming:
         name += f"_{t.warp_m}x{t.warp_n}x{t.warp_k}"
         name += f"_{t.warp_tile_m}x{t.warp_tile_n}x{t.warp_tile_k}"
         name += gemm_vector_size_suffix(tr.vector_sizes)
+        name += pipeline_ring_suffix(tr.num_slots, tr.publish_lag)
 
         # Add variant suffix
         if config.variant == GemmVariant.PRESHUFFLE:
@@ -726,6 +735,8 @@ using CLayout = {ns_name}::CLayout;
 #define GEMM_KEY_VECTOR_SIZE_A {tr.vector_size_a}
 #define GEMM_KEY_VECTOR_SIZE_B {tr.vector_size_b}
 #define GEMM_KEY_VECTOR_SIZE_C {tr.vector_size_c}
+#define GEMM_KEY_NUM_SLOTS {tr.num_slots}
+#define GEMM_KEY_PUBLISH_LAG {tr.publish_lag}
 {self._multi_d_single_include(config)}#endif // CK_TILE_SINGLE_KERNEL_INCLUDE
 """
 
@@ -808,7 +819,7 @@ using CLayout = {ns_name}::CLayout;
                                         NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>,
         scheduler{self._vector_size_tails(config)[0]}>;
 
-    using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+    using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
     {self._epilogue_code(config)}
 
     using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -873,7 +884,7 @@ using CLayout = {ns_name}::CLayout;
             GemmUniversalTraits,
             scheduler{self._vector_size_tails(config)[0]}>;
 
-        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
         {self._epilogue_code(config)}
 
         using GemmKernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -960,7 +971,7 @@ using CLayout = {ns_name}::CLayout;
                                     NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>,
             scheduler{self._vector_size_tails(config)[0]}>;
 
-        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
         {self._epilogue_code(config)}
 
         using GemmKernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -1021,7 +1032,7 @@ using CLayout = {ns_name}::CLayout;
                                         NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>,
         scheduler{self._vector_size_tails(config)[0]}>;
 
-    using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+    using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
     {self._epilogue_code(config)}
 
     using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -1065,7 +1076,7 @@ using CLayout = {ns_name}::CLayout;
                                             NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>,
             scheduler{self._vector_size_tails(config)[0]}>;
         
-        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
         {self._epilogue_code(config)}
         
         // Use GemmKernelMultiD for Multi-D variant
@@ -1144,7 +1155,7 @@ using CLayout = {ns_name}::CLayout;
             AsDataType, BsDataType, AccDataType, TileShape, Traits, scheduler,
             AElementWiseFn, BElementWiseFn{mabd_tails[0]}>;
 
-        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
         {self._epilogue_code(config)}
 
         using GemmKernel = ck_tile::GemmKernelMultiABD<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -1213,7 +1224,7 @@ using CLayout = {ns_name}::CLayout;
                                         NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>;
     using SkUniversalGemmProblem = UniversalGemmPipelineProblem<
         ADataType, BDataType, AccDataType, TileShape, SkGemmUniversalTraits, SkScheduler{self._vector_size_tails(config)[0]}>;
-    using SkGemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<SkUniversalGemmProblem>;
+    using SkGemmPipeline = {self._pipeline_type(config, "SkUniversalGemmProblem")};
     {self._epilogue_code(config)}
     using SkStreamKTilePartitioner =
         ck_tile::StreamKTilePartitioner<TileShape, SkReductionStrategy, UsePersistentKernel>;
@@ -1320,6 +1331,17 @@ using CLayout = {ns_name}::CLayout;
             make_kernel<SkBlockPerCu>(StreamKGemmKernel{{}}, grids, blocks, 0, kargs));
         return ave_time;
     }}"""
+
+    def _pipeline_type(self, config: KernelConfig, problem: str) -> str:
+        """The GemmPipeline type for ``problem``, with a non-default comp_tdm_pc ring."""
+        tr = config.trait
+        pipeline = f"{self.tm.PIPELINE_TO_CK[tr.pipeline]}<{problem}"
+        if tr.num_slots:
+            pipeline += (
+                ", GemmPipelineAgBgCrCompTDMProducerConsumerPolicy"
+                f"<{tr.num_slots}, {tr.publish_lag}>"
+            )
+        return pipeline + ">"
 
     def _vector_size_tails(
         self,
@@ -1602,7 +1624,9 @@ inline KernelInstancePtr make_{kernel_name}(const std::string& gfx_arch = "gfx94
     key.algorithm.num_wave_groups = {config.num_wave_groups};
     key.algorithm.vector_size_a = {config.trait.vector_size_a};
     key.algorithm.vector_size_b = {config.trait.vector_size_b};
-    key.algorithm.vector_size_c = {config.trait.vector_size_c};{sk_fields}
+    key.algorithm.vector_size_c = {config.trait.vector_size_c};
+    key.algorithm.num_slots = {config.trait.num_slots};
+    key.algorithm.publish_lag = {config.trait.publish_lag};{sk_fields}
 
     key.gfx_arch = gfx_arch;
 
@@ -1900,6 +1924,7 @@ class UnifiedGemmCodegen:
                     pipeline=trait.pipeline,
                     scheduler=trait.scheduler,
                     epilogue=trait.epilogue,
+                    num_slots=trait.num_slots,
                 ):
                     continue
 
@@ -2186,6 +2211,7 @@ class UnifiedGemmCodegen:
             tile_mn=(tile.tile_m, tile.tile_n),
             warp_k=tile.warp_k,
             streamk=variant == GemmVariant.STREAM_K,
+            ring=(trait.num_slots, trait.publish_lag),
         )
 
     def _is_tile_arch_valid(
@@ -2195,6 +2221,7 @@ class UnifiedGemmCodegen:
         pipeline: str = None,
         scheduler: str = None,
         epilogue: str = None,
+        num_slots: int = 0,
     ) -> bool:
         """Check if tile configuration is valid for target architecture
 
@@ -2209,6 +2236,7 @@ class UnifiedGemmCodegen:
                 ``intrawave`` for the same reason).
             epilogue: Trait epilogue to validate against (defaults to ``tdm``
                 for the TDM pipelines, which require it, else ``cshuffle``).
+            num_slots: comp_tdm_pc ring slots (0 = default), for the LDS budget.
         """
         if not self.arch_filter or not HAS_ARCH_FILTER:
             return True
@@ -2259,6 +2287,7 @@ class UnifiedGemmCodegen:
             scheduler=scheduler,
             layout=self.layout,
             operator=operator,
+            num_slots=num_slots,
         )
 
     def _warp_tiles_unlisted(self, variant: Optional["GemmVariant"]) -> bool:
@@ -2304,7 +2333,16 @@ class UnifiedGemmCodegen:
         ):
             # JSON configs may spell the boolean traits as strings ("false").
             pads_persistent = tuple(is_true(v) for v in params[3:7])
-            trait = TraitConfig(*params[:3], *pads_persistent, *params[7:])
+            # "comp_tdm_pc_s{S}l{L}" names a non-default producer/consumer ring.
+            pipeline, num_slots, publish_lag = split_pipeline_ring(params[0])
+            trait = TraitConfig(
+                pipeline,
+                *params[1:3],
+                *pads_persistent,
+                *params[7:],
+                num_slots=num_slots,
+                publish_lag=publish_lag,
+            )
 
             # Basic trait validation (unsupported combinations)
             if not trait.is_valid():

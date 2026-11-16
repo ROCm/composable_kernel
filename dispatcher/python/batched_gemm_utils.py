@@ -126,7 +126,9 @@ def _get_arch() -> str:
 
     arch = ""
     try:
-        out = subprocess.check_output(["rocminfo"], text=True, stderr=subprocess.DEVNULL)
+        out = subprocess.check_output(
+            ["rocminfo"], text=True, stderr=subprocess.DEVNULL
+        )
         for line in out.splitlines():
             if "Name:" in line and "gfx" in line:
                 arch = line.split()[-1].strip()
@@ -393,7 +395,9 @@ class GpuBatchedGemmRunner:
     def __init__(self, lib_path: Path, arch: Optional[str] = None):
         self.lib = BatchedGemmDispatcherLib(lib_path)
         if not self.lib.initialize():
-            raise RuntimeError(f"Failed to initialize batched dispatcher .so: {lib_path}")
+            raise RuntimeError(
+                f"Failed to initialize batched dispatcher .so: {lib_path}"
+            )
         names = self.lib.kernel_names
         self._kernel_name = names[0] if names else "unknown"
         # fp8/bf8 encoding must match the arch the .so was compiled for; `arch`
@@ -791,7 +795,12 @@ def expand_sweep(
                 f"batched_gemm bridge supports {name} {list(supported)}; got {value!r}"
             )
     base_configs = _gu.expand_sweep(
-        config_path, arch, dtype=dtype, layout=layout, variant="batched", **vector_kwargs
+        config_path,
+        arch,
+        dtype=dtype,
+        layout=layout,
+        variant="batched",
+        **vector_kwargs,
     )
     out: List[BatchedGemmKernelConfig] = []
     seen: set = set()
@@ -844,6 +853,8 @@ def expand_sweep(
             vector_size_a=b.vector_size_a,
             vector_size_b=b.vector_size_b,
             vector_size_c=b.vector_size_c,
+            num_slots=b.num_slots,
+            publish_lag=b.publish_lag,
             variant="batched",
         )
         if c.name in seen:

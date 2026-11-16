@@ -11,7 +11,8 @@ split on ``_``. Multi-token pipeline names (``comp_async``, ``comp_tdm``,
 ``weight_preshuffle``, ``preshuffle_tdm``) break that split, so they are matched
 first against a known-prefix list (longest first);
 anything else falls back to the legacy split, keeping existing names parsed
-exactly as before.
+exactly as before. A producer/consumer ring variant ``comp_tdm_pc_s{S}l{L}``
+(NumSlots, PublishLag) is one pipeline field too.
 
 The CMake mirror of this helper is ``gemm_trait_parse.cmake``.
 """
@@ -33,8 +34,13 @@ MULTI_TOKEN_PIPELINES = (
     "preshuffle_tdm",
 )
 
+# Tried before the plain names so the ring is not left behind as the epilogue.
+RING_PIPELINE_PATTERN = r"comp_tdm_pc_s\d+l\d+"
+
 _MULTI_TOKEN_RE = re.compile(
-    r"^(" + "|".join(re.escape(p) for p in MULTI_TOKEN_PIPELINES) + r")_"
+    r"^("
+    + "|".join([RING_PIPELINE_PATTERN] + [re.escape(p) for p in MULTI_TOKEN_PIPELINES])
+    + r")_"
 )
 
 

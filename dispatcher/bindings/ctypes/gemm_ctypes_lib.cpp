@@ -328,6 +328,11 @@ int dispatcher_initialize()
     key.algorithm.vector_size_b = GEMM_KEY_VECTOR_SIZE_B;
     key.algorithm.vector_size_c = GEMM_KEY_VECTOR_SIZE_C;
 #endif
+#ifdef GEMM_KEY_NUM_SLOTS
+    // A non-default comp_tdm_pc ring is part of the kernel name too.
+    key.algorithm.num_slots   = GEMM_KEY_NUM_SLOTS;
+    key.algorithm.publish_lag = GEMM_KEY_PUBLISH_LAG;
+#endif
     key.gfx_arch = GFX_ARCH;
 #else
     // Fallback default for headers generated before GEMM_KEY_* macros existed
