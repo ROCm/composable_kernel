@@ -766,14 +766,7 @@ if(NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
     message(STATUS "Created top-level device_operations interface library")
 endif()
 
-# =============================================================================
-# Header Installation
-# =============================================================================
-
-set(DEV_OPS_INC_DIRS
-    ${PROJECT_SOURCE_DIR}/include/ck/
-    ${PROJECT_SOURCE_DIR}/library/include/ck/
-)
-rocm_install(DIRECTORY ${DEV_OPS_INC_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck)
+# The CK headers are installed from the top-level CMakeLists.txt, so they are also
+# installed when no instance libraries are built (CK_HEADERS_ONLY).
 
 # =============================================================================

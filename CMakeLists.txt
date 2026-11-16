@@ -60,6 +60,7 @@ if(MIOPEN_SPLIT_LIBS AND NOT MIOPEN_REQ_LIBS_ONLY)
     message(WARNING "MIOPEN_SPLIT_LIBS has no effect without MIOPEN_REQ_LIBS_ONLY")
 endif()
 option(HIPTENSOR_REQ_LIBS_ONLY "Build only the HipTensor required libraries" OFF)
+option(CK_HEADERS_ONLY "Install only the CK headers and CMake package (composable_kernel::headers); build no instance libraries, profiler, examples or tests" OFF)
 option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
 option(CK_TILE_DISPATCHER "Use CK Tile Dispatcher for profiler convolution kernels" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
@@ -932,7 +933,7 @@ option(BUILD_CK_TILE_ENGINE_TESTS "Build tile engine tests" ON)
 option(BUILD_CK_TILE_FMHA_TESTS "Build FMHA tests" ON)
 option(BUILD_CK_TILE_CSHUFFLE_LDS_BENCHMARKS "Build CShuffleLds microbenchmarks (requires BUILD_CK_EXAMPLES=ON)" OFF)
 
-if(BUILD_CK_DEVICE_INSTANCES)
+if(BUILD_CK_DEVICE_INSTANCES AND NOT CK_HEADERS_ONLY)
     # Optimization: Search only in library/src where all instance files actually live
     # (was searching entire source tree, taking ~40s instead of <1s)
     file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/library/src/*/device_*_instance.cpp")
@@ -985,7 +986,7 @@ if (CK_EXPERIMENTAL_BUILDER)
   add_subdirectory(experimental/builder)
 endif()
 
-if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY AND NOT CK_HEADERS_ONLY)
    if(BUILD_CK_EXAMPLES)
        rocm_package_setup_component(examples
             LIBRARY_NAME composablekernel
@@ -1014,7 +1015,7 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTE
 endif()
 
 if(BUILD_CK_PROFILER)
-    if (NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
+    if (NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY AND NOT CK_HEADERS_ONLY)
         rocm_package_setup_component(profiler
             LIBRARY_NAME composablekernel
             PACKAGE_NAME ckprofiler
@@ -1057,6 +1058,46 @@ rocm_install(FILES
     ${PROJECT_BINARY_DIR}/include/ck/version.h
     ${PROJECT_BINARY_DIR}/include/ck/config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck/
+)
+
+# Install the CK headers. Done here rather than with the instance libraries so the headers are
+# installed in every mode, including CK_HEADERS_ONLY.
+rocm_install(DIRECTORY
+    ${PROJECT_SOURCE_DIR}/include/ck/
+    ${PROJECT_SOURCE_DIR}/library/include/ck/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck
+)
+
+# Header-only interface target for consumers that instantiate CK templates themselves and link
+# no prebuilt instance library (e.g. hipTensor): find_package(composable_kernel COMPONENTS headers)
+# and link composable_kernel::headers. Exported in every mode. The include directories match those
+# of the instance libraries (e.g. device_other_operations).
+add_library(composable_kernel_headers INTERFACE)
+set_target_properties(composable_kernel_headers PROPERTIES EXPORT_NAME headers)
+target_include_directories(composable_kernel_headers INTERFACE
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/utility>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_description>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/problem_transform>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/device>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/device/impl>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/grid>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/block>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/warp>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/thread>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/element>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/utility>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/quantization>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/softmax>
+)
+rocm_install(TARGETS composable_kernel_headers EXPORT headersTargets)
+rocm_install(EXPORT headersTargets
+    FILE composable_kernelheadersTargets.cmake
+    NAMESPACE composable_kernel::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
 )
 
 if(CK_EXPERIMENTAL_BUILDER)

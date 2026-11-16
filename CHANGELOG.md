@@ -21,6 +21,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ### Added
 
+* Added the `CK_HEADERS_ONLY` CMake option, which installs only the headers and CMake package without building any instance library, profiler, example, or test, and the `headers` package component, which provides the header-only `composable_kernel::headers` target for consumers that instantiate the CK templates themselves.
 * Added gfx1250 support and WMMA regression tests for CK Tile GEMM Stream-K with atomic, linear, and tree reduction.
 * Added a gfx1250 WMMA configuration and reduction-strategy selection to the CK Tile GEMM Stream-K dispatcher benchmark.
 * Added FP6 (E2M3) operands to the CK Tile microscaling (MX) GEMM TDM pipelines on gfx1250, for row-major A, column-major B, a 16x16x128 warp tile, and 32-element E8M0 scale blocks, with fp16 or bf16 output.
