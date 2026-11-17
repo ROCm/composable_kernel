@@ -1,10 +1,11 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
 """
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2026-10-30T14:59:00.519447
+Generated at: 2026-11-16T14:42:30.392585
 
 To update this file:
 1. Edit arch_specs.json
@@ -44,6 +45,13 @@ WARP_SUPPORTED_COMBINATIONS: Dict[str, List[List[int]]] = {
     "gfx1200": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
     "gfx1201": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
     "gfx1250": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1], [2, 1, 1], [1, 2, 2], [4, 1, 1], [1, 4, 1], [2, 2, 1]],
+}
+
+# Pipeline-specific extra warp configurations: pipeline -> arch -> [[warp_m, warp_n, warp_k], ...]
+PIPELINE_EXTRA_WARP_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {
+    "comp_tdm_v3": {
+        "gfx1250": [[4, 4, 1]],
+    },
 }
 
 # Supported warp tile combinations: arch -> dtype_key -> [[warp_tile_m, n, k], ...]
@@ -330,7 +338,22 @@ TRAIT_UNSUPPORTED_COMBINATIONS: Set[Tuple[str, str, str]] = {
     ("comp_tdm_pc", "cshuffle", "interwave"),
     ("comp_tdm_pc", "default", "interwave"),
     ("comp_tdm_pc", "tdm", "interwave"),
+    ("comp_tdm_v3", "cshuffle", "interwave"),
+    ("comp_tdm_v3", "default", "interwave"),
+    ("comp_tdm_v3", "tdm", "interwave"),
 }
+
+# Pipelines whose C++ problem requires DoubleSmemBuffer == true.
+DOUBLE_SMEM_BUFFER_PIPELINES: Tuple[str, ...] = (
+    "compv4",
+    "preshufflev2",
+    "comp_async",
+    "comp_tdm",
+    "comp_tdm_v2",
+    "comp_tdm_pc",
+    "comp_tdm_v3",
+    "preshuffle_tdm",
+)
 
 # Valid dtype combinations: (A_dtype, B_dtype) -> acc_dtype and notes
 DTYPE_COMBINATIONS: Dict[str, Dict[str, str]] = {
@@ -382,6 +405,7 @@ def get_warp_tile_combos(gpu_arch: str, dtype_key: str) -> List[List[int]]:
 LDS_PIPELINE_BUDGET_ALIASES: Dict[str, str] = {
     "comp_tdm": "comp_async",
     "comp_tdm_v2": "comp_async",
+    "comp_tdm_v3": "comp_async",
 }
 
 

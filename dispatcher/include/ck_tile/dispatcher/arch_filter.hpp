@@ -268,7 +268,7 @@ class ArchFilter
 
     void validate_warp_config(const KernelKey& key, ValidationResult& result) const
     {
-        auto supported = get_supported_warp_configs(arch_);
+        auto supported = get_supported_warp_configs(arch_, key.algorithm.pipeline);
         if(supported.empty())
         {
             if(strict_mode_)

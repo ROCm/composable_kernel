@@ -795,8 +795,8 @@ set_tests_properties(dispatcher_test_streamk_registry PROPERTIES
 # these exits 77 (Skipped, not Passed) when no GPU is present or the detected
 # arch is not the one the operator supports.
 
-# Stream-K: atomic / linear / tree reduction through the ctypes bridge (gfx942).
-# 12 hipcc builds plus a 4096-cubed reference, hence the larger timeout.
+# Stream-K: atomic / linear / tree on gfx942/gfx950/gfx1250. gfx1250 builds
+# 72 bridge kernels plus four 16-wave workspace drivers, hence the larger timeout.
 add_test(
     NAME dispatcher_test_streamk_gpu_correctness
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_streamk_gpu_correctness.py

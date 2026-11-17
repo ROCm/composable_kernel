@@ -22,6 +22,7 @@ No GPU is touched. Run: python3 -m pytest tests/test_streamk_gemm_utils.py -v
 """
 
 import sys
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -35,6 +36,41 @@ from gemm_utils import (  # noqa: E402
     _dtype_from_kernel_name,
     _layout_from_kernel_name,
 )
+
+
+class TestStreamKBudgetArguments(unittest.TestCase):
+    def test_valid_budgets_keep_order(self):
+        from gemm_utils import parse_streamk_budgets
+
+        self.assertEqual(parse_streamk_budgets("100, 1,50,"), [100, 1, 50])
+        self.assertEqual(parse_streamk_budgets(100), [100])
+
+    def test_invalid_budget_is_an_argparse_error(self):
+        script = (
+            DISPATCHER_DIR.parent
+            / "tile_engine"
+            / "ops"
+            / "gemm"
+            / "streamk_gemm_full_benchmark.py"
+        )
+        for text in ("50.5", "a", "0", "101", "", "100,100"):
+            with self.subTest(text=text):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(script),
+                        "--arch",
+                        "gfx1250",
+                        "--budget-pct",
+                        text,
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("--budget-pct", result.stderr)
+                self.assertIn("distinct values in 1..100", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
 
 
 class TestStreamKNaming(unittest.TestCase):

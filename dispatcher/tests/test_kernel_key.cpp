@@ -202,11 +202,12 @@ TEST(KernelKeyTest, EncodeIdentifierWithSparsity)
 
 TEST(KernelKeyTest, Gfx1250PipelineIdentity)
 {
-    const std::array<std::pair<const char*, Pipeline>, 6> pipelines = {{
+    const std::array<std::pair<const char*, Pipeline>, 7> pipelines = {{
         {"preshufflev2", Pipeline::PreShuffleV2},
         {"comp_tdm", Pipeline::CompTDMV1},
         {"comp_tdm_v2", Pipeline::CompTDMV2},
         {"comp_tdm_pc", Pipeline::CompTDMPC},
+        {"comp_tdm_v3", Pipeline::CompTDMV3},
         {"preshuffle_tdm", Pipeline::PreShuffleTDM},
         {"comp_async", Pipeline::CompAsync},
     }};

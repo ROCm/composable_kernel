@@ -42,26 +42,31 @@ GEMM_ASYNC_PIPELINES = ["comp_async"]
 GEMM_PIPELINES_BY_ARCH = {
     "gfx1250": GEMM_PIPELINES + GEMM_ASYNC_PIPELINES + GEMM_TDM_PIPELINES,
 }
-# comp_tdm_v3 (GemmPipelineAgBgCrCompTDMV3, the 16-wave fp8/bf8 TDM pipeline)
+# comp_tdm_v3 (GemmPipelineAgBgCrCompTDMV3, the 4/16-wave TDM pipeline)
 # differs from the other TDM pipelines in four opt-in ways, all scoped to it:
 # - it writes C through the CShuffle epilogue, not TdmEpilogue
 #   (TDM_PIPELINE_EPILOGUE; every other TDM pipeline keeps "tdm");
 # - it is the only pipeline allowed the [4, 4, 1] wave map
 #   (PIPELINE_EXTRA_WARP_COMBINATIONS; the shared table is unchanged);
-# - its wave maps are the two it is tested with, 2x2x1 and 4x4x1, its A/B are
-#   fp8/bf8 only and its layout is rcr only (GFX1250_TDM_V3_*);
+# - its wave maps are the two it is tested with, 2x2x1 and 4x4x1; its A/B are
+#   fp8/bf8 (layout rcr only) or fp16/bf16 (any A/B layout, row-major C);
 # - it is registered for gemm_universal only.
 # No default or CI config lists it; gemm_universal/configs/
-# gfx1250_fp8_comp_tdm_v3.json holds its one instance.
+# gfx1250_fp8_comp_tdm_v3.json and gfx1250_bf16_comp_tdm_v3.json hold its instances.
 GEMM_TDM_V3_PIPELINE = "comp_tdm_v3"
 TDM_PIPELINE_EPILOGUE = {GEMM_TDM_V3_PIPELINE: "cshuffle"}
 PIPELINE_EXTRA_WARP_COMBINATIONS = {GEMM_TDM_V3_PIPELINE: {"gfx1250": [[4, 4, 1]]}}
 GFX1250_TDM_V3_WARPS = ([2, 2, 1], [4, 4, 1])
-GFX1250_TDM_V3_DTYPES = ("fp8", "bf8")
+GFX1250_TDM_V3_8BIT_DTYPES = ("fp8", "bf8")
+GFX1250_TDM_V3_16BIT_DTYPES = ("fp16", "bf16")
 GFX1250_TDM_V3_OPS = ("gemm_universal",)
-# A row-major, B column-major, C row-major: the only tested layout; the other A/B
-# layouts spill VGPRs in the K loop at the 16-wave tile.
-GFX1250_TDM_V3_LAYOUT = "rcr"
+# 8-bit A/B: A row-major, B column-major, C row-major, the only layout the
+# pipeline accepts for them (other A/B layouts spill VGPRs in the K loop at the
+# 16-wave tile). 16-bit A/B: any A/B layout with row-major C.
+# Mirrored in dispatcher/codegen/codegen_common.py: the dependency direction
+# described in _base_gfx_arch prevents importing it here. Gate-equivalence
+# tests exercise both implementations, including mixed dtypes and all layouts.
+GFX1250_TDM_V3_8BIT_LAYOUT = "rcr"
 
 
 def tdm_pipeline_epilogue(pipeline):
@@ -79,28 +84,44 @@ def gfx1250_tdm_v3_reject_reason(
     warp_k,
     kernel_name_prefix="",
     layout="",
+    tile_k=None,
+    warp_tile_k=None,
 ):
     """Reason string if a comp_tdm_v3 config is outside what it supports, else "".
-    An empty layout is not checked."""
+    An empty layout and a None tile_k / warp_tile_k are not checked."""
     if pipeline != GEMM_TDM_V3_PIPELINE:
         return ""
     if kernel_name_prefix and kernel_name_prefix not in GFX1250_TDM_V3_OPS:
         return f"{kernel_name_prefix} does not support the {pipeline} pipeline"
-    if (
-        a_datatype not in GFX1250_TDM_V3_DTYPES
-        or b_datatype not in GFX1250_TDM_V3_DTYPES
-    ):
-        return f"{pipeline} requires fp8/bf8 A and B, got {a_datatype}/{b_datatype}"
+    pair = {a_datatype, b_datatype}
+    is_8bit = pair <= set(GFX1250_TDM_V3_8BIT_DTYPES)
+    if not (is_8bit or pair <= set(GFX1250_TDM_V3_16BIT_DTYPES)):
+        return (
+            f"{pipeline} requires fp8/bf8 or fp16/bf16 A and B, "
+            f"got {a_datatype}/{b_datatype}"
+        )
     if [warp_m, warp_n, warp_k] not in GFX1250_TDM_V3_WARPS:
         return (
             f"{pipeline} supports the 2x2x1 and 4x4x1 wave maps only, got "
             f"{warp_m}x{warp_n}x{warp_k}"
         )
-    if layout and layout != GFX1250_TDM_V3_LAYOUT:
+    # The pipeline splits a K tile into 1, 2 or 4 sub-tiles of whole warp-tile K
+    # steps, so tile_k / warp_tile_k must be a power of two (e.g. no 192 with 32).
+    if tile_k and warp_tile_k:
+        k_steps = tile_k // warp_tile_k
+        if tile_k % warp_tile_k or k_steps & (k_steps - 1):
+            return (
+                f"{pipeline} needs tile_k / warp_tile_k to be a power of two, got "
+                f"{tile_k} / {warp_tile_k}"
+            )
+    if is_8bit and layout and layout != GFX1250_TDM_V3_8BIT_LAYOUT:
         return (
-            f"{pipeline} supports layout {GFX1250_TDM_V3_LAYOUT!r} only (the pipeline "
-            f"static_asserts it), got {layout!r}"
+            f"{pipeline} with 8-bit A/B supports layout "
+            f"{GFX1250_TDM_V3_8BIT_LAYOUT!r} only, "
+            f"got {layout!r}"
         )
+    if layout[2:3] not in ("", "r"):
+        return "comp_tdm_v3 supports row-major C only"
     return ""
 
 
@@ -1586,6 +1607,8 @@ def is_tile_config_valid(
                 warp_k,
                 kernel_name_prefix,
                 layout,
+                tile_k,
+                warp_tile_k,
             )
         )
         if dtype_reason:

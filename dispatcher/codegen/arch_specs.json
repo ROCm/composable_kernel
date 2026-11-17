@@ -231,7 +231,6 @@
         "bf16_bf16_fp32": [[16, 16, 32]],
         "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128], [32, 32, 128]],
         "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128], [32, 32, 128]],
-        "fp32_fp32_fp32": [[16, 16, 4]],
         "int8_int8_int32": [[16, 16, 64]]
       }
     }
@@ -344,7 +343,7 @@
         "GemmPipelineAgBgCrCompAsync::GetSmemSize() returns",
         "num_lds_buffers * smem_size with num_lds_buffers = 2.",
         "Emitted to C++ as Pipeline::CompAsync. The gfx1250 TDM pipelines",
-        "(comp_tdm, comp_tdm_v2) share this budget through",
+        "(comp_tdm, comp_tdm_v2, comp_tdm_v3) share this budget through",
         "pipeline_lds_budget_aliases."
       ]
     },
@@ -402,11 +401,34 @@
       "buffers, as comp_async does."
     ],
     "comp_tdm": "comp_async",
-    "comp_tdm_v2": "comp_async"
+    "comp_tdm_v2": "comp_async",
+    "comp_tdm_v3": "comp_async"
+  },
+
+  "pipeline_extra_warp_configs": {
+    "_comment": [
+      "Pipeline-specific wave maps allowed in addition to an architecture's",
+      "shared warp_configs table. Keeps [4, 4, 1] scoped to comp_tdm_v3 on",
+      "gfx1250 without widening the shared gfx1250 wave table."
+    ],
+    "comp_tdm_v3": {
+      "gfx1250": [[4, 4, 1]]
+    }
   },
   
+  "double_smem_buffer_pipelines": [
+    "compv4",
+    "preshufflev2",
+    "comp_async",
+    "comp_tdm",
+    "comp_tdm_v2",
+    "comp_tdm_pc",
+    "comp_tdm_v3",
+    "preshuffle_tdm"
+  ],
+
   "unsupported_trait_combos": {
-    "_comment": "Only 'mem' pipeline supports interwave scheduler. All compute pipelines only support intrawave.",
+    "_comment": "Unsupported (pipeline, epilogue, scheduler) triples, shared by Python and C++ validation.",
     "combinations": [
       ["compv3", "cshuffle", "interwave"],
       ["compv3", "default", "interwave"],
@@ -426,7 +448,10 @@
       ["comp_tdm_v2", "tdm", "interwave"],
       ["comp_tdm_pc", "cshuffle", "interwave"],
       ["comp_tdm_pc", "default", "interwave"],
-      ["comp_tdm_pc", "tdm", "interwave"]
+      ["comp_tdm_pc", "tdm", "interwave"],
+      ["comp_tdm_v3", "cshuffle", "interwave"],
+      ["comp_tdm_v3", "default", "interwave"],
+      ["comp_tdm_v3", "tdm", "interwave"]
     ]
   },
   

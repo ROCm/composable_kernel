@@ -341,8 +341,11 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
         )
         suggested_fixes["scheduler"] = "intrawave"
 
-    # Check wave configuration for this arch
-    warp_combos = arch_data["warp_combos"].get(arch, [[2, 2, 1]])
+    # Check wave configuration for this arch (plus the pipeline's own extra maps)
+    from codegen_common import pipeline_warp_combos
+    warp_combos = pipeline_warp_combos(
+        pipeline, arch, arch_data["warp_combos"].get(arch, [[2, 2, 1]])
+    )
     wave_cfg = [wave_m, wave_n, wave_k]
     if wave_cfg not in warp_combos:
         valid_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in warp_combos)

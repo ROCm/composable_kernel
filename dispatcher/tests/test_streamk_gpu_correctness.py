@@ -14,9 +14,14 @@ builds the ``atomic`` strategy: ``default_ci_config.json`` carries no
 global atomics — have never been verified through the ctypes bridge. This test
 closes that gap.
 
-Requires a gfx942 GPU (MI300X) and hipcc in PATH. Skips cleanly (exit 77) when
-no GPU is visible or the detected arch is not gfx942, so it is safe to invoke
-unconditionally from a CI lane.
+Every kernel runs with persistent and non-persistent data-parallel tiles. On
+gfx942/gfx950 the pipeline is compv3; on gfx1250 it is each TDM pipeline
+(comp_tdm, comp_tdm_v2, comp_tdm_v3), atomic on the CShuffle epilogue and
+linear/tree on the TDM epilogue.
+
+Requires a gfx942, gfx950 or gfx1250 GPU and hipcc in PATH. Skips cleanly (exit
+77) when no GPU is visible or the detected arch is not supported, so it is safe
+to invoke unconditionally from a CI lane.
 
 Shapes:
   S1  M=4096 N=4096 K=2048  — all three strategies. Output tiles vastly exceed
@@ -29,6 +34,12 @@ Shapes:
       linear/tree keep a tight tolerance here where atomic would need ~5e-1
       rtol for bf16 — a vacuous assertion. The atomic side of this regime is
       already covered in C++ by test_streamk_registry.py.
+
+On gfx1250, bf16 also builds four 16-wave comp_tdm_v3 CShuffle linear/tree
+drivers (persistent and non-persistent). They check reduced workgroup budgets,
+active Stream-K and Full-DP, poisoned external workspace reuse, buffer guards,
+and invalid budget/null workspace rejection. Each driver runs 8 cases with
+3 different input phases; the C++ source explains the exact reference values.
 
 Tolerance is CK's own split-K-aware bound, ported from
 ``dispatcher/examples/gemm/cpp/streamk_driver_common.hpp`` +
@@ -43,17 +54,25 @@ Run:
 """
 
 import argparse
+import itertools
 import logging
 import math
 import os
+import subprocess
 import sys
+import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
-from ctypes_utils import detect_gpu_arch
+from ctypes_utils import (
+    _generate_single_kernel_subprocess,
+    detect_gpu_arch,
+    get_codegen_path,
+)
 from gemm_utils import (
     GemmKernelConfig,
     GemmProblem,
@@ -61,6 +80,7 @@ from gemm_utils import (
     numpy_dtype_for,
     output_dtype_for,
     setup_multiple_gemm_dispatchers,
+    _build_compile_jobs,
 )
 
 log = logging.getLogger("streamk_gpu")
@@ -73,9 +93,12 @@ SKIP_EXIT = 77
 # gemm_utils host codec was FNUZ-only while the arch encodes fp8 as OCP -- which
 # had nothing to do with Stream-K. That codec now follows the arch (see
 # dispatcher_common.fp8_uses_ocp), so gfx950 is back in.
-SUPPORTED_ARCHS = ("gfx942", "gfx950")
+SUPPORTED_ARCHS = ("gfx942", "gfx950", "gfx1250")
+TDM_ARCH = "gfx1250"
+TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2", "comp_tdm_v3")
 
 STRATEGIES = ("atomic", "linear", "tree")
+PERSISTENT = (False, True)
 ALL_DTYPES = ("fp16", "bf16", "fp8", "bf8")
 
 # pad_m/n/k are all False, so every dimension must be a multiple of the tile.
@@ -178,13 +201,31 @@ def _detect_arch():
     return arch or None
 
 
-def _make_config(dtype: str, strategy: str, gfx_arch: str) -> GemmKernelConfig:
+def _pipelines(gfx_arch: str):
+    return TDM_PIPELINES if gfx_arch == TDM_ARCH else ("compv3",)
+
+
+def _make_config(
+    dtype: str, strategy: str, gfx_arch: str, pipeline: str = "compv3",
+    persistent: bool = False,
+) -> GemmKernelConfig:
     """One Stream-K kernel config, spelled out rather than defaulted.
 
-    Mirrors what the CI sweep builds green today for variant=stream_k on gfx942.
-    ``epilogue`` must stay "cshuffle": the codegen emits nothing for any other
-    value, which surfaces later as a confusing "no .hpp generated" build error.
+    compv3 mirrors what the CI sweep builds green today for variant=stream_k on
+    gfx942; its epilogue must stay "cshuffle" (the codegen emits nothing for any
+    other value, which surfaces later as a confusing "no .hpp generated" build
+    error). The gfx1250 TDM pipelines are unpadded with a 128x128 tile on 2x2x1
+    waves and the gfx1250 WMMA warp tiles; linear/tree use the TDM epilogue.
     """
+    if pipeline in TDM_PIPELINES:
+        k_atom = 128 if dtype in ("fp8", "bf8") else 32
+        tile = dict(tile_m=128, tile_n=128, tile_k=max(64, k_atom),
+                    warp_tile_m=16, warp_tile_n=16, warp_tile_k=k_atom)
+        epilogue = "cshuffle" if strategy == "atomic" else "tdm"
+    else:
+        tile = dict(tile_m=TILE_M, tile_n=TILE_N, tile_k=TILE_K,
+                    warp_tile_m=32, warp_tile_n=32, warp_tile_k=16)
+        epilogue = "cshuffle"
     return GemmKernelConfig(
         dtype_a=dtype,
         dtype_b=dtype,
@@ -193,22 +234,17 @@ def _make_config(dtype: str, strategy: str, gfx_arch: str) -> GemmKernelConfig:
         layout_a="row",
         layout_b="col",
         layout_c="row",
-        tile_m=TILE_M,
-        tile_n=TILE_N,
-        tile_k=TILE_K,
+        **tile,
         wave_m=2,
         wave_n=2,
         wave_k=1,
-        warp_tile_m=32,
-        warp_tile_n=32,
-        warp_tile_k=16,
-        pipeline="compv3",
+        pipeline=pipeline,
         scheduler="intrawave",
-        epilogue="cshuffle",
+        epilogue=epilogue,
         pad_m=False,
         pad_n=False,
         pad_k=False,
-        persistent=False,
+        persistent=persistent,
         variant="stream_k",
         reduction_strategy=strategy,
         gfx_arch=gfx_arch,
@@ -284,21 +320,70 @@ def _verify(label, so, shape, dtype, strategy):
 # ---------------------------------------------------------------------------
 
 
-def _build_matrix(dtypes):
-    """(label, dtype, strategy, shape_key) for every case we intend to run.
+def _build_matrix(dtypes, gfx_arch):
+    """(label, kernel key, shape_key) for every case we intend to run; the kernel
+    key is (dtype, strategy, pipeline, persistent).
 
     S2 is deliberately linear/tree-only — see the module docstring.
     """
     cases = []
-    for dtype in dtypes:
-        for strategy in STRATEGIES:
-            cases.append((f"S1/{dtype}/{strategy}", dtype, strategy, "S1"))
-    for dtype in dtypes:
-        for strategy in STRATEGIES:
-            if strategy == "atomic":
+    for shape_key in ("S1", "S2"):
+        for dtype, pipeline, persistent, strategy in itertools.product(
+            dtypes, _pipelines(gfx_arch), PERSISTENT, STRATEGIES
+        ):
+            if shape_key == "S2" and strategy == "atomic":
                 continue
-            cases.append((f"S2/{dtype}/{strategy}", dtype, strategy, "S2"))
+            mode = "persistent" if persistent else "non-persistent"
+            label = f"{shape_key}/{dtype}/{pipeline}/{mode}/{strategy}"
+            cases.append((label, (dtype, strategy, pipeline, persistent), shape_key))
     return cases
+
+
+def _verify_workspace(gfx_arch):
+    """Exercise generated external-workspace launches in isolated GPU processes."""
+    driver = Path(__file__).with_name("streamk_workspace_driver.cpp")
+    results = []
+    with tempfile.TemporaryDirectory(prefix="streamk_workspace_") as tmp:
+        for strategy, persistent in itertools.product(("linear", "tree"), PERSISTENT):
+            config = replace(
+                _make_config("bf16", strategy, gfx_arch, "comp_tdm_v3", persistent),
+                epilogue="cshuffle", tile_m=256, tile_n=256, tile_k=128,
+                wave_m=4, wave_n=4,
+            )
+            label = f"workspace/{strategy}/persistent={persistent}"
+            ok, header, error = _generate_single_kernel_subprocess({
+                "python": sys.executable,
+                "codegen_script": str(get_codegen_path()),
+                "output_dir": tmp,
+                "dtype": config.dtype_a,
+                "layout": config.layout,
+                "gpu_target": gfx_arch,
+                "tile_config_json": config.to_codegen_json(),
+                "hpp_glob_pattern": config.name + ".hpp",
+                "variant": "stream_k",
+            })
+            if not ok:
+                results.append((label, FAIL, f"{label}: codegen failed: {error}"))
+                continue
+            # Reuse the bridge's flags, substituting the standalone driver for
+            # the final source/-o/object arguments and compiling an executable.
+            job, _ = _build_compile_jobs(config, Path(header))
+            command = [arg for arg in job["compile_cmd"][:-3] if arg != "-c"]
+            executable = Path(tmp) / config.name
+            command += [str(driver), "-o", str(executable)]
+            try:
+                subprocess.run(command, check=True, capture_output=True, text=True, timeout=300)
+                run = subprocess.run(
+                    [str(executable)], check=True, capture_output=True, text=True, timeout=120
+                )
+                log.info("%s\n%s", label, run.stdout)
+                results.append((label, PASS, f"{label}: 8 cases / 24 launches passed"))
+            except subprocess.CalledProcessError as exc:
+                results.append((label, FAIL, f"{label}: exit {exc.returncode}\n"
+                                f"{exc.stdout}\n{exc.stderr}"))
+            except subprocess.TimeoutExpired as exc:
+                results.append((label, FAIL, f"{label}: timeout after {exc.timeout}s"))
+    return results
 
 
 def main():
@@ -308,7 +393,7 @@ def main():
     # No hardcoded default: it must stay possible to tell "user asked for gfx942"
     # from "we are on an unrelated box", so the skip below can fire.
     parser.add_argument("--gfx", default=None,
-                        help="GPU arch override (default: auto-detect; gfx942 only)")
+                        help="GPU arch override (default: auto-detect; gfx942, gfx950 or gfx1250)")
     parser.add_argument("--dtypes", default=",".join(ALL_DTYPES),
                         help=f"comma-separated subset of {','.join(ALL_DTYPES)}")
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -352,11 +437,11 @@ def main():
     os.environ.setdefault("CK_TILE_BENCH_WARMUP", "1")
     os.environ.setdefault("CK_TILE_BENCH_REPEAT", "2")
 
-    cases = _build_matrix(dtypes)
-    # One kernel per (dtype, strategy); S1 and S2 share it since M/N/K are
-    # runtime arguments, not codegen constants.
-    kernel_keys = sorted({(d, s) for _, d, s, _ in cases})
-    configs = [_make_config(d, s, gfx) for d, s in kernel_keys]
+    cases = _build_matrix(dtypes, gfx)
+    # One kernel per (dtype, strategy, pipeline, persistent); S1 and S2 share it
+    # since M/N/K are runtime arguments, not codegen constants.
+    kernel_keys = sorted({key for _, key, _ in cases})
+    configs = [_make_config(d, s, gfx, p, pers) for d, s, p, pers in kernel_keys]
 
     log.info("Building %d Stream-K kernels for %d cases ...",
              len(configs), len(cases))
@@ -369,9 +454,10 @@ def main():
     }
 
     results = []
-    for label, dtype, strategy, shape_key in cases:
+    for label, key, shape_key in cases:
+        dtype, strategy = key[:2]
         log.info("--- Running %s ---", label)
-        so = by_key.get((dtype, strategy))
+        so = by_key.get(key)
         if so is None:
             results.append((label, FAIL, f"{label}: codegen/compile failed"))
             log.info("[%s] %s", FAIL, results[-1][2])
@@ -391,7 +477,14 @@ def main():
         print(f"  [{status:4s}] {detail}")
     print(f"\n{passed}/{len(results)} passed")
 
-    return 0 if passed == len(results) else 1
+    if passed != len(results):
+        return 1
+    if gfx == TDM_ARCH and "bf16" in dtypes:
+        workspace_results = _verify_workspace(gfx)
+        for _, status, detail in workspace_results:
+            print(f"  [{status:4s}] {detail}")
+        return 0 if all(status == PASS for _, status, _ in workspace_results) else 1
+    return 0
 
 
 if __name__ == "__main__":

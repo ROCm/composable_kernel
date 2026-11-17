@@ -32,9 +32,13 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added CK Tile GEMM Stream-K support, including in the CK Tile dispatcher, for the gfx1250 TDM pipelines (comp_tdm and comp_tdm_v2) with row-major C and warp_k=1: the CShuffle epilogue for atomic, linear, and tree reduction (N must be a multiple of the block tile N), the TDM epilogue for linear and tree reduction, and persistent or non-persistent data-parallel tiles. The dispatcher also selects these kernels for M, N, or K that are not tile multiples.
 * Added N and K padding to the XDL two-stage MoE GEMM with preshuffled weights, so `DeviceMoeGemm` instances with a padding `GemmSpecialization` accept model dimensions that are not multiples of the tile size.
 * Added CK Tile GEMM Stream-K support for the gfx1250 comp_tdm_v3 pipeline: 4 and 16 waves, row-major C, bf16 and fp16 inputs (any A/B layout) and fp8 and bf8 inputs (row-major A, column-major B), with the same reductions, epilogues and persistence modes as comp_tdm and comp_tdm_v2.
+* Added the gfx1250 comp_tdm_v3 pipeline to the CK Tile dispatcher and its Tile Engine bridge, for plain GEMM (CShuffle epilogue, row-major C, fp8/bf8 with row-major A and column-major B, or fp16/bf16 with any A/B layout, 2x2x1 or 4x4x1 waves) and for Stream-K GEMM, and fp16/bf16 comp_tdm_v3 to the Tile Engine GEMM.
+* Added a Tile Engine Stream-K configuration for the gfx1250 TDM pipelines (comp_tdm, comp_tdm_v2 and comp_tdm_v3; persistent and non-persistent; atomic, linear and tree reduction), a Stream-K workgroup budget option (`--budget-pct`) to the Stream-K dispatcher benchmark, and the gfx1250 TDM pipelines with persistent and non-persistent kernels to the Stream-K dispatcher GPU correctness test.
 
 ### Changed
 * The CK Tile FMHA forward `fp8` data type now returns an FP32 output, matching `mxfp8`; FP8 output is no longer provided.
+
+* The CK Tile GEMM Stream-K dispatcher and Tile Engine benchmarks reset only the reduction flags (not the whole workspace) before each timed linear or tree run. Timings include this reset for linear/tree and the full output-C reset for atomic reduction.
 
 ### Removed
 * Removed the CK Tile FMHA forward `fp8fp32` data type; use `fp8`, which now has the same FP32 output.

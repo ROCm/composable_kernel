@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: MIT
 
 """
-CPU tests for Stream-K GEMM on the gfx1250 TDM pipelines comp_tdm and
-comp_tdm_v2: the shared trait gate (codegen_common.gfx1250_pipeline_reject_reason
+CPU tests for Stream-K GEMM on the gfx1250 TDM pipelines comp_tdm, comp_tdm_v2
+and comp_tdm_v3: the shared trait gate (codegen_common.gfx1250_pipeline_reject_reason
 with streamk=True plus streamk_trait_reject_reason), its agreement across
 unified_gemm_codegen, arch_filter and gemm_utils.expand_sweep, and the generated
 Stream-K kernel header.
@@ -40,6 +40,7 @@ from codegen_common import (  # noqa: E402
     TDM_PAD_REJECT_REASON,
     gfx1250_pipeline_reject_reason,
     streamk_trait_reject_reason,
+    tdm_pipeline_epilogue,
 )
 from gemm_utils import expand_sweep  # noqa: E402
 from gemm_vector_fallback import VectorFallback, _tile_fits  # noqa: E402
@@ -47,7 +48,9 @@ from gemm_vector_fallback import VectorFallback, _tile_fits  # noqa: E402
 ARCH = "gfx1250"
 # The pipelines this file validates. STREAMK_GFX1250_PIPELINES may hold more
 # (e.g. comp_tdm_pc), whose rules are tested elsewhere.
-SK_TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2")
+SK_TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2", "comp_tdm_v3")
+# (warp_m, warp_n) for a wave count; warp_k is a separate test dimension.
+WAVES_MN = {4: (2, 2), 8: (4, 2), 16: (4, 4)}
 # The gfx1250-only pipelines Stream-K must reject.
 SK_REJECTED_PIPELINES = tuple(
     p for p in GFX1250_ONLY_PIPELINES if p not in STREAMK_GFX1250_PIPELINES
@@ -94,12 +97,14 @@ def _gate_reason(
         pads=pads,
         warp_k=warp_k,
         streamk=True,
+        waves=(*WAVES_MN[num_waves], warp_k),
     ) or streamk_trait_reject_reason(pipeline, epilogue, reduction, pads=pads)
 
 
 def _expected(pipeline, epilogue, reduction, pads, num_waves, c_row=True, warp_k=1):
     """Independent statement of the rules: unpadded TDM, row-major C, warp_k=1,
-    comp_tdm_v2 on 4 waves, atomic on cshuffle only (TdmEpilogue overwrites C),
+    comp_tdm_v2 on 4 waves, comp_tdm_v3 on 2x2x1 or 4x4x1, atomic on cshuffle only
+    (TdmEpilogue overwrites C),
     linear/tree on cshuffle or tdm, persistent or not. Legacy pipelines keep the
     cshuffle-only Stream-K rule."""
     if pipeline not in SK_TDM_PIPELINES:
@@ -107,6 +112,8 @@ def _expected(pipeline, epilogue, reduction, pads, num_waves, c_row=True, warp_k
     if not c_row or warp_k != 1 or any(pads):
         return False
     if pipeline == "comp_tdm_v2" and num_waves != 4:
+        return False
+    if pipeline == "comp_tdm_v3" and num_waves not in (4, 16):
         return False
     if reduction == "atomic":
         return epilogue == "cshuffle"
@@ -126,7 +133,7 @@ class TestStreamKTdmGate(unittest.TestCase):
             STREAMK_REDUCTION_STRATEGIES,
             PADS,
             (False, True),
-            (4, 8),
+            (4, 8, 16),
             ("crr", "rcr", "rrc", "ccc"),
             (1, 2),
         ):
@@ -237,12 +244,14 @@ class TestStreamKTdmGate(unittest.TestCase):
             )
 
         for pipeline in SK_TDM_PIPELINES + ("comp_tdm_pc",):
-            self.assertEqual(reason(pipeline, "tdm"), "")
-            self.assertIn("persistent", reason(pipeline, "tdm", persistent=True))
+            epi = tdm_pipeline_epilogue(pipeline)
+            self.assertEqual(reason(pipeline, epi), "")
+            self.assertIn("persistent", reason(pipeline, epi, persistent=True))
             for variant in ("multi_d", "grouped", "multi_abd"):
-                self.assertIn("not supported", reason(pipeline, "tdm", variant=variant))
-        for pipeline in SK_TDM_PIPELINES:
+                self.assertIn("not supported", reason(pipeline, epi, variant=variant))
+        for pipeline in ("comp_tdm", "comp_tdm_v2"):
             self.assertIn("requires epilogue=tdm", reason(pipeline, "cshuffle"))
+        self.assertIn("requires epilogue=cshuffle", reason("comp_tdm_v3", "tdm"))
         # Plain comp_tdm_pc GEMM also takes cshuffle (GEMM_TDM_CSHUFFLE_PIPELINES),
         # still without the persistent kernel.
         self.assertEqual(reason("comp_tdm_pc", "cshuffle"), "")
@@ -490,6 +499,7 @@ class TestStreamKTdmGateEquivalence(unittest.TestCase):
                 tile_mn=(128, 128),
                 warp_k=warp_k,
                 streamk=True,
+                waves=(warp_m, 2, warp_k),
             )
             valid = filt.is_kernel_valid(
                 warp_m=warp_m,

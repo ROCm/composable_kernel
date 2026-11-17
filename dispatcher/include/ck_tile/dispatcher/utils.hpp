@@ -46,6 +46,7 @@
 
 #include "ck_tile/dispatcher/dispatcher.hpp"
 #include "ck_tile/dispatcher/registry.hpp"
+#include "ck_tile/dispatcher/arch_specs_generated.hpp"
 #include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
 
 namespace ck_tile {
@@ -673,13 +674,7 @@ struct KernelKeyBuilder
         key.algorithm.scheduler       = scheduler;
         key.algorithm.epilogue        = epilogue;
         key.algorithm.block_size      = block_size;
-        // Only the pipelines that stage two LDS buffers. Mirrors the codegen
-        // (unified_gemm_codegen.py). Hardcoding true here would hand a
-        // single-buffered pipeline half the LDS budget it is entitled to.
-        key.algorithm.double_buffer =
-            (pipeline == Pipeline::CompV4 || pipeline == Pipeline::PreShuffleV2 ||
-             pipeline == Pipeline::PreShuffleTDM || pipeline == Pipeline::CompTDMV1 ||
-             pipeline == Pipeline::CompTDMV2 || pipeline == Pipeline::CompAsync);
+        key.algorithm.double_buffer   = arch_specs::requires_double_smem_buffer(pipeline);
         key.algorithm.persistent      = false;
         key.algorithm.preshuffle      = preshuffle;
         key.algorithm.transpose_c     = false;
