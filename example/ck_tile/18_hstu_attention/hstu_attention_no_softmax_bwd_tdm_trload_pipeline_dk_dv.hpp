@@ -222,31 +222,35 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
         // q_lds windows for normal write and normal read
         using q_lds_window_type = decltype(get_slice_tile(
             q_lds_monolithic_window_0, sequence<0, 0>{}, sequence<kM0Sub, kQKHeaddim>{}));
-        statically_indexed_array<q_lds_window_type, m0_loops> q_lds_windows_0;
-        statically_indexed_array<q_lds_window_type, m0_loops> q_lds_windows_1;
-        static_for<0, m0_loops, 1>{}([&](auto i_buf) {
-            q_lds_windows_0[i_buf] = get_slice_tile(q_lds_monolithic_window_0,
-                                                    sequence<i_buf * kM0Sub, 0>{},
-                                                    sequence<(i_buf + 1) * kM0Sub, kQKHeaddim>{});
-            q_lds_windows_1[i_buf] = get_slice_tile(q_lds_monolithic_window_1,
-                                                    sequence<i_buf * kM0Sub, 0>{},
-                                                    sequence<(i_buf + 1) * kM0Sub, kQKHeaddim>{});
+
+        statically_indexed_array<statically_indexed_array<q_lds_window_type, m0_loops>, 2>
+            q_lds_windows;
+        static_for<0, m0_loops, 1>{}([&](auto i_sub) {
+            q_lds_windows[number<0>{}][i_sub] =
+                get_slice_tile(q_lds_monolithic_window_0,
+                               sequence<i_sub * kM0Sub, 0>{},
+                               sequence<(i_sub + 1) * kM0Sub, kQKHeaddim>{});
+            q_lds_windows[number<1>{}][i_sub] =
+                get_slice_tile(q_lds_monolithic_window_1,
+                               sequence<i_sub * kM0Sub, 0>{},
+                               sequence<(i_sub + 1) * kM0Sub, kQKHeaddim>{});
         });
 
         // q_lds windows for trload read
         using q_lds_trload_window_type = decltype(get_slice_tile(
             q_lds_monolithic_window_0, sequence<0, 0>{}, sequence<kK1, kQKHeaddim>{}));
-        statically_indexed_array<q_lds_trload_window_type, k1_loops> q_lds_trload_windows_0;
-        statically_indexed_array<q_lds_trload_window_type, k1_loops> q_lds_trload_windows_1;
-        static_for<0, k1_loops, 1>{}([&](auto i_buf) {
-            q_lds_trload_windows_0[i_buf] =
+
+        statically_indexed_array<statically_indexed_array<q_lds_trload_window_type, k1_loops>, 2>
+            q_lds_trload_windows;
+        static_for<0, k1_loops, 1>{}([&](auto i_sub) {
+            q_lds_trload_windows[number<0>{}][i_sub] =
                 get_slice_tile(q_lds_monolithic_window_0,
-                               sequence<i_buf * kK1, 0>{},
-                               sequence<(i_buf + 1) * kK1, kQKHeaddim>{});
-            q_lds_trload_windows_1[i_buf] =
+                               sequence<i_sub * kK1, 0>{},
+                               sequence<(i_sub + 1) * kK1, kQKHeaddim>{});
+            q_lds_trload_windows[number<1>{}][i_sub] =
                 get_slice_tile(q_lds_monolithic_window_1,
-                               sequence<i_buf * kK1, 0>{},
-                               sequence<(i_buf + 1) * kK1, kQKHeaddim>{});
+                               sequence<i_sub * kK1, 0>{},
+                               sequence<(i_sub + 1) * kK1, kQKHeaddim>{});
         });
 
         // do_lds, the same tensor_view for write/read
@@ -273,31 +277,35 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
         // do_lds windows for normal write and normal read
         using do_lds_window_type = decltype(get_slice_tile(
             do_lds_monolithic_window_0, sequence<0, 0>{}, sequence<kM0Sub, kVHeaddim>{}));
-        statically_indexed_array<do_lds_window_type, m0_loops> do_lds_windows_0;
-        statically_indexed_array<do_lds_window_type, m0_loops> do_lds_windows_1;
-        static_for<0, m0_loops, 1>{}([&](auto i_buf) {
-            do_lds_windows_0[i_buf] = get_slice_tile(do_lds_monolithic_window_0,
-                                                     sequence<i_buf * kM0Sub, 0>{},
-                                                     sequence<(i_buf + 1) * kM0Sub, kVHeaddim>{});
-            do_lds_windows_1[i_buf] = get_slice_tile(do_lds_monolithic_window_1,
-                                                     sequence<i_buf * kM0Sub, 0>{},
-                                                     sequence<(i_buf + 1) * kM0Sub, kVHeaddim>{});
+
+        statically_indexed_array<statically_indexed_array<do_lds_window_type, m0_loops>, 2>
+            do_lds_windows;
+        static_for<0, m0_loops, 1>{}([&](auto i_sub) {
+            do_lds_windows[number<0>{}][i_sub] =
+                get_slice_tile(do_lds_monolithic_window_0,
+                               sequence<i_sub * kM0Sub, 0>{},
+                               sequence<(i_sub + 1) * kM0Sub, kVHeaddim>{});
+            do_lds_windows[number<1>{}][i_sub] =
+                get_slice_tile(do_lds_monolithic_window_1,
+                               sequence<i_sub * kM0Sub, 0>{},
+                               sequence<(i_sub + 1) * kM0Sub, kVHeaddim>{});
         });
 
         // do_lds windows for trload read
         using do_lds_trload_window_type = decltype(get_slice_tile(
             do_lds_monolithic_window_0, sequence<0, 0>{}, sequence<kK1, kVHeaddim>{}));
-        statically_indexed_array<do_lds_trload_window_type, k1_loops> do_lds_trload_windows_0;
-        statically_indexed_array<do_lds_trload_window_type, k1_loops> do_lds_trload_windows_1;
-        static_for<0, k1_loops, 1>{}([&](auto i_buf) {
-            do_lds_trload_windows_0[i_buf] =
+
+        statically_indexed_array<statically_indexed_array<do_lds_trload_window_type, k1_loops>, 2>
+            do_lds_trload_windows;
+        static_for<0, k1_loops, 1>{}([&](auto i_sub) {
+            do_lds_trload_windows[number<0>{}][i_sub] =
                 get_slice_tile(do_lds_monolithic_window_0,
-                               sequence<i_buf * kK1, 0>{},
-                               sequence<(i_buf + 1) * kK1, kVHeaddim>{});
-            do_lds_trload_windows_1[i_buf] =
+                               sequence<i_sub * kK1, 0>{},
+                               sequence<(i_sub + 1) * kK1, kVHeaddim>{});
+            do_lds_trload_windows[number<1>{}][i_sub] =
                 get_slice_tile(do_lds_monolithic_window_1,
-                               sequence<i_buf * kK1, 0>{},
-                               sequence<(i_buf + 1) * kK1, kVHeaddim>{});
+                               sequence<i_sub * kK1, 0>{},
+                               sequence<(i_sub + 1) * kK1, kVHeaddim>{});
         });
 
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
@@ -339,10 +347,10 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
         tdm_config_do.pad_config.pad_amount = pad_cfg_do[number<1>{}];
         tdm_config_do.pad_config.pad_interval = pad_cfg_do[number<2>{}];
 
-        load_tile_tdm(tdm_config_q, q_lds_windows_0[number<0>{}], q_dram_window);
+        load_tile_tdm(tdm_config_q, q_lds_windows[number<0>{}][number<0>{}], q_dram_window);
         move_tile_window(q_dram_window, {kM0Sub, 0});
 
-        load_tile_tdm(tdm_config_do, do_lds_windows_0[number<0>{}], do_dram_window);
+        load_tile_tdm(tdm_config_do, do_lds_windows[number<0>{}][number<0>{}], do_dram_window);
         move_tile_window(do_dram_window, {kM0Sub, 0});
 
         __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
@@ -375,7 +383,7 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
 
         auto seqlen_q_curr = seqlen_q_start;
 
-        auto main_loop_func = [&](auto EvenIter) {
+        auto main_loop_func = [&](auto i_buf) {
             // =======================================================================
             // Loop 1: Gemm0 (S = Q@K); prefetch Q to LDS
             // Loop 2: Gemm2 (dP = dO@V); prefetch dO to LDS
@@ -388,58 +396,31 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
 
                 // Gemm0: sacc_tile = Q_sub @ K
                 // Gemm2: dpacc_tile = dO_sub @ V
-                if constexpr(EvenIter)
+                if constexpr(i_m0 < m0_loops - 1)
                 {
-                    if constexpr(i_m0 < m0_loops - 1)
-                    {
-                        load_tile_tdm(
-                            tdm_config_q, q_lds_windows_0[number<i_m0 + 1>{}], q_dram_window);
-                        move_tile_window(q_dram_window, {kM0Sub, 0});
-                        load_tile_tdm(
-                            tdm_config_do, do_lds_windows_0[number<i_m0 + 1>{}], do_dram_window);
-                        move_tile_window(do_dram_window, {kM0Sub, 0});
-                    }
-                    else
-                    {
-                        load_tile_tdm(tdm_config_q, q_lds_windows_1[number<0>{}], q_dram_window);
-                        move_tile_window(q_dram_window, {kM0Sub, 0});
-                        load_tile_tdm(tdm_config_do, do_lds_windows_1[number<0>{}], do_dram_window);
-                        move_tile_window(do_dram_window, {kM0Sub, 0});
-                    }
-
-                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU |
-                                                   LLVMSchedGroupMask::SALU |
-                                                   LLVMSchedGroupMask::TRANS);
-
-                    gemm_0(sacc_tile, q_lds_windows_0[i_m0], k_tile);
-                    gemm_2(dpacc_tile, do_lds_windows_0[i_m0], v_tile);
+                    load_tile_tdm(
+                        tdm_config_q, q_lds_windows[i_buf][number<i_m0 + 1>{}], q_dram_window);
+                    move_tile_window(q_dram_window, {kM0Sub, 0});
+                    load_tile_tdm(
+                        tdm_config_do, do_lds_windows[i_buf][number<i_m0 + 1>{}], do_dram_window);
+                    move_tile_window(do_dram_window, {kM0Sub, 0});
                 }
                 else
                 {
-                    if constexpr(i_m0 < m0_loops - 1)
-                    {
-                        load_tile_tdm(
-                            tdm_config_q, q_lds_windows_1[number<i_m0 + 1>{}], q_dram_window);
-                        move_tile_window(q_dram_window, {kM0Sub, 0});
-                        load_tile_tdm(
-                            tdm_config_do, do_lds_windows_1[number<i_m0 + 1>{}], do_dram_window);
-                        move_tile_window(do_dram_window, {kM0Sub, 0});
-                    }
-                    else
-                    {
-                        load_tile_tdm(tdm_config_q, q_lds_windows_0[number<0>{}], q_dram_window);
-                        move_tile_window(q_dram_window, {kM0Sub, 0});
-                        load_tile_tdm(tdm_config_do, do_lds_windows_0[number<0>{}], do_dram_window);
-                        move_tile_window(do_dram_window, {kM0Sub, 0});
-                    }
-
-                    __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU |
-                                                   LLVMSchedGroupMask::SALU |
-                                                   LLVMSchedGroupMask::TRANS);
-
-                    gemm_0(sacc_tile, q_lds_windows_1[i_m0], k_tile);
-                    gemm_2(dpacc_tile, do_lds_windows_1[i_m0], v_tile);
+                    constexpr auto next_buf = number<1 - i_buf>{};
+                    load_tile_tdm(
+                        tdm_config_q, q_lds_windows[next_buf][number<0>{}], q_dram_window);
+                    move_tile_window(q_dram_window, {kM0Sub, 0});
+                    load_tile_tdm(
+                        tdm_config_do, do_lds_windows[next_buf][number<0>{}], do_dram_window);
+                    move_tile_window(do_dram_window, {kM0Sub, 0});
                 }
+
+                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
+                                               LLVMSchedGroupMask::TRANS);
+
+                gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile);
+                gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile);
 
                 auto s_tmp = cast_tile<CompDataType>(sacc_tile);
                 // Place the [kM0Sub, kN0] sub-tile into the combined [kM0, kN0] pcomp_tile by a
@@ -621,14 +602,8 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 // Gemm1: dV += P^T_sub @ dO^T_sub
                 auto pt_slice = get_slice_tile(
                     pt_tile, sequence<0, i_k1 * kK1>{}, sequence<kN0, (i_k1 + 1) * kK1>{});
-                if constexpr(EvenIter)
-                {
-                    gemm_1(dv_acc, pt_slice, do_lds_trload_windows_0[i_k1]);
-                }
-                else
-                {
-                    gemm_1(dv_acc, pt_slice, do_lds_trload_windows_1[i_k1]);
-                }
+
+                gemm_1(dv_acc, pt_slice, do_lds_trload_windows[i_buf][i_k1]);
             });
 
             __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
@@ -648,28 +623,22 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 // Gemm3: dK += dS^T_sub @ Q^T_sub
                 auto dst_slice = get_slice_tile(
                     dst_tile, sequence<0, i_k1 * kK1>{}, sequence<kN0, (i_k1 + 1) * kK1>{});
-                if constexpr(EvenIter)
-                {
-                    gemm_3(dk_acc, dst_slice, q_lds_trload_windows_0[i_k1]);
-                }
-                else
-                {
-                    gemm_3(dk_acc, dst_slice, q_lds_trload_windows_1[i_k1]);
-                }
+
+                gemm_3(dk_acc, dst_slice, q_lds_trload_windows[i_buf][i_k1]);
             });
         };
 
         while(seqlen_q_curr + kM0 < seqlen_q_end)
         {
-            main_loop_func(bool_constant<true>{});
+            main_loop_func(number<0>{});
             seqlen_q_curr += kM0;
 
-            main_loop_func(bool_constant<false>{});
+            main_loop_func(number<1>{});
             seqlen_q_curr += kM0;
         }
 
         if(seqlen_q_curr < seqlen_q_end)
-            main_loop_func(bool_constant<true>{});
+            main_loop_func(number<0>{});
 
         // Apply alpha scaling to accumulated dK
         tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, dk_acc);
