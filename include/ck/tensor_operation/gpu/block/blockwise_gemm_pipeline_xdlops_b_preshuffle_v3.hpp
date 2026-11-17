@@ -389,7 +389,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                a_block_buf.At(I0),
                                a_thread_desc_,
-                               make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                               make_tuple(m0, I0, I0, k0, I0, Number<kg0 * AKGroupStride>{}),
                                a_thread_buf);
         });
 
@@ -481,7 +481,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                         I0,
                                         k0,
                                         I0,
-                                        Number<kg0 * A_K1>{}),
+                                        Number<kg0 * AKGroupStride>{}),
                                     a_thread_buf);
                             });
                         }
@@ -507,7 +507,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                         I0,
                                         k0,
                                         I0,
-                                        Number<kg0 * A_K1>{}),
+                                        Number<kg0 * AKGroupStride>{}),
                                     a_thread_buf);
                             });
                         }
@@ -533,7 +533,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                         I0,
                                         k0,
                                         I0,
-                                        Number<kg0 * A_K1>{}),
+                                        Number<kg0 * AKGroupStride>{}),
                                     a_thread_buf);
                             });
                         }
@@ -611,8 +611,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                             make_tuple(Number<0>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                             a_block_buf.At(I1),
                             a_thread_desc_,
-                            make_tuple(
-                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            make_tuple(Number<(m0 + 2) % 2>{},
+                                       I0,
+                                       I0,
+                                       k0,
+                                       I0,
+                                       Number<kg0 * AKGroupStride>{}),
                             a_thread_buf);
                     });
                 }
@@ -621,19 +625,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                     static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
                         constexpr auto k0  = Number<kk[Number<0>{}]>{};
                         constexpr auto kg0 = Number<kk[Number<1>{}]>{};
-                        a_thread_copy_.Run(
-                            a_block_desc_m0_m1_m2_k0_k1_k2,
-                            make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                       I0,
-                                       I0,
-                                       Number<k0 * KGroup + kg0>{},
-                                       I0,
-                                       I0),
-                            a_block_buf.At(I1),
-                            a_thread_desc_,
-                            make_tuple(
-                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                            a_thread_buf);
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                           make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                      I0,
+                                                      I0,
+                                                      Number<k0 * KGroup + kg0>{},
+                                                      I0,
+                                                      I0),
+                                           a_block_buf.At(I1),
+                                           a_thread_desc_,
+                                           make_tuple(Number<(m0 + 2) % 2>{},
+                                                      I0,
+                                                      I0,
+                                                      k0,
+                                                      I0,
+                                                      Number<kg0 * AKGroupStride>{}),
+                                           a_thread_buf);
                     });
                 }
                 else
@@ -641,19 +648,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                     static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
                         constexpr auto k0  = Number<kk[Number<0>{}]>{};
                         constexpr auto kg0 = Number<kk[Number<1>{}]>{};
-                        a_thread_copy_.Run(
-                            a_block_desc_m0_m1_m2_k0_k1_k2,
-                            make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                       I0,
-                                       I0,
-                                       Number<k0 * KGroup + kg0>{},
-                                       I0,
-                                       I0),
-                            a_block_buf.At(I0),
-                            a_thread_desc_,
-                            make_tuple(
-                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                            a_thread_buf);
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                           make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                      I0,
+                                                      I0,
+                                                      Number<k0 * KGroup + kg0>{},
+                                                      I0,
+                                                      I0),
+                                           a_block_buf.At(I0),
+                                           a_thread_desc_,
+                                           make_tuple(Number<(m0 + 2) % 2>{},
+                                                      I0,
+                                                      I0,
+                                                      k0,
+                                                      I0,
+                                                      Number<kg0 * AKGroupStride>{}),
+                                           a_thread_buf);
                     });
                 }
             });
@@ -718,7 +728,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                        I0,
                                        k0,
                                        I0,
-                                       Number<kg0 * A_K1>{}),
+                                       Number<kg0 * AKGroupStride>{}),
                             a_thread_buf);
                     });
                 }
@@ -781,8 +791,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                             a_block_buf.At(I0),
                             a_thread_desc_,
-                            make_tuple(
-                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            make_tuple(Number<(m0 + 2) % 2>{},
+                                       I0,
+                                       I0,
+                                       k0,
+                                       I0,
+                                       Number<kg0 * AKGroupStride>{}),
                             a_thread_buf);
                     });
                 }
@@ -791,6 +805,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
     }
 
     protected:
+    // Each A thread copy moves one K group of KPack / KGroup elements, which is the
+    // stride between K groups in the thread buffer.
+    static constexpr index_t AKGroupStride = KPack / KGroup;
+
     // MRepeat MWave MLane KRepeat KLane KPack
     // KRepeat -> MRepeat-> Mwave->KLane->MLane->KPack
     // Reduce the vgpr usage here.

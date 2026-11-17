@@ -170,7 +170,12 @@ struct Example
     using AElementOp = PassThrough;
     using BElementOp = PassThrough;
 
+    // MOE_PAD_NK tests an N that no tile divides.
+#ifdef MOE_PAD_NK
+    static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::NKPadding;
+#else
     static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
+#endif
     static constexpr ck::index_t MPerBlock   = 128;
     static constexpr ck::index_t NPerBlock   = 128;
     static constexpr ck::index_t MNPerXDL    = 16;
@@ -235,6 +240,12 @@ int Example<Fp8, Bf8>::Run(int argc, char* argv[])
     ck::index_t valid_tile_num  = 256;
     ck::index_t tokens          = 16384;
     ck::index_t topk            = 2;
+#ifdef MOE_PAD_NK
+    // Default to an N that no tile divides, so the test runs the padded kernel.
+    N      = 360;
+    K      = 2048;
+    tokens = 1024;
+#endif
 
     if(argc == 1)
     {

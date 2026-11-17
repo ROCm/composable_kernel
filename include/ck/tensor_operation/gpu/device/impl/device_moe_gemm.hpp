@@ -460,15 +460,6 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
         {
             return false;
         }
-        if constexpr(GridwiseGemm64::PadN && PerTokenQuant && NumDTensor > 1)
-        {
-            // Per-channel B scales are indexed with the logical N; padded columns would read
-            // past them.
-            if(arg.N % NPerBlock != 0 && arg.p_ds_grid[Number<1>{}] != nullptr)
-            {
-                return false;
-            }
-        }
         if constexpr(GridwiseGemm64::PadN || GridwiseGemm64::PadK)
         {
             // Masked loads/stores in the padded region are offset by 2GB, which only lands
