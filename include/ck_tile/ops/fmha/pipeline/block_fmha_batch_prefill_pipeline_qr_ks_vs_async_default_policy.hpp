@@ -12,9 +12,10 @@
 #define CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_KVEC4 0
 #endif
 
-// gfx11 WMMA C vs A layouts do not match. Fallback BlockGemmARegBSmemCRegV2
-// rejects the P tile (thread_buffer size). Independent-V uses ARegBReg and a
-// dedicated V LDS layout for the 256-thread N0=32 / K1=32 / N1=128 linear case.
+// gfx11 WMMA C vs A layouts do not match, so the pipeline permutes P into the
+// gemm1 A distribution before either gemm1 path consumes it. Independent-V uses
+// ARegBReg and a dedicated V LDS layout for the 256-thread N0=32 / K1=32 / N1=128
+// linear case; other gfx11 shapes use the fallback BlockGemmARegBSmemCRegV2.
 #ifndef CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V
 #define CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V 1
 #endif
@@ -268,7 +269,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
 
 // gfx1100 batch-prefill: synchronous K loads, vec4 K packing on 32x32 linear
 // tiles, fallback V DRAM loads, and Independent-V gemm1 on the N0=32 / K1=32 /
-// N1=128 linear 256-thread predicate. Vectorized KV is out of scope.
+// N1=128 linear 256-thread predicate; the M64 shapes use the fallback gemm1 on a
+// permuted P. Vectorized KV is out of scope.
 struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncGfx11Policy
     : BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
 {
