@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 # filtered mirror, whose reachable tags stop at therock-7.10. Track the ROCm
 # version named by the CHANGELOG heading, which is the only statement of it in
 # this tree.
-BASE_VERSION = "10.1"
+BASE_VERSION = "10.3"
 
 _HASH_WIDTH = 7
 
