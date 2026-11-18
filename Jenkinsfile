@@ -444,7 +444,7 @@ pipeline {
                         script {
                             loadCk()
                             ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds())
+                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds("gfx942"))
                                 cleanWs()
                             }
                         }
@@ -461,7 +461,7 @@ pipeline {
                         script {
                             loadCk()
                             ck.runOnHealthyNode(rocmnode("gfx950")) {
-                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds())
+                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds("gfx950"))
                                 cleanWs()
                             }
                         }
