@@ -392,7 +392,7 @@ TEST(TestGemm, Float_2x4_4x2_XdlPerWave)
 
 int main(int argc, char** argv)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported())
     {
         std::cout << "This test support gfx9 only" << std::endl;
         return 0;

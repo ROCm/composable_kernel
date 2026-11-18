@@ -21,7 +21,9 @@ struct GemmPipelineAgBgCrCompTDMV1;
  * specialization.
  *
  */
+#ifndef BARRIER_ATOMIC_IN_TDM
 #define BARRIER_ATOMIC_IN_TDM 0
+#endif
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompTDMDefaultPolicy<true>>
 struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem, Policy>
 {
@@ -102,7 +104,8 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                   typename BElementFunction,
                   typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 is_detected<is_tuple, BsDramBlockWindowTmp>::value,
-                                            bool>* = nullptr>
+                                            bool>* = nullptr,
+                  typename BlockGemmT              = BlockGemm>
         CK_TILE_DEVICE auto
         wave_specialized_func(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                               const AElementFunction& a_element_func,
@@ -110,7 +113,8 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                               const BElementFunction& b_element_func,
                               index_t num_loop,
                               void* __restrict__ p_smem,
-                              index_t warp_id) const
+                              index_t warp_id,
+                              BlockGemmT block_gemm = {}) const
         {
             auto&& [a_lds_block_views, b_lds_block_views] =
                 this->template GetABLdsTensorViews<num_lds_buffers>(static_cast<char*>(p_smem));
@@ -119,6 +123,8 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
             bool is_warp2 = (warp_id == 2);
             bool is_warp3 = (warp_id == 3);
 #if BARRIER_ATOMIC_IN_TDM
+            // Define smem_size from problem policy
+            constexpr index_t smem_size = Policy::template GetSmemSize<Problem>();
             // currently lds config is set to 29; so phase width is 3
             LdsAtomicBarrier<3>* barriers[2];
             barriers[0] = reinterpret_cast<LdsAtomicBarrier<3>*>(
@@ -167,10 +173,10 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 tdm_config_a[i].atomic_barrier_enable = true;
                 tdm_config_b[i].atomic_barrier_enable = true;
 
-                tdm_config_a[i].atomic_barrier_address =
-                    static_cast<uint16_t>(reinterpret_cast<uintptr_t>(barriers[i])) >> 3;
-                tdm_config_b[i].atomic_barrier_address =
-                    static_cast<uint16_t>(reinterpret_cast<uintptr_t>(barriers[i])) >> 3;
+                const auto barrier_address = static_cast<uint16_t>(
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(barriers[i])) >> 3);
+                tdm_config_a[i].atomic_barrier_address = barrier_address;
+                tdm_config_b[i].atomic_barrier_address = barrier_address;
 #endif
             });
 
@@ -298,9 +304,6 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 Base::GlobalPrefetchTDM(
                     tdm_config_b[1], b_copy_lds_windows[number<1>{}], b_copy_dram_window);
             }
-
-            // initialize block gemm
-            auto block_gemm = BlockGemm();
 
             // initialize C block tile
             auto c_block_tile = block_gemm.MakeCBlockTile();
@@ -694,13 +697,15 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                   typename BElementFunction,
                   typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 is_detected<is_tuple, BsDramBlockWindowTmp>::value,
-                                            bool>* = nullptr>
+                                            bool>* = nullptr,
+                  typename BlockGemmT              = BlockGemm>
         CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* __restrict__ p_smem) const
+                                       void* __restrict__ p_smem,
+                                       BlockGemmT block_gemm = {}) const
         {
             const index_t warp_id = get_warp_id();
 
@@ -710,7 +715,8 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                                                               b_element_func,
                                                               num_loop,
                                                               p_smem,
-                                                              warp_id);
+                                                              warp_id,
+                                                              block_gemm);
         }
 
         template <
@@ -1458,6 +1464,28 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 p_smem);
         };
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    // Stream-K call form (see GemmPipelineAgBgCrCompTDMV1). V2's operator() overloads hide V1's,
+    // so V2 restates it to bind its own PipelineImpl.
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const index_t num_loop,
+                                   const bool /*has_hot_loop*/,
+                                   const TailNumber /*tail_number*/,
+                                   void* __restrict__ p_smem) const
+    {
+        return operator()(make_tuple(a_dram_block_window_tmp),
+                          element_wise::PassThrough{},
+                          make_tuple(b_dram_block_window_tmp),
+                          element_wise::PassThrough{},
+                          num_loop,
+                          p_smem);
     }
 
     template <typename ADramBlockWindowTmp,

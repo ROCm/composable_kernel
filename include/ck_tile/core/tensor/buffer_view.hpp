@@ -964,6 +964,11 @@ struct buffer_view<address_space_enum::global,
         constexpr auto box_dim_uint16 =
             generate_array([&](auto i) { return static_cast<uint16_t>(box_dim.at(i)); },
                            number<num_tensor_dims>{});
+        // Protects tile_dim0 from wrapping: box_dim_uint16 above truncates silently, and
+        // TDMDescriptor multiplies box[0] by units_per_element for a type that is not its own unit.
+        static_assert(box_dim.at(number<0>{}) <= TDMElementTraits<remove_cvref_t<T>>::max_box_dim0,
+                      "TDM tile_dim0 is 16 bits: the box's contiguous extent exceeds "
+                      "TDMElementTraits<T>::max_box_dim0");
 
         auto TDMDescriptor = [&]() {
             if constexpr(std::is_same_v<GatherIndexView_, null_buffer_view>)
@@ -1022,6 +1027,11 @@ struct buffer_view<address_space_enum::global,
         constexpr auto box_dim_uint16 =
             generate_array([&](auto i) { return static_cast<uint16_t>(box_dim.at(i)); },
                            number<num_tensor_dims>{});
+        // Protects tile_dim0 from wrapping: box_dim_uint16 above truncates silently, and
+        // TDMDescriptor multiplies box[0] by units_per_element for a type that is not its own unit.
+        static_assert(box_dim.at(number<0>{}) <= TDMElementTraits<remove_cvref_t<T>>::max_box_dim0,
+                      "TDM tile_dim0 is 16 bits: the box's contiguous extent exceeds "
+                      "TDMElementTraits<T>::max_box_dim0");
 
         auto TDMDescriptor =
             createTDMDescriptor<remove_cvref_t<T>, num_tensor_dims>(p_data_ + linear_offset,

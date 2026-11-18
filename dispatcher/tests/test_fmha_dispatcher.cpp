@@ -159,6 +159,52 @@ TEST(FmhaDispatcherTest, PlansSingleStageFwd)
     EXPECT_EQ(plan.stages[0].family, FmhaKernelFamily::Fwd);
 }
 
+TEST(FmhaDispatcherTest, PlansSingleStageBatchPrefillOnGfx1100)
+{
+    FmhaRegistry registry;
+    registry.register_kernel(std::make_shared<MockFmhaKernel>(
+        make_key(FmhaKernelFamily::BatchPrefill, "prefill"), "prefill"));
+
+    FmhaDispatcher dispatcher(&registry);
+
+    fmha_batch_prefill_traits traits{};
+    traits.hdim_q           = 128;
+    traits.hdim_v           = 128;
+    traits.data_type        = "fp16";
+    traits.is_group_mode    = true;
+    traits.is_v_rowmajor    = true;
+    traits.mask_type        = mask_enum::no_mask;
+    traits.bias_type        = bias_enum::no_bias;
+    traits.has_lse          = true;
+    traits.kv_memory_layout = ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT;
+    traits.kv_lookup_table  = ck_tile::BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D;
+    traits.page_size        = 16;
+
+    fmha_batch_prefill_args args{};
+    args.batch             = 1;
+    args.seqlen_q          = 128;
+    args.seqlen_k          = 1024;
+    args.max_seqlen_q      = 128;
+    args.hdim_q            = 128;
+    args.hdim_v            = 128;
+    args.nhead_q           = 8;
+    args.nhead_k           = 8;
+    args.num_total_pages   = 1024;
+    args.page_block_size   = 16;
+    args.kv_memory_layout  = ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT;
+    args.kv_lookup_table   = ck_tile::BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D;
+    args.kv_indptr         = reinterpret_cast<void*>(0x1);
+    args.kv_page_indices   = reinterpret_cast<void*>(0x1);
+    args.kv_last_page_lens = reinterpret_cast<void*>(0x1);
+    args.seqstart_q_ptr    = reinterpret_cast<void*>(0x1);
+
+    auto problem = FmhaProblem::from_invocation(FmhaInvocation::make(traits, args), "gfx1100");
+    auto plan    = dispatcher.plan(problem);
+    ASSERT_TRUE(plan.is_valid());
+    ASSERT_EQ(plan.stages.size(), 1u);
+    EXPECT_EQ(plan.stages[0].family, FmhaKernelFamily::BatchPrefill);
+}
+
 TEST(FmhaDispatcherTest, PlansSingleStagePagedKv)
 {
     FmhaRegistry registry;

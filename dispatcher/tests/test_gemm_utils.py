@@ -18,6 +18,7 @@ No GPU is touched -- all functions under test are pure host-side logic.
 Run: python3 -m pytest tests/test_gemm_utils.py -v
 """
 
+import hashlib
 import sys
 import unittest
 from pathlib import Path
@@ -39,11 +40,16 @@ from gemm_utils import (  # noqa: E402
     _fnuz_decode_table,
     _fp8_decode_table,
     _fp8_encode,
+    _fp8_encode_ladder,
     numpy_dtype_for,
     _output_dtype,
     _dtype_from_kernel_name,
     _layout_from_kernel_name,
     _cshuffle_store_ok,
+    _C_NP,
+    _encode_operand,
+    _c_numpy_dtype,
+    _decode_c,
 )
 
 
@@ -327,6 +333,92 @@ class TestFp8EncodeMatchesMlDtypes(unittest.TestCase):
                 theirs = big.astype(getattr(ml_dtypes, ml_name)).astype(np.float64)
                 self.assertFalse(np.all(np.isfinite(theirs)))
 
+    def test_bit_exact_against_float64_ladder_across_all_codecs(self):
+        # Asserts byte-identical output between the table-driven encoder and the
+        # reference float64 searchsorted ladder across normals, subnormals, +0.0,
+        # -0.0, NaN (quiet/signaling, positive/negative payloads), +/-Inf,
+        # values above max representable magnitude, exact tie points (+/-16
+        # ULPs), and every float32 top-16-bit bucket at lo16 in {0, 1, 0x8000,
+        # 0xFFFF} -- the bucket granularity the lookup tables rely on -- for all
+        # four codecs: FNUZ fp8, OCP fp8, FNUZ bf8, and OCP bf8.
+        u_buckets = (
+            (np.arange(65536, dtype=np.uint32) << np.uint32(16))[:, None]
+            | np.array([0, 1, 0x8000, 0xFFFF], dtype=np.uint32)
+        ).ravel()
+        rng = np.random.default_rng(42)
+        u_rand = rng.integers(0, 2**32, size=100_000, dtype=np.uint32)
+        specials_u32 = np.array(
+            [
+                0x00000000,  # +0.0
+                0x80000000,  # -0.0
+                0x00000001,  # smallest positive float32 subnormal
+                0x80000001,  # smallest negative float32 subnormal
+                0x7F7FFFFF,  # max finite float32
+                0xFF7FFFFF,  # min finite float32
+                0x7F800000,  # +Inf
+                0xFF800000,  # -Inf
+                0x7F800001,  # signaling NaN (low16 != 0, hi16 == 0x7F80)
+                0xFF800001,  # negative signaling NaN (low16 != 0, hi16 == 0xFF80)
+                0x7FC00000,  # canonical quiet NaN
+                0xFFC00000,  # negative quiet NaN
+            ],
+            dtype=np.uint32,
+        )
+        offsets = np.arange(-16, 17, dtype=np.int64)
+        for exp_bits, mant_bits, use_ocp, _ in self._CASES:
+            with self.subTest(bits=(exp_bits, mant_bits), ocp=use_ocp):
+                table = _fp8_decode_table(exp_bits, mant_bits, use_ocp)
+                mags = self._finite_magnitudes(table)
+                mids = ((mags[:-1] + mags[1:]) / 2.0).astype(np.float32)
+                centers = np.unique(
+                    np.concatenate([mags.astype(np.float32), mids])
+                ).view(np.uint32)
+                u_grid = (
+                    np.clip(
+                        centers[:, None].astype(np.int64) + offsets[None, :],
+                        0,
+                        0x7FFFFFFF,
+                    )
+                    .astype(np.uint32)
+                    .ravel()
+                )
+                u_all = np.concatenate(
+                    [
+                        u_grid,
+                        u_grid | np.uint32(0x80000000),
+                        specials_u32,
+                        u_buckets,
+                        u_rand,
+                    ]
+                )
+                x = u_all.view(np.float32)
+                expected = _fp8_encode_ladder(x, exp_bits, mant_bits, use_ocp)
+                got = _fp8_encode(x, exp_bits, mant_bits, use_ocp=use_ocp)
+                np.testing.assert_array_equal(got, expected)
+
+
+class TestFp8EncodeGoldenBytes(unittest.TestCase):
+    """Pins the encoded bytes independently of the in-repo float64 ladder."""
+
+    # sha256 of the bytes of the searchsorted-ladder _fp8_encode (before the
+    # lookup tables) over every float32 top-16-bit bucket at lo16 == 0 and
+    # lo16 == 1; those two inputs per bucket determine the output for all 2^32
+    # inputs (see _fp8_encode_tables).
+    _GOLDEN = {
+        (4, 3, False): "3c94f573a75f08d7a3318ac0f4842b9b9e6922d9d4c99bf6c815beef0206f108",
+        (4, 3, True): "f4c21e5daf2446dcf62ff9ebac214b18e114eaa8a75a79189bb41915cf5eb32f",
+        (5, 2, False): "e92f6b14ffcf15ae2cbc95cfc8c84038fba64b3c71514309735ecad8086ca1f4",
+        (5, 2, True): "d558aeff7e2c0262e84da05a223d8bf8e622980601d4c80bc04db7506a080f52",
+    }
+
+    def test_bytes_match_the_ladder_encoder(self):
+        top = np.arange(65536, dtype=np.uint32) << np.uint32(16)
+        x = np.concatenate([top, top | np.uint32(1)]).view(np.float32)
+        for (exp_bits, mant_bits, use_ocp), digest in self._GOLDEN.items():
+            with self.subTest(bits=(exp_bits, mant_bits), ocp=use_ocp):
+                got = _fp8_encode(x, exp_bits, mant_bits, use_ocp=use_ocp)
+                self.assertEqual(hashlib.sha256(got.tobytes()).hexdigest(), digest)
+
 
 class TestOutputDtype(unittest.TestCase):
     """Output (C) element dtype must mirror the codegen's get_output_dtype."""
@@ -468,6 +560,55 @@ class TestModuleImportsAndRunnerShape(unittest.TestCase):
             src,
             "GpuMultiABDRunner must not contain multi_d result code (merge slip)",
         )
+
+
+class TestHostBufferHelpers(unittest.TestCase):
+    """The runner's A/B encode and C sizing/decode must never fall back to fp16."""
+
+    def test_encode_native_dtypes(self):
+        x = np.asfortranarray(np.arange(6, dtype=np.float64).reshape(2, 3))
+        for dtype, np_type in (("fp16", np.float16), ("fp32", np.float32), ("int8", np.int8)):
+            with self.subTest(dtype=dtype):
+                enc = _encode_operand(x, dtype)
+                self.assertEqual(enc.dtype, np_type)
+                self.assertTrue(enc.flags.c_contiguous)
+                np.testing.assert_array_equal(enc.astype(np.float64), x)
+
+    def test_encode_bf16_is_u16_bits(self):
+        x = np.array([1.0, -2.5], dtype=np.float32)
+        enc = _encode_operand(x, "bf16")
+        self.assertEqual(enc.dtype, np.uint16)
+        np.testing.assert_array_equal(_bf16_u16_to_fp32(enc), x)
+
+    def test_encode_rejects_unknown(self):
+        with self.assertRaises(ValueError):
+            _encode_operand(np.zeros(2, dtype=np.float32), "xyz")
+
+    def test_c_numpy_dtype(self):
+        cases = {
+            "fp16": ("fp16", np.float16),
+            "bf16": ("bf16", np.uint16),
+            "fp32": ("fp32", np.float32),
+            "fp8": ("fp16", np.float16),
+            "int8": ("int32", np.int32),
+        }
+        for dtype, expected in cases.items():
+            with self.subTest(dtype=dtype):
+                self.assertEqual(_c_numpy_dtype(dtype), expected)
+        self.assertEqual(_C_NP["fp32"], np.float32)
+
+    def test_c_numpy_dtype_rejects_unknown(self):
+        with self.assertRaises(ValueError):
+            _c_numpy_dtype("xyz")
+
+    def test_decode_c(self):
+        x = np.array([1.0, 0.5], dtype=np.float32)
+        np.testing.assert_array_equal(_decode_c(_fp32_to_bf16_u16(x), "bf16"), x)
+        self.assertIs(_decode_c(x, "fp32"), x)
+
+    def test_decode_c_rejects_unknown(self):
+        with self.assertRaises(ValueError):
+            _decode_c(np.zeros(2, dtype=np.float32), "fp8")
 
 
 if __name__ == "__main__":
@@ -664,3 +805,261 @@ class TestArchNormalizationMatchesCodegen(unittest.TestCase):
                     self.assertEqual(normalize_gfx_arch(arch), canonical(arch))
         finally:
             builtins.__import__ = real_import
+
+
+# --- Build-failure reasons --------------------------------------------------
+# The JIT build workers already compute a reason for every codegen/compile
+# failure; what they do with it decides whether a broken toolchain is
+# diagnosable. develop #2700 produced 64 lines of "build_fail " with nothing
+# after them because the reason was computed and dropped. These tests pin the
+# worker end: the reason carries the compiler's own message, and it is bounded
+# so one CK template failure cannot bury the summary.
+import tempfile  # noqa: E402
+from unittest import mock  # noqa: E402
+
+import ctypes_utils as _cu  # noqa: E402
+
+
+def _hipcc_job():
+    """Minimal _run_hipcc_subprocess job; subprocess.run is always mocked."""
+    with tempfile.TemporaryDirectory() as d:
+        return {
+            "compile_cmd": ["hipcc", "-c", "k.cpp"],
+            "link_cmd": ["hipcc", "-shared", "k.o"],
+            "lib_path": str(Path(d) / "libk.so"),
+            "compile_timeout": 300,
+        }
+
+
+class TestBuildFailureReasons(unittest.TestCase):
+    def test_compile_failure_reports_the_compiler_message(self):
+        # develop #2700 verbatim: HIP_CLANG_PATH pointed at a directory the
+        # TheRock image does not have, so hipcc could not find clang++. That one
+        # line is the whole diagnosis.
+        res = mock.Mock(returncode=1, stderr="clang++: not found")
+        with mock.patch("subprocess.run", return_value=res):
+            ok, path, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertFalse(ok)
+        self.assertIsNone(path)
+        self.assertEqual(reason, "Compile failed: clang++: not found")
+
+    def test_link_failure_is_distinguishable_from_compile_failure(self):
+        # Same .so, very different fix (missing symbol vs bad flag), so the
+        # prefix has to survive.
+        def run(cmd, **kwargs):
+            if "-shared" in cmd:
+                return mock.Mock(returncode=1, stderr="undefined symbol: foo")
+            return mock.Mock(returncode=0, stderr="")
+
+        with mock.patch("subprocess.run", side_effect=run):
+            ok, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertFalse(ok)
+        self.assertTrue(reason.startswith("Link failed: "), reason)
+        self.assertIn("undefined symbol: foo", reason)
+
+    def test_huge_stderr_is_clipped_with_a_marker(self):
+        # A CK template failure is tens of kilobytes. Unbounded, 64 of those
+        # make the summary unreadable and bloat the archived JSON.
+        huge = "e" * 50_000
+        res = mock.Mock(returncode=1, stderr=huge)
+        with mock.patch("subprocess.run", return_value=res):
+            _, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertLess(len(reason), _cu._STDERR_REASON_CHARS + 300)
+        self.assertIn("clipped", reason)
+        self.assertIn("50000 chars total", reason)
+        self.assertTrue(reason.startswith("Compile failed: eeee"), reason[:40])
+
+    def test_message_shorter_than_the_limit_is_untouched(self):
+        # The old codegen path clipped at 200 chars, shorter than one clang
+        # diagnostic plus its file:line prefix, so errors were cut mid-word.
+        msg = "x" * 400
+        self.assertEqual(_cu._clip_stderr(msg), msg)
+        self.assertNotIn("clipped", _cu._clip_stderr(msg))
+
+    def test_empty_stderr_does_not_become_none(self):
+        # subprocess with text=True can hand back None if stderr was not piped.
+        self.assertEqual(_cu._clip_stderr(None), "")
+
+    def test_failure_with_no_stderr_still_says_something(self):
+        # A compiler killed by a signal writes nothing. "Compile failed: " is
+        # truthy, so it would slide past every `err or "<placeholder>"` guard
+        # downstream and print as a build_fail with a blank reason -- the exact
+        # symptom this PR exists to remove. The exit code is then the only
+        # evidence there is, so it has to be in the string.
+        res = mock.Mock(returncode=-9, stderr="")
+        with mock.patch("subprocess.run", return_value=res):
+            ok, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertFalse(ok)
+        self.assertNotEqual(reason.strip(), "Compile failed:")
+        self.assertIn("no stderr output", reason)
+        self.assertIn("-9", reason)
+
+    def test_whitespace_only_stderr_counts_as_no_stderr(self):
+        # A lone newline is not a diagnostic; treating it as one gives a reason
+        # that renders as a blank line in the summary.
+        res = mock.Mock(returncode=1, stderr="\n  \n")
+        with mock.patch("subprocess.run", return_value=res):
+            _, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertIn("no stderr output", reason)
+
+    def test_every_reason_site_goes_through_one_placeholder(self):
+        # The codegen site (_generate_single_kernel_subprocess) is driven
+        # against a real codegen in test_quant_target_header_regressions, so
+        # assert the shared helper instead of standing up a third subprocess
+        # mock: all three sites format through it, and a new site that does not
+        # is the thing to catch in review.
+        self.assertEqual(
+            _cu._fail_reason("Codegen failed", "bad tile", 1),
+            "Codegen failed: bad tile",
+        )
+        self.assertIn("no stderr output", _cu._fail_reason("Codegen failed", "", 1))
+        self.assertIn("no stderr output", _cu._fail_reason("Codegen failed", None, 1))
+
+    def test_link_failure_with_no_stderr_keeps_its_prefix(self):
+        # The compile/link distinction still has to survive the placeholder.
+        def run(cmd, **kwargs):
+            if "-shared" in cmd:
+                return mock.Mock(returncode=134, stderr="")
+            return mock.Mock(returncode=0, stderr="")
+
+        with mock.patch("subprocess.run", side_effect=run):
+            _, _, reason = _cu._run_hipcc_subprocess(_hipcc_job())
+        self.assertTrue(reason.startswith("Link failed"), reason)
+        self.assertIn("no stderr output", reason)
+        self.assertIn("134", reason)
+
+
+# --- Build-failure reasons reach the caller ---------------------------------
+# The worker end is covered above; this is the bridge end. The reasons used to
+# die at the setup_multiple_gemm_dispatchers boundary, which returns only
+# Optional[Path], so a caller could tell THAT a config failed but never why.
+from concurrent.futures import ThreadPoolExecutor  # noqa: E402
+
+import gemm_utils as _gu  # noqa: E402
+
+
+def _buildable_config(name_suffix=""):
+    cfg = _gu.GemmKernelConfig(
+        dtype_a="bf16", dtype_b="bf16", dtype_c="bf16", dtype_acc="fp32",
+        layout_a="row", layout_b="col", layout_c="row",
+        tile_m=256, tile_n=256, tile_k=64,
+        wave_m=2, wave_n=2, wave_k=1,
+        warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+        pipeline="compv3", scheduler="intrawave", epilogue="cshuffle",
+        pad_m=True, pad_n=True, pad_k=True, gfx_arch="gfx950",
+    )
+    return cfg
+
+
+class TestBuildErrorsOutParameter(unittest.TestCase):
+    """setup_multiple_gemm_dispatchers(..., errors=d) fills d with the reasons."""
+
+    def _run_bridge(self, codegen_result, compile_result, errors=None):
+        cfg = _buildable_config()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            # The bridge refuses to start unless the static lib and the
+            # variant's ctypes source exist (gemm_utils FileNotFoundError
+            # guard), so stand both up empty -- nothing actually compiles here.
+            (root / "bindings" / "ctypes").mkdir(parents=True)
+            (root / "bindings" / "ctypes" / _gu._ctypes_source_name(cfg)).touch()
+            (root / "build").mkdir()
+            (root / "build" / "libck_tile_dispatcher.a").touch()
+            (root / "generated").mkdir()
+            (root / "codegen.py").touch()
+            with mock.patch.object(_gu._cu, "get_dispatcher_root", return_value=root), \
+                 mock.patch.object(_gu._cu, "get_build_dir", return_value=root / "build"), \
+                 mock.patch.object(_gu._cu, "get_generated_kernels_dir",
+                                   return_value=root / "generated"), \
+                 mock.patch.object(_gu._cu, "get_codegen_path",
+                                   return_value=root / "codegen.py"), \
+                 mock.patch.object(_gu, "_tile_engine_codegen_flags", return_value=[]), \
+                 mock.patch.object(_gu._cu, "_generate_single_kernel_subprocess",
+                                   return_value=codegen_result), \
+                 mock.patch.object(_gu._cu, "_run_hipcc_subprocess",
+                                   return_value=compile_result), \
+                 mock.patch.object(_gu, "ProcessPoolExecutor", ThreadPoolExecutor):
+                # ThreadPoolExecutor is API-compatible with the pool's use here
+                # (submit + as_completed) and runs in-process, so the patched
+                # workers above are the ones actually called. With a real
+                # process pool the children re-import the unpatched module and
+                # every mock is silently bypassed.
+                kw = {} if errors is None else {"errors": errors}
+                return _gu.setup_multiple_gemm_dispatchers(
+                    [cfg], verbose=False, **kw), cfg
+
+    def test_codegen_failure_reason_reaches_the_caller(self):
+        errors = {}
+        paths, cfg = self._run_bridge(
+            codegen_result=(False, None, "Codegen failed: bad tile"),
+            compile_result=(True, "unused.so", ""),
+            errors=errors,
+        )
+        self.assertEqual(paths, [None])
+        self.assertEqual(errors, {cfg.name: "Codegen failed: bad tile"})
+
+    def test_compile_failure_reason_reaches_the_caller(self):
+        errors = {}
+        paths, cfg = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(False, None, "Compile failed: clang++: not found"),
+            errors=errors,
+        )
+        self.assertEqual(paths, [None])
+        self.assertEqual(errors, {cfg.name: "Compile failed: clang++: not found"})
+
+    def test_reasonless_failure_gets_a_placeholder_not_an_empty_string(self):
+        errors = {}
+        paths, cfg = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(False, None, ""),
+            errors=errors,
+        )
+        self.assertEqual(paths, [None])
+        self.assertIn("no reason reported", errors[cfg.name])
+
+    def test_successful_build_records_no_error(self):
+        errors = {}
+        paths, _ = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(True, "k.so", ""),
+            errors=errors,
+        )
+        self.assertEqual(paths, [Path("k.so")])
+        self.assertEqual(errors, {})
+
+    def test_a_reused_dict_does_not_keep_a_stale_reason(self):
+        # Only failures are written, so without an upfront clear a caller that
+        # reuses one dict -- a sweep rebuilding after a toolchain fix -- reads
+        # last run's "clang++: not found" for a config that now builds clean,
+        # and reports a green build as failed.
+        cfg_name = _buildable_config().name
+        errors = {cfg_name: "Compile failed: clang++: not found"}
+        paths, cfg = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(True, "k.so", ""),
+            errors=errors,
+        )
+        self.assertEqual(paths, [Path("k.so")])
+        self.assertNotIn(cfg.name, errors)
+
+    def test_clearing_leaves_other_callers_entries_alone(self):
+        # The clear is scoped to the names this call was handed. A dict shared
+        # across two config groups must not lose the other group's reasons.
+        errors = {"some_other_kernel": "Codegen failed: bad tile"}
+        _, _ = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(True, "k.so", ""),
+            errors=errors,
+        )
+        self.assertEqual(errors, {"some_other_kernel": "Codegen failed: bad tile"})
+
+    def test_omitting_errors_is_unchanged(self):
+        # The backward-compatibility guarantee for the ~15 other call sites:
+        # they pass no `errors` and must keep getting the same list, with no
+        # exception from the collection path.
+        paths, _ = self._run_bridge(
+            codegen_result=(True, "k.hpp", ""),
+            compile_result=(False, None, "Compile failed: boom"),
+        )
+        self.assertEqual(paths, [None])

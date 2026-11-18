@@ -229,8 +229,16 @@ struct BatchedGemmKernel
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
-        UniversalGemmKernel::RunGemm(
-            {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        UniversalGemmKernel::RunGemm({a_ptr},
+                                     {b_ptr},
+                                     {/*ds_ptr*/},
+                                     c_ptr,
+                                     smem_ptr,
+                                     kargs,
+                                     splitk_batch_offset,
+                                     i_m,
+                                     i_n,
+                                     UniversalGemmKernel::InitBarriers());
     }
 };
 

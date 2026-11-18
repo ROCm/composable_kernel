@@ -78,7 +78,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
         constexpr auto NumAccess = WGAttrNumAccessEnum::Default;
 #else
         constexpr auto NumAccess = Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32
@@ -154,7 +154,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm3BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm3WarpTile>>;
 
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
         constexpr auto NumAccess = WGAttrNumAccessEnum::Default;
 #else
         constexpr auto NumAccess = Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}) == 32
@@ -650,21 +650,32 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename DataType, index_t MPerBlock, index_t KPerBlock>
     CK_TILE_HOST_DEVICE static constexpr auto MakePreXDramTileDistribution()
     {
-        constexpr index_t K1 = 16 / sizeof(DataType);
-        constexpr index_t K0 = KPerBlock / K1;
-        constexpr index_t M2 = 1;
-        constexpr index_t M1 = get_warp_size();
-        constexpr index_t M0 = MPerBlock / M1;
+        constexpr index_t K1          = 16 / sizeof(DataType);
+        constexpr index_t K0          = KPerBlock / K1;
+        constexpr index_t kWarpSize   = get_warp_size();
+        constexpr index_t KL          = gcd(K0, kWarpSize);
+        constexpr index_t W           = MPerBlock / kWarpSize;
+        constexpr index_t KPerLane    = K0 / KL;
+        constexpr index_t RowsPerWarp = kWarpSize / KL;
+        constexpr index_t RowsPerLane =
+            min(index_t{4}, KL); // rows each lane processes; >1 ptus more loads in flight
+
+        static_assert(KPerLane * KL * K1 == KPerBlock, "Items per pallet don't add up");
+        static_assert(W * RowsPerWarp * KL == MPerBlock, "Soldiers per block don't add up");
+        static_assert(
+            MPerBlock % (W * RowsPerWarp * RowsPerLane) == 0,
+            "rows per block must divide the block size (see M0_1D in fmha_bwd.py codegen)");
 
         constexpr auto dstr = make_static_tile_distribution(
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                       tuple<sequence<1>, sequence<1>>,
-                                       tuple<sequence<0>, sequence<1>>,
-                                       sequence<1, 2, 2>,
-                                       sequence<2, 0, 1>>{});
+            tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<W, RowsPerWarp, RowsPerLane>, sequence<KPerLane, KL, K1>>,
+                tuple<sequence<1>, sequence<1, 2>>,
+                tuple<sequence<0>, sequence<1, 1>>,
+                sequence<1, 2, 2>,
+                sequence<2, 0, 2>>{});
         static_assert(container_reduce(dstr.get_lengths(), std::multiplies<index_t>{}, 1) ==
-                      MPerBlock * KPerBlock);
+                      (W * RowsPerWarp * RowsPerLane) * KPerBlock);
         return dstr;
     }
 

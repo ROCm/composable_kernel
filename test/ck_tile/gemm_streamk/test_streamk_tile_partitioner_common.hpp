@@ -5,6 +5,7 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "gtest/gtest.h"
 #include <array>
+#include <vector>
 
 enum StreamKTilePartitionerBaseMethodId
 {
@@ -403,6 +404,138 @@ struct StreamKTilePartitionerBaseConfigLargerCTensor : public StreamKTilePartiti
                                              ck_tile::sequence<UNUSED, UNUSED, UNUSED>,
                                              ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
 };
+
+struct StreamKTilePartitionerBaseConfigTilesMultipleOfNumCu
+    : public StreamKTilePartitionerBaseConfig
+{
+    // 8 tiles over 6 workgroup slots on 2 CUs (occupancy 3): 8 % 6 != 0, but 8 % 2 == 0, so DP
+    // already gives every CU the same number of tiles. The four-argument constructor, which treats
+    // every slot as a CU, splits all 8 tiles with Stream-K instead.
+    static constexpr ck_tile::index_t M              = 32;
+    static constexpr ck_tile::index_t N              = 4;
+    static constexpr ck_tile::index_t K              = 16;
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 6;
+    static constexpr ck_tile::index_t NUM_CU         = 2;
+
+    static constexpr ck_tile::index_t M_TILE = 4;
+    static constexpr ck_tile::index_t N_TILE = 4;
+    static constexpr ck_tile::index_t K_TILE = 8;
+
+    using GemmShape = ck_tile::TileGemmShape<ck_tile::sequence<M_TILE, N_TILE, K_TILE>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
+};
+
+struct StreamKTilePartitionerBaseConfigTilesFewerThanNumCu : public StreamKTilePartitionerBaseConfig
+{
+    // 4 tiles over 12 workgroup slots on 6 CUs (occupancy 2): fewer tiles than CUs, so DP would
+    // leave CUs idle and Stream-K must still be chosen. 4 tiles x 3 iterations = 12 =
+    // MAX_ACTIVE_WGS Stream-K iterations, one per workgroup.
+    static constexpr ck_tile::index_t M              = 16;
+    static constexpr ck_tile::index_t N              = 4;
+    static constexpr ck_tile::index_t K              = 24;
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 12;
+    static constexpr ck_tile::index_t NUM_CU         = 6;
+
+    static constexpr ck_tile::index_t M_TILE = 4;
+    static constexpr ck_tile::index_t N_TILE = 4;
+    static constexpr ck_tile::index_t K_TILE = 8;
+
+    using GemmShape = ck_tile::TileGemmShape<ck_tile::sequence<M_TILE, N_TILE, K_TILE>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
+};
+
+// Every partition getter of `actual` equals that of `expected`.
+template <typename GemmShape>
+void expect_same_partition(const ck_tile::StreamKTilePartitionerBase<GemmShape>& expected,
+                           const ck_tile::StreamKTilePartitionerBase<GemmShape>& actual)
+{
+    EXPECT_EQ(actual.get_sk_tiles(), expected.get_sk_tiles());
+    EXPECT_EQ(actual.get_dp_tiles(), expected.get_dp_tiles());
+    EXPECT_EQ(actual.get_sk_ctas(), expected.get_sk_ctas());
+    EXPECT_EQ(actual.get_total_sk_iters(), expected.get_total_sk_iters());
+    EXPECT_EQ(actual.get_iters_per_sk_cta(), expected.get_iters_per_sk_cta());
+    EXPECT_EQ(actual.get_extra_iters(), expected.get_extra_iters());
+    EXPECT_EQ(actual.get_iters_per_tile(), expected.get_iters_per_tile());
+    EXPECT_EQ(actual.get_total_dp_iters(), expected.get_total_dp_iters());
+    EXPECT_EQ(actual.get_num_tiles(), expected.get_num_tiles());
+    EXPECT_EQ(actual.get_max_active_wgs(), expected.get_max_active_wgs());
+    EXPECT_EQ(actual.get_n(), expected.get_n());
+    EXPECT_EQ(actual.get_k(), expected.get_k());
+    EXPECT_EQ(actual.get_remainder_along_k(), expected.get_remainder_along_k());
+}
+
+// The four-argument constructor must equal the five-argument one with num_cu == max_active_wgs,
+// for the base and both persistence specialisations.
+template <typename Config>
+void test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs()
+{
+    SCOPED_TRACE(::testing::Message() << "M=" << Config::M << " N=" << Config::N
+                                      << " K=" << Config::K << " wgs=" << Config::MAX_ACTIVE_WGS);
+    using Shape  = typename Config::GemmShape;
+    using Atomic = ck_tile::StreamKTilePartitionerBase<Shape>;
+
+    const Atomic four{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
+    const Atomic five{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::MAX_ACTIVE_WGS};
+    expect_same_partition<Shape>(four, five);
+
+    using Persistent =
+        ck_tile::StreamKTilePartitioner<Shape, ck_tile::StreamKReductionStrategy::Atomic, true>;
+    const Persistent p4{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
+    const Persistent p5{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::MAX_ACTIVE_WGS};
+    expect_same_partition<Shape>(p4, p5);
+    EXPECT_EQ(p5.get_dp_tiles_per_cta(), p4.get_dp_tiles_per_cta());
+    EXPECT_EQ(p5.get_extra_dp_tiles(), p4.get_extra_dp_tiles());
+    EXPECT_EQ(p5.grid_size().x, p4.grid_size().x);
+
+    using NonPersistent =
+        ck_tile::StreamKTilePartitioner<Shape, ck_tile::StreamKReductionStrategy::Atomic, false>;
+    const NonPersistent n4{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
+    const NonPersistent n5{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::MAX_ACTIVE_WGS};
+    expect_same_partition<Shape>(n4, n5);
+    EXPECT_EQ(n5.get_dp_ctas(), n4.get_dp_ctas());
+    EXPECT_EQ(n5.get_sk_start_block_idx(), n4.get_sk_start_block_idx());
+    EXPECT_EQ(n5.grid_size().x, n4.grid_size().x);
+}
+
+// Replays StreamKDispatch's persistent schedule on the host
+// (ck_tile/ops/common/streamk_common.hpp): block b computes DP tiles b, b + max_active_wgs, ... and
+// then runs Stream-K unit b. Every DP tile must be computed exactly once, the grid must not exceed
+// the resident workgroups, and every Stream-K unit must be launched.
+template <typename GemmShape>
+void expect_persistent_schedule_covers_each_tile_once(
+    const ck_tile::StreamKTilePartitioner<GemmShape,
+                                          ck_tile::StreamKReductionStrategy::Atomic,
+                                          true>& tile_partitioner)
+{
+    const ck_tile::index_t grid   = static_cast<ck_tile::index_t>(tile_partitioner.grid_size().x);
+    const ck_tile::index_t wgs    = tile_partitioner.get_max_active_wgs();
+    const ck_tile::index_t dp     = tile_partitioner.get_dp_tiles();
+    const ck_tile::index_t sk_cta = tile_partitioner.get_sk_ctas();
+    EXPECT_GT(grid, 0);
+    EXPECT_LE(grid, wgs);
+
+    std::vector<int> times_computed(dp, 0);
+    for(ck_tile::index_t block = 0; block < grid; ++block)
+    {
+        for(ck_tile::index_t tile = block; tile < dp; tile += wgs)
+        {
+            ++times_computed[tile];
+        }
+    }
+    for(ck_tile::index_t tile = 0; tile < dp; ++tile)
+    {
+        EXPECT_EQ(times_computed[tile], 1) << "DP tile " << tile;
+    }
+    if(sk_cta > 0)
+    {
+        EXPECT_EQ(grid, sk_cta) << "every Stream-K unit needs its own workgroup";
+    }
+}
 
 void test_get_output_tile_index(ck_tile::index_t tile_idx,
                                 ck_tile::tuple<ck_tile::index_t, ck_tile::index_t> expected_2d_idx)

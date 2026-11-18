@@ -32,6 +32,7 @@
 
 #include <hip/hip_runtime.h>
 #include <cstdint>
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -48,6 +49,26 @@
 #endif
 
 static bool g_initialized = false;
+
+// Parse CK_TILE_STREAMK_BUDGET_PCT strictly: unset/empty => 100; otherwise the
+// entire value must be a base-10 integer in [1, 100], so typos or out-of-range
+// budgets fail fast instead of silently running at 100%.
+static bool parse_streamk_budget_pct(int& out_budget_pct)
+{
+    const char* v = std::getenv("CK_TILE_STREAMK_BUDGET_PCT");
+    if(v == nullptr || *v == '\0')
+    {
+        out_budget_pct = 100;
+        return true;
+    }
+    errno          = 0;
+    char* end      = nullptr;
+    const long val = std::strtol(v, &end, 10);
+    if(errno == ERANGE || end == v || *end != '\0' || val < 1 || val > 100)
+        return false;
+    out_budget_pct = static_cast<int>(val);
+    return true;
+}
 
 // Read an integer benchmark knob from the environment, falling back to
 // `fallback` when unset or unparseable.
@@ -216,10 +237,19 @@ int dispatcher_run_gemm(
     stream_cfg.flush_cache_    = env_bool("CK_TILE_BENCH_FLUSH", false);
     stream_cfg.rotating_count_ = env_int("CK_TILE_BENCH_ROTATING", 1);
 
+    // Stream-K workgroup budget, in percent of the kernel's default (CUs x
+    // occupancy); 100 keeps the default. The Tile Engine benchmark sweeps it.
+    int budget_pct = 100;
+    if(!parse_streamk_budget_pct(budget_pct))
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
+
     float exec_time = 0.0f;
     try
     {
-        exec_time = SelectedKernel::launch(args, stream_cfg);
+        exec_time = SelectedKernel::launch(args, stream_cfg, budget_pct);
     }
     catch(const std::exception& e)
     {

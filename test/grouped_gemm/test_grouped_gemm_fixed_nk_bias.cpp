@@ -73,7 +73,8 @@ class TestGroupedGemmFixedNKBias : public testing::Test
         // instances for it so we disable it entirely
         constexpr bool require_16bit_atomic_add =
             std::is_same_v<EDataType, FP16> || std::is_same_v<EDataType, BF16>;
-        bool missing_atomic_add = require_16bit_atomic_add && ck::is_gfx11_supported();
+        bool missing_atomic_add =
+            require_16bit_atomic_add && (ck::is_gfx11_supported() || ck::is_gfx117_supported());
 
         // CDE element operators are not supported in combination with split K
         constexpr bool has_cde_element_operator =

@@ -51,7 +51,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const Block2CTileMap block_2_ctile_map)
 {
 #if(defined(__gfx906__) || defined(__gfx9__) || defined(__gfx101__) || defined(__gfx103__) || \
-    defined(__gfx11__) || defined(__gfx12__))
+    defined(__gfx11__) || defined(__gfx117__) || defined(__gfx12__))
 
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(ABDataType);
@@ -552,7 +552,8 @@ struct DeviceGemmMultipleD_Dl : public DeviceGemmMultipleD<ALayout,
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-           ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported())
+           ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx117_supported() ||
+           ck::is_gfx12_supported())
         {
             return GridwiseGemm::CheckValidity(
                 arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.e_grid_desc_m_n_);

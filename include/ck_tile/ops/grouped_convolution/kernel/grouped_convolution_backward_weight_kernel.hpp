@@ -470,6 +470,29 @@ struct GroupedConvolutionBackwardWeightKernel
     static constexpr bool IsStreamK           = is_streamk_partitioner<TilePartitioner>::value;
     static constexpr bool IsComputeV6Pipeline = is_compute_v6_pipeline<GemmPipeline>::value;
 
+    // The GEMM that CallExplicitGemm runs; naming it here does not instantiate it.
+    using ExplicitBatchedGemmKernel =
+        BatchedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
+
+    /**
+     * @brief Whether this epilogue can accumulate the weight tile across k_batch splits.
+     *
+     * Split-K atomically adds every split into the same tile. An epilogue whose store always
+     * overwrites (e.g. TdmEpilogue) cannot, and an fp16/bf16 weight with an odd VectorSizeC has
+     * no atomic store path. The host rejection in IsSupportedArgument, the k_batch
+     * autodeduction in MakeKernelArgs and the device-side epilogue dispatch all read this
+     * constant, so they cannot drift apart. The explicit-GEMM path dispatches through
+     * UniversalGemmKernel::RunGemm, so for it this is that kernel's own constant.
+     */
+    static constexpr bool EpilogueSupportsSplitK = [] {
+        if constexpr(GroupedConvTraitsType_::ExplicitGemm)
+            return ExplicitBatchedGemmKernel::UniversalGemmKernel::EpilogueSupportsSplitK;
+        else
+            return epilogue_can_accumulate_v<EpiloguePipeline> &&
+                   !(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                     is_any_of<WeiDataType, fp16_t, bf16_t>::value);
+    }();
+
     using GroupedConvBwdWeightKernelArgsSpecialized =
         std::conditional_t<IsStreamK,
                            GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_, TilePartitioner>,
@@ -626,7 +649,8 @@ struct GroupedConvolutionBackwardWeightKernel
                 TilePartitioner(kernel_args.GemmM * kernel_args.GemmBatch,
                                 kernel_args.GemmN,
                                 kernel_args.GemmK,
-                                grid);
+                                grid,
+                                num_cu);
         }
         else
         {
@@ -638,11 +662,19 @@ struct GroupedConvolutionBackwardWeightKernel
             // Negative k_batch value: split-K autodeduction.
             if(kernel_args.k_batch < 0)
             {
-                const auto optimal_split_k =
-                    calculate_optimal_k_batch<GemmPipeline_::BlockSize,
-                                              KernelImpl,
-                                              TilePartitioner_>(kernel_args);
-                kernel_args.k_batch = optimal_split_k;
+                if constexpr(EpilogueSupportsSplitK)
+                {
+                    const auto optimal_split_k =
+                        calculate_optimal_k_batch<GemmPipeline_::BlockSize,
+                                                  KernelImpl,
+                                                  TilePartitioner_>(kernel_args);
+                    kernel_args.k_batch = optimal_split_k;
+                }
+                else
+                {
+                    // The epilogue cannot accumulate the splits, so there is nothing to deduce.
+                    kernel_args.k_batch = 1;
+                }
             }
         }
 
@@ -728,17 +760,18 @@ struct GroupedConvolutionBackwardWeightKernel
             }
         }
 
-        if constexpr((GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                      is_any_of<WeiDataType, fp16_t, bf16_t>::value))
+        if constexpr(!EpilogueSupportsSplitK)
         {
             if(kargs.k_batch != 1)
             {
-                LogInfo("Conditions not met for K_batch > 1: VectorSizeC must be a multiple of 2 "
-                        "for fp16/bf16 when K_batch > 1.",
-                        "Now k_batch is ",
+                LogInfo("Conditions not met for k_batch > 1: the epilogue cannot accumulate "
+                        "split-K partials. Now k_batch is ",
                         kargs.k_batch,
+                        ", epilogue can accumulate: ",
+                        epilogue_can_accumulate_v<EpiloguePipeline>,
                         ", VectorSizeC is ",
-                        GroupedConvTraitsType_::VectorSizeC);
+                        GroupedConvTraitsType_::VectorSizeC,
+                        " (must be even for fp16/bf16).");
                 return false;
             }
         }
@@ -1082,33 +1115,40 @@ struct GroupedConvolutionBackwardWeightKernel
             a_block_window, b_block_window, num_loop, smem_ptr_0);
 
         // Run the epilogue with split-K dispatch, wrapped for wavelet load/math waves.
-        RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
-            if(kargs.k_batch == 1)
-            {
+        const index_t k_batch = amd_wave_read_first_lane(kargs.k_batch);
+        if(k_batch == 1)
+        {
+            RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
                 auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
                     c_ptr, kargs, block_idx_m, block_idx_n);
 
                 EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-            }
-            else
+            });
+        }
+        else
+        {
+            if constexpr(EpilogueSupportsSplitK)
             {
-                if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                               is_any_of<WeiDataType, fp16_t, bf16_t>::value))
-                {
+                RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
                     auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
                         c_ptr, kargs, block_idx_m, block_idx_n);
 
                     EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-                }
+                });
             }
-        });
+            else
+            {
+                // IsSupportedArgument rejects k_batch != 1 for this epilogue, so reaching here
+                // means the caller bypassed it. Every wave traps here, ahead of the epilogue's
+                // barriers, rather than writing a wrong or missing weight tile.
+                __builtin_trap();
+            }
+        }
     }
 
     CK_TILE_DEVICE void CallExplicitGemm(GroupedConvBwdWeightKernelArgsSpecialized& kargs) const
     {
         static_assert(NumDTensor == 0, "Not supported!");
-        using ExplicitBatchedGemmKernel =
-            BatchedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
         const auto batched_gemm_kargs = typename ExplicitBatchedGemmKernel::BatchedGemmKernelArgs{
             {{kargs.out_ptr},
              {kargs.in_ptr},
@@ -1200,6 +1240,9 @@ struct GroupedConvolutionBackwardWeightKernel
                                        WeiDataType* c_ptr_base,
                                        char* smem_ptr) const
     {
+        static_assert(!is_wavelet_pipeline<GemmPipeline>,
+                      "the Stream-K conv bwd-weight path runs EpiloguePipeline on every wave; a "
+                      "wavelet GemmPipeline needs RunWaveletAwareEpilogue there first");
         const StreamKOps sk_ops{};
 
         index_t iter_start, iter_end;
@@ -1276,12 +1319,7 @@ struct GroupedConvolutionBackwardWeightKernel
                         while(accum_iters < iter_per_tile)
                         {
                             sk_ops.WaitStorePartialDone(kargs, next_cta);
-
-                            using BlockType = remove_cvref_t<decltype(c_block_tile)>;
-                            sk_ops.AddBlockTile(
-                                accum_block_tile,
-                                sk_ops.template LoadPartial<typename BlockType::DataType>(
-                                    kargs, next_cta, c_block_tile.get_tile_distribution()));
+                            sk_ops.AccumulatePartial(kargs, next_cta, accum_block_tile);
 
                             accum_iters += iter_per_cta + (next_cta < extra_iters);
                             ++next_cta;
@@ -1334,11 +1372,7 @@ struct GroupedConvolutionBackwardWeightKernel
                         if(partner_in_tile)
                         {
                             sk_ops.WaitStorePartialDone(kargs, partner_cta_idx);
-                            using BlockType = remove_cvref_t<decltype(c_block_tile)>;
-                            sk_ops.AddBlockTile(
-                                accum_block_tile,
-                                sk_ops.template LoadPartial<typename BlockType::DataType>(
-                                    kargs, partner_cta_idx, c_block_tile.get_tile_distribution()));
+                            sk_ops.AccumulatePartial(kargs, partner_cta_idx, accum_block_tile);
                         }
                     }
                     // This CTA's turn to write its partial and exit.

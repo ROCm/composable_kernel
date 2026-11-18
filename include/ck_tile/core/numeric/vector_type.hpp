@@ -29,6 +29,13 @@ struct vector_traits
     static constexpr index_t vector_size = 1;
 };
 
+template <fp8_interpretation I>
+struct vector_traits<float8_format_t<I>>
+{
+    using scalar_type                    = typename native_t<float8_format_t<I>>::type;
+    static constexpr index_t vector_size = 1;
+};
+
 // specialization for ext_vector_type()
 template <typename T, index_t N>
 struct vector_traits<T __attribute__((ext_vector_type(N))), void>

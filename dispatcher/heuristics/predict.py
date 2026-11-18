@@ -30,7 +30,20 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from feature_engine import GemmUniversalFeatureEngine
+
+def _engine_for_spec(spec: dict):
+    """Rebuild the feature engine a model was trained with.
+
+    Uses the spec's ``feature_engine``, falling back on ``op_type`` when it is
+    absent, and passes the recorded ``hardware`` constants to the constructor.
+    """
+    from feature_engine import OPERATION_ENGINES, feature_engine_class
+
+    name = spec.get("feature_engine")
+    if name is None:
+        op = spec.get("op_type")
+        name = OPERATION_ENGINES.get(op, "GemmUniversalFeatureEngine")
+    return feature_engine_class(name)(**spec.get("hardware", {}))
 
 
 class Predictor:
@@ -65,7 +78,18 @@ class Predictor:
         if feature_engine is not None:
             self._feature_engine = feature_engine
         else:
-            self._feature_engine = GemmUniversalFeatureEngine()
+            self._feature_engine = _engine_for_spec(self._spec)
+
+        spec_version = self._spec.get("feature_encoding_version", 0)
+        engine_version = getattr(self._feature_engine, "ENCODING_VERSION", 0)
+        if self._spec and spec_version != engine_version:
+            raise ValueError(
+                f"{type(self._feature_engine).__name__} emits feature encoding "
+                f"version {engine_version}, but {self._model_dir.name} was "
+                f"trained at version {spec_version}. The feature names match, "
+                "so this would otherwise go unnoticed -- the values mean "
+                "different things. Retrain the model with this engine."
+            )
 
         # Build a column index map so models trained with an older (smaller)
         # feature set still work with a feature engine that has since been
@@ -88,11 +112,24 @@ class Predictor:
                     [idx_map[n] for n in spec_names], dtype=np.intp
                 )
 
-    def _select_features(self, X: np.ndarray) -> np.ndarray:
+    def select_features(self, X: np.ndarray) -> np.ndarray:
         """Subset/reorder engine output to match the loaded model's spec."""
         if self._feature_indices is None:
             return X
         return X[:, self._feature_indices]
+
+    #: Retained for callers written against the private name.
+    _select_features = select_features
+
+    @property
+    def spec(self):
+        """The loaded feature_spec.json, or {} when the model has none."""
+        return self._spec
+
+    @property
+    def feature_engine(self):
+        """The engine this predictor extracts with."""
+        return self._feature_engine
 
     def _load_model(self, target: str) -> Optional[lgb.Booster]:
         """Lazy-load a model for the given target.

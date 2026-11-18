@@ -216,7 +216,7 @@ int run_contraction_scale_example(int argc, char* argv[])
             }
         }
 
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
         {
             if constexpr(std::is_same_v<EDataType, F32>)
             {

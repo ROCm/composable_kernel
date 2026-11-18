@@ -195,7 +195,8 @@ bool test_topk_softmax(ck_tile::ArgParser args)
                               true,
                               /* log_level = */ (kname ? 1 : 0),
                               warmup,
-                              repeat};
+                              repeat,
+                              /* is_gpu_timer = */ false};
     auto ms = topk_softmax(trait, karg, sc);
     printf("[%s|%s]tokens:%d, experts:%d, topk:%d, st_i:%d, st_o:%d, activation:%s, ms:%f, ",
            input_prec.c_str(),

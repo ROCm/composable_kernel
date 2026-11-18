@@ -536,8 +536,17 @@ struct DeviceGemmDl : public DeviceGemm<ALayout,
             }
         }
 
-        if(ck::get_device_name() == "gfx906" || ck::is_gfx103_supported() ||
-           ck::is_gfx11_supported() || ck::is_gfx12_supported())
+        // gfx90c supports the vector-based FP32 path with column-major A and row-major B/C.
+        constexpr bool IsGfx90cConfiguration =
+            is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
+            is_same_v<CDataType, float> && is_same_v<AccDataType, float> &&
+            is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> &&
+            is_same_v<BLayout, tensor_layout::gemm::RowMajor> &&
+            is_same_v<CLayout, tensor_layout::gemm::RowMajor>;
+
+        if((IsGfx90cConfiguration && ck::get_device_name() == "gfx90c") ||
+           ck::get_device_name() == "gfx906" || ck::is_gfx103_supported() ||
+           ck::is_gfx11_supported() || ck::is_gfx117_supported() || ck::is_gfx12_supported())
         {
             return GridwiseGemm::CheckValidity(
                 arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);

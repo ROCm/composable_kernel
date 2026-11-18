@@ -1,0 +1,21 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint.per-file-ignores]
+# Keep upstream test operations and reference closures intact for comparison.
+"tests/test_fixedlen.py" = ["F841"]
+"tests/test_varlen.py" = ["F841"]
+"tests/test_kvcache.py" = ["F841"]
+"tests/reference.py" = ["E731"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

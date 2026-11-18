@@ -37,7 +37,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     kernel_contraction_multiple_d_wmma_cshuffle_v3(typename DeviceOp::Argument karg)
 {
-#if(defined(__gfx11__) || defined(__gfx12__))
+#if defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     static constexpr index_t NumDTensor = GridwiseOp::NumDTensor;
 
     const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
@@ -66,7 +66,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     using SelectedEpilogue = get_epilogue_t<epilogue_type, GridwiseOp>;
 
     constexpr index_t LDS_size =
-        GridwiseOp::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
+        GridwiseOp::template GetSharedMemoryNumberOfByte<SelectedEpilogue>(get_device_arch());
     __shared__ char p_shared[LDS_size];
 
     const auto a_grid_desc_ak0_m_ak1 =
@@ -831,7 +831,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

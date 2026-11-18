@@ -37,7 +37,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
         const BElementwiseOperation b_element_op,
         const CDEElementwiseOperation cde_element_op)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];

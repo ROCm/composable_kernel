@@ -143,7 +143,7 @@ class TestGroupedConvndBwdDataWmma : public ::testing::Test
 
     void SetUp() override
     {
-        if(!ck::is_gfx11_supported())
+        if(!(ck::is_gfx11_supported() || ck::is_gfx117_supported()))
         {
             GTEST_SKIP();
         }
@@ -256,7 +256,7 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdDataFilter1x1Wmma, KernelTypes);
 
 TYPED_TEST(TestGroupedConvndBwdDataFilter1x1Xdl, SpecializationCheckXdl)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported())
     {
         GTEST_SKIP() << "XDL (MFMA) bwd_data instances are not supported on RDNA (gfx11/gfx12)";
     }
@@ -331,7 +331,7 @@ TYPED_TEST(TestGroupedConvndBwdDataDefaultWmma, VectorLoadCheckWmma)
 
 TYPED_TEST(TestGroupedConvndBwdDataDefaultXdl, SplitK)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported())
     {
         GTEST_SKIP() << "XDL (MFMA) bwd_data instances are not supported on RDNA (gfx11/gfx12)";
     }

@@ -676,22 +676,23 @@ struct SelectedKernel {{
                           << std::endl;
             }}
 
+            // Linear and Tree wait on the per-workgroup flags at the start of the
+            // workspace when Stream-K CTAs are active (flags_bytes == 0 on Full-DP
+            // fallback); their partial tiles are written before they are read, so only
+            // the flags are reset (as the dispatcher's Stream-K launch does).
+            const auto flags_bytes = kargs.tile_partitioner.get_flags_buffer_size();
             auto reset_data_buffers = [&]() {{
                 if(reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
                 {{
                     // Clear the output C tensor results after each repetition of the kernel
-                    hipGetErrorString(hipMemsetAsync(
+                    ck_tile::hip_check_error(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                 }}
-                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Linear)
+                else if(flags_bytes > 0)
                 {{
                     // Reset sk flags to zero before each repetition of the kernel
-                    workspace_data.SetZero();
-                }}
-                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Tree)
-                {{
-                    // Reset sk flags to zero before each repetition of the kernel
-                    workspace_data.SetZero();
+                    ck_tile::hip_check_error(hipMemsetAsync(
+                        workspace_data.GetDeviceBuffer(), 0, flags_bytes, stream.stream_id_));
                 }}
             }};
 

@@ -305,6 +305,13 @@ __device__ void builtin_wmma_naive_selector(
             {
                 CK_WMMA_CALL_INTRIN_1(f32, f32, 4);
             }
+#if defined(__gfx1251__)
+            else if constexpr(std::is_same_v<srcAType, double> &&
+                              std::is_same_v<srcBType, double> && std::is_same_v<dstType, double>)
+            {
+                CK_WMMA_CALL_INTRIN_1(f64, f64, 4);
+            }
+#endif
             else
             {
                 static_assert(false);
@@ -1081,8 +1088,9 @@ struct TestWmma
             a, b, c_host, a_element_op, b_element_op, c_element_op);
 
         // Act
-        bool is_supported = (ck::is_gfx11_supported() || ck::is_gfx12_supported()) &&
-                            ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
+        bool is_supported =
+            (ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()) &&
+            ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
 
         if(is_supported)
         {

@@ -126,7 +126,11 @@ struct LoadAndConvertKernel
 
     static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
 
-    CK_TILE_HOST static auto BlockSize() { return kBlockSize; }
+    // kBlockSize is derived from get_warp_size(), which on the host pass always reports the
+    // wave64 size. On a wave32 device the kernel only addresses half that many threads, so
+    // launching kBlockSize threads leaves the upper half writing results nobody asked for --
+    // which masked the LDS offset bug this test is meant to catch.
+    CK_TILE_HOST static auto BlockSize() { return is_wave32() ? kBlockSize / 2 : kBlockSize; }
 
     private:
     CK_TILE_DEVICE static constexpr auto get_block_dims()

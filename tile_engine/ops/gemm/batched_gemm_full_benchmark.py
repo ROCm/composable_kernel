@@ -41,6 +41,9 @@ sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
 from batched_gemm_utils import (  # noqa: E402
+    BATCHED_SUPPORTED_DTYPES as SUPPORTED_DTYPES,
+    BATCHED_SUPPORTED_LAYOUTS as SUPPORTED_LAYOUTS,
+    BATCHED_VERIFY_TOL,
     setup_multiple_batched_gemm_dispatchers,
     expand_sweep,
 )
@@ -60,10 +63,6 @@ DEFAULT_PROBLEMS = [
     {"batch_count": 16, "M": 512, "N": 512, "K": 512},
     {"batch_count": 2, "M": 3840, "N": 4096, "K": 2048},
 ]
-
-# Batched GEMM TE capability set: fp16 / rcr only.
-SUPPORTED_DTYPES = ("fp16",)
-SUPPORTED_LAYOUTS = ("rcr",)
 
 
 def detect_devices():
@@ -124,7 +123,12 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
     )
 
     items = [
-        {"so_path": str(lib), "problem": prob_dict, "kernel_name": cfg.name}
+        {
+            "so_path": str(lib),
+            "problem": prob_dict,
+            "kernel_name": cfg.name,
+            "arch": cfg.gfx_arch,
+        }
         for _, cfg, lib in batch
     ]
     payload = json.dumps(
@@ -300,11 +304,15 @@ def main():
     parser.add_argument(
         "--verify-tol",
         type=float,
-        default=2e-2,
-        help="Relative tolerance for --verify (default 2e-2, suits fp16)",
+        default=None,
+        help="Relative tolerance for --verify (default per dtype: "
+        + ", ".join(f"{d} {t:g}" for d, t in BATCHED_VERIFY_TOL.items())
+        + ")",
     )
     add_vector_fallback_arg(parser)
     args = parser.parse_args()
+    if args.verify_tol is None:
+        args.verify_tol = BATCHED_VERIFY_TOL[args.dtype]
 
     # --batch-size is the step of range(0, len(built_kernels), args.batch_size);
     # a zero step raises ValueError and a negative one silently yields no batches,
@@ -483,7 +491,7 @@ def main():
     print(f"  Successful measurements: {stats['measurements']}")
     print(f"  Failed measurements: {stats['failures']}")
     print(f"  Output: {csv_path}")
-    return 0
+    return 1 if stats["failures"] else 0
 
 
 if __name__ == "__main__":

@@ -42,6 +42,21 @@ struct TileFmhaTraits
     static constexpr bool kHasSink          = kHasSink_;
 };
 
+// Fwd traits that fold the query heads of one KV head into the query rows: row = g * seqlen_q + s.
+template <typename BaseTraits_>
+struct TileFmhaMergeHeadsTraits : BaseTraits_
+{
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ = true;
+};
+
+template <typename Traits, typename = void>
+inline constexpr bool kTraitsMergeNumHeadGroupsSeqLenQ = false;
+template <typename Traits>
+inline constexpr bool
+    kTraitsMergeNumHeadGroupsSeqLenQ<Traits,
+                                     std::void_t<decltype(Traits::kMergeNumHeadGroupsSeqLenQ)>> =
+        Traits::kMergeNumHeadGroupsSeqLenQ;
+
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadSeqLenK_ /* padding for seqlen_k */,
           bool kPadHeadDimQ_ /* padding for hdim_q */,

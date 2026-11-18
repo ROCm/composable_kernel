@@ -26,6 +26,7 @@ from dispatcher_integration import (
     feature_dict_to_ml_spec,
     ml_spec_to_dispatcher_config,
     create_ml_heuristic,
+    create_ranked_heuristic,
     load_kernel_pool_from_binaries,
     MLKernelSpec,
     LAYOUT_TO_DISPATCHER,
@@ -175,6 +176,63 @@ class TestMLKernelSpec:
 # ---------------------------------------------------------------------------
 
 
+class TestFixedWidthKernelsAreRejected:
+    @staticmethod
+    def _fixed(vec=(4, 4, 8)):
+        feat = kernel_config_to_feature_dict(SAMPLE_KERNEL_NAME)
+        feat.update(zip(("vec_a", "vec_b", "vec_c"), vec))
+        return feat
+
+    CONVERTERS = (
+        lambda feat: feature_dict_to_ml_spec(feat, 1.0),
+        lambda feat: feature_dict_to_dispatcher_config(feat),
+    )
+
+    @pytest.mark.parametrize(
+        "convert", CONVERTERS, ids=["ml_spec", "dispatcher_config"]
+    )
+    @pytest.mark.parametrize(
+        "vec", [(4, 4, 8), (8, 0, 0), (0, 2, 0), (0, 0, 1)], ids=str
+    )
+    def test_any_fixed_width_raises(self, vec, convert):
+        with pytest.raises(ValueError, match="cannot represent"):
+            convert(self._fixed(vec))
+
+    @pytest.mark.parametrize(
+        "convert", CONVERTERS, ids=["ml_spec", "dispatcher_config"]
+    )
+    @pytest.mark.parametrize(
+        "native",
+        [0, 0.0, "0", "0.0", float("nan"), None, ""],
+        ids=["int", "float", "str", "strfloat", "nan", "none", "empty"],
+    )
+    def test_every_spelling_of_native_still_converts(self, native, convert):
+        feat = self._fixed((0, 0, 0))
+        feat.update(vec_a=native, vec_b=native, vec_c=native)
+        assert convert(feat) is not None
+
+    def test_the_message_names_the_kernel_and_the_widths(self):
+        with pytest.raises(ValueError) as e:
+            feature_dict_to_ml_spec(self._fixed((4, 4, 8)), 1.0)
+        assert SAMPLE_KERNEL_NAME in str(e.value)
+        assert "4, 4, 8" in str(e.value)
+
+    def test_native_widths_still_convert(self):
+        feat = self._fixed((0, 0, 0))
+        assert feature_dict_to_ml_spec(feat, 1.0).kernel_name == SAMPLE_KERNEL_NAME
+
+    def test_absent_width_keys_still_convert(self):
+        feat = kernel_config_to_feature_dict(SAMPLE_KERNEL_NAME)
+        for k in ("vec_a", "vec_b", "vec_c"):
+            feat.pop(k, None)
+        assert feature_dict_to_ml_spec(feat, 1.0).tile_m == 128
+
+    def test_none_valued_width_keys_still_convert(self):
+        feat = kernel_config_to_feature_dict(SAMPLE_KERNEL_NAME)
+        feat.update(vec_a=None, vec_b=None, vec_c=None)
+        assert feature_dict_to_ml_spec(feat, 1.0).tile_m == 128
+
+
 class TestLoadKernelPool:
     def test_loads_from_real_bin_dir(self):
         bin_dir = Path("/workspace/ck_tile/bin")
@@ -258,6 +316,174 @@ class TestCreateMLHeuristic:
     def test_empty_pool_raises(self, mock_model_dir):
         with pytest.raises(ValueError, match="No kernel configs"):
             create_ml_heuristic(mock_model_dir, kernel_pool=[])
+
+
+class TestArchCrossCheck:
+    KN = (
+        "gemm_universal_bf16_rcr_compv3_default_intrawave_False_False_False_True"
+        "_128x128x128_2x2x1_32x32x16"
+    )
+
+    @staticmethod
+    def _model(tmp_path, arch="gfx950"):
+        import lightgbm as lgb
+
+        names = GemmUniversalFeatureEngine().get_feature_names()
+        rs = np.random.RandomState(0)
+        lgb.LGBMRegressor(n_estimators=3, verbose=-1).fit(
+            rs.rand(40, len(names)), rs.rand(40)
+        ).booster_.save_model(str(tmp_path / "model_tflops.lgbm"))
+        (tmp_path / "feature_spec.json").write_text(
+            json.dumps(
+                {
+                    "feature_engine": "GemmUniversalFeatureEngine",
+                    "feature_names": names,
+                    "arch": arch,
+                }
+            )
+        )
+        return tmp_path
+
+    def _pool(self, **over):
+        return [{**kernel_config_to_feature_dict(self.KN), **over}]
+
+    @pytest.mark.parametrize(
+        "factory", [create_ml_heuristic, create_ranked_heuristic], ids=["ml", "ranked"]
+    )
+    def test_an_agreeing_arch_is_accepted_and_the_closure_runs(self, tmp_path, factory):
+        h = factory(self._model(tmp_path), arch="gfx950", kernel_pool=self._pool())
+        assert h(1024, 1024, 1024) is not None
+
+    @pytest.mark.parametrize(
+        "factory", [create_ml_heuristic, create_ranked_heuristic], ids=["ml", "ranked"]
+    )
+    def test_a_disagreeing_arch_raises(self, tmp_path, factory):
+        with pytest.raises(ValueError, match="disagrees with the model"):
+            factory(self._model(tmp_path), arch="gfx1250", kernel_pool=self._pool())
+
+    @pytest.mark.parametrize(
+        "factory", [create_ml_heuristic, create_ranked_heuristic], ids=["ml", "ranked"]
+    )
+    def test_a_pool_entry_cannot_shadow_the_arch(self, tmp_path, factory):
+        with pytest.raises(ValueError, match="kernel_pool entries carry arch"):
+            factory(
+                self._model(tmp_path),
+                arch="gfx950",
+                kernel_pool=self._pool(arch="gfx942"),
+            )
+
+    @pytest.mark.parametrize(
+        "factory", [create_ml_heuristic, create_ranked_heuristic], ids=["ml", "ranked"]
+    )
+    @pytest.mark.parametrize("model_arch", ["gfx950", "gfx942", "gfx1250"])
+    def test_a_model_loads_without_naming_an_arch(self, tmp_path, factory, model_arch):
+        h = factory(self._model(tmp_path, arch=model_arch), kernel_pool=self._pool())
+        assert h(1024, 1024, 1024) is not None
+
+    def test_neither_source_supplying_an_arch_yields_none(self, tmp_path):
+        import lightgbm as lgb
+        from dispatcher_integration import _resolve_arch
+        from predict import Predictor
+
+        names = GemmUniversalFeatureEngine().get_feature_names()
+        rs = np.random.RandomState(0)
+        lgb.LGBMRegressor(n_estimators=3, verbose=-1).fit(
+            rs.rand(40, len(names)), rs.rand(40)
+        ).booster_.save_model(str(tmp_path / "model_tflops.lgbm"))
+        (tmp_path / "feature_spec.json").write_text(
+            json.dumps({"feature_names": names})
+        )
+        assert _resolve_arch(Predictor(tmp_path), None, self._pool()) is None
+
+    @pytest.mark.parametrize("key", ["m", "n", "k", "split_k"])
+    def test_a_pool_entry_cannot_pin_a_problem_key(self, tmp_path, key):
+        with pytest.raises(ValueError, match="problem keys"):
+            create_ml_heuristic(
+                self._model(tmp_path), kernel_pool=self._pool(**{key: 9999})
+            )
+
+    @pytest.mark.parametrize("key", ["dtype", "layout"])
+    def test_a_pool_entry_may_carry_a_kernel_property(self, tmp_path, key):
+        h = create_ml_heuristic(
+            self._model(tmp_path),
+            kernel_pool=self._pool(**{key: "bf16" if key == "dtype" else "rcr"}),
+        )
+        assert h(1024, 1024, 1024) is not None
+
+    @pytest.mark.parametrize(
+        "spelling", ["gfx950:xnack-", "gfx950:sramecc+:xnack-", "gfx950"]
+    )
+    def test_a_feature_suffix_still_names_the_same_part(self, tmp_path, spelling):
+        from dispatcher_integration import _resolve_arch
+        from predict import Predictor
+
+        p = Predictor(self._model(tmp_path, arch="gfx950"))
+        assert _resolve_arch(p, spelling, self._pool()) is not None
+
+    def test_a_suffixed_pool_entry_is_not_a_conflict(self, tmp_path):
+        from dispatcher_integration import _resolve_arch
+        from predict import Predictor
+
+        p = Predictor(self._model(tmp_path, arch="gfx950"))
+        assert _resolve_arch(p, "gfx950", self._pool(arch="gfx950:xnack-")) == "gfx950"
+
+    def test_a_genuinely_different_part_still_raises(self, tmp_path):
+        from dispatcher_integration import _resolve_arch
+        from predict import Predictor
+
+        p = Predictor(self._model(tmp_path, arch="gfx950"))
+        with pytest.raises(ValueError, match="disagrees with the model"):
+            _resolve_arch(p, "gfx1250:xnack-", self._pool())
+
+    def test_a_pool_entry_matching_the_resolved_arch_is_fine(self, tmp_path):
+        from dispatcher_integration import _resolve_arch
+        from predict import Predictor
+
+        p = Predictor(self._model(tmp_path, arch="gfx950"))
+        assert _resolve_arch(p, None, self._pool(arch="gfx950")) == "gfx950"
+
+    @pytest.mark.parametrize(
+        "factory", [create_ml_heuristic, create_ranked_heuristic], ids=["ml", "ranked"]
+    )
+    @pytest.mark.parametrize("model_arch", ["gfx950", "gfx1250"])
+    def test_the_resolved_arch_reaches_the_predictor(
+        self, tmp_path, factory, model_arch, monkeypatch
+    ):
+        from predict import Predictor
+
+        seen = {}
+        real = Predictor.rank_kernels
+
+        def spy(self, problem, kernel_configs):
+            seen["arch"] = problem.get("arch")
+            return real(self, problem, kernel_configs)
+
+        monkeypatch.setattr(Predictor, "rank_kernels", spy)
+        h = factory(self._model(tmp_path, arch=model_arch), kernel_pool=self._pool())
+        h(1024, 1024, 1024)
+        assert seen["arch"] == model_arch
+
+    def test_the_models_arch_is_used_when_the_caller_names_none(self, tmp_path):
+        from dispatcher_integration import _resolve_arch
+        from predict import Predictor
+
+        p = Predictor(self._model(tmp_path, arch="gfx1250"))
+        assert _resolve_arch(p, None, self._pool()) == "gfx1250"
+
+    def test_a_spec_without_an_arch_falls_back_to_the_caller(self, tmp_path):
+        import lightgbm as lgb
+        from dispatcher_integration import _resolve_arch
+        from predict import Predictor
+
+        names = GemmUniversalFeatureEngine().get_feature_names()
+        rs = np.random.RandomState(0)
+        lgb.LGBMRegressor(n_estimators=3, verbose=-1).fit(
+            rs.rand(40, len(names)), rs.rand(40)
+        ).booster_.save_model(str(tmp_path / "model_tflops.lgbm"))
+        (tmp_path / "feature_spec.json").write_text(
+            json.dumps({"feature_names": names})
+        )
+        assert _resolve_arch(Predictor(tmp_path), "gfx942", self._pool()) == "gfx942"
 
 
 if __name__ == "__main__":

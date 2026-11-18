@@ -159,7 +159,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const Block2ETileMap block_2_ctile_map,
         const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         const index_t num_blocks_per_batch =
@@ -843,7 +843,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                 return false;
             }
         }
-        else if(ck::is_gfx12_supported() || ck::is_gfx11_supported())
+        else if(ck::is_gfx12_supported() || ck::is_gfx11_supported() || ck::is_gfx117_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {

@@ -12,6 +12,7 @@
 #include "ck_tile/ops/gemm/kernel/mx_gemm_kernel.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck/library/utility/gpu_verification.hpp"
+#include "test_mx_gemm_host_helpers.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -31,7 +32,8 @@ constexpr ck_tile::index_t get_k_warp_tile()
                              std::is_same_v<PrecType, ck_tile::int8_t>;
     constexpr bool is_mxtype = std::is_same_v<PrecType, ck_tile::fp8_t> ||
                                std::is_same_v<PrecType, ck_tile::bf8_t> ||
-                               std::is_same_v<PrecType, ck_tile::pk_fp4_t>;
+                               std::is_same_v<PrecType, ck_tile::pk_fp4_t> ||
+                               std::is_same_v<PrecType, ck_tile::pk_fp6x16_t>;
     if constexpr(is_mxtype && (M_Warp_Tile == 32 || M_Warp_Tile == 16))
     {
         return 128;
@@ -50,6 +52,11 @@ constexpr ck_tile::index_t get_k_warp_tile()
         return 128;
 #endif
 }
+
+// A test fixture opts into mx_test::mx_gemm_tolerance by declaring
+// `static constexpr bool kUseDerivedMxTolerance = true;`; otherwise calculate_rtol_atol is used.
+template <typename T>
+using use_derived_mx_tolerance_t = decltype(T::kUseDerivedMxTolerance);
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -124,6 +131,8 @@ enum struct MxGemmPipelineType
 {
     CompTDMV1,
     CompTDMV2,
+    CompTDMV3,         // comp_tdm_v3 with the TDM epilogue
+    CompTDMV3CShuffle, // comp_tdm_v3 with the CShuffle epilogue (split-K)
     CompAsync,
     CompEightWaves,
     WeightPreshuffle
@@ -148,6 +157,24 @@ struct MxGemmPipelineTypeSelector<MxGemmPipelineType::CompTDMV2, Problem>
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompTDMV2<Problem>;
 
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompTDMV2"; }
+};
+
+template <typename Problem>
+struct MxGemmPipelineTypeSelector<MxGemmPipelineType::CompTDMV3, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompTDM<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompTDMV3<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompTDMV3"; }
+};
+
+template <typename Problem>
+struct MxGemmPipelineTypeSelector<MxGemmPipelineType::CompTDMV3CShuffle, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompTDM<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompTDMV3<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompTDMV3_CShuffle"; }
 };
 
 template <typename Problem>
@@ -192,6 +219,18 @@ template <typename Problem>
 struct MxGemmEpilogueTypeSelector<MxGemmPipelineType::CompTDMV2, Problem, false>
 {
     using epilogue = ck_tile::TdmEpilogue<Problem>;
+};
+
+template <typename Problem>
+struct MxGemmEpilogueTypeSelector<MxGemmPipelineType::CompTDMV3, Problem, false>
+{
+    using epilogue = ck_tile::TdmEpilogue<Problem>;
+};
+
+template <typename Problem>
+struct MxGemmEpilogueTypeSelector<MxGemmPipelineType::CompTDMV3CShuffle, Problem, false>
+{
+    using epilogue = ck_tile::CShuffleEpilogue<Problem>;
 };
 
 template <typename Problem>
@@ -279,12 +318,16 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
 
     static constexpr ck_tile::index_t ScaleBlockSize = std::tuple_element_t<15, Tuple>{};
 
-    static constexpr ck_tile::index_t M_Warp =
-        PipelineType == MxGemmPipelineType::WeightPreshuffle
-            ? 1
-            : (PipelineType == MxGemmPipelineType::CompEightWaves ? 4 : 2);
-    static constexpr ck_tile::index_t N_Warp =
-        PipelineType == MxGemmPipelineType::WeightPreshuffle ? 4 : 2;
+    // Warps along M and N, from tuple slot 18 (ck_tile::sequence<M_Warp, N_Warp>) if present;
+    // otherwise 1 x 4 for weight preshuffle, 4 x 2 for eight waves and 2 x 2 for the rest.
+    using DefaultWarpLayout =
+        ck_tile::sequence<PipelineType == MxGemmPipelineType::WeightPreshuffle
+                              ? 1
+                              : (PipelineType == MxGemmPipelineType::CompEightWaves ? 4 : 2),
+                          PipelineType == MxGemmPipelineType::WeightPreshuffle ? 4 : 2>;
+    using WarpLayout = ck_tile::tuple_element_or_default_t<Tuple, 18, DefaultWarpLayout>;
+    static constexpr ck_tile::index_t M_Warp = WarpLayout::at(ck_tile::number<0>{});
+    static constexpr ck_tile::index_t N_Warp = WarpLayout::at(ck_tile::number<1>{});
     static constexpr ck_tile::index_t K_Warp = 1;
 
     protected:
@@ -392,30 +435,33 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                                              UniversalGemmProblem::TransposeC,
                                              false, /*FixedVectorSize_*/
                                              1>,    /*VectorSizeC_*/
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             CDataType,
-                                             DsLayout,
-                                             CLayout,
-                                             ck_tile::element_wise::PassThrough,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             1,                  /*kNumWaveGroups_*/
-                                             false,              /*FixedVectorSize_*/
-                                             1,                  /*VectorSizeC_*/
-                                             BlockedXDLNPerWarp, /*BlockedXDLN_PerWarp_*/
-                                             DoubleSmemBuffer,   /*DoubleSmemBuffer*/
-                                             AComputeDataType,   /*AComputeDataType_*/
-                                             BComputeDataType,   /*BComputeDataType_*/
-                                             !preshuffle>>;
+            ck_tile::CShuffleEpilogueProblem<
+                ADataType,
+                BDataType,
+                DsDataType,
+                AccDataType,
+                CDataType,
+                DsLayout,
+                CLayout,
+                ck_tile::element_wise::PassThrough,
+                TilePartitioner::MPerBlock,
+                TilePartitioner::NPerBlock,
+                M_Warp,
+                N_Warp,
+                M_Warp_Tile,
+                N_Warp_Tile,
+                K_Warp_Tile,
+                UniversalGemmProblem::TransposeC,
+                1,                  /*kNumWaveGroups_*/
+                false,              /*FixedVectorSize_*/
+                1,                  /*VectorSizeC_*/
+                BlockedXDLNPerWarp, /*BlockedXDLN_PerWarp_*/
+                DoubleSmemBuffer,   /*DoubleSmemBuffer*/
+                AComputeDataType,   /*AComputeDataType_*/
+                BComputeDataType,   /*BComputeDataType_*/
+                // comp_tdm_v3's C tile is not in the packed MX
+                // iteration order (its block GEMM does not pack)
+                !preshuffle && PipelineType != MxGemmPipelineType::CompTDMV3CShuffle>>;
 
         using GemmEpilogue = typename MxGemmEpilogueTypeSelector<PipelineType,
                                                                  GemmEpilogueProblem,
@@ -429,7 +475,10 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
-            throw std::runtime_error("Wrong! Arguments not supported! Skipping mx_gemm!\n");
+            throw std::runtime_error(
+                "MX GEMM: IsSupportedArgument rejected M=" + std::to_string(args.M) +
+                ", N=" + std::to_string(args.N) + ", K=" + std::to_string(args.K) +
+                ", k_batch=" + std::to_string(args.k_batch));
         }
 
         if(s.log_level_ > 0)
@@ -452,6 +501,18 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
         }
     }
 
+    static constexpr bool use_derived_mx_tolerance()
+    {
+        if constexpr(ck_tile::is_detected<use_derived_mx_tolerance_t, Derived>{})
+        {
+            return Derived::kUseDerivedMxTolerance;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     public:
     std::vector<int> k_batches_;
 
@@ -468,7 +529,9 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                                                 std::is_same_v<AScaleDataType, ck_tile::e8m0_t> &&
                                                 std::is_same_v<BScaleDataType, ck_tile::e8m0_t>;
         if constexpr(PipelineType == MxGemmPipelineType::CompTDMV1 ||
-                     PipelineType == MxGemmPipelineType::CompTDMV2)
+                     PipelineType == MxGemmPipelineType::CompTDMV2 ||
+                     PipelineType == MxGemmPipelineType::CompTDMV3 ||
+                     PipelineType == MxGemmPipelineType::CompTDMV3CShuffle)
         {
             if(!supports_revision_zero && ck_tile::get_device_revision() == 0)
             {
@@ -476,9 +539,11 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                                 "asicRevision=0";
             }
         }
-        // for TDM it's used tdm_epilogue which don't support split-k
+        // for TDM it's used tdm_epilogue which don't support split-k (comp_tdm_v3 with the
+        // CShuffle epilogue does)
         if constexpr(PipelineType == MxGemmPipelineType::CompTDMV1 ||
                      PipelineType == MxGemmPipelineType::CompTDMV2 ||
+                     PipelineType == MxGemmPipelineType::CompTDMV3 ||
                      std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor> ||
                      std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -528,11 +593,17 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
     {
         using namespace ck_tile;
 
-        // K must be a multiple of ScaleBlockSize
+        SCOPED_TRACE(::testing::Message()
+                     << "M=" << M << " N=" << N << " K=" << K << " k_batch=" << kbatch);
+
+#if !defined(CK_USE_GFX1250)
+        // K must be a multiple of ScaleBlockSize. On gfx1250, IsSupportedArgument decides which K
+        // the kernel accepts, and Run throws for a K it rejects.
         if(K % ScaleBlockSize != 0)
         {
             GTEST_SKIP() << "K must be multiple of ScaleBlockSize for MX GEMM";
         }
+#endif
 
         index_t stride_A = get_default_stride(M, K, StrideA, is_row_major(ALayout{}));
         index_t stride_B = get_default_stride(K, N, StrideB, is_row_major(BLayout{}));
@@ -547,9 +618,21 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
             host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
         // Create host tensors for scale_a and scale_b
-        // scale_a: (M, K/ScaleBlockSize) row-major
-        // scale_b: (N, K/ScaleBlockSize) col-major
-        const index_t num_scale_k = K / ScaleBlockSize;
+        // scale_a: (scale_padded_M, num_scale_k) row-major
+        // scale_b: (scale_padded_N, num_scale_k) row-major, i.e. B's (K, N) scales col-major
+        // One scale per ScaleBlockSize consecutive elements of K; when K is not a multiple of
+        // ScaleBlockSize, the last block covers only the remaining K % ScaleBlockSize elements.
+        const index_t num_scale_blocks = integer_divide_ceil(K, ScaleBlockSize);
+#if defined(CK_USE_GFX1250)
+        // The gfx1250 scale pre-shuffle packs 4 scales per int32, so the scale tensors are padded
+        // to a whole number of packs. Every padding column covers only K positions at or past K,
+        // where the kernel reads zero A and B values. The fill below also writes the padding
+        // columns, so they hold finite scales (a NaN scale would make those zero products NaN).
+        constexpr index_t ScalePackSize = 4;
+        const index_t num_scale_k       = integer_least_multiple(num_scale_blocks, ScalePackSize);
+#else
+        const index_t num_scale_k = num_scale_blocks;
+#endif
         // Pre-shuffle interleaves 2 K-lanes (MNPack=2) with MPerXdlops=16 stride,
         // so M must be padded to at least MNPack * MPerXdlops = 32.
         constexpr index_t ScaleShuffleAlign = 32;
@@ -583,6 +666,15 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                 elem    = pk_fp4_t::_pack(lo, hi);
             }
         }
+        else if constexpr(std::is_same_v<ADataType, pk_fp6x16_t>)
+        {
+            // The integer filler would write one value into all three words of a 12-byte pack;
+            // FP6 is filled through its pk_fp6_t proxy. With |a|, |b| <= 4 and scales <= 2, every
+            // output is bounded by 64 * K, which exceeds the fp16 maximum once K >= 1024 (the FP6
+            // fp16 cases reach K = 1840). Reaching it needs all K products at the largest magnitude
+            // with the same sign; random signs keep |C| near sqrt(K) times the typical product.
+            mx_test::fill_mx_operand(a_m_k, -4.f, 4.f, 11939);
+        }
         else
         {
             FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
@@ -597,6 +689,10 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                 auto hi = float_to_mxfp4(std::round(dis(gen)), 1.f);
                 elem    = pk_fp4_t::_pack(lo, hi);
             }
+        }
+        else if constexpr(std::is_same_v<BDataType, pk_fp6x16_t>)
+        {
+            mx_test::fill_mx_operand(b_k_n, -4.f, 4.f, 11940);
         }
         else
         {
@@ -755,29 +851,29 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
         // Host reference computation using reference_mx_gemm
-        // reference_mx_gemm expects scale_a(M, K/ScaleBlockSize) and scale_b(K/ScaleBlockSize, N)
-        // We need to create scale_b in (K/ScaleBlockSize, N) format for the reference
+        // reference_mx_gemm reads scale_a as (M, num_scale_blocks) and scale_b as
+        // (num_scale_blocks, N). ScaleBlockSize is passed explicitly because the last block may
+        // be partial.
         HostTensor<BScaleDataType> scale_b_ref(
-            {static_cast<std::size_t>(num_scale_k), static_cast<std::size_t>(N)},
-            {static_cast<std::size_t>(1), static_cast<std::size_t>(num_scale_k)});
-        // Copy scale_b data (our scale_b is (N, num_scale_k) row-major,
-        // reference expects (num_scale_k, N) col-major, which is the same memory layout)
-        // Truncate scale_a to actual N (not padded)
+            {static_cast<std::size_t>(num_scale_blocks), static_cast<std::size_t>(N)},
+            {static_cast<std::size_t>(1), static_cast<std::size_t>(num_scale_blocks)});
+        // Copy scale_b, stored (scale_padded_N, num_scale_k) row-major, into the reference's
+        // (num_scale_blocks, N) col-major layout, dropping the padding rows and columns.
         for(int n = 0; n < N; ++n)
         {
-            for(int k = 0; k < num_scale_k; ++k)
+            for(int k = 0; k < num_scale_blocks; ++k)
             {
                 scale_b_ref(k, n) = scale_b(n, k);
             }
         }
 
-        // Truncate scale_a to actual M (not padded)
+        // Copy scale_a without its padding rows and columns: (M, num_scale_blocks) row-major.
         HostTensor<AScaleDataType> scale_a_ref(
-            {static_cast<std::size_t>(M), static_cast<std::size_t>(num_scale_k)},
-            {static_cast<std::size_t>(num_scale_k), static_cast<std::size_t>(1)});
+            {static_cast<std::size_t>(M), static_cast<std::size_t>(num_scale_blocks)},
+            {static_cast<std::size_t>(num_scale_blocks), static_cast<std::size_t>(1)});
         for(int m = 0; m < M; ++m)
         {
-            for(int k = 0; k < num_scale_k; ++k)
+            for(int k = 0; k < num_scale_blocks; ++k)
             {
                 scale_a_ref(m, k) = scale_a(m, k);
             }
@@ -792,12 +888,29 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                           AScaleDataType,
                           BScaleDataType,
                           AccDataType,
-                          CDataType>(a_m_k, b_k_n, c_m_n_host_ref, scale_a_ref, scale_b_ref);
+                          CDataType>(
+            a_m_k, b_k_n, c_m_n_host_ref, scale_a_ref, scale_b_ref, ScaleBlockSize);
 
-        const float max_accumulated_value =
-            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-            K, kbatch, max_accumulated_value);
+        const auto rtol_atol = [&] {
+            if constexpr(use_derived_mx_tolerance())
+            {
+                const double s_max =
+                    mx_test::mx_sum_abs_max(a_m_k, b_k_n, scale_a_ref, scale_b_ref, ScaleBlockSize);
+                // A zero S_max means a zero reference and a zero tolerance, which an untouched
+                // (zeroed) output would pass.
+                EXPECT_GT(s_max, 0.0) << "the reference is identically zero";
+                const auto tolerance =
+                    mx_test::mx_gemm_tolerance<ADataType, BDataType, CDataType>(K, s_max);
+                return ck_tile::make_tuple(tolerance.rtol, tolerance.atol);
+            }
+            else
+            {
+                const float max_accumulated_value =
+                    *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+                return calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+                    K, kbatch, max_accumulated_value);
+            }
+        }();
         bool pass = check_err(c_m_n_dev_result,
                               c_m_n_host_ref,
                               "Error: Incorrect results!",

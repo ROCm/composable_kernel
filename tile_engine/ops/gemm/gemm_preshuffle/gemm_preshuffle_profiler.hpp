@@ -98,13 +98,19 @@ class GemmPreshuffleProfiler
         for(const auto& callable : callables)
         {
             ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
-                if(KernelConfig::permuteN)
+                if(!KernelConfig::preshuffle)
+                {
+                    // comp_* pipelines read ordinary B.
+                    return b_k_n;
+                }
+                else if(KernelConfig::permuteN)
                 {
                     return ck_tile::shuffle_b_permuteN<KernelConfig>(b_k_n);
                 }
                 else
                 {
-                    return ck_tile::shuffle_b<KernelConfig>(b_k_n);
+                    // Use the same B packing as the native preshuffle V2 pipeline.
+                    return ck_tile::shuffle_b_v0<KernelConfig>(b_k_n);
                 }
             }();
 

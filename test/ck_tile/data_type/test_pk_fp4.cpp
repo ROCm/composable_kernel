@@ -120,7 +120,7 @@ TEST(PackedFp4, ScaledConvertHost)
 
 TEST(PackedFp4, PkscaleTypeConvertOpsel0_3)
 {
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -131,7 +131,7 @@ TEST(PackedFp4, PkscaleTypeConvertOpsel0_3)
 
 TEST(PackedFp4, PkscaleTypeConvertOpsel4_7)
 {
-    if(!ck_tile::is_gfx125_supported())
+    if(!ck_tile::is_gfx125_supported() || ck_tile::get_device_name() == "gfx1251")
     {
         GTEST_SKIP() << "Test for GFX1250.";
     }
@@ -336,7 +336,7 @@ struct TestPkscaleTypeConvert
         if(dst_data == nullptr || p_scale == nullptr)
             return;
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
         using DSTx8_t        = ck_tile::ext_vector_t<DST, 8>;
         ck_tile::index_t lid = __lane_id();
         Packed4Scale_E8M0 scale(p_scale[lid]);

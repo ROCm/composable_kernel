@@ -408,6 +408,10 @@ class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
     arch = ArchTrait("gfx12")
 
 
+class KernelComponentFactoryGfx117(KernelComponentFactoryGfx12):
+    arch = ArchTrait("gfx117")
+
+
 class KernelComponentFactoryGfx125(KernelComponentFactoryBase):
     arch = ArchTrait("gfx125")
 
@@ -417,6 +421,8 @@ def get_factory(target: str):
 
     if target.startswith("gfx9"):
         return KernelComponentFactoryGfx9
+    if target.startswith(("gfx117", "gfx11-7-generic")):
+        return KernelComponentFactoryGfx117
     if target.startswith("gfx11"):
         return KernelComponentFactoryGfx11
     if target.startswith("gfx125"):
@@ -467,6 +473,12 @@ def get_fwd_appendkv_blobs(
                 # PyTorch integration
                 elif receipt == 4:
                     cond = dtype in ["fp16", "bf16"]
+                    cond &= pipeline.F_vlayout == "row"
+                    if not cond:
+                        continue
+                # CK Tile Python API
+                elif receipt == 5:
+                    cond = dtype in ["fp16", "bf16"] and hdim <= 256
                     cond &= pipeline.F_vlayout == "row"
                     if not cond:
                         continue
@@ -521,4 +533,7 @@ def list_blobs(
         )
         for kernel in kernels:
             f.write((file_path.parent / GEN_DIR / kernel.filename).as_posix() + "\n")
-        f.write((file_path.parent / GEN_DIR / FMHA_FWD_APPENDKV_API_FILENAME).as_posix() + "\n")
+        f.write(
+            (file_path.parent / GEN_DIR / FMHA_FWD_APPENDKV_API_FILENAME).as_posix()
+            + "\n"
+        )

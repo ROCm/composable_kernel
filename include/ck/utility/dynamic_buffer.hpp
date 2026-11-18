@@ -15,6 +15,7 @@
 #include "amd_transpose_load.hpp"
 #include "generic_memory_space_atomic.hpp"
 #include "data_cache_prefetch.hpp"
+#include "amd_tdm.hpp"
 
 #if __clang_major__ >= 23
 #pragma clang diagnostic push
@@ -75,8 +76,12 @@ struct DynamicBuffer
 
     __host__ __device__ constexpr T& operator()(IndexType i) { return p_data_[i]; }
 
+    // UseOobOffsetTrick: for global buffer loads, zero invalid elements by moving their offset
+    // out of the buffer range instead of selecting after the load, so the load does not have to
+    // complete before its result is masked.
     template <typename X,
-              bool DoTranspose               = false,
+              bool DoTranspose       = false,
+              bool UseOobOffsetTrick = CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value ||
                                      !is_native_type<X>(),
@@ -106,7 +111,8 @@ struct DynamicBuffer
             {
                 return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
                                                                    t_per_x,
-                                                                   coherence>(
+                                                                   coherence,
+                                                                   UseOobOffsetTrick>(
                     p_data_, i, is_valid_element, element_space_size_ / PackedSize);
             }
             else
@@ -123,7 +129,7 @@ struct DynamicBuffer
         }
         else if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && DoTranspose)
         {
-#ifdef __gfx12__
+#if defined(__gfx12__)
             return amd_global_load_transpose_to_vgpr(p_data_ + i);
 #else
             static_assert(!DoTranspose, "load-with-transpose only supported on gfx12+");
@@ -131,7 +137,7 @@ struct DynamicBuffer
         }
         else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds && DoTranspose)
         {
-#ifdef __gfx1250__
+#ifdef __gfx125__
             return amd_lds_load_transpose_to_vgpr(p_data_ + i);
 #else
             static_assert(!DoTranspose, "load-with-transpose only supported on gfx12+");
@@ -262,7 +268,10 @@ struct DynamicBuffer
                                                             element_space_size_ / PackedSize);
     }
 
-    template <typename DstBuffer, index_t NumElemsPerThread, index_t static_dst_offset>
+    template <typename DstBuffer,
+              index_t NumElemsPerThread,
+              index_t static_dst_offset,
+              bool UseFullAssembly = false>
     __host__ __device__ void AsyncCopyToLds(DstBuffer& dst_buf,
                                             IndexType src_offset,
                                             IndexType dst_offset,
@@ -277,12 +286,50 @@ struct DynamicBuffer
                       "Source and destination buffer must have the same data type.");
 
         auto p_uniform_ptr = amd_wave_read_first_lane(p_data_);
-        amd_async_load_global_to_lds<remove_cvref_t<typename DstBuffer::type>,
-                                     NumElemsPerThread,
-                                     static_dst_offset,
-                                     true,
-                                     coherence>(
-            p_uniform_ptr, src_offset, dst_buf.p_data_, dst_offset, is_valid_element);
+        if constexpr(!UseFullAssembly)
+        {
+            amd_async_load_global_to_lds<remove_cvref_t<typename DstBuffer::type>,
+                                         NumElemsPerThread,
+                                         static_dst_offset,
+                                         true,
+                                         coherence>(
+                p_uniform_ptr, src_offset, dst_buf.p_data_, dst_offset, is_valid_element);
+        }
+        else
+        {
+            amd_async_load_global_to_lds_assembly<remove_cvref_t<typename DstBuffer::type>,
+                                                  NumElemsPerThread,
+                                                  static_dst_offset,
+                                                  true,
+                                                  coherence>(
+                p_uniform_ptr, src_offset, dst_buf.p_data_, dst_offset, is_valid_element);
+        }
+    }
+
+    template <index_t nDim,
+              typename DstBuffer,
+              typename TensorDims,
+              typename GlobalStrides,
+              typename BoxDims,
+              typename TDMConfig>
+    __device__ void TdmCopyToLds(DstBuffer& dst_buf,
+                                 IndexType src_offset,
+                                 IndexType dst_offset,
+                                 const TensorDims& tensor_dims,
+                                 const GlobalStrides& global_strides,
+                                 const BoxDims& box_dims,
+                                 const TDMConfig& tdm_config) const
+    {
+        auto tdm_desc =
+            detail::MakeTDMDescriptorPack<remove_cvref_t<typename DstBuffer::type>, nDim>(
+                p_data_ + src_offset,
+                dst_buf.p_data_ + dst_offset,
+                tensor_dims,
+                global_strides,
+                box_dims,
+                tdm_config);
+
+        amd_tensor_load_to_lds<coherence>(tdm_desc);
     }
 
     template <typename X,

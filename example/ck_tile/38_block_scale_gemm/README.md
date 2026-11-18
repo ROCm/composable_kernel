@@ -37,6 +37,16 @@ make tile_example_gemm_quant -j
 ```
 This will result in an executable `build/bin/tile_example_gemm_quant`
 
+### Build a subset of instances
+
+`GEMM_QUANT_INSTANCE_FILTER` accepts a CMake regular expression matching instance
+source basenames without `.cpp`. For example,
+`-DGEMM_QUANT_INSTANCE_FILTER=^gemm_bquant_quantgrouped_fp8$` builds the FP8
+B-quantized, quant-grouped instance source and always retains `gemm_quant.cpp`.
+Empty (the default) builds all instance sources; a nonempty expression matching
+nothing fails configuration. The executable registers only the selected
+instances, so inputs requiring excluded instances are unsupported.
+
 ## example
 ```
 args:
@@ -79,4 +89,3 @@ User need to select correct mapping of config for each quant mode:
 | For selecting PreShuffle B with BQuant | bquant | gemm_bquant_quantgrouped_preshuffleb.cpp| GemmConfigPreshuffleB_BQuant_Decode (or) GemmConfigPreshuffleB_BQuant_Prefill
 | For selecting PreShuffle B with preshuffle BQuant | bquant | gemm_bquant_quantgrouped_preshuffleb_preshufflequant.cpp |GemmConfigPreshuffleB_PreshuffleBQuant_Decode (or) GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
 | For selecting RowCol quant  | rowcolquant  | gemm_quant_rowcol| GemmConfigRowColQuant    |
-

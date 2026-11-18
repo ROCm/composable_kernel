@@ -177,7 +177,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
                                   index_t k_batch)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
-    defined(__gfx12__)
+    defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::IsValidCompilationParameter())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -871,8 +871,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
               K1 <= 4) ||
              (is_same<ComputeTypeA, int8_t>::value && K1 <= 8) ||
-             ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
-              K1 < 32))
+             ((is_f8_type_v<ComputeTypeA> || is_bf8_type_v<ComputeTypeA>) && K1 < 32))
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;
@@ -1070,8 +1069,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
               K1 <= 4) ||
              (is_same<ComputeTypeA, int8_t>::value && K1 <= 8) ||
-             ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
-              K1 < 32))
+             ((is_f8_type_v<ComputeTypeA> || is_bf8_type_v<ComputeTypeA>) && K1 < 32))
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;

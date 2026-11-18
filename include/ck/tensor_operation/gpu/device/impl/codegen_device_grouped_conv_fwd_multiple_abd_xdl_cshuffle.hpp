@@ -94,7 +94,7 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     const Block2ETileMap block_2_ctile_map,
     const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         // offset base pointer for each work-group

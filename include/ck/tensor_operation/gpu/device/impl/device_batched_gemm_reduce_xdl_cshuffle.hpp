@@ -64,7 +64,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
         const ComputeBasePrtOfBatch compute_base_ptr_of_batch_,
         const Block2CTileMap block_2_ctile_map)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         const index_t num_blocks_per_batch =

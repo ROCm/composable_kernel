@@ -66,7 +66,8 @@ inline void add_common_benchmark_args(ck_tile::ArgParser& arg_parser, int defaul
         .insert("init",
                 "0",
                 "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
-                "for constant(1). Default is 0, random.")
+                "for constant(1). Default is 0, random. gemm_universal also accepts 3 for "
+                "normal(0, 0.1) and 4 for integers in [-5, 5].")
         .insert("flush_cache",
                 "true",
                 "To flush cache, possible values are true or false. "

@@ -15,6 +15,7 @@ Trains LGBMRegressor models (TFLOPS, latency, bandwidth) with:
 
 Supports multiple operation types:
   - gemm_universal: GEMM operations (group by M, N, K)
+  - batched_gemm: batched GEMM (CV group by layout, M, N, K; score each batch)
   - grouped_conv: Grouped convolution (group by problem config)
   - fmha: Fused multi-head attention (future)
 
@@ -38,10 +39,17 @@ from sklearn.model_selection import GroupKFold
 
 from data_pipeline import build_training_dataset
 
+from codegen_common import normalize_gfx_arch  # noqa: E402
+
 
 # Operation-specific target column mappings
 TARGET_COLUMNS = {
     "gemm_universal": {
+        "tflops": "measured_tflops",
+        "latency": "latency_ms",
+        "bandwidth": "bandwidth_gb_s",
+    },
+    "batched_gemm": {
         "tflops": "measured_tflops",
         "latency": "latency_ms",
         "bandwidth": "bandwidth_gb_s",
@@ -83,20 +91,23 @@ MAX_ESTIMATORS = 5000
 WARM_START_N_ESTIMATORS = 500
 
 
+ENGINE_VARIANTS = {"gemm_universal_vec": "gemm_universal"}
+
+
+def base_operation(operation: str) -> str:
+    """The operation whose data ``operation`` trains on."""
+    return ENGINE_VARIANTS.get(operation, operation)
+
+
 def get_feature_engine(operation: str, **hw_kwargs):
     """Get the appropriate feature engine for the operation type."""
-    if operation == "gemm_universal":
-        from feature_engine import GemmUniversalFeatureEngine
+    from feature_engine import OPERATION_ENGINES, feature_engine_class
 
-        return GemmUniversalFeatureEngine(**hw_kwargs)
-    elif operation == "grouped_conv":
-        from feature_engine_grouped_conv import GroupedConvFeatureEngine
-
-        return GroupedConvFeatureEngine(**hw_kwargs)
-    elif operation == "fmha":
+    if operation == "fmha":
         raise NotImplementedError("FMHA feature engine not yet implemented")
-    else:
+    if operation not in OPERATION_ENGINES:
         raise ValueError(f"Unknown operation type: {operation}")
+    return feature_engine_class(OPERATION_ENGINES[operation])(**hw_kwargs)
 
 
 def check_feature_compatibility(
@@ -140,6 +151,37 @@ def check_feature_compatibility(
             parts.append("  Feature order changed (names match but order differs).")
         raise ValueError("\n".join(parts))
 
+    prev_version = prev_spec.get("feature_encoding_version", 0)
+    curr_version = getattr(feature_engine, "ENCODING_VERSION", 0)
+    if prev_version != curr_version:
+        raise ValueError(
+            f"Feature encoding mismatch: the previous model was written at "
+            f"encoding version {prev_version}, this engine emits version "
+            f"{curr_version}. The feature NAMES match, so this would otherwise "
+            "go unnoticed -- the values mean different things. Train fresh "
+            "rather than warm-starting."
+        )
+
+    prev_hw = prev_spec.get("hardware")
+    if prev_hw is None:
+        prev_hw = type(feature_engine)().hardware_config
+    curr_hw = feature_engine.hardware_config
+    differing = {
+        k: (prev_hw.get(k), curr_hw.get(k))
+        for k in set(prev_hw) | set(curr_hw)
+        if prev_hw.get(k) != curr_hw.get(k)
+    }
+    if differing:
+        detail = ", ".join(
+            f"{k}: {a} -> {b}" for k, (a, b) in sorted(differing.items())
+        )
+        raise ValueError(
+            f"Hardware constant mismatch: {detail}. The previous model's "
+            "features were computed against different constants, and the "
+            "names, count and encoding version all match, so this would "
+            "otherwise go unnoticed. Train fresh rather than warm-starting."
+        )
+
     prev_cats = prev_spec.get("categorical_features", [])
     curr_cats = feature_engine.get_categorical_features()
     if sorted(prev_cats) != sorted(curr_cats):
@@ -178,6 +220,139 @@ def load_warm_start_model(prev_model_dir: Path, target: str) -> str | None:
     return str(model_path)
 
 
+def check_arch_matches_data(df: pd.DataFrame, arch: str) -> None:
+    """Raise if the ``arch`` column holds a target other than ``arch``."""
+    if "arch" not in df.columns or df.empty:
+        return
+    found = {normalize_gfx_arch(str(a)) for a in pd.unique(df["arch"].dropna())}
+    if not found:
+        return
+    want = normalize_gfx_arch(str(arch))
+    if found != {want}:
+        raise ValueError(
+            f"--arch is {arch!r} but the data carries {sorted(found)}. The "
+            "recorded arch governs how native vector widths are resolved at "
+            "inference, and --arch does not filter the dataset, so this would "
+            "label the model for a part it was not trained on. Train one "
+            "architecture at a time."
+        )
+
+
+def build_hw_kwargs(df: pd.DataFrame, operation: str) -> dict:
+    """Engine keyword arguments from the frame's ``hw_<param>`` columns.
+
+    Covers every ``__init__`` parameter of the engine ``operation`` constructs.
+    Absent or all-null columns are omitted. A column holding more than one
+    value, a non-integer or a non-positive value raises.
+    """
+    import inspect
+
+    from feature_engine import OPERATION_ENGINES, feature_engine_class
+
+    name = OPERATION_ENGINES.get(operation)
+    if name is None:
+        return {}
+    params = set(inspect.signature(feature_engine_class(name).__init__).parameters)
+    params.discard("self")
+
+    if df.empty:
+        return {}
+    out = {}
+    for p in sorted(params):
+        col = f"hw_{p}"
+        if col not in df.columns:
+            continue
+        values = pd.unique(df[col].dropna())
+        if len(values) == 0:
+            continue
+        if len(values) > 1:
+            raise ValueError(
+                f"{col} holds {len(values)} distinct values "
+                f"({sorted(values, key=repr)[:4]}...); a single hardware profile cannot "
+                "describe this dataset. Train one architecture at a time."
+            )
+        try:
+            value = int(values[0])
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"{col} is {values[0]!r}, not an integer. Hardware constants "
+                "are divisors in several features; fix the producer rather "
+                "than letting a placeholder reach the engine."
+            ) from None
+        if value <= 0:
+            raise ValueError(
+                f"{col} is {value}; hardware constants are divisors in several "
+                "features and a non-positive value is clamped to 1, inflating "
+                "them silently."
+            )
+        out[p] = value
+    return out
+
+
+def build_feature_spec(
+    operation: str,
+    fe,
+    dtype: str,
+    arch: str,
+    targets: list,
+    log_targets_used: list,
+    params: dict,
+) -> dict:
+    """The contents of feature_spec.json."""
+    spec = {
+        "op_type": operation,
+        "feature_encoding_version": getattr(fe, "ENCODING_VERSION", 0),
+        "feature_engine": type(fe).__name__,
+        "hardware": fe.hardware_config,
+        "dtype": dtype,
+        "arch": arch,
+        "feature_names": fe.get_feature_names(),
+        "categorical_features": fe.get_categorical_features(),
+        "targets": targets,
+        "log_targets": log_targets_used,
+        "params": params,
+    }
+    if operation == "batched_gemm":
+        spec["group_key"] = "layout_M_N_K"
+    return spec
+
+
+def problem_columns(operation: str) -> list[str]:
+    """Columns that identify one scored problem."""
+    operation = base_operation(operation)
+    if operation == "gemm_universal":
+        return ["m", "n", "k"]
+    if operation == "batched_gemm":
+        return ["layout", "batch_count", "m", "n", "k"]
+    if operation == "grouped_conv":
+        return ["N", "C", "K", "G", "Hi", "Wi", "Y", "X"]
+    raise ValueError(f"Unknown operation type: {operation}")
+
+
+def choose_holdout_groups(groups, n: int, seed: int) -> list[str]:
+    """``n`` distinct group keys, chosen without replacement."""
+    unique = sorted({str(g) for g in groups})
+    if n < 0:
+        raise ValueError(f"--holdout must be >= 0, got {n}")
+    if n == 0:
+        return []
+    if n >= len(unique):
+        raise ValueError(
+            f"--holdout {n} leaves no training group ({len(unique)} available)"
+        )
+    picked = np.random.default_rng(seed).choice(unique, size=n, replace=False)
+    return sorted(str(g) for g in picked)
+
+
+def load_holdout_groups(path: Path, present) -> list[str]:
+    """Group keys listed in a JSON file. Unknown keys raise."""
+    groups = sorted({str(g) for g in json.loads(Path(path).read_text())})
+    unknown = sorted(set(groups) - {str(g) for g in present})
+    if unknown:
+        raise ValueError(f"holdout groups absent from the data: {unknown}")
+    return groups
+
+
 def compute_group_keys(df: pd.DataFrame, operation: str) -> np.ndarray:
     """Create GroupKFold group keys based on operation type.
 
@@ -193,10 +368,23 @@ def compute_group_keys(df: pd.DataFrame, operation: str) -> np.ndarray:
     np.ndarray
         Group keys for GroupKFold cross-validation
     """
+    operation = base_operation(operation)
     if operation == "gemm_universal":
         # Group by (M, N, K)
         return (
             df["m"].astype(str) + "_" + df["n"].astype(str) + "_" + df["k"].astype(str)
+        ).values
+    elif operation == "batched_gemm":
+        # Batch is left out on purpose: shapes that differ only in batch count
+        # stay in the same fold. Layout stays in, because it changes the kernel.
+        return (
+            df["layout"].astype(str)
+            + "_"
+            + df["m"].map(int).astype(str)
+            + "_"
+            + df["n"].map(int).astype(str)
+            + "_"
+            + df["k"].map(int).astype(str)
         ).values
     elif operation == "grouped_conv":
         # Group by problem configuration (including 3D and dilation for FWD/BWD_DATA/BWD_WEIGHT)
@@ -233,8 +421,12 @@ def compute_tflops_efficiency(
     """
     results = []
 
+    operation = base_operation(operation)
     if operation == "gemm_universal":
-        groupby_cols = ["m", "n", "k"]
+        groupby_cols = problem_columns(operation)
+        tflops_col = "measured_tflops"
+    elif operation == "batched_gemm":
+        groupby_cols = problem_columns(operation)
         tflops_col = "measured_tflops"
     elif operation == "grouped_conv":
         # Group by all problem parameters including 3D and dilation
@@ -246,6 +438,12 @@ def compute_tflops_efficiency(
         raise NotImplementedError("FMHA efficiency computation not yet implemented")
     else:
         raise ValueError(f"Unknown operation type: {operation}")
+
+    missing = [c for c in groupby_cols if c not in df.columns]
+    if missing:
+        raise KeyError(
+            f"{operation} scores problems by {groupby_cols}; missing {missing}"
+        )
 
     for shape_key, group in df.groupby(groupby_cols):
         oracle_best = group[tflops_col].max()
@@ -261,8 +459,8 @@ def compute_tflops_efficiency(
             "efficiency": efficiency,
         }
         # Add shape-specific keys
-        if operation == "gemm_universal":
-            result.update({"m": shape_key[0], "n": shape_key[1], "k": shape_key[2]})
+        if operation in ("gemm_universal", "batched_gemm"):
+            result.update(dict(zip(groupby_cols, shape_key)))
         elif operation == "grouped_conv":
             result.update(
                 {
@@ -353,7 +551,7 @@ def run_cv(
         the scale so that tiny-M shapes (TFLOPS ~ 1) get equal attention
         as large-M shapes (TFLOPS ~ 2000).
     """
-    target_col = TARGET_COLUMNS[operation][target]
+    target_col = TARGET_COLUMNS[base_operation(operation)][target]
 
     # Handle is_valid column (present in GEMM, not in grouped_conv)
     if "is_valid" in df.columns:
@@ -470,7 +668,7 @@ def train_final_model(
         The saved model then predicts in log-space; callers must apply
         expm1() to get raw values.
     """
-    target_col = TARGET_COLUMNS[operation][target]
+    target_col = TARGET_COLUMNS[base_operation(operation)][target]
 
     # Handle is_valid column (present in GEMM, not in grouped_conv)
     if "is_valid" in df.columns:
@@ -499,7 +697,8 @@ def train_final_model(
     return model
 
 
-def main():
+def build_arg_parser() -> argparse.ArgumentParser:
+    """The command-line parser."""
     parser = argparse.ArgumentParser(
         description="Train CK Tile kernel performance models (GEMM, Grouped Conv, FMHA)"
     )
@@ -510,8 +709,20 @@ def main():
     parser.add_argument(
         "--operation",
         default="gemm_universal",
-        choices=["gemm_universal", "grouped_conv", "fmha"],
-        help="Operation type (gemm_universal, grouped_conv, fmha)",
+        choices=[
+            "gemm_universal",
+            "gemm_universal_vec",
+            "batched_gemm",
+            "grouped_conv",
+            "fmha",
+        ],
+        help=(
+            "Operation type. gemm_universal_vec is gemm_universal plus six "
+            "features for the fixed A/B/C vector widths; use it when the data "
+            "varies them, since the base engine cannot tell those kernels apart. "
+            "batched_gemm adds batch occupancy and vector-width features and "
+            "reads op_type=batched_gemm rows."
+        ),
     )
     parser.add_argument(
         "--op",
@@ -524,6 +735,24 @@ def main():
         "--targets", default="tflops,latency,bandwidth", help="Comma-separated targets"
     )
     parser.add_argument("--n_splits", type=int, default=5, help="Number of CV folds")
+    parser.add_argument(
+        "--holdout",
+        type=int,
+        default=0,
+        help="Number of CV groups to leave out of training entirely",
+    )
+    parser.add_argument(
+        "--holdout_file",
+        type=Path,
+        default=None,
+        help="JSON list of exact CV group keys to leave out of training",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Seed used when --holdout samples groups",
+    )
     parser.add_argument(
         "--tune", action="store_true", help="Run Optuna hyperparameter tuning"
     )
@@ -547,6 +776,11 @@ def main():
         help=f"Number of new trees to add when warm-starting (default: {WARM_START_N_ESTIMATORS}). "
         "Lower than a full train since we're refining, not starting from scratch.",
     )
+    return parser
+
+
+def main():
+    parser = build_arg_parser()
     args = parser.parse_args()
 
     # Handle backward compatibility for --op flag
@@ -564,13 +798,35 @@ def main():
     print(f"{'=' * 80}")
     print()
 
+    if args.holdout and args.holdout_file:
+        parser.error("--holdout and --holdout_file are mutually exclusive")
+
     print(f"Loading data from {args.data_dir}...")
-    df = build_training_dataset(args.data_dir, op_type=operation, dtype=args.dtype)
+    df = build_training_dataset(
+        args.data_dir, op_type=base_operation(operation), dtype=args.dtype
+    )
+    check_arch_matches_data(df, args.arch)
     print(f"  Total rows: {len(df)}")
 
+    holdout = []
+    if args.holdout or args.holdout_file:
+        present = compute_group_keys(df, operation)
+        if args.holdout_file:
+            holdout = load_holdout_groups(args.holdout_file, present)
+        else:
+            holdout = choose_holdout_groups(present, args.holdout, args.seed)
+        if holdout:
+            print(f"  Holding out {len(holdout)} CV groups")
+            df = df.loc[~pd.Series(present, index=df.index).isin(holdout)]
+            df = df.reset_index(drop=True)
+            if df.empty:
+                raise ValueError("holdout removed every training row")
+
     # Print unique shapes based on operation type
-    if operation == "gemm_universal":
-        print(f"  Unique shapes: {df.groupby(['m', 'n', 'k']).ngroups}")
+    if base_operation(operation) in ("gemm_universal", "batched_gemm"):
+        print(
+            f"  Unique shapes: {df.groupby(problem_columns(operation)).ngroups}"
+        )
     elif operation == "grouped_conv":
         print(
             f"  Unique shapes: {df.groupby(['N', 'C', 'K', 'G', 'Hi', 'Wi', 'Y', 'X']).ngroups}"
@@ -579,29 +835,7 @@ def main():
     print(f"  Unique kernels: {df['kernel_name'].nunique()}")
     print()
 
-    # Extract hardware parameters from data (if available)
-    hw_cols = [c for c in df.columns if c.startswith("hw_")]
-    hw_kwargs = {}
-    if hw_cols:
-        row0 = df.iloc[0]
-        if "hw_num_cus" in df.columns:
-            hw_kwargs["num_cus"] = int(row0.get("hw_num_cus", 256))
-        if "hw_max_clock_mhz" in df.columns:
-            hw_kwargs["max_clock_mhz"] = int(row0.get("hw_max_clock_mhz", 2400))
-        if "hw_simds_per_cu" in df.columns:
-            hw_kwargs["simds_per_cu"] = int(row0.get("hw_simds_per_cu", 4))
-        if "hw_shader_engines" in df.columns:
-            hw_kwargs["shader_engines"] = int(row0.get("hw_shader_engines", 32))
-        if "hw_max_waves_per_cu" in df.columns:
-            hw_kwargs["max_waves_per_cu"] = int(row0.get("hw_max_waves_per_cu", 32))
-        if "hw_wavefront_size" in df.columns:
-            hw_kwargs["wavefront_size"] = int(row0.get("hw_wavefront_size", 64))
-        if "hw_l1_cache_kb" in df.columns:
-            hw_kwargs["l1_cache_kb"] = int(row0.get("hw_l1_cache_kb", 32))
-        if "hw_l2_cache_kb" in df.columns:
-            hw_kwargs["l2_cache_kb"] = int(row0.get("hw_l2_cache_kb", 4096))
-        if "hw_l3_cache_kb" in df.columns:
-            hw_kwargs["l3_cache_kb"] = int(row0.get("hw_l3_cache_kb", 262144))
+    hw_kwargs = build_hw_kwargs(df, operation)
 
     # Get operation-specific feature engine
     print(f"Initializing {operation} feature engine...")
@@ -632,7 +866,7 @@ def main():
 
     all_cv_results = {}
     for target in targets:
-        if target not in TARGET_COLUMNS[operation]:
+        if target not in TARGET_COLUMNS[base_operation(operation)]:
             print(f"  Skipping unknown target: {target}")
             continue
 
@@ -701,22 +935,15 @@ def main():
             json.dump(importances, f, indent=2)
 
     log_targets_used = sorted(LOG_TARGETS & set(targets)) if use_log else []
-    spec = {
-        "op_type": operation,
-        "dtype": args.dtype,
-        "arch": args.arch,
-        "feature_names": fe.get_feature_names(),
-        "categorical_features": fe.get_categorical_features(),
-        "targets": targets,
-        "log_targets": log_targets_used,
-        "params": params,
-    }
+    spec = build_feature_spec(
+        operation, fe, args.dtype, args.arch, targets, log_targets_used, params
+    )
     with open(out_dir / "feature_spec.json", "w") as f:
         json.dump(spec, f, indent=2)
 
     # Compute unique shapes based on operation type
-    if operation == "gemm_universal":
-        unique_shapes = int(df.groupby(["m", "n", "k"]).ngroups)
+    if base_operation(operation) in ("gemm_universal", "batched_gemm"):
+        unique_shapes = int(df.groupby(problem_columns(operation)).ngroups)
     elif operation == "grouped_conv":
         unique_shapes = int(
             df.groupby(["N", "C", "K", "G", "Hi", "Wi", "Y", "X"]).ngroups
@@ -744,6 +971,14 @@ def main():
     }
     with open(out_dir / "train_manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
+
+    if operation == "batched_gemm":
+        from feature_engine_batched import observed_search_space
+
+        with open(out_dir / "holdout_shapes.json", "w") as f:
+            json.dump(holdout, f, indent=2)
+        with open(out_dir / "search_space.json", "w") as f:
+            json.dump(observed_search_space(df), f, indent=2)
 
     print(f"\nAll models saved to {out_dir}")
     if prev_model_dir:

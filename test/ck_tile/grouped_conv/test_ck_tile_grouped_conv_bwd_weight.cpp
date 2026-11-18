@@ -82,7 +82,8 @@ template <typename PrecType,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
-          index_t NDimSpatial = 2>
+          index_t NDimSpatial                    = 2,
+          template <typename> class EpilogueType = CShuffleEpilogue>
 struct BuildKernel
 {
     using GemmShape = TileGemmShape<
@@ -170,7 +171,7 @@ struct BuildKernel
                                                     ConvTraits::FixedGemmParams::FixedVectorSize,
                                                     ConvTraits::VectorSizeC>;
 
-    using Epilogue = CShuffleEpilogue<EpilogueProblem>;
+    using Epilogue = EpilogueType<EpilogueProblem>;
 
     using type =
         GroupedConvolutionBackwardWeightKernel<ConvTraits, TilePartitioner, GemmPipeline, Epilogue>;
@@ -231,6 +232,7 @@ TEST_F(GroupedConvBwdWeightIsSupportedArgumentTest, ValidKBatch)
                                         tensor_layout::convolution::NHWGC,
                                         tensor_layout::convolution::GKYXC,
                                         tensor_layout::convolution::NHWGK>::type;
+    EXPECT_TRUE(Kernel::EpilogueSupportsSplitK);
 
     auto host_args_kbatch_1 = create_2d_host_args(1);
     auto kargs_1 = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_kbatch_1);
@@ -293,6 +295,85 @@ TEST_F(GroupedConvBwdWeightIsSupportedArgumentTest, NonFloatDoubleOutputLimitsKB
         typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_kbatch_129);
     EXPECT_FALSE(Kernel::IsSupportedArgument(kargs_129));
 }
+
+// TdmEpilogue's store overwrites the weight tile instead of accumulating into it, so split-K
+// must be rejected for it even where CShuffleEpilogue accepts it (fp16, even VectorSizeC). Only
+// the epilogue differs from ValidKBatch above; nothing here is launched.
+using TdmEpilogueKernel = typename BuildKernel<half_t,
+                                               TestConvConfig,
+                                               tensor_layout::convolution::NHWGC,
+                                               tensor_layout::convolution::GKYXC,
+                                               tensor_layout::convolution::NHWGK,
+                                               2,
+                                               TdmEpilogue>::type;
+
+TEST_F(GroupedConvBwdWeightIsSupportedArgumentTest, TdmEpilogueRejectsSplitK)
+{
+    using Kernel = TdmEpilogueKernel;
+    EXPECT_FALSE(Kernel::EpilogueSupportsSplitK);
+
+    auto host_args_kbatch_1 = create_2d_host_args(1);
+    auto kargs_1 = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_kbatch_1);
+    EXPECT_TRUE(Kernel::IsSupportedArgument(kargs_1));
+
+    auto host_args_kbatch_4 = create_2d_host_args(4);
+    auto kargs_4 = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_kbatch_4);
+    EXPECT_FALSE(Kernel::IsSupportedArgument(kargs_4));
+}
+
+TEST_F(GroupedConvBwdWeightIsSupportedArgumentTest, TdmEpilogueAutodeducesNoSplitK)
+{
+    using Kernel = TdmEpilogueKernel;
+
+    // A negative k_batch asks MakeKernelArgs to deduce it; with no split-K path that is 1.
+    const auto kargs = Kernel::MakeKernelArgs(create_2d_host_args(-1));
+    EXPECT_EQ(kargs.k_batch, 1);
+    EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
+}
+
+// Same as TestConvConfig except for an odd VectorSizeC, which has no fp16/bf16 atomic store.
+struct TestConvConfigOddVectorSizeC : TestConvConfig
+{
+    static constexpr index_t VectorSizeC = 1;
+};
+
+TEST_F(GroupedConvBwdWeightIsSupportedArgumentTest, OddVectorSizeCHalfRejectsSplitK)
+{
+    using Kernel = typename BuildKernel<half_t,
+                                        TestConvConfigOddVectorSizeC,
+                                        tensor_layout::convolution::NHWGC,
+                                        tensor_layout::convolution::GKYXC,
+                                        tensor_layout::convolution::NHWGK>::type;
+    EXPECT_FALSE(Kernel::EpilogueSupportsSplitK);
+
+    auto host_args_kbatch_1 = create_2d_host_args(1);
+    auto kargs_1 = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_kbatch_1);
+    EXPECT_TRUE(Kernel::IsSupportedArgument(kargs_1));
+
+    auto host_args_kbatch_4 = create_2d_host_args(4);
+    auto kargs_4 = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_kbatch_4);
+    EXPECT_FALSE(Kernel::IsSupportedArgument(kargs_4));
+}
+
+struct EpilogueWithoutAccumulateFlag
+{
+};
+struct EpilogueThatAccumulates
+{
+    static constexpr bool SupportsSplitK = true;
+};
+struct EpilogueThatOverwrites
+{
+    static constexpr bool SupportsSplitK = false;
+};
+
+TEST(EpilogueCanAccumulate, ReadsOptionalFlagDefaultingToTrue)
+{
+    EXPECT_TRUE(epilogue_can_accumulate_v<EpilogueWithoutAccumulateFlag>);
+    EXPECT_TRUE(epilogue_can_accumulate_v<EpilogueThatAccumulates>);
+    EXPECT_FALSE(epilogue_can_accumulate_v<EpilogueThatOverwrites>);
+}
+
 class GroupedConvBwdWeightV6PipelineTest : public ::testing::Test
 {
 };

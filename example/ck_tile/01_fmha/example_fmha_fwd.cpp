@@ -53,7 +53,8 @@ auto create_args(int argc, char* argv[])
                 "  pt or 1, per-tensor scale\n"
                 "  bs or 2, block scale\n"
                 "  kvbs or 3, Q per-tensor, K/V per-page block scale\n"
-                "  mx or 4, microscaling (exclusively for data types like mxfp8 and mxfp4)\n"
+                "  mx or 4, microscaling (mxfp8, mxfp8bf16 and mxfp4;\n"
+                "           fp8 and fp8bf16 run as mxfp8 and mxfp8bf16)\n"
                 "  ph or 5, per-head scale")
         .insert("logits_soft_cap", "0", "attention logits soft capping value.")
         .insert("iperm",
@@ -66,7 +67,7 @@ auto create_args(int argc, char* argv[])
                 "n or 0, no bias\n"
                 "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
                 "a(libi) or 2, alibi with 1*h. a:1, b*h")
-        .insert("prec", "fp16", "data type: fp32/fp16/bf16/fp8/fp8bf16/fp8fp32/mxfp8/mxfp4")
+        .insert("prec", "fp16", "data type: fp32/fp16/bf16/fp8/fp8bf16/mxfp8/mxfp8bf16/mxfp4")
         .insert("mask",
                 "0",
                 "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
@@ -228,6 +229,9 @@ int main(int argc, char* argv[])
             return -1;
 
         const std::string data_type = arg_parser.get_str("prec");
+        // MX scales on FP8 inputs run the MX path with the same output type.
+        const bool mx_scale =
+            quant_scale_info::decode(arg_parser.get_str("qscale")).type == quant_scale_enum::mx;
         if(data_type == "fp32")
         {
             return run<FmhaFwdFp32>(arg_parser) == fwd_result::success ? 0 : -2;
@@ -240,21 +244,21 @@ int main(int argc, char* argv[])
         {
             return run<FmhaFwdBf16>(arg_parser) == fwd_result::success ? 0 : -2;
         }
-        else if(data_type == "fp8")
+        else if(data_type == "fp8" && !mx_scale)
         {
             return run<FmhaFwdFp8>(arg_parser) == fwd_result::success ? 0 : -2;
         }
-        else if(data_type == "fp8bf16")
+        else if(data_type == "fp8bf16" && !mx_scale)
         {
             return run<FmhaFwdFp8Bf16>(arg_parser) == fwd_result::success ? 0 : -2;
         }
-        else if(data_type == "fp8fp32")
-        {
-            return run<FmhaFwdFp8Fp32>(arg_parser) == fwd_result::success ? 0 : -2;
-        }
-        else if(data_type == "mxfp8")
+        else if(data_type == "mxfp8" || data_type == "fp8")
         {
             return run<FmhaFwdMxFp8>(arg_parser) == fwd_result::success ? 0 : -2;
+        }
+        else if(data_type == "mxfp8bf16" || data_type == "fp8bf16")
+        {
+            return run<FmhaFwdMxFp8Bf16>(arg_parser) == fwd_result::success ? 0 : -2;
         }
         else if(data_type == "mxfp4")
         {

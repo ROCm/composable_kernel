@@ -16,6 +16,17 @@
 #include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
+// Block pipeline of TestCkTileBatchedGemm. CompV3 (with CShuffleEpilogue) is the default; the
+// producer/consumer TDM pipeline (with TdmEpilogue) is gfx1250-only.
+enum class BatchedGemmPipelineType
+{
+    CompV3,
+    CompTDMPC
+};
+
+template <BatchedGemmPipelineType PT>
+using BatchedGemmPipelineTypeConstant = std::integral_constant<BatchedGemmPipelineType, PT>;
+
 template <typename Tuple>
 class TestCkTileBatchedGemm : public ::testing::Test
 {
@@ -29,6 +40,14 @@ class TestCkTileBatchedGemm : public ::testing::Test
     using CDataType   = std::tuple_element_t<6, Tuple>;
     using DsLayout    = ck_tile::tuple<>;
     using DsDataType  = ck_tile::tuple<>;
+
+    // Optional 8th tuple element selects the block pipeline; defaults to CompV3 so existing
+    // type lists are unchanged.
+    static constexpr BatchedGemmPipelineType PipelineType = ck_tile::tuple_element_or_default_t<
+        Tuple,
+        7,
+        BatchedGemmPipelineTypeConstant<BatchedGemmPipelineType::CompV3>>::value;
+    static constexpr bool IsTdmPipeline = PipelineType == BatchedGemmPipelineType::CompTDMPC;
 
     struct GemmWarpConfig_Mfma
     {
@@ -67,13 +86,22 @@ class TestCkTileBatchedGemm : public ::testing::Test
         constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
         constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
-        constexpr bool DoubleSmemBuffer = false;
+        // The TDM pipelines ping-pong LDS and transpose a RowMajor C with a square warp tile on
+        // gfx1250, as in the other TDM tests.
+        constexpr bool DoubleSmemBuffer = IsTdmPipeline;
 
         constexpr bool kPadM = false;
         constexpr bool kPadN = false;
         constexpr bool kPadK = false;
 
+#if defined(CK_USE_GFX1250)
+        constexpr bool TransposeC =
+            IsTdmPipeline && std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+            M_Warp_Tile == N_Warp_Tile;
+#else
+        static_assert(!IsTdmPipeline, "the TDM batched GEMM tests require gfx1250");
         constexpr bool TransposeC = false;
+#endif
 
         constexpr int kBlockPerCu                         = 1;
         constexpr ck_tile::index_t TileParitionerGroupNum = 8;
@@ -103,25 +131,35 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                                            GemmUniversalTraits,
                                                                            scheduler>;
 
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
+        using GemmPipeline = std::conditional_t<
+            IsTdmPipeline,
+            ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumer<UniversalGemmProblem>,
+            ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>>;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             CDataType,
-                                             DsLayout,
-                                             CLayout,
-                                             ck_tile::element_wise::PassThrough,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC>>;
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                                 BDataType,
+                                                                 DsDataType,
+                                                                 AccDataType,
+                                                                 CDataType,
+                                                                 DsLayout,
+                                                                 CLayout,
+                                                                 ck_tile::element_wise::PassThrough,
+                                                                 TilePartitioner::MPerBlock,
+                                                                 TilePartitioner::NPerBlock,
+                                                                 M_Warp,
+                                                                 N_Warp,
+                                                                 M_Warp_Tile,
+                                                                 N_Warp_Tile,
+                                                                 K_Warp_Tile,
+                                                                 UniversalGemmProblem::TransposeC,
+                                                                 1,     // kNumWaveGroups
+                                                                 false, // FixedVectorSize
+                                                                 1,     // VectorSizeC
+                                                                 1,     // BlockedXDLN_PerWarp
+                                                                 DoubleSmemBuffer>;
+        using GemmEpilogue    = std::conditional_t<IsTdmPipeline,
+                                                   ck_tile::TdmEpilogue<EpilogueProblem>,
+                                                   ck_tile::CShuffleEpilogue<EpilogueProblem>>;
         using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 

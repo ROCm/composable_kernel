@@ -18,15 +18,20 @@ using Intrawave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
                                              ck_tile::GemmPipelineScheduler::Interwave>;
 
-using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
-using CompV3    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
-using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
-using CompV6    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV6>;
-using CompAsync = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsync>;
+using Mem         = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
+using CompV3      = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
+using CompV4      = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
+using CompV6      = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV6>;
+using CompAsync   = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsync>;
+using CompAsyncV2 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsyncV2>;
 using CompAsyncEightWaves =
     ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsyncEightWaves>;
 using CompTDMV1 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompTDMV1>;
 using CompTDMV2 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompTDMV2>;
+using CompTDMProducerConsumer =
+    ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompTDMProducerConsumer>;
+using CompTDMProducerConsumerCShuffle =
+    ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompTDMProducerConsumerCShuffle>;
 
 using Persistent    = std::true_type;
 using NonPersistent = std::false_type;
@@ -325,6 +330,38 @@ using KernelTypesCompAsyncWmma = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompAsync, Persistent>
 >;
 
+using KernelTypesCompAsyncV2Wmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,      CompAsyncV2>
+>;
+
+// Every layout, a persistent case that reuses the barriers across tiles, and an fp8 case whose
+// K block spans several WMMA K steps.
+using KernelTypesCompTDMProducerConsumerWmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumer, Persistent>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,        I64,         I64,          I128,       I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    // bf16 is the production dtype for this pipeline.
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    std::tuple<    Col,     Row,     Row,       BF16,      BF16,        F32,       BF16,       I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    // The tile_engine gfx1250 sweep starts tile_k at 64 step 64, so the 64x64x32
+    // shape above is not in the search grid at all. These two are.
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer>
+>;
+
+// The producer/consumer pipeline with a CShuffleEpilogue, the pairing that can split K.
+// Non-persistent only: the persistent work loop over num_tiles * k_batch is not covered yet.
+using KernelTypesCompTDMProducerConsumerCShuffleWmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>,
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>,
+    std::tuple<    Row,     Row,     Row,       BF16,      BF16,        F32,       BF16,       I64,         I64,          I32,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>,
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumerCShuffle>
+>;
+
 // clang-format on
 template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
 using CompAsyncConfig = std::tuple<ALayout,
@@ -341,6 +378,25 @@ using CompAsyncConfig = std::tuple<ALayout,
                                    I32,       // NWarpTileSize
                                    Intrawave,
                                    CompAsync>;
+
+// 128x128 block tile: the 256x256x64 tile used by CompAsyncConfig produces wrong
+// results with CompAsyncV2 on gfx95 for every K (independent of the tail handling
+// covered here), which is tracked separately.
+template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
+using CompAsyncV2Config = std::tuple<ALayout,
+                                     BLayout,
+                                     CLayout,
+                                     InputType, // AType
+                                     InputType, // BType
+                                     F32,       // AccType
+                                     F16,       // OutputType
+                                     I128,      // MBlockTileSize
+                                     I128,      // NBlockTileSize
+                                     I64,       // KBlockTileSize
+                                     I32,       // MWarpTileSize
+                                     I32,       // NWarpTileSize
+                                     Intrawave,
+                                     CompAsyncV2>;
 
 template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
 using CompAsyncConfig16x16x128 = std::tuple<ALayout,
@@ -430,6 +486,9 @@ using KernelTypesCompAsync = ::testing::Types<CompAsyncConfig<Row, Row, Row, F16
                                               CompAsyncConfig<Row, Col, Row, F8>,
                                               CompAsyncConfig<Col, Row, Row, F8>,
                                               CompAsyncConfig<Col, Col, Row, F8>>;
+
+using KernelTypesCompAsyncV2 =
+    ::testing::Types<CompAsyncV2Config<Row, Col, Row, F16>, CompAsyncV2Config<Row, Row, Row, F16>>;
 
 using KernelTypesCompAsync16x16x128 = ::testing::Types<CompAsyncConfig16x16x128<Row, Col, Row, F4>,
                                                        CompAsyncConfig16x16x128<Row, Col, Row, F8>>;

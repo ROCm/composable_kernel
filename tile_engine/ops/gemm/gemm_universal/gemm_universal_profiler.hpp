@@ -25,6 +25,14 @@ class UniversalGemmProfiler
     {
     }
 
+    /// Exact verification (-verify_exact 1): rtol = atol = 0 and a mismatch count, on top
+    /// of the tolerance check. Valid only with integer inputs (-init 4), whose fp32
+    /// accumulation is exact.
+    void set_verify_exact(bool verify_exact) { verify_exact_ = verify_exact; }
+
+    /// True when an exact verification ran and found mismatches.
+    bool exact_verification_failed() const { return exact_failed_; }
+
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables) override
@@ -61,6 +69,19 @@ class UniversalGemmProfiler
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
+        }
+        else if(setting_.init_method == 3)
+        {
+            // normal(mean 0, sigma 0.1); the second field is the variance
+            ck_tile::FillNormalDistribution<ADataType>{0.f, 0.01f, 11939}(a_m_k);
+            ck_tile::FillNormalDistribution<BDataType>{0.f, 0.01f, 11940}(b_k_n);
+        }
+        else if(setting_.init_method == 4)
+        {
+            // integers in [-5, 5]: exact in every input type, and the fp32 accumulation stays
+            // exact while 25 * K < 2^24, so the output can be checked bit for bit
+            ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f, 11939}(a_m_k);
+            ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f, 11940}(b_k_n);
         }
         else
         {
@@ -137,6 +158,20 @@ class UniversalGemmProfiler
                                                                      setting_.is_gpu_timer,
                                                                      setting_.flush_cache,
                                                                      setting_.rotating_count});
+            if(verify_exact_ && setting_.verify)
+            {
+                c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+                if(count_exact_mismatches(
+                       std::get<0>(kernel_run_result), c_m_n_dev_result, c_m_n_host_result) != 0)
+                {
+                    exact_failed_ = true;
+                    std::cout << "Verification failed, skip kernel: "
+                              << std::get<0>(kernel_run_result) << std::endl;
+                    c_m_n_dev_buf.SetZero();
+                    c_m_n_dev_result.SetZero();
+                    continue;
+                }
+            }
             process_result(gemm_problem,
                            c_m_n_dev_buf,
                            c_m_n_host_result,
@@ -144,4 +179,8 @@ class UniversalGemmProfiler
                            kernel_run_result);
         }
     }
+
+    private:
+    bool verify_exact_ = false;
+    bool exact_failed_ = false;
 };

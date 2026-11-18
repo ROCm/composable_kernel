@@ -210,19 +210,27 @@
         "The 8-bit shapes are the dense WmmaTraits<gfx125_t, ...> specialisations in",
         "include/ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_8bit_traits.hpp:",
         "fp8/fp8 and bf8/bf8 each have a 16x16x64 and a 16x16x128 form.",
+        "The 32x32x128 warp tile is 2x2 of the 16x16x128 atom (f8f6f4 WMMA,",
+        "ds_load_b128 operands); no default config lists warp_tile_m = 32.",
         "The mixed fp8/bf8 and bf8/fp8 pairs exist there too but are not listed",
         "here; enabling them would newly generate kernels for combinations this",
         "bridge has never exercised, which needs its own device validation."
+      ],
+      "_warp_tile_fp32_source": [
+        "fp32 is the WmmaTraits<gfx125_t, float, float, float, 16, 16, 4>",
+        "specialisation in warp_gemm_attribute_wmma_impl_highprec_traits.hpp, the",
+        "only fp32 WMMA shape on this target."
       ],
       "_warp_tile_int8_source": [
         "Native WarpGemmWmma_i32_16x16x64_i8_i8 in warp_gemm_dispatcher.hpp.",
         "Validated with exact integer comparisons by test_gemm_parity.py on gfx1250."
       ],
       "warp_tile_combos": {
+        "fp32_fp32_fp32": [[16, 16, 4]],
         "fp16_fp16_fp32": [[16, 16, 32]],
         "bf16_bf16_fp32": [[16, 16, 32]],
-        "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128]],
-        "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128]],
+        "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128], [32, 32, 128]],
+        "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128], [32, 32, 128]],
         "int8_int8_int32": [[16, 16, 64]]
       }
     }
@@ -317,6 +325,16 @@
         "doubling case, which is the one that can overflow."
       ]
     },
+    "preshuffle_tdm": {
+      "basis": "fraction",
+      "value": 0.5,
+      "_reason": [
+        "Same buffering as preshufflev2 (gfx1250 only):",
+        "WeightPreshufflePipelineAGmemBGmemCRegTDM::GetSmemSize() returns",
+        "DoubleSmemBuffer ? 2 * smem : smem, and the bridge always sets",
+        "DoubleSmemBuffer for it."
+      ]
+    },
     "comp_async": {
       "basis": "fraction",
       "value": 0.5,
@@ -325,8 +343,21 @@
         "GemmPipelineAgBgCrCompAsync::GetSmemSize() returns",
         "num_lds_buffers * smem_size with num_lds_buffers = 2.",
         "Emitted to C++ as Pipeline::CompAsync. The gfx1250 TDM pipelines",
-        "(comp_tdm, comp_tdm_v2) share this budget through",
+        "(comp_tdm, comp_tdm_v2, comp_tdm_v3) share this budget through",
         "pipeline_lds_budget_aliases."
+      ]
+    },
+    "comp_tdm_pc": {
+      "basis": "fraction",
+      "value": 0.25,
+      "_reason": [
+        "Ring of NumSlots LDS buffers:",
+        "GemmPipelineAgBgCrCompTDMProducerConsumer::GetSmemSize() returns",
+        "NumSlots * Policy::GetSmemSize(). This entry is the policy default",
+        "NumSlots_ = 4; a comp_tdm_pc_s{S}l{L} variant splits the capacity over",
+        "its S slots instead (codegen_common.comp_tdm_pc_lds_limit). Emitted to",
+        "C++ as Pipeline::CompTDMPC. Matches the Tile Engine PIPELINE_SMEM_SLOTS",
+        "entry; raise both if NumSlots_ changes."
       ]
     },
     "wavelet": {
@@ -355,7 +386,7 @@
       "value": 0.5,
       "_reason": [
         "Vestigial. No WeightPreshufflePipelineAGmemBGmemCRegV1 exists and",
-        "preshuffle_pipelines.supported lists only preshufflev2, so nothing",
+        "preshuffle_pipelines.supported does not list it, so nothing",
         "generates this pipeline. Ratio preserved so the entry stays inert."
       ]
     },
@@ -370,11 +401,34 @@
       "buffers, as comp_async does."
     ],
     "comp_tdm": "comp_async",
-    "comp_tdm_v2": "comp_async"
+    "comp_tdm_v2": "comp_async",
+    "comp_tdm_v3": "comp_async"
+  },
+
+  "pipeline_extra_warp_configs": {
+    "_comment": [
+      "Pipeline-specific wave maps allowed in addition to an architecture's",
+      "shared warp_configs table. Keeps [4, 4, 1] scoped to comp_tdm_v3 on",
+      "gfx1250 without widening the shared gfx1250 wave table."
+    ],
+    "comp_tdm_v3": {
+      "gfx1250": [[4, 4, 1]]
+    }
   },
   
+  "double_smem_buffer_pipelines": [
+    "compv4",
+    "preshufflev2",
+    "comp_async",
+    "comp_tdm",
+    "comp_tdm_v2",
+    "comp_tdm_pc",
+    "comp_tdm_v3",
+    "preshuffle_tdm"
+  ],
+
   "unsupported_trait_combos": {
-    "_comment": "Only 'mem' pipeline supports interwave scheduler. All compute pipelines only support intrawave.",
+    "_comment": "Unsupported (pipeline, epilogue, scheduler) triples, shared by Python and C++ validation.",
     "combinations": [
       ["compv3", "cshuffle", "interwave"],
       ["compv3", "default", "interwave"],
@@ -391,11 +445,23 @@
       ["comp_tdm", "tdm", "interwave"],
       ["comp_tdm_v2", "cshuffle", "interwave"],
       ["comp_tdm_v2", "default", "interwave"],
-      ["comp_tdm_v2", "tdm", "interwave"]
+      ["comp_tdm_v2", "tdm", "interwave"],
+      ["comp_tdm_pc", "cshuffle", "interwave"],
+      ["comp_tdm_pc", "default", "interwave"],
+      ["comp_tdm_pc", "tdm", "interwave"],
+      ["comp_tdm_v3", "cshuffle", "interwave"],
+      ["comp_tdm_v3", "default", "interwave"],
+      ["comp_tdm_v3", "tdm", "interwave"]
     ]
   },
   
   "preshuffle_warp_tile_combos": {
+    "gfx1250": {
+      "fp16_fp16_fp32": [[16, 16, 32]],
+      "bf16_bf16_fp32": [[16, 16, 32]],
+      "fp8_fp8_fp32": [[16, 16, 64]],
+      "bf8_bf8_fp32": [[16, 16, 64]]
+    },
     "_comment": "Preshuffle-specific warp tile combinations (subset of standard GEMM, no [4, 64, 16])",
     "gfx90a": {
       "fp16_fp16_fp32": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [64, 4, 16]],
@@ -420,6 +486,6 @@
   
   "preshuffle_pipelines": {
     "_comment": "Pipelines supported for preshuffle GEMM variant",
-    "supported": ["preshufflev2"]
+    "supported": ["preshufflev2", "preshuffle_tdm", "comp_tdm", "comp_tdm_v2", "comp_async"]
   }
 }

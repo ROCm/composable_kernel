@@ -35,19 +35,34 @@ Usage:
         --arch gfx950 \
         --op-type grouped_conv
 
+    # Batched GEMM: one CSV, or a directory of batched_gemm_results.csv files.
+    # Copies under a csv/ directory are skipped. Repeated measurements are median-aggregated.
+    python convert_csv_to_parquet.py \
+        --input /path/to/batched/results \
+        --output data/batched_gemm_bf16_gfx950.parquet \
+        --arch gfx950 \
+        --dtype bf16 \
+        --op-type batched_gemm
+
 Features:
     - Auto-detects problem columns from CSV headers
     - Generic kernel name parsing with optional custom patterns
     - Supports all GPU architectures and data types
-    - No hardcoded operation-specific logic
+    - Batched GEMM CSVs are written in the canonical training schema
     - Validates data quality and reports statistics
 """
 
 import argparse
 import re
 import pandas as pd
+import sys
 from pathlib import Path
 from typing import Dict, Any, Optional, Set
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "codegen"))
+
+from arch_specs_generated import LDS_TOTAL_CAPACITY_BY_ARCH  # noqa: E402
+from data_pipeline import is_gemm_driver_csv, parse_gemm_driver_csv  # noqa: E402
 
 
 # Known metric/metadata columns (will be excluded from problem features)
@@ -67,14 +82,14 @@ METRIC_COLUMNS: Set[str] = {
 
 # Hardware profiles for different architectures
 HW_PROFILES = {
-    "gfx950": {  # MI300 series
+    "gfx950": {  # MI350 series (MI350X / MI355X)
         "hw_num_cus": 256,
         "hw_simds_per_cu": 4,
         "hw_shader_engines": 32,
         "hw_max_clock_mhz": 2400,
         "hw_max_waves_per_cu": 32,
         "hw_wavefront_size": 64,
-        "hw_lds_capacity": 65536,
+        "hw_lds_capacity": LDS_TOTAL_CAPACITY_BY_ARCH["gfx950"],
         "hw_l1_cache_kb": 32,
         "hw_l2_cache_kb": 4096,
         "hw_l3_cache_kb": 262144,
@@ -87,7 +102,7 @@ HW_PROFILES = {
         "hw_max_clock_mhz": 2100,
         "hw_max_waves_per_cu": 32,
         "hw_wavefront_size": 64,
-        "hw_lds_capacity": 65536,
+        "hw_lds_capacity": LDS_TOTAL_CAPACITY_BY_ARCH["gfx942"],
         "hw_l1_cache_kb": 32,
         "hw_l2_cache_kb": 4096,
         "hw_l3_cache_kb": 262144,
@@ -100,11 +115,20 @@ HW_PROFILES = {
         "hw_max_clock_mhz": 1700,
         "hw_max_waves_per_cu": 32,
         "hw_wavefront_size": 64,
-        "hw_lds_capacity": 65536,
+        "hw_lds_capacity": LDS_TOTAL_CAPACITY_BY_ARCH["gfx90a"],
         "hw_l1_cache_kb": 16,
         "hw_l2_cache_kb": 8192,
         "hw_l3_cache_kb": 131072,
         "hw_num_xcd": 1,
+    },
+    "gfx1250": {
+        # Measured values only; other constants are omitted, so the engine
+        # uses its defaults for them.
+        "hw_num_cus": 256,
+        "hw_simds_per_cu": 4,
+        "hw_max_clock_mhz": 2400,
+        "hw_wavefront_size": 32,
+        "hw_lds_capacity": LDS_TOTAL_CAPACITY_BY_ARCH["gfx1250"],
     },
 }
 
@@ -232,6 +256,47 @@ def auto_detect_problem_columns(df: pd.DataFrame) -> list[str]:
     return [col for col in df.columns if col not in METRIC_COLUMNS]
 
 
+def _looks_like_batched_gemm(path: Path) -> bool:
+    """A batched-GEMM results file, or a directory that contains one."""
+    if path.is_dir():
+        return any(
+            p.parent.name != "csv" and p.name == "batched_gemm_results.csv"
+            for p in path.rglob("batched_gemm_results.csv")
+        )
+    return path.name == "batched_gemm_results.csv"
+
+
+def convert_gemm_driver_csv(
+    csv_file: Path, output_file: Path, arch: str, op_type: str = "gemm_universal"
+) -> pd.DataFrame:
+    """Convert a gemm_full_benchmark.py CSV to training parquet.
+
+    Rows are data_pipeline's canonical GEMM rows (parse_gemm_driver_csv: kernel
+    fields from the name, rows that failed --verify dropped) plus the hw_*
+    constants of ``arch`` from HW_PROFILES, which train.py records with the model.
+    """
+    df = parse_gemm_driver_csv(csv_file, arch=arch, op_type=op_type)
+    dropped = df.attrs["dropped_unverified"]
+    hw_profile = HW_PROFILES.get(arch, {})
+    if not hw_profile:
+        print(
+            f"Warning: no hardware profile for {arch}; emitting no hw_ columns. "
+            "The feature engine will use its built-in defaults, which may not "
+            f"describe {arch}. Add it to HW_PROFILES to train against real "
+            "constants."
+        )
+    for col, value in hw_profile.items():
+        df[col] = value
+    print(f"GEMM driver CSV {csv_file}:")
+    print(f"  Rows: {len(df):,} ({dropped} that failed --verify dropped)")
+    print(f"  Problems: {df.groupby(['layout', 'm', 'n', 'k']).ngroups}")
+    print(f"  Kernels: {df['kernel_name'].nunique()}")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(output_file, index=False)
+    print(f"✓ Saved to {output_file}")
+    return df
+
+
 def convert_csv_to_parquet(
     csv_file: Path,
     output_file: Path,
@@ -255,7 +320,42 @@ def convert_csv_to_parquet(
 
     Returns:
         DataFrame with converted data
+
+    A CSV written by tile_engine/ops/gemm/gemm_full_benchmark.py is converted by
+    convert_gemm_driver_csv instead (dtype and variant come from its kernel names).
     """
+    csv_file = Path(csv_file)
+    output_file = Path(output_file)
+    if op_type == "batched_gemm" or (
+        op_type is None and _looks_like_batched_gemm(csv_file)
+    ):
+        if kernel_pattern:
+            raise ValueError(
+                "batched_gemm parses kernel names with data_pipeline.parse_kernel_name; "
+                "do not pass kernel_pattern"
+            )
+        from data_pipeline import load_batched_gemm_results
+
+        df = load_batched_gemm_results(
+            csv_file,
+            arch=arch,
+            dtype=dtype,
+            hw=HW_PROFILES.get(arch, {}),
+        )
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(output_file, index=False)
+        print(
+            f"Wrote {len(df):,} batched GEMM rows "
+            f"({df['kernel_name'].nunique():,} kernels) -> {output_file}"
+        )
+        return df
+
+    head = pd.read_csv(csv_file, nrows=1)
+    if len(head) and is_gemm_driver_csv(head.columns, head.get("kernel", [""])[0]):
+        return convert_gemm_driver_csv(
+            Path(csv_file), Path(output_file), arch, op_type or "gemm_universal"
+        )
+
     print(f"Loading {csv_file}...")
     df = pd.read_csv(csv_file)
 
@@ -290,11 +390,14 @@ def convert_csv_to_parquet(
     print(f"  Parsed {len(kernel_configs)} unique kernels")
     print()
 
-    # Get hardware profile
     hw_profile = HW_PROFILES.get(arch, {})
     if not hw_profile:
-        print(f"Warning: No hardware profile for {arch}, using defaults")
-        hw_profile = HW_PROFILES["gfx950"]
+        print(
+            f"Warning: no hardware profile for {arch}; emitting no hw_ columns. "
+            "The feature engine will use its built-in defaults, which may not "
+            f"describe {arch}. Add it to HW_PROFILES to train against real "
+            "constants."
+        )
 
     # Build parquet rows
     rows = []

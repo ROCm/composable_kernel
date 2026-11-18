@@ -258,9 +258,18 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
             // rotating mem
             rotating_mem.Next();
             // clear c mem
+            //
+            // The whole [k_batch, M, N] workspace, not one slice. Each k_id atomic-adds into the
+            // slice GetOutputOffset gives it, so every slice must be reset before each timed
+            // launch or slices 1..k_batch-1 accumulate across warmup + repeat iterations while
+            // slice 0 alone is cleared. The cast is load-bearing: the product is index_t
+            // arithmetic and overflows for the default shape at k_batch >= 4.
             if(args.k_batch > 1)
-                hipGetErrorString(hipMemsetAsync(
-                    args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+                hipGetErrorString(hipMemsetAsync(args.e_ptr,
+                                                 0,
+                                                 static_cast<size_t>(args.k_batch) * args.M *
+                                                     args.N * sizeof(CDataType),
+                                                 s.stream_id_));
         };
         return ck_tile::launch_kernel_time_mask(
             s,

@@ -57,7 +57,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);
 
-#if defined(__gfx12__)
+#if defined(__gfx12__) || defined(__gfx117__)
     static constexpr index_t A_KRow = 2;
     static constexpr index_t B_KRow = 2;
 #else
@@ -285,7 +285,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
         const auto wmma_a_idx = wmma_gemm.CalculateAThreadOriginDataIndex();
 
-#if defined(__gfx12__)
+#if defined(__gfx12__) || defined(__gfx117__)
         const auto wmma_krow = wmma_gemm.GetSubGroupId();
 #else
         const auto wmma_krow = 0;
@@ -314,7 +314,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
         const auto wmma_b_idx = wmma_gemm.CalculateBThreadOriginDataIndex();
 
-#if defined(__gfx12__)
+#if defined(__gfx12__) || defined(__gfx117__)
         const auto wmma_krow = wmma_gemm.GetSubGroupId();
 #else
         const auto wmma_krow = 0;

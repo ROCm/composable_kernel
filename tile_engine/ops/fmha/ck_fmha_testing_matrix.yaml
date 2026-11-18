@@ -159,7 +159,7 @@ forward_tests:
       nhead_k: [1]
       hdim_q: [64, 128, 192, 256]
       hdim_v: [64, 128, 128, 256]
-      dtype: ["fp8bf16", "fp8fp32"]
+      dtype: ["fp8bf16", "fp8"]
       layout: ["BHSD"]
       mask: ["no_mask"]
       bias: ["none"]

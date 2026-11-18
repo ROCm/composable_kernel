@@ -19,7 +19,8 @@
 #include <cmath>
 #include <type_traits>
 
-#if defined(__HIP_DEVICE_COMPILE__) && defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__HIP_DEVICE_COMPILE__) && defined(__gfx1250__) && !defined(__gfx1250_strict__) && \
+    !defined(__gfx1251__)
 #define CK_TILE_FP6_CVT_DEVICE 1
 #else
 #define CK_TILE_FP6_CVT_DEVICE 0
@@ -460,7 +461,7 @@ struct numeric<pk_bf6_t>
 
 #if CK_TILE_FP6_CVT_DEVICE
 namespace impl {
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
 // Device conversion functions for FP6 E2M3 with pkscale and Opsel
 template <typename T, int Opsel>
 CK_TILE_DEVICE T _from_fp6x16_pkscale(pk_fp6_storage_t src, uint32_t scale)
@@ -1280,6 +1281,24 @@ using pk_fp6x32_t = pk_f6_legacy_t<32, f6_kind::fp6>;
 using pk_bf6x16_t = pk_f6_legacy_t<16, f6_kind::bf6>;
 using pk_bf6x32_t = pk_f6_legacy_t<32, f6_kind::bf6>;
 
+namespace detail {
+template <typename T>
+inline constexpr bool is_pk_f6 = false;
+template <int N, f6_kind kind>
+inline constexpr bool is_pk_f6<pk_f6_legacy_t<N, kind>> = true;
+template <>
+inline constexpr bool is_pk_f6<pk_fp6_t> = true;
+template <>
+inline constexpr bool is_pk_f6<pk_bf6_t> = true;
+} // namespace detail
+
+/**
+ * @brief True for the packed 6-bit floating-point types, FP6 (E2M3) and BF6 (E3M2): the legacy
+ *        packs used by the GEMM stack and pk_fp6_t / pk_bf6_t. cv- and ref-qualifiers are ignored.
+ */
+template <typename T>
+inline constexpr bool is_pk_f6_v = detail::is_pk_f6<std::remove_cv_t<std::remove_reference_t<T>>>;
+
 template <int N, f6_kind kind>
 struct numeric_traits<pk_f6_legacy_t<N, kind>>
 {
@@ -1425,7 +1444,7 @@ CK_TILE_SCALED_TYPE_CONVERT(fp32x16_t, fp32x16, pk_bf6_t, pk_bf6)
 
 #undef CK_TILE_SCALED_TYPE_CONVERT
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
 template <typename Y, int Scale_sel>
 struct pk6scaled_type_convert_impl<Y, pk_fp6_t, Scale_sel>
 {

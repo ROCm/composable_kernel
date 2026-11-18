@@ -799,7 +799,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         }
         if(arg.KBatch > 1)
         {
-            if(is_gfx11_supported())
+            if(is_gfx11_supported() || is_gfx117_supported())
             {
                 return false;
             }
@@ -815,7 +815,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             }
         }
 
-        if(is_gfx11_supported())
+        if(is_gfx11_supported() || is_gfx117_supported())
         {
             if constexpr(std::is_same_v<ADataType, ck::f8_t> ||
                          std::is_same_v<ADataType, ck::bf8_t>)

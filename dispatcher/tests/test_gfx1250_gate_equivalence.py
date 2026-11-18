@@ -5,7 +5,7 @@
 
 """
 CPU-only equivalence of the gfx1250 pipeline gates (non-MX comp_async,
-comp_tdm, comp_tdm_v2 and the tdm epilogue).
+comp_tdm, comp_tdm_v2, comp_tdm_pc, comp_tdm_v3 and the tdm epilogue).
 
 The Tile Engine keeps its own copy of these rules
 (tile_engine/ops/gemm/gemm_validation_utils.py); the dispatcher uses
@@ -39,7 +39,11 @@ except ImportError:  # pragma: no cover - TE tree not present
     te = None
 
 from arch_filter import ArchFilter  # noqa: E402
-from codegen_common import CommonTypeMappings  # noqa: E402
+from codegen_common import (  # noqa: E402
+    CommonTypeMappings,
+    comp_tdm_v3_reject_reason,
+    valid_warp_configs,
+)
 
 try:
     import gemm_utils  # noqa: E402
@@ -48,11 +52,20 @@ except ImportError:  # pragma: no cover - numpy missing
 
 ARCH = "gfx1250"
 TE_PREFIX = "gemm_universal"
-PIPELINES = ("comp_async", "comp_tdm", "comp_tdm_v2", "compv3", "compv4", "mem")
-GATED_PIPELINES = ("comp_async", "comp_tdm", "comp_tdm_v2")
+PIPELINES = (
+    "comp_async",
+    "comp_tdm",
+    "comp_tdm_v2",
+    "comp_tdm_pc",
+    "comp_tdm_v3",
+    "compv3",
+    "compv4",
+    "mem",
+)
+GATED_PIPELINES = ("comp_async", "comp_tdm", "comp_tdm_v2", "comp_tdm_pc", "comp_tdm_v3")
 EPILOGUES = ("cshuffle", "default", "tdm")
 SCHEDULERS = ("intrawave", "interwave")
-LAYOUTS = ("rcr", "rrr", "crr", "ccr")
+LAYOUTS = ("rcr", "rrr", "crr", "ccr", "rcc", "rrc", "crc", "ccc")
 PADS = tuple(itertools.product((False, True), repeat=3))
 DTYPES = ("fp16", "bf16", "fp8", "bf8")
 
@@ -132,6 +145,10 @@ def _gemm_utils_accepts(
         layout=layout,
         dtype=dtype,
         warp_tile_k=t["warp_tile_k"],
+        warp_tile_m=t["warp_tile_m"],
+        warp_tile_n=t["warp_tile_n"],
+        tile_mn=(t["tile_m"], t["tile_n"]),
+        tile_k=t["tile_k"],
     )
 
 
@@ -150,12 +167,14 @@ def _tile(tm, tn, tk, wm, wn, wk, wtm, wtn, wtk):
 
 
 # Trait sweep tiles: 4 waves and 8 waves, warp_tile_k below and at the 8-bit
-# comp_async minimum.
+# comp_async minimum, plus the fp8/bf8-only 32x32x128 warp tile.
 TRAIT_TILES = (
     _tile(128, 128, 128, 2, 2, 1, 16, 16, 32),
     _tile(128, 128, 128, 2, 2, 1, 16, 16, 128),
     _tile(256, 128, 128, 4, 2, 1, 16, 16, 32),
     _tile(256, 128, 128, 4, 2, 1, 16, 16, 128),
+    _tile(128, 128, 256, 2, 2, 1, 32, 32, 128),
+    _tile(256, 256, 256, 4, 2, 1, 32, 32, 128),
 )
 
 
@@ -167,9 +186,9 @@ def _tile_space():
         (64, 128, 256, 512, 1024), (64, 128, 256, 512), (32, 64, 128, 256)
     ):
         for wm, wn, wk in waves:
-            for wtk in (32, 64, 128):
-                t = _tile(tm, tn, tk, wm, wn, wk, 16, 16, wtk)
-                if tm % (wm * 16) or tn % (wn * 16) or tk % (wk * wtk):
+            for wtmn, wtk in ((16, 32), (16, 64), (16, 128), (32, 128)):
+                t = _tile(tm, tn, tk, wm, wn, wk, wtmn, wtmn, wtk)
+                if tm % (wm * wtmn) or tn % (wn * wtmn) or tk % (wk * wtk):
                     continue
                 yield t
 
@@ -179,6 +198,8 @@ LEGAL_TRAITS = {
     "comp_async": ("cshuffle", "intrawave", (True, True, True)),
     "comp_tdm": ("tdm", "intrawave", (False, False, False)),
     "comp_tdm_v2": ("tdm", "intrawave", (False, False, False)),
+    "comp_tdm_pc": ("tdm", "intrawave", (False, False, False)),
+    "comp_tdm_v3": ("cshuffle", "intrawave", (False, False, False)),
 }
 
 
@@ -187,6 +208,32 @@ class TestGfx1250GateEquivalence(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.filt = ArchFilter(ARCH)
+
+    def test_v3_rule_parity(self):
+        for dtype_a, dtype_b, waves, layout, tile_k in itertools.product(
+            DTYPES + ("fp32",),
+            DTYPES + ("fp32",),
+            ((2, 2, 1), (4, 4, 1), (4, 2, 1)),
+            LAYOUTS + ("",),
+            (None, 64, 96, 192),
+        ):
+            with self.subTest(
+                dtypes=(dtype_a, dtype_b), waves=waves, layout=layout, tile_k=tile_k
+            ):
+                self.assertEqual(
+                    te.gfx1250_tdm_v3_reject_reason(
+                        "comp_tdm_v3",
+                        dtype_a,
+                        dtype_b,
+                        *waves,
+                        layout=layout,
+                        tile_k=tile_k,
+                        warp_tile_k=32,
+                    ),
+                    comp_tdm_v3_reject_reason(
+                        dtype_a, dtype_b, waves, layout, tile_k, 32
+                    ),
+                )
 
     def _baseline_ok(self, layout, dtype, t, pads):
         """compv3 legal on both sides: the tile passes every rule that is not
@@ -241,9 +288,11 @@ class TestGfx1250GateEquivalence(unittest.TestCase):
                             )
                         )
                     continue
-                if not (
-                    want == got_filter and (gemm_utils is None or want == got_gate)
-                ):
+                # gemm_utils gates traits and waves only; the LDS budget (which
+                # rejects some of these tiles for the four-slot comp_tdm_pc) is
+                # the arch filter's, so gemm_utils is checked through the
+                # combined result.
+                if not (want == got_filter and (gemm_utils is None or want == got)):
                     mismatches.append(
                         (
                             pipe,
@@ -265,10 +314,50 @@ class TestGfx1250GateEquivalence(unittest.TestCase):
             mismatches[:10], [], f"{len(mismatches)} mismatches of {compared}"
         )
 
+    def test_8bit_32x32x128_compared(self):
+        """The fp8/bf8 32x32x128 warp tile passes the shared rules on both
+        sides, so the sweeps above compare it; other dtypes reject it. Both
+        sides reject comp_async with it (does not compile) and accept the TDM
+        pipelines."""
+        t = TRAIT_TILES[-2]
+        pads = (True, True, True)
+        for dtype in ("fp8", "bf8"):
+            self.assertTrue(self._baseline_ok("rcr", dtype, t, pads), dtype)
+            for pipe, (epi, sched, legal_pads) in LEGAL_TRAITS.items():
+                want = pipe != "comp_async"
+                self.assertEqual(
+                    _te_accepts(pipe, epi, sched, False, "rcr", legal_pads, dtype, t),
+                    want,
+                    (dtype, pipe),
+                )
+                self.assertEqual(
+                    _arch_filter_accepts(
+                        self.filt, pipe, epi, sched, "rcr", legal_pads, dtype, t
+                    ),
+                    want,
+                    (dtype, pipe),
+                )
+                if gemm_utils is not None:
+                    self.assertEqual(
+                        _gemm_utils_accepts(
+                            pipe, epi, sched, False, "rcr", legal_pads, dtype, t
+                        ),
+                        want,
+                        (dtype, pipe),
+                    )
+        for dtype in ("fp16", "bf16"):
+            self.assertFalse(
+                _arch_filter_accepts(
+                    self.filt, "compv3", "cshuffle", "intrawave", "rcr", pads, dtype, t
+                ),
+                dtype,
+            )
+
     def test_tile_space(self):
         """Every tile x wave x warp_tile_k x dtype for the legal trait of each
-        gated pipeline (LDS incl. TDM row padding, TDM C tile, 4-wave v2 and
-        8-bit warp_tile_k rules)."""
+        gated pipeline (LDS incl. TDM row padding, TDM C tile, 4-wave v2,
+        producer/consumer accumulator, 8-bit warp_tile_k and warp_tile_m/n
+        rules)."""
         mismatches = []
         compared = accepted = rejected = 0
         for t in _tile_space():
@@ -292,6 +381,47 @@ class TestGfx1250GateEquivalence(unittest.TestCase):
         self.assertGreater(compared, 1000)
         self.assertGreater(accepted, 0)
         self.assertGreater(rejected, 0)
+        self.assertEqual(
+            mismatches[:10], [], f"{len(mismatches)} mismatches of {compared}"
+        )
+
+    def test_comp_tdm_v3_wave_maps(self):
+        """comp_tdm_v3 on its own wave maps (incl. [4, 4, 1], which no other
+        pipeline has, so the compv3 baseline cannot vet those tiles): every
+        layout x dtype x tile x warp tile, both sides directly."""
+        epi, sched, pads = LEGAL_TRAITS["comp_tdm_v3"]
+        mismatches = []
+        compared = accepted = 0
+        for tm, tn, tk, (wm, wn), (wtmn, wtk), dtype, layout in itertools.product(
+            (64, 128, 256),
+            (64, 128, 256),
+            (64, 128, 192, 256),
+            ((2, 2), (4, 4), (4, 2)),
+            ((16, 32), (16, 128), (32, 128)),
+            DTYPES,
+            LAYOUTS,
+        ):
+            if tm % (wm * wtmn) or tn % (wn * wtmn) or tk % wtk:
+                continue
+            # The Tile Engine has no gfx1250 warp-tile table (the compv3 baseline
+            # factors that out elsewhere), so only the listed warp tiles compare.
+            if [wtmn, wtmn, wtk] not in valid_warp_configs(ARCH, dtype):
+                continue
+            t = _tile(tm, tn, tk, wm, wn, 1, wtmn, wtmn, wtk)
+            want = _te_accepts("comp_tdm_v3", epi, sched, False, layout, pads, dtype, t)
+            got = _arch_filter_accepts(
+                self.filt, "comp_tdm_v3", epi, sched, layout, pads, dtype, t
+            )
+            if gemm_utils is not None:
+                got = got and _gemm_utils_accepts(
+                    "comp_tdm_v3", epi, sched, False, layout, pads, dtype, t
+                )
+            compared += 1
+            accepted += want
+            if want != got:
+                mismatches.append((dtype, layout, t, want, got))
+        self.assertGreater(compared, 500)
+        self.assertGreater(accepted, 0)
         self.assertEqual(
             mismatches[:10], [], f"{len(mismatches)} mismatches of {compared}"
         )

@@ -20,6 +20,9 @@ struct gfx103_t
 struct gfx11_t
 {
 };
+struct gfx117_t
+{
+};
 struct gfx12_t
 {
 };
@@ -43,6 +46,8 @@ static constexpr auto get_device_arch()
     return gfx103_t{};
 #elif defined(__gfx11__)
     return gfx11_t{};
+#elif defined(__gfx117__)
+    return gfx117_t{};
 #elif defined(__gfx125__)
     return gfx125_t{};
 #elif defined(__gfx12__)
@@ -120,6 +125,30 @@ template <>
 constexpr index_t get_vgpr_count_per_simd<gfx950_t>(gfx950_t)
 {
     return 512;
+}
+
+template <typename DeviceArch>
+static constexpr bool is_tdm_supported(DeviceArch)
+{
+    return false;
+}
+
+template <>
+constexpr bool is_tdm_supported<gfx125_t>(gfx125_t)
+{
+    return true;
+}
+
+template <typename DeviceArch>
+static constexpr bool is_named_barrier_supported(DeviceArch)
+{
+    return false;
+}
+
+template <>
+constexpr bool is_named_barrier_supported<gfx125_t>(gfx125_t)
+{
+    return true;
 }
 
 } // namespace ck

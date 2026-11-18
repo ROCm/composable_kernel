@@ -231,14 +231,15 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         clear_tile(o_acc);
         if((__builtin_isinf_sign(sink_v) >= 0) && i_split == 0)
         {
+            // sink_v is raw_sink / scale_s; m must match the units the score carries
 #if CK_TILE_FMHA_FWD_FAST_EXP2
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                         BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                         BiasEnum == BlockAttentionBiasEnum::ALIBI || kHasLogitsSoftCap)
                 set_tile(m, sink_v * C_LOG2E * scale_s);
             else
                 set_tile(m, sink_v * C_LOG2E);
 #else
-            set_tile(m, sink_v);
+            set_tile(m, sink_v * scale_s);
 #endif
             set_tile(l, SMPLComputeDataType{1.0f});
         }
@@ -278,8 +279,28 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                     auto lse_acc =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    if(__builtin_isinf_sign(sink_v) >= 0 && i_split == 0)
+                    // The sink logit must enter the combined softmax denominator
+                    // exactly once. Split 0 owns it only while no split has work of
+                    // its own: any split with work seeds m/l with the sink itself,
+                    // and publishing a sink-bearing lse_acc here as well would count
+                    // exp(sink) twice.
+                    bool keeps_sink = (__builtin_isinf_sign(sink_v) >= 0) && i_split == 0;
+                    if(keeps_sink && 1 < num_splits)
                     {
+                        // Ask for the ordinary range over the whole key axis. The
+                        // sink-aware overload returns (sink_offset, start, end),
+                        // and sink_offset answers ownership, not occupancy.
+                        auto [full_start, full_end] = mask.GetTileRangeAlongX(
+                            q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, 1, 0);
+                        // Keep the sink here only when no split at all has work.
+                        keeps_sink = (full_end <= full_start);
+                    }
+                    if(keeps_sink)
+                    {
+                        // Mirror the main-path lse formula for the state this publishes
+                        // (m = sink seed, l = 1). The branches keep m in different
+                        // units, but each contributes exp(raw_sink) once consumed,
+                        // so a sink-only split reports raw_sink either way.
                         set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
                     }
                     else
@@ -305,12 +326,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             {
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                             BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                             BiasEnum == BlockAttentionBiasEnum::ALIBI || kHasLogitsSoftCap)
                     set_tile(m, sink_v * C_LOG2E * scale_s);
                 else
                     set_tile(m, sink_v * C_LOG2E);
 #else
-                set_tile(m, sink_v);
+                set_tile(m, sink_v * scale_s);
 #endif
                 set_tile(l, SMPLComputeDataType{1.0f});
             }

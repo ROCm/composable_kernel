@@ -42,6 +42,7 @@
         },
         "warp_tile_k": {
             "values": [
+                8,
                 32
             ]
         }

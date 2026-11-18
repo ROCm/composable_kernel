@@ -1,8 +1,8 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-set(BATCHED_GEMM_DATATYPE "fp16" CACHE STRING "List of datatypes for batched GEMM (semicolon-separated)")
-set(BATCHED_GEMM_LAYOUT "rcr" CACHE STRING "List of layouts for batched GEMM (semicolon-separated)")
+set(BATCHED_GEMM_DATATYPE "fp16" CACHE STRING "List of datatypes for batched GEMM (semicolon-separated): fp16;bf16;fp32;fp8;bf8")
+set(BATCHED_GEMM_LAYOUT "rcr" CACHE STRING "List of layouts for batched GEMM (semicolon-separated): rcr;rrr;crr;ccr")
 set(BATCHED_GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 set(BATCHED_GEMM_MAX_INSTANCES "" CACHE STRING "Max kernel instances per (dtype, layout) combo (empty = no cap)")
 
@@ -68,7 +68,16 @@ function(create_individual_batched_gemm_target datatype layout trait tile_config
     add_dependencies(benchmark_batched_gemm_${datatype}_${layout} ${target_name})
 
     ck_tile_gemm_split_trait("${trait}" pipeline epilogue scheduler)
+    ck_tile_gemm_pipeline_group("${pipeline}" pipeline)
 
+    # The trait splitter is shared with gemm_universal and knows pipelines
+    # batched_gemm does not build. Fail with the actionable cause rather than
+    # CMake's "non-existent target" for an internal name.
+    if(NOT TARGET benchmark_batched_gemm_${pipeline}_pipeline)
+        message(FATAL_ERROR
+            "Trait '${trait}' uses pipeline '${pipeline}', which is not in "
+            "BATCHED_GEMM_PIPELINES. Add it there, or drop it from the config.")
+    endif()
     add_dependencies(benchmark_batched_gemm_${pipeline}_pipeline ${target_name})
     add_dependencies(benchmark_batched_gemm_${epilogue}_epilogue ${target_name})
     add_dependencies(benchmark_batched_gemm_${scheduler}_scheduler ${target_name})
@@ -216,10 +225,10 @@ else()
     set(BATCHED_GEMM_SCHEDULERS "intrawave;interwave")
     if(BATCHED_GEMM_GPU_TARGETS MATCHES "gfx1250")
         # gfx1250 pipelines: non-MX comp_async (cshuffle epilogue) and the TDM
-        # pipelines comp_tdm / comp_tdm_v2 (tdm epilogue). The weight-preshuffle
-        # pipelines are not built: the batched kernel's per-batch B offset
-        # assumes an unshuffled B.
-        list(APPEND BATCHED_GEMM_PIPELINES "comp_async;comp_tdm;comp_tdm_v2")
+        # pipelines comp_tdm / comp_tdm_v2 / comp_tdm_pc (tdm epilogue). The
+        # weight-preshuffle pipelines are not built: the batched kernel's
+        # per-batch B offset assumes an unshuffled B.
+        list(APPEND BATCHED_GEMM_PIPELINES "comp_async;comp_tdm;comp_tdm_v2;comp_tdm_pc")
         list(APPEND BATCHED_GEMM_EPILOGUES "tdm")
     endif()
 

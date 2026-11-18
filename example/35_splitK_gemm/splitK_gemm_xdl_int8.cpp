@@ -60,7 +60,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShu
 int main(int argc, char* argv[])
 {
     // temp disable on gfx11
-    if(ck::is_gfx11_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
     {
         return 0;
     }

@@ -74,7 +74,8 @@ template <typename ALayout,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
-          typename LDSTypeB                           = ComputeTypeB>
+          typename LDSTypeB                           = ComputeTypeB,
+          bool RuntimeSwigluLimit                     = false>
 struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                                                                    BLayout,
                                                                    DsLayout,
@@ -167,7 +168,8 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                         ComputeTypeA,
                         ComputeTypeB,
                         LDSTypeA,
-                        LDSTypeB>;
+                        LDSTypeB,
+                        RuntimeSwigluLimit>;
     using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
     using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
@@ -455,9 +457,30 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
         {
             return false;
         }
-        if(arg.N % NPerBlock != 0 || arg.K % KPerBlock != 0)
+        if((arg.N % NPerBlock != 0 && !GridwiseGemm64::PadN) ||
+           (arg.K % KPerBlock != 0 && !GridwiseGemm64::PadK))
         {
             return false;
+        }
+        if constexpr(GridwiseGemm64::PadN || GridwiseGemm64::PadK)
+        {
+            // Masked loads/stores in the padded region are offset by 2GB, which only lands
+            // outside buffers of at most 2GB.
+            constexpr long_index_t TwoGB   = (long_index_t{1} << 31);
+            const long_index_t routed_rows = static_cast<long_index_t>(arg.NumTokens) * arg.TopK;
+            const long_index_t a_rows      = IsInputGemm ? arg.NumTokens : routed_rows;
+            const long_index_t e_rows      = IsInputGemm ? routed_rows : arg.NumTokens;
+            if(GridwiseGemm64::PadK && arg.K % KPerBlock != 0 &&
+               a_rows * arg.StrideA * static_cast<long_index_t>(sizeof(ADataType)) / APackedSize >
+                   TwoGB)
+            {
+                return false;
+            }
+            if(GridwiseGemm64::PadN && arg.N % NPerBlock != 0 &&
+               e_rows * arg.StrideC * static_cast<long_index_t>(sizeof(CDataType)) > TwoGB)
+            {
+                return false;
+            }
         }
         if(get_warp_size() == 64)
         {
@@ -502,7 +525,8 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                              index_t KBatch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             CElementwiseOperation c_element_op,
+                             float swiglu_limit = 7.0f) // gpt-oss default
     {
         return Argument{static_cast<const index_t*>(p_sorted_token_ids),
                         static_cast<const index_t*>(p_sorted_expert_ids),
@@ -523,7 +547,8 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                         KBatch,
                         a_element_op,
                         b_element_op,
-                        c_element_op};
+                        c_element_op,
+                        swiglu_limit};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

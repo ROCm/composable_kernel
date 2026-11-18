@@ -222,6 +222,8 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
     // Packed scale dimensions
     static constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleBlockSize / KXdlPackEff;
+    // Takes per-K-block scale DRAM windows in its tuple call (see PipelineImpl below)
+    static constexpr bool HasScaleWindowPath = true;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
     {
@@ -432,8 +434,17 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             ScaleBTileType scale_b_tile_ping, scale_b_tile_pong;
 
             // initialize Scale DRAM window steps, used to advance the Scale DRAM windows
-            constexpr auto scale_a_dram_tile_window_step = make_array(0, ScaleKDimPerBlock);
-            constexpr auto scale_b_dram_tile_window_step = make_array(0, ScaleKDimPerBlock);
+            constexpr auto scale_dram_tile_window_steps = [] {
+                if constexpr(has_scale_dram_tile_window_steps_v<Policy, Problem>)
+                    return Policy::template GetScaleDramTileWindowSteps<Problem>();
+                else
+                    return make_tuple(make_array(0, ScaleKDimPerBlock),
+                                      make_array(0, ScaleKDimPerBlock));
+            }();
+            constexpr auto scale_a_dram_tile_window_step =
+                scale_dram_tile_window_steps[number<0>{}];
+            constexpr auto scale_b_dram_tile_window_step =
+                scale_dram_tile_window_steps[number<1>{}];
 
             // Helper function to load scales
             auto load_scales_from_dram = [&](auto& scale_a, auto& scale_b) {
@@ -471,11 +482,15 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             };
 
             // read A(1), B(1) from DRAM to LDS window(1)
-            // and advance the DRAM windows
-            Base::GlobalPrefetchAsync(
-                a_copy_lds_window1, a_async_tile_windows[number<0>{}], a_dram_tile_window_step);
-            Base::GlobalPrefetchAsync(
-                b_copy_lds_window1, b_async_tile_windows[number<0>{}], b_dram_tile_window_step);
+            // and advance the DRAM windows;
+            // with a single K tile there is no tile 1, loading it would read past the K extent
+            if constexpr(TailNum != TailNumber::One)
+            {
+                Base::GlobalPrefetchAsync(
+                    a_copy_lds_window1, a_async_tile_windows[number<0>{}], a_dram_tile_window_step);
+                Base::GlobalPrefetchAsync(
+                    b_copy_lds_window1, b_async_tile_windows[number<0>{}], b_dram_tile_window_step);
+            }
 
             // tile distribution for the register tiles
             constexpr auto ALdsTileDistr =
@@ -559,8 +574,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 index_t i_global_read = amd_wave_read_first_lane(3);
                 // alternate ping: (read to register tile(1), use register tile(0) as gemm input)
                 //           pong: (read to register tile(0), use register tile(1) as gemm input)
-                do
-                {
+                // do_fetch selects at compile time whether the pong issues the next global
+                // prefetch, so the steady-state loop body has no branch around it.
+                auto hot_iter = [&](auto do_fetch) {
                     // ping
                     {
                         // read A(i-1), B(i-1) from LDS window(1) to pipeline registers(1)
@@ -596,13 +612,17 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         // LDS window(0) contents are overwritten by global prefetch, need to sync
                         block_sync_lds();
                         // read A(i+1), B(i+1) from DRAM to LDS window(0)
-                        // and advance the DRAM windows
-                        Base::GlobalPrefetchAsync(a_copy_lds_window0,
-                                                  a_async_tile_windows[number<0>{}],
-                                                  a_dram_tile_window_step);
-                        Base::GlobalPrefetchAsync(b_copy_lds_window0,
-                                                  b_async_tile_windows[number<0>{}],
-                                                  b_dram_tile_window_step);
+                        // and advance the DRAM windows; skipped on the last hot iteration
+                        // with an even num_loop, where it would fetch past the K extent
+                        if constexpr(decltype(do_fetch)::value)
+                        {
+                            Base::GlobalPrefetchAsync(a_copy_lds_window0,
+                                                      a_async_tile_windows[number<0>{}],
+                                                      a_dram_tile_window_step);
+                            Base::GlobalPrefetchAsync(b_copy_lds_window0,
+                                                      b_async_tile_windows[number<0>{}],
+                                                      b_dram_tile_window_step);
+                        }
                         // C(i-2) = A(i-2) @ B(i-2)
                         run_block_gemm(c_block_tile,
                                        a_block_tile1,
@@ -613,8 +633,26 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         // Load next scales after using current scales above
                         load_scales_from_dram(scale_a_tile_pong, scale_b_tile_pong);
                     }
-                    i_global_read += 2;
-                } while(i_global_read < num_loop);
+                };
+                if constexpr(TailNum == TailNumber::Three)
+                {
+                    // odd num_loop: i + 1 < num_loop holds on every hot iteration
+                    do
+                    {
+                        hot_iter(bool_constant<true>{});
+                        i_global_read += 2;
+                    } while(i_global_read < num_loop);
+                }
+                else
+                {
+                    // even num_loop: peel the last hot iteration, which has no pong prefetch
+                    while(i_global_read + 1 < num_loop)
+                    {
+                        hot_iter(bool_constant<true>{});
+                        i_global_read += 2;
+                    }
+                    hot_iter(bool_constant<false>{});
+                }
             }
 
             // 3 block gemms remaining
@@ -659,6 +697,14 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             // 2 block gemms remaining
             {
                 {
+                    // Defense in depth: the async write to LDS window(1) from the last ping is
+                    // already drained by the full-drain fence at the start of the last pong
+                    // (whose own prefetch is skipped above), so this wait is redundant today.
+                    // With num_loop == 2 there is no hot loop: window(1) is filled in the
+                    // prologue and drained by the prologue's full-drain fence.
+                    // It keeps the tail correct if the hot-loop fences are ever relaxed to a
+                    // partial wait count.
+                    block_sync_lds_direct_load();
                     // read A(num_loop), B(num_loop) from LDS window(1) to pipeline registers(1)
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
@@ -713,24 +759,31 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        // Scale tensor views and base origins for creating tile windows per iteration
-        const auto& scale_a_tensor_view = scale_a_window[number<0>{}].get_bottom_tensor_view();
-        const auto& scale_b_tensor_view = scale_b_window[number<0>{}].get_bottom_tensor_view();
-        auto scale_a_base_origin        = scale_a_window[number<0>{}].get_window_origin();
-        auto scale_b_base_origin        = scale_b_window[number<0>{}].get_window_origin();
-
-        // Create scale windows with packed int32_t dimensions
-        auto scale_a_dram_window = make_tile_window(
-            scale_a_tensor_view,
-            make_tuple(number<MPerBlock / MXdlPackEff>{}, number<ScaleKDimPerBlock>{}),
-            scale_a_base_origin,
-            Policy::template MakeMX_ScaleA_DramTileDistribution<Problem>());
-
-        auto scale_b_dram_window = make_tile_window(
-            scale_b_tensor_view,
-            make_tuple(number<NPerBlock / NXdlPackEff>{}, number<ScaleKDimPerBlock>{}),
-            scale_b_base_origin,
-            Policy::template MakeMX_ScaleB_DramTileDistribution<Problem>());
+        // Scale windows are either supplied ready-to-load by the policy's owner, or built here
+        // as MX scale windows with packed int32_t dimensions.
+        auto make_scale_windows = [&]() {
+            if constexpr(has_scale_dram_tile_window_steps_v<Policy, Problem>)
+            {
+                return make_tuple(scale_a_window[number<0>{}], scale_b_window[number<0>{}]);
+            }
+            else
+            {
+                return make_tuple(
+                    make_tile_window(
+                        scale_a_window[number<0>{}].get_bottom_tensor_view(),
+                        make_tuple(number<MPerBlock / MXdlPackEff>{}, number<ScaleKDimPerBlock>{}),
+                        scale_a_window[number<0>{}].get_window_origin(),
+                        Policy::template MakeMX_ScaleA_DramTileDistribution<Problem>()),
+                    make_tile_window(
+                        scale_b_window[number<0>{}].get_bottom_tensor_view(),
+                        make_tuple(number<NPerBlock / NXdlPackEff>{}, number<ScaleKDimPerBlock>{}),
+                        scale_b_window[number<0>{}].get_window_origin(),
+                        Policy::template MakeMX_ScaleB_DramTileDistribution<Problem>()));
+            }
+        };
+        auto scale_windows       = make_scale_windows();
+        auto scale_a_dram_window = scale_windows[number<0>{}];
+        auto scale_b_dram_window = scale_windows[number<1>{}];
 
         const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);

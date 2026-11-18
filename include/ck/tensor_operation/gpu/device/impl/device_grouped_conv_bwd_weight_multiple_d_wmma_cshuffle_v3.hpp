@@ -63,16 +63,17 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
         const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__) || \
+    defined(__gfx117__))
+#if defined(__gfx11__) || defined(__gfx117__)
+    // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
     if constexpr(CGlobalMemoryDataOperation != InMemoryDataOperationEnum::AtomicAdd)
     {
 #endif
         using SelectedEpilogue = get_epilogue_t<EpilogueType::CShuffle, GridwiseGemm>;
 
         constexpr index_t LDS_size =
-            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>(get_device_arch());
         __shared__ char p_shared[LDS_size];
 
         const auto block_2_ctile_map_ = typename GridwiseGemm::Block2CTileMap{karg.M, karg.N, 4};
@@ -104,7 +105,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg,
             epilogue_args);
 
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     }
 #endif
 #else
@@ -544,7 +545,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
     {
         ActiveWorkgroupsPerCU()
         {
-            if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+            if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported() && !ck::is_gfx117_supported())
             {
                 return;
             }
@@ -1076,25 +1077,25 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
             }
         }
 
-        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+        if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported() && !ck::is_gfx117_supported())
         {
             return false;
         }
 
-        if(arg.k_batch_ > 1 && ck::is_gfx11_supported())
+        if(arg.k_batch_ > 1 && (ck::is_gfx11_supported() || ck::is_gfx117_supported()))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "Unsupported splitK on gfx11." << std::endl;
             }
-            // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+            // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
             return false;
         }
 
         if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
                      std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
         {
-            if(ck::is_gfx11_supported())
+            if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
             {
                 return false;
             }

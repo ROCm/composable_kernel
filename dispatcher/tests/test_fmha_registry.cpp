@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "ck_tile/dispatcher.hpp"
+#include "ck_tile/dispatcher/backends/generated_fmha_backend.hpp"
 
 using namespace ck_tile::dispatcher;
 
@@ -48,6 +49,50 @@ make_stub_key(FmhaKernelFamily family, const std::string& dtype, const std::stri
     return key;
 }
 
+FmhaKernelKey make_batch_prefill_key(int page_size)
+{
+    auto key                    = make_stub_key(FmhaKernelFamily::BatchPrefill, "fp16", "gfx1100");
+    key.signature.is_group_mode = true;
+    key.signature.has_lse       = true;
+    key.signature.use_paged_kv  = true;
+    key.signature.kv_memory_layout =
+        static_cast<int>(ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT);
+    key.signature.kv_lookup_table =
+        static_cast<int>(ck_tile::BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D);
+    key.signature.page_size  = page_size;
+    key.algorithm.pipeline   = "batch_prefill_gfx11";
+    key.algorithm.tile_shape = {128, 32, 32, 128, 32, 128};
+    return key;
+}
+
+FmhaProblem make_batch_prefill_problem(int page_size)
+{
+    FmhaProblem problem;
+    problem.api_family       = FmhaApiFamily::BatchPrefill;
+    problem.requested_family = FmhaKernelFamily::BatchPrefill;
+    problem.gfx_arch         = "gfx1100";
+    problem.data_type        = "fp16";
+    problem.is_group_mode    = true;
+    problem.is_v_rowmajor    = true;
+    problem.has_lse          = true;
+    problem.use_paged_kv     = true;
+    problem.kv_memory_layout =
+        static_cast<int>(ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT);
+    problem.kv_lookup_table =
+        static_cast<int>(ck_tile::BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D);
+    problem.page_size    = page_size;
+    problem.seqlen_q     = 128;
+    problem.seqlen_k     = 1024;
+    problem.max_seqlen_q = 128;
+    problem.max_seqlen_k = 1024;
+    problem.batch        = 1;
+    problem.hdim_q       = 128;
+    problem.hdim_v       = 128;
+    problem.nhead_q      = 8;
+    problem.nhead_k      = 8;
+    return problem;
+}
+
 } // namespace
 
 TEST(FmhaRegistryTest, RegisterAndLookup)
@@ -77,6 +122,34 @@ TEST(FmhaRegistryTest, GetAllReturnsSorted)
     ASSERT_EQ(all.size(), 2u);
     EXPECT_EQ(all[0]->get_name(), "rank0");
     EXPECT_EQ(all[1]->get_name(), "rank1");
+}
+
+TEST(FmhaRegistryTest, DispatcherSelectsExactBatchPrefillPageSize)
+{
+    FmhaRegistry registry;
+    const auto register_kernel = [&](int page_size, const std::string& name) {
+        auto key      = make_batch_prefill_key(page_size);
+        auto supports = backends::make_default_supports_fn(key);
+        return registry.register_kernel(std::make_shared<backends::GeneratedFmhaKernelInstance>(
+            std::move(key),
+            name,
+            std::move(supports),
+            backends::GeneratedFmhaKernelInstance::LaunchFn{}));
+    };
+
+    ASSERT_TRUE(register_kernel(1, "a_page1"));
+    ASSERT_TRUE(register_kernel(16, "b_page16"));
+    ASSERT_TRUE(register_kernel(1024, "c_page1024"));
+
+    FmhaDispatcher dispatcher(&registry);
+    for(const int page_size : {1, 16, 1024})
+    {
+        SCOPED_TRACE(page_size);
+        const auto plan = dispatcher.plan(make_batch_prefill_problem(page_size));
+        ASSERT_TRUE(plan.is_valid());
+        ASSERT_EQ(plan.stages.size(), 1u);
+        EXPECT_EQ(plan.stages[0].kernel_id, make_batch_prefill_key(page_size).encode_identifier());
+    }
 }
 
 TEST(FmhaRegistryTest, FilterByArch)

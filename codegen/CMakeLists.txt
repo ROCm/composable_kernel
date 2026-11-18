@@ -44,6 +44,7 @@ set_target_properties(ck_host PROPERTIES
 
 add_executable(ck-template-driver driver/main.cpp)
 target_link_libraries(ck-template-driver ck_host)
+rocm_install_targets(TARGETS ck-template-driver)
 
 rocm_install_targets(
     TARGETS ck_host ck_headers

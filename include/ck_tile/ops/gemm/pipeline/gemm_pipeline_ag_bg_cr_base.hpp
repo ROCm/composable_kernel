@@ -8,6 +8,17 @@
 
 namespace ck_tile {
 
+// Optional policy hook: a policy that supplies its own scale DRAM windows (e.g. group-quant
+// scales) returns the per-iteration (scale_a, scale_b) window steps from
+// GetScaleDramTileWindowSteps. Pipelines then use the scale windows as passed in.
+template <typename Policy, typename Problem>
+using scale_dram_tile_window_steps_t =
+    decltype(Policy::template GetScaleDramTileWindowSteps<Problem>());
+
+template <typename Policy, typename Problem>
+inline constexpr bool has_scale_dram_tile_window_steps_v =
+    is_detected<scale_dram_tile_window_steps_t, Policy, Problem>::value;
+
 template <typename Policy, typename Problem, typename = void>
 struct has_get_pipeline_subtile_params : std::false_type
 {

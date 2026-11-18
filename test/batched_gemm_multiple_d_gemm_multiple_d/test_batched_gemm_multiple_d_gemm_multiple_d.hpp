@@ -60,7 +60,8 @@ struct BaseTestBatchedGemmMultipleDGemmMultipleD : public ::testing::Test
     {
         // WMMA instances are setup to support all the test cases
         // XDL instances are not.
-        bool fail_if_no_supported_instances = ck::is_gfx11_supported() || ck::is_gfx12_supported();
+        bool fail_if_no_supported_instances =
+            ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported();
 
         bool pass =
             ck::profiler::profile_batched_gemm_multiple_d_gemm_multiple_d_impl<ALayout,

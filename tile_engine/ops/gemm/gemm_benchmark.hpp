@@ -113,6 +113,36 @@ bool compare(std::string instanceName,
     return pass;
 }
 
+/// @brief Exact compare (rtol = atol = 0): counts the elements whose values differ.
+/// Meant for inputs whose fp32 accumulation is exact (integer data, see -init 4), where
+/// the only rounding left is the final conversion to OutType.
+template <typename OutType>
+std::size_t count_exact_mismatches(const std::string& instanceName,
+                                   const ck_tile::HostTensor<OutType>& out_dev_result,
+                                   const ck_tile::HostTensor<OutType>& out_host_result)
+{
+    constexpr std::size_t max_reported = 8;
+    std::size_t mismatches             = 0;
+    const std::size_t size             = out_host_result.mData.size();
+    for(std::size_t i = 0; i < size; ++i)
+    {
+        const float dev  = ck_tile::type_convert<float>(out_dev_result.mData[i]);
+        const float host = ck_tile::type_convert<float>(out_host_result.mData[i]);
+        if(!(dev == host))
+        {
+            if(mismatches < max_reported)
+            {
+                std::cout << "exact mismatch at linear index " << i << ": device " << dev
+                          << " reference " << host << std::endl;
+            }
+            ++mismatches;
+        }
+    }
+    std::cout << "For " << instanceName << " exact verification (rtol = atol = 0): mismatches "
+              << mismatches << " of " << size << std::endl;
+    return mismatches;
+}
+
 /// @brief Backward-compatible compare: deduces types from global aliases and Problem trait
 template <typename Problem, typename OutType>
 bool compare(std::string instanceName,

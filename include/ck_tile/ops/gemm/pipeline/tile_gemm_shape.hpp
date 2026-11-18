@@ -101,7 +101,10 @@ struct is_cluster_tile_gemm_shape<
 {
 };
 
-template <typename PrecType, index_t M_Warp_Tile, bool IsFlatMM = false>
+template <typename PrecType,
+          index_t M_Warp_Tile,
+          bool IsFlatMM         = false,
+          bool WiderInstruction = false>
 constexpr index_t get_k_warp_tile()
 {
 #if CK_TILE_USE_WMMA
@@ -117,7 +120,9 @@ constexpr index_t get_k_warp_tile()
     else
     {
         constexpr bool is_8bit = sizeof(PrecType) == 1;
-        return is_8bit ? 64 : 32;
+        constexpr bool is_8bit_float =
+            std::is_same_v<PrecType, fp8_t> || std::is_same_v<PrecType, bf8_t>;
+        return WiderInstruction && is_8bit_float ? 128 : (is_8bit ? 64 : 32);
     }
 #else
     return 16;

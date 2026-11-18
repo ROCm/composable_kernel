@@ -1,8 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp"
+#include "device_grouped_conv2d_bwd_data_xdl_nhwgc_gkyxc_nhwgk_f32_kernel_groups.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -23,60 +22,24 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
 {
-    // 1. Default
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_data_xdl_f32_instances<2,
-                                                       NHWGK,
-                                                       GKYXC,
-                                                       Empty_Tuple,
-                                                       NHWGC,
-                                                       ConvBwdDataDefault>{});
-    // 2. Filter1x1Stride1Pad0
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_data_xdl_f32_instances<2,
-                                                       NHWGK,
-                                                       GKYXC,
-                                                       Empty_Tuple,
-                                                       NHWGC,
-                                                       ConvBwdDataFilter1x1Stride1Pad0>{});
-    // 3. Default -- noshuffle epilogue
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_data_xdl_f32_noshuffle_instances<2,
-                                                                 NHWGK,
-                                                                 GKYXC,
-                                                                 Empty_Tuple,
-                                                                 NHWGC,
-                                                                 ConvBwdDataDefault>{});
-    // 4. Filter1x1Stride1Pad0 -- noshuffle epilogue
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_bwd_data_xdl_f32_noshuffle_instances<
-                                       2,
-                                       NHWGK,
-                                       GKYXC,
-                                       Empty_Tuple,
-                                       NHWGC,
-                                       ConvBwdDataFilter1x1Stride1Pad0>{});
-    // 5. Default -- nongrouped_match instances
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_data_xdl_f32_nongrouped_match_instances<2,
-                                                                        NHWGK,
-                                                                        GKYXC,
-                                                                        Empty_Tuple,
-                                                                        NHWGC,
-                                                                        ConvBwdDataDefault>{});
-    // 6. Filter1x1Stride1Pad0 -- nongrouped_match instances
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_bwd_data_xdl_f32_nongrouped_match_instances<
-                                       2,
-                                       NHWGK,
-                                       GKYXC,
-                                       Empty_Tuple,
-                                       NHWGC,
-                                       ConvBwdDataFilter1x1Stride1Pad0>{});
+    detail::F32KernelSlots slots;
+    detail::fill_f32_kernel_slots<detail::GenericF32<ConvBwdDataDefault>, 0>(
+        slots, detail::GenericGroup0{});
+    detail::fill_f32_kernel_slots<detail::GenericF32<ConvBwdDataFilter1x1Stride1Pad0>,
+                                  detail::GenericF32Count>(slots, detail::GenericGroup0{});
+    detail::fill_f32_kernel_slots<detail::NoshuffleF32<ConvBwdDataDefault>,
+                                  2 * detail::GenericF32Count>(slots, detail::NoshuffleGroup0{});
+    detail::fill_f32_kernel_slots<detail::NoshuffleF32<ConvBwdDataFilter1x1Stride1Pad0>,
+                                  2 * detail::GenericF32Count + detail::NoshuffleF32Count>(
+        slots, detail::NoshuffleGroup0{});
+    detail::add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_kernel_group1_instances(
+        slots);
+
+    // Restore the original family, specialization, and tuple order.
+    ck::static_for<0, std::tuple_size_v<detail::F32KernelSlots>, 1>{}(
+        [&](auto i) { instances.push_back(std::move(slots[i.value])); });
+    detail::add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_nongrouped_match_instances(
+        instances);
 }
 
 } // namespace instance

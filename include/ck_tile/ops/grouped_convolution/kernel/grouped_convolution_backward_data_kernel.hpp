@@ -546,6 +546,17 @@ struct GroupedConvolutionBackwardDataKernel
 
     static constexpr bool LargeTensors = GemmPipeline::LargeTensors;
 
+    /**
+     * @brief Whether this epilogue can accumulate the input-gradient tile across k_batch splits.
+     *
+     * An epilogue whose store always overwrites (e.g. TdmEpilogue) cannot, and an fp16/bf16 input
+     * with an odd VectorSizeC has no atomic store path. IsSupportedArgument and the device-side
+     * epilogue dispatch both read this constant, so they cannot drift apart.
+     */
+    static constexpr bool EpilogueSupportsSplitK = epilogue_can_accumulate_v<EpiloguePipeline> &&
+                                                   !(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                                                     is_any_of<InDataType, fp16_t, bf16_t>::value);
+
     static constexpr auto I0 = number<0>();
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
@@ -772,8 +783,7 @@ struct GroupedConvolutionBackwardDataKernel
                 return false;
             }
         }
-        if constexpr(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                     is_any_of<InDataType, fp16_t, bf16_t>::value)
+        if constexpr(!EpilogueSupportsSplitK)
         {
             if(kargs.k_batch != 1)
             {
@@ -956,30 +966,37 @@ struct GroupedConvolutionBackwardDataKernel
         const index_t k_batch = amd_wave_read_first_lane(kargs.k_batch);
 
         // Run the epilogue with split-K dispatch, wrapped for wavelet load/math waves.
-        RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
-            if(k_batch == 1)
-            {
+        if(k_batch == 1)
+        {
+            RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
                 auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
                     c_ptr, kargs, group_id, block_idx_m, block_idx_n);
 
                 EpiloguePipeline{}
                     .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
                         c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-            }
-            else
+            });
+        }
+        else
+        {
+            if constexpr(EpilogueSupportsSplitK)
             {
-                if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                               is_any_of<InDataType, fp16_t, bf16_t>::value))
-                {
+                RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
                     auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
                         c_ptr, kargs, group_id, block_idx_m, block_idx_n);
 
                     EpiloguePipeline{}
                         .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
                             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-                }
+                });
             }
-        });
+            else
+            {
+                // IsSupportedArgument rejects k_batch != 1 for this epilogue; every wave (load and
+                // math) traps here, ahead of the epilogue's barriers.
+                __builtin_trap();
+            }
+        }
     }
 
     CK_TILE_DEVICE index_t FindGroupId(const GroupedConvBwdDataKernelArgsSpecialized& kargs,

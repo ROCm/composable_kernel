@@ -116,7 +116,7 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
     int n_ = t.get_lengths()[1];
     int k_ = t.get_lengths()[0];
 
-    if(ck_tile::is_gfx12_supported())
+    if(ck_tile::is_gfx12_supported() || ck_tile::is_gfx117_supported())
     {
         constexpr int divisor = 2;
         // Default: match MakeBFlatDramTileDistribution, where each access loads at
@@ -200,7 +200,7 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t,
     int k_ = t.get_lengths()[0];
     constexpr ck_tile::index_t NRepeat =
         GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp;
-    if(ck_tile::is_gfx12_supported())
+    if(ck_tile::is_gfx12_supported() || ck_tile::is_gfx117_supported())
     {
         constexpr int divisor = 2;
         int kABK1PerLane = min(16 / static_cast<int>(sizeof(T)), gemmConfig.K_Warp_Tile / divisor);

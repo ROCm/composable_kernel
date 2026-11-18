@@ -753,6 +753,16 @@ def _batch_prefill_kernel_body(name: str, config: dict) -> str:
     warp = alg["warp"]
     pad = alg["padding"]
     ns = f"ns_{name}"
+    pipeline_policy = (
+        ", ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsyncGfx11Policy"
+        if alg["pipeline"] == "batch_prefill_gfx11"
+        else ""
+    )
+    pipeline_enum_key = (
+        "batch_prefill_gfx11"
+        if alg["pipeline"] == "batch_prefill_gfx11"
+        else "batch_prefill_async"
+    )
     return f"""// SPDX-License-Identifier: MIT
 #pragma once
 
@@ -808,7 +818,7 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaBatchPrefillPipelineProblem<
     false,
     {sig["page_size"]},
     fmha_trait>;
-using fmha_pipeline = ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync<fmha_pipeline_problem>;
+using fmha_pipeline = ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync<fmha_pipeline_problem{pipeline_policy}>;
 using fmha_epilogue = ck_tile::Default2DEpilogue<
     ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
                                       typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
@@ -821,7 +831,7 @@ using trait = fmha_fwd_batch_prefill_traits_<{sig["hdim_q"]},
                                              {mode_cpp},
                                              {tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]},
                                              {vlayout_cpp},
-                                             {PIPELINE_ENUM_TO_CPP["batch_prefill_async"]},
+                                             {PIPELINE_ENUM_TO_CPP[pipeline_enum_key]},
                                              {_bool_cpp(sig["logits"])},
                                              fmha_mask,
                                              {_bias_cpp(sig["bias"])},
@@ -1108,7 +1118,9 @@ using fmha_problem = ck_tile::BlockFmhaBwdConvertQGradPipelineProblem<
     {_bool_cpp(sig["deterministic"])},
     fmha_trait>;
 using fmha_pipeline = typename ck_tile::BlockFmhaBwdConvertQGrad<fmha_problem>;
-using fmha_kernel = ck_tile::FmhaBwdConvertQGradKernel<fmha_pipeline>;
+// The dispatcher never selects the TDM dq_dk_dv pipeline, so dq_acc rows are not padded
+// (kPadDqAccRow = false); enabling TDM there must set this to its kPadDqAccRow.
+using fmha_kernel = ck_tile::FmhaBwdConvertQGradKernel<fmha_pipeline, false>;
 
 using trait = fmha_bwd_convert_dq_traits_<{sig["hdim_q"]},
                                           {dtype_cpp},
@@ -1116,7 +1128,7 @@ using trait = fmha_bwd_convert_dq_traits_<{sig["hdim_q"]},
                                           {_bool_cpp(pad[0])},
                                           {_bool_cpp(pad[2])},
                                           {_bool_cpp(sig["deterministic"])},
-                                          {tile[1]}>;
+                                          false>;
 }} // namespace {ns}
 
 template <>

@@ -86,6 +86,10 @@ struct MxGemmTransKernelArg
 ///      binary-search (non-persistent) or a wave-front tile loop (persistent), then delegates
 ///      the actual computation to MxGemmKernel::RunGemm which builds the scale windows and
 ///      calls the MX pipeline.
+///
+/// @note MxGroupedGemmKernel takes no K tails: on the TDM pipelines each group's K must be a
+///       multiple of ScaleBlockSize * KXdlPack and of KPerBlock (IsMxTdmShapeSupported with
+///       AllowKTail = false).
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct MxGroupedGemmKernel
 {
@@ -216,6 +220,17 @@ struct MxGroupedGemmKernel
     {
         for(const auto& karg : kargs)
         {
+            // MxGroupedGemmKernel does not take K tails: on the TDM pipelines each group's K must
+            // be a multiple of ScaleBlockSize * KXdlPack and of KPerBlock.
+            // Base::IsSupportedArgument does not require that for the K-tail configurations (see
+            // IsMxTdmShapeSupported), so it is checked here first.
+            if constexpr(Base::kIsTdmPipeline)
+            {
+                if(!Base::template IsTdmShapeSupported</*AllowKTail=*/false>(karg.group_karg))
+                {
+                    return false;
+                }
+            }
             if(!Base::IsSupportedArgument(karg.group_karg))
             {
                 return false;

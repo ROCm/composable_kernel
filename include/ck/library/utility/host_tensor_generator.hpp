@@ -19,7 +19,7 @@ struct GeneratorTensor_0
     }
 };
 
-template <typename T>
+template <typename T, typename = void>
 struct GeneratorTensor_1
 {
     T value = 1;
@@ -56,27 +56,15 @@ struct GeneratorTensor_1<ck::bhalf_t>
 };
 
 #if defined CK_ENABLE_FP8
-template <>
-struct GeneratorTensor_1<ck::f8_t>
+template <typename T>
+struct GeneratorTensor_1<T, ck::enable_if_t<ck::is_fp8_type_v<T>>>
 {
     float value = 1.0;
 
     template <typename... Is>
-    ck::f8_t operator()(Is...)
+    T operator()(Is...)
     {
-        return ck::type_convert<ck::f8_t>(value);
-    }
-};
-
-template <>
-struct GeneratorTensor_1<ck::bf8_t>
-{
-    float value = 1.0;
-
-    template <typename... Is>
-    ck::bf8_t operator()(Is...)
-    {
-        return ck::type_convert<ck::bf8_t>(value);
+        return ck::type_convert<T>(value);
     }
 };
 #endif

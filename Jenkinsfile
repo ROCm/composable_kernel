@@ -34,6 +34,20 @@ def loadCk() {
         : 'develop')
     library("ck@${branch}")
 }
+// Compile-only check of the FMHA Python bindings against the current C++ API.
+// Defined here because PR builds load ck.groovy from develop by default.
+def runFmhaPythonBuildCheck(String arch) {
+    ck.checkoutComposableKernel()
+    def image = docker.image(params.fmha_python_base_docker)
+    withDockerRegistry([credentialsId: "ck_docker_cred", url: ""]) {
+        image.pull()
+    }
+    image.inside() {
+        timeout(time: 2, unit: 'HOURS') {
+            sh "GPU_ARCHS=${arch} projects/composablekernel/example/ck_tile/01_fmha/script/check_python_build.sh"
+        }
+    }
+}
 def showCompilerInfo(boolean deferBinaryInfo = false, String dockerImage = "") {
     def image = dockerImage ?: ck.getDockerImageName()
     def requestedVersion = params.COMPILER_VERSION ?: "ROCm ${params.ROCMVERSION} release"
@@ -92,9 +106,8 @@ def showCompilerInfo(boolean deferBinaryInfo = false, String dockerImage = "") {
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=false;BUILD_GFX908=false;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=develop;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=therock;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 15 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 15 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 13 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
                                               0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;RUN_FA_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
                                               0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_DISPATCHER_PERF_TESTS=true;RUN_DISPATCHER_CORRECTNESS_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true''' : ""
@@ -123,12 +136,12 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION',
-            defaultValue: '10.0',
-            description: 'Specify which ROCM version to use: 10.0 (default).')
+            defaultValue: '10.1',
+            description: 'Specify which ROCM version to use: 10.1 (default).')
         string(
             name: 'COMPILER_VERSION',
             defaultValue: '',
-            description: 'Specify which version of compiler to use: develop, amd-staging, therock, or leave blank (default).')
+            description: 'Specify which version of compiler to use: amd-staging, therock, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT',
             defaultValue: '',
@@ -246,10 +259,6 @@ pipeline {
             defaultValue: false,
             description: "Run CK_BUILDER tests (default: OFF)")
         booleanParam(
-            name: "RUN_ROCM_CK_TESTS",
-            defaultValue: true,
-            description: "Run rocm_ck tests (default: ON)")
-        booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
@@ -294,13 +303,25 @@ pipeline {
             defaultValue: CURRENT_BRANCH_NAME,
             description: 'Specify which branch of CK to test with flash-attention (default: current branch)')
         booleanParam(
-            name: "RUN_DISPATCHER_CORRECTNESS_TESTS",
+            name: "RUN_FMHA_PYTHON_TESTS",
+            defaultValue: false,
+            description: "Manually run FMHA Python tests on a physical gfx1250 GPU (default: OFF)")
+        booleanParam(
+            name: "BUILD_FMHA_PYTHON",
             defaultValue: true,
-            description: "Run Correctness Tier for Dispatcher")
+            description: "Compile the FMHA Python bindings with a few kernels, without a GPU (default: ON)")
+        string(
+            name: 'fmha_python_base_docker',
+            defaultValue: 'rocm/pytorch:rocm10.1.0_ubuntu24.04_py3.12_pytorch_release_2.14.0',
+            description: 'Specify which ROCm PyTorch image to use for FMHA Python builds and tests')
+        booleanParam(
+            name: "RUN_DISPATCHER_CORRECTNESS_TESTS",
+            defaultValue: false,
+            description: "Run Correctness Tier for Dispatcher (default: OFF)")
         booleanParam(
             name: "RUN_DISPATCHER_PERF_TESTS",
-            defaultValue: true,
-            description: "Run Performance Tier for Dispatcher")
+            defaultValue: false,
+            description: "Run Performance Tier for Dispatcher (default: OFF)")
         booleanParam(
             name: "FORCE_CI",
             defaultValue: false,
@@ -334,8 +355,10 @@ pipeline {
                         // a docs- or Markdown-only change skips CI but can still
                         // add a path that breaks the Windows checkout.
                         ck.runPathLengthCheck()
-                        env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || ck.shouldRunCICheck())
+                        env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || params.RUN_FMHA_PYTHON_TESTS.toBoolean() || ck.shouldRunCICheck())
                         echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                        env.SHOULD_RUN_FMHA_PYTHON_TESTS = String.valueOf(params.RUN_FMHA_PYTHON_TESTS.toBoolean())
+                        echo "SHOULD_RUN_FMHA_PYTHON_TESTS: ${env.SHOULD_RUN_FMHA_PYTHON_TESTS}"
                         env.BUILD_GFX103 = String.valueOf(env.BRANCH_NAME == 'develop' || params.BUILD_GFX103.toBoolean())
                         echo "BUILD_GFX103: ${env.BUILD_GFX103}"
                         env.BUILD_GFX908 = String.valueOf(env.BRANCH_NAME == 'develop' || params.BUILD_GFX908.toBoolean())
@@ -480,6 +503,23 @@ pipeline {
                 }
             }
         }
+        stage("Run FMHA Python Tests on gfx1250")
+        {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_FMHA_PYTHON_TESTS.toBoolean() }
+            }
+            agent none
+            steps{
+                script {
+                    loadCk()
+                    ck.runOnHealthyNode(rocmnode("gfx1250")) {
+                        ck.runFmhaPythonTests("gfx1250")
+                        cleanWs()
+                    }
+                }
+            }
+        }
         stage("Run Full Grouped Conv Tile Tests")
         {
             when {
@@ -568,7 +608,7 @@ pipeline {
         {
             when {
                 beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() && (params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean() || params.RUN_DISPATCHER_PERF_TESTS.toBoolean()) }
+                expression { env.SHOULD_RUN_CI.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && (params.RUN_DISPATCHER_CORRECTNESS_TESTS.toBoolean() || params.RUN_DISPATCHER_PERF_TESTS.toBoolean()) }
             }
             agent none
             steps {
@@ -772,8 +812,10 @@ pipeline {
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                                             -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
-                                            -DGPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic" \
-                                            -D CMAKE_BUILD_TYPE=Release .. && ninja -j64 """
+                                            -DGPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic;gfx1250;gfx1250-strict" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -DHIPTENSOR_REQ_LIBS_ONLY=ON \
+                                            -DMIOPEN_REQ_LIBS_ONLY=ON .. && ninja -j64 """
                     }
                     steps{
                         script {
@@ -873,6 +915,24 @@ pipeline {
                         }
                     }
                 }
+                stage("Build FMHA Python API for gfx1250")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_FMHA_PYTHON.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                    }
+                    agent none
+                    steps{
+                        script {
+                            loadCk()
+                            ck.runOnHealthyNode(rocmnode("nogpu")) {
+                                deleteDir()
+                                runFmhaPythonBuildCheck("gfx1250")
+                                cleanWs()
+                            }
+                        }
+                    }
+                }
             }
             post {
                 always {
@@ -958,4 +1018,3 @@ pipeline {
         }
     }
 }
-

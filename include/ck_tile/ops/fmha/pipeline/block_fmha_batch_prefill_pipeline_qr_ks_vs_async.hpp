@@ -12,6 +12,7 @@
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async_default_policy.hpp"
+#include "ck_tile/ops/gemm/warp/warp_wmma_gemm_gfx11_utils.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
@@ -248,6 +249,59 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
+    // Clang reports only the first failing static_assert of a class, so the knob check
+    // comes before the shape checks.
+#if !CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V
+    // Turning the knob off would move the M128 instances onto the fallback gemm1, which
+    // is only verified for the M64 shapes. The M64 shapes never use Independent-V, so
+    // they still build. Keyed on the shape, not kBlockSize, which uses get_warp_size()
+    // and differs on the host pass.
+    static_assert(!(Policy::kUseSyncKLoad && BlockFmhaShape::kM0 == 128 &&
+                    BlockFmhaShape::kN1 == 128),
+                  "batch_prefill_gfx11 M128 instances are only verified on the "
+                  "Independent-V gemm1; CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V "
+                  "must stay 1 for them");
+#endif
+    // (M0, N1, QK head dim) of the device-verified shapes: M128 on Independent-V and
+    // M64 on the fallback gemm1. Each warp owns 16 rows, requiring M0 / 16 warps. The
+    // dispatcher allowlist GFX11_BATCH_PREFILL_SHAPES lists the same shapes; this also
+    // covers instances built outside the dispatcher.
+    static_assert(!Policy::kUseSyncKLoad ||
+                      (BlockFmhaShape::NumGemm0Warps == BlockFmhaShape::kM0 / 16 &&
+                       ((BlockFmhaShape::kM0 == 128 && BlockFmhaShape::kN1 == 128 &&
+                         BlockFmhaShape::kQKHeaddim == 128) ||
+                        (BlockFmhaShape::kM0 == 64 && BlockFmhaShape::kN1 == 96 &&
+                         BlockFmhaShape::kQKHeaddim == 96) ||
+                        (BlockFmhaShape::kM0 == 64 && BlockFmhaShape::kN1 == 64 &&
+                         BlockFmhaShape::kQKHeaddim == 64))),
+                  "batch_prefill_gfx11 is only verified for (M0, N1, QK head dim) "
+                  "(128, 128, 128), (64, 96, 96) and (64, 64, 64), with M0 / 16 warps");
+    // PermuteWarpGemmCToA moves P within a warp only, so both gemms need the same
+    // M-only warp layout; the permute and the K LDS layout also assume 16x16x16 WMMA
+    // and K0=32.
+    static_assert(
+        !Policy::kUseSyncKLoad ||
+            (BlockFmhaShape::kK0 == 32 &&
+             std::is_same_v<typename BlockFmhaShape::Gemm0BlockWarps,
+                            typename BlockFmhaShape::Gemm1BlockWarps> &&
+             BlockFmhaShape::Gemm0BlockWarps::at(number<1>{}) == 1 &&
+             BlockFmhaShape::Gemm0BlockWarps::at(number<2>{}) == 1 &&
+             std::is_same_v<typename BlockFmhaShape::Gemm0WarpTile, sequence<16, 16, 16>> &&
+             std::is_same_v<typename BlockFmhaShape::Gemm1WarpTile, sequence<16, 16, 16>>),
+        "batch_prefill_gfx11 requires K0=32, the same M-only block warps for both gemms "
+        "and 16x16x16 warp tiles");
+    // Keyed on kUseSyncKLoad, not on the architecture: no CDNA instance sets it.
+    // These are the K-staging requirements; the gemm1 shape is not among them,
+    // because outside UseIndependentVBuffer the pipeline permutes P into the
+    // fallback gemm1's A distribution instead. None of the terms depend on the
+    // warp size, so unlike UseIndependentVBuffer this also holds on the host pass.
+    static_assert(!Policy::kUseSyncKLoad ||
+                      (Problem::kKVMemoryLayout ==
+                           BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT &&
+                       BlockFmhaShape::kN0 == 32 && BlockFmhaShape::kK1 == 32 &&
+                       !Problem::kHasDropout),
+                  "batch_prefill_gfx11 requires N0=32, K1=32, linear KV layout "
+                  "and no dropout");
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -502,8 +556,14 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
+        constexpr auto gemm_0             = Policy::template GetQKBlockGemm<Problem>();
+        constexpr auto gemm_1             = Policy::template GetKVBlockGemm<Problem>();
+        constexpr auto independent_v_gemm = [&]() {
+            if constexpr(Policy::template UseIndependentVBuffer<Problem>())
+                return Policy::template GetIndependentVBlockGemm<Problem>();
+            else
+                return number<0>{};
+        }();
 
         auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                                               q_dram_block_window_tmp.get_window_lengths(),
@@ -545,12 +605,12 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         {
 #if CK_TILE_FMHA_FWD_FAST_EXP2
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                         BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                         BiasEnum == BlockAttentionBiasEnum::ALIBI || kHasLogitsSoftCap)
                 set_tile(m, sink_v * LOG2E * scale_s);
             else
                 set_tile(m, sink_v * LOG2E);
 #else
-            set_tile(m, sink_v);
+            set_tile(m, sink_v * scale_s);
 #endif
             set_tile(l, SMPLComputeDataType{1.0f});
         }
@@ -998,9 +1058,30 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             prefetch_v_physical_pages(k_loop_start);
         };
 
+        auto load_k_tile = [&](auto i_buf, auto& k_dram_window_ref, auto pre_nop) {
+            if constexpr(Policy::kUseSyncKLoad)
+            {
+                auto k_buf        = load_tile(k_dram_window_ref, number<-1>{}, k_oob_ck);
+                auto k_lds_window = get_slice_tile(
+                    k_lds_load, sequence<i_buf * kN0, 0>{}, sequence<(i_buf + 1) * kN0, kK0>{});
+                store_tile(k_lds_window, k_buf);
+                (void)pre_nop;
+            }
+            else
+            {
+                async_load_tile_raw(
+                    k_lds_store(i_buf), k_dram_window_ref, number<-1>{}, k_oob_ck, pre_nop);
+            }
+        };
+        // Sync K loads land in LDS through ds_store, which the vmcnt fences before the
+        // gemm0 barriers do not retire.
+        auto k_lds_store_fence = [&]() {
+            if constexpr(Policy::kUseSyncKLoad)
+                s_waitcnt_lgkm<0>();
+        };
+
         // prefetch K tile
-        async_load_tile_raw(
-            k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, number<-1>{}, k_oob_ck, k_pre_np);
+        load_k_tile(LdsSeq.at(number<0>{}), k_dram_window, k_pre_np);
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
@@ -1057,15 +1138,12 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             if constexpr(k0_loops > 1)
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
-                    async_load_tile_raw(k_lds_store(number<LdsSeq.at(number<i_k0 + 1>{})>{}),
-                                        k_dram_window,
-                                        number<-1>{},
-                                        k_oob_ck,
-                                        k_pre_np);
+                    load_k_tile(LdsSeq.at(number<i_k0 + 1>{}), k_dram_window, k_pre_np);
                     if constexpr(i_k0 < k0_loops - 1)
                         move_tile_window(k_dram_window, {0, kK0});
 
                     async_load_fence(k_dram_window.get_num_of_access());
+                    k_lds_store_fence();
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     gemm_0(s_acc,
@@ -1083,6 +1161,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 __builtin_amdgcn_sched_barrier(0);
 
             async_load_fence();
+            k_lds_store_fence();
             __builtin_amdgcn_s_barrier();
 
             __builtin_amdgcn_sched_barrier(0);
@@ -1265,9 +1344,22 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
                 __builtin_amdgcn_sched_barrier(0x7F);
                 // store & prefetch next v, after the max reduction
-                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
-                             kKVMemoryLayout ==
-                                 BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT)
+                if constexpr(Policy::template UseIndependentVBuffer<Problem>())
+                {
+                    auto* independent_v_ptr = reinterpret_cast<VDataType*>(
+                        reinterpret_cast<char*>(smem_ptr) +
+                        Policy::template GetIndependentVByteOffset<Problem>());
+                    constexpr auto desc =
+                        Policy::template MakeIndependentVLdsStoreBlockDescriptor<Problem>();
+                    auto window = make_tile_window(
+                        make_tensor_view<address_space_enum::lds>(independent_v_ptr, desc),
+                        desc.get_lengths(),
+                        {0, 0});
+                    store_tile(window, tile_elementwise_in(v_element_func, v_buf));
+                }
+                else if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+                                  kKVMemoryLayout ==
+                                      BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT)
                 {
                     auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                         Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
@@ -1462,6 +1554,106 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     return o_acc;
             }();
 
+#if defined(__gfx11__)
+            // Both gemm1 paths consume P in the WMMA A distribution, not the C
+            // distribution gemm0 leaves it in.
+            auto p_for_gemm1 = [&]() {
+                if constexpr(Policy::template UseIndependentVBuffer<Problem>())
+                {
+                    return make_static_distributed_tensor<PDataType>(make_static_tile_distribution(
+                        decltype(independent_v_gemm)::MakeABlockDistributionEncode()));
+                }
+                else
+                {
+                    return make_static_distributed_tensor<PDataType>(
+                        decltype(gemm_1)::template MakeABlockTileDistribution<kM0, kN0>());
+                }
+            }();
+            PermuteWarpGemmCToA(p_for_gemm1, p);
+#else
+            const auto& p_for_gemm1 = p;
+#endif
+
+            auto run_independent_v_gemm = [&]() {
+                if constexpr(Policy::template UseIndependentVBuffer<Problem>())
+                {
+                    static_assert(k1_loops == 1);
+                    using BlockGemm   = remove_cvref_t<decltype(independent_v_gemm)>;
+                    using WarpGemm    = typename BlockGemm::WarpGemm;
+                    using AWarpDstr   = typename WarpGemm::AWarpDstr;
+                    using CWarpDstr   = typename WarpGemm::CWarpDstr;
+                    using AWarpTensor = typename WarpGemm::AWarpTensor;
+                    using CWarpTensor = typename WarpGemm::CWarpTensor;
+
+                    constexpr auto a_warp_y_lengths =
+                        to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+                    constexpr auto c_warp_y_lengths =
+                        to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+                    constexpr auto a_warp_y_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+                    constexpr auto c_warp_y_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+                    auto* independent_v_ptr = reinterpret_cast<VDataType*>(
+                        reinterpret_cast<char*>(smem_ptr) +
+                        Policy::template GetIndependentVByteOffset<Problem>());
+                    // The V tile was written with ds_store, so the barrier that publishes
+                    // it has to retire lgkmcnt.
+                    block_sync_lds();
+                    // The B-window loads below use compile-time offsets, so a barrier alone
+                    // lets the compiler hoist them above the V store. Reading one element
+                    // back and folding it into the offset forces the ordering.
+                    static_assert(sizeof(VDataType) == 2,
+                                  "independent-V dependency read assumes 16-bit V");
+                    index_t dynamic_zero       = 0;
+                    const index_t dependency_i = static_cast<index_t>(
+                        *reinterpret_cast<volatile const uint16_t*>(independent_v_ptr));
+                    asm volatile("v_xor_b32 %0, %1, %1"
+                                 : "=v"(dynamic_zero)
+                                 : "v"(dependency_i)
+                                 : "memory");
+
+                    constexpr auto desc =
+                        Policy::template MakeIndependentVLdsLoadBlockDescriptor<Problem>();
+                    const index_t i_n_warp  = get_warp_id<false>() % BlockGemm::NWarp;
+                    auto b_warp_window_base = make_tile_window(
+                        make_tensor_view<address_space_enum::lds>(independent_v_ptr, desc),
+                        make_tuple(number<WarpGemm::kN>{}, number<WarpGemm::kK>{}),
+                        multi_index<2>{i_n_warp * WarpGemm::kN, 0},
+                        make_static_tile_distribution(typename WarpGemm::BWarpDstrEncoding{}));
+
+                    static_for<0, BlockGemm::KIterPerWarp, 1>{}([&](auto k_iter) {
+                        static_for<0, BlockGemm::NIterPerWarp, 1>{}([&](auto n_iter) {
+                            auto b_warp_window = b_warp_window_base;
+                            move_tile_window(
+                                b_warp_window,
+                                {n_iter * BlockGemm::NWarp * WarpGemm::kN, k_iter * WarpGemm::kK});
+                            auto b_warp_tensor = b_warp_window.load_with_offset(
+                                dynamic_zero, number<-1>{}, bool_constant<false>{});
+
+                            static_for<0, BlockGemm::MIterPerWarp, 1>{}([&](auto m_iter) {
+                                AWarpTensor a_warp_tensor;
+                                a_warp_tensor.get_thread_buffer() =
+                                    p_for_gemm1.get_y_sliced_thread_data(
+                                        merge_sequences(sequence<m_iter, k_iter>{}, a_warp_y_zeros),
+                                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
+                                CWarpTensor c_warp_tensor;
+                                c_warp_tensor.get_thread_buffer() =
+                                    gemm1_acc.get_y_sliced_thread_data(
+                                        merge_sequences(sequence<m_iter, n_iter>{}, c_warp_y_zeros),
+                                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                                WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+
+                                gemm1_acc.set_y_sliced_thread_data(
+                                    merge_sequences(sequence<m_iter, n_iter>{}, c_warp_y_zeros),
+                                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                                    c_warp_tensor.get_thread_buffer());
+                            });
+                        });
+                    });
+                }
+            };
+
             if constexpr(k1_loops > 1)
             {
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
@@ -1482,8 +1674,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
                     block_sync_lds();
                     gemm_1(gemm1_acc,
-                           get_slice_tile(
-                               p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
+                           get_slice_tile(p_for_gemm1,
+                                          sequence<0, i_k1 * kK1>{},
+                                          sequence<kM0, (i_k1 + 1) * kK1>{}),
                            get_slice_tile(
                                v_lds_window,
                                sequence<(LdsSeq.at(number<k0_loops + i_k1>{})) * kN1, 0>{},
@@ -1583,23 +1776,28 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-                async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})),
-                                    k_dram_window,
-                                    number<-1>{},
-                                    k_oob_ck,
-                                    k_pre_np);
+                load_k_tile(LdsSeq.at(number<0>{}), k_dram_window, k_pre_np);
                 move_tile_window(k_dram_window, {0, kK0});
             }
             // tail
             {
-                block_sync_lds();
-                gemm_1(
-                    gemm1_acc,
-                    get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
-                    get_slice_tile(
-                        v_lds_window,
-                        sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{})) * kN1, 0>{},
-                        sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{}) + 1) * kN1, kK1>{}));
+                if constexpr(Policy::template UseIndependentVBuffer<Problem>())
+                {
+                    run_independent_v_gemm();
+                }
+                else
+                {
+                    block_sync_lds();
+                    gemm_1(gemm1_acc,
+                           get_slice_tile(p_for_gemm1,
+                                          sequence<0, (k1_loops - 1) * kK1>{},
+                                          sequence<kM0, kN0>{}),
+                           get_slice_tile(
+                               v_lds_window,
+                               sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{})) * kN1, 0>{},
+                               sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{}) + 1) * kN1,
+                                        kK1>{}));
+                }
             }
 
             // KV_BLOCKSCALE: apply v_descale and accumulate o_acc_unscaled into o_acc

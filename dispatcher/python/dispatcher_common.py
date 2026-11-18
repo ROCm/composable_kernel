@@ -17,7 +17,9 @@ Best-of-both:
   - logging module instead of bare print() (shared improvement)
 """
 
+import functools
 import logging
+import re
 import shutil
 import sys
 from dataclasses import dataclass, field
@@ -141,6 +143,80 @@ def load_hip_runtime():
     )
 
 
+@functools.lru_cache(maxsize=None)
+def _hip_runtime_once():
+    """load_hip_runtime() once per process, or None if it fails.
+
+    Each load re-runs find_library, which can cost seconds per call.
+    """
+    import ctypes
+
+    try:
+        hip = load_hip_runtime()
+    except OSError:
+        return None
+    hip.hipGetErrorName.restype = ctypes.c_char_p
+    hip.hipGetErrorString.restype = ctypes.c_char_p
+    return hip
+
+
+def _hip_error_text(hip, err: int) -> str:
+    """'hipErrorName: description' for a HIP error code."""
+    name = (hip.hipGetErrorName(err) or b"?").decode()
+    return f"{name}: {(hip.hipGetErrorString(err) or b'?').decode()}"
+
+
+def hip_device_problem() -> Optional[str]:
+    """Why HIP sees no GPU, or None if it sees one (or HIP cannot be loaded).
+
+    Without a device every hipMalloc in the ctypes libraries fails and each
+    kernel reports only ``status=-1``; this names the real cause once. If the
+    runtime does not load here the kernel libraries may still find it through
+    their own RUNPATH, so that case is left to them.
+    """
+    import ctypes
+    import os
+
+    hip = _hip_runtime_once()
+    if hip is None:
+        return None
+    count = ctypes.c_int(0)
+    err = hip.hipGetDeviceCount(ctypes.byref(count))
+    if err == 0 and count.value > 0:
+        return None
+    reason = (
+        f"hipGetDeviceCount found {count.value} device(s) ({_hip_error_text(hip, err)})"
+    )
+    if not os.path.exists("/dev/kfd"):
+        reason += (
+            "; /dev/kfd does not exist, so this process has no GPU access"
+            " (a container needs --device=/dev/kfd --device=/dev/dri)"
+        )
+    elif not os.access("/dev/kfd", os.R_OK | os.W_OK):
+        reason += (
+            "; /dev/kfd is not readable and writable by this user"
+            " (it needs the render/video group, e.g. docker --group-add)"
+        )
+    for var in ("HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES"):
+        if var in os.environ:
+            reason += f"; {var}={os.environ[var]!r}"
+    return reason
+
+
+def hip_last_error() -> str:
+    """Name of the HIP error pending on this thread ('' if none), then reset it.
+
+    The ctypes libraries return a bare -1 on any HIP failure; when that failure
+    left a pending HIP error this names it. Best effort: errors the libraries
+    already read themselves are gone. A pending error can survive later
+    successful calls, so call this once before a kernel to drop anything left
+    by earlier ones.
+    """
+    hip = _hip_runtime_once()
+    err = hip.hipGetLastError() if hip is not None else 0
+    return _hip_error_text(hip, err) if err else ""
+
+
 def _detect_gpu_arch_via_amd_smi() -> Optional[str]:
     """Best-effort arch via the shared amd-smi-first smi_utils wrapper.
 
@@ -154,10 +230,12 @@ def _detect_gpu_arch_via_amd_smi() -> Optional[str]:
     """
     try:
         import sys as _sys
+
         _common = Path(__file__).resolve().parents[2] / "tile_engine" / "ops" / "common"
         if str(_common) not in _sys.path:
             _sys.path.insert(0, str(_common))
         import smi_utils  # noqa: E402
+
         return smi_utils.detect_gpu_arch()
     except Exception:  # noqa: BLE001 - optional wrapper + external CLI; degrade to rocminfo
         return None
@@ -301,13 +379,35 @@ def validate_configs_match_arch(configs, arch, bridge: str = "") -> None:
         )
 
 
+def gpu_target_id_define(arch: Optional[str]) -> List[str]:
+    """``-DCK_CMAKE_GPU_TARGET_IDS`` for `arch`, so the host pass knows the target.
+
+    ck_tile resolves the target per compiler pass (core/arch/arch.hpp). Without
+    this define the device pass sees the real arch but the host pass sees HOST,
+    so host-side kernel logic (IsSupportedArgument, the epilogue's
+    GetVectorSizeC, the pipeline's vector widths) is evaluated for a different
+    warp GEMM than the one the device runs. On gfx942 that made
+    DefaultGemm2DEpilogue::GetVectorSizeC() 0 on the host, and the C check
+    ``N % GetVectorSizeC()`` divided by zero. The top-level CMakeLists.txt
+    injects this define into every target; the JIT bridges build their own hipcc
+    lines and must pass it themselves. The value follows the dispatcher's own
+    CMake (bindings/ctypes/CMakeLists.txt: ``gfx`` replaced by ``0x``, so gfx942
+    -> 0x942), which arch.hpp reads as the same hex id as the top level's 0x0942.
+    """
+    m = re.fullmatch(r"gfx([0-9a-f]{3,4})", normalize_arch(arch))
+    if m is None:
+        return []
+    return [f"-DCK_CMAKE_GPU_TARGET_IDS=0x{m.group(1)}"]
+
+
 def arch_feature_defines(arch: Optional[str]) -> List[str]:
     """`ocp_arch_defines` plus the per-arch feature-enablement defines.
 
     The top-level CMakeLists.txt (:456-512) sets these for a normal build; they
     are absent in the standalone hipcc JIT path, so any bridge that compiles a
     kernel out-of-tree has to re-supply them.  This mirrors that block for the
-    arches the dispatcher targets:
+    arches the dispatcher targets, and starts with ``gpu_target_id_define`` (the
+    CMake-injected ``CK_CMAKE_GPU_TARGET_IDS``), which every arch needs:
 
         gfx950  -> CK_USE_NATIVE_MX_SUPPORT, CK_GFX950_SUPPORT
         gfx1250 -> CK_USE_GFX1250, CK_USE_NATIVE_MX_SUPPORT, CK_GFX1250_SUPPORT
@@ -333,7 +433,7 @@ def arch_feature_defines(arch: Optional[str]) -> List[str]:
     defines, and derive it from the one helper rather than a local copy.
     """
     a = normalize_arch(arch)
-    defines = ocp_arch_defines(arch)
+    defines = gpu_target_id_define(arch) + ocp_arch_defines(arch)
     if a.startswith("gfx950"):
         defines = defines + ["-DCK_USE_NATIVE_MX_SUPPORT", "-DCK_GFX950_SUPPORT"]
     elif a.startswith("gfx11") or a.startswith("gfx12"):
@@ -354,7 +454,6 @@ def arch_feature_defines(arch: Optional[str]) -> List[str]:
 # ============================================================================
 
 _arch_data_cache: Optional[Dict[str, Any]] = None
-
 
 
 def get_arch_filter_data() -> Dict[str, Any]:

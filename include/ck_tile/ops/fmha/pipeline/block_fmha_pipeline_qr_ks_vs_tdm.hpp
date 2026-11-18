@@ -51,9 +51,10 @@ struct BlockFmhaPipelineQRKSVSTdm
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static constexpr bool kKLoadOnce = Problem::kUseDoubleKVLdsBuffer;
-    static_assert(!Problem::kProgressiveDsLoadK || Problem::kUseDoubleKVLdsBuffer,
-                  "progressive K LDS loading requires double K/V LDS buffers");
+    // Both paths stage a whole (kN0 x kSubQKHeaddim) K tile per LDS buffer, so
+    // the progressive reload -- which walks that tile slice by slice -- no
+    // longer depends on K/V double buffering.
+    static constexpr bool kKLoadOnce = true;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -67,7 +68,10 @@ struct BlockFmhaPipelineQRKSVSTdm
     static constexpr index_t kNWarp        = BlockFmhaShape::Gemm0BlockWarps::at(I1);
     static constexpr index_t kNXdl         = BlockFmhaShape::Gemm0WarpTile::at(I1);
 
-    static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+    // 512 is the last head dim this pipeline can stage: its arena needs a whole
+    // 320 KiB of LDS, i.e. one workgroup per CU. See QrTdmLdsArenaLayout's
+    // kLdsOccupancyTarget for the budget it switches to at that size.
+    static_assert(kSubQKHeaddim <= 512, "hdim bigger than 512 is not suitable for this pipeline!");
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
@@ -279,15 +283,6 @@ struct BlockFmhaPipelineQRKSVSTdm
                   "qr_tdm pipeline: FAST_EXP2=0 has no code path here - log2(e) is never folded "
                   "into scale_s, so the kernel would return 2^logit instead of e^logit");
 
-    static_assert(!kHasLogitsSoftCap,
-                  "qr_tdm pipeline does not implement logits soft cap - LogitsTransform is never "
-                  "applied, so scores would reach softmax uncapped and unscaled");
-
-    // Bias and sink are now supported (mirrors baseline qr_ks_vs logic).
-    // Dropout requires kernel dispatch interface expansion (dropout object +
-    // randval window) and is deferred to a follow-up task.
-    static_assert(!kHasDropout, "qr_tdm pipeline does not yet support dropout");
-
     static_assert(QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE ||
                       QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR ||
                       QScaleEnum == BlockAttentionQuantScaleEnum::PERHEAD ||
@@ -300,6 +295,9 @@ struct BlockFmhaPipelineQRKSVSTdm
     // Only the scaled MMA applies the dynamic P exponent; without it O is off by 2^k.
     static_assert(!kQuantized || kHwGemm1Scale,
                   "qr_tdm pipeline: a quantized run needs the scaled MMA in gemm1");
+
+    static_assert(!kQuantized || (!kHasLogitsSoftCap && !kHasDropout),
+                  "qr_tdm pipeline: softcap/dropout require nonquantized Q/K/V");
 
     static_assert(!kHwGemm1Scale || kK1 == BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
                   "qr_tdm pipeline: the scaled gemm1 assumes kK1 is one warp-GEMM K step");
@@ -391,6 +389,25 @@ struct BlockFmhaPipelineQRKSVSTdm
         {
             load_tile_tdm(config, lds_window, dram_window);
         }
+    }
+
+    // Progressive K reload: pull the next four K accesses back into k_tile once
+    // the WMMA sweep has consumed the fragments they overwrite. Both the single
+    // and the double K/V LDS buffer mainloops run this from their gemm0
+    // after-warp callback, so the reload shape, barrier mask and traversal stay
+    // defined in one place.
+    template <typename Window, typename Tile, index_t NIter>
+    CK_TILE_DEVICE static void
+    ReloadProgressiveKFragment(Window& k_lds_read_window, Tile& k_tile, number<NIter>)
+    {
+        // Allow VALU/SALU/VMEM/DS-write/TRANS/LDSDMA to cross while
+        // keeping MFMA/WMMA and DS-read ordered around the reload.
+        constexpr unsigned kProgressiveDsLoadSchedMask =
+            0x002 | 0x004 | 0x010 | 0x020 | 0x040 | 0x200 | 0x400 | 0x800;
+        __builtin_amdgcn_sched_barrier(kProgressiveDsLoadSchedMask);
+        constexpr index_t begin = 2 * (NIter - 1);
+        k_lds_read_window.template load_access_range<begin, begin + 4>(k_tile);
+        __builtin_amdgcn_sched_barrier(kProgressiveDsLoadSchedMask);
     }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
@@ -498,34 +515,45 @@ struct BlockFmhaPipelineQRKSVSTdm
         return p_tile;
     }
 
-    // Single K/V LDS buffer path.
+    // Single V, double K LDS buffer path. BlockFmhaFwdSplitKVPipelineQRKSVSTdm
+    // copies this mainloop; its header lists what must stay in sync.
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
-    CK_TILE_HOST_DEVICE auto
-    run_single_kv_lds_buffer(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-                             const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-                             const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-                             const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-                             LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,        // M0*1 tile
-                             FmhaMask mask,
-                             PositionEncoding position_encoding,
-                             float scale_s,
-                             void* smem_arena,
-                             float sink_v,
-                             const float* k_descale_ptr,
-                             const float* v_descale_ptr,
-                             index_t block_scale_size_kv,
-                             float v_descale) const
+              typename PositionEncoding,
+              typename Features = tuple<identity, identity>>
+    CK_TILE_HOST_DEVICE auto run_single_v_double_k_lds_buffer(
+        const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
+        const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
+        const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
+        const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+        LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp,        // M0*1 tile
+        FmhaMask mask,
+        PositionEncoding position_encoding,
+        float scale_s,
+        void* smem_arena,
+        float sink_v,
+        const float* k_descale_ptr,
+        const float* v_descale_ptr,
+        index_t block_scale_size_kv,
+        float v_descale,
+        const Features& features = {}) const
     {
+        if constexpr(kHasLogitsSoftCap)
+            static_assert(!std::is_same_v<remove_cvref_t<decltype(features.at(I0))>, identity>,
+                          "qr_tdm softcap requires a logits transform callback");
+        if constexpr(kHasDropout)
+            static_assert(!std::is_same_v<remove_cvref_t<decltype(features.at(I1))>, identity>,
+                          "qr_tdm dropout requires a probability callback");
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
         auto* smem_ptrq =
             reinterpret_cast<QDataType*>(static_cast<char*>(smem_arena) + Layout::kQOffset);
         auto* smem_ptrk =
             reinterpret_cast<KDataType*>(static_cast<char*>(smem_arena) + Layout::kK0Offset);
+        auto* smem_ptrk1 =
+            reinterpret_cast<KDataType*>(static_cast<char*>(smem_arena) + Layout::kK1Offset);
         auto* smem_ptrs =
             reinterpret_cast<SaccDataType*>(static_cast<char*>(smem_arena) + Layout::kSOffset);
         auto* smem_ptrv =
@@ -725,24 +753,27 @@ struct BlockFmhaPipelineQRKSVSTdm
                              {bias_origin.at(number<0>{}), kv_load_start},
                              gemm_0.MakeCBlockTile().get_tile_distribution());
 
+        // K is staged a whole (kN0 x kSubQKHeaddim) tile at a time, into two
+        // ping-pong buffers: the tile consumed this iteration and the next
+        // iteration's tile, prefetched one iteration ahead.
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp,
                              {kv_load_start, 0},
-                             Policy::template MakeKDramTileDistribution<Problem>());
+                             Policy::template MakeKDramTileDistribution<Problem, true>());
 
         // K LDS writer (TDM) and reader share plain row-major desc; see Q
         // comment above for the no-swizzle rationale.
         auto k_lds_write_view = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<KDataType*>(smem_ptrk),
-            Policy::template MakeKLdsBlockDescriptor<Problem>());
+            Policy::template MakeKLdsBlockDescriptor<Problem, true>());
         auto k_lds_read_view = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<KDataType*>(smem_ptrk),
-            Policy::template MakeKLdsBlockDescriptor<Problem>());
+            Policy::template MakeKLdsBlockDescriptor<Problem, true>());
 
-        auto k_lds_write_window =
-            make_tile_window(k_lds_write_view,
-                             Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(),
-                             {0, 0});
+        auto k_lds_write_window = make_tile_window(
+            k_lds_write_view,
+            Policy::template MakeKLdsBlockDescriptor<Problem, true>().get_lengths(),
+            {0, 0});
         auto k_lds_read_window =
             make_tile_window(k_lds_read_view,
                              make_tuple(number<kN0>{}, number<kK0>{}),
@@ -807,65 +838,155 @@ struct BlockFmhaPipelineQRKSVSTdm
         static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
 
+        // K ping-pong: each buffer holds a whole (kN0 x kSubQKHeaddim) K tile.
+        // Iteration i consumes buffer (i % 2) while the next tile streams into
+        // the other one, so the K load latency is hidden behind a full
+        // gemm0 + softmax + gemm1 instead of a single gemm.
+        //
+        // The buffer is picked at compile time on purpose. Selecting it with a
+        // runtime index turns the LDS base into a per-iteration s_cselect, and
+        // here that was enough to lose the compiler's LDS address-space
+        // inference: the K reads came out as generic flat_load instead of
+        // ds_load, and since a flat access bumps loadcnt as well as dscnt,
+        // every v_wmma ended up gated by a conservative s_wait_loadcnt_dscnt
+        // 0x0, which costs far more than the ping-pong saves. Hence the
+        // mainloop is unrolled by two and each half names its K buffer as a
+        // constant.
+        const auto k_lds_ptr = [&](auto i_buf) {
+            if constexpr(decltype(i_buf)::value == 0)
+                return smem_ptrk;
+            else
+                return smem_ptrk1;
+        };
+
+        // Prologue: issue K for the first KV tile (q_tile has already been read
+        // out of LDS above, so reusing the Q region for K0 is safe), then point
+        // the K dram window at the next tile -- the in-loop load prefetches the
+        // *next* tile. k_lds_write_window is still bound to buffer 0, so
+        // iteration 0 consumes buffer 0 and therefore runs at parity 0.
         block_sync_lds();
         load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+        move_tile_window(k_dram_window, {num_total_loop > 1 ? kN0 : 0, 0});
 
-        do
-        {
+        // One KV-tile iteration. i_parity is the compile-time LDS buffer
+        // parity: the iteration consumes buffer i_parity and prefetches the
+        // next tile into buffer (1 - i_parity).
+        auto kv_iteration = [&](auto i_parity) {
+            constexpr index_t kCurBuf  = decltype(i_parity)::value;
+            constexpr index_t kNextBuf = 1 - kCurBuf;
             // Sink-aware: in the sink phase tiles start at 0, in the normal phase at
             // physical_seqlen_k_start. k_origin below and the blockscale descale index
             // (k_descale in the kBlockScale sweep, v_descale in pack_v_scale) address the
             // same tile, so they share this one expression -- a sink-blind index here
             // trails the loaded column by physical_seqlen_k_start - sink_seq_end.
-            const index_t kv_tile_start =
+            [[maybe_unused]] const index_t kv_tile_start =
                 (num_sink_loop > i_total_loops)
                     ? kv_load_start + i_total_loops * kN0
                     : physical_seqlen_k_start + (i_total_loops - num_sink_loop) * kN0;
             // the tile range rounds its end up to kN0, so bound the scale index by seqlen_k
             [[maybe_unused]] const index_t kv_last = mask.GetXTotal() - 1;
 
+            // This barrier covers both reuses below: V is single-buffered (the
+            // previous iteration's gemm1 must be done reading it) and buffer
+            // kNextBuf is the one the previous iteration's gemm0 consumed.
             block_sync_lds();
-            // V uses load_tile_tdm (single-box plain LDS write). Both K and V
-            // are on the tensorcnt counter (s_wait_tensorcnt_barrier for sync).
+
+            // Issue order is [K(cur) (issued one iteration ago), V, K(next)] and
+            // TDM retires in order, hence the waits below:
+            //   wait<2> -> K(cur) landed, V and K(next) still in flight
+            //   wait<1> -> V landed, K(next) still in flight
             load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window); // prefetch load v tile
 
             // move V tile windows
             move_tile_window(v_dram_window, {kN0, 0});
 
+            // The K load below prefetches the NEXT iteration's tile, so the
+            // sink->normal jump has to be applied one iteration earlier than it
+            // is for V/bias (which are handled at the bottom of the loop).
+            //
+            // On the final iteration there is no next tile. The prefetch is
+            // still issued unconditionally, because the wait counts above are
+            // compile-time constants: they only name K(cur) and V correctly
+            // while exactly three TDM loads are in flight on every iteration.
+            // Skipping the last prefetch would shift them by one, and gemm0
+            // would read K before it landed. The window is parked on the last
+            // valid tile rather than advanced past the end of K, so the extra
+            // load is a redundant re-read into a buffer nobody consumes.
+            if constexpr(kHasSink)
+            {
+                if(i_total_loops == num_sink_loop - 1 && i_total_loops + 1 < num_total_loop)
+                {
+                    move_tile_window(k_dram_window, {physical_seqlen_k_start - sink_seq_end, 0});
+                }
+            }
+            k_lds_write_window.set_bottom_tensor_view_data_ptr(k_lds_ptr(number<kNextBuf>{}));
+            load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+            move_tile_window(k_dram_window, {i_total_loops + 2 < num_total_loop ? kN0 : 0, 0});
+
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
 
-            if constexpr(1 < k0_loops)
+            s_wait_tensorcnt_barrier<2>();
+            k_lds_read_window.set_bottom_tensor_view_data_ptr(k_lds_ptr(number<kCurBuf>{}));
+            if constexpr(Problem::kProgressiveDsLoadK)
             {
+                // Reload k_tile in place, in groups of four ds_loads dropped
+                // into the WMMA sweep right after the fragments they overwrite
+                // died. Same traversal as the double-buffer path; it needs the
+                // whole K tile in LDS, which this path now also stages.
+                static_assert(std::is_same_v<Policy, BlockFmhaPipelineQRKSVSTdmDefaultPolicy>);
+                using Gemm0  = remove_cvref_t<decltype(gemm_0)>;
+                using Window = remove_cvref_t<decltype(k_lds_read_window)>;
+                static_assert(Gemm0::MIterPerWarp == 1 || Gemm0::MIterPerWarp == 2);
+                static_assert(Gemm0::NIterPerWarp == 4 && Gemm0::KIterPerWarp == 1);
+                static_assert(Window::Traits::NumAccess == 8);
+                static_assert(Window::Traits::ScalarPerVector == 8);
+                static_assert(sizeof(typename Window::Traits::vector_t) == 16);
+
+                auto k_tile = load_tile(k_lds_read_window);
+                static_assert(remove_cvref_t<decltype(k_tile)>::get_thread_buffer_size() == 64);
+
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
-                    s_wait_tensorcnt_barrier<0>();
-
+                    move_tile_window(k_lds_read_window, {0, kK0});
+                    gemm_0.template RunWithAfterWarp<true>(
+                        s_acc,
+                        get_slice_tile(
+                            q_tile, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
+                        k_tile,
+                        [&k_lds_read_window, &k_tile](auto mIter, auto nIter, auto kIter) {
+                            if constexpr(mIter == Gemm0::MIterPerWarp - 1 && kIter == 0 &&
+                                         decltype(nIter)::value % 2 == 1)
+                            {
+                                ReloadProgressiveKFragment(k_lds_read_window, k_tile, nIter);
+                            }
+                        });
+                });
+                // Keep the reload-overlap traversal on the final slice too, even
+                // though it has no reload, so the schedule stays uniform.
+                gemm_0.template RunWithAfterWarp<true>(
+                    s_acc,
+                    get_slice_tile(q_tile,
+                                   sequence<0, (k0_loops - 1) * kK0>{},
+                                   sequence<kM0, k0_loops * kK0>{}),
+                    k_tile,
+                    [](auto, auto, auto) {});
+            }
+            else
+            {
+                static_for<0, k0_loops, 1>{}([&](auto i_k0) {
                     auto k_tile = load_tile(k_lds_read_window);
-
                     gemm_0(s_acc,
                            get_slice_tile(q_tile,
                                           sequence<0, i_k0 * kK0>{},
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
                            k_tile);
-
-                    // loop over along the [K]ey head dimension
-                    move_tile_window(k_dram_window, {0, kK0});
-                    block_sync_lds();
-                    load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+                    if constexpr(i_k0 + 1 < k0_loops)
+                        move_tile_window(k_lds_read_window, {0, kK0});
                 });
-                // move back to the origin
-                move_tile_window(k_dram_window, {0, -kK0 * (k0_loops - 1)});
             }
-
-            s_wait_tensorcnt_barrier<0>();
-
-            auto k_tile = load_tile(k_lds_read_window);
-
-            gemm_0(s_acc,
-                   get_slice_tile(q_tile,
-                                  sequence<0, (k0_loops - 1) * kK0>{},
-                                  sequence<kM0, k0_loops * kK0>{}),
-                   k_tile);
+            // rewind the LDS read window to the tile origin for the next iteration
+            if constexpr(1 < k0_loops)
+                move_tile_window(k_lds_read_window, {0, -kK0 * (k0_loops - 1)});
 
             if constexpr(kBlockScale)
             {
@@ -923,6 +1044,9 @@ struct BlockFmhaPipelineQRKSVSTdm
                 });
             }
 
+            if constexpr(kHasLogitsSoftCap)
+                tile_elementwise_inout([&features](auto& x) { x = features.at(I0)(x); }, s_acc);
+
             const auto k_origin = make_tuple(kv_tile_start, 0);
 
             if constexpr(kHasUnevenSplits)
@@ -959,25 +1083,21 @@ struct BlockFmhaPipelineQRKSVSTdm
                 }
             }
 
-            // Sink->normal window jump: at the boundary between sink region
-            // and normal region, jump K/V/bias dram windows forward.
+            // Sink->normal window jump for V/bias, which are consumed in the
+            // iteration that issues them. K runs one iteration ahead and was
+            // already jumped before its prefetch at the top of the loop.
             if constexpr(kHasSink)
             {
                 if(i_total_loops == num_sink_loop - 1)
                 {
-                    move_tile_window(k_dram_window, {physical_seqlen_k_start - sink_seq_end, 0});
                     move_tile_window(v_dram_window, {physical_seqlen_k_start - sink_seq_end, 0});
                     move_tile_window(bias_dram_window, {0, physical_seqlen_k_start - sink_seq_end});
                 }
             }
 
-            // move K and bias tile windows after current status checked
-            // prefetch next-tile along [K]ey sequence length dimension
-            move_tile_window(k_dram_window, {kN0, 0});
+            // K's dram window is advanced right after its prefetch at the top of
+            // the loop, so only bias needs advancing here.
             move_tile_window(bias_dram_window, {0, kN0});
-
-            block_sync_lds();
-            load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
 
             // Gemm1
             auto s_new = [&]() {
@@ -1055,6 +1175,10 @@ struct BlockFmhaPipelineQRKSVSTdm
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
 
+            // Normalize with the undropped mass; dropout changes only the PV numerator.
+            if constexpr(kHasDropout)
+                features.at(I1)(p_compute, q_origin.at(I0), kv_tile_start);
+
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
 
@@ -1101,9 +1225,10 @@ struct BlockFmhaPipelineQRKSVSTdm
                 });
             });
 
-            // V is on the tensorcnt counter (load_tile_tdm). Wait for V TDM
-            // write to fully commit before ds_load_tr reads.
-            s_wait_tensorcnt_barrier<0>();
+            // V is on the tensorcnt counter (load_tile_tdm). Wait for V's TDM
+            // write to commit before ds_load_tr reads it; the next iteration's
+            // K prefetch is still outstanding, hence <1> rather than <0>.
+            s_wait_tensorcnt_barrier<1>();
 
             auto v_tile = load_tile_transpose(v_lds_read_window);
 
@@ -1148,9 +1273,27 @@ struct BlockFmhaPipelineQRKSVSTdm
                    v_tile,
                    p_scale_arg,
                    v_scale(number<k1_loops - 1>{}));
+        };
 
+        // Unrolled by two so that each half addresses its K LDS buffer with a
+        // compile-time constant (see the k_lds_ptr comment above). Written as
+        // an early-exit do/while rather than "pairs + tail" so the body is
+        // instantiated exactly twice, not three times. num_total_loop >= 1 is
+        // guaranteed by the caller, and i_total_loops is even whenever the
+        // parity-0 half runs.
+        do
+        {
+            kv_iteration(number<0>{});
+            if(++i_total_loops >= num_total_loop)
+                break;
+            kv_iteration(number<1>{});
         } while(++i_total_loops < num_total_loop);
 
+        // The last iteration issued a K prefetch that nothing consumes; drain it
+        // before leaving, so the LDS region this pipeline was handed is not
+        // still a TDM destination once the caller reuses it. The double-buffer
+        // path below ends the same way.
+        s_wait_tensorcnt_barrier<0>();
         CorrectQuantizedMass(l, l_quant, o_acc);
         MergeSink(m, l, o_acc, sink_v, scale_s);
 
@@ -1216,7 +1359,8 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename Features = tuple<identity, identity>>
     CK_TILE_HOST_DEVICE auto run_double_kv_lds_buffer(
         const QDramBlockWindowTmp& __restrict__ q_dram_block_window_tmp,       // M0*K0 tile
         const KDramBlockWindowTmp& __restrict__ k_dram_block_window_tmp,       // N0*K0 tile
@@ -1231,8 +1375,15 @@ struct BlockFmhaPipelineQRKSVSTdm
         const float* k_descale_ptr,
         const float* v_descale_ptr,
         index_t block_scale_size_kv,
-        float v_descale) const
+        float v_descale,
+        const Features& features = {}) const
     {
+        if constexpr(kHasLogitsSoftCap)
+            static_assert(!std::is_same_v<remove_cvref_t<decltype(features.at(I0))>, identity>,
+                          "qr_tdm softcap requires a logits transform callback");
+        if constexpr(kHasDropout)
+            static_assert(!std::is_same_v<remove_cvref_t<decltype(features.at(I1))>, identity>,
+                          "qr_tdm dropout requires a probability callback");
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
         auto* smem_ptrq =
             reinterpret_cast<QDataType*>(static_cast<char*>(smem_arena) + Layout::kQOffset);
@@ -1251,7 +1402,7 @@ struct BlockFmhaPipelineQRKSVSTdm
             "wrong!");
 
         // Hybrid loaders: Q/K via TDM, V via async_load + ds_load_tr (same
-        // as the single K/V LDS buffer overload above; see notes there).
+        // as the single-V/double-K LDS buffer overload above; see notes there).
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[I0] &&
                           kSubQKHeaddim == QDramBlockWindowTmp{}.get_window_lengths()[I1] &&
                           kN0 == KDramBlockWindowTmp{}.get_window_lengths()[I0] &&
@@ -1702,16 +1853,7 @@ struct BlockFmhaPipelineQRKSVSTdm
                                 if constexpr(mIter == Gemm0::MIterPerWarp - 1 && kIter == 0 &&
                                              decltype(nIter)::value % 2 == 1)
                                 {
-                                    // Allow VALU/SALU/VMEM/DS-write/TRANS/LDSDMA to cross while
-                                    // keeping MFMA/WMMA and DS-read ordered around the reload.
-                                    constexpr unsigned kProgressiveDsLoadSchedMask =
-                                        0x002 | 0x004 | 0x010 | 0x020 | 0x040 | 0x200 | 0x400 |
-                                        0x800;
-                                    __builtin_amdgcn_sched_barrier(kProgressiveDsLoadSchedMask);
-                                    constexpr index_t begin = 2 * (decltype(nIter)::value - 1);
-                                    k_lds_read_window.template load_access_range<begin, begin + 4>(
-                                        k_tile);
-                                    __builtin_amdgcn_sched_barrier(kProgressiveDsLoadSchedMask);
+                                    ReloadProgressiveKFragment(k_lds_read_window, k_tile, nIter);
                                 }
                             });
                     }
@@ -1809,6 +1951,9 @@ struct BlockFmhaPipelineQRKSVSTdm
             s_wait_tensorcnt_barrier<1>();
             v_lds_read_window.set_bottom_tensor_view_data_ptr(v_lds_read_ptr);
             auto v_tile = load_tile_transpose(v_lds_read_window);
+
+            if constexpr(kHasLogitsSoftCap)
+                tile_elementwise_inout([&features](auto& x) { x = features.at(I0)(x); }, s_acc);
 
             const auto k_origin = make_tuple(kv_tile_start, 0);
 
@@ -1962,7 +2107,7 @@ struct BlockFmhaPipelineQRKSVSTdm
             // The current PV consumes P and corrected O, not the denominator.
             // Keep whole-P production unchanged and defer only l's reduction
             // in the guarded path. The original left-fold and row sync remain.
-            constexpr bool kDeferDenominator = kStagedKPairs && FmhaMask::IsMasking;
+            constexpr bool kDeferDenominator = kStagedKPairs && FmhaMask::IsMasking && !kHasDropout;
             auto rowsum_p                    = [&]() {
                 if constexpr(kDeferDenominator)
                 {
@@ -1977,6 +2122,10 @@ struct BlockFmhaPipelineQRKSVSTdm
                 }
             }();
             auto l_correction = m;
+
+            // Normalize with the undropped mass; dropout changes only the PV numerator.
+            if constexpr(kHasDropout)
+                features.at(I1)(p_compute, q_origin.at(I0), kv_tile_start);
 
             int32_t p_scale = 0;
             auto p_tile     = MakePForGemm1<decltype(gemm_1)>(p_compute, p_scale);
@@ -2209,7 +2358,8 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename Features = tuple<identity, identity>>
     CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
                                         const KDramBlockWindowTmp& k_dram_block_window_tmp,
                                         const VDramBlockWindowTmp& v_dram_block_window_tmp,
@@ -2219,7 +2369,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                                         PositionEncoding position_encoding,
                                         float scale_s,
                                         void* smem_ptr,
-                                        float sink_v) const
+                                        float sink_v,
+                                        const Features& features = {}) const
     {
         static_assert(!kQuantized, "qr_tdm pipeline: this granularity needs the descale arguments");
         if constexpr(Problem::kUseDoubleKVLdsBuffer)
@@ -2236,22 +2387,24 @@ struct BlockFmhaPipelineQRKSVSTdm
                                             nullptr,
                                             nullptr,
                                             1,
-                                            1.0f);
+                                            1.0f,
+                                            features);
         else
-            return run_single_kv_lds_buffer(q_dram_block_window_tmp,
-                                            k_dram_block_window_tmp,
-                                            v_dram_block_window_tmp,
-                                            bias_dram_block_window_tmp,
-                                            lse_acc_dram_window_tmp,
-                                            mask,
-                                            position_encoding,
-                                            scale_s,
-                                            smem_ptr,
-                                            sink_v,
-                                            nullptr,
-                                            nullptr,
-                                            1,
-                                            1.0f);
+            return run_single_v_double_k_lds_buffer(q_dram_block_window_tmp,
+                                                    k_dram_block_window_tmp,
+                                                    v_dram_block_window_tmp,
+                                                    bias_dram_block_window_tmp,
+                                                    lse_acc_dram_window_tmp,
+                                                    mask,
+                                                    position_encoding,
+                                                    scale_s,
+                                                    smem_ptr,
+                                                    sink_v,
+                                                    nullptr,
+                                                    nullptr,
+                                                    1,
+                                                    1.0f,
+                                                    features);
     }
 
     template <typename QDramBlockWindowTmp,
@@ -2259,7 +2412,8 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename Features = tuple<identity, identity>>
     CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
                                         const KDramBlockWindowTmp& k_dram_block_window_tmp,
                                         const VDramBlockWindowTmp& v_dram_block_window_tmp,
@@ -2273,7 +2427,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                                         const float* k_descale_ptr,
                                         const float* v_descale_ptr,
                                         index_t block_scale_size_kv,
-                                        float v_descale) const
+                                        float v_descale,
+                                        const Features& features = {}) const
     {
         static_assert(kQuantized,
                       "qr_tdm pipeline: this granularity ignores the descale arguments");
@@ -2291,22 +2446,24 @@ struct BlockFmhaPipelineQRKSVSTdm
                                             k_descale_ptr,
                                             v_descale_ptr,
                                             block_scale_size_kv,
-                                            v_descale);
+                                            v_descale,
+                                            features);
         else
-            return run_single_kv_lds_buffer(q_dram_block_window_tmp,
-                                            k_dram_block_window_tmp,
-                                            v_dram_block_window_tmp,
-                                            bias_dram_block_window_tmp,
-                                            lse_acc_dram_window_tmp,
-                                            mask,
-                                            position_encoding,
-                                            scale_s,
-                                            smem_ptr,
-                                            sink_v,
-                                            k_descale_ptr,
-                                            v_descale_ptr,
-                                            block_scale_size_kv,
-                                            v_descale);
+            return run_single_v_double_k_lds_buffer(q_dram_block_window_tmp,
+                                                    k_dram_block_window_tmp,
+                                                    v_dram_block_window_tmp,
+                                                    bias_dram_block_window_tmp,
+                                                    lse_acc_dram_window_tmp,
+                                                    mask,
+                                                    position_encoding,
+                                                    scale_s,
+                                                    smem_ptr,
+                                                    sink_v,
+                                                    k_descale_ptr,
+                                                    v_descale_ptr,
+                                                    block_scale_size_kv,
+                                                    v_descale,
+                                                    features);
     }
 
     template <typename QDramBlockWindowTmp,
@@ -2314,7 +2471,8 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename Features = tuple<identity, identity>>
     CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
                                         const KDramBlockWindowTmp& k_dram_block_window_tmp,
                                         const VDramBlockWindowTmp& v_dram_block_window_tmp,
@@ -2324,7 +2482,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                                         PositionEncoding position_encoding,
                                         float scale_s,
                                         float sink_v,
-                                        void* smem_arena) const
+                                        void* smem_arena,
+                                        const Features& features = {}) const
     {
         static_assert(!kQuantized, "qr_tdm pipeline: this granularity needs the descale arguments");
         if constexpr(Problem::kUseDoubleKVLdsBuffer)
@@ -2341,22 +2500,24 @@ struct BlockFmhaPipelineQRKSVSTdm
                                             nullptr,
                                             nullptr,
                                             1,
-                                            1.0f);
+                                            1.0f,
+                                            features);
         else
-            return run_single_kv_lds_buffer(q_dram_block_window_tmp,
-                                            k_dram_block_window_tmp,
-                                            v_dram_block_window_tmp,
-                                            bias_dram_block_window_tmp,
-                                            lse_acc_dram_window_tmp,
-                                            mask,
-                                            position_encoding,
-                                            scale_s,
-                                            smem_arena,
-                                            sink_v,
-                                            nullptr,
-                                            nullptr,
-                                            1,
-                                            1.0f);
+            return run_single_v_double_k_lds_buffer(q_dram_block_window_tmp,
+                                                    k_dram_block_window_tmp,
+                                                    v_dram_block_window_tmp,
+                                                    bias_dram_block_window_tmp,
+                                                    lse_acc_dram_window_tmp,
+                                                    mask,
+                                                    position_encoding,
+                                                    scale_s,
+                                                    smem_arena,
+                                                    sink_v,
+                                                    nullptr,
+                                                    nullptr,
+                                                    1,
+                                                    1.0f,
+                                                    features);
     }
 
     template <typename QDramBlockWindowTmp,
@@ -2364,7 +2525,8 @@ struct BlockFmhaPipelineQRKSVSTdm
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename Features = tuple<identity, identity>>
     CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
                                         const KDramBlockWindowTmp& k_dram_block_window_tmp,
                                         const VDramBlockWindowTmp& v_dram_block_window_tmp,
@@ -2378,7 +2540,8 @@ struct BlockFmhaPipelineQRKSVSTdm
                                         const float* k_descale_ptr,
                                         const float* v_descale_ptr,
                                         index_t block_scale_size_kv,
-                                        float v_descale) const
+                                        float v_descale,
+                                        const Features& features = {}) const
     {
         static_assert(kQuantized,
                       "qr_tdm pipeline: this granularity ignores the descale arguments");
@@ -2396,22 +2559,24 @@ struct BlockFmhaPipelineQRKSVSTdm
                                             k_descale_ptr,
                                             v_descale_ptr,
                                             block_scale_size_kv,
-                                            v_descale);
+                                            v_descale,
+                                            features);
         else
-            return run_single_kv_lds_buffer(q_dram_block_window_tmp,
-                                            k_dram_block_window_tmp,
-                                            v_dram_block_window_tmp,
-                                            bias_dram_block_window_tmp,
-                                            lse_acc_dram_window_tmp,
-                                            mask,
-                                            position_encoding,
-                                            scale_s,
-                                            smem_arena,
-                                            sink_v,
-                                            k_descale_ptr,
-                                            v_descale_ptr,
-                                            block_scale_size_kv,
-                                            v_descale);
+            return run_single_v_double_k_lds_buffer(q_dram_block_window_tmp,
+                                                    k_dram_block_window_tmp,
+                                                    v_dram_block_window_tmp,
+                                                    bias_dram_block_window_tmp,
+                                                    lse_acc_dram_window_tmp,
+                                                    mask,
+                                                    position_encoding,
+                                                    scale_s,
+                                                    smem_arena,
+                                                    sink_v,
+                                                    k_descale_ptr,
+                                                    v_descale_ptr,
+                                                    block_scale_size_kv,
+                                                    v_descale,
+                                                    features);
     }
 };
 

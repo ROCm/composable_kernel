@@ -64,9 +64,12 @@ GFX942_FROZEN = {
     "compv6": 32768,
     "preshufflev1": 32768,
     "preshufflev2": 32768,
+    "preshuffle_tdm": 32768,
     # comp_async allocates two LDS buffers unconditionally. It previously had no
     # entry and inherited the 64 KB default, which is twice what it can use.
     "comp_async": 32768,
+    # comp_tdm_pc rotates four LDS slots, so it gets a quarter of the capacity.
+    "comp_tdm_pc": 16384,
     "wavelet": 65536,
     "default": 65536,
 }
@@ -80,12 +83,16 @@ HALF_CAPACITY_PIPELINES = (
     "compv6",
     "preshufflev1",
     "preshufflev2",
+    "preshuffle_tdm",
     "comp_async",
 )
 
+# Pipelines that rotate four LDS slots get a quarter of the capacity.
+QUARTER_CAPACITY_PIPELINES = ("comp_tdm_pc",)
+
 # Every pipeline the validators can encounter must have a deliberate entry.
 # Falling through to "default" is how comp_async got a full-capacity budget.
-EXPECTED_PIPELINES = set(HALF_CAPACITY_PIPELINES) | {
+EXPECTED_PIPELINES = set(HALF_CAPACITY_PIPELINES) | set(QUARTER_CAPACITY_PIPELINES) | {
     "mem",
     "compv1",
     "compv2",
@@ -175,6 +182,13 @@ class TestLdsBudgetIsSafe(unittest.TestCase):
             for pipeline in HALF_CAPACITY_PIPELINES:
                 with self.subTest(arch=arch, pipeline=pipeline):
                     self.assertEqual(per_pipeline[pipeline], capacity // 2)
+
+    def test_four_slot_pipelines_get_a_quarter(self):
+        for arch, per_pipeline in LDS_CAPACITY_LIMITS_BY_ARCH.items():
+            capacity = HARDWARE_LDS_KB[arch] * 1024
+            for pipeline in QUARTER_CAPACITY_PIPELINES:
+                with self.subTest(arch=arch, pipeline=pipeline):
+                    self.assertEqual(per_pipeline[pipeline], capacity // 4)
 
     def test_total_capacity_matches_hardware(self):
         for arch, capacity_kb in HARDWARE_LDS_KB.items():
@@ -305,8 +319,6 @@ class TestCppPythonParity(unittest.TestCase):
     cleanly where none is available.
     """
 
-    # comp_async is deliberately absent: it has no Pipeline enumerator on the
-    # C++ side, so it exists only in the Python table.
     CPP_PIPELINE_ENUM = {
         "mem": "Mem",
         "compv1": "CompV1",
@@ -318,6 +330,10 @@ class TestCppPythonParity(unittest.TestCase):
         "preshufflev1": "PreShuffleV1",
         "preshufflev2": "PreShuffleV2",
         "wavelet": "Wavelet",
+        "preshuffle_tdm": "PreShuffleTDM",
+        "comp_async": "CompAsync",
+        "comp_tdm": "CompTDMV1",
+        "comp_tdm_v2": "CompTDMV2",
     }
 
     @staticmethod

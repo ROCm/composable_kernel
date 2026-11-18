@@ -12,12 +12,15 @@ Batched counterpart of run_one_gemm_kernel.py:
 Input JSON format:
     Single: {"so_path": "...",
              "problem": {"batch_count":.., "M":.., "N":.., "K":..},
-             "kernel_name": "..."}
+             "kernel_name": "...", "arch": "gfx942"}
     Batch:  {"items": [{...}, ...]}
 
+``arch`` (optional) is the target the .so was built for; it fixes the fp8/bf8
+host encoding instead of probing the local GPU.
+
 Optional top-level keys ``verify`` (bool) and ``verify_tol`` (float) enable an
-fp32 numpy reference check (per-batch A @ B); when set, each OK result also
-carries ``verified`` and ``max_rel``.
+fp32 reference check (per-batch A @ B on the inputs the kernel reads); when
+set, each OK result also carries ``verified`` and ``max_rel``.
 """
 
 import json
@@ -35,38 +38,30 @@ from batched_gemm_utils import (  # noqa: E402
     BatchedGemmProblem,
     GpuBatchedGemmRunner,
 )
+from gemm_utils import _sweep_inputs, _sweep_max_rel  # noqa: E402
 import numpy as np  # noqa: E402
 
 
-def _run_one(idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2):
+def _run_one(
+    idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2, arch=None
+):
     """Run a single batched kernel and emit its result as one JSON line.
 
-    When ``verify`` is set, the batched output is checked against an fp32 numpy
-    reference (per-batch ``A @ B``) using the global relative metric
+    When ``verify`` is set, the batched output is checked against
+    ``runner.reference`` (per-batch fp32 ``A @ B`` on the kernel's inputs) using
+    the global relative metric
     ``max|out - ref| / max|ref|``.
     """
     try:
         problem = BatchedGemmProblem.from_dict(prob_dict)
 
-        # Cache host tensors per (batch, M, N, K) so batch mode doesn't
-        # regenerate large inputs per kernel.
-        cache = getattr(_run_one, "_ab_cache", {})
-        key = (problem.batch_count, problem.M, problem.N, problem.K)
-        if key not in cache:
-            rng = np.random.RandomState(42)
-            cache[key] = (
-                (rng.randn(problem.batch_count, problem.M, problem.K) * 0.1).astype(
-                    np.float32
-                ),
-                (rng.randn(problem.batch_count, problem.K, problem.N) * 0.1).astype(
-                    np.float32
-                ),
-            )
-            _run_one._ab_cache = cache
-        A, B = cache[key]
+        # Drawn once per shape; kernels of the shape reuse their encoding and
+        # verify reference (gemm_utils._sweep_inputs).
+        b, M, N, K = problem.batch_count, problem.M, problem.N, problem.K
+        A, B = _sweep_inputs((b, M, K), (b, K, N))
 
         # CRITICAL: load the library ONLY inside this subprocess.
-        runner = GpuBatchedGemmRunner(lib_path=so_path)
+        runner = GpuBatchedGemmRunner(lib_path=so_path, arch=arch)
         result = runner.run(A, B, problem)
 
         if result.success:
@@ -84,10 +79,7 @@ def _run_one(idx, so_path, prob_dict, kernel_name, verify=False, verify_tol=2e-2
                 "kernel": kernel_name,
             }
             if verify:
-                ref = np.matmul(A.astype(np.float32), B.astype(np.float32))
-                got = result.output.astype(np.float32)
-                denom = float(np.max(np.abs(ref))) or 1.0
-                max_rel = float(np.max(np.abs(got - ref)) / denom)
+                max_rel = _sweep_max_rel(runner, A, B, result.output)
                 out["max_rel"] = max_rel
                 out["verified"] = bool(max_rel <= verify_tol)
             print(json.dumps(out), flush=True)
@@ -136,6 +128,7 @@ def main():
                 item.get("kernel_name", "unknown"),
                 verify=verify,
                 verify_tol=verify_tol,
+                arch=item.get("arch"),
             )
     else:
         _run_one(
@@ -145,6 +138,7 @@ def main():
             d.get("kernel_name", "unknown"),
             verify=verify,
             verify_tol=verify_tol,
+            arch=d.get("arch"),
         )
 
 

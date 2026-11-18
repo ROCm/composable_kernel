@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
+#include "ck_tile/ops/fmha/pipeline/tile_fmha_traits.hpp"
 
 namespace ck_tile {
 
@@ -123,6 +124,9 @@ struct BlockFmhaPipelineProblem
     static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
     static constexpr bool kHasSink          = Traits::kHasSink;
+
+    // Only TileFmhaMergeHeadsTraits sets it; other traits leave it false.
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ = kTraitsMergeNumHeadGroupsSeqLenQ<Traits>;
 };
 
 template <typename QDataType_,
@@ -296,6 +300,12 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
     static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
     static constexpr bool kHasSink                   = Traits::kHasSink;
+
+    // qr_tdm LDS-arena knobs read by the shared qr_tdm policy. The split-kv
+    // qr_tdm asserts kUseDoubleKVLdsBuffer is false. kProgressiveDsLoadK only
+    // matters behind it, but the policy names it, so it must exist.
+    static constexpr bool kUseDoubleKVLdsBuffer = false;
+    static constexpr bool kProgressiveDsLoadK   = false;
 };
 
 // extract tile size attributes to remove dependency on traits

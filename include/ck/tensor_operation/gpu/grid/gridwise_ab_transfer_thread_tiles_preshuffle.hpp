@@ -23,7 +23,7 @@ struct ABTransferThreadTilesPreShuffle
 {
     static_assert(ck::is_same_v<ABLayout, ABMajorLayout>, "Preshuffle doesn't support transpose");
 
-    __device__ static constexpr bool IsLDSNeeded() { return false; }
+    __host__ __device__ static constexpr bool IsLDSNeeded() { return false; }
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -31,7 +31,7 @@ struct ABTransferThreadTilesPreShuffle
 
     static constexpr index_t KRepeat = KPerBlock / KPack;
 
-#ifdef __gfx12__
+#if defined(__gfx12__) || defined(__gfx117__)
     static constexpr auto KSubtileRepeat = I1;
 #else
     static constexpr auto KSubtileRepeat = I2;
@@ -60,7 +60,8 @@ struct ABTransferThreadTilesPreShuffle
                        I1));
     }
 
-    __device__ static constexpr auto GetBlockDescriptor()
+    template <typename DeviceArch>
+    __host__ __device__ static constexpr auto GetBlockDescriptor(DeviceArch)
     {
         constexpr auto MNRepeat = MNPerBlock / MNPerWmma / MNWave;
         return make_naive_tensor_descriptor_packed(make_tuple(KSubtileRepeat,
@@ -73,9 +74,9 @@ struct ABTransferThreadTilesPreShuffle
     }
 
     template <index_t MNRepeat, index_t MNWaves>
-    __device__ static constexpr auto MakeWmmaTileDescriptor()
+    __host__ __device__ static constexpr auto MakeWmmaTileDescriptor()
     {
-        return GetBlockDescriptor();
+        return GetBlockDescriptor(get_device_arch());
     }
 
     template <typename GridDescriptor,

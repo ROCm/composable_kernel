@@ -62,6 +62,11 @@ TYPED_TEST(TestCkTileMultiReduceThreadwise, Test2D_KeepDim0_ReduceDim1_64x32)
     this->RunTest2D_KeepDim0_ReduceDim1(64, 32);
 }
 
+TYPED_TEST(TestCkTileMultiReduceThreadwise, Test2D_KeepDim0_ReduceDim1_192x32)
+{
+    this->RunTest2D_KeepDim0_ReduceDim1(192, 32);
+}
+
 TYPED_TEST(TestCkTileMultiReduceThreadwise, Test2D_KeepDim0_ReduceDim1_1024x512)
 {
     this->RunTest2D_KeepDim0_ReduceDim1(1024, 512);

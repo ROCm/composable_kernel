@@ -17,7 +17,8 @@
 // The kernel header is included via the compile command line with -include flag
 // It defines SelectedKernel struct and KERNEL_NAME
 
-void benchmark_single(const ck_tile::ArgParser& arg_parser)
+// Returns false when an exact verification (-verify_exact 1) found mismatches.
+bool benchmark_single(const ck_tile::ArgParser& arg_parser)
 {
     // Use DataTypeTraits to get the actual type names from the generated header
     // The generated header defines ADataType, BDataType, AccDataType, CDataType
@@ -62,6 +63,7 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
 
     // Get the profiler instance
     auto& profiler = UniversalGemmProfiler::GemmProfiler::instance(setting);
+    profiler.set_verify_exact(arg_parser.get_int("verify_exact") != 0);
 
     try
     {
@@ -81,18 +83,41 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
     {
         std::cerr << "Benchmark failed: " << e.what() << std::endl;
     }
+    return !profiler.exact_verification_failed();
+}
+
+// -verify_exact 1 needs integer inputs (-init 4), a reference (-verify 1 or 2) and a
+// round-to-nearest-even float -> bf16 conversion on both reference paths.
+bool check_verify_exact_args(const ck_tile::ArgParser& arg_parser)
+{
+    if(arg_parser.get_int("verify_exact") == 0)
+        return true;
+    if(arg_parser.get_int("init") != 4 || arg_parser.get_int("verify") == 0)
+    {
+        std::cerr << "Error: -verify_exact 1 requires -init 4 (integer inputs) and -verify 1 "
+                     "or 2"
+                  << std::endl;
+        return false;
+    }
+    return check_bf16_c_rounding_is_rne();
 }
 
 int main(int argc, char* argv[])
 {
     try
     {
-        auto [result, parser] = create_args(argc, argv);
+        auto [result, parser] = create_args(argc, argv, 2, [](ck_tile::ArgParser& p) {
+            p.insert("verify_exact",
+                     "0",
+                     "Set to 1 to also require an exact match (rtol = atol = 0) and report the "
+                     "mismatch count. Needs -init 4 and -verify 1 or 2. Default is 0.");
+        });
         if(!result)
             return EXIT_FAILURE;
+        if(!check_verify_exact_args(parser))
+            return EXIT_FAILURE;
 
-        benchmark_single(parser);
-        return 0;
+        return benchmark_single(parser) ? 0 : EXIT_FAILURE;
     }
     catch(const std::exception& e)
     {

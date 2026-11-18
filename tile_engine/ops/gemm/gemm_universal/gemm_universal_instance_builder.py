@@ -38,23 +38,11 @@ def _import_split_trait():
 GemmKernelBuilder = _import_gemm_kernel_builder()
 split_trait = _import_split_trait()
 
-# gfx1250 WMMA warp tiles per datatype (the gfx1250 row of the dispatcher
-# arch_specs). The shared tile-engine warp-tile table has no gfx1250 entry and
-# accepts any warp tile there, so gemm_universal applies this row itself. Only
-# gfx1250 targets consult it; every other arch is validated exactly as before.
-GFX1250_WARP_TILES = {
-    "fp16": ([16, 16, 32],),
-    "bf16": ([16, 16, 32],),
-    "fp8": ([16, 16, 64], [16, 16, 128]),
-    "bf8": ([16, 16, 64], [16, 16, 128]),
-}
-
-
-def _is_gfx1250_target(gpu_target):
-    return str(gpu_target).split(":", 1)[0] == "gfx1250"
-
 
 class GemmUniversalKernelBuilder(GemmKernelBuilder):
+    # gfx1250 WMMA rows (and gfx1201 bf16/fp8/bf8) are not in the shared table.
+    USE_OP_WARP_TILE_ROWS = True
+
     def __init__(
         self,
         kernel_name_prefix,
@@ -67,6 +55,7 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
         seed=None,
         tier=None,
         manifest_path=None,
+        c_datatype=None,
     ):
         super().__init__(
             kernel_name_prefix,
@@ -79,37 +68,7 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
             seed=seed,
             tier=tier,
             manifest_path=manifest_path,
-        )
-
-    def _validate_tile_config(
-        self,
-        tile_m,
-        tile_n,
-        tile_k,
-        warp_m,
-        warp_n,
-        warp_k,
-        warp_tile_m,
-        warp_tile_n,
-        warp_tile_k,
-        pipeline,
-    ):
-        """Restrict gfx1250 warp tiles to its WMMA row, then run the shared checks."""
-        if _is_gfx1250_target(self.gpu_target):
-            allowed = GFX1250_WARP_TILES.get(self.datatype, ())
-            if [warp_tile_m, warp_tile_n, warp_tile_k] not in allowed:
-                return False
-        return super()._validate_tile_config(
-            tile_m,
-            tile_n,
-            tile_k,
-            warp_m,
-            warp_n,
-            warp_k,
-            warp_tile_m,
-            warp_tile_n,
-            warp_tile_k,
-            pipeline,
+            c_datatype=c_datatype,
         )
 
     def _generate_all_individual(self, num_workers=None):
@@ -136,6 +95,7 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
                         self.datatype,
                         self.layout,
                         self.config_json,
+                        self.c_datatype,
                     )
                 )
 
@@ -214,11 +174,18 @@ def _generate_single_kernel_individual(work_item):
         datatype,
         layout,
         config_json,
+        c_datatype,
     ) = work_item
 
     # Create a temporary builder instance for this worker
     builder = GemmUniversalKernelBuilder(
-        kernel_name_prefix, working_path, gpu_target, datatype, layout, config_json
+        kernel_name_prefix,
+        working_path,
+        gpu_target,
+        datatype,
+        layout,
+        config_json,
+        c_datatype=c_datatype,
     )
 
     try:
@@ -268,6 +235,14 @@ def main():
         help="Matrix layout",
     )
     parser.add_argument("--config_json", help="Configuration JSON file")
+    parser.add_argument(
+        "--c_datatype",
+        default=None,
+        choices=["fp16", "bf16"],
+        help="Output (C) datatype. Default: fp16 for fp8/bf8, else the input "
+        "datatype. bf16 is accepted for fp8/bf8 only and adds a _cbf16 suffix "
+        "to the kernel name",
+    )
     parser.add_argument(
         "--num_workers", type=int, help="Number of parallel workers (default: auto)"
     )
@@ -343,6 +318,7 @@ def main():
         seed=args.seed,
         tier=args.tier,
         manifest_path=args.manifest_path,
+        c_datatype=args.c_datatype,
     )
 
     if args.list_kernels:

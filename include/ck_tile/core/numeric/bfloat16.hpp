@@ -186,7 +186,7 @@ uint16_t float_to_bf16_rtn_asm(float f)
             v_cndmask_b32 %2, %1, %4, %0 \n \
             v_lshrrev_b32 %2, 16, %2 \n \
             "
-                 : "=s"(check_nan), "+v"(tmp), "+v"(u.fp32)
+                 : "=s"(check_nan), "=&v"(tmp), "+v"(u.fp32)
                  : "v"(ROUND_BIAS_FOR_BF16), "v"(FP32_NAN));
 
     return uint16_t(u.int32);
@@ -327,10 +327,12 @@ template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
 CK_TILE_HOST_DEVICE constexpr bfloat16_t float_to_bf16(float f, constant<rounding> = {})
 {
-// Use builtin bfloat16 conversion on gfx950 and gfx12 as they support native bf16 cvt
+// Use builtin bfloat16 conversion on gfx950 and gfx125 as they support native bf16 cvt
 // instructions; Add host side macro check for consistency during accuracy tests.
-#if CK_TILE_USE_LLVM_BUILTIN_BF16 && (defined(__gfx950__) || defined(__gfx12__) || \
-                                      defined(CK_GFX950_SUPPORT) || defined(CK_GFX12_SUPPORT))
+#if CK_TILE_USE_LLVM_BUILTIN_BF16 && !defined(__gfx11__) && !defined(__gfx117__) && \
+    !defined(__gfx120__) &&                                                         \
+    (defined(__gfx950__) || defined(__gfx12__) || defined(CK_GFX950_SUPPORT) ||     \
+     defined(CK_GFX12_SUPPORT))
     return static_cast<bfloat16_t>(f);
 #else
     return bit_cast<bfloat16_t>(float_to_bf16_raw(f, constant<rounding>{}));

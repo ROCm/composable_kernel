@@ -22,7 +22,8 @@ those scripts never verify numerics and always exit 0. This one validates every
 kernel against a numpy reference and exits 1 on any mismatch or build failure.
 
 Exit codes: 0 = all pass, 1 = failure, 77 = skipped (no GPU) per the ctest
-SKIP_RETURN_CODE convention.
+SKIP_RETURN_CODE convention. An arch that is given or detected while HIP sees
+no usable device is a failure (1), reported once with the cause.
 
 Usage:
     python3 test_gemm_search_space.py --arch gfx942 --budget 500
@@ -40,9 +41,11 @@ import json
 import random
 import sys
 import time
+from collections import OrderedDict
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
+from typing import Dict, List
 
 _DISPATCHER = Path(__file__).parent.parent
 sys.path.insert(0, str(_DISPATCHER / "python"))
@@ -50,6 +53,7 @@ sys.path.insert(0, str(_DISPATCHER / "python"))
 import numpy as np
 
 from ctypes_utils import detect_gpu_arch
+from dispatcher_common import hip_device_problem, hip_last_error
 from gemm_utils import (
     GemmProblem,
     GpuGemmRunner,
@@ -294,6 +298,77 @@ def _verify(variant: str, cfg, runner, result, ops: _Operands) -> float:
     return _max_rel(result.output, ref)
 
 
+def _describe_cfg(cfg) -> str:
+    """One-line human-readable config summary for failure reports.
+
+    The kernel name already encodes all these fields, but compactly -- a reader
+    needs to know the field order to decode it. This line puts each field next
+    to a label so the failure context is self-explanatory at a glance.
+
+    Returns '' when ``cfg`` does not carry the expected GemmKernelConfig fields
+    (e.g. a SimpleNamespace stub used in unit tests), so the caller's
+    ``if r.get("cfg_desc"):`` guard silently suppresses the detail line.
+    """
+    # Guard: real configs are GemmKernelConfig dataclass instances; test stubs
+    # are often SimpleNamespace(name=...) with no tile/dtype attributes.
+    if not hasattr(cfg, "dtype_a"):
+        return ""
+
+    # dtype: show A/B/C only when they differ from one another; the common case
+    # is that all three are the same, and "dtype=fp8" is cleaner than
+    # "dtype_a=fp8 dtype_b=fp8 dtype_c=fp8".
+    if cfg.dtype_a == cfg.dtype_b == cfg.dtype_c:
+        dtype = cfg.dtype_a
+    else:
+        dtype = f"{cfg.dtype_a}/{cfg.dtype_b}/{cfg.dtype_c}"
+
+    pads = "".join(d for d, p in (("m", cfg.pad_m), ("n", cfg.pad_n), ("k", cfg.pad_k)) if p)
+    pad_str = f"pad={pads}" if pads else "pad=none"
+
+    parts = [
+        f"dtype={dtype}",
+        f"layout={cfg.layout}",
+        f"tile={cfg.tile_m}x{cfg.tile_n}x{cfg.tile_k}",
+        f"wave={cfg.wave_m}x{cfg.wave_n}x{cfg.wave_k}",
+        f"warp_tile={cfg.warp_tile_m}x{cfg.warp_tile_n}x{cfg.warp_tile_k}",
+        f"pipeline={cfg.pipeline}",
+        f"epilogue={cfg.epilogue}",
+        f"scheduler={cfg.scheduler}",
+        pad_str,
+    ]
+    if getattr(cfg, "persistent", False):
+        parts.append("persistent=True")
+    if getattr(cfg, "variant", "standard") != "standard":
+        parts.append(f"variant={cfg.variant}")
+    return "  ".join(parts)
+
+
+# Human-readable explanation for the integer status codes the C dispatcher ABI
+# returns. Every negative code other than these two is the catch-all -1.
+_STATUS_DESCRIPTIONS = {
+    0:  "success",
+    -1: "HIP/launch error (hipMalloc, hipMemcpy, or kernel launch failed; "
+        "see 'HIP error' below if a specific error code was pending)",
+    -2: "no suitable kernel found in the registry for this problem shape",
+    -3: "kernel rejected the problem (IsSupportedArgument returned false)",
+}
+
+
+def _group_build_failures(results) -> "OrderedDict[str, List[str]]":
+    """Distinct build-failure reasons -> the config names that hit each.
+
+    A broken toolchain fails every config with the SAME message -- a missing
+    clang++, a header that does not exist. Printed per config that is 64 copies
+    of one line, and the one thing an operator needs is the line, not the
+    count. Insertion-ordered so the reason the run hit first is reported first.
+    """
+    groups: "OrderedDict[str, List[str]]" = OrderedDict()
+    for r in results:
+        if r.get("status") == "build_fail":
+            groups.setdefault(r.get("error", ""), []).append(r["name"])
+    return groups
+
+
 def run(args) -> int:
     # fallback="" so a failed detection is falsy and the skip below can fire.
     # detect_gpu_arch defaults to fallback="gfx942" (ctypes_utils.py), which
@@ -363,14 +438,31 @@ def run(args) -> int:
     # --- Build ---
     print(f"\nBuilding {len(configs)} .so files (parallel JIT)...")
     t0 = time.time()
-    so_paths = setup_multiple_gemm_dispatchers(configs, verbose=False)
+    # Collect the per-config build reasons. Without this dict they are computed
+    # in the bridge and discarded (verbose=False), which is what turned the
+    # TheRock HIP_CLANG_PATH breakage into 64 "build_fail" lines with nothing
+    # after them. verbose stays False on purpose: the bridge's per-config
+    # chatter is 64 lines of noise, and the grouped summary below is the form
+    # an operator can actually act on.
+    build_errors: Dict[str, str] = {}
+    so_paths = setup_multiple_gemm_dispatchers(
+        configs, verbose=False, errors=build_errors)
     build_ok = sum(1 for p in so_paths if p is not None)
     print(f"  Built {build_ok}/{len(configs)} in {time.time()-t0:.1f}s "
           f"({len(configs)-build_ok} failed)")
 
     # --- Run ---
-    print(f"\nRunning {build_ok} kernels on GPU (M=N=K={size}, "
-          f"warmup={args.warmup}, repeat={args.repeat})...")
+    # Without a GPU every kernel fails with the same opaque status=-1; report
+    # the cause once instead of one run_fail line per kernel.
+    # The kernels are still built first, so a box without a GPU keeps the
+    # compile coverage.
+    gpu_problem = hip_device_problem()
+    if gpu_problem:
+        print(f"\nERROR: no usable GPU, so no kernel was run or verified: "
+              f"{gpu_problem}")
+    else:
+        print(f"\nRunning {build_ok} kernels on GPU (M=N=K={size}, "
+              f"warmup={args.warmup}, repeat={args.repeat})...")
     # num_d is per-kernel, but every config in a sweep shares the same operand
     # shapes, so generate the largest D set once and slice per kernel.
     max_num_d = max((getattr(c, "num_d_tensors", 0) for c in configs), default=0)
@@ -378,13 +470,22 @@ def run(args) -> int:
     flops = ops.grouped_problem.flops if variant == "grouped" else ops.problem.flops
 
     results = []
-    n_pass = n_fail = n_build_fail = n_skip = 0
+    n_pass = n_fail = n_build_fail = n_skip = n_not_run = 0
 
     for cfg, so in zip(configs, so_paths):
         if so is None:
             n_build_fail += 1
-            results.append({"name": cfg.name, "status": "build_fail"})
+            # Same "error" key run_fail / run_error / verify_error already use,
+            # so this is not a schema change for anything reading the JSON.
+            results.append({"name": cfg.name, "status": "build_fail",
+                            "error": build_errors.get(cfg.name, ""),
+                            "cfg_desc": _describe_cfg(cfg)})
             continue
+        if gpu_problem:
+            n_not_run += 1
+            results.append({"name": cfg.name, "status": "not_run"})
+            continue
+        hip_last_error()  # drop errors left by earlier kernels
         try:
             runner = _make_runner(variant, cfg, so)
             for _ in range(args.warmup):
@@ -397,7 +498,8 @@ def run(args) -> int:
                     times.append(result.time_ms)
         except Exception as exc:
             n_fail += 1
-            results.append({"name": cfg.name, "status": "run_error", "error": str(exc)})
+            results.append({"name": cfg.name, "status": "run_error", "error": str(exc),
+                            "cfg_desc": _describe_cfg(cfg)})
             continue
         # run() rejected the problem (IsSupportedArgument): the kernel never
         # launched, so there is no output to verify. Count it as a skip, not a
@@ -409,8 +511,18 @@ def run(args) -> int:
             continue
         if result is None or not result.success:
             n_fail += 1
-            results.append({"name": cfg.name, "status": "run_fail",
-                            "error": f"status={getattr(result, 'status', 'unknown')}"})
+            raw_status = getattr(result, "status", "unknown")
+            # Add a human-readable explanation for known status codes so that a
+            # bare "status=-1" does not leave the reader guessing what went wrong.
+            desc = _STATUS_DESCRIPTIONS.get(raw_status, "")
+            error = f"status={raw_status}"
+            if desc:
+                error += f" — {desc}"
+            hip_error = hip_last_error()
+            if hip_error:
+                error += f" | HIP error: {hip_error}"
+            results.append({"name": cfg.name, "status": "run_fail", "error": error,
+                            "cfg_desc": _describe_cfg(cfg)})
             continue
         # Use avg TFLOPS from timed repeat runs; fall back to result.tflops (single run).
         if times:
@@ -422,7 +534,8 @@ def run(args) -> int:
             mr = _verify(variant, cfg, runner, result, ops)
         except Exception as exc:
             n_fail += 1
-            results.append({"name": cfg.name, "status": "verify_error", "error": str(exc)})
+            results.append({"name": cfg.name, "status": "verify_error", "error": str(exc),
+                            "cfg_desc": _describe_cfg(cfg)})
             continue
         ok = mr <= _RTOL
         n_pass += ok
@@ -433,22 +546,51 @@ def run(args) -> int:
     # --- Report ---
     print(f"\n{'='*60}")
     print(f"Results: {n_pass} pass / {n_fail} fail / {n_build_fail} build-fail "
-          f"/ {n_skip} unsupported-skip / {len(configs)} total")
+          f"/ {n_skip} unsupported-skip / {n_not_run} not-run "
+          f"/ {len(configs)} total")
 
     if args.json:
+        # One record per kernel, NOT deduplicated like the console summary
+        # below: existing consumers and artifact diffs are per kernel, and the
+        # bridge bounds each reason at ~2 kB, so even a total 64-config wipeout
+        # costs ~128 kB.
         out = {"variant": variant, "arch": arch, "size": size, "seed": seed,
                "budget": budget, "total_configs": total, "n_pass": n_pass,
                "n_fail": n_fail, "n_build_fail": n_build_fail, "n_skip": n_skip,
+               "n_not_run": n_not_run, "gpu_problem": gpu_problem,
                "kernels": results}
         Path(args.json).write_text(json.dumps(out, indent=2))
         print(f"Results written to {args.json}")
 
     if n_fail > 0 or n_build_fail > 0:
-        print("\nFailed kernels:")
-        for r in results:
-            if r["status"] not in ("pass", "unsupported"):
+        # build_fail is reported below, grouped by reason; not_run has no reason
+        # of its own (the single gpu_problem line above is it). Both are
+        # excluded here, so the header only goes out when something follows it.
+        run_failures = [r for r in results if r["status"]
+                        not in ("pass", "unsupported", "not_run", "build_fail")]
+        if run_failures:
+            print("\nFailed kernels:")
+            for r in run_failures:
                 print(f"  {r['name']}: {r['status']} "
                       f"{r.get('error', r.get('max_rel', ''))}")
+                # cfg_desc is a one-liner that labels each encoded field so the
+                # failure is readable without memorising the kernel name format.
+                if r.get("cfg_desc"):
+                    print(f"    config: {r['cfg_desc']}")
+        groups = _group_build_failures(results)
+        if groups:
+            print(f"\nBuild failures ({len(groups)} distinct "
+                  f"{'reason' if len(groups) == 1 else 'reasons'}, "
+                  f"{n_build_fail} configs):")
+            for reason, names in groups.items():
+                more = f" (+{len(names) - 1} more)" if len(names) > 1 else ""
+                print(f"  [{len(names)}x] {names[0]}{more}")
+                print(f"      {reason or 'no reason reported by the build'}")
+                # Show the config of the first affected kernel so the reader has
+                # the tile/dtype/layout context alongside the compiler error.
+                first_r = next((r for r in results if r["name"] == names[0]), None)
+                if first_r and first_r.get("cfg_desc"):
+                    print(f"      config: {first_r['cfg_desc']}")
 
     # A build failure is a failure. Excluding it would mean a total codegen or
     # compile breakage -- every kernel failing to build, nothing verified --
@@ -458,7 +600,7 @@ def run(args) -> int:
     if n_pass == 0 and n_skip > 0:
         print("\nNo kernel was verified: every built kernel was unsupported.")
         return 1
-    return 0 if n_fail == 0 and n_build_fail == 0 else 1
+    return 0 if n_fail == 0 and n_build_fail == 0 and not gpu_problem else 1
 
 
 def main() -> int:

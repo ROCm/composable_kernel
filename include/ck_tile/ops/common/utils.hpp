@@ -45,6 +45,15 @@ template <> struct memOpToStr<memory_operation_enum::atomic_max> { static conste
 template <> struct memOpToStr<memory_operation_enum::add> { static constexpr const char * name = "add"; };
 // clang-format on
 
+template <fp8_interpretation I>
+struct DataTypeTraits<float8_format_t<I>>
+{
+    static constexpr const char* name =
+        numeric_traits<float8_format_t<I>>::e4m3
+            ? (numeric_traits<float8_format_t<I>>::fnuz ? "fp8_fnuz" : "fp8_ocp")
+            : (numeric_traits<float8_format_t<I>>::fnuz ? "bf8_fnuz" : "bf8_ocp");
+};
+
 template <typename ADataType_, typename BDataType_>
 std::string gemm_prec_str()
 {
@@ -61,5 +70,32 @@ std::string mem_op_string()
 {
     return std::string(memOpToStr<MemOp_>::name);
 }
+
+namespace impl {
+template <typename Epilogue, typename = void>
+struct epilogue_can_accumulate : std::true_type
+{
+};
+template <typename Epilogue>
+struct epilogue_can_accumulate<Epilogue, std::void_t<decltype(Epilogue::SupportsSplitK)>>
+    : std::bool_constant<Epilogue::SupportsSplitK>
+{
+    static_assert(std::is_same_v<std::remove_cv_t<decltype(Epilogue::SupportsSplitK)>, bool>,
+                  "SupportsSplitK must be a static constexpr bool");
+};
+} // namespace impl
+
+/**
+ * @brief Whether Epilogue's store can accumulate into its output, as a split-K atomic_add needs.
+ *
+ * An epilogue whose store always overwrites declares SupportsSplitK = false (e.g.
+ * TdmEpilogue); one that does not declare it is assumed able to accumulate. Kernels with a
+ * split-K arm read this so that the host rejection and the device dispatch agree.
+ *
+ * @note MxGemmKernel reads this trait and additionally requires the opt-in marker
+ * kAtomicAddRequiresEvenVectorSize; an epilogue without that marker cannot accumulate there.
+ */
+template <typename Epilogue>
+inline constexpr bool epilogue_can_accumulate_v = impl::epilogue_can_accumulate<Epilogue>::value;
 
 } // namespace ck_tile

@@ -1,0 +1,20 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+ARG BASE_DOCKER="rocm/pytorch:rocm10.1.0_ubuntu24.04_py3.12_pytorch_release_2.14.0"
+FROM $BASE_DOCKER
+ARG GPU_ARCHS="gfx1250"
+ARG MAX_JOBS=64
+
+# Build the CI checkout; no downstream repository or branch checkout is needed.
+COPY projects/composablekernel /opt/ck
+RUN python3 -m pip install 'cmake>=3.21' ninja 'setuptools>=64' wheel 'pytest>=7' einops && \
+    GPU_ARCHS="$GPU_ARCHS" MAX_JOBS="$MAX_JOBS" \
+        python3 -m pip install --no-build-isolation --no-deps -v \
+        /opt/ck/example/ck_tile/01_fmha/python && \
+    rm -rf /opt/ck/example/ck_tile/01_fmha/python/build && \
+    groupadd -g 1001 jenkins && \
+    useradd -u 1001 -g 1001 -m -s /bin/bash jenkins && \
+    groupadd -f video && \
+    groupadd -f render && \
+    usermod -aG irc jenkins

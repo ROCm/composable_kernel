@@ -18,107 +18,116 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/utility/reduction_enums.hpp"
+#include "ck/library/utility/run_fp8_example.hpp"
 
 using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::Tensor;
 
-using F16 = ck::half_t;
-using F32 = float;
-using F8  = ck::f8_t;
-
-using InputDataType  = F16;
-using ScaleDataType  = F32;
-using OutputDataType = F8;
-
-static constexpr ck::index_t NumDim = 2;
-
-constexpr ck::ReduceTensorOp ReduceOpId = ck::ReduceTensorOp::MAX;
-constexpr bool PropagateNan             = true;
-constexpr bool OutputIndex              = false;
-
-using ReduceOperation = typename ck::reduce_binary_operator<ReduceOpId>::opType;
-
-struct ScalePassThrough
+template <typename Fp8, typename Bf8>
+struct Example
 {
-    ScalePassThrough(const float alpha = 1.f) : alpha_(alpha) {}
 
-    __host__ __device__ constexpr void
-    operator()(OutputDataType& y0, OutputDataType& y1, const InputDataType& x0) const
+    using F16 = ck::half_t;
+    using F32 = float;
+    using F8  = Fp8;
+
+    using InputDataType  = F16;
+    using ScaleDataType  = F32;
+    using OutputDataType = F8;
+
+    static constexpr ck::index_t NumDim = 2;
+
+    static constexpr ck::ReduceTensorOp ReduceOpId = ck::ReduceTensorOp::MAX;
+    static constexpr bool PropagateNan             = true;
+    static constexpr bool OutputIndex              = false;
+
+    using ReduceOperation = typename ck::reduce_binary_operator<ReduceOpId>::opType;
+
+    struct ScalePassThrough
     {
-        y0 = ck::type_convert<OutputDataType>(ck::type_convert<ScaleDataType>(x0) * alpha_);
-        y1 = y0;
-    }
+        ScalePassThrough(const float alpha = 1.f) : alpha_(alpha) {}
 
-    const ScaleDataType alpha_;
-};
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using UnaryAbs    = ck::tensor_operation::element_wise::UnaryAbs;
-
-using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceElementwiseImpl<
-    ck::Tuple<InputDataType>,                  // InDataTypeTuple
-    ck::Tuple<OutputDataType, OutputDataType>, // OutDataTypeTuple
-    ScalePassThrough,                          // Elementwise
-    NumDim,                                    // NumDim
-    256,                                       // BlockSize
-    128,                                       // M0PerBlock
-    128,                                       // M1PerBlock
-    8,                                         // M0PerThread
-    8,                                         // M1PerThread
-    ck::Sequence<1, 0>,                        // ThreadClusterArrangeOrder
-    ck::Sequence<8>,                           // InScalarPerVectorSeq
-    ck::Sequence<8, 1>>;                       // OutScalarPerVectorSeq
-
-using DeviceReduceInstance =
-    ck::tensor_operation::device::DeviceReduceMultiBlock<OutputDataType,
-                                                         ScaleDataType,
-                                                         OutputDataType,
-                                                         NumDim,
-                                                         NumDim,
-                                                         ReduceOperation,
-                                                         UnaryAbs,
-                                                         PassThrough,
-                                                         ck::InMemoryDataOperationEnum::Set,
-                                                         PropagateNan,
-                                                         OutputIndex,
-                                                         false, // HaveIndexInputIfOutputIndex
-                                                         1024,  // BlockSize
-                                                         1,     // MThreadClusterSize
-                                                         1024,  // KThreadClusterSize
-                                                         1,     // MThreadSliceSize
-                                                         16,    // KThreadSliceSize
-                                                         1,     // InSrcVectorDim
-                                                         16,    // InSrceVectorSize
-                                                         1>;    // OutDstVectorSize
-
-void reference_scale_permute_amax(Tensor<InputDataType>& input,
-                                  Tensor<OutputDataType>& host_output_scaled_casted_transposed,
-                                  Tensor<OutputDataType>& host_output_scaled_casted,
-                                  Tensor<OutputDataType>& host_output_amax,
-                                  const float scale)
-{
-    ScalePassThrough out_element_op(scale);
-    const ck::index_t M = input.GetLengths()[0];
-    const ck::index_t K = input.GetLengths()[1];
-    for(ck::index_t m = 0; m < M; m++)
-    {
-        for(ck::index_t k = 0; k < K; k++)
+        __host__ __device__ constexpr void
+        operator()(OutputDataType& y0, OutputDataType& y1, const InputDataType& x0) const
         {
-            OutputDataType y0, y1;
-            out_element_op(y0, y1, input(m, k));
+            y0 = ck::type_convert<OutputDataType>(ck::type_convert<ScaleDataType>(x0) * alpha_);
+            y1 = y0;
+        }
 
-            host_output_scaled_casted(m, k)            = y0;
-            host_output_scaled_casted_transposed(m, k) = y1;
-            const OutputDataType y_fabs =
-                ck::type_convert<OutputDataType>(ck::math::abs(ck::type_convert<float>(y0)));
-            host_output_amax(0) = ck::type_convert<OutputDataType>(ck::math::max(
-                ck::type_convert<float>(y_fabs), ck::type_convert<float>(host_output_amax(0))));
+        const ScaleDataType alpha_;
+    };
+
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    using UnaryAbs    = ck::tensor_operation::element_wise::UnaryAbs;
+
+    using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceElementwiseImpl<
+        ck::Tuple<InputDataType>,                  // InDataTypeTuple
+        ck::Tuple<OutputDataType, OutputDataType>, // OutDataTypeTuple
+        ScalePassThrough,                          // Elementwise
+        NumDim,                                    // NumDim
+        256,                                       // BlockSize
+        128,                                       // M0PerBlock
+        128,                                       // M1PerBlock
+        8,                                         // M0PerThread
+        8,                                         // M1PerThread
+        ck::Sequence<1, 0>,                        // ThreadClusterArrangeOrder
+        ck::Sequence<8>,                           // InScalarPerVectorSeq
+        ck::Sequence<8, 1>>;                       // OutScalarPerVectorSeq
+
+    using DeviceReduceInstance =
+        ck::tensor_operation::device::DeviceReduceMultiBlock<OutputDataType,
+                                                             ScaleDataType,
+                                                             OutputDataType,
+                                                             NumDim,
+                                                             NumDim,
+                                                             ReduceOperation,
+                                                             UnaryAbs,
+                                                             PassThrough,
+                                                             ck::InMemoryDataOperationEnum::Set,
+                                                             PropagateNan,
+                                                             OutputIndex,
+                                                             false, // HaveIndexInputIfOutputIndex
+                                                             1024,  // BlockSize
+                                                             1,     // MThreadClusterSize
+                                                             1024,  // KThreadClusterSize
+                                                             1,     // MThreadSliceSize
+                                                             16,    // KThreadSliceSize
+                                                             1,     // InSrcVectorDim
+                                                             16,    // InSrceVectorSize
+                                                             1>;    // OutDstVectorSize
+
+    void reference_scale_permute_amax(Tensor<InputDataType>& input,
+                                      Tensor<OutputDataType>& host_output_scaled_casted_transposed,
+                                      Tensor<OutputDataType>& host_output_scaled_casted,
+                                      Tensor<OutputDataType>& host_output_amax,
+                                      const float scale)
+    {
+        ScalePassThrough out_element_op(scale);
+        const ck::index_t M = input.GetLengths()[0];
+        const ck::index_t K = input.GetLengths()[1];
+        for(ck::index_t m = 0; m < M; m++)
+        {
+            for(ck::index_t k = 0; k < K; k++)
+            {
+                OutputDataType y0, y1;
+                out_element_op(y0, y1, input(m, k));
+
+                host_output_scaled_casted(m, k)            = y0;
+                host_output_scaled_casted_transposed(m, k) = y1;
+                const OutputDataType y_fabs =
+                    ck::type_convert<OutputDataType>(ck::math::abs(ck::type_convert<float>(y0)));
+                host_output_amax(0) = ck::type_convert<OutputDataType>(ck::math::max(
+                    ck::type_convert<float>(y_fabs), ck::type_convert<float>(host_output_amax(0))));
+            }
         }
     }
-}
 
-int main(int argc, char* argv[])
+    int Run(int argc, char* argv[]);
+};
+
+template <typename Fp8, typename Bf8>
+int Example<Fp8, Bf8>::Run(int argc, char* argv[])
 {
     bool do_verification = true;
     bool time_kernel     = false;
@@ -268,3 +277,5 @@ int main(int argc, char* argv[])
 
     return pass ? 0 : 1;
 }
+
+int main(int argc, char* argv[]) { return ck::utils::run_fp8_example<Example>(argc, argv); }

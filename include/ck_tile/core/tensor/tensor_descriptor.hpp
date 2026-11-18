@@ -270,6 +270,20 @@ CK_TILE_HOST_DEVICE constexpr long_index_t calculate_element_space_size_impl(con
 
 } // namespace detail
 
+namespace detail {
+// Whether an element space size must be clamped to the index_t range: only a
+// positive size of 2^31 or more (a zero-length dimension makes it negative). Tested
+// on the two 32-bit halves: std::min on long_index_t lowers to v_min_i64, which moves
+// a wave-uniform size into a VGPR and wraps every buffer op built on it in a
+// waterfall loop.
+CK_TILE_HOST_DEVICE constexpr bool needs_element_space_clamp(long_index_t size)
+{
+    const int32_t hi  = static_cast<int32_t>(size >> 32);
+    const uint32_t lo = static_cast<uint32_t>(size);
+    return hi > 0 || (hi == 0 && lo > 0x7fffffffu);
+}
+} // namespace detail
+
 /*
  * These functions create naive tensor descriptor
  */
@@ -306,8 +320,9 @@ make_naive_tensor_descriptor(const tuple<Lengths...>& lengths,
         detail::calculate_element_space_size_impl(lengths, strides, number<0>{}, long_number<1>{});
     constexpr long_index_t element_space_size_clamp_value =
         static_cast<long_index_t>(std::numeric_limits<index_t>::max());
-    const index_t element_space_size =
-        static_cast<index_t>(std::min(element_space_size_long, element_space_size_clamp_value));
+    const index_t element_space_size = detail::needs_element_space_clamp(element_space_size_long)
+                                           ? static_cast<index_t>(element_space_size_clamp_value)
+                                           : static_cast<index_t>(element_space_size_long);
 
     using GuaranteedVectorLengths =
         typename sequence_merge<typename uniform_sequence_gen<N, -1>::type,
@@ -347,7 +362,9 @@ make_naive_tensor_descriptor_with_offset(const tuple<Lengths...>& lengths,
         constexpr long_index_t element_space_size_clamp_value =
             static_cast<long_index_t>(std::numeric_limits<index_t>::max());
         const index_t element_space_size =
-            static_cast<index_t>(std::min(element_space_size_long, element_space_size_clamp_value));
+            detail::needs_element_space_clamp(element_space_size_long)
+                ? static_cast<index_t>(element_space_size_clamp_value)
+                : static_cast<index_t>(element_space_size_long);
 
         const auto transforms = make_tuple(make_offset_transform(element_space_size, os));
 

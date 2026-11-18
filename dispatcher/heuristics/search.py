@@ -58,7 +58,16 @@ class SurrogateSearch:
         seed: int = 42,
     ):
         self._predictor = predictor
-        self._fe = feature_engine or GemmUniversalFeatureEngine()
+        # Default to the predictor's engine, so constraints use the model's
+        # hardware constants.
+        if feature_engine is not None:
+            self._fe = feature_engine
+        else:
+            from_predictor = getattr(predictor, "feature_engine", None)
+            if from_predictor is not None:
+                self._fe = from_predictor
+            else:
+                self._fe = GemmUniversalFeatureEngine()
         self._strategy = strategy
         self._rng = random.Random(seed)
         self._np_rng = np.random.RandomState(seed)

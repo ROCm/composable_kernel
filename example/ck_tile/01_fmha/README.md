@@ -2,6 +2,12 @@
 
 This folder contains example for fmha(fused multi-head attention) using ck_tile tile-programming implementation. It is a good example to demonstrate the usage of tile-programming API, as well as illustrate the new approach to construct a kernel template and instantiate it(them) while keeping compile time fast.
 
+For a PyTorch API and the full fmha pytest
+matrix using GPU references, see [the Python package](python/README.md). It
+supports pip or setuptools installation and incremental kernel rebuilds. After
+installation, `script/run_python_test.sh` runs the Python tests; normal pytest
+arguments can be passed through to select or report cases.
+
 ## build
 ```
 # 1. In the root of composable_kernel project, create the build directory.
@@ -37,6 +43,144 @@ There are 2 template parameters for this kernel template.
 ## codegen
 To speed up compile time, we instantiate the kernels into separate file. In this way we can benefit from parallel building from CMake/Make system. This is achieved by `generate.py` script. Besides, you can look into this script to learn how to instantiate a kernel instance step by step, which is described in `FMHA_FWD_KERNEL_BODY` variable.
 
+### Basic TDM forward feature coverage
+
+On gfx125, FP16/BF16 `qr_tdm` supports logits soft cap, dropout, group-mode
+`skip_min_seqlen_q`, and padded Q/V head dimensions that are not multiples of eight.
+Dropout preserves the forward/backward Philox mapping and computes LSE from the
+undropped probability mass. Group skip compares the logical Q length with the
+threshold and leaves skipped outputs untouched. Batch dispatch reuses `skip=false`
+instances because the threshold only applies to group mode. All gfx125 receipts
+accept batch `skip_min_seqlen_q=true`; custom tune `filters.skip` applies only to
+group mode on this architecture.
+
+FP16/BF16 inventories contain only TDM pipelines, with head buckets up to 512.
+The existing D192/V128 bias/dropout and softcap-with-bias exclusions still apply.
+FP8 and the split-KV/paged-KV APIs retain their separate inventories.
+
+### Scheduled TDM forward pipeline
+
+`qr_tdm_sched` shares the gfx125 TDM architecture requirements with `qr_tdm`.
+Its generated configurations use FP16 or BF16 Q/K/V with D64/V64, D128/V128,
+or D192/V128, and row-major V. They use no bias, dropout, logits
+soft cap, quantization, or sink tokens; LSE output is optional. Other configurations retain
+the existing pipeline candidates.
+Generated `qr_tdm_sched` requires a null runtime `sink_ptr`; a finite virtual-sink
+logit uses the existing `qr_tdm` fallback. This runtime pointer is independent
+of the compile-time sink-token flag.
+
+The generated API tries matching scheduled traits first. D64/V64 uses a
+128-by-64 Q/K sequence tile, matching the existing `qr_tdm` M128 geometry and
+compiler minimum-waves-per-EU hint of three. The launch API retains the
+historical `MinBlockPerCu` name; this hint does not establish achieved workgroup
+residency. Aligned batch K lengths use unpadded
+sequence traits; tails and group mode use padded traits. D64 uses compiler-scheduled
+softmax maximum chains and places each next-stage LDS read before the current
+WMMA, preserving read counts and stage-tail waits. Generated D64/D128/D192
+scheduled sources enable expert scheduling mode. D128 uses a
+128-by-128 Q/K sequence tile. D192 tries a 128-by-128 tile when average K length
+is at least 512, the Q grid fits within the CU count, logical length pointers
+are absent, and the mask is dense or square causal. Otherwise it uses a
+128-by-64 tile. Group mode compares packed K length against 512 times the batch
+count; its square-causal check compares packed Q/K totals. When
+`max_seqlen_q` is below 128, the existing fallback candidates are used.
+
+WG indexing follows the existing shared kernel rules. For batch BHSD square
+causal attention with one V tile and no dropout, sched D64/D128 visit the longest
+Q tile across heads within each batch first, subject to the grouped XCD path
+described below. Sched D192 keeps the existing
+head-major remap; group mode does not enter this batch-local branch. The XCC
+mode 5/tm5r experiment remains disabled unless `CK_TILE_FMHA_PAIRED_XCC_ORDER`
+is explicitly defined to a nonzero value. Its eight-XCC mapping assumptions
+must be checked on the target hardware before enabling it.
+
+The forward workgroup mapping is defined in
+[`fmha_fwd_workgroup_mapping.hpp`](../../../include/ck_tile/ops/fmha/kernel/fmha_fwd_workgroup_mapping.hpp).
+`GetTileIndex()` normalizes the launch axes and supplies pipeline, architecture,
+layout, and sequence properties to `MapFmhaFwdWorkgroup()`. That single helper
+selects the path and returns the Q tile, V tile, head, and batch together.
+No policy enum or intermediate permutation is exposed to callers.
+
+The measured gfx1250 scheduled BF16 D128/M128/N128 family additionally groups
+whole (batch, head) rows within each XCD for uniform, square causal MHA in
+batch mode with a single V tile.
+This path requires eight XCDs, 2–16 Q tiles, a batch/head product divisible by 32,
+and no bias, dropout, LSE, sink, softcap, or quantization scale. Groups contain
+4, 8, or 16 (batch, head) rows; heavy Q tiles run first within each group.
+Larger sequences and other cases retain the existing mapping. The opt-in paired-XCC experiment,
+including its fallback order, takes precedence over this grouping.
+
+The non-causal XCD path is unchanged. The BHSD and general-grid XCD fallbacks
+have the same logical head-major order. They retain separate batch-first and
+tile-first arithmetic forms because merging them measured slower in the early
+gfx1250 standalone experiment.
+Both share the corrected Q/V decoding: masking reverses the Q dimension only.
+Unit tests check the complete mapping; GPU tests exercise `GetTileIndex()`
+thresholds and fallbacks. The launch interface and Kargs are unchanged.
+
+The mapper's coordinate coverage does not expand a pipeline's supported head
+dimensions. In particular, the QR TDM paths still assume a single V tile when
+loading V; testing multi-V coordinates does not establish multi-V attention
+support for those pipelines.
+
+The implementation separates tile selection, data operations, and placement:
+
+```text
+fmha_fwd.py: tile/pipeline compatibility + runtime constraints
+    -> generated Problem and BlockFmhaShape
+    -> FmhaTdmSchedPolicyFor<Problem>
+         Geometry: dtype, tile shape, WMMA decomposition, LDS layout
+         Tuning:   tensor waits, DS tail counts, compiler launch hint
+         Schedule: tile phase order and local instruction placement
+    -> BlockFmhaPipelineQRKSVSTdmSched<Problem, Policy>
+         owns tensors, TDM loads, synchronization, and operation callbacks
+    -> Schedule::Run(ops)
+         Begin -> QK -> Score -> Softmax -> NextK -> PV -> Advance
+    -> Policy stage operations + FmhaTdmSchedPlacementExecutor
+         execute local WMMA/read/fence/rescale callbacks
+```
+
+The shared pipeline body covers all three head dimensions. Geometry derives the
+number of QK/PV stages and LDS reads; default tuning derives its DS tail counts
+from those values. A specific tuning can override them without duplicating the
+pipeline. The LDS arena packs K0, K1, V0, and V1 in order. Q uses the K arena
+during the prologue before the synchronization that permits K reuse.
+
+The default tile schedule is `FmhaTdmSchedSequentialTileSchedule`. D64 uses
+`FmhaTdmSchedReadFirstPlacement`, which issues each row's reads and fences before
+its WMMA. D128/D192 use `FmhaTdmSchedWmmaFirstPlacement`, with a leading read on
+selected D128 stages. Each row divides its reads into two groups around a fence.
+BF16 D192/N128 uses `FmhaTdmSchedExplicitRowReadSchedule` with a concrete read
+placement and streams output rescale through the first PV stage. The other
+geometries use `FmhaTdmSchedEvenlyInterleavedReadSchedule`, which distributes
+the fixed read count across WMMA rows. In particular, FP16 D192/N128 uses evenly
+interleaved reads and rescales after softmax; it does not select the BF16
+explicit placement or streaming rescale. `DeferTensorReady` moves the V prefetch
+tensor wait from the score phase to after split softmax Part01 and before Part2.
+It applies to D128 batch/group kernels, including masked kernels, and to BF16
+D192/N64 dense batch/group kernels. LSE does not change this choice; sink-token
+and bias problems are excluded. D64, FP16 D192/N64, and both D192/N128 dtypes
+retain the score-phase wait. D128 rescales output before Part2; BF16 D192/N128
+streams rescale through the first PV stage; the remaining geometries rescale
+after Part2. Compile-time checks enforce matching geometry, stage counts, WMMA
+counts, and rescale modes.
+
+For a new placement, supply a policy's third template argument (the tile
+schedule) and implement its local callbacks. The executor executes those
+callbacks directly. TDM loads and hardware synchronization remain explicit
+pipeline phase boundaries. The pipeline and policy reject attention bias;
+other pipelines provide its existing dispatch fallback. Sink operations remain
+for the shared kernel entry. A runtime sink logit is independent of the
+compile-time sink-token flag.
+
+`test/ck_tile/fmha` contains the scheduled pipeline's layout, schedule,
+representation, sink, generated dispatch, and independent reference tests.
+The independent reference retains unquantized FP32 probabilities and reports
+both strict cosine diagnostics and the dtype component budget; see
+[`accuracy_contract.md`](../../../test/ck_tile/fmha/accuracy_contract.md).
+`test/ck_tile/tdm` retains the general TDM tests. The optional tm5r XCC ordering path remains guarded
+by `CK_TILE_FMHA_PAIRED_XCC_ORDER` and is disabled when the macro is absent.
+
 ## executable
 `tile_example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/tile_example_fmha_fwd -?` to list all the arguments. Below is an example of the output (may subject to change)
 ```
@@ -49,7 +193,7 @@ args:
                 if not equal to h, then this is GQA/MQA case
           -s    seqlen_q. if group-mode, means the average value of seqlen_q (default:3328)
                 total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
-                also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
+                also with "-s=s0,s1,s2..." comma-separated ints to set per batch seqlen(group-mode)
         -s_k    seqlen_k (including new key/value), -1 means equal to s (default:-1)
                 also with "-s_k=s0,s1,s2..." comma-separated ints to set seqlen per batch (group mode)
      -s_qpad    seqlen_q stride between 2 batches (group-mode optional) (default:-1)
@@ -65,7 +209,8 @@ args:
                 pt or 1, per-tensor scale
                 bs or 2, block scale
                 kvbs or 3, Q per-tensor, K/V per-page block scale, only in batch_prefill
-                mx or 4, microscaling (exclusively for mxfp8/mxfp4)
+                mx or 4, microscaling (mxfp8, mxfp8bf16 and mxfp4;
+                           fp8 and fp8bf16 run as mxfp8 and mxfp8bf16)
                 ph or 5, per-head scale
       -iperm    permute input (default:1)
                 if true, will be b*h*s*d, else b*s*h*d
@@ -73,7 +218,7 @@ args:
        -bias    n or 0, no bias (default:n)
                 e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s
                 a(libi) or 2, alibi with 1*h. a:1, b*h
-       -prec    data type. fp32/fp16/bf16/fp8/fp8bf16/fp8fp32/mxfp8/mxfp4 (default:fp16)
+       -prec    data type. fp32/fp16/bf16/fp8/fp8bf16/mxfp8/mxfp8bf16/mxfp4 (default:fp16)
        -mask    0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b') (default:0)
                 't', top-left causal mask, 'b', bottom-r causal mask
                 't:l,r', top-left sliding window attn(swa) with FA style left right size
@@ -166,13 +311,12 @@ We support sequence padding and variable-length processing in both batch and gro
 Both approaches optimize memory access patterns while supporting flexible sequence length requirements commonly found in transformer inference scenarios.
 
 ## FP8 support
-FP8 FMHA kernels are supported on gfx942/gfx950/gfx1250 machines with ROCm 6.0+. Three fp8-based precision modes are available via `-prec`:
+FP8 FMHA kernels are supported on gfx942/gfx950/gfx12/gfx1250 machines with ROCm 6.0+. Two fp8-based precision modes are available via `-prec`; on gfx942/gfx950/gfx12, `fp8` covers head dim 128 only, so use `fp8bf16` for other head dims:
 
 | `-prec` value | Q/K/V input type | Output type | Description |
 |---|---|---|---|
-| `fp8` | fp8 | fp8 | Fully fp8: both inputs and output are in fp8 |
+| `fp8` | fp8 | fp32 | fp8 inputs, fp32 output — highest-precision output, suitable for debugging or further fp32 processing |
 | `fp8bf16` | fp8 | bf16 | Mixed precision: fp8 inputs, bf16 output — useful when the consumer expects a wider-range output format |
-| `fp8fp32` | fp8 | fp32 | Mixed precision: fp8 inputs, fp32 output — highest-precision output, suitable for debugging or further fp32 processing |
 
 The following quantization scale modes are available via `-qscale`:
 
@@ -182,10 +326,12 @@ The following quantization scale modes are available via `-qscale`:
 | `pt` or `1` | Per-tensor quantization scale — a single scale factor is applied to the entire tensor |
 | `bs` or `2` | Per-block quantization scale — a scale factor is applied per block of elements |
 | `kvbs` or `3` | Q per-tensor + K/V per-page block scale (batch_prefill only) |
-| `mx` or `4` | Microscaling (MX format), exclusively for `mxfp8` and `mxfp4` data types |
+| `mx` or `4` | Microscaling (MX format), for `mxfp8`, `mxfp8bf16` and `mxfp4`; `fp8` and `fp8bf16` select `mxfp8` and `mxfp8bf16` |
 | `ph` or `5` | Per-head quantization scale — one scale factor per (batch, head) |
 
 Currently only `-vlayout=r` (`seqlen*hdim` for V matrix) is supported for fp8 data types.
+MX data types take `-vlayout=c`, except `mxfp8`/`mxfp8bf16` on gfx1250, which need `-vlayout=r`;
+`mxfp8bf16` (MXFP8 inputs, bf16 output) exists only on gfx1250.
 
 ### V scale with `bs` on gfx1250
 
@@ -254,13 +400,16 @@ P_sink[h,q] = exp(sink[h] - LSE[h,q])
 d_sink[h]   = -sum_q P_sink[h,q] * D[h,q]
 ```
 
-The sum runs over every query row of every batch, so `d_sink` has shape `[nhead]` and is
-accumulated with `atomicAdd` from `fmha_bwd_dot_do_o`. Two consequences follow:
+The sum runs over every query row of every batch, so `d_sink` has shape `[nhead]`.
+`fmha_bwd_dot_do_o` stores one partial sum per block in the workspace, and the partials are added
+in a fixed order afterwards, by `fmha_bwd_convert_dq` or, for kernel sets without it, by the last
+`fmha_bwd_dot_do_o` block of each head. That makes `d_sink` bit-reproducible. The launcher takes
+this path for every deterministic run, and otherwise only when the traits set `has_sink_grad` and
+the kernel set has `fmha_bwd_convert_dq`; other runs accumulate with `atomicAdd`, whose result
+varies in the low bits from run to run.
 
 - **The caller must zero `d_sink_ptr` before the call.** The kernel only accumulates into it and
   never initialises it.
-- `d_sink` is not bit-reproducible across runs even with `-deterministic=1`, because that flag
-  controls the `dQ` reduction only.
 
 The `LSE` handed to the backward call must be the **post-sink** `LSE`, that is
 `log(exp(LSE_nosink) + exp(sink))`, which is what the forward kernel writes when a sink is

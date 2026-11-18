@@ -1,0 +1,120 @@
+{
+    "_comment": [
+        "Stream-K on the gfx1250 TDM pipelines (comp_tdm, comp_tdm_v2, comp_tdm_v3), persistent",
+        "and non-persistent, every reduction strategy; not part of the default sweep.",
+        "The pipeline gates keep each pipeline's own wave maps (comp_tdm_v2: 4 waves,",
+        "comp_tdm_v3: 2x2x1 and 4x4x1) and epilogues (atomic: cshuffle; linear and tree:",
+        "cshuffle or tdm). TDM kernels are unpadded: the TDM loads and the TDM epilogue clip",
+        "every shape; the CShuffle epilogue needs N to be a multiple of tile_n.",
+        "The warp tiles cover 16-bit (16x16x32) and 8-bit (16x16x128, 32x32x128) A/B;",
+        "each dtype keeps the ones its warp-tile table lists.",
+        "Usage: python streamk_gemm_full_benchmark.py gemm_streamk/configs/gfx1250_tdm_config.json",
+        "  --arch gfx1250 --dtype bf16 --verify [--budget-pct 100,50]"
+    ],
+    "tile_config": {
+        "tile_m": {
+            "values": [
+                128,
+                256
+            ]
+        },
+        "tile_n": {
+            "values": [
+                128,
+                256
+            ]
+        },
+        "tile_k": {
+            "values": [
+                64,
+                128
+            ]
+        },
+        "warp_m": {
+            "values": [
+                2,
+                4
+            ]
+        },
+        "warp_n": {
+            "values": [
+                2,
+                4
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                16,
+                32
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                16,
+                32
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                32,
+                128
+            ]
+        }
+    },
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "comp_tdm",
+                "comp_tdm_v2",
+                "comp_tdm_v3"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "cshuffle",
+                "tdm"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                false
+            ]
+        },
+        "pad_n": {
+            "values": [
+                false
+            ]
+        },
+        "pad_k": {
+            "values": [
+                false
+            ]
+        },
+        "persistent": {
+            "values": [
+                false,
+                true
+            ]
+        }
+    },
+    "streamk_config": {
+        "reduction_strategy": {
+            "values": [
+                "atomic",
+                "linear",
+                "tree"
+            ]
+        }
+    },
+    "k_block_per_cu": 1
+}

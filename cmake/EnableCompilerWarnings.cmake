@@ -53,6 +53,9 @@ else()
             -Wno-lifetime-safety-intra-tu-suggestions
             -Wno-lifetime-safety-cross-tu-suggestions
             -Wno-lifetime-safety-lifetimebound-violation
+            -Wno-lifetime-safety-lifetimebound-invalidation
+            -Wno-lifetime-safety-experimental-field-origin-escape
+            -Wno-lifetime-safety-experimental-invalidation
             -Wno-unknown-warning-option
         )
         if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "Clang")
@@ -75,6 +78,9 @@ else()
                 -Wno-sign-conversion
                 -Wno-unknown-warning-option
                 -Wno-unused-command-line-argument
+                # glibc's Clang fortify wrappers carry an unused attribute,
+                # causing valid calls to trigger -Wused-but-marked-unused.
+                -Wno-used-but-marked-unused
                 -Wno-weak-vtables
                 -Wno-covered-switch-default
                 -Wno-unsafe-buffer-usage
@@ -83,6 +89,8 @@ else()
                 -Wno-lifetime-safety-intra-tu-suggestions
                 -Wno-lifetime-safety-cross-tu-suggestions
                 -Wno-lifetime-safety-lifetimebound-violation
+                -Wno-experimental-lifetime-safety-field-origin-escape
+                -Wno-lifetime-safety-experimental-invalidation
                 -Wno-unknown-warning-option
             )
             if(CK_CXX_STANDARD GREATER_EQUAL 20)

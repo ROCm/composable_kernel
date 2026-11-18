@@ -189,8 +189,8 @@ float grouped_flatmm(const KernelArguments& args, const ck_tile::stream_config& 
 
 #include "run_grouped_flatmm_example.inc"
 
-template <template <typename PreType> typename FlatmmConfig>
-int run_grouped_flatmm_example(int argc, char* argv[])
+template <template <typename PreType> typename FlatmmConfig, typename Fp8, typename Bf8>
+int run_grouped_flatmm_example_typed(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
@@ -222,14 +222,12 @@ int run_grouped_flatmm_example(int argc, char* argv[])
             }
             else if(data_type == "fp8")
             {
-                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::fp8_t,
-                                                                   FlatmmConfig<ck_tile::fp8_t>>(
+                run_contiguous_grouped_flatmm_example_with_layouts<Fp8, FlatmmConfig<Fp8>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else if(data_type == "bf8")
             {
-                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::bf8_t,
-                                                                   FlatmmConfig<ck_tile::bf8_t>>(
+                run_contiguous_grouped_flatmm_example_with_layouts<Bf8, FlatmmConfig<Bf8>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else
@@ -254,14 +252,12 @@ int run_grouped_flatmm_example(int argc, char* argv[])
             }
             else if(data_type == "fp8")
             {
-                run_masked_grouped_flatmm_example_with_layouts<ck_tile::fp8_t,
-                                                               FlatmmConfig<ck_tile::fp8_t>>(
+                run_masked_grouped_flatmm_example_with_layouts<Fp8, FlatmmConfig<Fp8>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else if(data_type == "bf8")
             {
-                run_masked_grouped_flatmm_example_with_layouts<ck_tile::bf8_t,
-                                                               FlatmmConfig<ck_tile::bf8_t>>(
+                run_masked_grouped_flatmm_example_with_layouts<Bf8, FlatmmConfig<Bf8>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else
@@ -279,6 +275,19 @@ int run_grouped_flatmm_example(int argc, char* argv[])
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
     }
     return -1;
+}
+
+template <template <typename PreType> typename FlatmmConfig>
+int run_grouped_flatmm_example(int argc, char* argv[])
+{
+#if CK_TILE_USE_OCP_FP8
+    if(ck_tile::get_device_name() == "gfx942")
+        return run_grouped_flatmm_example_typed<FlatmmConfig,
+                                                ck_tile::fp8_fnuz_t,
+                                                ck_tile::bf8_fnuz_t>(argc, argv);
+#endif
+    return run_grouped_flatmm_example_typed<FlatmmConfig, ck_tile::fp8_t, ck_tile::bf8_t>(argc,
+                                                                                          argv);
 }
 
 int main(int argc, char* argv[])

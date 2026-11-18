@@ -154,7 +154,7 @@ CK_TILE_DEVICE fp8x2_storage_t cast_to_f8x2_scaled_rtn(VSrcT v, float scale)
 
     return ret.v8f8[0];
 }
-#elif defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#elif defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
 // fp8 -> fp32 packed 8 vector instruction
 template <typename VDstT, fp8_interpretation interpret, int Opsel = 0>
 CK_TILE_DEVICE VDstT cast_from_f8x8_scaled(fp8x8_storage_t v, uint32_t scale)
@@ -285,7 +285,7 @@ CK_TILE_HOST_DEVICE VDstT from_float8x8(fp8x8_storage_t x, float scale)
             impl::cast_from_f8x2_scaled<V2DstT, interpret>(fp8x2_storage_t{x[6], x[7]}, scale);
 
     return res.v8;
-#elif defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#elif defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
     // This serves the float-scale conversions;
     // Scale_sel 0 reads byte 0 of lanes 0-15 and Scale_sel 1 reads byte 0 of lanes 16-31.
     // Running each half under its own Scale_sel, with the other masked off, leaves
@@ -370,7 +370,7 @@ CK_TILE_HOST_DEVICE fp8x8_storage_t to_float8x8(VSrcT x, [[maybe_unused]] float 
             res.v2[3] = impl::cast_to_f8x2_scaled_rtn<V2SrcT, interpret>(in.v2[3], scale);
     }
     return res.v8;
-#elif defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#elif defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
     return impl::cast_to_f8x8_scaled<interpret, stochastic_rounding>(x, scale);
 #else
     using SrcT         = typename vector_traits<VSrcT>::scalar_type;
@@ -582,7 +582,7 @@ CK_TILE_SCALED_TYPE_CONVERT(bf16x8_t, bf16x8, bf8x8_t, bf8x8)
 
 #undef CK_TILE_SCALED_TYPE_CONVERT
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
 /* scale is packed 4 form [FP8/BF8]
  * Scale_sel: select different scale set and apply to the tensor[16x16] represented by a wave,
  *            th[0-15]: 16x8 and th[16-31]: 16x8

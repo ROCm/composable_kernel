@@ -90,7 +90,7 @@ using DeviceOpInstance =
 int main(int argc, char* argv[])
 {
     // disable on gfx11 (fp8 not supported)
-    if(ck::is_gfx11_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
     {
         return 0;
     }

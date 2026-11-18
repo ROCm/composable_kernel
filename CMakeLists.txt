@@ -55,7 +55,12 @@ include(CTest)
 
 option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
 option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(MIOPEN_SPLIT_LIBS "With MIOPEN_REQ_LIBS_ONLY, also build device_conv_operations_<arch>, one uniquely named copy of the convolution library per GPU target" OFF)
+if(MIOPEN_SPLIT_LIBS AND NOT MIOPEN_REQ_LIBS_ONLY)
+    message(WARNING "MIOPEN_SPLIT_LIBS has no effect without MIOPEN_REQ_LIBS_ONLY")
+endif()
 option(HIPTENSOR_REQ_LIBS_ONLY "Build only the HipTensor required libraries" OFF)
+option(CK_HEADERS_ONLY "Install only the CK headers and CMake package (composable_kernel::headers); build no instance libraries, profiler, examples or tests" OFF)
 option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
 option(CK_TILE_DISPATCHER "Use CK Tile Dispatcher for profiler convolution kernels" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
@@ -65,7 +70,6 @@ option(FORCE_DISABLE_WMMA "Skip compiling WMMA specific instances (even if suppo
 option(BUILD_CK_TILE_ENGINE "Build the tile_engine subdirectory" OFF)
 option(BUILD_CK_EXAMPLES "Build the example subdirectory" ON)
 option(BUILD_CK_TUTORIALS "Build the tutorial subdirectory" ON)
-option(CK_ENABLE_ROCM_CK "Build rocm_ck API" OFF)
 
 if(CK_EXPERIMENTAL_BUILDER)
     add_definitions(-DCK_EXPERIMENTAL_BUILDER)
@@ -197,6 +201,13 @@ function(_ck_gpu_target_string_to_id TARGET_STR OUT_VAR)
         set(${OUT_VAR} "0x1153" PARENT_SCOPE)
     elseif(_tgt MATCHES "^gfx11-generic$")
         set(${OUT_VAR} "0x11FF" PARENT_SCOPE)
+    # GFX11.7
+    elseif(_tgt STREQUAL "gfx1170")
+        set(${OUT_VAR} "0x1170" PARENT_SCOPE)
+    elseif(_tgt STREQUAL "gfx1171")
+        set(${OUT_VAR} "0x1171" PARENT_SCOPE)
+    elseif(_tgt MATCHES "^gfx11-7-generic$")
+        set(${OUT_VAR} "0x117F" PARENT_SCOPE)
     # GFX12
     elseif(_tgt STREQUAL "gfx1200")
         set(${OUT_VAR} "0x1200" PARENT_SCOPE)
@@ -206,6 +217,8 @@ function(_ck_gpu_target_string_to_id TARGET_STR OUT_VAR)
         set(${OUT_VAR} "0x12FF" PARENT_SCOPE)
     elseif(_tgt STREQUAL "gfx1250" OR _tgt STREQUAL "gfx1250-strict")
         set(${OUT_VAR} "0x1250" PARENT_SCOPE)
+    elseif(_tgt STREQUAL "gfx1251")
+        set(${OUT_VAR} "0x1251" PARENT_SCOPE)
     else()
         message(WARNING "_ck_gpu_target_string_to_id: unknown GPU target '${TARGET_STR}', skipping")
         set(${OUT_VAR} "" PARENT_SCOPE)
@@ -235,9 +248,9 @@ endif()
 # by the preprocessor in headers that host code also instantiates (e.g. via
 # getCMakeCompilerTarget()), so a device-pass-only guard would desync host/device.
 # ---------------------------------------------------------------------------
-if(GPU_TARGETS MATCHES "gfx1250")
+if(GPU_TARGETS MATCHES "gfx125")
     add_compile_definitions(USE_NEW_UNIFIED_FRAMEWORK=0)
-    message(STATUS "gfx1250 target detected: forcing USE_NEW_UNIFIED_FRAMEWORK=0 (unified ck_tile framework not yet supported on gfx1250)")
+    message(STATUS "gfx125x target detected: forcing USE_NEW_UNIFIED_FRAMEWORK=0 (unified ck_tile framework not yet supported on gfx125x)")
 endif()
 
 #for f8/bf8_t type
@@ -407,7 +420,7 @@ if(NOT ENABLE_ASAN_PACKAGING)
     elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600400000 AND ${hip_VERSION_FLAT} LESS 600443483)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1103;gfx1200;gfx1201;gfx950")
     elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600443483 AND ${hip_VERSION_FLAT} LESS 700200000)
-        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic")
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx11-7-generic;gfx12-generic")
     elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 700200000)
         set(CK_GPU_TARGETS "")
     endif()
@@ -432,6 +445,16 @@ endif()
 #make sure all the targets on the list are actually supported by the current compiler
 rocm_check_target_ids(SUPPORTED_GPU_TARGETS
         TARGETS ${CK_GPU_TARGETS})
+
+# Per-target convolution library names (MIOPEN_SPLIT_LIBS) use the full target id, so xnack
+# variants stay separate. The name mapping is the one MIOpen uses (miopen_sanitize_arch in
+# projects/miopen/CMakeLists.txt): gfx942:xnack+ -> gfx942_xnackp.
+function(ck_sanitize_arch ARCH OUT_VAR)
+    string(REPLACE ":" "_" _ck_sanitized "${ARCH}")
+    string(REPLACE "+" "p" _ck_sanitized "${_ck_sanitized}")
+    string(REPLACE "-" "_" _ck_sanitized "${_ck_sanitized}")
+    set(${OUT_VAR} "${_ck_sanitized}" PARENT_SCOPE)
+endfunction()
 
 message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
@@ -492,7 +515,7 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND NOT FORCE_DISABLE_WMMA)
     add_definitions(-DCK_USE_WMMA_FP8)
     set(CK_USE_WMMA_FP8 "ON")
 endif()
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx12" OR SUPPORTED_GPU_TARGETS MATCHES "gfx950")
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx117|gfx11-7-generic|gfx12|gfx950")
     add_definitions(-DCK_USE_OCP_FP8)
     set(CK_USE_OCP_FP8 "ON")
     add_definitions(-DCK_TILE_USE_OCP_FP8)
@@ -508,7 +531,8 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx950")
     add_definitions(-DCK_GFX950_SUPPORT)
     set(CK_GFX950_SUPPORT "ON")
 endif()
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx1250")
+# this will include gfx1250, gfx1250-strict, and gfx1251
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx125")
     add_definitions(-DCK_USE_GFX1250)
     add_definitions(-DCK_USE_NATIVE_MX_SUPPORT)
     set(CK_USE_NATIVE_MX_SUPPORT "ON")
@@ -551,11 +575,25 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500500000)
     add_compile_options("SHELL: -mllvm --lsr-drop-solution=1")
   endif()
 endif()
+option(CK_ENABLE_POST_RA_SCHEDULING "Enable LLVM post-RA machine scheduling" OFF)
+option(CK_ENABLE_EXPERT_SCHEDULING "Enable AMDGPU expert scheduling mode" OFF)
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
-  check_cxx_compiler_flag("-mllvm -enable-post-misched=0" HAS_ENABLE_POST_MISCHED)
+    if(CK_ENABLE_POST_RA_SCHEDULING)
+        set(CK_POST_RA_SCHEDULING_VALUE 1)
+    else()
+        set(CK_POST_RA_SCHEDULING_VALUE 0)
+    endif()
+    check_cxx_compiler_flag("-mllvm -enable-post-misched=${CK_POST_RA_SCHEDULING_VALUE}" HAS_ENABLE_POST_MISCHED)
   if(HAS_ENABLE_POST_MISCHED)
-    message(STATUS "Adding the enable-post-misched=0 compiler flag")
-    add_compile_options("SHELL: -mllvm -enable-post-misched=0")
+        message(STATUS "Adding the enable-post-misched=${CK_POST_RA_SCHEDULING_VALUE} compiler flag")
+        add_compile_options("SHELL: -mllvm -enable-post-misched=${CK_POST_RA_SCHEDULING_VALUE}")
+    endif()
+    if(CK_ENABLE_EXPERT_SCHEDULING)
+        check_cxx_compiler_flag("-mllvm -amdgpu-expert-scheduling-mode" HAS_EXPERT_SCHEDULING)
+        if(HAS_EXPERT_SCHEDULING)
+            message(STATUS "Adding the amdgpu-expert-scheduling-mode compiler flag")
+            add_compile_options("SHELL: -mllvm -amdgpu-expert-scheduling-mode")
+        endif()
   endif()
 endif()
 set(check-coerce)
@@ -570,7 +608,7 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
    add_compile_options("SHELL: -mllvm -amdgpu-function-calls=false")
 endif()
 #
-# Seperate linking jobs from compiling
+# Separate linking jobs from compiling
 # Too many concurrent linking jobs can break the build
 # Copied from LLVM
 set(CK_PARALLEL_LINK_JOBS "" CACHE STRING
@@ -863,6 +901,9 @@ if(BUILD_DEV)
     add_compile_options(-Wno-lifetime-safety-intra-tu-suggestions)
     add_compile_options(-Wno-lifetime-safety-cross-tu-suggestions)
     add_compile_options(-Wno-lifetime-safety-lifetimebound-violation)
+    add_compile_options(-Wno-lifetime-safety-lifetimebound-invalidation)
+    add_compile_options(-Wno-lifetime-safety-experimental-field-origin-escape)
+    add_compile_options(-Wno-lifetime-safety-experimental-invalidation)
     add_compile_options(-Wno-unknown-warning-option)
 endif()
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
@@ -892,7 +933,7 @@ option(BUILD_CK_TILE_ENGINE_TESTS "Build tile engine tests" ON)
 option(BUILD_CK_TILE_FMHA_TESTS "Build FMHA tests" ON)
 option(BUILD_CK_TILE_CSHUFFLE_LDS_BENCHMARKS "Build CShuffleLds microbenchmarks (requires BUILD_CK_EXAMPLES=ON)" OFF)
 
-if(BUILD_CK_DEVICE_INSTANCES)
+if(BUILD_CK_DEVICE_INSTANCES AND NOT CK_HEADERS_ONLY)
     # Optimization: Search only in library/src where all instance files actually live
     # (was searching entire source tree, taking ~40s instead of <1s)
     file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/library/src/*/device_*_instance.cpp")
@@ -945,7 +986,7 @@ if (CK_EXPERIMENTAL_BUILDER)
   add_subdirectory(experimental/builder)
 endif()
 
-if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY AND NOT CK_HEADERS_ONLY)
    if(BUILD_CK_EXAMPLES)
        rocm_package_setup_component(examples
             LIBRARY_NAME composablekernel
@@ -964,12 +1005,6 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTE
    if(BUILD_CK_TILE_ENGINE)
        add_subdirectory(tile_engine)
    endif()
-   if(CK_ENABLE_ROCM_CK)
-       add_subdirectory(rocm_ck)
-       if(TARGET check)
-           add_dependencies(check build-smoke-rocm-ck)
-       endif()
-   endif()
    if(BUILD_TESTING)
        rocm_package_setup_component(tests
             LIBRARY_NAME composablekernel
@@ -980,7 +1015,7 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTE
 endif()
 
 if(BUILD_CK_PROFILER)
-    if (NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
+    if (NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY AND NOT CK_HEADERS_ONLY)
         rocm_package_setup_component(profiler
             LIBRARY_NAME composablekernel
             PACKAGE_NAME ckprofiler
@@ -1023,6 +1058,46 @@ rocm_install(FILES
     ${PROJECT_BINARY_DIR}/include/ck/version.h
     ${PROJECT_BINARY_DIR}/include/ck/config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck/
+)
+
+# Install the CK headers. Done here rather than with the instance libraries so the headers are
+# installed in every mode, including CK_HEADERS_ONLY.
+rocm_install(DIRECTORY
+    ${PROJECT_SOURCE_DIR}/include/ck/
+    ${PROJECT_SOURCE_DIR}/library/include/ck/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck
+)
+
+# Header-only interface target for consumers that instantiate CK templates themselves and link
+# no prebuilt instance library (e.g. hipTensor): find_package(composable_kernel COMPONENTS headers)
+# and link composable_kernel::headers. Exported in every mode. The include directories match those
+# of the instance libraries (e.g. device_other_operations).
+add_library(composable_kernel_headers INTERFACE)
+set_target_properties(composable_kernel_headers PROPERTIES EXPORT_NAME headers)
+target_include_directories(composable_kernel_headers INTERFACE
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/utility>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_description>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/problem_transform>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/device>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/device/impl>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/grid>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/block>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/warp>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/thread>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/element>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/utility>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/quantization>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/softmax>
+)
+rocm_install(TARGETS composable_kernel_headers EXPORT headersTargets)
+rocm_install(EXPORT headersTargets
+    FILE composable_kernelheadersTargets.cmake
+    NAMESPACE composable_kernel::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
 )
 
 if(CK_EXPERIMENTAL_BUILDER)

@@ -85,7 +85,6 @@ template <index_t NDimSpatial,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
 using device_grouped_conv_bwd_data_xdl_v3_bf16_gfx1250_instances = std::tuple<
-#if defined(CK_USE_GFX1250)
     // clang-format off
     DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3<NDimSpatial,  ALayout, BLayout,    DsLayout, ELayout,  BF16,  BF16,     F32,     BF16, Empty_Tuple,  BF16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,        512,   256,    128,   64,   8,   8,   32,   32,       2,       2,      S<8,  64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              1,         0,       S<8,   8, 8>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              8,              1,         0,            1,            1,    S<1, 128, 1, 4>,                8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1, BF16, BF16, false>,
 
@@ -94,8 +93,7 @@ using device_grouped_conv_bwd_data_xdl_v3_bf16_gfx1250_instances = std::tuple<
     DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3<NDimSpatial,  ALayout, BLayout,    DsLayout, ELayout,  BF16,  BF16,     F32,     BF16, Empty_Tuple,  BF16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,        256,   256,     32,   32,   8,   8,   32,   32,       2,       1,      S<4,  64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              1,         0,       S<4,   8, 8>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              1,         0,            1,            1,     S<1, 64, 1, 4>,                8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1, BF16, BF16, false>,
     DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3<NDimSpatial,  ALayout, BLayout,    DsLayout, ELayout,  BF16,  BF16,     F32,     BF16, Empty_Tuple,  BF16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,        256,   256,     64,   64,   8,   8,   32,   32,       2,       2,      S<8,  32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              1,         0,       S<4,   8, 8>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              8,              1,         0,            1,            1,     S<1, 64, 1, 4>,                4,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1, BF16, BF16, false>,
     DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3<NDimSpatial,  ALayout, BLayout,    DsLayout, ELayout,  BF16,  BF16,     F32,     BF16, Empty_Tuple,  BF16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,        512,   256,     64,   64,   8,   8,   32,   32,       2,       1,      S<8,  64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              1,         0,       S<8,   8, 8>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              8,              1,         0,            1,            1,    S<1, 128, 1, 4>,                8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1, BF16, BF16, false>
-// clang-format on
-#endif
+    // clang-format on
     >;
 
 template <index_t NDimSpatial,

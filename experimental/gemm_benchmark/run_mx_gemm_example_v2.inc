@@ -170,6 +170,13 @@ bool run_mx_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     }
     else if(ck::get_warp_size() == 32)
     {
+        // The scale buffers hold K / ScaleBlockSize columns, unpadded, and the gfx1250 pre-shuffle
+        // reads whole int32 packs of 4 scales.
+        if(K % (ScaleBlockSize * 4) != 0)
+        {
+            throw std::runtime_error(
+                "wrong! K must be a multiple of ScaleBlockSize * 4 on gfx1250.");
+        }
         preShuffleScaleBuffer_gfx1250<ck::e8m0_bexp_t, ScaleBlockSize, ck::is_same_v<ALayout, Row>>(
             a_m_k_scale.mData.data(),
             a_shuffled_scale.mData.data(),

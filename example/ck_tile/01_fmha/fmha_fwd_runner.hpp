@@ -66,32 +66,6 @@ auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 }
 
 template <>
-auto get_elimit<FmhaFwdFp8>(std::string /*init_method*/)
-{
-    double max_rounding_point_distance = 3;
-    double atol                        = 0.125;
-    return ck_tile::make_tuple(max_rounding_point_distance, atol);
-}
-
-template <typename ODataType, typename RefTensor>
-double out_atol(double atol, const RefTensor& ref)
-{
-    if constexpr(!std::is_same_v<ODataType, ck_tile::fp8_t>)
-    {
-        return atol;
-    }
-    else
-    {
-        double scale = 0;
-        ref.ForEach([&](auto& self, auto idx) {
-            scale = std::max(
-                scale, std::abs(static_cast<double>(ck_tile::type_convert<float>(self(idx)))));
-        });
-        return atol * scale;
-    }
-}
-
-template <>
 auto get_elimit<FmhaFwdFp8Bf16>(std::string /*init_method*/)
 {
     double rtol = 1e-2;
@@ -100,7 +74,7 @@ auto get_elimit<FmhaFwdFp8Bf16>(std::string /*init_method*/)
 }
 
 template <>
-auto get_elimit<FmhaFwdFp8Fp32>(std::string /*init_method*/)
+auto get_elimit<FmhaFwdFp8>(std::string /*init_method*/)
 {
     double rtol = 1e-2;
     double atol = 1.8e-1;
@@ -116,6 +90,12 @@ auto get_elimit<FmhaFwdMxFp8>(std::string /*init_method*/)
 }
 
 template <>
+auto get_elimit<FmhaFwdMxFp8Bf16>(std::string init_method)
+{
+    return get_elimit<FmhaFwdMxFp8>(init_method);
+}
+
+template <>
 auto get_elimit<FmhaFwdMxFp4>(std::string /*init_method*/)
 {
     double rtol = 1e-1;
@@ -123,10 +103,13 @@ auto get_elimit<FmhaFwdMxFp4>(std::string /*init_method*/)
     return ck_tile::make_tuple(rtol, atol);
 }
 
-int num_splits_heuristic(int batch_nhead_mblocks, int num_SMs, int max_splits)
+int num_splits_heuristic(int batch_nhead_mblocks,
+                         int num_SMs,
+                         int max_splits,
+                         float fill_threshold = 0.8f)
 {
     // If we have enough to almost fill the SMs, then just use 1 split
-    if(batch_nhead_mblocks >= 0.8f * num_SMs)
+    if(batch_nhead_mblocks >= fill_threshold * num_SMs)
     {
         return 1;
     }
@@ -156,10 +139,15 @@ int num_splits_heuristic(int batch_nhead_mblocks, int num_SMs, int max_splits)
     return 1;
 }
 
-int override_num_splits_if_necessary(
-    int batch, int nhead, int max_seqlen_q, int hdim_v, float p_drop, int num_splits)
+int override_num_splits_if_necessary(int batch,
+                                     int nhead,
+                                     int max_seqlen_q,
+                                     int max_seqlen_k,
+                                     int hdim_q,
+                                     int hdim_v,
+                                     float p_drop,
+                                     int num_splits)
 {
-    (void)hdim_v;
     int device;
     auto status = hipGetDevice(&device);
     if(status != hipSuccess)
@@ -183,8 +171,35 @@ int override_num_splits_if_necessary(
     {
         // props.multiProcessorCount for >=gfx10 is the number of WGPs (each has 2 CUs)
         const int num_blocks_per_SM = props.warpSize == 32 ? 4 : 2;
-        return num_splits_heuristic(
-            batch * nhead * num_m_blocks, props.multiProcessorCount * num_blocks_per_SM, 128);
+
+        // The split cap and fill threshold below are tuned for gfx125 only; the
+        // cap also assumes its bn0 64 split-kv tile (gfx9/gfx12 also emit bn0 128).
+        const bool is_gfx125 = std::string{props.gcnArchName}.compare(0, 6, "gfx125") == 0;
+
+        int max_splits       = 128;
+        float fill_threshold = 0.8f;
+        if(is_gfx125)
+        {
+            // Every gfx125 split-kv instance needs hdim % 8 == 0, so other head
+            // dims must not be split or no instance would match.
+            if(hdim_q % 8 != 0 || hdim_v % 8 != 0)
+                return 1;
+
+            // Cap the split count so every split keeps enough KV tiles to
+            // amortise its prologue and the combine pass.
+            constexpr int kN0               = 64;
+            constexpr int kMinTilesPerSplit = 8;
+            const int num_kv_tiles          = ck_tile::integer_divide_ceil(max_seqlen_k, kN0);
+            max_splits = std::max(1, std::min(128, num_kv_tiles / kMinTilesPerSplit));
+            // num_blocks_per_SM is 4 per WGP, i.e. 2 per CU, so this stops
+            // splitting at 1 workgroup per CU instead of 1.6.
+            fill_threshold = 0.5f;
+        }
+
+        return num_splits_heuristic(batch * nhead * num_m_blocks,
+                                    props.multiProcessorCount * num_blocks_per_SM,
+                                    max_splits,
+                                    fill_threshold);
     }
 
     return num_splits;
@@ -280,7 +295,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
     if(selected_kernel_name != nullptr)
         selected_kernel_name->clear();
 
-    constexpr bool is_mx = ck_tile::is_any_of<DataTypeConfig, FmhaFwdMxFp8, FmhaFwdMxFp4>::value;
+    constexpr bool is_mx =
+        ck_tile::is_any_of<DataTypeConfig, FmhaFwdMxFp8, FmhaFwdMxFp8Bf16, FmhaFwdMxFp4>::value;
 
     using QDataType             = typename TypeConfig::QDataType;
     using KDataType             = typename TypeConfig::KDataType;
@@ -320,10 +336,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
             return "bf8";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
             return "fp8bf16";
-        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>)
-            return "fp8fp32";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdMxFp8>)
             return "mxfp8";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdMxFp8Bf16>)
+            return "mxfp8bf16";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdMxFp4>)
             return "mxfp4";
         else
@@ -554,10 +570,16 @@ fwd_result fmha_fwd_run(mode_enum mode,
         std::cerr << "The value of qscale_str cannot be 'mx' for non-MX data types" << std::endl;
         return fwd_result::invalid_args;
     }
-    if(is_mx && is_v_rowmajor)
+    // Row-major MXFP8 V is served by gfx1250 qr_tdm_fp8_sched; packed MXFP4 V stays col-major.
+    if(is_mx && is_v_rowmajor && std::is_same_v<DataTypeConfig, FmhaFwdMxFp4>)
     {
-        std::cerr << "The value of is_v_rowmajor must be 'false' for MX data types" << std::endl;
+        std::cerr << "The value of is_v_rowmajor must be 'false' for MXFP4" << std::endl;
         return fwd_result::invalid_args;
+    }
+    if(is_mx && is_v_rowmajor && !ck_tile::is_gfx125_supported())
+    {
+        std::cerr << "row-major MXFP8 V has instances only on gfx1250" << std::endl;
+        return fwd_result::no_instance;
     }
 
     if(p_drop < 0.0f || p_drop > 1.0f)
@@ -696,8 +718,14 @@ fwd_result fmha_fwd_run(mode_enum mode,
             nhead_merged        = nhead_k;
             max_seqlen_q_merged = max_seqlen_q * (nhead / nhead_k);
         }
-        num_splits = override_num_splits_if_necessary(
-            batch, nhead_merged, max_seqlen_q_merged, hdim_v, p_drop, num_splits);
+        num_splits = override_num_splits_if_necessary(batch,
+                                                      nhead_merged,
+                                                      max_seqlen_q_merged,
+                                                      max_seqlen_k,
+                                                      hdim_q,
+                                                      hdim_v,
+                                                      p_drop,
+                                                      num_splits);
     }
     if(128 < num_splits)
     {
@@ -837,7 +865,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                       : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
     const ck_tile::index_t hdim_q_scale = ck_tile::integer_divide_ceil(hdim_q, kQKScaleGranularity);
-    const ck_tile::index_t shape_seqlen_v_scale = seqstart_v_scale_host.back();
+    // batch mode stores V scales per batch; group mode packs all batches along seqlen
+    const ck_tile::index_t shape_seqlen_v_scale =
+        (mode == mode_enum::batch)
+            ? ck_tile::integer_divide_ceil(shape_seqlen_k, kVScaleGranularity)
+            : seqstart_v_scale_host.back();
 
     ck_tile::HostTensor<QScaleDataType> q_descale_host({1});
     ck_tile::HostTensor<KScaleDataType> k_descale_host({1});
@@ -1463,7 +1495,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
             args.lse_ptr  = lse_buf.GetDeviceBuffer();
             args.o_ptr    = o_buf.GetDeviceBuffer();
 
-            args.seqlen_k     = shape_seqlen_k;     // unused in group mode (or kvcache enabled)
+            // Batch: per-sequence K; group: total physical K, a sched selector hint.
+            args.seqlen_k     = shape_seqlen_k;
             args.max_seqlen_q = pack_gqa_seqlen_q_; // use packed seqlen for grid size
 
             args.scale_s = scale_s;
@@ -1487,6 +1520,13 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
             if constexpr(std::is_same_v<fmha_fwd_args, std::decay_t<decltype(args)>>)
             {
+                // Fix group-mode tile selection: use the longest sequence length instead of
+                // the total Q length, which incorrectly selected large tiles for short sequences.
+                if(mode == mode_enum::group &&
+                   (ck_tile::is_gfx11_supported() || ck_tile::is_gfx117_supported() ||
+                    ck_tile::is_gfx120_supported()))
+                    args.max_seqlen_q = max_seqlen_q;
+
                 if(qscale.type == quant_scale_enum::pertensor)
                 {
                     args.q_descale_ptr = q_descale_buf.GetDeviceBuffer();
@@ -1976,11 +2016,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         o_buf.FromDevice(o_host.data()); // TODO: ugly
 
         auto [rtol_, atol_] = get_elimit<DataTypeConfig>(init_method);
-        pass                = ck_tile::check_err(o_host,
-                                  o_naive_ref,
-                                  std::string("OUT Error: Incorrect results!"),
-                                  rtol_,
-                                  out_atol<ODataType>(atol_, o_naive_ref));
+        pass                = ck_tile::check_err(
+            o_host, o_naive_ref, std::string("OUT Error: Incorrect results!"), rtol_, atol_);
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
     else
@@ -2001,8 +2038,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
         randval_buf.FromDevice(randval_host.data());
 
         constexpr bool supports_qscale = std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
-                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16> ||
-                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>;
+                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>;
 
         float scale_s_host = scale_s;
         float scale_o_host = 1.0f;
@@ -2019,10 +2055,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
         auto p_compute_element_func = ck_tile::identity{};
 
         auto oacc_element_func = [&]() {
-            if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t> && supports_qscale)
-                return ck_tile::make_composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                              ck_tile::scales{scale_o_host});
-            else if constexpr(supports_qscale)
+            if constexpr(supports_qscale)
                 return ck_tile::scales{scale_o_host};
             else
                 return ck_tile::identity{};
@@ -2697,11 +2730,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     ck_tile::idx_identity{},
                     ck_tile::idx_identity{},
                     [&](auto idx, auto value) {
-                        const float scaled = value * v_descale_host(wb, std::get<0>(idx) / nr);
-                        if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
-                            return ck_tile::saturates<ck_tile::fp8_t>{}(scaled);
-                        else
-                            return scaled;
+                        return value * v_descale_host(wb, std::get<0>(idx) / nr);
                     });
                 {
                     const auto v_abs = abs_of_v();
@@ -2789,7 +2818,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                           o_host_ref,
                                           std::string("OUT Error: Incorrect results!"),
                                           rtol,
-                                          out_atol<ODataType>(atol, o_host_ref));
+                                          atol);
             };
             bool cur_pass = true;
             if constexpr(supports_qscale)

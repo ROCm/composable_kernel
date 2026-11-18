@@ -2,6 +2,69 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
+## (Unreleased) Composable Kernel
+
+### Fixed
+* Fixed CK Tile device compilation for gfx1250-strict, which the target check in `ck_tile/core/config.hpp` rejected.
+* Fixed all-zero CK Tile FMHA forward output on gfx11 with compilers that promote homogeneous struct allocas to vectors. `PermuteWarpGemmCToA` accessed past its thread buffers.
+* Fixed wrong CK Tile FMHA backward gradients on gfx11 caused by a strict-aliasing violation in `PermuteWarpGemmCToA`, which accessed 16-bit thread buffers through `uint32_t` lvalues.
+* Fixed FP8 format selection in the XDL FP8 GEMM, convolution, MoE, elementwise, CK Tile FlatMM, and grouped-quantization examples when built for gfx942 and gfx950 together. The affected examples select FNUZ or OCP types for the active device and retain native FP8 instructions.
+* Fixed CK Tile TF32 compilation for combined gfx942/gfx950 builds that select gfx942 fragments, by lowering their XF32 operations to FP32 MFMA instructions on gfx950 while preserving the fragment layout.
+* Fixed missing store waits in CK Tile Stream-K and the legacy buffer store fence on gfx12 targets.
+* Fixed out-of-bounds stores in CK Tile multi-reduction kernels when the output row count is not a multiple of the block tile size.
+* Fixed padded-row output updates in the global-atomic path of CK Tile multiblock reduction, including float outputs on gfx11.
+* Fixed partial-vector direct reduction stores and scalar atomic output tails, and rejected incomplete packed atomic output vectors.
+* Fixed incorrect results in the CK Tile TDM GEMM pipelines on gfx1250 for tile shapes where the TDM loads and the LDS reads used different LDS padding layouts, such as tiles whose LDS rows are not a power of two.
+* Fixed memory faults of CK Tile TDM transfers on gfx1250. The TDM and prefetch paths of the tile window read the tensor descriptor through a dangling reference, which some compilers fold to `INT32_MAX` tensor dimensions and strides.
+* Fixed the CK Tile GEMM Stream-K dispatcher rejecting linear and tree reduction kernels whose C store is narrower than 4 bytes, so fp16 and bf16 problems with an odd N (for example N = 1) get a linear or tree reduction kernel.
+* Fixed CK Tile FMHA bf16 accuracy in builds that compile `generate.py` output with their own build system (such as PyTorch).
+
+### Added
+
+* Added the `CK_HEADERS_ONLY` CMake option, which installs only the headers and CMake package without building any instance library, profiler, example, or test, and the `headers` package component, which provides the header-only `composable_kernel::headers` target for consumers that instantiate the CK templates themselves.
+* Added gfx1250 support and WMMA regression tests for CK Tile GEMM Stream-K with atomic, linear, and tree reduction.
+* Added a gfx1250 WMMA configuration and reduction-strategy selection to the CK Tile GEMM Stream-K dispatcher benchmark.
+* Added FP6 (E2M3) operands to the CK Tile microscaling (MX) GEMM TDM pipelines on gfx1250, for row-major A, column-major B, a 16x16x128 warp tile, and 32-element E8M0 scale blocks, with fp16 or bf16 output.
+* Added optional instance filters for the CK Tile LayerNorm2D forward and quantized GEMM examples to reduce compilation for selected workloads.
+* Added K tails to the CK Tile microscaling (MX) GEMM TDM pipelines on gfx1250: they accept any K that is a whole number of storage elements.
+* Added support on gfx1251 architecture.
+* The CK Tile microscaling (MX) GEMM TDM pipelines on gfx1250 now support more K sizes, not only multiples of the tile size: any K for FP8, an even K for FP4, and a multiple of 16 for FP6.
+* Added CK Tile GEMM Stream-K support, including in the CK Tile dispatcher, for the gfx1250 TDM pipelines (comp_tdm and comp_tdm_v2) with row-major C and warp_k=1: the CShuffle epilogue for atomic, linear, and tree reduction (N must be a multiple of the block tile N), the TDM epilogue for linear and tree reduction, and persistent or non-persistent data-parallel tiles. The dispatcher also selects these kernels for M, N, or K that are not tile multiples.
+* Added N and K padding to the XDL two-stage MoE GEMM with preshuffled weights, so `DeviceMoeGemm` instances with a padding `GemmSpecialization` accept model dimensions that are not multiples of the tile size.
+* Added CK Tile GEMM Stream-K support for the gfx1250 comp_tdm_v3 pipeline: 4 and 16 waves, row-major C, bf16 and fp16 inputs (any A/B layout) and fp8 and bf8 inputs (row-major A, column-major B), with the same reductions, epilogues and persistence modes as comp_tdm and comp_tdm_v2.
+* Added the gfx1250 comp_tdm_v3 pipeline to the CK Tile dispatcher and its Tile Engine bridge, for plain GEMM (CShuffle epilogue, row-major C, fp8/bf8 with row-major A and column-major B, or fp16/bf16 with any A/B layout, 2x2x1 or 4x4x1 waves) and for Stream-K GEMM, and fp16/bf16 comp_tdm_v3 to the Tile Engine GEMM.
+* Added a Tile Engine Stream-K configuration for the gfx1250 TDM pipelines (comp_tdm, comp_tdm_v2 and comp_tdm_v3; persistent and non-persistent; atomic, linear and tree reduction), a Stream-K workgroup budget option (`--budget-pct`) to the Stream-K dispatcher benchmark, and the gfx1250 TDM pipelines with persistent and non-persistent kernels to the Stream-K dispatcher GPU correctness test.
+
+### Changed
+* The CK Tile FMHA forward `fp8` data type now returns an FP32 output, matching `mxfp8`; FP8 output is no longer provided.
+
+* The CK Tile GEMM Stream-K dispatcher and Tile Engine benchmarks reset only the reduction flags (not the whole workspace) before each timed linear or tree run. Timings include this reset for linear/tree and the full output-C reset for atomic reduction.
+
+### Removed
+* Removed the CK Tile FMHA forward `fp8fp32` data type; use `fp8`, which now has the same FP32 output.
+
+### Optimized
+* Improved FMHA forward performance on gfx1250 for eligible scheduled BF16 head dimension 128 causal attention workloads by grouping workgroups within each XCD.
+* Improved FMHA forward performance on gfx1250 for the head dimension 128 qr_tdm_sched kernels by writing the output tile back from LDS with asynchronous stores, issuing the Q, K, and V prologue loads together, and removing a per-element scalar operation from the attention mask check.
+
+### Resolved issues
+
+### Known issues
+
+### Upcoming changes
+
+
+## Composable Kernel 1.3.0 for ROCm 10.2.0
+
+### Added
+
+* Added a CI path-length check that rejects newly added or renamed files whose repository-relative path exceeds 200 characters, keeping the absolute path under the Windows `MAX_PATH` limit of 260.
+* Added bf16, fp32, fp8, and bf8 data types and the rrr, crr, and ccr layouts to the CK Tile Tile Engine batched GEMM and its dispatcher bridge.
+
+### Optimized
+
+* Improved FMHA backward performance on gfx1250 by moving the operand transfers to TDM and the transposed reads to ds_load_tr, keeping the dK and dV accumulators in registers, pairing mirrored tiles under a causal mask, and coalescing the dQ atomic onto a single cache line.
+
 ## Composable Kernel 1.3.0 for ROCm 10.1.0
 
 ### Added
@@ -20,7 +83,6 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 * Improved FMHA forward performance for head dimension 128 on gfx11 and gfx12 targets by retuning tile selection.
 * Improved FMHA forward performance on gfx1250 for bf16 and fp16 head dimension 128 by padding the LDS layout in the qr_tdm pipeline.
-* Improved FMHA backward performance on gfx1250 by moving the operand transfers to TDM and the transposed reads to ds_load_tr, keeping the dK and dV accumulators in registers, pairing mirrored tiles under a causal mask, and coalescing the dQ atomic onto a single cache line.
 * Improved memory coalescing of microscaling (MX) scale loads on gfx1250 by unifying the scale16 layout with scale32.
 
 ### Changed
@@ -54,7 +116,6 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ### Added
 
 * Added multiple D (bias) and large tensor support to the CK Tile quantized GEMM kernel for row-column quantization.
-* Added a CI path-length check that rejects newly added or renamed files whose repository-relative path exceeds 200 characters, keeping the absolute path under the Windows `MAX_PATH` limit of 260.
 
 ### Changed
 

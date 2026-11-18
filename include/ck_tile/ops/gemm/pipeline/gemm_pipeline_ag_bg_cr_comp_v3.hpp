@@ -42,7 +42,8 @@ struct BaseGemmPipelineAgBgCrCompV3
 #else
     static constexpr bool Use8WarpSchedule =
         Force8WarpSchedule || (Problem::BlockGemmShape::NumWarps == 8);
-#if defined(__HIP_DEVICE_COMPILE__) && (defined(__gfx11__) || defined(__gfx12__))
+#if defined(__HIP_DEVICE_COMPILE__) && \
+    (defined(__gfx11__) || defined(__gfx12__) || defined(__gfx117__))
     // A wave32 target built without CK_TILE_USE_WMMA (e.g. outside the CK CMake)
     // would silently take the wave64 8-warp schedule above; fail loudly instead.
     static_assert(Force8WarpSchedule || Problem::BlockGemmShape::NumWarps != 8,

@@ -29,20 +29,26 @@ Examples:
         configs/default_config.json --devices 4 --csv out.csv
 
 When no config is given the driver uses the chosen variant's
-``configs/default_ci_config.json`` (a small CI-sized sweep);
+``configs/default_ci_config.json`` (a small CI-sized sweep), or
+``configs/default_ci_config_<dtype>.json`` when one exists for --dtype (fp32
+needs its own warp tiles);
 ``configs/default_config.json`` is the full sweep, and the JSON used by nightly
 tests is intended to drop into the same ``configs/`` directory.
 """
 
 import argparse
+import contextlib
 import csv
+import io
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
 import time
+from collections import defaultdict
 from pathlib import Path
 
 _THIS_DIR = Path(__file__).resolve().parent
@@ -53,7 +59,12 @@ sys.path.insert(0, str(_DISPATCHER_ROOT / "codegen"))
 sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
-from gemm_utils import setup_multiple_gemm_dispatchers, expand_sweep  # noqa: E402
+from gemm_utils import (  # noqa: E402
+    _resolve_arch,
+    expand_sweep,
+    setup_multiple_gemm_dispatchers,
+)
+from ctypes_utils import get_build_dir, listed_warp_tiles  # noqa: E402
 from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa: E402
 from smi_utils import detect_gpu_ids  # noqa: E402
 
@@ -72,7 +83,22 @@ VARIANT_CONFIGS = {
 }
 DEFAULT_VARIANT = "gemm_universal"
 
-CI_CONFIG_NAME = "default_ci_config.json"
+# CI sweep config lookup, most specific first. An arch or dtype whose warp
+# tiles or pipelines differ from the default CI sweep ships its own file next to
+# it (e.g. default_ci_config_gfx1250_fp32.json); adding one is a data-only change.
+CI_CONFIG_NAMES = (
+    "default_ci_config_{arch}_{dtype}.json",
+    "default_ci_config_{arch}.json",
+    "default_ci_config_{dtype}.json",
+    "default_ci_config.json",
+)
+# A dtype without a CI config of its own falls back to its family's file, tried
+# right after its own name at each level (bf8 lists the same warp tiles as fp8
+# on every arch, so default_ci_config_gfx1250_fp8.json serves bf8 too).
+CI_CONFIG_DTYPE_ALIAS = {"bf8": "fp8"}
+# Variant-specific sweep files, tried before the CI names above (the gfx1250
+# preshuffle sweep covers all five preshuffle pipelines).
+VARIANT_CI_CONFIG_NAMES = {"gemm_preshuffle": ("default_config_{arch}.json",)}
 EXAMPLE_PROBLEMS_NAME = "example_problems.json"
 
 # Map the driver's --variant (a configs-dir selector) onto the single codegen/
@@ -87,9 +113,12 @@ CODEGEN_VARIANT = {
 }
 
 # Some variants only support a subset of dtypes/layouts. The preshuffle op
-# (tile_engine gemm_preshuffle) supports fp16/bf16/fp8/bf8 and rcr ONLY.
+# (tile_engine gemm_preshuffle) supports fp16/bf16/fp8/bf8 and rcr ONLY; the
+# multi_d / multi_abd bridge runners are fp16 only (gemm_utils rejects others).
 VARIANT_SUPPORTED_DTYPES = {
     "gemm_preshuffle": ("fp16", "bf16", "fp8", "bf8"),
+    "gemm_multi_d": ("fp16",),
+    "gemm_multi_abd": ("fp16",),
 }
 VARIANT_SUPPORTED_LAYOUTS = {
     "gemm_preshuffle": ("rcr",),
@@ -103,7 +132,20 @@ DEFAULT_PROBLEMS = [
     {"M": 257, "N": 257, "K": 257},
 ]
 
-SUPPORTED_DTYPES = ("fp16", "bf16", "fp8", "bf8")
+SUPPORTED_DTYPES = ("fp16", "bf16", "fp32", "fp8", "bf8")
+
+# --verify relative tolerance per dtype. fp32 is held to a few hundred fp32 ulps,
+# well below one fp16 ulp (2**-10), so a kernel that silently computes in a
+# narrower type fails verification instead of passing the fp16 tolerance.
+# The fp32 accumulation error grows about as sqrt(K): the worst max_rel at the
+# default problems (K <= 4096) is about 9x below the bound, which leaves room up
+# to K of roughly 256k; pass --verify-tol for larger K.
+DEFAULT_VERIFY_TOL = 2e-2
+VERIFY_TOL = {"fp32": 256 * 2.0**-23}
+CSV_FIELDS = [
+    "kernel", "problem_idx", "M", "N", "K", "device",
+    "latency_ms", "tflops", "non_zero", "max_rel", "verified",
+]
 # Row-major C only: ck_tile's universal GEMM rejects column-major C at build.
 # The 4-char codes (rcrr, ...) are the multi_abd A,B,E,D layouts; TE gemm_multi_abd
 # only supports rcrr today.
@@ -145,12 +187,36 @@ def resolve_devices(spec):
     return [spec]
 
 
-def resolve_configs(args):
+def resolve_configs(args, arch):
     """Resolve positional configs -> concrete list of config paths."""
     if args.configs:
         return args.configs
-    cfg = _THIS_DIR / VARIANT_CONFIGS[args.variant] / CI_CONFIG_NAME
-    return [str(cfg)]
+    cfg_dir = _THIS_DIR / VARIANT_CONFIGS[args.variant]
+    alias = CI_CONFIG_DTYPE_ALIAS.get(args.dtype, args.dtype)
+    names = [n.format(arch=arch, dtype=d)
+             for n in VARIANT_CI_CONFIG_NAMES.get(args.variant, ()) + CI_CONFIG_NAMES
+             for d in (args.dtype, alias)]
+    return [str(next((cfg_dir / n for n in names if (cfg_dir / n).exists()),
+                     cfg_dir / names[-1]))]
+
+
+def parse_pipelines(value):
+    """Parse a restriction to bridged pipeline names, not a config override."""
+    from codegen_common import CommonTypeMappings
+
+    names = tuple(part.strip() for part in value.split(","))
+    if not all(names):
+        raise argparse.ArgumentTypeError(
+            "expected non-empty comma-separated pipeline names"
+        )
+    if len(set(names)) != len(names):
+        raise argparse.ArgumentTypeError("duplicate pipeline names")
+    unknown = sorted(set(names) - CommonTypeMappings.PIPELINE_TO_CK.keys())
+    if unknown:
+        raise argparse.ArgumentTypeError(
+            f"unknown pipeline name(s): {', '.join(unknown)}"
+        )
+    return names
 
 
 def load_problems(path, variant):
@@ -166,14 +232,103 @@ def load_problems(path, variant):
     return DEFAULT_PROBLEMS
 
 
-def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
+class _Workers:
+    """The measurement subprocesses of one call of ``benchmark_on_devices`` or
+    ``run_repeats``. An interrupt of the main thread (Ctrl-C, or SIGTERM that
+    the adaptive search raises as KeyboardInterrupt) stops the whole
+    measurement before it propagates: no further batch starts, running workers
+    are killed and reaped, the device threads are joined, and a batch cut
+    short is not reported."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.idle = threading.Condition(self.lock)  # no device thread active
+        self.procs = set()
+        self.active = 0  # device threads running device_thread
+        self.cancelled = False
+
+    def start(self, *args, **kwargs):
+        """``subprocess.Popen(*args, **kwargs)``, or None once cancelled."""
+        with self.lock:
+            if self.cancelled:
+                return None
+            proc = subprocess.Popen(*args, **kwargs)
+            self.procs.add(proc)
+            return proc
+
+    def done(self, proc):
+        with self.lock:
+            self.procs.discard(proc)
+
+    def run(self, devices, device_thread):
+        """Run ``device_thread(device_id)`` per device and wait for them. On
+        an interrupt, also one while the threads start, every device thread
+        that got going has returned before it propagates; one whose start the
+        interrupt cut short, or that never started, runs nothing."""
+
+        def guarded(device_id):
+            with self.lock:
+                if self.cancelled:
+                    return
+                self.active += 1
+            try:
+                device_thread(device_id)
+            finally:
+                with self.lock:
+                    self.active -= 1
+                    self.idle.notify_all()
+
+        threads = []
+        try:
+            for d in devices:
+                threads.append(threading.Thread(target=guarded, args=(d,), daemon=True))
+                threads[-1].start()
+            for t in threads:
+                t.join()
+        except BaseException:
+            with self.lock:
+                self.cancelled = True
+                for proc in self.procs:
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                self.idle.wait_for(lambda: self.active == 0)
+            raise
+
+
+def _run_batch_on_device(
+    device_id, unit, args, worker_path, base_env, extra=None, failures=None,
+    workers=None,
+):
     """Run one (problem, kernel-batch) unit in a device-pinned subprocess.
 
-    Returns (rows, lines, n_fail) where rows are dicts ready for the CSV writer,
-    lines are formatted strings to print, and n_fail counts failures.
+    ``extra`` holds op-specific keys added to the worker payload. Returns
+    (rows, lines, n_fail, n_skip) where rows are dicts ready for the CSV writer,
+    lines are formatted strings to print, n_fail counts failures and n_skip
+    counts kernels the worker reported as unsupported for the problem. When
+    ``failures`` is a list, one FAILURE_FIELDS dict is appended to it per failed
+    kernel, and per kernel reported as unsupported (kind ``unsupported``).
+    ``workers``, if given, is the ``_Workers`` that starts the subprocess; once
+    it is cancelled the unit is not run and the result is empty.
     """
     prob_idx, prob_dict, batch = unit
     M, N, K = prob_dict["M"], prob_dict["N"], prob_dict["K"]
+
+    def _fail(name, kind, error):
+        if failures is not None:
+            failures.append(
+                {
+                    "kernel": name,
+                    "problem_idx": prob_idx,
+                    "M": M,
+                    "N": N,
+                    "K": K,
+                    "device": device_id,
+                    "kind": kind,
+                    "error": str(error)[:500],
+                }
+            )
 
     def _item(cfg, lib):
         it = {"so_path": str(lib), "problem": prob_dict, "kernel_name": cfg.name}
@@ -189,22 +344,29 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
 
     items = [_item(cfg, lib) for _, cfg, lib in batch]
     payload = json.dumps(
-        {"items": items, "verify": args.verify, "verify_tol": args.verify_tol}
+        {
+            "items": items,
+            "verify": args.verify,
+            "verify_tol": args.verify_tol,
+            **(extra or {}),
+        }
     )
 
     env = base_env.copy()
     env["HIP_VISIBLE_DEVICES"] = str(device_id)
 
-    rows, lines, n_fail = [], [], 0
+    rows, lines, n_fail, n_skip = [], [], 0, 0
     proc = None
     try:
-        proc = subprocess.Popen(
+        proc = (subprocess.Popen if workers is None else workers.start)(
             [sys.executable, str(worker_path)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             env=env,
         )
+        if proc is None:
+            return rows, lines, n_fail, n_skip
         stdout_bytes, _ = proc.communicate(
             input=payload.encode("utf-8"),
             timeout=args.kernel_timeout * len(batch),
@@ -221,11 +383,20 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                     f"  [gpu{device_id}] Warning: bad result line: {line[:50]}"
                 )
                 n_fail += 1
+                _fail("", "bad-output", line)
                 continue
             bidx = result.get("idx", 0)
             _, cfg, _ = batch[bidx]
             reported.add(bidx)
-            if result.get("ok", False):
+            if result.get("skipped", False):
+                lines.append(
+                    f"  [gpu{device_id}] {cfg.name:<58} SKIPPED (unsupported problem)"
+                )
+                n_skip += 1
+                _fail(
+                    cfg.name, "unsupported", result.get("error", "unsupported problem")
+                )
+            elif result.get("ok", False):
                 status = "OK" if result.get("non_zero", 0) > 0 else "ZERO"
                 mismatch = False
                 if args.verify and "verified" in result:
@@ -256,10 +427,12 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                 )
                 if mismatch:
                     n_fail += 1
+                    _fail(cfg.name, "mismatch", f"max_rel {result.get('max_rel', '')}")
             else:
                 lines.append(f"  [gpu{device_id}] {cfg.name:<58} FAILED")
                 lines.append(f"    Error: {result.get('error', 'unknown')[:100]}")
                 n_fail += 1
+                _fail(cfg.name, "error", result.get("error", "unknown"))
 
         missing = set(range(len(batch))) - reported
         if missing or proc.returncode != 0:
@@ -268,7 +441,10 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
             for idx in sorted(missing):
                 _, cfg, _ = batch[idx]
                 lines.append(f"  [gpu{device_id}] {cfg.name:<58} MISSING (crash)")
-            n_fail += len(missing)
+                _fail(cfg.name, "missing", f"worker exited with code {proc.returncode}")
+            if not missing:
+                _fail("", "worker-exit", f"worker exited with code {proc.returncode}")
+            n_fail += len(missing) or int(proc.returncode != 0)
 
     except subprocess.TimeoutExpired:
         lines.append(f"  [gpu{device_id}] batch timeout ({len(batch)} kernels)")
@@ -278,6 +454,12 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
         except Exception:
             pass
         n_fail += len(batch)
+        for _, cfg, _ in batch:
+            _fail(
+                cfg.name,
+                "timeout",
+                f"batch of {len(batch)} exceeded {args.kernel_timeout * len(batch)} s",
+            )
     except Exception as e:
         lines.append(f"  [gpu{device_id}] batch error: {e}")
         try:
@@ -286,8 +468,357 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
         except Exception:
             pass
         n_fail += len(batch)
+        for _, cfg, _ in batch:
+            _fail(cfg.name, "batch-error", e)
+    finally:
+        if workers is not None and proc is not None:
+            workers.done(proc)
 
-    return rows, lines, n_fail
+    return rows, lines, n_fail, n_skip
+
+
+# --failures-csv: one row per failed (kernel, problem) measurement, and one per
+# kernel whose build failed (problem fields empty).
+FAILURE_FIELDS = ["kernel", "problem_idx", "M", "N", "K", "device", "kind", "error"]
+
+
+def build_failure_summary(err, limit=300):
+    """One line for a failed build: the step, and for a failed codegen, compile
+    or link the first line of its output that mentions an error."""
+    lines = [ln.strip() for ln in str(err or "").splitlines() if ln.strip()]
+    if not lines:
+        return ""
+    head = lines[0]
+    m = re.match(r"(Codegen|Compile|Link) failed:\s*(.*)", head)
+    if m:
+        rest = ([m.group(2)] if m.group(2) else []) + lines[1:]
+        detail = next(
+            (ln for ln in rest if "error" in ln.lower()), rest[0] if rest else ""
+        )
+        head = f"{m.group(1)} failed: {detail}".rstrip(": ")
+    return head[:limit]
+
+
+# --repeat-top: one row per re-timing launch.
+REPEAT_FIELDS = [
+    "kernel",
+    "problem_idx",
+    "M",
+    "N",
+    "K",
+    "device",
+    "rep",
+    "latency_ms",
+    "tflops",
+    "ok",
+    "error",
+]
+# --list-pairs: the configuration written for each kernel (GemmKernelConfig fields).
+KERNEL_RECORD_FIELDS = (
+    "tile_m",
+    "tile_n",
+    "tile_k",
+    "wave_m",
+    "wave_n",
+    "wave_k",
+    "warp_tile_m",
+    "warp_tile_n",
+    "warp_tile_k",
+    "pipeline",
+    "scheduler",
+    "epilogue",
+    "pad_m",
+    "pad_n",
+    "pad_k",
+    "persistent",
+    "vector_size_a",
+    "vector_size_b",
+    "vector_size_c",
+)
+
+
+def problem_key(prob):
+    """The 'MxNxK' key that names a problem in --pairs and --list-pairs files."""
+    return f"{int(prob['M'])}x{int(prob['N'])}x{int(prob['K'])}"
+
+
+def _kernel_record(cfg):
+    return {f: getattr(cfg, f) for f in KERNEL_RECORD_FIELDS if hasattr(cfg, f)}
+
+
+def load_pair_list(path):
+    """Read a --pairs file.
+
+    A JSON object mapping 'MxNxK' to a list of kernel names, or to "*" for every
+    kernel the driver pairs with that problem. The object may also sit under a
+    top-level "pairs" key, so a --list-pairs file is accepted as is.
+    """
+    with open(path) as f:
+        data = json.load(f)
+    if isinstance(data, dict) and isinstance(data.get("pairs"), dict):
+        data = data["pairs"]
+    if not isinstance(data, dict):
+        raise ValueError("expected a JSON object mapping 'MxNxK' to kernel names")
+    listed = {}
+    for key, names in data.items():
+        if names == "*":
+            listed[key] = "*"
+        elif isinstance(names, list) and all(isinstance(n, str) for n in names):
+            listed[key] = list(dict.fromkeys(names))
+        else:
+            raise ValueError(f"entry {key!r} must be a list of kernel names or '*'")
+    return listed
+
+
+def candidate_pairs(vfb, problems, configs):
+    """Per problem, the indices into ``configs`` the driver would measure if every
+    config built: the same pairing rule as the measurement, without its summary."""
+    with contextlib.redirect_stdout(io.StringIO()):
+        return vfb.pairs(problems, [(c, None) for c in configs])
+
+
+def listed_pairs(problems, wanted, paired, built_kernels):
+    """Per-problem indices into ``built_kernels`` for the --pairs measurement.
+
+    ``wanted`` maps a problem key to the listed kernel names, ``paired`` maps it to
+    the names the driver pairs with that problem. Returns the index lists and the
+    listed (key, name, reason) pairs that cannot be measured.
+    """
+    index = {}
+    for i, (cfg, _) in enumerate(built_kernels):
+        index.setdefault(cfg.name, i)
+    out, skipped, seen = [], [], set()
+    for prob in problems:
+        key = problem_key(prob)
+        idx = set()
+        for name in wanted.get(key, ()):
+            if name not in paired.get(key, ()):
+                why = "not paired with this problem (vector width or tile rule)"
+            elif name not in index:
+                why = "not built"
+            else:
+                idx.add(index[name])
+                continue
+            if (key, name) not in seen:
+                seen.add((key, name))
+                skipped.append((key, name, why))
+        out.append(sorted(idx))
+    return out, skipped
+
+
+def repeat_plan(measured, top_k):
+    """The (problem_idx, kernel) pairs to re-time: per problem, the ``top_k``
+    kernels with the lowest measured latency. A kernel that failed verification
+    or wrote no non-zero output is never re-timed."""
+    best = {}
+    for r in measured:
+        if r.get("verified") is False or r.get("non_zero", 1) == 0:
+            continue
+        key = (r["problem_idx"], r["kernel"])
+        if key not in best or r["latency_ms"] < best[key]["latency_ms"]:
+            best[key] = r
+    by_problem = defaultdict(list)
+    for (p, _), r in best.items():
+        by_problem[p].append(r)
+    plan = []
+    for p in sorted(by_problem):
+        ranked = sorted(by_problem[p], key=lambda r: (r["latency_ms"], r["kernel"]))
+        plan.extend((p, r["kernel"]) for r in ranked[:top_k])
+    return plan
+
+
+def run_repeats(plan, count, problems, built_kernels, devices, run_args, extra=None):
+    """Re-time each planned (problem, kernel) ``count`` times, one subprocess per
+    launch, rep-major so repeats of one kernel are spread over the run.
+
+    ``run_args`` = (args, worker_path, base_env, writer, fh, io_lock). Returns
+    (ok, failed) launch counts.
+    """
+    args, worker_path, base_env, writer, fh, io_lock = run_args
+    # The kernel was verified (if asked) in the main pass; re-timing only times.
+    rargs = argparse.Namespace(**{**vars(args), "verify": False})
+    index = {}
+    for i, (cfg, _) in enumerate(built_kernels):
+        index.setdefault(cfg.name, i)
+    work = queue.Queue()
+    for rep in range(count):
+        for p, name in plan:
+            prob = problems[p]
+            prob_dict = {"M": int(prob["M"]), "N": int(prob["N"]), "K": int(prob["K"])}
+            i = index[name]
+            work.put((rep, (p, prob_dict, [(i, *built_kernels[i])])))
+    stats = {"ok": 0, "failed": 0}
+    workers = _Workers()
+
+    def device_thread(device_id):
+        while not workers.cancelled:
+            try:
+                rep, unit = work.get_nowait()
+            except queue.Empty:
+                return
+            fails = []
+            rows, _, n_fail, n_skip = _run_batch_on_device(
+                device_id,
+                unit,
+                rargs,
+                worker_path,
+                base_env,
+                extra,
+                failures=fails,
+                workers=workers,
+            )
+            if workers.cancelled:
+                return
+            with io_lock:
+                for r in rows:
+                    writer.writerow(
+                        {
+                            **{f: r[f] for f in REPEAT_FIELDS if f in r},
+                            "rep": rep,
+                            "ok": 1,
+                            "error": "",
+                        }
+                    )
+                for f in fails:
+                    writer.writerow(
+                        {
+                            **{k: f[k] for k in ("kernel", "problem_idx", "M", "N")},
+                            "K": f["K"],
+                            "device": f["device"],
+                            "rep": rep,
+                            "latency_ms": "",
+                            "tflops": "",
+                            "ok": 0,
+                            "error": f"{f['kind']}: {f['error']}",
+                        }
+                    )
+                fh.flush()
+                stats["ok"] += len(rows)
+                stats["failed"] += n_fail + n_skip
+
+    workers.run(devices, device_thread)
+    return stats["ok"], stats["failed"]
+
+
+def unique_built_kernels(configs, lib_paths):
+    """Pair configs with their built .so, dropping failed builds and configs
+    that map to an already-seen .so. Returns (kernels, n_duplicates)."""
+    built = [(cfg, lib) for cfg, lib in zip(configs, lib_paths) if lib is not None]
+    seen, kernels = set(), []
+    for cfg, lib in built:
+        key = str(lib.resolve())
+        if key not in seen:
+            seen.add(key)
+            kernels.append((cfg, lib))
+    return kernels, len(built) - len(kernels)
+
+
+def worker_setup():
+    """The worker script and its environment: the driver's, plus GEMM_PYPATH so
+    the worker finds the dispatcher's python modules."""
+    base_env = os.environ.copy()
+    base_env["GEMM_PYPATH"] = os.pathsep.join(
+        [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
+    )
+    return _THIS_DIR / "run_one_gemm_kernel.py", base_env
+
+
+def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_path,
+                         base_env, csv_path, extra=None, *, record_failures=None,
+                         measured=None, device_of=None, title=None):
+    """Phase 3: fan (problem, kernel-batch) units out over device-pinned workers.
+
+    ``pairs[i]`` lists the indices into ``built_kernels`` to run on
+    ``problems[i]``. Rows go to ``csv_path`` as they arrive. Returns a stats
+    dict with measurements, failures, skipped and seconds.
+
+    ``record_failures``, if given, is called with each batch's FAILURE_FIELDS
+    dicts (under the output lock); ``measured``, if given, is a list every CSV
+    row is also appended to. ``device_of``, if given, names the device that
+    runs every unit of ``problems[i]`` (the devices still run in parallel).
+    ``title``, if given, is printed as one line instead of the Phase 3 banner.
+    """
+    if title is None:
+        print(f"\n{'=' * 80}")
+        print("Phase 3: Benchmark (multi-GPU, subprocess isolation, batched)")
+        print(f"{'=' * 80}")
+        print(f"  Devices: {len(devices)} -> {', '.join(devices)}")
+        print(f"  Batch size: {args.batch_size} kernels per subprocess")
+        print(f"  Timeout: {args.kernel_timeout}s per kernel\n")
+    else:
+        print(f"  {title} (timeout {args.kernel_timeout}s per kernel)", flush=True)
+
+    csv_file = open(csv_path, "w", newline="")
+    writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
+    writer.writeheader()
+
+    work_q = queue.Queue()
+    pinned = None if device_of is None else {d: queue.Queue() for d in devices}
+    for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
+        prob_dict = {"M": int(prob["M"]), "N": int(prob["N"]), "K": int(prob["K"])}
+        q = work_q if pinned is None else pinned[device_of[prob_idx]]
+        for start in range(0, len(idx), args.batch_size):
+            batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
+            q.put((prob_idx, prob_dict, batch))
+
+    io_lock = threading.Lock()
+    stats = {"measurements": 0, "failures": 0, "skipped": 0}
+    t0 = time.perf_counter()
+    workers = _Workers()
+
+    def device_thread(device_id):
+        q = work_q if pinned is None else pinned[device_id]
+        while not workers.cancelled:
+            try:
+                unit = q.get_nowait()
+            except queue.Empty:
+                return
+            # The failure list is passed only when recording, so the call is
+            # unchanged otherwise.
+            fails = [] if record_failures else None
+            kw = {} if fails is None else {"failures": fails}
+            rows, lines, n_fail, n_skip = _run_batch_on_device(
+                device_id, unit, args, worker_path, base_env, extra, **kw,
+                workers=workers,
+            )
+            if workers.cancelled:
+                return
+            with io_lock:
+                for ln in lines:
+                    print(ln)
+                for row in rows:
+                    writer.writerow(row)
+                csv_file.flush()
+                if fails:
+                    record_failures(fails)
+                if measured is not None:
+                    measured.extend(rows)
+                stats["measurements"] += len(rows)
+                stats["failures"] += n_fail
+                stats["skipped"] += n_skip
+            q.task_done()
+
+    try:
+        workers.run(devices, device_thread)
+    finally:
+        csv_file.close()
+    stats["seconds"] = time.perf_counter() - t0
+    return stats
+
+
+def print_summary(build_time, stats, devices, csv_path):
+    print(f"\n{'=' * 80}")
+    print("BENCHMARK COMPLETE")
+    print(f"{'=' * 80}")
+    print(f"  Build time: {build_time:.0f}s")
+    print(f"  Benchmark time: {stats['seconds']:.0f}s")
+    print(f"  Total time: {build_time + stats['seconds']:.0f}s")
+    print(f"  Devices used: {len(devices)}")
+    print(f"  Successful measurements: {stats['measurements']}")
+    print(f"  Failed measurements: {stats['failures']}")
+    if stats["skipped"]:
+        print(f"  Skipped (unsupported problem): {stats['skipped']}")
+    print(f"  Output: {csv_path}")
 
 
 def main():
@@ -297,7 +828,7 @@ def main():
     parser.add_argument(
         "configs",
         nargs="*",
-        help="TE sweep config JSON files (default: variant's default_ci_config.json)",
+        help="TE sweep config JSON files (gfx1250 preshuffle defaults to default_config_gfx1250.json; other variants use default_ci_config.json)",
     )
     parser.add_argument(
         "--variant",
@@ -366,6 +897,15 @@ def main():
         help="Limit to first N kernels plus their vector-width variants (0=all)",
     )
     parser.add_argument(
+        "--pipelines",
+        type=parse_pipelines,
+        default=None,
+        metavar="NAME[,NAME...]",
+        help="Keep only these bridged pipelines from the selected configs, before "
+        "--max-kernels and --pairs; applies to plain runs, --list-pairs and search. "
+        "Does not change which config files are selected",
+    )
+    parser.add_argument(
         "--verify",
         action="store_true",
         help="Check each kernel's output against an fp32 numpy reference "
@@ -374,13 +914,128 @@ def main():
     parser.add_argument(
         "--verify-tol",
         type=float,
-        default=2e-2,
-        help="Relative tolerance for --verify (default 2e-2, suits fp16)",
+        default=None,
+        help=f"Relative tolerance for --verify (default per dtype: {VERIFY_TOL}, "
+        f"else {DEFAULT_VERIFY_TOL}); the fp32 default holds up to K of about "
+        "256k, raise it for larger K",
     )
     add_vector_fallback_arg(parser)
+    parser.add_argument(
+        "--build-timeout",
+        type=int,
+        default=None,
+        metavar="SECONDS",
+        help="Limit for each kernel's codegen, compile and link step (default: "
+        "300 s each, 1200 s to compile a fixed-vector-width kernel). A kernel "
+        "whose step times out is reported as a build failure",
+    )
+    parser.add_argument(
+        "--failures-csv",
+        default=None,
+        metavar="PATH",
+        help="Also write one row per failed measurement (refused launch, crash, "
+        "timeout, verification mismatch) and per failed build, with its reason",
+    )
+    parser.add_argument(
+        "--repeat-top",
+        type=int,
+        default=0,
+        metavar="K",
+        help="After the sweep, re-time the K fastest kernels of each problem "
+        "(0 = off). Each launch runs in its own subprocess; failed-verification "
+        "kernels are skipped",
+    )
+    parser.add_argument(
+        "--repeat-count",
+        type=int,
+        default=5,
+        metavar="N",
+        help="Launches per re-timed kernel with --repeat-top (default 5)",
+    )
+    parser.add_argument(
+        "--repeat-csv",
+        default=None,
+        metavar="PATH",
+        help="Output of --repeat-top, one row per launch "
+        "(default: the --csv path with suffix .repeats.csv)",
+    )
+    parser.add_argument(
+        "--list-pairs",
+        default=None,
+        metavar="PATH",
+        help="Dry run: write every (problem, kernel) pair this run would measure, "
+        "with each kernel's configuration, then exit without building anything",
+    )
+    parser.add_argument(
+        "--pairs",
+        default=None,
+        metavar="PATH",
+        help="Measure only listed pairs: a JSON object mapping 'MxNxK' to kernel "
+        'names, or "*" for every kernel paired with that problem (a --list-pairs '
+        "file is accepted). Only the listed kernels are built",
+    )
+    parser.add_argument(
+        "--search-config",
+        default=None,
+        metavar="PATH",
+        help="Adaptive search instead of measuring every pair: a search settings "
+        "JSON (see README). Builds and measures only the kernels the search "
+        "proposes, re-verifies the best and writes the confirmed winners as a "
+        "--pairs file. Needs --search-output-dir; gemm_universal only",
+    )
+    parser.add_argument(
+        "--search-output-dir",
+        default=None,
+        metavar="DIR",
+        help="Output of --search-config (winners.json, run.json, trials.jsonl, "
+        "summary.json, rounds/, artifacts/); must not hold an earlier run",
+    )
     args = parser.parse_args()
+    pipeline_metadata = (
+        {"pipelines": list(args.pipelines)} if args.pipelines is not None else {}
+    )
+    if args.verify_tol is None:
+        args.verify_tol = VERIFY_TOL.get(args.dtype, DEFAULT_VERIFY_TOL)
+    if args.build_timeout is not None and args.build_timeout <= 0:
+        parser.error("--build-timeout must be positive")
+    if args.repeat_top < 0 or args.repeat_count < 1:
+        parser.error("--repeat-top must be >= 0 and --repeat-count >= 1")
+    if args.pairs and args.list_pairs:
+        parser.error("--pairs and --list-pairs are mutually exclusive")
+    # Every file the run writes, and the pair list it reads, must be distinct:
+    # opening one twice corrupts it, and a later one replaces an earlier one.
+    files = [
+        ("--csv", args.csv),
+        ("--pairs", args.pairs),
+        ("--failures-csv", args.failures_csv),
+    ]
+    if args.repeat_top:
+        files.append(
+            (
+                "--repeat-csv",
+                args.repeat_csv or str(Path(args.csv).with_suffix(".repeats.csv")),
+            )
+        )
+    seen = {}
+    for opt, path in files:
+        if path:
+            key = Path(path).resolve()
+            if key in seen:
+                parser.error(f"{seen[key]} and {opt} name the same file: {path}")
+            seen[key] = opt
 
-    config_paths = resolve_configs(args)
+    search_settings = None
+    if args.search_config is not None or args.search_output_dir is not None:
+        # Imported only in search mode, so a run without it loads nothing new.
+        from gemm_search import SettingsError, check_search_options
+
+        try:
+            search_settings = check_search_options(args)
+        except SettingsError as e:
+            parser.error(str(e))
+
+    arch = _resolve_arch(args.arch)
+    config_paths = resolve_configs(args, arch)
     devices = resolve_devices(args.devices)
 
     # ========================================================================
@@ -444,6 +1099,18 @@ def main():
         if args.multi_abd_cde_op is not None:
             mabd_kwargs["cde_elementwise_op"] = args.multi_abd_cde_op
 
+    # Reject a dtype the arch cannot generate with a clear message, instead of
+    # letting every config be silently dropped by the warp-tile validator.
+    dtype_key, table_key, warp_tiles = listed_warp_tiles(
+        arch, args.dtype, variant=codegen_variant
+    )
+    if not warp_tiles:
+        print(
+            f"  ERROR: dtype {args.dtype} is not supported on {arch} for variant "
+            f"{args.variant}: no warp tiles listed for {dtype_key} in {table_key}"
+        )
+        return 1
+
     problems = load_problems(args.problems, args.variant)
     vfb = VectorFallback(
         problems, args.layout, args.dtype, codegen_variant, args.no_vector_fallback,
@@ -455,7 +1122,7 @@ def main():
         all_configs.extend(
             expand_sweep(
                 cfg_path,
-                args.arch,
+                arch,
                 dtype=args.dtype,
                 layout=sweep_layout,
                 variant=codegen_variant,
@@ -466,43 +1133,210 @@ def main():
         )
     vfb.report_rejects()
 
+    expanded_pipelines = list(dict.fromkeys(cfg.pipeline for cfg in all_configs))
+    if args.pipelines is not None:
+        all_configs = [cfg for cfg in all_configs if cfg.pipeline in args.pipelines]
+        print(f"  Pipeline filter (--pipelines): {', '.join(args.pipelines)}")
     all_configs = vfb.limit_base_kernels(all_configs, args.max_kernels)
 
     print(f"  Expanded configs: {len(all_configs)}")
+    if not all_configs:
+        if args.pipelines is not None and expanded_pipelines:
+            print(
+                f"  ERROR: 0 configs left after --pipelines {', '.join(args.pipelines)} "
+                f"for dtype {args.dtype} on {arch} (layout {sweep_layout}); "
+                f"{', '.join(config_paths)} expanded only: "
+                f"{', '.join(expanded_pipelines)}"
+            )
+            return 1
+        print(
+            f"  ERROR: 0 configs expanded for dtype {args.dtype} on {arch} "
+            f"(layout {sweep_layout}); no config in {', '.join(config_paths)} "
+            f"passes the {arch} checks (listed {dtype_key} warp tiles: "
+            f"{warp_tiles}; pipeline, layout and tile-size gates)"
+        )
+        return 1
+
+    if args.list_pairs:
+        # The pairs a real run would measure if every kernel built: expansion and
+        # pairing use the full config and problems files, as a real run does.
+        kernels, listed = {}, {}
+        for prob, idx in zip(problems, candidate_pairs(vfb, problems, all_configs)):
+            names = listed.setdefault(problem_key(prob), [])
+            for i in idx:
+                cfg = all_configs[i]
+                kernels.setdefault(cfg.name, _kernel_record(cfg))
+                if cfg.name not in names:
+                    names.append(cfg.name)
+        out = {
+            "arch": arch,
+            "dtype": args.dtype,
+            "layout": sweep_layout,
+            "variant": codegen_variant,
+            "configs": config_paths,
+            **pipeline_metadata,
+            "problems": [
+                {"M": int(p["M"]), "N": int(p["N"]), "K": int(p["K"])} for p in problems
+            ],
+            "kernels": kernels,
+            "pairs": listed,
+        }
+        Path(args.list_pairs).write_text(json.dumps(out, indent=1) + "\n")
+        print(
+            f"  Listed {sum(map(len, listed.values()))} pairs: {len(listed)} problems, "
+            f"{len(kernels)} kernels -> {args.list_pairs} (dry run, nothing built)"
+        )
+        return 0
+
+    wanted = None
+    if args.pairs:
+        # Validate against the full expansion, build only what is listed, and
+        # judge every listed pair by the pairing a full run would apply.
+        try:
+            requested = load_pair_list(args.pairs)
+        except (OSError, ValueError) as e:
+            print(f"  ERROR: --pairs {args.pairs}: {e}")
+            return 1
+        unknown = sorted(set(requested) - {problem_key(p) for p in problems})
+        expanded = {cfg.name for cfg in all_configs}
+        absent = sorted(
+            {n for v in requested.values() if v != "*" for n in v} - expanded
+        )
+        if unknown or absent:
+            for what, items in (("problems", unknown), ("kernels", absent)):
+                if items:
+                    print(
+                        f"  ERROR: --pairs lists {len(items)} {what} this run does not "
+                        f"have (same configs, problems, dtype, layout and arch"
+                        f"{' and --pipelines' if args.pipelines is not None else ''}?): "
+                        f"{', '.join(items[:3])}{' ...' if len(items) > 3 else ''}"
+                    )
+            return 1
+        order = {}
+        for i, cfg in enumerate(all_configs):
+            order.setdefault(cfg.name, i)
+        paired = defaultdict(set)
+        for prob, idx in zip(problems, candidate_pairs(vfb, problems, all_configs)):
+            paired[problem_key(prob)].update(all_configs[i].name for i in idx)
+        wanted = {
+            key: sorted(paired[key], key=order.get) if names == "*" else names
+            for key, names in requested.items()
+        }
+        needed = {n for names in wanted.values() for n in names}
+        # A "*" problem is measured as a full run would measure it, including the
+        # fixed-width kernels that replace a native kernel that fails to build:
+        # build every fixed-width kernel that can run it, and pair it after the
+        # build like a full run does.
+        star = {key for key, names in requested.items() if names == "*"}
+        if star:
+            fixed = [cfg for cfg in all_configs if any(cfg.vector_sizes)]
+            for prob, idx in zip(problems, candidate_pairs(vfb, problems, fixed)):
+                if problem_key(prob) in star:
+                    needed.update(fixed[i].name for i in idx)
+        all_configs = [cfg for cfg in all_configs if cfg.name in needed]
+        plan = (
+            f"building {len(needed)} kernels"
+            if search_settings is None
+            else "the search builds only the kernels it proposes"
+        )
+        print(
+            f"  Pair list: {sum(map(len, wanted.values()))} pairs over "
+            f"{len(wanted)} problems; {plan} ({args.pairs})"
+        )
+    if search_settings is not None:
+        # Search mode replaces the build and the full measurement. A problem's
+        # candidates are the kernels a full run would measure with it (with
+        # --pairs: only the listed problems, and the listed kernels among
+        # those); only proposed ones are built.
+        from gemm_search import DriverHooks, run_gemm_search
+
+        if wanted is None:
+            eligible = [
+                [all_configs[i].name for i in idx]
+                for idx in candidate_pairs(vfb, problems, all_configs)
+            ]
+        else:
+            problems = [p for p in problems if problem_key(p) in wanted]
+            eligible = [
+                [n for n in wanted[k] if n in paired[k]]
+                for k in map(problem_key, problems)
+            ]
+        hooks = DriverHooks(
+            build=setup_multiple_gemm_dispatchers,
+            measure=benchmark_on_devices,
+            record=_kernel_record,
+            problem_key=problem_key,
+            load_pairs=load_pair_list,
+            build_reason=build_failure_summary,
+            build_dir=get_build_dir(),
+        )
+        context = {
+            "arch": arch,
+            "layout": sweep_layout,
+            "variant": codegen_variant,
+            "configs": config_paths,
+            **pipeline_metadata,
+        }
+        return run_gemm_search(
+            args, search_settings, hooks, problems=problems, configs=all_configs,
+            eligible=eligible, devices=devices, worker=worker_setup(),
+            context=context,
+        )
     print(f"  Build workers: {args.workers}")
+    if args.build_timeout:
+        print(f"  Build timeout: {args.build_timeout}s per codegen/compile/link step")
 
     t0 = time.perf_counter()
     # CRITICAL: returns Path objects only, does NOT load any .so.
+    build_kwargs = {"build_timeout": args.build_timeout} if args.build_timeout else {}
+    # Collect each failed build's reason only when recording failures, so the
+    # call is unchanged without --failures-csv.
+    build_errors = {} if args.failures_csv else None
+    if build_errors is not None:
+        build_kwargs["errors"] = build_errors
     lib_paths = setup_multiple_gemm_dispatchers(
-        all_configs, verbose=True, max_workers=args.workers
+        all_configs, verbose=True, max_workers=args.workers, **build_kwargs
     )
     build_time = time.perf_counter() - t0
 
-    built_kernels = [
-        (cfg, lib) for cfg, lib in zip(all_configs, lib_paths) if lib is not None
-    ]
-    vfb.report_builds(all_configs, lib_paths)
+    build_failures = sum(lib is None for lib in lib_paths)
+    if len(lib_paths) != len(all_configs):
+        print("  ERROR: Incomplete kernel build results")
+        return 1
+    if build_failures:
+        print(f"  ERROR: {build_failures}/{len(all_configs)} kernel builds failed")
 
-    # Dedupe by .so path (distinct configs can map to the same physical kernel).
-    seen_libs = set()
-    unique_kernels = []
-    duplicate_count = 0
-    for cfg, lib in built_kernels:
-        lib_key = str(lib.resolve())
-        if lib_key not in seen_libs:
-            seen_libs.add(lib_key)
-            unique_kernels.append((cfg, lib))
-        else:
-            duplicate_count += 1
-    built_kernels = unique_kernels
+    vfb.report_builds(all_configs, lib_paths)
+    built_kernels, duplicate_count = unique_built_kernels(all_configs, lib_paths)
 
     print(
         f"\n  Built {len(all_configs)} configs -> {len(built_kernels)} unique kernels "
         f"({duplicate_count} duplicates filtered) in {build_time:.0f}s"
     )
 
+    # Failed builds are recorded now, so they are recorded even when nothing built.
+    fail_file = fail_writer = None
+    if args.failures_csv:
+        fail_file = open(args.failures_csv, "w", newline="")
+        fail_writer = csv.DictWriter(fail_file, fieldnames=FAILURE_FIELDS)
+        fail_writer.writeheader()
+        for name in dict.fromkeys(
+            cfg.name for cfg, lib in zip(all_configs, lib_paths) if lib is None
+        ):
+            fail_writer.writerow(
+                {
+                    "kernel": name,
+                    "kind": "build-failed",
+                    "error": build_failure_summary(build_errors.get(name)),
+                }
+            )
+        fail_file.flush()
+
     if not built_kernels:
         print("  ERROR: No kernels built successfully")
+        if fail_file:
+            fail_file.close()
+            print(f"  Failures: {args.failures_csv}")
         return 1
 
     # ========================================================================
@@ -514,99 +1348,106 @@ def main():
 
     # Pair each problem only with kernels whose vector widths it can satisfy
     # (without the fallback, keep the old all-pairs behaviour).
-    pairs = vfb.pairs(problems, built_kernels)
+    unmeasured = []
+    if wanted is None:
+        pairs = vfb.pairs(problems, built_kernels)
+    else:
+        pairs, unmeasured = listed_pairs(problems, wanted, paired, built_kernels)
+        if star:
+            built_pairs = candidate_pairs(vfb, problems, [c for c, _ in built_kernels])
+            for p, prob in enumerate(problems):
+                if problem_key(prob) in star:
+                    pairs[p] = built_pairs[p]
+            # A "*" problem's unbuilt natives are replaced like in a full run.
+            unmeasured = [
+                u for u in unmeasured if u[0] not in star or u[2] != "not built"
+            ]
+        print(f"  Problems: {len(problems)}")
+        print(f"  Total measurements: {sum(map(len, pairs))} (listed pairs)")
+        for key, name, why in unmeasured:
+            print(f"  Listed pair not measured: {key} {name}: {why}")
 
-    # ========================================================================
-    # Phase 3: Benchmark across all visible GPUs (subprocess isolation, batched)
-    # ========================================================================
-    print(f"\n{'=' * 80}")
-    print("Phase 3: Benchmark (multi-GPU, subprocess isolation, batched)")
-    print(f"{'=' * 80}")
-    print(f"  Devices: {len(devices)} -> {', '.join(devices)}")
-    print(f"  Batch size: {args.batch_size} kernels per subprocess")
-    print(f"  Timeout: {args.kernel_timeout}s per kernel\n")
+    if fail_writer:
+        for key, name, why in unmeasured:
+            M, N, K = key.split("x")
+            fail_writer.writerow(
+                {
+                    "kernel": name,
+                    "M": M,
+                    "N": N,
+                    "K": K,
+                    "kind": "not-measured",
+                    "error": why,
+                }
+            )
+        fail_file.flush()
 
+    def record_failures(fails):
+        fail_writer.writerows(fails)
+        fail_file.flush()
+
+    worker_path, base_env = worker_setup()
     csv_path = Path(args.csv)
-    csv_fields = [
-        "kernel",
-        "problem_idx",
-        "M",
-        "N",
-        "K",
-        "device",
-        "latency_ms",
-        "tflops",
-        "non_zero",
-        "max_rel",
-        "verified",
-    ]
-    csv_file = open(csv_path, "w", newline="")
-    writer = csv.DictWriter(csv_file, fieldnames=csv_fields)
-    writer.writeheader()
-
-    worker_path = _THIS_DIR / "run_one_gemm_kernel.py"
-    base_env = os.environ.copy()
-    base_env["GEMM_PYPATH"] = os.pathsep.join(
-        [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
+    # The hooks are passed only when asked for, so the call is unchanged otherwise.
+    hooks = {}
+    if fail_writer:
+        hooks["record_failures"] = record_failures
+    measured = [] if args.repeat_top else None
+    if measured is not None:
+        hooks["measured"] = measured
+    # The workers' fp8/bf8 host format (OCP or FNUZ) follows the arch the
+    # kernels were built for, not the local GPU's detection, which can fail.
+    worker_extra = {"arch": arch}
+    stats = benchmark_on_devices(
+        problems,
+        pairs,
+        built_kernels,
+        devices,
+        args,
+        worker_path,
+        base_env,
+        csv_path,
+        worker_extra,
+        **hooks,
     )
 
-    # Build a single work queue of (prob_idx, prob_dict, kernel-batch) units and
-    # fan them out across device-pinned worker threads.
-    work_q = queue.Queue()
-    for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
-        prob_dict = {"M": int(prob["M"]), "N": int(prob["N"]), "K": int(prob["K"])}
-        for start in range(0, len(idx), args.batch_size):
-            batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
-            work_q.put((prob_idx, prob_dict, batch))
-
-    io_lock = threading.Lock()
-    stats = {"measurements": 0, "failures": 0}
-    bench_t0 = time.perf_counter()
-
-    def device_thread(device_id):
-        while True:
-            try:
-                unit = work_q.get_nowait()
-            except queue.Empty:
-                return
-            rows, lines, n_fail = _run_batch_on_device(
-                device_id, unit, args, worker_path, base_env
+    repeat_path = repeat_result = None
+    if args.repeat_top:
+        plan = repeat_plan(measured, args.repeat_top)
+        repeat_path = Path(args.repeat_csv or csv_path.with_suffix(".repeats.csv"))
+        print(f"\n{'=' * 80}")
+        print("Re-timing the fastest kernels per problem")
+        print(f"{'=' * 80}")
+        print(
+            f"  {len(plan)} kernels x {args.repeat_count} launches, one subprocess "
+            f"each -> {repeat_path}"
+        )
+        with open(repeat_path, "w", newline="") as rfh:
+            rwriter = csv.DictWriter(rfh, fieldnames=REPEAT_FIELDS)
+            rwriter.writeheader()
+            run_args = (args, worker_path, base_env, rwriter, rfh, threading.Lock())
+            repeat_result = run_repeats(
+                plan,
+                args.repeat_count,
+                problems,
+                built_kernels,
+                devices,
+                run_args,
+                worker_extra,
             )
-            with io_lock:
-                for ln in lines:
-                    print(ln)
-                for row in rows:
-                    writer.writerow(row)
-                csv_file.flush()
-                stats["measurements"] += len(rows)
-                stats["failures"] += n_fail
-            work_q.task_done()
+        stats["failures"] += repeat_result[1]
+    if fail_file:
+        fail_file.close()
 
-    threads = [
-        threading.Thread(target=device_thread, args=(d,), daemon=True) for d in devices
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    bench_time = time.perf_counter() - bench_t0
-    csv_file.close()
-
-    # ========================================================================
-    # Summary
-    # ========================================================================
-    print(f"\n{'=' * 80}")
-    print("BENCHMARK COMPLETE")
-    print(f"{'=' * 80}")
-    print(f"  Build time: {build_time:.0f}s")
-    print(f"  Benchmark time: {bench_time:.0f}s")
-    print(f"  Total time: {build_time + bench_time:.0f}s")
-    print(f"  Devices used: {len(devices)}")
-    print(f"  Successful measurements: {stats['measurements']}")
-    print(f"  Failed measurements: {stats['failures']}")
-    print(f"  Output: {csv_path}")
-    return 0
+    print_summary(build_time, stats, devices, csv_path)
+    if fail_file:
+        print(f"  Failures: {args.failures_csv}")
+    if repeat_result:
+        print(
+            f"  Re-timing: {repeat_result[0]} launches ok, {repeat_result[1]} failed "
+            f"-> {repeat_path}"
+        )
+    return int(bool(build_failures or stats["failures"]))
 
 
 if __name__ == "__main__":

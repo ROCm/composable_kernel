@@ -31,7 +31,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
     kernel_gemm_xdl_cshuffle_v1(typename GridwiseGemm::Argument karg)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
-    defined(__gfx12__)
+    defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
@@ -59,7 +59,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
                                 typename GridwiseGemm::Problem problem)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
-    defined(__gfx12__)
+    defined(__gfx12__) || defined(__gfx117__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
@@ -644,7 +644,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             return false;
         }
 
-        constexpr bool IsGfx11            = is_same_v<decltype(get_device_arch()), gfx11_t>;
+        constexpr bool IsGfx11 = is_same_v<decltype(get_device_arch()), gfx11_t> ||
+                                 is_same_v<decltype(get_device_arch()), gfx117_t>;
         constexpr auto EstimateVgprCount  = GetEstimateVgprCount<IsGfx11>();
         constexpr auto AvailableVgprCount = get_max_vgpr_count(get_device_arch());
         if constexpr(EstimateVgprCount > (AvailableVgprCount + AvailableVgprCount / 4))
@@ -670,7 +671,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             {
                 return get_max_vgpr_count(gfx120_t{});
             }
-            else if(ck::is_gfx11_supported())
+            else if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
             {
                 return get_max_vgpr_count(gfx11_t{});
             }
@@ -679,8 +680,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 return get_max_vgpr_count(gfx9_t{});
             }
         }();
-        const auto estimateVgprCount =
-            ck::is_gfx11_supported() ? GetEstimateVgprCount<true>() : GetEstimateVgprCount<false>();
+        const auto estimateVgprCount = (ck::is_gfx11_supported() || ck::is_gfx117_supported())
+                                           ? GetEstimateVgprCount<true>()
+                                           : GetEstimateVgprCount<false>();
         if(estimateVgprCount > (availableVgprCount + availableVgprCount / 4))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
@@ -948,7 +950,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
              (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
-             ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
+             ((is_fp8_type_v<ComputeTypeA>) &&
 #if defined(__gfx125__)
               lcm_AK1_BK1 < 128))
 #else

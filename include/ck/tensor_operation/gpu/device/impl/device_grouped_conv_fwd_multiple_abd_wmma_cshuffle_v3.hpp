@@ -84,9 +84,10 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         const ComputePtrOffset compute_ptr_offset_of_n,
         const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__) || \
+    defined(__gfx117__))
+#if defined(__gfx11__) || defined(__gfx117__)
+    // gfx11/gfx117 do not support *_atomic_pk_add_f16/bf16 instructions
     using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<e_data_type, ck::half_t> ||
@@ -100,46 +101,50 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         using SelectedEpilogue = get_epilogue_t<epilogue_type, GridwiseGemm>;
 
         constexpr index_t LDS_size =
-            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
-        __shared__ char p_shared[LDS_size];
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>(get_device_arch());
+        if constexpr(LDS_size <= get_lds_size(get_device_arch()))
+        {
+            __shared__ char p_shared[LDS_size];
 
-        auto epilogue_args = SelectedEpilogue{};
+            auto epilogue_args = SelectedEpilogue{};
 
-        const auto a_grid_desc_ak0_m_ak1 =
-            GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
+            const auto a_grid_desc_ak0_m_ak1 =
+                GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
 
-        const auto b_grid_desc_bk0_n_bk1 =
-            GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
+            const auto b_grid_desc_bk0_n_bk1 =
+                GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
 
-        const auto block_2_ctile_map_ = typename GridwiseGemm::Block2CTileMap{karg.M, karg.N, 4};
+            const auto block_2_ctile_map_ =
+                typename GridwiseGemm::Block2CTileMap{karg.M, karg.N, 4};
 
-        GridwiseGemm::template Run<GridwiseGemm::ConvRegime::FORWARD,
-                                   decltype(a_grid_desc_ak0_m_ak1),
-                                   decltype(b_grid_desc_bk0_n_bk1),
-                                   DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                                   EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                   decltype(block_2_ctile_map_),
-                                   ComputePtrOffset,
-                                   ComputePtrOffset,
-                                   0,
-                                   HasMainKBlockLoop,
-                                   EGlobalMemoryDataOperation,
-                                   false,
-                                   TailNum,
-                                   decltype(epilogue_args)>(
-            p_shared,
-            a_grid_desc_ak0_m_ak1,
-            b_grid_desc_bk0_n_bk1,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            e_grid_desc_mblock_mperblock_nblock_nperblock,
-            block_2_ctile_map_,
-            compute_ptr_offset_of_batch,
-            compute_ptr_offset_of_n,
-            num_k_per_block,
-            karg,
-            epilogue_args);
+            GridwiseGemm::template Run<GridwiseGemm::ConvRegime::FORWARD,
+                                       decltype(a_grid_desc_ak0_m_ak1),
+                                       decltype(b_grid_desc_bk0_n_bk1),
+                                       DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                                       EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                       decltype(block_2_ctile_map_),
+                                       ComputePtrOffset,
+                                       ComputePtrOffset,
+                                       0,
+                                       HasMainKBlockLoop,
+                                       EGlobalMemoryDataOperation,
+                                       false,
+                                       TailNum,
+                                       decltype(epilogue_args)>(
+                p_shared,
+                a_grid_desc_ak0_m_ak1,
+                b_grid_desc_bk0_n_bk1,
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+                block_2_ctile_map_,
+                compute_ptr_offset_of_batch,
+                compute_ptr_offset_of_n,
+                num_k_per_block,
+                karg,
+                epilogue_args);
+        }
 
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     }
 #endif
 #else
@@ -151,7 +156,8 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
     ignore = num_k_per_block;
-#endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#endif // End of if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__) ||
+       // defined(__gfx117__))
 }
 
 } // namespace
@@ -1582,7 +1588,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             return false;
         }
 
-        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported() || ck::is_gfx117_supported()))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

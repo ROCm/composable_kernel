@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 """Full Stream-K GEMM benchmark sweep driven through the Dispatcher bridge.
 
 Same 3-phase architecture as ``gemm_full_benchmark.py`` -- Stream-K is a
@@ -19,12 +23,17 @@ disposable worker subprocesses pinned with ``HIP_VISIBLE_DEVICES``, so an N-GPU
 box benchmarks roughly N times faster while keeping per-batch fault isolation.
 
 Examples:
-    # Default config (gemm_streamk/configs/default_config.json), all visible GPUs:
+    # Architecture-specific default config, all visible GPUs:
     python streamk_gemm_full_benchmark.py
 
     # Explicit config on 4 GPUs with correctness checking:
     python streamk_gemm_full_benchmark.py gemm_streamk/configs/default_config.json \
         --devices 4 --verify --csv streamk_gemm_results.csv
+
+    # gfx1250 TDM pipelines (comp_tdm, comp_tdm_v2, comp_tdm_v3), persistent and
+    # not, at the default Stream-K workgroup budget and at half of it:
+    python streamk_gemm_full_benchmark.py gemm_streamk/configs/gfx1250_tdm_config.json \
+        --arch gfx1250 --dtype bf16 --verify --budget-pct 100,50
 """
 
 import argparse
@@ -46,7 +55,14 @@ sys.path.insert(0, str(_DISPATCHER_ROOT / "codegen"))
 sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
-from gemm_utils import setup_multiple_gemm_dispatchers, expand_sweep  # noqa: E402
+from gemm_utils import (  # noqa: E402
+    parse_streamk_budgets,
+    STREAMK_REDUCTION_STRATEGIES,
+    _resolve_arch,
+    expand_sweep,
+    setup_multiple_gemm_dispatchers,
+    unique_by_name,
+)
 from smi_utils import detect_gpu_ids  # noqa: E402
 from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa: E402
 
@@ -54,9 +70,8 @@ from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa
 DEFAULT_CONFIG = _THIS_DIR / "gemm_streamk" / "configs" / "default_config.json"
 
 # Default problem set: squares plus a large-K skinny shape -- Stream-K's sweet
-# spot is few output tiles with a long K reduction. Tiny problems (e.g. 257^3)
-# have too few tiles to partition across CUs and the kernel reports them as
-# unsupported (status -2), which the bridge surfaces gracefully.
+# spot is few output tiles with a long K reduction. The kernel can fall back
+# to data-parallel scheduling when splitting offers insufficient work.
 DEFAULT_PROBLEMS = [
     {"M": 1024, "N": 1024, "K": 1024},
     {"M": 2048, "N": 2048, "K": 2048},
@@ -69,13 +84,14 @@ DEFAULT_PROBLEMS = [
 # worker (run_one_streamk_gemm_kernel.py) reads dtype/layout off the kernel name,
 # so all 4 A/B/C layouts are supported. dtypes cover fp16 + bf16 + fp8 + bf8: the
 # bridge runner encodes fp16 natively, bf16 via bit-truncation, and fp8/bf8 via
-# ml_dtypes in the gfx942 FNUZ formats (e4m3fnuz / e5m2fnuz), which accumulate
-# into fp16. int8 is left out: it is blocked at the ck_tile engine level, not the
-# bridge -- the int8 kernel codegens but fails to COMPILE for every reduction
-# strategy (atomic/linear/tree). warp_gemm_dispatcher has no
-# Dispatcher<int8,int8,float,32,32,16,...> specialization for the streamk CompV3
-# path, so WarpGemm resolves to `int` and the BlockUniversalGemmAsBsCr
-# WarpGemm::kM/kN static_asserts fail; this matches PR #8094 leaving int8 out.
+# architecture-specific OCP (gfx950/gfx12xx) or FNUZ (gfx942) formats. FP8/BF8
+# inputs accumulate in fp32 and store fp16 output. int8 is left out: it is
+# blocked at the ck_tile engine level, not the bridge -- the int8 kernel codegens
+# but fails to COMPILE for every reduction strategy (atomic/linear/tree).
+# warp_gemm_dispatcher has no Dispatcher<int8,int8,float,32,32,16,...>
+# specialization for the streamk CompV3 path, so WarpGemm resolves to `int` and
+# the BlockUniversalGemmAsBsCr WarpGemm::kM/kN static_asserts fail; this matches
+# PR #8094 leaving int8 out.
 SUPPORTED_DTYPES = ("fp16", "bf16", "fp8", "bf8")
 SUPPORTED_LAYOUTS = ("rcr", "rrr", "ccr", "crr")
 
@@ -107,10 +123,16 @@ def resolve_devices(spec):
 
 
 def resolve_configs(args):
-    """Resolve positional configs -> concrete list of config paths."""
+    """Resolve positional configs -> concrete list of config paths.
+
+    Without explicit configs, use ``default_config_<arch>.json`` when it exists
+    and ``default_config.json`` otherwise, so a new architecture only needs a
+    config file drop.
+    """
     if args.configs:
         return args.configs
-    return [str(DEFAULT_CONFIG)]
+    arch_config = DEFAULT_CONFIG.with_name(f"{DEFAULT_CONFIG.stem}_{args.arch}.json")
+    return [str(arch_config if arch_config.exists() else DEFAULT_CONFIG)]
 
 
 def load_problems(path):
@@ -128,7 +150,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
     Returns (rows, lines, n_fail) where rows are dicts ready for the CSV writer,
     lines are formatted strings to print, and n_fail counts failures.
     """
-    prob_idx, prob_dict, batch = unit
+    prob_idx, prob_dict, batch, budget_pct = unit
     M, N, K = prob_dict["M"], prob_dict["N"], prob_dict["K"]
 
     items = [
@@ -141,6 +163,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
 
     env = base_env.copy()
     env["HIP_VISIBLE_DEVICES"] = str(device_id)
+    env["CK_TILE_STREAMK_BUDGET_PCT"] = str(budget_pct)
 
     rows, lines, n_fail = [], [], 0
     proc = None
@@ -181,8 +204,8 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                         mismatch = True
                 extra = f" rel={result['max_rel']:.2e}" if "max_rel" in result else ""
                 lines.append(
-                    f"  [gpu{device_id}] {cfg.name:<58} {result['ms']:>10.3f} "
-                    f"{result['tflops']:>10.2f} {status:>8}{extra}"
+                    f"  [gpu{device_id}] {cfg.name:<58} {budget_pct:>4}% "
+                    f"{result['ms']:>10.3f} {result['tflops']:>10.2f} {status:>8}{extra}"
                 )
                 rows.append(
                     {
@@ -192,6 +215,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                         "N": N,
                         "K": K,
                         "device": device_id,
+                        "budget_pct": budget_pct,
                         "latency_ms": result["ms"],
                         "tflops": result["tflops"],
                         "non_zero": result.get("non_zero", 0),
@@ -242,9 +266,19 @@ def main():
     parser.add_argument(
         "configs",
         nargs="*",
-        help="TE sweep config JSON files (default: gemm_streamk/configs/default_config.json)",
+        help="TE sweep config JSON files (default: the architecture's Stream-K "
+        "config)",
     )
-    parser.add_argument("--arch", default="gfx942")
+    parser.add_argument(
+        "--arch", default=None, help="GPU architecture (default: detect device)"
+    )
+    parser.add_argument(
+        "--reduction-strategy",
+        choices=STREAMK_REDUCTION_STRATEGIES,
+        default=None,
+        help="Override the config's reduction strategy; linear/tree reduce "
+        "partials in FP32",
+    )
     parser.add_argument(
         "--dtype",
         default="fp16",
@@ -283,6 +317,14 @@ def main():
         help="Limit to first N kernels plus their vector-width variants (0=all)",
     )
     parser.add_argument(
+        "--budget-pct",
+        default="100",
+        help="Comma-list of distinct integer Stream-K workgroup budgets in 1..100, "
+        "in percent of the kernel's "
+        "default (CUs x occupancy, 100); each kernel x problem runs once per value "
+        "(e.g. 100,75,50,25)",
+    )
+    parser.add_argument(
         "--verify",
         action="store_true",
         help="Check each kernel's output against an fp32 numpy reference "
@@ -292,11 +334,16 @@ def main():
         "--verify-tol",
         type=float,
         default=2e-2,
-        help="Relative tolerance for --verify (default 2e-2; Stream-K's Atomic "
-        "reduction is noisier than regular GEMM but stays well under this)",
+        help="Relative tolerance for --verify (default 2e-2); narrow-output atomic "
+        "reduction can exceed this with many splits",
     )
     add_vector_fallback_arg(parser)
     args = parser.parse_args()
+    try:
+        budget_pcts = parse_streamk_budgets(args.budget_pct)
+    except ValueError as exc:
+        parser.error(str(exc))
+    args.arch = _resolve_arch(args.arch)
 
     config_paths = resolve_configs(args)
     devices = resolve_devices(args.devices)
@@ -324,13 +371,18 @@ def main():
                 dtype=args.dtype,
                 layout=args.layout,
                 variant="stream_k",
+                reduction_strategies=(
+                    [args.reduction_strategy] if args.reduction_strategy else None
+                ),
                 **vfb.expand_kwargs,
             )
         )
 
     vfb.report_rejects()
 
-    all_configs = vfb.limit_base_kernels(all_configs, args.max_kernels)
+    # Positional configs can share kernels (e.g. once the reduction override maps
+    # atomic and linear configs to tree): dedupe so --max-kernels counts distinct ones.
+    all_configs = vfb.limit_base_kernels(unique_by_name(all_configs), args.max_kernels)
 
     print(f"  Expanded configs: {len(all_configs)}")
     print(f"  Build workers: {args.workers}")
@@ -396,6 +448,7 @@ def main():
         "N",
         "K",
         "device",
+        "budget_pct",
         "latency_ms",
         "tflops",
         "non_zero",
@@ -419,7 +472,8 @@ def main():
         prob_dict = {"M": int(prob["M"]), "N": int(prob["N"]), "K": int(prob["K"])}
         for start in range(0, len(idx), args.batch_size):
             batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
-            work_q.put((prob_idx, prob_dict, batch))
+            for budget_pct in budget_pcts:
+                work_q.put((prob_idx, prob_dict, batch, budget_pct))
 
     io_lock = threading.Lock()
     stats = {"measurements": 0, "failures": 0}
@@ -468,7 +522,7 @@ def main():
     print(f"  Successful measurements: {stats['measurements']}")
     print(f"  Failed measurements: {stats['failures']}")
     print(f"  Output: {csv_path}")
-    return 0
+    return 1 if stats["failures"] else 0
 
 
 if __name__ == "__main__":

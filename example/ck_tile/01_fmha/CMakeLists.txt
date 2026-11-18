@@ -67,29 +67,37 @@ if(FMHA_FWD_HAS_GFX125 AND FMHA_FWD_HAS_NON_GFX125)
   message(FATAL_ERROR "CK Tile FMHA: gfx125x cannot be built together with other archs "
                       "(the fwd --optdim head-dim list differs per arch). INST_TARGETS: ${INST_TARGETS}")
 endif()
+# Keep the optdim baseline in test/ck_tile/fmha/test_fmha_fwd_codegen.py in
+# sync when either list changes -- it asserts on the exact gfx125 value.
 if(FMHA_FWD_HAS_GFX125)
-  set(FMHA_FWD_OPTDIM 32,64,96,128,160,192,256)
+  set(FMHA_FWD_OPTDIM 32,64,96,128,160,192,256,512)
 else()
   set(FMHA_FWD_OPTDIM 32,64,80,128,256)
 endif()
 
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/fmha_fwd_source_flags.cmake)
+set(FMHA_FWD_CODEGEN_RECEIPT 0 CACHE STRING "Codegen receipt for FMHA forward instances")
+set(FMHA_BWD_CODEGEN_RECEIPT 3 CACHE STRING "Codegen receipt for FMHA backward instances")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --targets ${FMHA_TARGETS_ARG}
   --api ${FMHA_FWD_APIS}
   --optdim ${FMHA_FWD_OPTDIM}
+  --receipt ${FMHA_FWD_CODEGEN_RECEIPT}
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --targets ${FMHA_TARGETS_ARG}
   --api bwd
-  --receipt 3
+  --receipt ${FMHA_BWD_CODEGEN_RECEIPT}
   --optdim 32,64,96,128,256
   # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 )
 set(FMHA_BWD_INSTANCE_FILTER "" CACHE STRING
   "fnmatch filter for generated FMHA BWD kernels: dot_do_o@convert_dq@dq_dk_dv. Empty = all.")
+set(FMHA_FWD_INSTANCE_FILTER "" CACHE STRING
+  "fnmatch filters for generated FMHA FWD kernels, one per enabled API. Empty = default.")
 
 if(NOT FMHA_BWD_INSTANCE_FILTER STREQUAL "")
   # must go into COMMON_ARGS so --list_blobs and --output_dir stay in agreement
@@ -101,9 +109,17 @@ endif()
 # TODO: Consider to use a special receipt for testing only, or even two receipts: a small subset of
 # instances for quick CI runs and a larger subset for scheduled runs (the tests skip tests when
 # there is no corresponding instance for parameters).
-if(BUILD_TESTING)
+if(NOT FMHA_FWD_INSTANCE_FILTER STREQUAL "")
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter ${FMHA_FWD_INSTANCE_FILTER})
+  message(STATUS "CK Tile FMHA FWD instance filter: ${FMHA_FWD_INSTANCE_FILTER}")
+elseif(BUILD_TESTING)
   # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
-  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv*)
+  # The split-KV entry says *logits* rather than *_nlogits* so that the soft-cap
+  # instances are built too: SplitKvSinkSoftCap needs a soft cap and a sink on the
+  # same split, and without these instances it would report success while
+  # skipping every case that matters. fnmatch takes one pattern per API, so this
+  # also pulls in the soft-cap instances without a sink, for 524 more instances.
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*logits*_nbias*,*,*_nlogits*_nskip*_pagedkv*)
 endif()
 
 # generate a list of kernels, but not actually emit files at config sta
@@ -155,6 +171,7 @@ add_library(${FMHA_FWD_INSTANCES} OBJECT EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 set_source_files_properties(${FMHA_FWD_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
+ck_tile_fmha_fwd_apply_source_compile_options("${INST_TARGETS}" ${FMHA_FWD_GEN_BLOBS})
 set_property(TARGET ${FMHA_FWD_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 message(DEBUG "adding instances ${FMHA_BWD_INSTANCES}")
@@ -174,9 +191,14 @@ set(FMHA_BWD_INTERFACE_COMPILE_OPTIONS)
 list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
 
-# Allow comparing floating points directly in order to check sentinel values
+# Allow comparing floating points directly in order to check sentinel values.
+# Also needed on the INTERFACE side: the example/test executables include the
+# same pipeline headers, and any pipeline whose sentinel check is instantiated
+# from their TU would otherwise trip -Werror,-Wfloat-equal.
 list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
+list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -Wno-float-equal)
+list(APPEND FMHA_BWD_INTERFACE_COMPILE_OPTIONS -Wno-float-equal)
 
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
@@ -199,6 +221,44 @@ if(CK_GFX12_ONLY_BUILD)
   if(HAS_ENABLE_POST_MISCHED_ON)
     message(STATUS "gfx12-only build: enabling post-RA scheduling for FMHA bwd")
     list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS "SHELL: -mllvm -enable-post-misched=1")
+  endif()
+endif()
+
+# Plain masked/plain gfx1250 bf16 d128 TDM training instances benefit
+# from latency-oriented pre-RA scheduling with this pipelined implementation.
+# Batch and group share the tile and the tuned schedule, so both get the flags.
+# Exclude decode, short-sequence overrides, other precisions and architectures:
+# those cases use different code and require separate measurements.
+# The pattern silently stopped matching once (_ntrload -> _ntl); the match count
+# warns rather than errors, since a filtered build may legitimately match none.
+option(FMHA_BWD_GFX1250_D128_BF16_MAX_ILP
+  "use max-ilp for plain gfx1250 bf16 d128 TDM training instances" ON)
+if(FMHA_BWD_GFX1250_D128_BF16_MAX_ILP AND "gfx1250" IN_LIST INST_TARGETS)
+  check_cxx_compiler_flag("-mllvm -amdgpu-sched-strategy=max-ilp"
+    HAS_FMHA_BWD_MAX_ILP)
+  if(HAS_FMHA_BWD_MAX_ILP)
+    set(FMHA_BWD_MAX_ILP_HITS 0)
+    foreach(bwd_blob IN LISTS FMHA_BWD_GEN_BLOBS)
+      get_filename_component(bwd_blob_name "${bwd_blob}" NAME)
+      if(bwd_blob_name MATCHES "^fmha_bwd_d128_bf16_(batch|group)_.*_maxq0_tdm_npad_nbias_ndbias_(nmask|mask)_ndropout_ndeterministic_(ntrload|ntl)_gfx125\\.cpp$")
+        math(EXPR FMHA_BWD_MAX_ILP_HITS "${FMHA_BWD_MAX_ILP_HITS} + 1")
+        set_property(SOURCE "${bwd_blob}" APPEND PROPERTY COMPILE_OPTIONS
+          "-mllvm" "-amdgpu-sched-strategy=max-ilp")
+        if(bwd_blob_name MATCHES "_nmask_")
+          # Compiler-managed SCHED_MODE=2: LLVM inserts the required
+          # s_wait_alu VA_VDST/VM_VSRC waits; no manual hazard removal.
+          set_property(SOURCE "${bwd_blob}" APPEND PROPERTY COMPILE_OPTIONS
+            "-mllvm" "-amdgpu-expert-scheduling-mode" "-mllvm" "-amdgpu-hard-clause-length-limit=1")
+        endif()
+      endif()
+    endforeach()
+    if(FMHA_BWD_MAX_ILP_HITS EQUAL 0)
+      message(WARNING "FMHA_BWD_GFX1250_D128_BF16_MAX_ILP matched no generated "
+        "blob. If d128 bf16 gfx1250 instances were generated, the codegen "
+        "naming changed and the tuned kernel is being built unscheduled.")
+    else()
+      message(STATUS "FMHA bwd max-ilp: ${FMHA_BWD_MAX_ILP_HITS} instance(s)")
+    endif()
   endif()
 endif()
 

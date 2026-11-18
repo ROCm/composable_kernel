@@ -14,7 +14,9 @@ build the same tile with narrower fixed widths instead; these tests lock in:
     the per-tile legality checks;
   * that gemm_utils, the codegen KernelNaming and the generated kernel agree on
     the kernel name and actually pass the widths to the CK problem/epilogue;
-  * expand_sweep emitting fallback configs and counting rejects.
+  * expand_sweep emitting fallback configs and counting rejects;
+  * the Stream-K C store rule, which depends on the reduction strategy, in the
+    bridge, the codegen and the Stream-K driver.
 
 Run: python3 -m pytest tests/test_gemm_vector_sizes.py -v
 """
@@ -24,7 +26,9 @@ import io
 import json
 import sys
 import tempfile
+import itertools
 import unittest
+from types import SimpleNamespace
 from dataclasses import replace
 from pathlib import Path
 from unittest import mock
@@ -39,11 +43,13 @@ from codegen_common import (  # noqa: E402
     TileConfig,
     _native_ab_vector_size,
     gemm_native_vector_sizes,
+    gemm_tile_divides_problem,
     gemm_problem_vector_sizes,
     gemm_vector_size_suffix,
     gemm_lockstep_vector_bytes,
     gemm_vector_size_sweep,
     resolve_gemm_vector_sizes,
+    streamk_c_reject_reason,
 )
 from unified_gemm_codegen import (  # noqa: E402
     CKTileKernelGenerator,
@@ -51,9 +57,10 @@ from unified_gemm_codegen import (  # noqa: E402
     KernelConfig,
     KernelNaming,
     TraitConfig,
+    UnifiedGemmCodegen,
 )
-from gemm_utils import GemmKernelConfig  # noqa: E402
-from gemm_vector_fallback import VectorFallback  # noqa: E402
+from gemm_utils import STREAMK_REDUCTION_STRATEGIES, GemmKernelConfig  # noqa: E402
+from gemm_vector_fallback import VectorFallback, _tile_fits  # noqa: E402
 
 TILE = dict(tile=(256, 256, 64), waves=(2, 2, 1), warp_tile=(32, 32, 16))
 
@@ -68,8 +75,13 @@ ACCEPTANCE = [
 
 def _resolve(layout, requested, **kw):
     args = dict(
-        dtype_a="bf16", dtype_b="bf16", dtype_c="bf16", layout=layout,
-        gfx_arch="gfx950", requested=requested, **TILE,
+        dtype_a="bf16",
+        dtype_b="bf16",
+        dtype_c="bf16",
+        layout=layout,
+        gfx_arch="gfx950",
+        requested=requested,
+        **TILE,
     )
     args.update(kw)
     return resolve_gemm_vector_sizes(**args)
@@ -77,24 +89,56 @@ def _resolve(layout, requested, **kw):
 
 def _bridge_config(vec=(1, 1, 8), variant="standard", pipeline="compv3"):
     return GemmKernelConfig(
-        dtype_a="bf16", dtype_b="bf16", dtype_c="bf16", dtype_acc="fp32",
-        layout_a="row", layout_b="col", layout_c="row", tile_m=256, tile_n=256, tile_k=64,
-        wave_m=2, wave_n=2, wave_k=1,
-        warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
-        pipeline=pipeline, scheduler="intrawave", epilogue="cshuffle",
-        pad_m=True, pad_n=True, pad_k=True, gfx_arch="gfx950", variant=variant,
+        dtype_a="bf16",
+        dtype_b="bf16",
+        dtype_c="bf16",
+        dtype_acc="fp32",
+        layout_a="row",
+        layout_b="col",
+        layout_c="row",
+        tile_m=256,
+        tile_n=256,
+        tile_k=64,
+        wave_m=2,
+        wave_n=2,
+        wave_k=1,
+        warp_tile_m=32,
+        warp_tile_n=32,
+        warp_tile_k=16,
+        pipeline=pipeline,
+        scheduler="intrawave",
+        epilogue="cshuffle",
+        pad_m=True,
+        pad_n=True,
+        pad_k=True,
+        gfx_arch="gfx950",
+        variant=variant,
     ).with_vector_sizes(vec)
 
 
 def _codegen_config(vec, variant=GemmVariant.STANDARD):
     tile = TileConfig(
-        tile_m=256, tile_n=256, tile_k=64, warp_m=2, warp_n=2, warp_k=1,
-        warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+        tile_m=256,
+        tile_n=256,
+        tile_k=64,
+        warp_m=2,
+        warp_n=2,
+        warp_k=1,
+        warp_tile_m=32,
+        warp_tile_n=32,
+        warp_tile_k=16,
     )
     trait = TraitConfig(
-        pipeline="compv3", epilogue="cshuffle", scheduler="intrawave",
-        pad_m=True, pad_n=True, pad_k=True, persistent=False,
-        vector_size_a=vec[0], vector_size_b=vec[1], vector_size_c=vec[2],
+        pipeline="compv3",
+        epilogue="cshuffle",
+        scheduler="intrawave",
+        pad_m=True,
+        pad_n=True,
+        pad_k=True,
+        persistent=False,
+        vector_size_a=vec[0],
+        vector_size_b=vec[1],
+        vector_size_c=vec[2],
     )
     return KernelConfig(tile=tile, trait=trait, variant=variant)
 
@@ -123,8 +167,12 @@ class TestResolution(unittest.TestCase):
 
     def test_native_request_is_canonical_zero(self):
         native = gemm_native_vector_sizes(
-            dtype_a="bf16", dtype_b="bf16", dtype_c="bf16", layout="rcr",
-            gfx_arch="gfx950", **TILE,
+            dtype_a="bf16",
+            dtype_b="bf16",
+            dtype_c="bf16",
+            layout="rcr",
+            gfx_arch="gfx950",
+            **TILE,
         )
         self.assertEqual(native, (8, 8, 8))
         for req in [(0, 0, 0), (8, 8, 8), (16, 16, 16), native]:
@@ -141,12 +189,39 @@ class TestResolution(unittest.TestCase):
 
     def test_rejects_unsupported_scope(self):
         for kw, word in [
-            (dict(pipeline="comp_async"), "pipeline"),
-            (dict(epilogue="default"), "epilogue"),
+            (dict(pipeline="preshufflev2"), "pipeline"),
             (dict(variant="grouped_quant"), "variant"),
             (dict(variant="preshuffle", pipeline="preshufflev2"), "variant"),
         ]:
             self.assertIn(word, _resolve("rcr", (1, 1, 8), **kw)[1], kw)
+
+    def test_default_epilogue_narrows_ab_only(self):
+        # Fixed A/B widths live in the pipeline problem; the default epilogue keeps
+        # its own C width (1 for row-major C), so only a narrower C is refused.
+        self.assertEqual(
+            _resolve("rcr", (1, 1, 8), epilogue="default"), ((1, 1, 1), None)
+        )
+        self.assertEqual(
+            _resolve("rrr", (8, 2, 8), epilogue="default"), ((8, 2, 1), None)
+        )
+        self.assertIn(
+            "vector_size_c", _resolve("rcc", (8, 2, 2), epilogue="default")[1]
+        )
+
+    def test_comp_async_widths_follow_the_async_copy(self):
+        # amd_async_global_load_to_lds moves 4/8/12/16 bytes, or 1 byte for 8-bit types.
+        self.assertEqual(
+            _resolve("rcr", (2, 4, 8), pipeline="comp_async"), ((2, 4, 8), None)
+        )
+        self.assertIn(
+            "async copy", _resolve("rcr", (1, 8, 8), pipeline="comp_async")[1]
+        )
+        self.assertIn(
+            "async copy", _resolve("rcr", (8, 1, 8), pipeline="comp_async")[1]
+        )
+        fp8 = dict(dtype_a="fp8", dtype_b="fp8", dtype_c="fp16", pipeline="comp_async")
+        self.assertIsNone(_resolve("rcr", (1, 4, 8), **fp8)[1])
+        self.assertIn("async copy", _resolve("rcr", (2, 16, 8), **fp8)[1])
 
     def test_native_width_skips_sub_element_steps(self):
         # Like CK: fp16 never uses the 4-byte (2-wide) step.
@@ -166,6 +241,37 @@ class TestResolution(unittest.TestCase):
         self.assertIsNone(_resolve("rrr", (8, 1, 2), variant="stream_k")[1])
         self.assertIsNone(_resolve("rrr", (8, 1, 1))[1])
 
+    def test_stream_k_c_rule_follows_reduction_strategy(self):
+        # Every strategy needs a row-major C (CShuffle epilogue). Only atomic adds
+        # partial tiles into C and needs >= 4 bytes; linear and tree store C with a
+        # plain store, None defers the width check to the caller, and an unknown
+        # strategy fails closed.
+        for strategy, layout_c, dtype_c, width in itertools.product(
+            ("atomic", "linear", "tree", None, "unknown"),
+            "rc",
+            ("bf16", "fp16", "fp32", "int32"),
+            (0, 1, 2),
+        ):
+            narrow = width == 1 and dtype_c in ("bf16", "fp16")  # 2 bytes
+            rejected = layout_c == "c" or strategy in ("atomic", "unknown") and narrow
+            args = (strategy, width, dtype_c, layout_c)
+            with self.subTest(args=args):
+                reason = streamk_c_reject_reason(*args)
+                self.assertEqual(reason is not None, rejected)
+                if not width:
+                    continue  # 0 = native, which resolution never checks
+                # resolve_gemm_vector_sizes applies the same rule, to Stream-K only.
+                dtype_ab = "int8" if dtype_c == "int32" else "bf16"
+                for variant in ("stream_k", "standard"):
+                    _, reason = _resolve(
+                        "rr" + layout_c, (8, 1, width), dtype_a=dtype_ab,
+                        dtype_b=dtype_ab, dtype_c=dtype_c, variant=variant,
+                        reduction_strategy=strategy,
+                    )
+                    self.assertEqual(
+                        reason is not None, rejected and variant == "stream_k"
+                    )
+
     def test_rejects_warp_tile_k_not_multiple(self):
         _, reason = _resolve("rcr", (4, 8, 8), warp_tile=(32, 32, 2))
         self.assertIsNotNone(reason)
@@ -174,24 +280,35 @@ class TestResolution(unittest.TestCase):
 class TestNativeEpilogueWidths(unittest.TestCase):
     def test_default_epilogue_architecture_and_layout(self):
         for arch, dtype, col_width in [
-            ("gfx90a", "bf16", 4), ("gfx942", "fp16", 4),
-            ("gfx950", "bf16", 4), ("gfx950", "fp64", 1),
-            ("gfx1100", "fp16", 1), ("gfx1201", "fp16", 8),
-            ("gfx1250:xnack-", "bf16", 8), ("gfx1250", "fp32", 8),
+            ("gfx90a", "bf16", 4),
+            ("gfx942", "fp16", 4),
+            ("gfx950", "bf16", 4),
+            ("gfx950", "fp64", 1),
+            ("gfx1100", "fp16", 1),
+            ("gfx1201", "fp16", 8),
+            ("gfx1250:xnack-", "bf16", 8),
+            ("gfx1250", "fp32", 8),
         ]:
             for layout, width in (("rcr", 1), ("rcc", col_width)):
                 with self.subTest(arch=arch, dtype=dtype, layout=layout):
                     got = gemm_native_vector_sizes(
-                        dtype_a=dtype, dtype_b=dtype, dtype_c=dtype,
-                        layout=layout, gfx_arch=arch, epilogue="default", **TILE,
+                        dtype_a=dtype,
+                        dtype_b=dtype,
+                        dtype_c=dtype,
+                        layout=layout,
+                        gfx_arch=arch,
+                        epilogue="default",
+                        **TILE,
                     )
                     self.assertEqual(got[2], width)
 
     def test_default_widths_canonicalize_without_fixed_suffix(self):
-        self.assertEqual(_resolve("rcr", (8, 8, 1), epilogue="default"),
-                         ((0, 0, 0), None))
-        self.assertEqual(_resolve("rcc", (8, 8, 4), epilogue="default"),
-                         ((0, 0, 0), None))
+        self.assertEqual(
+            _resolve("rcr", (8, 8, 1), epilogue="default"), ((0, 0, 0), None)
+        )
+        self.assertEqual(
+            _resolve("rcc", (8, 8, 4), epilogue="default"), ((0, 0, 0), None)
+        )
         self.assertIn("epilogue", _resolve("rcc", (8, 8, 2), epilogue="default")[1])
 
     def test_pairing_retains_native_default_epilogue(self):
@@ -201,7 +318,9 @@ class TestNativeEpilogueWidths(unittest.TestCase):
             problem = {"M": 256, "N": 257, "K": 512}
             fallback = VectorFallback([problem], "rcr", "bf16", variant)
             self.assertEqual(cfg.effective_vector_sizes, (8, 8, 1))
-            self.assertEqual(fallback.pairs([problem], [(cfg, Path("built.so"))]), [[0]])
+            self.assertEqual(
+                fallback.pairs([problem], [(cfg, Path("built.so"))]), [[0]]
+            )
             self.assertNotIn("_vec", cfg.name)
 
     def test_pairing_retains_tile_derived_native_ab(self):
@@ -214,12 +333,93 @@ class TestNativeEpilogueWidths(unittest.TestCase):
 
     def test_pairing_uses_extents_for_default_c_above_16_bytes(self):
         cfg, _ = _bridge_config(vec=(0, 0, 0))
-        cfg = replace(cfg, dtype_a="fp32", dtype_b="fp32", dtype_c="fp32",
-                      layout_c="col", epilogue="default", gfx_arch="gfx1250")
+        cfg = replace(
+            cfg,
+            dtype_a="fp32",
+            dtype_b="fp32",
+            dtype_c="fp32",
+            layout_c="col",
+            epilogue="default",
+            gfx_arch="gfx1250",
+        )
         problems = [{"M": 256, "N": 256, "K": 512}, {"M": 260, "N": 256, "K": 512}]
         fallback = VectorFallback(problems, "rcc", "fp32", "standard")
         self.assertEqual(cfg.effective_vector_sizes[2], 8)
         self.assertEqual(fallback.pairs(problems, [(cfg, Path("built.so"))]), [[0], []])
+
+
+class TestTdmWidthsAndPairing(unittest.TestCase):
+    """TDM moves A/B/C at width 1 and clips to real extents (skipCheckValidLaunchParams)."""
+
+    def _tdm(self, pipeline="comp_tdm"):
+        cfg, _ = _bridge_config(vec=(0, 0, 0), pipeline=pipeline)
+        return replace(
+            cfg,
+            epilogue="tdm",
+            pad_m=False,
+            pad_n=False,
+            pad_k=False,
+            gfx_arch="gfx1250",
+            warp_tile_m=16,
+            warp_tile_n=16,
+            warp_tile_k=32,
+        )
+
+    def test_tdm_native_widths_are_one(self):
+        for layout in ("rcr", "rrr", "crr", "ccr"):
+            got = gemm_native_vector_sizes(
+                dtype_a="bf16",
+                dtype_b="bf16",
+                dtype_c="bf16",
+                layout=layout,
+                gfx_arch="gfx1250",
+                epilogue="tdm",
+                **TILE,
+            )
+            self.assertEqual(got, (1, 1, 1), layout)
+        self.assertEqual(self._tdm().effective_vector_sizes, (1, 1, 1))
+
+    def test_tdm_requested_widths_canonicalize_to_native(self):
+        vec, reason = _resolve(
+            "rcr", (1, 1, 8), epilogue="tdm", pipeline="comp_tdm", gfx_arch="gfx1250"
+        )
+        self.assertEqual((vec, reason), ((0, 0, 0), None))
+
+    def test_unpadded_tdm_pairs_every_shape(self):
+        problems = [
+            {"M": 512, "N": 512, "K": 512},
+            {"M": 513, "N": 515, "K": 517},
+            {"M": 1031, "N": 1, "K": 777},
+            {"M": 777, "N": 1031, "K": 1},
+        ]
+        for pipeline in ("comp_tdm", "comp_tdm_v2"):
+            cfg = self._tdm(pipeline)
+            for p in problems:
+                self.assertTrue(
+                    _tile_fits(cfg, {d.lower(): p[d] for d in "MNK"}), (pipeline, p)
+                )
+            fallback = VectorFallback(problems, "rcr", "bf16", "standard")
+            self.assertEqual(
+                fallback.pairs(problems, [(cfg, Path("built.so"))]), [[0]] * 4
+            )
+
+    def test_tdm_pipeline_with_cshuffle_needs_c_tile_multiple(self):
+        # The TDM loads clip A and B, but a CShuffle store does not clip C's
+        # contiguous dimension (N for row-major C), so only that extent must still
+        # be a tile multiple; the TDM epilogue clips C too.
+        cfg = replace(self._tdm("comp_tdm_pc"), epilogue="cshuffle")
+        self.assertTrue(_tile_fits(cfg, {"m": 513, "n": cfg.tile_n * 3, "k": 517}))
+        self.assertFalse(_tile_fits(cfg, {"m": 512, "n": cfg.tile_n * 3 + 1, "k": 512}))
+        self.assertTrue(
+            _tile_fits(
+                self._tdm("comp_tdm_pc"), {"m": 512, "n": cfg.tile_n * 3 + 1, "k": 512}
+            )
+        )
+
+    def test_non_tdm_still_needs_tile_multiples(self):
+        cfg, _ = _bridge_config(vec=(0, 0, 0))
+        cfg = replace(cfg, pad_m=False, pad_n=False, pad_k=False)
+        self.assertFalse(_tile_fits(cfg, {"m": 256, "n": 256, "k": 520}))
 
 
 class TestFixedWidthLdsCapacity(unittest.TestCase):
@@ -227,9 +427,12 @@ class TestFixedWidthLdsCapacity(unittest.TestCase):
         # The reported cutoff is the 160 KiB gfx950 capacity, not a tile-size
         # blacklist. Different fixed widths/layouts must make the same decision.
         for tile, kib in [
-            ((128, 128, 128), 64), ((128, 256, 128), 96),
-            ((256, 128, 128), 96), ((128, 128, 256), 128),
-            ((128, 256, 256), 192), ((256, 128, 256), 192),
+            ((128, 128, 128), 64),
+            ((128, 256, 128), 96),
+            ((256, 128, 128), 96),
+            ((128, 128, 256), 128),
+            ((128, 256, 256), 192),
+            ((256, 128, 256), 192),
             ((256, 256, 256), 256),
         ]:
             for layout in ("rcr", "rrr", "crr", "ccr"):
@@ -240,7 +443,9 @@ class TestFixedWidthLdsCapacity(unittest.TestCase):
                             self.assertIsNone(reason)
                         else:
                             self.assertIsNotNone(reason)
-                            self.assertIn(f"LDS staging needs {kib * 1024} bytes", reason)
+                            self.assertIn(
+                                f"LDS staging needs {kib * 1024} bytes", reason
+                            )
                             self.assertIn("gfx950/compv3 limit 163840 bytes", reason)
 
     def test_capacity_depends_on_arch_pipeline_and_dtype(self):
@@ -256,8 +461,13 @@ class TestFixedWidthLdsCapacity(unittest.TestCase):
         ]:
             with self.subTest(arch=arch, pipeline=pipeline, tile=tile, dtype=dtype):
                 _, reason = _resolve(
-                    "rcr", (1, 1, 1), gfx_arch=arch, pipeline=pipeline,
-                    tile=tile, dtype_a=dtype, dtype_b=dtype,
+                    "rcr",
+                    (1, 1, 1),
+                    gfx_arch=arch,
+                    pipeline=pipeline,
+                    tile=tile,
+                    dtype_a=dtype,
+                    dtype_b=dtype,
                 )
                 if accepted:
                     self.assertIsNone(reason)
@@ -267,7 +477,9 @@ class TestFixedWidthLdsCapacity(unittest.TestCase):
 
     def test_native_requests_keep_existing_validation(self):
         for vec in ((0, 0, 0), (8, 8, 8)):
-            self.assertEqual(_resolve("rcr", vec, tile=(256, 256, 256)), ((0, 0, 0), None))
+            self.assertEqual(
+                _resolve("rcr", vec, tile=(256, 256, 256)), ((0, 0, 0), None)
+            )
 
     def test_sweep_counts_capacity_rejects_before_build(self):
         from gemm_utils import expand_sweep
@@ -278,22 +490,33 @@ class TestFixedWidthLdsCapacity(unittest.TestCase):
         config["tile_config"]["tile_k"] = [256]
         # expand_sweep reads the op's range/value-list format.
         for section in ("tile_config", "trait_config"):
-            config[section] = {key: {"values": value} for key, value in config[section].items()}
-        vfb = VectorFallback([{"M": 256, "N": 256, "K": 257}], "rcr", "bf16", "standard")
+            config[section] = {
+                key: {"values": value} for key, value in config[section].items()
+            }
+        vfb = VectorFallback(
+            [{"M": 256, "N": 256, "K": 257}], "rcr", "bf16", "standard"
+        )
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "large_tiles.json"
             path.write_text(json.dumps(config))
-            configs = expand_sweep(str(path), "gfx950", dtype="bf16", **vfb.expand_kwargs)
+            configs = expand_sweep(
+                str(path), "gfx950", dtype="bf16", **vfb.expand_kwargs
+            )
         fixed = [c for c in configs if any(c.vector_sizes)]
-        self.assertEqual([(c.tile_m, c.tile_n, c.tile_k) for c in fixed], [(128, 128, 256)])
+        self.assertEqual(
+            [(c.tile_m, c.tile_n, c.tile_k) for c in fixed], [(128, 128, 256)]
+        )
         self.assertEqual(sum(vfb.rejects.values()), 3)
         self.assertTrue(all("LDS staging" in r for r in vfb.rejects))
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             vfb.report_rejects()
             vfb.report_builds(configs, [Path("built.so")] * len(configs))
-        self.assertIn("4 fixed-width kernels requested, 3 rejected before compile, "
-                      "0 failed to compile, 1 built", output.getvalue())
+        self.assertIn(
+            "4 fixed-width kernels requested, 3 rejected before compile, "
+            "0 failed to compile, 1 built",
+            output.getvalue(),
+        )
 
 
 class TestCompileTimeout(unittest.TestCase):
@@ -306,13 +529,23 @@ class TestCompileTimeout(unittest.TestCase):
                 root = Path(d)
                 cfg, reason = _bridge_config(vec)
                 self.assertIsNone(reason)
-                with mock.patch.object(ctypes_utils, "get_build_dir", return_value=root), \
-                     mock.patch.object(gemm_utils, "_tile_engine_codegen_flags", return_value=[]):
-                    job, _ = gemm_utils._build_compile_jobs(cfg, root / "kernel.hpp")
-                with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0)) as run:
+                with mock.patch.object(
+                    ctypes_utils, "get_build_dir", return_value=root
+                ):
+                    with mock.patch.object(
+                        gemm_utils, "_tile_engine_codegen_flags", return_value=[]
+                    ):
+                        job, _ = gemm_utils._build_compile_jobs(
+                            cfg, root / "kernel.hpp"
+                        )
+                with mock.patch(
+                    "subprocess.run", return_value=mock.Mock(returncode=0)
+                ) as run:
                     self.assertTrue(ctypes_utils._run_hipcc_subprocess(job)[0])
-                self.assertEqual([c.kwargs["timeout"] for c in run.call_args_list],
-                                 [expected_timeout, 300])
+                self.assertEqual(
+                    [c.kwargs["timeout"] for c in run.call_args_list],
+                    [expected_timeout, 300],
+                )
 
 
 class TestNamingAgreement(unittest.TestCase):
@@ -326,7 +559,9 @@ class TestNamingAgreement(unittest.TestCase):
         for vec in [(1, 1, 8), (0, 0, 0)]:
             cfg, reason = _bridge_config(vec=vec)
             self.assertIsNone(reason)
-            want = KernelNaming.generate(_codegen_config(cfg.vector_sizes), "bf16", "rcr")
+            want = KernelNaming.generate(
+                _codegen_config(cfg.vector_sizes), "bf16", "rcr"
+            )
             self.assertEqual(cfg.name, want)
             self.assertEqual("_vec" in cfg.name, any(vec))
 
@@ -337,8 +572,12 @@ class TestNamingAgreement(unittest.TestCase):
         )
 
     def test_effective_vector_sizes(self):
-        self.assertEqual(_bridge_config(vec=(0, 0, 0))[0].effective_vector_sizes, (8, 8, 8))
-        self.assertEqual(_bridge_config(vec=(1, 1, 8))[0].effective_vector_sizes, (1, 1, 8))
+        self.assertEqual(
+            _bridge_config(vec=(0, 0, 0))[0].effective_vector_sizes, (8, 8, 8)
+        )
+        self.assertEqual(
+            _bridge_config(vec=(1, 1, 8))[0].effective_vector_sizes, (1, 1, 8)
+        )
 
     def test_bridge_reject_names_tile(self):
         _, reason = _bridge_config(vec=(1, 1, 8), pipeline="comp_async")
@@ -348,7 +587,9 @@ class TestNamingAgreement(unittest.TestCase):
 
 class TestGeneratedKernel(unittest.TestCase):
     def _src(self, vec, variant=GemmVariant.STANDARD):
-        return CKTileKernelGenerator("bf16", "rcr").generate(_codegen_config(vec, variant))
+        return CKTileKernelGenerator("bf16", "rcr").generate(
+            _codegen_config(vec, variant)
+        )
 
     def test_fixed_widths_reach_problem_and_epilogue(self):
         for variant in (GemmVariant.STANDARD, GemmVariant.BATCHED):
@@ -367,7 +608,11 @@ class TestGeneratedKernel(unittest.TestCase):
         # bf16 (1, 1, 8): VectorSizeA/B = 1 and _VectorSize = min(1*2, 1*2) = 2 bytes.
         for variant in GemmVariant:
             src = self._src((1, 1, 8), variant)
-            self.assertRegex(src, r"(ADataType, BDataType|AsDataType, BsDataType), true, 1, 1>", variant)
+            self.assertRegex(
+                src,
+                r"(ADataType, BDataType|AsDataType, BsDataType), true, 1, 1>",
+                variant,
+            )
             self.assertRegex(src, r"Preshuffle, 2>", variant)
             self.assertIn("true, 8", src, variant)
             native = self._src((0, 0, 0), variant)
@@ -394,15 +639,21 @@ class TestGeneratedKernel(unittest.TestCase):
 
 class TestWidthSweep(unittest.TestCase):
     def test_aligned_problem_is_native_only(self):
-        self.assertEqual(gemm_vector_size_sweep((8, 8, 8), "bf16", "bf16", "bf16"), [(0, 0, 0)])
+        self.assertEqual(
+            gemm_vector_size_sweep((8, 8, 8), "bf16", "bf16", "bf16"), [(0, 0, 0)]
+        )
 
     def test_only_offending_tensor_sweeps(self):
         self.assertEqual(
             gemm_vector_size_sweep((4, 8, 8), "bf16", "bf16", "bf16"),
             [(1, 8, 8), (2, 8, 8), (4, 8, 8)],
         )
-        self.assertEqual(gemm_vector_size_sweep((1, 1, 8), "bf16", "bf16", "bf16"), [(1, 1, 8)])
-        self.assertEqual(len(gemm_vector_size_sweep((2, 4, 8), "bf16", "bf16", "bf16")), 6)
+        self.assertEqual(
+            gemm_vector_size_sweep((1, 1, 8), "bf16", "bf16", "bf16"), [(1, 1, 8)]
+        )
+        self.assertEqual(
+            len(gemm_vector_size_sweep((2, 4, 8), "bf16", "bf16", "bf16")), 6
+        )
 
     def test_tune_c_sweeps_aligned_c(self):
         def sweep(vec):
@@ -433,19 +684,174 @@ class TestHeaderLookup(unittest.TestCase):
             self.assertIsNotNone(ctypes_utils._parse_gemm_header_metadata(native))
 
 
+class TestStreamKMisalignedShapes(unittest.TestCase):
+    """Problems whose contiguous extent is not a multiple of the 8-element bf16 load."""
+
+    CONFIG = (
+        DISPATCHER_DIR.parent / "tile_engine" / "ops" / "gemm" / "gemm_streamk" / "configs"
+        / "default_config_gfx1250.json"
+    )
+    ALL_STRATEGIES = list(STREAMK_REDUCTION_STRATEGIES)
+
+    def _expand(self, layout, problem, strategies):
+        from gemm_utils import expand_sweep
+
+        vfb = VectorFallback([problem], layout, "bf16", "stream_k")
+        cfgs = expand_sweep(
+            str(self.CONFIG), "gfx1250", dtype="bf16", layout=layout, variant="stream_k",
+            reduction_strategies=strategies, **vfb.expand_kwargs,
+        )
+        return [c for c in cfgs if any(c.vector_sizes)], vfb.rejects
+
+    def test_misaligned_shapes_get_fixed_width_kernels(self):
+        # (layout, problem, widest legal fixed A/B/C widths; the sweep also builds
+        # every narrower power-of-two combination below them)
+        cases = [
+            ("ccr", dict(M=1280, N=2048, K=1562), (8, 2, 8)),
+            ("rcr", dict(M=245760, N=352, K=3595), (1, 1, 8)),
+            ("crr", dict(M=125, N=320, K=1024), (1, 8, 8)),
+            ("crr", dict(M=118, N=102, K=368640), (2, 2, 2)),
+        ]
+        for layout, problem, vec in cases:
+            for strategy in ("atomic", "linear", "tree"):
+                fixed, _ = self._expand(layout, problem, [strategy])
+                with self.subTest(layout=layout, problem=problem, strategy=strategy):
+                    self.assertTrue(fixed)
+                    self.assertIn(vec, {c.effective_vector_sizes for c in fixed})
+                    self.assertTrue(all(c.reduction_strategy == strategy for c in fixed))
+
+    def test_two_byte_c_needs_linear_or_tree(self):
+        # N odd or N = 1: the C store is one bf16 element.
+        for layout, problem in (
+            ("rcr", dict(M=491520, N=121, K=105)),
+            ("rrr", dict(M=3072, N=1, K=1024)),
+        ):
+            fixed, rejects = self._expand(layout, problem, ["atomic"])
+            self.assertFalse(fixed, problem)
+            self.assertTrue(any("atomic C store" in r for r in rejects), rejects)
+            for strategy in ("linear", "tree"):
+                fixed, _ = self._expand(layout, problem, [strategy])
+                with self.subTest(problem=problem, strategy=strategy):
+                    self.assertTrue(fixed)
+                    self.assertTrue(all(c.effective_vector_sizes[2] == 1 for c in fixed))
+
+    def test_codegen_checks_c_per_strategy(self):
+        # The codegen resolves the widths with the strategy deferred, then checks C
+        # for each expanded strategy: atomic drops a 2-byte C, every strategy drops
+        # a column-major C.
+        atomic_c = "vec(8, 1, 1): stream_k atomic C store needs >= 4"
+        for layout, vec, expected, reject in (
+            ("rcr", (8, 1, 1), ["linear", "tree"], atomic_c),
+            ("rcc", (0, 0, 0), [], "vec(0, 0, 0): stream_k needs a row-major C"),
+            ("rcr", (8, 1, 2), self.ALL_STRATEGIES, None),
+        ):
+            config = _bridge_config(vec, variant="stream_k")[0].to_codegen_json()
+            config["streamk_config"] = {"reduction_strategy": self.ALL_STRATEGIES}
+            # Record the reject log directly; assertLogs would also need an
+            # unrelated INFO line in the clean case.
+            with tempfile.TemporaryDirectory() as d, mock.patch(
+                "unified_gemm_codegen.log"
+            ) as log:
+                path = Path(d) / "config.json"
+                path.write_text(json.dumps(config))
+                gen = UnifiedGemmCodegen(Path(d), "bf16", layout, "gfx950", path)
+                kernels = gen._get_configs_for_variant(GemmVariant.STREAM_K)
+            with self.subTest(layout=layout, vec=vec):
+                self.assertEqual([k.reduction_strategy for k in kernels], expected)
+                self.assertTrue(all(k.trait.vector_sizes == vec for k in kernels))
+                lines = [c.args[0] for c in log.info.call_args_list]
+                rejected = [line for line in lines if f"256x256x64 {reject}" in line]
+                self.assertEqual(len(rejected), bool(reject), lines)
+
+    def test_driver_checks_widths_against_the_requested_strategy(self):
+        # --reduction-strategy reaches expand_sweep. Setting it on the expanded
+        # configs instead keeps only the widths legal for the config's atomic.
+        import streamk_gemm_full_benchmark as driver
+
+        argv = (
+            "streamk_gemm_full_benchmark.py --arch gfx1250 --layout rrr --dtype bf16"
+            " --reduction-strategy linear"
+        ).split()
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(
+            driver, "resolve_devices", return_value=["0"]
+        ), mock.patch.object(
+            driver, "load_problems", return_value=[dict(M=3072, N=1, K=1024)]
+        ), mock.patch.object(
+            driver,
+            "setup_multiple_gemm_dispatchers",
+            side_effect=lambda configs, **kwargs: [None] * len(configs),
+        ) as build, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(driver.main(), 1)
+        configs = build.call_args.args[0]
+        self.assertEqual({c.reduction_strategy for c in configs}, {"linear"})
+        fixed = {c.effective_vector_sizes for c in configs if any(c.vector_sizes)}
+        self.assertIn((8, 1, 1), fixed)
+
+    def test_bridge_checks_c_layout_at_native_widths(self):
+        # A hand-built config skips expand_sweep, so with_vector_sizes reports the
+        # Stream-K row-major C rule for native widths too: unset, or requested
+        # widths that resolve to native. Other variants do not.
+        cases = [("standard", "atomic")]
+        cases += [("stream_k", s) for s in self.ALL_STRATEGIES]
+        for variant, strategy in cases:
+            row = _bridge_config((0, 0, 0), variant)[0]
+            row = replace(row, reduction_strategy=strategy)
+            col = replace(row, layout_c="col")
+            for vec in ((0, 0, 0), col.effective_vector_sizes, (8, 1, 2)):
+                with self.subTest(variant=variant, strategy=strategy, vec=vec):
+                    cfg, reason = col.with_vector_sizes(vec)
+                    self.assertEqual(any(cfg.vector_sizes), vec == (8, 1, 2))
+                    if variant == "stream_k":
+                        self.assertIn("row-major C", reason or "")
+                    else:
+                        self.assertIsNone(reason)
+                    self.assertIsNone(row.with_vector_sizes(vec)[1])
+
+    def test_invalid_stream_k_sweeps_raise(self):
+        # No strategy has a kernel for a column-major C (the CShuffle epilogue
+        # static_asserts a row-major C), and the override is Stream-K only: both
+        # raise and say why instead of sweeping nothing. Unknown strategy names
+        # are covered with the bridge, in test_streamk_gfx1250.py.
+        from gemm_utils import expand_sweep
+
+        row_major_c = (
+            r"row-major C .*'rrc'; expected one of \('ccr', 'crr', 'rcr', 'rrr'\)"
+        )
+        cases = [("rcr", "standard", "linear", "Stream-K only")] + [
+            ("rrc", "stream_k", s, row_major_c) for s in self.ALL_STRATEGIES
+        ]
+        for layout, variant, strategy, error in cases:
+            with self.subTest(layout=layout, variant=variant, strategy=strategy):
+                with self.assertRaisesRegex(ValueError, error):
+                    expand_sweep(
+                        str(self.CONFIG), "gfx1250", dtype="bf16", layout=layout,
+                        variant=variant, reduction_strategies=[strategy],
+                    )
+
+
 class TestExpandSweep(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from gemm_utils import expand_sweep
 
         cls.ci_config = cfg = (
-            DISPATCHER_DIR.parent / "tile_engine" / "ops" / "gemm" / "configs"
+            DISPATCHER_DIR.parent
+            / "tile_engine"
+            / "ops"
+            / "gemm"
+            / "configs"
             / "default_ci_config.json"
         )
         # Driver path: K=257 makes the fallback sweep (0, 0, 0) and (1, 1, 8).
-        cls.vfb = VectorFallback([dict(M=393216, N=256, K=257)], "rcr", "bf16", "standard")
+        cls.vfb = VectorFallback(
+            [dict(M=393216, N=256, K=257)], "rcr", "bf16", "standard"
+        )
         cls.cfgs = expand_sweep(
-            str(cfg), "gfx950", dtype="bf16", layout="rcr", variant="standard",
+            str(cfg),
+            "gfx950",
+            dtype="bf16",
+            layout="rcr",
+            variant="standard",
             **cls.vfb.expand_kwargs,
         )
 
@@ -455,10 +861,12 @@ class TestExpandSweep(unittest.TestCase):
         native = [c for c in cfgs if not any(c.vector_sizes)]
         fixed = [c for c in cfgs if any(c.vector_sizes)]
         self.assertTrue(native and fixed)
-        self.assertTrue(all(c.epilogue == "cshuffle" for c in fixed))
-        self.assertTrue(all(c.name.endswith("_vec1_1_8") for c in fixed))
-        # The CI config also sweeps the default epilogue, which cannot take fixed widths.
-        self.assertTrue(any("epilogue default" in r for r in rejects))
+        # CShuffle narrows only what the problem needs; the default epilogue (also in
+        # the CI config) takes the A/B widths and keeps its own C width, 1 for row C.
+        suffix = {"cshuffle": "_vec1_1_8", "default": "_vec1_1_1"}
+        self.assertEqual({c.epilogue for c in fixed}, set(suffix))
+        self.assertTrue(all(c.name.endswith(suffix[c.epilogue]) for c in fixed))
+        self.assertFalse(any("epilogue default" in r for r in rejects))
         self.assertEqual(len({c.name for c in cfgs}), len(cfgs))
 
     def test_max_kernels_keeps_fixed_width_variants(self):
@@ -476,7 +884,9 @@ class TestExpandSweep(unittest.TestCase):
 
         config = _bridge_config(vec=(4, 4, 8))[0].to_codegen_json()
         for section in ("tile_config", "trait_config"):
-            config[section] = {key: {"values": value} for key, value in config[section].items()}
+            config[section] = {
+                key: {"values": value} for key, value in config[section].items()
+            }
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "fixed_widths.json"
             path.write_text(json.dumps(config))
@@ -484,10 +894,20 @@ class TestExpandSweep(unittest.TestCase):
             original = expand_sweep(str(path), "gfx950", dtype="bf16")
             self.assertEqual([c.vector_sizes for c in original], [(4, 4, 8)])
             for variant in ("standard", "batched"):
-                fallback = VectorFallback([{"M": 256, "N": 256, "K": 257}],
-                                          "rcr", "bf16", variant, disabled=True)
-                configs = expand_sweep(str(path), "gfx950", dtype="bf16", variant=variant,
-                                       **fallback.expand_kwargs)
+                fallback = VectorFallback(
+                    [{"M": 256, "N": 256, "K": 257}],
+                    "rcr",
+                    "bf16",
+                    variant,
+                    disabled=True,
+                )
+                configs = expand_sweep(
+                    str(path),
+                    "gfx950",
+                    dtype="bf16",
+                    variant=variant,
+                    **fallback.expand_kwargs,
+                )
                 self.assertEqual([c.vector_sizes for c in configs], [(0, 0, 0)])
                 self.assertTrue(all("_vec" not in c.name for c in configs))
 
@@ -497,14 +917,22 @@ class TestExpandSweep(unittest.TestCase):
         probs = [
             dict(M=512, N=512, K=512),  # aligned: the native kernels run it
             dict(M=512, N=512, K=257),  # misaligned K: only fixed widths fit
-            dict(M=512, N=512, K=520),  # aligned widths, but unpadded natives need K % 64
+            dict(
+                M=512, N=512, K=520
+            ),  # aligned widths, but unpadded natives need K % 64
         ]
         vfb = VectorFallback(probs, "rcr", "bf16", "standard")
-        self.assertEqual(vfb.expand_kwargs["vector_sizes"], self.vfb.expand_kwargs["vector_sizes"])
+        self.assertEqual(
+            vfb.expand_kwargs["vector_sizes"], self.vfb.expand_kwargs["vector_sizes"]
+        )
         aligned, misaligned, untiled = vfb.pairs(probs, built)
         self.assertTrue(aligned and not fixed & set(aligned))
         self.assertTrue(misaligned and set(misaligned) <= fixed)
         self.assertTrue(fixed <= set(untiled))
+        # An unpadded native never pairs with a K that is not a tile_k multiple.
+        self.assertTrue(
+            all(self.cfgs[i].pad_k or 520 % self.cfgs[i].tile_k == 0 for i in untiled)
+        )
 
     def test_tune_c_keeps_c_widths_where_native_runs(self):
         from gemm_utils import expand_sweep
@@ -512,7 +940,11 @@ class TestExpandSweep(unittest.TestCase):
         probs = [dict(M=512, N=512, K=512), dict(M=512, N=512, K=257)]
         vfb = VectorFallback(probs, "rcr", "bf16", "standard", tune_c=True)
         cfgs = expand_sweep(
-            str(self.ci_config), "gfx950", dtype="bf16", layout="rcr", variant="standard",
+            str(self.ci_config),
+            "gfx950",
+            dtype="bf16",
+            layout="rcr",
+            variant="standard",
             **vfb.expand_kwargs,
         )
         aligned, misaligned = vfb.pairs(probs, [(c, None) for c in cfgs])
@@ -526,11 +958,28 @@ class TestExpandSweep(unittest.TestCase):
 
     def test_fixed_widths_force_padding(self):
         cfg = GemmKernelConfig(
-            dtype_a="bf16", dtype_b="bf16", dtype_c="bf16", dtype_acc="fp32",
-            layout_a="row", layout_b="col", layout_c="row", pipeline="compv3",
-            epilogue="cshuffle", gfx_arch="gfx950", pad_m=False, pad_n=False, pad_k=False,
-            tile_m=256, tile_n=256, tile_k=64, wave_m=2, wave_n=2, wave_k=1,
-            warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
+            dtype_a="bf16",
+            dtype_b="bf16",
+            dtype_c="bf16",
+            dtype_acc="fp32",
+            layout_a="row",
+            layout_b="col",
+            layout_c="row",
+            pipeline="compv3",
+            epilogue="cshuffle",
+            gfx_arch="gfx950",
+            pad_m=False,
+            pad_n=False,
+            pad_k=False,
+            tile_m=256,
+            tile_n=256,
+            tile_k=64,
+            wave_m=2,
+            wave_n=2,
+            wave_k=1,
+            warp_tile_m=32,
+            warp_tile_n=32,
+            warp_tile_k=16,
         )
         self.assertEqual(cfg.with_vector_sizes((0, 0, 0))[0].pad_k, False)
         fixed, _ = cfg.with_vector_sizes((1, 1, 8))
@@ -544,6 +993,281 @@ class TestExpandSweep(unittest.TestCase):
             ([1], [1], [8]),
         )
         self.assertEqual(replace(cfg).to_dict()["vector_sizes"], [1, 1, 8])
+
+
+class TestTileDividesProblemGuards(unittest.TestCase):
+    OK = dict(
+        m=256,
+        n=256,
+        k=256,
+        tile_m=128,
+        tile_n=128,
+        tile_k=128,
+        pad_m=False,
+        pad_n=False,
+        pad_k=False,
+    )
+
+    def test_baseline_is_accepted(self):
+        self.assertTrue(gemm_tile_divides_problem(layout="ccr", **self.OK))
+
+    def test_unknown_layout_raises(self):
+        for layout in ("zzz", "rc", "rcrr", ""):
+            with self.subTest(layout=layout):
+                with self.assertRaisesRegex(ValueError, "unknown layout"):
+                    gemm_tile_divides_problem(layout=layout, **self.OK)
+
+    def test_layout_is_case_sensitive(self):
+        with self.assertRaisesRegex(ValueError, "unknown layout"):
+            gemm_tile_divides_problem(layout="RCR", **self.OK)
+
+    def test_non_positive_extent_raises(self):
+        for dim in ("m", "n", "k"):
+            for bad in (0, -1, None):
+                with self.subTest(dim=dim, value=bad):
+                    kw = {**self.OK, dim: bad}
+                    with self.assertRaisesRegex(ValueError, "must be >= 1"):
+                        gemm_tile_divides_problem(layout="ccr", **kw)
+
+    def test_split_k_with_padded_k_skips_the_multiplier(self):
+        self.assertTrue(
+            gemm_tile_divides_problem(
+                m=256,
+                n=256,
+                k=384,
+                layout="rcr",
+                tile_m=128,
+                tile_n=128,
+                tile_k=128,
+                pad_m=False,
+                pad_n=False,
+                pad_k=True,
+                k_batch=5,
+            )
+        )
+
+    def test_split_k_on_a_column_major_c_layout(self):
+        common = dict(
+            m=256,
+            n=300,
+            k=384,
+            layout="ccc",
+            tile_m=128,
+            tile_n=128,
+            tile_k=128,
+            pad_m=False,
+            pad_n=False,
+            pad_k=False,
+        )
+        self.assertTrue(gemm_tile_divides_problem(**common, k_batch=1))
+        self.assertFalse(gemm_tile_divides_problem(**common, k_batch=2))
+        self.assertTrue(gemm_tile_divides_problem(**common, k_batch=3))
+        self.assertTrue(gemm_tile_divides_problem(**{**common, "n": 7}, k_batch=1))
+
+
+class TestTileFitsDelegation(unittest.TestCase):
+    LAYOUT = "ccr"
+    DIMS = {"m": 384, "n": 512, "k": 255}
+    TILE = dict(tile_m=128, tile_n=256, tile_k=128)
+
+    def _cfg(self, **over):
+        pads = dict(pad_m=True, pad_n=False, pad_k=False)
+        pads.update(over)
+        return SimpleNamespace(
+            layout=self.LAYOUT, pipeline="compv3", **self.TILE, **pads
+        )
+
+    def test_baseline_is_false_on_the_k_check(self):
+        self.assertFalse(_tile_fits(self._cfg(), self.DIMS))
+
+    def test_padding_k_flips_it(self):
+        self.assertTrue(_tile_fits(self._cfg(pad_k=True), self.DIMS))
+
+    def test_unpadding_m_flips_it_for_a_different_reason(self):
+        self.assertFalse(
+            _tile_fits(self._cfg(pad_m=False, pad_k=True), {**self.DIMS, "m": 300})
+        )
+
+    def test_m_and_n_are_not_transposed(self):
+        dims = {"m": 384, "n": 512, "k": 256}
+        self.assertTrue(_tile_fits(self._cfg(pad_m=False), dims))
+        self.assertFalse(
+            _tile_fits(self._cfg(pad_m=False), {"m": 512, "n": 384, "k": 256})
+        )
+
+    def test_delegation_matches_the_shared_rule(self):
+        for pad_m, pad_n, pad_k in itertools.product((False, True), repeat=3):
+            for dims in (
+                self.DIMS,
+                {"m": 256, "n": 512, "k": 256},
+                {"m": 256, "n": 512, "k": 384},
+                {"m": 300, "n": 512, "k": 256},  # M does not divide tile_m
+                {"m": 256, "n": 300, "k": 256},  # N does not divide tile_n
+            ):
+                with self.subTest(pads=(pad_m, pad_n, pad_k), dims=dims):
+                    self.assertEqual(
+                        _tile_fits(
+                            self._cfg(pad_m=pad_m, pad_n=pad_n, pad_k=pad_k), dims
+                        ),
+                        gemm_tile_divides_problem(
+                            dims["m"],
+                            dims["n"],
+                            dims["k"],
+                            self.LAYOUT,
+                            self.TILE["tile_m"],
+                            self.TILE["tile_n"],
+                            self.TILE["tile_k"],
+                            pad_m=pad_m,
+                            pad_n=pad_n,
+                            pad_k=pad_k,
+                            k_batch=1,
+                        ),
+                    )
+
+
+class TestTileDividesProblem(unittest.TestCase):
+    UNPADDED = dict(pad_m=False, pad_n=False, pad_k=False)
+
+    #: layout -> dims checked, written out independently of gemm_contiguous_dims.
+    CHECKED = {
+        "rcr": {"k", "n"},
+        "rrr": {"k", "n"},
+        "crr": {"m", "n"},
+        "ccr": {"m", "n", "k"},
+        "rcc": {"k", "m"},
+        "rrc": {"k", "n", "m"},
+        "crc": {"m", "n"},
+        "ccc": {"m", "k"},
+    }
+
+    def test_checked_dims_match_the_expected_table(self):
+        for layout, checked in self.CHECKED.items():
+            for dim in ("m", "n", "k"):
+                ext = {"m": 256, "n": 256, "k": 256}
+                ext[dim] = 255
+                ok = gemm_tile_divides_problem(
+                    ext["m"], ext["n"], ext["k"], layout, 128, 128, 128, **self.UNPADDED
+                )
+                self.assertEqual(
+                    ok,
+                    dim not in checked,
+                    f"{layout}: making {dim} indivisible should "
+                    f"{'reject' if dim in checked else 'be ignored'}",
+                )
+
+    def test_m_is_not_checked_for_row_major_a_and_row_major_c(self):
+        for layout in ("rcr", "rrr"):
+            self.assertTrue(
+                gemm_tile_divides_problem(
+                    1, 256, 256, layout, 128, 128, 128, **self.UNPADDED
+                ),
+                layout,
+            )
+
+    def test_column_major_c_does_check_m(self):
+        self.assertFalse(
+            gemm_tile_divides_problem(
+                255, 256, 256, "rcc", 128, 128, 128, **self.UNPADDED
+            )
+        )
+
+    def test_k_is_never_checked_for_crr(self):
+        self.assertTrue(
+            gemm_tile_divides_problem(
+                256, 256, 1, "crr", 128, 128, 128, **self.UNPADDED
+            )
+        )
+
+    def test_ccr_checks_all_three(self):
+        for m, n, k in ((255, 256, 256), (256, 255, 256), (256, 256, 255)):
+            self.assertFalse(
+                gemm_tile_divides_problem(
+                    m, n, k, "ccr", 128, 128, 128, **self.UNPADDED
+                ),
+                f"{m}x{n}x{k}",
+            )
+
+    def test_each_dim_pairs_with_its_own_tile(self):
+        self.assertFalse(
+            gemm_tile_divides_problem(
+                256, 384, 256, "ccr", 128, 256, 128, **self.UNPADDED
+            )
+        )
+        self.assertTrue(
+            gemm_tile_divides_problem(
+                256, 512, 256, "ccr", 128, 256, 128, **self.UNPADDED
+            )
+        )
+
+    def test_each_pad_flag_waives_only_its_own_dim(self):
+        cases = [
+            ("m", dict(pad_m=True, pad_n=False, pad_k=False), (255, 256, 256)),
+            ("n", dict(pad_m=False, pad_n=True, pad_k=False), (256, 255, 256)),
+            ("k", dict(pad_m=False, pad_n=False, pad_k=True), (256, 256, 255)),
+        ]
+        for dim, pads, (m, n, k) in cases:
+            self.assertFalse(
+                gemm_tile_divides_problem(
+                    m, n, k, "ccr", 128, 128, 128, **self.UNPADDED
+                ),
+                f"{dim} unpadded",
+            )
+            self.assertTrue(
+                gemm_tile_divides_problem(m, n, k, "ccr", 128, 128, 128, **pads),
+                f"{dim} padded",
+            )
+
+    def test_split_k_scales_the_k_tile_only(self):
+        self.assertTrue(
+            gemm_tile_divides_problem(
+                256, 256, 384, "rcr", 128, 128, 128, **self.UNPADDED, k_batch=1
+            )
+        )
+        self.assertFalse(
+            gemm_tile_divides_problem(
+                256, 256, 384, "rcr", 128, 128, 128, **self.UNPADDED, k_batch=2
+            )
+        )
+        self.assertTrue(
+            gemm_tile_divides_problem(
+                256, 256, 384, "rcr", 128, 128, 128, **self.UNPADDED, k_batch=3
+            )
+        )
+        self.assertTrue(
+            gemm_tile_divides_problem(
+                256, 256, 384, "crr", 128, 128, 128, **self.UNPADDED, k_batch=7
+            )
+        )
+
+    def test_split_k_defaults_to_one(self):
+        self.assertEqual(
+            gemm_tile_divides_problem(
+                256, 256, 384, "rcr", 128, 128, 128, **self.UNPADDED
+            ),
+            gemm_tile_divides_problem(
+                256, 256, 384, "rcr", 128, 128, 128, **self.UNPADDED, k_batch=1
+            ),
+        )
+
+    def test_divisible_problem_always_accepted(self):
+        for layout in self.CHECKED:
+            self.assertTrue(
+                gemm_tile_divides_problem(
+                    512, 512, 512, layout, 128, 128, 128, **self.UNPADDED
+                ),
+                layout,
+            )
+
+    def test_rejects_non_positive_tile(self):
+        for tiles in ((128, 0, 128), (0, 128, 128), (128, 128, None)):
+            with self.assertRaises(ValueError):
+                gemm_tile_divides_problem(256, 255, 256, "rcr", *tiles, **self.UNPADDED)
+
+    def test_rejects_non_positive_k_batch(self):
+        with self.assertRaises(ValueError):
+            gemm_tile_divides_problem(
+                256, 256, 256, "rcr", 128, 128, 128, **self.UNPADDED, k_batch=0
+            )
 
 
 if __name__ == "__main__":

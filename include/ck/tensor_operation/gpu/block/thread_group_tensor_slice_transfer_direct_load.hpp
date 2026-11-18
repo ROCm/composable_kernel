@@ -9,6 +9,8 @@
 #include "ck/tensor_description/cluster_descriptor.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_util.hpp"
+
 namespace ck {
 
 /**
@@ -50,7 +52,8 @@ template <typename ThreadGroup,
           typename SrcDimAccessOrder,
           index_t SrcVectorDim,
           index_t DstVectorDim,
-          index_t ScalarPerVector>
+          index_t ScalarPerVector,
+          bool UseFullAssembly = false>
 struct ThreadGroupTensorSliceTransfer_DirectLoad
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
@@ -209,6 +212,171 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_);
     }
 
+    __device__ void PrecomputeIdx(const SrcDesc& src_desc)
+    {
+#if defined(__gfx125__)
+        // loop over space-filling curve
+        static_assert(num_access > 0);
+        static_for<0, num_access, 1>{}([&](auto idx_1d) {
+            src_coord_idx_(idx_1d) = src_coord_.GetOffset();
+            src_coord_valid_(idx_1d) =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+
+            // move coordinate
+            if constexpr(idx_1d.value != num_access - 1)
+            {
+                constexpr auto forward_step =
+                    SpaceFillingCurve::GetForwardStep(idx_1d) * thread_steps;
+                move_tensor_coordinate(
+                    src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
+            }
+        });
+#else
+        constexpr auto dst_access_lengths = thread_slice_lengths;
+
+        // Check matching size of loop iterations and array size
+        using DstAccessLengths = remove_cvref_t<decltype(dst_access_lengths)>;
+        using DstAccessLoop    = static_ford<DstAccessLengths>;
+
+        static_assert(DstAccessLoop::Base::TotalSize == num_access,
+                      "Mismatch: static_ford iteration count must equal num_access");
+
+        const auto src_forward_steps  = generate_steps(src_desc, 1);
+        const auto src_backward_steps = generate_steps(src_desc, -1);
+
+        // Loop over the destination block and copy data.
+        static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
+            // Linear index for storing the source coordinate and validity in the precomputed
+            // arrays.
+            constexpr index_t idx_1d = [&]() constexpr {
+                index_t v = 0;
+                static_for<0, nDim, 1>{}(
+                    [&](auto i) { v = v * dst_access_lengths[i] + ordered_dst_access_idx[i]; });
+                return v;
+            }();
+
+            src_coord_idx_(Number<idx_1d>{}) = src_coord_.GetOffset();
+            // Check if src data is not in the logic padding area.
+            src_coord_valid_(Number<idx_1d>{}) =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+
+            constexpr auto move_on_dim =
+                Helper::ComputeMoveOnDim(ordered_dst_access_idx, dst_access_lengths);
+
+            // Decide whether to move forward or backward.
+            constexpr auto forward_sweep =
+                Helper::ComputeForwardSweep(ordered_dst_access_idx, dst_access_lengths);
+
+            static_for<0, nDim, 1>{}([&](auto i) {
+                if constexpr(move_on_dim[i])
+                {
+                    if constexpr(forward_sweep[i])
+                    {
+                        move_tensor_coordinate(src_desc, src_coord_, src_forward_steps[i]);
+                    }
+                    else
+                    {
+                        move_tensor_coordinate(src_desc, src_coord_, src_backward_steps[i]);
+                    }
+                }
+            });
+        });
+#endif
+    }
+
+    template <typename SrcBuffer, typename DstBuffer>
+    __device__ void Load(const SrcBuffer& src_buf, const DstDesc& dst_desc, DstBuffer& dst_buf)
+    {
+        static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Global,
+                      "Source data must come from a global memory buffer.");
+        static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
+                      "Destination data must be stored in an LDS memory buffer.");
+
+        static_assert(
+            ck::is_same_v<remove_cvref_t<typename SrcBuffer::type>, remove_cvref_t<SrcData>>,
+            "SrcBuffer and SrcData data types must be consistent.");
+        static_assert(
+            ck::is_same_v<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>,
+            "DstBuffer and DstData data types must be consistent.");
+#if defined(__gfx125__)
+        ignore = dst_desc;
+
+        // loop over space-filling curve
+        static_assert(num_access > 0);
+        static_for<0, num_access, 1>{}([&](auto idx_1d) {
+            const auto src_offset   = src_coord_idx_(idx_1d);
+            const bool is_src_valid = src_coord_valid_(idx_1d);
+
+            constexpr auto lds_access_offset = [&]() {
+                constexpr auto coord_offset = SpaceFillingCurve::GetIndex(idx_1d) * thread_steps;
+                return make_tensor_coordinate(DstDesc{}, coord_offset).GetOffset();
+            }();
+
+            src_buf.template AsyncCopyToLds<remove_cvref_t<decltype(dst_buf)>,
+                                            ScalarPerVector,
+                                            lds_access_offset,
+                                            UseFullAssembly>(
+                dst_buf, src_offset, dst_coord_.GetOffset(), is_src_valid);
+        });
+#else
+        constexpr auto dst_access_lengths = thread_slice_lengths;
+
+        // Check matching size of loop iterations and array size
+        using DstAccessLengths = remove_cvref_t<decltype(dst_access_lengths)>;
+        using DstAccessLoop    = static_ford<DstAccessLengths>;
+
+        static_assert(DstAccessLoop::Base::TotalSize == num_access,
+                      "Mismatch: static_ford iteration count must equal num_access");
+
+        const auto dst_forward_steps  = generate_steps(dst_desc, 1);
+        const auto dst_backward_steps = generate_steps(dst_desc, -1);
+
+        // Loop over the destination block and copy data.
+        static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
+            // Linear index for storing the source coordinate and validity in the precomputed
+            // arrays.
+            constexpr index_t idx_1d = [&]() constexpr {
+                index_t v = 0;
+                static_for<0, nDim, 1>{}(
+                    [&](auto i) { v = v * dst_access_lengths[i] + ordered_dst_access_idx[i]; });
+                return v;
+            }();
+
+            // Use precomputed source coordinate and validity
+            const auto src_offset   = src_coord_idx_(Number<idx_1d>{});
+            const bool is_src_valid = src_coord_valid_(Number<idx_1d>{});
+
+            const auto dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
+            src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
+                dst_buf, src_offset, dst_offset, is_src_valid);
+
+            constexpr auto move_on_dim =
+                Helper::ComputeMoveOnDim(ordered_dst_access_idx, dst_access_lengths);
+
+            // Decide whether to move forward or backward.
+            constexpr auto forward_sweep =
+                Helper::ComputeForwardSweep(ordered_dst_access_idx, dst_access_lengths);
+
+            static_for<0, nDim, 1>{}([&](auto i) {
+                if constexpr(move_on_dim[i])
+                {
+                    if constexpr(forward_sweep[i])
+                    {
+                        move_tensor_coordinate(dst_desc, dst_coord_, dst_forward_steps[i]);
+                    }
+                    else
+                    {
+                        move_tensor_coordinate(dst_desc, dst_coord_, dst_backward_steps[i]);
+                    }
+                }
+            });
+        });
+
+        // Reset the destination slice since the entire buffer has been already filled.
+        ResetDstSliceWindow(dst_desc);
+#endif
+    }
+
     template <typename SrcBuffer, typename DstBuffer>
     __device__ void Run(const SrcDesc& src_desc,
                         const SrcBuffer& src_buf,
@@ -228,13 +396,6 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             "DstBuffer and DstData data types must be consistent.");
 #if defined(__gfx125__)
         ignore = dst_desc;
-        constexpr auto scalar_per_access =
-            generate_sequence(detail::lambda_scalar_per_access<DstVectorDim, 1>{}, Number<nDim>{});
-
-        using SpaceFillingCurve   = SpaceFillingCurve<decltype(thread_slice_lengths),
-                                                      SrcDimAccessOrder,
-                                                      remove_cv_t<decltype(scalar_per_access)>>;
-        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
         // loop over space-filling curve
         static_assert(num_access > 0);
@@ -250,7 +411,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
             src_buf.template AsyncCopyToLds<remove_cvref_t<decltype(dst_buf)>,
                                             ScalarPerVector,
-                                            lds_access_offset>(
+                                            lds_access_offset,
+                                            UseFullAssembly>(
                 dst_buf, src_offset, dst_coord_.GetOffset(), is_src_valid);
 
             // move coordinate
@@ -280,38 +442,13 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             const auto dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, is_src_valid);
-            constexpr auto move_on_dim = [&]() constexpr {
-                StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
-                static_for<0, nDim, 1>{}([&](auto i) {
-                    move_on_dim_(i) = ordered_dst_access_idx[i] < dst_access_lengths[i] - 1;
-
-                    static_for<i + 1, nDim, 1>{}([&](auto j) {
-                        move_on_dim_(i) &= ordered_dst_access_idx[j] == dst_access_lengths[j] - 1;
-                    });
-                });
-
-                return move_on_dim_;
-            }();
+            constexpr auto move_on_dim =
+                Helper::ComputeMoveOnDim(ordered_dst_access_idx, dst_access_lengths);
 
             // Decide whether to move forward or backward.
-            constexpr auto forward_sweep = [&]() {
-                StaticallyIndexedArray<bool, nDim> forward_sweep_;
-
-                forward_sweep_(I0) = true;
-
-                static_for<1, nDim, 1>{}([&](auto i) {
-                    index_t tmp = ordered_dst_access_idx[I0];
-
-                    static_for<1, i, 1>{}([&](auto j) {
-                        tmp = tmp * dst_access_lengths[j] + ordered_dst_access_idx[j];
-                    });
-
-                    forward_sweep_(i) = tmp % 2 == 0;
-                });
-
-                return forward_sweep_;
-            }();
+            constexpr auto forward_sweep =
+                Helper::ComputeForwardSweep(ordered_dst_access_idx, dst_access_lengths);
 
             static_for<0, nDim, 1>{}([&](auto i) {
                 if constexpr(move_on_dim[i])
@@ -358,8 +495,21 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
     }
 
     private:
+    using Helper = ThreadwiseTransferHelper_Serpentine;
+
     static constexpr auto thread_cluster_desc_ =
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
+
+    static constexpr auto scalar_per_access =
+        generate_sequence(detail::lambda_scalar_per_access<DstVectorDim, 1>{}, Number<nDim>{});
+
+    using SpaceFillingCurve = SpaceFillingCurve<decltype(thread_slice_lengths),
+                                                SrcDimAccessOrder,
+                                                remove_cv_t<decltype(scalar_per_access)>>;
+
+    static constexpr index_t num_access = SpaceFillingCurve::GetNumOfAccess();
+    StaticallyIndexedArray<index_t, num_access> src_coord_idx_;
+    StaticallyIndexedArray<bool, num_access> src_coord_valid_;
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;

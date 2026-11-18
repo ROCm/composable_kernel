@@ -4,14 +4,35 @@
 #pragma once
 
 #include "ck/ck.hpp"
+#include "ck/utility/number.hpp"
 
 namespace ck {
 
 #if CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-#ifdef __gfx12__
+#if defined(__gfx12__)
 __device__ void llvm_amdgcn_s_wait_dscnt(short cnt) __asm("llvm.amdgcn.s.wait.dscnt");
 #endif
 #endif
+
+template <index_t cnt = 0>
+__device__ void wait_dscnt(Number<cnt> = {})
+{
+#if defined(__gfx12__)
+    llvm_amdgcn_s_wait_dscnt(cnt);
+#elif defined(__gfx11__) || defined(__gfx117__)
+    constexpr index_t full_vmcnt  = 0x3F << 10;        // [15:10]
+    constexpr index_t full_expcnt = 0x07;              // [2:0]
+    constexpr index_t ds_cnt      = (cnt & 0x3F) << 4; // [9:4]
+    constexpr index_t waitcnt     = full_vmcnt | full_expcnt | ds_cnt;
+    __builtin_amdgcn_s_waitcnt(waitcnt);
+#else
+    constexpr index_t full_vmcnt = ((0x3F & 0xF) << 0) | ((0x3F & 0x30) << 10); // split: low4 + hi2
+    constexpr index_t full_expcnt = 0x07 << 4;                                  // [6:4]
+    constexpr index_t ds_cnt      = (cnt & 0x0F) << 8;                          // [11:8]
+    constexpr index_t waitcnt     = full_vmcnt | full_expcnt | ds_cnt;
+    __builtin_amdgcn_s_waitcnt(waitcnt);
+#endif
+}
 
 __device__ void block_sync_lds()
 {
@@ -33,7 +54,7 @@ __device__ void block_sync_lds()
 // performance that the fences alone, since the compiler cannot drop them if they are redundant /
 // there are no LDS operations outstanding. They should be removed once these compilers are no
 // longer supported.
-#if defined(__gfx11__)
+#if defined(__gfx11__) || defined(__gfx117__)
     __builtin_amdgcn_s_waitcnt(0xfc07);
 #else
     __builtin_amdgcn_s_waitcnt(0xc07f);

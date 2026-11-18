@@ -78,7 +78,7 @@ using DeviceGroupedConvNDFwdInstance =
 
 int main(int argc, char* argv[])
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx117_supported() || ck::is_gfx120_supported())
     {
         return 0;
     }

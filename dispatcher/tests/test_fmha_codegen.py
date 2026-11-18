@@ -158,6 +158,52 @@ class TestFmhaCodegen(unittest.TestCase):
         self.assertFalse(result.valid)
         self.assertTrue(any("group mode" in error for error in result.errors))
 
+    def test_gfx1100_batch_prefill_codegen_emits_gfx11_policy(self):
+        config = sample_config(
+            arch="gfx1100",
+            signature={
+                "family": "batch_prefill",
+                "mode": "group",
+                "paged_kv": True,
+                "page_size": 16,
+                "kv_memory_layout": "linear",
+                "kv_lookup_table": "vllm",
+            },
+            algorithm={
+                "pipeline": "batch_prefill_gfx11",
+                "tile": [128, 32, 32, 128, 32, 128],
+                "wave": [8, 1, 1, 8, 1, 1, 1, 1, 1],
+                "warp": [16, 16, 16, 16, 16, 16, 16, 16, 16],
+            },
+        )
+        result = validate_config(config)
+        self.assertTrue(result.valid, result.errors)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cmd = [
+                sys.executable,
+                str(CODEGEN),
+                "--output-dir",
+                tmpdir,
+                "--gpu-target",
+                "gfx1100",
+                "--config-json",
+                json.dumps(config),
+            ]
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, cwd=str(ROOT / "codegen")
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            generated = list(Path(tmpdir).glob("fmha_*.hpp"))
+            self.assertEqual(len(generated), 1)
+            text = generated[0].read_text()
+            self.assertIn("BlockFmhaBatchPrefillPipelineQRKSVSAsyncGfx11Policy", text)
+            self.assertNotIn("QRKSVSAsyncDefaultPolicy", text)
+            # kHasSink occupies the bool slot immediately before kPageBlockSize.
+            self.assertRegex(
+                text,
+                r"TileFmhaBatchPrefillTraits<[\s\S]*false,\s*16,",
+            )
+
     def _batch_prefill_traits_args(
         self, sink=False, template="TileFmhaBatchPrefillTraits<"
     ):

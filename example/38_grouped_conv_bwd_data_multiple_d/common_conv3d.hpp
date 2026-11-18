@@ -53,13 +53,13 @@ struct ExecutionConfig final
     bool time_kernel     = false;
 };
 
-#define DefaultConvParams                                                                       \
-    ck::utils::conv::ConvParam                                                                  \
-    {                                                                                           \
-        NDimSpatial, 32, 4, 192, 192, {3, 3, 3}, {28, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, \
-        {                                                                                       \
-            1, 1, 1                                                                             \
-        }                                                                                       \
+#define DefaultConvParams                                                                      \
+    ck::utils::conv::ConvParam                                                                 \
+    {                                                                                          \
+        NDimSpatial, 4, 4, 128, 128, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, \
+        {                                                                                      \
+            1, 1, 1                                                                            \
+        }                                                                                      \
     }
 
 inline void print_help_msg()

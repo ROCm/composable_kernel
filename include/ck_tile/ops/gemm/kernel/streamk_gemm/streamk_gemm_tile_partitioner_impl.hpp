@@ -8,6 +8,13 @@ namespace ck_tile {
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTilePartitionerBase(
     index_t m, index_t n, index_t k, index_t max_active_wgs)
+    : StreamKTilePartitionerBase(m, n, k, max_active_wgs, max_active_wgs)
+{
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTilePartitionerBase(
+    index_t m, index_t n, index_t k, index_t max_active_wgs, index_t num_cu)
     : max_active_wgs_{max_active_wgs}, n_{n}, k_{k}
 {
     iters_per_tile_    = integer_divide_ceil(k, KPerBlock);
@@ -17,7 +24,13 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTi
     bool big_enough         = num_tiles_ > max_active_wgs_;
     index_t remainder_tiles = num_tiles_ % max_active_wgs_;
 
-    if(remainder_tiles)
+    // A tile count that is a multiple of the CU count already loads every CU equally in DP,
+    // whatever the occupancy; splitting those tiles over the spare slots only adds fixup work.
+    // That holds only when the slots are whole CUs (max_active_wgs_ a multiple of num_cu); any
+    // other num_cu, including a non-positive one, falls back to the slot test alone.
+    const bool dp_balanced_on_cus =
+        num_cu > 0 && max_active_wgs_ % num_cu == 0 && num_tiles_ % num_cu == 0;
+    if(remainder_tiles && !dp_balanced_on_cus)
     {
         sk_tiles_ = big_enough ? full_tiles_ * max_active_wgs_ + (num_tiles_ % max_active_wgs_)
                                : num_tiles_;
@@ -382,7 +395,19 @@ struct StreamKTilePartitioner;
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::StreamKTilePartitioner(
     ck_tile::index_t m, ck_tile::index_t n, ck_tile::index_t k, ck_tile::index_t max_active_wgs)
-    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(m, n, k, max_active_wgs)
+    : StreamKTilePartitioner(m, n, k, max_active_wgs, max_active_wgs)
+{
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::StreamKTilePartitioner(
+    ck_tile::index_t m,
+    ck_tile::index_t n,
+    ck_tile::index_t k,
+    ck_tile::index_t max_active_wgs,
+    ck_tile::index_t num_cu)
+    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(
+          m, n, k, max_active_wgs, num_cu)
 { // inherit from base constructor
     dp_tiles_per_cta_ = this->dp_tiles_ / this->max_active_wgs_;
     extra_dp_tiles_   = this->dp_tiles_ % this->max_active_wgs_;
@@ -393,14 +418,13 @@ CK_TILE_HOST_DEVICE auto
 StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::grid_size() const noexcept
     -> dim3
 {
-    if(extra_dp_tiles_ == 0)
+    // StreamKDispatch strides the DP tiles by max_active_wgs_, so a larger grid would compute
+    // tiles twice. Stream-K work needs all max_active_wgs_ workgroups (sk_ctas == max_active_wgs_).
+    if(this->get_sk_ctas() > 0)
     {
         return dim3(this->max_active_wgs_, 1, 1);
     }
-    else
-    {
-        return dim3(this->num_tiles_, 1, 1);
-    }
+    return dim3(min(this->max_active_wgs_, this->num_tiles_), 1, 1);
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
@@ -423,7 +447,19 @@ StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::get_ext
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>::StreamKTilePartitioner(
     ck_tile::index_t m, ck_tile::index_t n, ck_tile::index_t k, ck_tile::index_t max_active_wgs)
-    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(m, n, k, max_active_wgs)
+    : StreamKTilePartitioner(m, n, k, max_active_wgs, max_active_wgs)
+{
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>::StreamKTilePartitioner(
+    ck_tile::index_t m,
+    ck_tile::index_t n,
+    ck_tile::index_t k,
+    ck_tile::index_t max_active_wgs,
+    ck_tile::index_t num_cu)
+    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(
+          m, n, k, max_active_wgs, num_cu)
 { // inherit from base constructor
     dp_ctas_            = this->dp_tiles_;
     dp_start_block_idx_ = 0;

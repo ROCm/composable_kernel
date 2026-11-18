@@ -102,7 +102,7 @@ template<> struct Dispatcher<half_t, half_t, float, 16, 16, 32,  true, false, fa
 template<> struct Dispatcher<half_t, half_t, float,  4, 64, 16, false> { using Type = WarpGemmMfmaF16F16F32M4N64K16; };
 template<> struct Dispatcher<half_t, half_t, float, 64,  4, 16, false> { using Type = WarpGemmMfmaF16F16F32M64N4K16; };
 // WMMA cases
-#if defined(__gfx11__) || defined(__gfx120__)
+#if defined(__gfx11__) || defined(__gfx120__) || defined(__gfx117__)
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<half_t, half_t, float, 16, 16, 16, TransposeC, false, false, AttrNumAccess, AttrNumAccess>
     : WmmaTag { using Type = WarpGemmWmma_f32_16x16x16_f16_f16<TransposeC, AttrNumAccess>;};
 #else
@@ -154,7 +154,7 @@ template<> struct Dispatcher<bf16_t, bf16_t, float, 16, 16, 32,  true, false, fa
 template<> struct Dispatcher<bf16_t, bf16_t, float,  4, 64, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M4N64K16; };
 template<> struct Dispatcher<bf16_t, bf16_t, float, 64,  4, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M64N4K16; };
 // WMMA cases
-#if defined(__gfx11__) || defined(__gfx120__)
+#if defined(__gfx11__) || defined(__gfx120__) || defined(__gfx117__)
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<bf16_t, bf16_t, float, 16, 16, 16, TransposeC, false, false, AttrNumAccess, AttrNumAccess>
     : WmmaTag { using Type = WarpGemmWmma_f32_16x16x16_bf16_bf16<TransposeC, AttrNumAccess>; };
 #else
@@ -408,9 +408,9 @@ template <typename AType,
 // of places in the original Dispatcher / WarpGemms, always ending up with SFactor = 2 for the
 // cases where the Dispatcher was used. The rare SFactor = 4 cases never went through the
 // Dispatcher.
-using WarpGemmDispatcher =
-    typename impl::warp_gemm_dispatcher::UnificationDispatcher<AType,
-                                                               BType,
+using WarpGemmStorageDispatcher =
+    typename impl::warp_gemm_dispatcher::UnificationDispatcher<fp8_instruction_type_t<AType>,
+                                                               fp8_instruction_type_t<BType>,
                                                                AccType,
                                                                MPerWave,
                                                                NPerWave,
@@ -424,18 +424,123 @@ using WarpGemmDispatcher =
                                                                UsePackedNumAccess,
                                                                UseMxScale>::Type;
 #else
-using WarpGemmDispatcher = typename impl::warp_gemm_dispatcher::Dispatcher<AType,
-                                                                           BType,
-                                                                           AccType,
-                                                                           MPerWave,
-                                                                           NPerWave,
-                                                                           KPerWave,
-                                                                           TransposeC,
-                                                                           SwizzleA,
-                                                                           UseStructuredSparsity,
-                                                                           AttrNumAccessA,
-                                                                           AttrNumAccessB,
-                                                                           IsScale16>::Type;
+using WarpGemmStorageDispatcher =
+    typename impl::warp_gemm_dispatcher::Dispatcher<fp8_instruction_type_t<AType>,
+                                                    fp8_instruction_type_t<BType>,
+                                                    AccType,
+                                                    MPerWave,
+                                                    NPerWave,
+                                                    KPerWave,
+                                                    TransposeC,
+                                                    SwizzleA,
+                                                    UseStructuredSparsity,
+                                                    AttrNumAccessA,
+                                                    AttrNumAccessB,
+                                                    IsScale16>::Type;
 #endif
+
+namespace impl {
+
+// Preserve the scalar format in tensor types while reusing the native
+// instruction's distribution and register layout.
+template <typename A, typename B, typename Warp>
+struct WarpGemmWithFp8Format : Warp
+{
+    using ADataType   = A;
+    using BDataType   = B;
+    using AWarpTensor = static_distributed_tensor<A, typename Warp::AWarpDstr>;
+    using BWarpTensor = static_distributed_tensor<B, typename Warp::BWarpDstr>;
+
+    struct WarpGemmAttribute : Warp::WarpGemmAttribute
+    {
+        using ADataType = A;
+        using BDataType = B;
+    };
+
+    CK_TILE_DEVICE static void check_native_format()
+    {
+        // Explicit-format MFMA is supported on devices with the matching
+        // encoding. Host dispatch must select the matching typed kernel.
+        if constexpr(!is_native_fp8_type<A>() || !is_native_fp8_type<B>())
+            __builtin_trap();
+    }
+
+    template <typename... Params,
+              typename CTensor,
+              typename ATensor,
+              typename BTensor,
+              typename... Extra>
+    CK_TILE_DEVICE void
+    operator()(CTensor& c, const ATensor& a, const BTensor& b, Extra... extra) const
+    {
+        static_assert(detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
+        check_native_format();
+        Warp{}.template operator()<Params...>(c,
+                                              bit_cast<typename Warp::AWarpTensor>(a),
+                                              bit_cast<typename Warp::BWarpTensor>(b),
+                                              extra...);
+    }
+
+    template <typename... Params, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE auto operator()(const ATensor& a, const BTensor& b) const
+    {
+        static_assert(detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
+        check_native_format();
+        return Warp{}.template operator()<Params...>(bit_cast<typename Warp::AWarpTensor>(a),
+                                                     bit_cast<typename Warp::BWarpTensor>(b));
+    }
+};
+
+template <typename A,
+          typename B,
+          typename Warp,
+          bool Explicit =
+              fp8_format_traits<A>::explicit_format || fp8_format_traits<B>::explicit_format>
+struct WarpGemmFp8Format
+{
+    using type = Warp;
+};
+
+template <typename A, typename B, typename Warp>
+struct WarpGemmFp8Format<A, B, Warp, true>
+{
+    using type = WarpGemmWithFp8Format<A, B, Warp>;
+};
+
+} // namespace impl
+
+template <typename AType,
+          typename BType,
+          typename AccType,
+          index_t MPerWave,
+          index_t NPerWave,
+          index_t KPerWave,
+          bool TransposeC,
+          bool SwizzleA                      = false,
+          bool UseStructuredSparsity         = false,
+          WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Default,
+          WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA,
+          bool IsScale16                     = false,
+          bool UsePackedNumAccess            = false,
+          bool UseMxScale                    = false>
+using WarpGemmDispatcher =
+    typename impl::WarpGemmFp8Format<AType,
+                                     BType,
+                                     WarpGemmStorageDispatcher<AType,
+                                                               BType,
+                                                               AccType,
+                                                               MPerWave,
+                                                               NPerWave,
+                                                               KPerWave,
+                                                               TransposeC,
+                                                               SwizzleA,
+                                                               UseStructuredSparsity,
+                                                               AttrNumAccessA,
+                                                               AttrNumAccessB,
+                                                               IsScale16,
+                                                               UsePackedNumAccess,
+                                                               UseMxScale>>::type;
 
 } // namespace ck_tile

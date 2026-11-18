@@ -26,7 +26,18 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     target_compile_options(test_ck_tile_gemm_compv3_tail_dispatch PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
     list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_compv3_tail_dispatch)
 
+    # Host-only: the K sub-tile count rounding of the TDM and async default policies.
+    add_gtest_executable(test_ck_tile_gemm_sub_tile_num test_gemm_sub_tile_num.cpp)
+    list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_sub_tile_num)
+
     if(GPU_TARGETS MATCHES "gfx94|gfx95")
+        # This synthetic argument-validation fixture models the XDL pipeline
+        # interface; keep it out of the gfx11/gfx12 WMMA build.
+        add_gtest_executable(test_ck_tile_universal_gemm_argument_validation
+            test_universal_gemm_argument_validation.cpp)
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_universal_gemm_argument_validation)
+
         add_gtest_executable(test_ck_tile_gemm_pipeline_mem test_gemm_pipeline_mem.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv3 test_gemm_pipeline_compv3.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv4 test_gemm_pipeline_compv4.cpp)
@@ -52,11 +63,15 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
         add_gtest_executable(test_ck_tile_gemm_pipeline_comp_async test_gemm_pipeline_comp_async.cpp)
         target_compile_options(test_ck_tile_gemm_pipeline_comp_async PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
 
+        add_gtest_executable(test_ck_tile_gemm_pipeline_comp_async_v2 test_gemm_pipeline_comp_async_v2.cpp)
+        target_compile_options(test_ck_tile_gemm_pipeline_comp_async_v2 PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
+
         add_gtest_executable(test_ck_tile_gemm_pipeline_tf32_mem test_gemm_pipeline_tf32_mem.cpp)
         target_compile_options(test_ck_tile_gemm_pipeline_tf32_mem PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 
         list(APPEND CK_TILE_GEMM_TEST_TARGETS
             test_ck_tile_gemm_pipeline_comp_async
+            test_ck_tile_gemm_pipeline_comp_async_v2
             test_ck_tile_gemm_pipeline_tf32_mem
         )
 
@@ -149,20 +164,154 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
             target_compile_options(test_ck_tile_gemm_pipeline_tdm_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
             add_gtest_executable(test_ck_tile_gemm_pipeline_tdm_subtile_wmma test_gemm_pipeline_comp_tdm_wmma_subtile.cpp)
             target_compile_options(test_ck_tile_gemm_pipeline_tdm_subtile_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-            # "_wmma" drops gfx9 only; keep just the gfx125 targets (TDM hardware).
-            get_target_property(_tdm_subtile_archs test_ck_tile_gemm_pipeline_tdm_subtile_wmma HIP_ARCHITECTURES)
-            list(FILTER _tdm_subtile_archs INCLUDE REGEX "^gfx125")
-            set_property(TARGET test_ck_tile_gemm_pipeline_tdm_subtile_wmma PROPERTY HIP_ARCHITECTURES ${_tdm_subtile_archs})
+            ck_tile_restrict_archs(test_ck_tile_gemm_pipeline_tdm_subtile_wmma "^gfx125")
             list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_pipeline_tdm_subtile_wmma)
+            add_gtest_executable(test_ck_tile_gemm_pipeline_tdm_atomic_wmma test_gemm_pipeline_comp_tdm_atomic_wmma.cpp)
+            target_compile_options(test_ck_tile_gemm_pipeline_tdm_atomic_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+            target_compile_definitions(test_ck_tile_gemm_pipeline_tdm_atomic_wmma PRIVATE BARRIER_ATOMIC_IN_TDM=1) # atomic barrier in TDM pipeline
+            get_target_property(_tdm_atomic_archs test_ck_tile_gemm_pipeline_tdm_atomic_wmma HIP_ARCHITECTURES)
+            list(FILTER _tdm_atomic_archs INCLUDE REGEX "^gfx125")
+            set_property(TARGET test_ck_tile_gemm_pipeline_tdm_atomic_wmma PROPERTY HIP_ARCHITECTURES ${_tdm_atomic_archs})
+            list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_pipeline_tdm_atomic_wmma)
+            add_gtest_executable(test_ck_tile_gemm_pipeline_tdm_lds_padding_wmma test_gemm_pipeline_comp_tdm_lds_padding_wmma.cpp)
+            target_compile_options(test_ck_tile_gemm_pipeline_tdm_lds_padding_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+            get_target_property(_tdm_lds_padding_archs test_ck_tile_gemm_pipeline_tdm_lds_padding_wmma HIP_ARCHITECTURES)
+            list(FILTER _tdm_lds_padding_archs INCLUDE REGEX "^gfx125")
+            set_property(TARGET test_ck_tile_gemm_pipeline_tdm_lds_padding_wmma PROPERTY HIP_ARCHITECTURES ${_tdm_lds_padding_archs})
+            list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_pipeline_tdm_lds_padding_wmma)
+            add_gtest_executable(test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma
+                test_gemm_pipeline_comp_tdm_producer_consumer_wmma.cpp)
+            target_compile_options(test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma
+                PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+            # Same reason as tdm_subtile_wmma above: "_wmma" drops gfx9 only, and off
+            # gfx1250 named_barrier is uninstantiable by design (static_assert), so the
+            # surviving gfx11/gfx12 archs would fail the device pass.
+            get_target_property(_tdm_pc_archs
+                test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma HIP_ARCHITECTURES)
+            list(FILTER _tdm_pc_archs INCLUDE REGEX "^gfx125")
+            set_property(TARGET test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma
+                PROPERTY HIP_ARCHITECTURES ${_tdm_pc_archs})
+            # A broken named barrier handshake hangs rather than failing, so cap the run
+            # instead of letting it hold a GPU for the 1500s CTest default.
+            set_tests_properties(test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma
+                PROPERTIES TIMEOUT 900)
+            list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma)
+            # The same pipeline with a CShuffleEpilogue: the split-K (k_batch > 1) coverage.
+            add_gtest_executable(test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma
+                test_gemm_pipeline_comp_tdm_producer_consumer_cshuffle_wmma.cpp)
+            target_compile_options(test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma
+                PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+            # Same named_barrier restriction as tdm_producer_consumer_wmma above.
+            ck_tile_restrict_archs(test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma "^gfx125")
+            set_tests_properties(test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma
+                PROPERTIES TIMEOUT 900)
+            # comp_tdm_v3 (gfx1250 TDM fp8 pipeline). Labelled after the relabel loop below so they
+            # keep SMOKE_TEST (short shapes) and REGRESSION_TEST (K = 65536, listed in
+            # REGRESSION_TESTS in test/CMakeLists.txt: minutes under the emulator).
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma
+                test_gemm_pipeline_comp_tdm_v3_wmma.cpp)
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma
+                test_gemm_pipeline_comp_tdm_v3_longk_wmma.cpp)
+            # bf16 instances in every A/B layout: short shapes and unaligned M/N/K (SMOKE_TEST) and
+            # 4096^3 (REGRESSION_TEST).
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_wmma
+                test_gemm_pipeline_comp_tdm_v3_bf16_wmma.cpp)
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_large_wmma
+                test_gemm_pipeline_comp_tdm_v3_bf16_large_wmma.cpp)
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_tdm_v3_unaligned_mnk_wmma
+                test_gemm_pipeline_comp_tdm_v3_unaligned_mnk_wmma.cpp)
+            foreach(test_target test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma
+                                test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma
+                                test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_wmma
+                                test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_large_wmma
+                                test_ck_tile_gemm_pipeline_comp_tdm_v3_unaligned_mnk_wmma)
+                target_compile_options(${test_target} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+                # Re-enable, for these targets only, the post-RA machine scheduler that the top-level
+                # CMakeLists turns off (-enable-post-misched=0; the later option wins). It issues the
+                # split barrier's LDS reads in bursts with progressive waits instead of a full drain
+                # before each WMMA.
+                target_compile_options(${test_target} PRIVATE "SHELL:-mllvm -enable-post-misched=1")
+                ck_tile_restrict_archs(${test_target} "^gfx125")
+            endforeach()
+            # Fails if a compiler change makes the comp_tdm_v3 kernels use scratch.
+            get_filename_component(_llvm_bin_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+            find_program(CK_LLVM_OBJDUMP llvm-objdump HINTS "${_llvm_bin_dir}" NO_DEFAULT_PATH)
+            find_program(CK_LLVM_READELF llvm-readelf HINTS "${_llvm_bin_dir}" NO_DEFAULT_PATH)
+            foreach(_v3_suffix "" "_bf16")
+                set(_v3_binary test_ck_tile_gemm_pipeline_comp_tdm_v3${_v3_suffix}_wmma)
+                set(_v3_check test_ck_tile_gemm_pipeline_comp_tdm_v3${_v3_suffix}_resources)
+                if(TARGET ${_v3_binary} AND CK_LLVM_OBJDUMP AND CK_LLVM_READELF)
+                    add_test(NAME ${_v3_check}
+                        COMMAND ${CMAKE_COMMAND}
+                            -DTEST_BINARY=$<TARGET_FILE:${_v3_binary}>
+                            -DLLVM_OBJDUMP=${CK_LLVM_OBJDUMP}
+                            -DLLVM_READELF=${CK_LLVM_READELF}
+                            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/comp_tdm_v3${_v3_suffix}_resources
+                            -P ${CMAKE_CURRENT_SOURCE_DIR}/check_comp_tdm_v3_resources.cmake)
+                    set_tests_properties(${_v3_check}
+                        PROPERTIES LABELS "SMOKE_TEST;CK_TILE_GEMM_TESTS")
+                endif()
+            endforeach()
             add_gtest_executable(test_ck_tile_gemm_pipeline_comp_async_wmma test_gemm_pipeline_comp_async_wmma.cpp)
             target_compile_options(test_ck_tile_gemm_pipeline_comp_async_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
             target_compile_options(test_ck_tile_gemm_pipeline_comp_async_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+            add_gtest_executable(test_ck_tile_gemm_pipeline_comp_async_v2_wmma test_gemm_pipeline_comp_async_v2_wmma.cpp)
+            target_compile_options(test_ck_tile_gemm_pipeline_comp_async_v2_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
+            target_compile_options(test_ck_tile_gemm_pipeline_comp_async_v2_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+            set(CK_TILE_GEMM_ASYNC_WMMA_TARGETS
+                test_ck_tile_gemm_pipeline_comp_async_wmma
+                test_ck_tile_gemm_pipeline_comp_async_v2_wmma
+            )
+            foreach(test_target ${CK_TILE_GEMM_ASYNC_WMMA_TARGETS})
+                # The async global-to-LDS loads only exist on gfx125 among the WMMA targets.
+                ck_tile_restrict_archs(${test_target} "^gfx125")
+            endforeach()
+            list(APPEND CK_TILE_GEMM_TEST_TARGETS ${CK_TILE_GEMM_ASYNC_WMMA_TARGETS})
         endif()
     endif()
 
     # Label all ck_tile gemm tests with CK_TILE_GEMM_TESTS for selective execution
     foreach(test_target ${CK_TILE_GEMM_TEST_TARGETS})
         set_tests_properties(${test_target} PROPERTIES LABELS "CK_TILE_GEMM_TESTS")
+    endforeach()
+    # The loop above replaces the SMOKE_TEST label, and the gfx1250 CI stage only runs "ninja smoke".
+    # Keep the gfx125 async-LDS tests and the TDM LDS padding test in that set; all of them fit the
+    # smoke time budget on the gfx1250 emulator.
+    foreach(test_target ${CK_TILE_GEMM_ASYNC_WMMA_TARGETS} test_ck_tile_gemm_pipeline_tdm_lds_padding_wmma)
+        if(TEST ${test_target})
+            set_property(TEST ${test_target} APPEND PROPERTY LABELS "SMOKE_TEST")
+        endif()
+    endforeach()
+    # comp_tdm_pc is deliberately absent from the tile engine CI config (it is a shared contract
+    # with the dispatcher bridge), so these gtests (tdm_epilogue and cshuffle/split-K variants) are
+    # the only CI coverage of GemmPipelineAgBgCrCompTDMProducerConsumer. They must be joined HERE,
+    # after the relabel loop
+    # above, and never added to CK_TILE_GEMM_TEST_TARGETS before it: that loop uses
+    # set_tests_properties(... PROPERTIES LABELS ...), which REPLACES, so going through it would
+    # drop the SMOKE_TEST label add_gtest_executable set -- and gfx1250 CI runs only
+    # `ninja smoke` (ctest -L SMOKE_TEST), which would then build this test but never run it.
+    # APPEND PROPERTY below adds the label without disturbing SMOKE_TEST.
+    if(TEST test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma)
+        set_property(TEST test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma
+            APPEND PROPERTY LABELS "CK_TILE_GEMM_TESTS")
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma)
+    endif()
+    if(TEST test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma)
+        set_property(TEST test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma
+            APPEND PROPERTY LABELS "CK_TILE_GEMM_TESTS")
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma)
+    endif()
+    # comp_tdm_v3: same reason as comp_tdm_pc above (keep the SMOKE_TEST / REGRESSION_TEST label).
+    foreach(test_target test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma
+                        test_ck_tile_gemm_pipeline_comp_tdm_v3_longk_wmma
+                        test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_wmma
+                        test_ck_tile_gemm_pipeline_comp_tdm_v3_bf16_large_wmma
+                        test_ck_tile_gemm_pipeline_comp_tdm_v3_unaligned_mnk_wmma)
+        if(TEST ${test_target})
+            set_property(TEST ${test_target} APPEND PROPERTY LABELS "CK_TILE_GEMM_TESTS")
+            list(APPEND CK_TILE_GEMM_TEST_TARGETS ${test_target})
+        endif()
     endforeach()
 
     # Umbrella target to build and run all ck_tile gemm tests

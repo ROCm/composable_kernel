@@ -30,7 +30,7 @@ void add_device_gemm_wmma_universal_reduce_f16_f16_f16_mk_kn_mn_comp_default_ins
                                                PassThrough,
                                                PassThrough>>>& instances)
 {
-    if(ck::is_gfx12_supported())
+    if(ck::is_gfx12_supported() || ck::is_gfx117_supported())
     {
         add_device_operation_instances(
             instances,

@@ -350,7 +350,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     static bool IsSupportedArgument(const Argument& karg)
     {
         // gfx11 doesn't support float atomic
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
         {
             return false;
         }

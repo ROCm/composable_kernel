@@ -70,3 +70,36 @@ TEST(SwigluOai, DefaultAlphaMatchesExplicit)
 {
     EXPECT_FLOAT_EQ(ck::swiglu_oai(2.f, 3.f), ck::swiglu_oai(2.f, 3.f, 7.0f, 1.702f));
 }
+
+// Saturation follows the requested bound, not the 7.0 default. The MoE epilogue passes
+// this as a runtime value (GridwiseMoeGemm::Problem::SwigluLimit).
+TEST(SwigluOai, HonoursACustomLimit)
+{
+    for(const float limit : {0.5f, 1.0f, 3.0f, 20.0f})
+    {
+        EXPECT_NEAR(ck::swiglu_oai(100.f, 100.f, limit),
+                    static_cast<float>(ref_swiglu_oai(100.0, 100.0, limit)),
+                    kTol)
+            << "limit=" << limit;
+        EXPECT_NEAR(ck::swiglu_oai(limit, 1.f, limit), ck::swiglu_oai(100.f, 1.f, limit), kTol)
+            << "limit=" << limit;
+    }
+}
+
+// A bound wider than the inputs leaves them untouched. The MoE epilogue does not
+// reach this via +inf -- with RuntimeSwigluLimit=false it skips the clamp entirely and
+// with true it passes the caller's bound -- so this pins helper behaviour only.
+TEST(SwigluOai, WideLimitLeavesInputsUntouched)
+{
+    const float kWide    = 1.0e30f;
+    const float pts[][2] = {{20.f, 30.f}, {-20.f, -30.f}, {8.f, 9.f}};
+    for(const auto& p : pts)
+    {
+        EXPECT_NEAR(ck::swiglu_oai(p[0], p[1], kWide),
+                    static_cast<float>(ref_swiglu_oai(p[0], p[1], 1.0e30)),
+                    kTol)
+            << "gate=" << p[0] << " up=" << p[1];
+    }
+    // Guard against the bound being ignored: it must differ from the 7.0 default.
+    EXPECT_GT(std::abs(ck::swiglu_oai(20.f, 30.f, kWide) - ck::swiglu_oai(20.f, 30.f)), kTol);
+}

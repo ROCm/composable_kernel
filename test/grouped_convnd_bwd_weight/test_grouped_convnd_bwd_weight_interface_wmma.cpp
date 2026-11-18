@@ -54,7 +54,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
     void SetUp() override
     {
-        if(!ck::is_gfx11_supported())
+        if(!(ck::is_gfx11_supported() || ck::is_gfx117_supported()))
         {
             GTEST_SKIP();
         }

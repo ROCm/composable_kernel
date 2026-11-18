@@ -130,7 +130,8 @@ enum struct MfmaInstr
     wmma_f32_16x16x128_bf8bf8_gfx125,
     wmma_f32_16x16x128_bf8f8_gfx125,
     wmma_f32_16x16x128_f8bf8_gfx125,
-    wmma_f32_16x16x128_f8f8_gfx125
+    wmma_f32_16x16x128_f8f8_gfx125,
+    wmma_f64_16x16x4_f64_gfx1251
 };
 
 template <MfmaInstr instr>
@@ -687,6 +688,18 @@ struct mfma_type<MfmaInstr::mfma_f64_16x16x4f64>
     }
 };
 
+// Explicit FP8 encodings use the existing intrinsic register layout. Only
+// matching native formats can cross this boundary without a conversion.
+template <typename T, index_t N>
+__device__ auto fp8_mfma_input(const non_native_vector_base<T, N>& value)
+{
+    using InstructionType = conditional_t<is_f8_type_v<T>, f8_t, bf8_t>;
+    static_assert(is_fp8_type_v<T>);
+    if constexpr(!is_same_v<T, InstructionType> && !is_native_fp8_type<T>())
+        __builtin_trap();
+    return bit_cast<non_native_vector_base<InstructionType, N>>(value);
+}
+
 template <>
 struct mfma_type<MfmaInstr::mfma_f32_32x32x16f8f8>
 {
@@ -705,7 +718,8 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x16f8f8>
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x16f8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x16f8f8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
     }
 };
 
@@ -728,7 +742,8 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32f8f8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
 #if defined(__HIP_DEVICE_COMPILE__)
-        intrin_mfma_f32_16x16x32f8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x32f8f8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
 #else
         ignore = a;
         ignore = b;
@@ -755,7 +770,8 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x16bf8bf8>
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x16bf8bf8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x16bf8bf8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
     }
 };
 
@@ -778,7 +794,8 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32bf8bf8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
 #if defined(__HIP_DEVICE_COMPILE__)
-        intrin_mfma_f32_16x16x32bf8bf8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x32bf8bf8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
 #else
         ignore = a;
         ignore = b;
@@ -805,7 +822,8 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x16f8bf8>
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x16f8bf8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x16f8bf8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
     }
 };
 
@@ -828,7 +846,8 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32f8bf8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
 #if defined(__HIP_DEVICE_COMPILE__)
-        intrin_mfma_f32_16x16x32f8bf8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x32f8bf8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
 #else
         ignore = a;
         ignore = b;
@@ -855,7 +874,8 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x16bf8f8>
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x16bf8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x16bf8f8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
     }
 };
 
@@ -878,7 +898,8 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x32bf8f8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
 #if defined(__HIP_DEVICE_COMPILE__)
-        intrin_mfma_f32_16x16x32bf8f8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x32bf8f8<MPerXdlops, NPerXdlops>::Run(
+            fp8_mfma_input(a), fp8_mfma_input(b), reg_c);
 #else
         ignore = a;
         ignore = b;
@@ -1445,6 +1466,16 @@ struct mfma_type<MfmaInstr::wmma_f32_16x16x4_f32_gfx125> : public mfma_type_gfx1
 };
 
 template <>
+struct mfma_type<MfmaInstr::wmma_f64_16x16x4_f64_gfx1251> : public mfma_type_gfx125_base_4
+{
+    template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_wmma_f64_16x16x4_f64<MPerWmma, NPerWmma>::Run(a, b, reg_c);
+    }
+};
+
+template <>
 struct mfma_type<MfmaInstr::wmma_scale_f32_16x16x128_f8f6f4_gfx125>
     : public mfma_type_gfx125_base_128
 {
@@ -1757,7 +1788,9 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<double, 16, 16>()
     {
-#if defined(__gfx12__)
+#if defined(__gfx1251__)
+        return MfmaInstr::wmma_f64_16x16x4_f64_gfx1251;
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
@@ -1807,7 +1840,7 @@ struct MfmaSelector
     {
 #if defined(__gfx125__)
         return MfmaInstr::wmma_f32_16x16x4_f32_gfx125;
-#elif defined(__gfx12__)
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
@@ -1819,7 +1852,7 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<tf32_t, 32, 32, tf32_t, is_single_rate_mfma>()
     {
-#if defined(__gfx12__)
+#if defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
@@ -1835,7 +1868,7 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<tf32_t, 16, 16, tf32_t, is_single_rate_mfma>()
     {
-#if defined(__gfx12__)
+#if defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
@@ -1880,7 +1913,7 @@ struct MfmaSelector
     {
 #if defined(__gfx125__)
         return MfmaInstr::wmma_f32_16x16x32_f16_gfx125;
-#elif defined(__gfx12__)
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_f32_16x16x16_f16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_f32_16x16x16_f16;
@@ -1896,7 +1929,7 @@ struct MfmaSelector
     {
 #if defined(__gfx125__)
         return MfmaInstr::wmma_f32_16x16x32_f16_gfx125;
-#elif defined(__gfx12__)
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_f32_16x16x16_f16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_f32_16x16x16_f16;
@@ -1950,7 +1983,7 @@ struct MfmaSelector
     {
 #if defined(__gfx125__)
         return MfmaInstr::wmma_f32_16x16x32_bf16_gfx125;
-#elif defined(__gfx12__)
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_f32_16x16x16_bf16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_f32_16x16x16_bf16;
@@ -1968,7 +2001,7 @@ struct MfmaSelector
     {
 #if defined(__gfx125__)
         return MfmaInstr::wmma_f32_16x16x32_bf16_gfx125;
-#elif defined(__gfx12__)
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_f32_16x16x16_bf16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_f32_16x16x16_bf16;
@@ -2006,7 +2039,7 @@ struct MfmaSelector
     {
 #if defined(__gfx125__)
         return MfmaInstr::wmma_i32_16x16x64_iu8_gfx125;
-#elif defined(__gfx12__)
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_i32_16x16x16_iu8_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_i32_16x16x16_iu8;
@@ -2024,7 +2057,7 @@ struct MfmaSelector
     {
 #if defined(__gfx125__)
         return MfmaInstr::wmma_i32_16x16x64_iu8_gfx125;
-#elif defined(__gfx12__)
+#elif defined(__gfx12__) || defined(__gfx117__)
         return MfmaInstr::wmma_i32_16x16x16_iu8_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_i32_16x16x16_iu8;
@@ -2081,7 +2114,7 @@ struct MfmaSelector
     {
 #if defined(__gfx125__)
         return MfmaInstr::wmma_scale_f32_16x16x128_f8f6f4_gfx125;
-#elif defined(__gfx120__)
+#elif defined(__gfx120__) || defined(__gfx117__)
         return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
@@ -2112,6 +2145,8 @@ struct MfmaSelector
         return MfmaInstr::wmma_f32_16x16x64_f8f8_gfx125;
 #elif defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f8f8_gfx12;
+#elif defined(__gfx117__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
 #else
@@ -2126,6 +2161,8 @@ struct MfmaSelector
         return MfmaInstr::wmma_f32_16x16x128_f8f8_gfx125;
 #elif defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f8f8_gfx12;
+#elif defined(__gfx117__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
 #elif defined(__gfx950__)
@@ -2170,6 +2207,8 @@ struct MfmaSelector
         return MfmaInstr::wmma_f32_16x16x64_bf8bf8_gfx125;
 #elif defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf8bf8_gfx12;
+#elif defined(__gfx117__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
 #else
@@ -2184,6 +2223,8 @@ struct MfmaSelector
         return MfmaInstr::wmma_f32_16x16x128_bf8bf8_gfx125;
 #elif defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf8bf8_gfx12;
+#elif defined(__gfx117__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
 #elif defined(__gfx950__)
@@ -2216,6 +2257,8 @@ struct MfmaSelector
         return MfmaInstr::wmma_f32_16x16x64_f8bf8_gfx125;
 #elif defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f8bf8_gfx12;
+#elif defined(__gfx117__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
 #else
@@ -2230,6 +2273,8 @@ struct MfmaSelector
         return MfmaInstr::wmma_f32_16x16x128_f8bf8_gfx125;
 #elif defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f8bf8_gfx12;
+#elif defined(__gfx117__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
 #elif defined(__gfx950__)
@@ -2262,6 +2307,8 @@ struct MfmaSelector
         return MfmaInstr::wmma_f32_16x16x64_bf8f8_gfx125;
 #elif defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf8f8_gfx12;
+#elif defined(__gfx117__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
 #else
@@ -2276,6 +2323,8 @@ struct MfmaSelector
         return MfmaInstr::wmma_f32_16x16x128_bf8f8_gfx125;
 #elif defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf8f8_gfx12;
+#elif defined(__gfx117__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
 #elif defined(__gfx11__)
         return MfmaInstr::wmma_unsupport_16x16_gfx11;
 #elif defined(__gfx950__)
@@ -2373,16 +2422,21 @@ struct MfmaSelector
 #endif
     }
 
-    static constexpr auto selected_mfma = mfma_type<GetMfma<element_type_t<base_type>,
-                                                            MPerXdlops,
-                                                            NPerXdlops,
-                                                            element_type_t<additional_type>,
-                                                            is_single_rate_mfma,
-                                                            is_scale_mfma,
-                                                            element_type_t<AccType>,
-                                                            ScaleBlkSize,
-                                                            AScaleDataType,
-                                                            BScaleDataType>()>{}; // default init
+    template <typename T>
+    using instruction_type =
+        conditional_t<is_f8_type_v<T>, f8_t, conditional_t<is_bf8_type_v<T>, bf8_t, T>>;
+
+    static constexpr auto selected_mfma =
+        mfma_type<GetMfma<instruction_type<element_type_t<base_type>>,
+                          MPerXdlops,
+                          NPerXdlops,
+                          instruction_type<element_type_t<additional_type>>,
+                          is_single_rate_mfma,
+                          is_scale_mfma,
+                          element_type_t<AccType>,
+                          ScaleBlkSize,
+                          AScaleDataType,
+                          BScaleDataType>()>{}; // default init
 
     __host__ __device__ constexpr MfmaSelector()
     {
@@ -2689,9 +2743,9 @@ struct XdlopsGemm
             is_same<base_type, double>::value || is_same<base_type, float>::value ||
                 is_same<base_type, tf32_t>::value || is_same<base_type, half_t>::value ||
                 is_same<base_type, bhalf_t>::value || is_same<base_type, int8_t>::value ||
-                is_same<base_type, f8_t>::value || is_same<base_type, bf8_t>::value ||
-                (is_same<base_type, f8_t>::value && is_same<additional_type, bf8_t>::value) ||
-                (is_same<base_type, bf8_t>::value && is_same<additional_type, f8_t>::value),
+                is_f8_type_v<base_type> || is_bf8_type_v<base_type> ||
+                (is_f8_type_v<base_type> && is_bf8_type_v<additional_type>) ||
+                (is_bf8_type_v<base_type> && is_f8_type_v<additional_type>),
             "base_type must be double, float, tf32_t, half, bfloat16, int8_t, f8_t or bf8_t!");
 
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
@@ -2854,7 +2908,7 @@ struct XdlopsGemm
         (((is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value) &&
           KPack <= 4) ||
          (is_same<base_type, int8_t>::value && KPack <= 8) ||
-         ((is_same<base_type, f8_t>::value || is_same<base_type, bf8_t>::value) &&
+         ((is_f8_type_v<base_type> || is_bf8_type_v<base_type>) &&
 #if defined(__gfx125__)
           KPack < 128) ||
 #else

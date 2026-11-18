@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -457,7 +458,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
     };
 
     template <typename DeviceArch>
-    __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(DeviceArch)
+    __host__ __device__ static constexpr auto
+    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(DeviceArch)
     {
         if constexpr(DirectLoad)
         {
@@ -489,7 +491,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
     }
 
     template <typename DeviceArch>
-    __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(DeviceArch)
+    __host__ __device__ static constexpr auto
+    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(DeviceArch)
     {
         if constexpr(DirectLoad)
         {
@@ -556,7 +559,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                  BLdsScalarLoadToVgpr>())>;
 
     template <typename DeviceArch>
-    __device__ static constexpr index_t GetSharedMemoryNumberOfByte(DeviceArch)
+    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte(DeviceArch)
     {
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_desc_ak0_m_ak1 =
@@ -583,6 +586,24 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         return math::max((a_block_space_size_aligned * sizeof(ADataType) +
                           b_block_space_size_aligned * sizeof(BDataType)),
                          c_block_size * sizeof(CShuffleDataType));
+    }
+
+    __host__ static index_t GetSharedMemoryNumberOfByteOnHost()
+    {
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
+        if(is_gfx125_supported())
+        {
+            return GetSharedMemoryNumberOfByte(gfx125_t{});
+        }
+        else if(ck::get_device_name() == "gfx950")
+        {
+            return GetSharedMemoryNumberOfByte(gfx950_t{});
+        }
+        else
+#endif
+        {
+            return GetSharedMemoryNumberOfByte(gfx_invalid_t{});
+        }
     }
 
     __host__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)

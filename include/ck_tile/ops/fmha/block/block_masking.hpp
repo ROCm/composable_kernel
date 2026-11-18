@@ -516,6 +516,26 @@ struct SimplifiedGenericAttentionMask
         }
     }
 
+    // A nonempty signed interval has the same membership under unsigned offsets.
+    CK_TILE_DEVICE bool IsOutOfBoundUnsigned(index_t i_y, index_t i_x) const
+    {
+        if constexpr(!IsMasking)
+        {
+            return IsOutOfBound(i_y, i_x);
+        }
+        else
+        {
+            const index_t x_start = -y + i_y + 1;
+            const index_t x_end   = min(i_y + x, x_total);
+            uint32_t width =
+                i_y < y_total && x_start < x_end ? uint32_t(x_end) - uint32_t(x_start) : 0u;
+            // Blocks folding `d >= (c ? w : 0)` into `!c | (d >= w)`, a per-element SALU OR.
+            // Not volatile, so it stays row-invariant.
+            asm("" : "+v"(width));
+            return uint32_t(i_x) - uint32_t(x_start) >= width;
+        }
+    }
+
     CK_TILE_HOST_DEVICE constexpr auto IsOutOfSinkBound(index_t i_y, index_t i_x) const
     {
         if constexpr(!IsMasking)
@@ -569,6 +589,11 @@ struct SimplifiedGenericAttentionMask
 
     // the key sequence length, i.e. one past the last valid X index
     CK_TILE_HOST_DEVICE constexpr index_t GetXTotal() const { return x_total; }
+    CK_TILE_HOST_DEVICE constexpr index_t GetYTotal() const { return y_total; }
+    // in-window elements satisfy -y < i_x - i_y < x
+    CK_TILE_HOST_DEVICE constexpr index_t GetWindowY() const { return y; }
+    CK_TILE_HOST_DEVICE constexpr index_t GetWindowX() const { return x; }
+    CK_TILE_HOST_DEVICE constexpr index_t GetSink() const { return sink; }
 
     private:
     index_t y, x, sink;

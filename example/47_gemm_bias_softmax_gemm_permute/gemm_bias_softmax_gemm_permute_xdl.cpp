@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
     float alpha = 1;
 
     // temp disable on gfx11, d0_gs_ms_ns isn't handled correctly when it is not a constant.
-    if(ck::is_gfx11_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
     {
         return 0;
     }

@@ -336,7 +336,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
-#if defined(__gfx11__) || defined(__gfx120__)
+#if defined(__gfx11__) || defined(__gfx120__) || defined(__gfx117__)
         if constexpr(is_same_v<AComputeDataType_, float>)
         {
             return false;
@@ -728,8 +728,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
                is_same<AComputeDataType_, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
              (is_same<AComputeDataType_, int8_t>::value && lcm_AK1_BK1 <= 8) ||
-             ((is_same<AComputeDataType_, f8_t>::value ||
-               is_same<AComputeDataType_, bf8_t>::value) &&
+             ((is_f8_type_v<AComputeDataType_> || is_bf8_type_v<AComputeDataType_>) &&
 #if defined(__gfx125__)
               lcm_AK1_BK1 < 128))
 #else

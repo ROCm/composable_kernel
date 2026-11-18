@@ -65,7 +65,8 @@ endif()
 # Compiler warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(ck_tile_dispatcher PRIVATE
-        -Wall -Wextra -Wpedantic -Wno-lifetime-safety-intra-tu-suggestions -Wno-lifetime-safety-cross-tu-suggestions -Wno-lifetime-safety-lifetimebound-violation -Wno-unknown-warning-option
+        -Wall -Wextra -Wpedantic -Wno-lifetime-safety-intra-tu-suggestions -Wno-lifetime-safety-cross-tu-suggestions -Wno-lifetime-safety-lifetimebound-violation -Wno-unknown-warning-option -Wno-lifetime-safety-lifetimebound-invalidation -Wno-lifetime-safety-experimental-field-origin-escape -Wno-lifetime-safety-experimental-invalidation
+
     )
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     target_compile_options(ck_tile_dispatcher PRIVATE

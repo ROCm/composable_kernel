@@ -38,7 +38,6 @@ FWD_DTYPE_MAP = {
     "bf8": "FmhaFwdBf8",
     "fp8fp16": "FmhaFwdFp8Fp16",
     "fp8bf16": "FmhaFwdFp8Bf16",
-    "fp8fp32": "FmhaFwdFp8Fp32",
 }
 
 # Backward dtype → C++ type config struct.
@@ -240,6 +239,7 @@ PIPELINE_TO_CPP = {
     "qr_nwarp_sshuffle": "ck_tile::BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS",
     "appendkv": "ck_tile::BlockFmhaFwdAppendKVPipeline",
     "batch_prefill_async": "ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync",
+    "batch_prefill_gfx11": "ck_tile::BlockFmhaBatchPrefillPipelineQRKSVSAsync",
 }
 
 # Pipeline tag → C++ pipeline enum value.
@@ -254,6 +254,7 @@ PIPELINE_ENUM_TO_CPP = {
     "qr_pagedkv": "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "qr_nwarp_sshuffle": "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "batch_prefill_async": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
+    "batch_prefill_gfx11": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
 }
 
 BOOL_MAP = {

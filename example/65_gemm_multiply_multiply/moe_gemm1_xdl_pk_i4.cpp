@@ -20,162 +20,171 @@
 #include "ck/library/utility/check_err.hpp"
 
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
+#include "ck/library/utility/run_fp8_example.hpp"
 
 using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::Tensor;
 
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using I4  = ck::pk_i4_t;
-using F16 = ck::half_t;
-using F8  = ck::f8_t;
-using F32 = float;
-
-using Row    = ck::tensor_layout::gemm::RowMajor;
-using Col    = ck::tensor_layout::gemm::ColumnMajor;
-using Bypass = ck::tensor_layout::BypassLayoutVerification;
-
-using A0DataType       = F8;
-using B0DataType       = I4;
-using EDataType        = F16;
-using AccDataType      = F32;
-using CShuffleDataType = F16;
-using D0DataType       = F32;
-using D1DataType       = F32;
-using D2DataType       = F32;
-using DsDataType       = ck::Tuple<D0DataType, D1DataType, D2DataType>;
-
-using A0Layout = Row;
-using B0Layout = Col;
-using ELayout  = Row;
-using D0Layout = Row;
-using D1Layout = Col;
-using D2Layout = ELayout;
-using DsLayout = ck::Tuple<D0Layout, D1Layout, D2Layout>;
-
-// for gate, a_scale, b_scale
-struct MulABScale
+template <typename Fp8, typename Bf8>
+struct Example
 {
-    template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ constexpr void
-    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
 
-    template <>
-    __host__ __device__ constexpr void operator()<EDataType, EDataType, float, float>(
-        EDataType& e, const EDataType& c, const float& d0, const float& d1) const
-    {
-        (void)d0;
-        (void)d1;
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c);
-#else
-        e = ck::type_convert<EDataType>(c);
-#endif
-    }
-    template <>
-    __host__ __device__ constexpr void operator()<EDataType, float, float, float>(
-        EDataType& e, const float& c, const float& d0, const float& d1) const
-    {
-        (void)d0;
-        (void)d1;
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-        e = ck::type_convert<EDataType>(c);
-#else
-        e = ck::type_convert<EDataType>(c);
-#endif
-    }
-};
+    template <ck::index_t... Is>
+    using S = ck::Sequence<Is...>;
 
-struct MulABScaleExpertWeight
-{
-    template <typename E, typename C, typename D0, typename D1, typename D2>
-    __host__ __device__ constexpr void
-    operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
-    // for real kernel use
-    template <>
-    __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>(
-        EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
+    using I4  = ck::pk_i4_t;
+    using F16 = ck::half_t;
+    using F8  = Fp8;
+    using F32 = float;
+
+    using Row    = ck::tensor_layout::gemm::RowMajor;
+    using Col    = ck::tensor_layout::gemm::ColumnMajor;
+    using Bypass = ck::tensor_layout::BypassLayoutVerification;
+
+    using A0DataType       = F8;
+    using B0DataType       = I4;
+    using EDataType        = F16;
+    using AccDataType      = F32;
+    using CShuffleDataType = F16;
+    using D0DataType       = F32;
+    using D1DataType       = F32;
+    using D2DataType       = F32;
+    using DsDataType       = ck::Tuple<D0DataType, D1DataType, D2DataType>;
+
+    using A0Layout = Row;
+    using B0Layout = Col;
+    using ELayout  = Row;
+    using D0Layout = Row;
+    using D1Layout = Col;
+    using D2Layout = ELayout;
+    using DsLayout = ck::Tuple<D0Layout, D1Layout, D2Layout>;
+
+    // for gate, a_scale, b_scale
+    struct MulABScale
     {
-        (void)d0;
-        (void)d1;
-        (void)d2;
-        e = ck::type_convert<EDataType>(c);
-    }
-    template <>
-    __host__ __device__ constexpr void operator()<EDataType, EDataType, float, float, float>(
-        EDataType& e, const EDataType& c, const float& d0, const float& d1, const float& d2) const
+        template <typename E, typename C, typename D0, typename D1>
+        __host__ __device__ constexpr void
+        operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+        template <>
+        __host__ __device__ constexpr void operator()<EDataType, EDataType, float, float>(
+            EDataType& e, const EDataType& c, const float& d0, const float& d1) const
+        {
+            (void)d0;
+            (void)d1;
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+            e = ck::type_convert<EDataType>(c);
+#else
+            e = ck::type_convert<EDataType>(c);
+#endif
+        }
+        template <>
+        __host__ __device__ constexpr void operator()<EDataType, float, float, float>(
+            EDataType& e, const float& c, const float& d0, const float& d1) const
+        {
+            (void)d0;
+            (void)d1;
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+            e = ck::type_convert<EDataType>(c);
+#else
+            e = ck::type_convert<EDataType>(c);
+#endif
+        }
+    };
+
+    struct MulABScaleExpertWeight
     {
-        (void)d0;
-        (void)d1;
-        (void)d2;
-        e = ck::type_convert<EDataType>(c);
-    }
-    // for reference cpu
-    template <>
-    __host__ __device__ constexpr void operator()<float, float, float, float, float>(
-        float& e, const float& c, const float& d0, const float& d1, const float& d2) const
-    {
+        template <typename E, typename C, typename D0, typename D1, typename D2>
+        __host__ __device__ constexpr void
+        operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
+        // for real kernel use
+        template <>
+        __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>(
+            EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
+        {
+            (void)d0;
+            (void)d1;
+            (void)d2;
+            e = ck::type_convert<EDataType>(c);
+        }
+        template <>
+        __host__ __device__ constexpr void
+        operator()<EDataType, EDataType, float, float, float>(EDataType& e,
+                                                              const EDataType& c,
+                                                              const float& d0,
+                                                              const float& d1,
+                                                              const float& d2) const
+        {
+            (void)d0;
+            (void)d1;
+            (void)d2;
+            e = ck::type_convert<EDataType>(c);
+        }
         // for reference cpu
-        (void)d0;
-        (void)d1;
-        (void)d2;
-        e = ck::type_convert<EDataType>(c);
-    }
-};
+        template <>
+        __host__ __device__ constexpr void operator()<float, float, float, float, float>(
+            float& e, const float& c, const float& d0, const float& d1, const float& d2) const
+        {
+            // for reference cpu
+            (void)d0;
+            (void)d1;
+            (void)d2;
+            e = ck::type_convert<EDataType>(c);
+        }
+    };
 
-static constexpr bool MulRoutedWeight = true;
-static constexpr ck::index_t KPack    = 32;
+    static constexpr bool MulRoutedWeight = true;
+    static constexpr ck::index_t KPack    = 32;
 
-using CDEElementOp = MulABScaleExpertWeight; // combine MulRoutedWeight = true
+    using CDEElementOp = MulABScaleExpertWeight; // combine MulRoutedWeight = true
 
-// using CDEElementOp = MulABScale; // combine MulRoutedWeight = true
+    // using CDEElementOp = MulABScale; // combine MulRoutedWeight = true
 
 #if 1
-void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
-{
-    int NLane = NXdl;
-    int KLane = 64 / NLane;
-
-    int K0 = K / (KLane * KPack);
-    // K -> K0 KLane KPack
-    // N -> N0 NLane
-    // N, K -> N0 K0 KLane NLane KPack
-    int tempk;
-    for(int n = 0; n < N; ++n)
+    void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
     {
-        for(int k = 0; k < K; ++k)
+        int NLane = NXdl;
+        int KLane = 64 / NLane;
+
+        int K0 = K / (KLane * KPack);
+        // K -> K0 KLane KPack
+        // N -> N0 NLane
+        // N, K -> N0 K0 KLane NLane KPack
+        int tempk;
+        for(int n = 0; n < N; ++n)
         {
-            int n0 = n / NLane;
-            int n1 = n % NLane;
+            for(int k = 0; k < K; ++k)
+            {
+                int n0 = n / NLane;
+                int n1 = n % NLane;
 
-            int k0 = k / (KLane * KPack);
-            tempk  = k % (KLane * KPack);
-            int k1 = tempk / KPack;
-            int k2 = tempk % KPack;
+                int k0 = k / (KLane * KPack);
+                tempk  = k % (KLane * KPack);
+                int k1 = tempk / KPack;
+                int k2 = tempk % KPack;
 
-            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
-                              k1 * KPack * NLane + n1 * KPack + k2;
+                int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                                  k1 * KPack * NLane + n1 * KPack + k2;
 
-            dst[outputIndex / 2] = src[(n * K + k) / 2];
+                dst[outputIndex / 2] = src[(n * K + k) / 2];
+            }
         }
     }
-}
 #endif
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using AElementOp = PassThrough;
-using BElementOp = PassThrough;
+    using AElementOp = PassThrough;
+    using BElementOp = PassThrough;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
+    static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
-static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t Nswizzle  = false;
-static constexpr ck::index_t Act_OP    = 1; // 0: gelu_and_mul, 1: silu_and_mul
+    static constexpr ck::index_t MPerBlock = 128;
+    static constexpr ck::index_t Nswizzle  = false;
+    static constexpr ck::index_t Act_OP    = 1; // 0: gelu_and_mul, 1: silu_and_mul
 
-// clang-format off
+    // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             Row, Col, DsLayout, ELayout, 
             A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
@@ -188,9 +197,13 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             2,    1,   S<1, 32, 1, 8>, S<4, 1, 1>,
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Act_OP, Nswizzle, true, MulRoutedWeight, true, ck::index_t, A0DataType>;
-// clang-format on
+    // clang-format on
 
-int main(int argc, char* argv[])
+    int Run(int argc, char* argv[]);
+};
+
+template <typename Fp8, typename Bf8>
+int Example<Fp8, Bf8>::Run(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
@@ -466,7 +479,7 @@ int main(int argc, char* argv[])
     }
 
     if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
-         ck::is_gfx11_supported() || ck::is_gfx12_supported()))
+         ck::is_gfx11_supported() || ck::is_gfx117_supported() || ck::is_gfx12_supported()))
     {
         std::cout << "This kernel support gfx942, gfx950, gfx11 and gfx12 only" << std::endl;
     }
@@ -555,3 +568,5 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+
+int main(int argc, char* argv[]) { return ck::utils::run_fp8_example<Example>(argc, argv); }

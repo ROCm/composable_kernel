@@ -1,7 +1,7 @@
 
 FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ROCMVERSION=10.0
+ARG ROCMVERSION=10.1
 
 # TheRock nightly tarball configuration.
 # By default, discovers the latest tarball from the nightlies index.
@@ -12,7 +12,7 @@ ARG ROCMVERSION=10.0
 #     --build-arg TARBALL_PATTERN=therock-dist-linux-gfx90a
 #     --build-arg TARBALL_PATTERN=therock-dist-linux-gfx94X-dcgpu
 ARG TARBALL_URL=""
-ARG TARBALL_BASE=https://rocm.nightlies.amd.com/tarball-multi-arch
+ARG TARBALL_BASE=https://nightly.repo.amd.com/rocm/core/tarball
 ARG TARBALL_PATTERN=therock-dist-linux-multiarch
 
 ARG compiler_version=""
@@ -34,7 +34,7 @@ RUN if [ "$compiler_version" = "therock" ]; then \
         else \
             echo "Discovering latest tarball from $TARBALL_BASE..." && \
             TARBALL_URL="${TARBALL_BASE}/$(curl -sL "${TARBALL_BASE}/" \
-                | grep -oP '"name":\s*"\K'"${TARBALL_PATTERN}"'-[^"]+\.tar\.gz' \
+                | grep -oP '"name":\s*"\K'"${TARBALL_PATTERN}"'(?!-tests)-[^"]+\.tar\.gz' \
                 | sort -V | tail -1)" && \
             echo "Found: $TARBALL_URL" ; \
         fi && \
@@ -42,10 +42,11 @@ RUN if [ "$compiler_version" = "therock" ]; then \
         tar -xzf /tmp/rocm.tar.gz -C /opt/rocm --strip-components=1 && \
         rm /tmp/rocm.tar.gz ; \
     else echo "using the release compiler" && \
-        wget -O therock-dist-linux.tar.gz https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-multiarch-10.0.0.tar.gz && \
+        wget -O therock-dist-linux.tar.gz https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-multiarch-10.1.0.tar.gz && \
         rm -rf /opt/rocm && mkdir /opt/rocm && \
         tar -xzf therock-dist-linux.tar.gz -C /opt/rocm --strip-components=1 && \
         rm therock-dist-linux.tar.gz && \
+        rm -rf /opt/rocm/lib/libhiptensor* && \
         wget https://repo.radeon.com/amdgpu-install/31.40/ubuntu/noble/amdgpu-install_31.40.314000-1_all.deb && \
         apt install ./amdgpu-install_31.40.314000-1_all.deb -y; \
     fi

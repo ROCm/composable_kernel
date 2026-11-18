@@ -80,7 +80,7 @@ using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWe
 
 int main(int argc, char* argv[])
 {
-    if(ck::is_gfx11_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx117_supported())
     {
         return 0;
     }

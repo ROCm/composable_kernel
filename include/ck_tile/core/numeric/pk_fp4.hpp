@@ -19,7 +19,8 @@
 
 #include <type_traits>
 
-#if defined(__gfx950__) || defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__gfx950__) || \
+    defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
 #define CK_TILE_FP4_CVT_DEVICE 1
 #else
 #define CK_TILE_FP4_CVT_DEVICE 0
@@ -318,7 +319,7 @@ CK_TILE_DEVICE pk_fp4_raw_t _to_f4(T src, float scale = 1.0f)
         static_assert(false_type::value, "Unsupported type.");
     return cvt.pf4[0];
 }
-#elif defined(__gfx125__)
+#elif defined(__gfx125__) && !defined(__gfx1251__)
 template <typename T, int Opsel>
 CK_TILE_DEVICE T _from_f4x8_pkscale(uint32_t src, uint32_t scale)
 {
@@ -571,7 +572,7 @@ CK_TILE_HOST_DEVICE constexpr bf16_t pk_fp4_to_bf16(const pk_fp4_t& x, float sca
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t fp32x8_to_pk_fp4(const fp32x8_t& x, float scale)
 {
-#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
     return bit_cast<pk_fp4x4_t>(impl::_to_f4(x, scale));
 #else
     // Pack 8 floats into 4 pk_fp4_t values using fp32x2_to_pk_fp4
@@ -585,7 +586,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t fp32x8_to_pk_fp4(const fp32x8_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t fp16x8_to_pk_fp4(const fp16x8_t& x, float scale)
 {
-#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
     return bit_cast<pk_fp4x4_t>(impl::_to_f4(x, scale));
 #else
     // Pack 8 fp16 values into 4 pk_fp4_t values using fp16x2_to_pk_fp4
@@ -598,7 +599,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t fp16x8_to_pk_fp4(const fp16x8_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t bf16x8_to_pk_fp4(const bf16x8_t& x, float scale)
 {
-#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
     return bit_cast<pk_fp4x4_t>(impl::_to_f4(x, scale));
 #else
     // Pack 8 bf16 values into 4 pk_fp4_t values using bf16x2_to_pk_fp4
@@ -611,7 +612,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4x4_t bf16x8_to_pk_fp4(const bf16x8_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr fp32x8_t pk_fp4_to_fp32x8(const pk_fp4x4_t& x, float scale)
 {
-#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
     return impl::_from_f4<fp32x8_t>(x, scale);
 #else
     auto v0 = pk_fp4_to_fp32x2(pk_fp4_t{x[0]}, scale);
@@ -623,7 +624,7 @@ CK_TILE_HOST_DEVICE constexpr fp32x8_t pk_fp4_to_fp32x8(const pk_fp4x4_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr fp16x8_t pk_fp4_to_fp16x8(const pk_fp4x4_t& x, float scale)
 {
-#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
     return impl::_from_f4<fp16x8_t>(x, scale);
 #else
     auto v0 = pk_fp4_to_fp16x2(pk_fp4_t{x[0]}, scale);
@@ -635,7 +636,7 @@ CK_TILE_HOST_DEVICE constexpr fp16x8_t pk_fp4_to_fp16x8(const pk_fp4x4_t& x, flo
 }
 CK_TILE_HOST_DEVICE constexpr bf16x8_t pk_fp4_to_bf16x8(const pk_fp4x4_t& x, float scale)
 {
-#if defined(__gfx1250__) && !defined(__gfx1250_strict__)
+#if defined(__gfx1250__) && !defined(__gfx1250_strict__) && !defined(__gfx1251__)
     return impl::_from_f4<bf16x8_t>(x, scale);
 #else
     auto v0 = pk_fp4_to_bf16x2(pk_fp4_t{x[0]}, scale);
@@ -793,7 +794,7 @@ CK_TILE_SCALED_TYPE_CONVERT(bf16x8_t, bf16x8, pk_fp4x4_t, pk_fp4)
 
 #undef CK_TILE_SCALED_TYPE_CONVERT
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) && !defined(__gfx1251__)
 /* scale is packed 4 form [FP4]
  * Scale_sel: select different scale set and apply to the tensor[16x16] represented by a wave,
  *            th[0-15]: 16x8 and th[16-31]: 16x8

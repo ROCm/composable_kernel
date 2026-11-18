@@ -198,6 +198,9 @@ class TestMxGemmGpu(unittest.TestCase):
             ]
             if self.ARCH == "gfx1250" and config.pipeline == "weight_preshuffle":
                 unsupported.append(MxGemmProblem(bm, 17, bk))
+            if self.ARCH == "gfx950" and not config.pad_n:
+                # Passes the bridge scale checks but fails native N alignment.
+                unsupported.append(MxGemmProblem(bm, bn - 32, bk))
             for problem in unsupported:
                 _, _, a, b, sa, sb = runner.make_inputs(problem, scale=1.0, seed=5)
                 with self.assertRaisesRegex(RuntimeError, "unsupported"):
