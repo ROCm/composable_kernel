@@ -2745,10 +2745,6 @@ def _expand_values(entry: Optional[Dict[str, Any]], default: List[Any]) -> List[
     return list(entry.get("values", default))
 
 
-def _is_power_of_two(x: int) -> bool:
-    return x > 0 and (x & (x - 1)) == 0
-
-
 def _cshuffle_store_ok(
     m_repeat: int, n_repeat: int, warp_tile_m: int, warp_tile_n: int
 ) -> bool:

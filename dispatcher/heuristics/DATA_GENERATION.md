@@ -121,7 +121,7 @@ ls build/bin/benchmark_gemm_universal_fp8_rcr_* | wc -l
 
 The config files live in:
 ```
-tile_engine/ops/gemm/gemm_universal/configs/
+tile_engine/ops/gemm/configs/
   default_config.json       # Default: full enumeration
   default_ci_config.json    # CI: reduced set for fast testing
   user_provided_config.json # Custom: your own subset

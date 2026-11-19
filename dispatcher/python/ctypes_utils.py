@@ -450,118 +450,6 @@ def auto_correct_kernel_config(
     return new_config, True, corrections
 
 
-def print_kernel_config(config: "KernelConfig", title: str = "KERNEL CONFIGURATION"):
-    """
-    Print a formatted kernel configuration for GEMM.
-
-    Args:
-        config: The KernelConfig to print
-        title: Title to display (e.g., "REQUESTED KERNEL CONFIGURATION")
-    """
-    print()
-    print("=" * 70)
-    print(f"  {title}")
-    print("=" * 70)
-    print(f"  Data Type A:   {config.dtype_a}")
-    print(f"  Data Type B:   {config.dtype_b}")
-    print(f"  Data Type C:   {config.dtype_c}")
-    print(f"  Accumulator:   {config.dtype_acc}")
-    print()
-    print(
-        f"  Layout:        {config.layout} (A={config.layout_a}, B={config.layout_b}, C={config.layout_c})"
-    )
-    print()
-    print(f"  Tile M x N x K: {config.tile_m} x {config.tile_n} x {config.tile_k}")
-    print(f"  Wave Config:    {config.wave_m} x {config.wave_n} x {config.wave_k}")
-    print(f"  Warp Tile:      {config.warp_m} x {config.warp_n} x {config.warp_k}")
-    print()
-    print(f"  Pipeline:      {config.pipeline}")
-    print(f"  Scheduler:     {config.scheduler}")
-    print(f"  Epilogue:      {config.epilogue}")
-    print()
-    print(f"  Target Arch:   {config.gfx_arch}")
-    print("=" * 70)
-    print()
-
-
-def print_auto_correction(
-    original: "KernelConfig",
-    corrected: "KernelConfig",
-    corrections: List[str],
-    indent: str = "  ",
-):
-    """
-    Print what was auto-corrected and why.
-
-    Args:
-        original: Original configuration before correction
-        corrected: Configuration after correction
-        corrections: List of correction descriptions
-        indent: Indentation for output
-    """
-    if not corrections:
-        print(f"{indent}OK Configuration valid - no corrections needed")
-        return
-
-    print(f"\n{indent}WARNING AUTO-CORRECTION APPLIED:")
-    print(f"{indent}" + "-" * 50)
-    for correction in corrections:
-        print(f"{indent}  - {correction}")
-    print(f"{indent}" + "-" * 50)
-    print()
-
-
-def find_matching_kernel_header(config: "KernelConfig") -> Optional[Path]:
-    """
-    Find a kernel header that EXACTLY matches the config.
-
-    Uses progressively relaxed matching strategies.
-    """
-    kernel_dir = get_generated_kernels_dir()
-
-    dtype = config.dtype_a
-    layout = config.layout
-    pipeline = config.pipeline
-    scheduler = config.scheduler
-    tile_str = config.tile_str
-    wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"
-    warp_str = f"{config.warp_m}x{config.warp_n}x{config.warp_k}"
-
-    # Strategy 1: Exact match with ALL parameters including warp tile
-    pattern = f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_{wave_str}_{warp_str}.hpp"
-    matches = _glob_native(kernel_dir, pattern)
-    if matches:
-        return matches[0]
-
-    # Strategy 2: Match with tile and wave, any warp
-    pattern = (
-        f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_{wave_str}_*.hpp"
-    )
-    matches = _glob_native(kernel_dir, pattern)
-    if matches:
-        return matches[0]
-
-    # Strategy 3: Match with just tile (ignore wave/warp)
-    pattern = f"gemm_{dtype}_{layout}_{pipeline}_*_{scheduler}_*_{tile_str}_*.hpp"
-    matches = _glob_native(kernel_dir, pattern)
-    if matches:
-        return matches[0]
-
-    # Strategy 4: Match with intrawave (known to work)
-    pattern = f"gemm_{dtype}_{layout}_*_intrawave_*_{tile_str}_*.hpp"
-    matches = _glob_native(kernel_dir, pattern)
-    if matches:
-        return matches[0]
-
-    # Strategy 5: Any kernel with matching dtype/layout/tile
-    pattern = f"gemm_{dtype}_{layout}_*_{tile_str}_*.hpp"
-    matches = _glob_native(kernel_dir, pattern)
-    if matches:
-        return matches[0]
-
-    return None
-
-
 # =============================================================================
 # Library Loading
 # =============================================================================
@@ -994,12 +882,6 @@ class CodegenResult:
     kernel_count: int = 0
     elapsed_seconds: float = 0.0
     instance_names: List[str] = field(default_factory=list)
-
-    def get_generated_kernels(self) -> List[Path]:
-        """Get list of generated kernel headers"""
-        if self.output_dir.exists():
-            return list(self.output_dir.glob("*.hpp"))
-        return []
 
     def print_instances(self, prefix: str = "    "):
         """Print all generated instance names."""
@@ -1524,12 +1406,6 @@ def preshuffle_weight_matrix(
     return np.ascontiguousarray(B_shuffled.reshape(-1)).reshape(B.shape)
 
 
-def is_preshuffle_supported(arch: str) -> bool:
-    """Check if preshuffle is supported for the given architecture."""
-    # Preshuffle is supported on CDNA (gfx9xx) and RDNA (gfx11xx, gfx12xx)
-    return arch.startswith(("gfx9", "gfx11", "gfx12"))
-
-
 @dataclass
 class KernelConfig:
     """
@@ -1894,88 +1770,6 @@ class CodegenRunner:
 
         return results
 
-    def generate_batch_parallel(
-        self,
-        batch: List[Dict[str, Any]],
-        verbose: bool = True,
-        show_instances: bool = False,
-    ) -> List[CodegenResult]:
-        """
-        Generate a batch of kernel specs IN PARALLEL.
-
-        This is the most flexible parallel generation method.
-
-        Args:
-            batch: List of dicts with keys: variant, datatype, layout, gpu_target, output_dir
-            verbose: Print progress
-            show_instances: Print "Adding Instance" and "Building Instance" for each kernel
-
-        Returns:
-            List of CodegenResult
-        """
-        start_total = time.time()
-
-        if verbose:
-            print(
-                f"Generating {len(batch)} kernel specs in parallel (workers={self.max_workers})..."
-            )
-
-        # Build args for each spec
-        args_list = []
-        for spec in batch:
-            args = {
-                "codegen_path": str(self.codegen_path),
-                "output_dir": str(spec.get("output_dir", self.output_dir)),
-                "variant": spec.get("variant", "standard"),
-                "datatype": spec.get("datatype", self.datatype),
-                "layout": spec.get("layout", self.layout),
-                "gpu_target": spec.get("gpu_target", self.gpu_target),
-                "extra_args": spec.get("extra_args", []),
-                "timeout": spec.get("timeout", 300),
-                "show_instances": show_instances,
-            }
-            args_list.append(args)
-
-        results = []
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(_run_codegen_subprocess, args): args["variant"]
-                for args in args_list
-            }
-
-            for future in as_completed(futures):
-                variant = futures[future]
-                try:
-                    result = future.result()
-                    results.append(result)
-                    if verbose:
-                        status = "OK" if result.success else "FAIL"
-                        print(
-                            f"  {status} {variant}: {result.kernel_count} kernels in {result.elapsed_seconds:.2f}s"
-                        )
-                        if show_instances and result.instance_names:
-                            for name in result.instance_names:
-                                print(f"      Adding Instance: {name}")
-                                print(f"      Building Instance: {name}")
-                except Exception as e:
-                    results.append(
-                        CodegenResult(
-                            success=False,
-                            output_dir=self.output_dir,
-                            variant=variant,
-                            stderr=str(e),
-                        )
-                    )
-                    if verbose:
-                        print(f"  FAIL {variant}: FAILED - {e}")
-
-        total_time = time.time() - start_total
-        if verbose:
-            total_kernels = sum(r.kernel_count for r in results)
-            print(f"Total: {total_kernels} kernels in {total_time:.2f}s")
-
-        return results
-
     def generate_from_config(
         self,
         config: KernelConfig,
@@ -2252,208 +2046,11 @@ class CodegenRunner:
             print(f"  Build error: {e}")
             return None
 
-    def build_libraries_parallel(
-        self, configs_and_headers: List[Tuple[KernelConfig, Path]], verbose: bool = True
-    ) -> List[Optional[Path]]:
-        """
-        Build multiple libraries in parallel using ProcessPoolExecutor.
-        Returns a list of library paths (or None if a build failed) in the same order.
-        """
-        import time
-        from concurrent.futures import ProcessPoolExecutor, as_completed
-
-        start_time = time.time()
-        build_dir = get_build_dir()
-        root = get_dispatcher_root()
-        ck_root = root.parent
-        ctypes_source = root / "bindings/ctypes/gemm_ctypes_lib.cpp"
-        static_lib = build_dir / "libck_tile_dispatcher.a"
-
-        if not ctypes_source.exists() or not static_lib.exists():
-            if verbose:
-                print("  Required source or static library missing for parallel build.")
-            return [None] * len(configs_and_headers)
-
-        args_list = []
-        for config, kernel_header in configs_and_headers:
-            lib_name = _gemm_library_name(config)
-            lib_path = build_dir / "examples" / lib_name
-            obj_file = lib_path.with_suffix(".o")
-
-            compile_cmd = [
-                "/opt/rocm/bin/hipcc",
-                "-c",
-                "-fPIC",
-                "-O3",
-                f"-I{root / 'include'}",
-                f"-I{ck_root / 'include'}",
-                f"-I{ck_root}",
-                f"-I{root / 'build/generated_kernels'}",
-                "-DCK_TILE_SINGLE_KERNEL_INCLUDE",
-                f"-include{kernel_header}",
-                "-D__HIP_PLATFORM_AMD__",
-                f"--offload-arch={config.gfx_arch}",
-                f'-DGFX_ARCH="{config.gfx_arch}"',
-                *unified_framework_flags(config.gfx_arch),
-                *arch_feature_defines(config.gfx_arch),
-                "-mllvm",
-                "-enable-noalias-to-md-conversion=0",
-                "-Wno-undefined-func-template",
-                "-Wno-float-equal",
-                str(ctypes_source),
-                "-o",
-                str(obj_file),
-            ]
-
-            link_cmd = [
-                "/opt/rocm/bin/hipcc",
-                "-shared",
-                "-fPIC",
-                f"--offload-arch={config.gfx_arch}",
-                "--hip-link",
-                str(obj_file),
-                str(static_lib),
-                "-o",
-                str(lib_path),
-            ]
-
-            args_list.append(
-                {
-                    "compile_cmd": compile_cmd,
-                    "link_cmd": link_cmd,
-                    "lib_path": str(lib_path),
-                    "config_name": f"{config.dtype_a}_{config.layout}_{config.tile_str}",
-                }
-            )
-
-        if verbose:
-            print(
-                f"Building {len(args_list)} libraries in parallel (workers={self.max_workers})..."
-            )
-
-        results_map = {}
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(_run_hipcc_subprocess, args): i
-                for i, args in enumerate(args_list)
-            }
-            for future in as_completed(futures):
-                idx = futures[future]
-                success, lib_path, err = future.result()
-                results_map[idx] = Path(lib_path) if success else None
-                if verbose:
-                    status = "OK" if success else f"FAIL ({err})"
-                    print(
-                        f"  {status} {Path(lib_path).name if success else args_list[idx]['config_name']}"
-                    )
-
-        if verbose:
-            elapsed = time.time() - start_time
-            print(f"Parallel build finished in {elapsed:.2f}s")
-
-        return [results_map[i] for i in range(len(configs_and_headers))]
-
-    def generate_preselected(
-        self, preset: str = "fp16_rcr_essential", output_dir: Optional[Path] = None
-    ) -> CodegenResult:
-        """
-        Generate kernels from a preselected set.
-
-        Args:
-            preset: Preselected kernel set name (e.g., "fp16_rcr_essential")
-            output_dir: Override output directory
-
-        Returns:
-            CodegenResult
-        """
-        import sys
-
-        out_dir = output_dir or self.output_dir
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        cmd = [
-            sys.executable,
-            str(self.codegen_path),
-            "--output-dir",
-            str(out_dir),
-            "--preselected",
-            preset,
-        ]
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-            kernel_count = len(list(out_dir.glob("*.hpp")))
-
-            return CodegenResult(
-                success=result.returncode == 0,
-                output_dir=out_dir,
-                variant=f"preselected:{preset}",
-                stdout=result.stdout,
-                stderr=result.stderr,
-                kernel_count=kernel_count,
-            )
-        except Exception as e:
-            return CodegenResult(
-                success=False,
-                output_dir=out_dir,
-                variant=f"preselected:{preset}",
-                stderr=str(e),
-            )
-
-    def ensure_kernels_exist(self) -> bool:
-        """
-        Ensure kernel headers exist, generating if necessary.
-
-        Returns:
-            True if kernels exist or were successfully generated
-        """
-        if self.output_dir.exists():
-            kernels = list(self.output_dir.glob("*.hpp"))
-            if kernels:
-                return True
-
-        # Generate standard kernels
-        result = self.generate("standard")
-        return result.success
-
     def list_kernels(self) -> List[Path]:
         """List all generated kernel headers"""
         if self.output_dir.exists():
             return sorted(self.output_dir.glob("*.hpp"))
         return []
-
-    def categorize_kernels(self) -> dict:
-        """
-        Categorize kernels by tile size and variant.
-
-        Returns:
-            Dict with categories by tile size and variant type
-        """
-        kernels = self.list_kernels()
-
-        # Separate by variant first
-        preshuffle = [k for k in kernels if "_preshuffle" in k.name]
-        multi_d = [k for k in kernels if "_multid_" in k.name]
-        standard = [
-            k
-            for k in kernels
-            if "_preshuffle" not in k.name and "_multid_" not in k.name
-        ]
-
-        # Categorize standard kernels by tile size
-        compute = [k for k in standard if "_256x" in k.name]
-        memory = [k for k in standard if "_128x" in k.name]
-        latency = [k for k in standard if "_64x" in k.name or "_32x" in k.name]
-
-        return {
-            "total": len(kernels),
-            "standard": len(standard),
-            "compute": compute,
-            "memory": memory,
-            "latency": latency,
-            "preshuffle": preshuffle,
-            "multi_d": multi_d,
-        }
 
 
 # =============================================================================
@@ -2500,10 +2097,6 @@ class Registry:
     def clear(self):
         """Clear all kernels."""
         self._kernels.clear()
-
-    def bind_library(self, lib: DispatcherLib):
-        """Bind to a loaded dispatcher library."""
-        self._lib = lib
 
     def build(
         self,
@@ -2709,7 +2302,7 @@ def setup_gemm_dispatcher(
         )
         result.config = config
         result.corrections = corrections
-        # Note: corrections will be displayed by the caller via print_auto_correction
+        # Corrections are returned on result.corrections for the caller to report.
 
     # Step 2: Setup codegen and generate kernel
     log(f"  Generating kernel (tile={config.tile_str})...")

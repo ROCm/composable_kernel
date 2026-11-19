@@ -41,18 +41,23 @@ against a full sweep, see
 
 ### Folder layout
 
-The bridged regular-GEMM path follows the same op-root convention as the merged
-`fmha/` and `grouped_conv/` bridges — driver + worker + a flat `configs/` at the
-op root:
+The bridged GEMM paths follow the same op-root convention as the `fmha/` and
+`grouped_conv/` bridges — driver + worker at the op root, and a flat `configs/`
+for regular GEMM:
 
 ```
 gemm/
-├── gemm_full_benchmark.py     # bridge driver (op root)
-├── run_one_gemm_kernel.py     # disposable per-kernel worker (op root)
-├── configs/                   # bridged gemm_universal sweep configs (flat)
-├── gemm_instance_builder.py   # shared generator for the non-bridged variants
-├── gemm_benchmark.{py,hpp}, gemm_common.hpp, gemm_profiler.hpp  # shared harness
-├── gemm_multi_d/   gemm_preshuffle/   grouped_gemm/             # legacy variants
+├── gemm_full_benchmark.py          # bridge driver: gemm_universal, multi_d, multi_abd, preshuffle
+├── run_one_gemm_kernel.py          # disposable per-kernel worker for the above
+├── <op>_full_benchmark.py          # per-op bridge drivers: batched_gemm, batched_contraction,
+├── run_one_<op>_kernel.py          #   grouped_gemm, gemm_multi_d, mx_gemm, streamk_gemm
+├── configs/                        # gemm_universal sweep configs (flat)
+├── gemm_vector_fallback.py         # vector-width fallback shared by the bridge drivers
+├── gemm_validation_utils.py        # arch/warp-tile tables (also read by the dispatcher)
+├── gemm_instance_builder.py        # shared generator for the native (legacy) builds
+├── gemm_benchmark.{py,hpp}, gemm_common.hpp, gemm_profiler.hpp  # native harness
+├── gemm_universal/  gemm_multi_d/  gemm_multi_abd/  gemm_preshuffle/  grouped_gemm/ ...
+│                                   # per-variant configs/ + native CMake builds
 └── README.md
 ```
 
@@ -761,46 +766,37 @@ auto-detected (`HIP_VISIBLE_DEVICES`, then `rocm-smi`/`amd-smi`); override with
 
 | Axis | Supported |
 |---|---|
-| dtype | `fp16`, `bf16` |
-| layout | `rcr`, `rrr`, `crr`, `ccr` (row-major C only — ck_tile rejects column-major C at build) |
+| dtype | `fp16`, `bf16`, `fp32`, `fp8`, `bf8` (per-arch; `gemm_preshuffle` excludes `fp32`, `gemm_multi_d`/`gemm_multi_abd` are `fp16` only) |
+| layout | `rcr`, `rrr`, `crr`, `ccr` (row-major C only — ck_tile rejects column-major C at build); `gemm_multi_abd` takes the 4-char `rcrr`; `gemm_preshuffle` is `rcr` only |
 
 ### Variant scope
 
-The bridge is **one shared, variant-aware driver** (`gemm_full_benchmark.py` +
-`run_one_gemm_kernel.py`), not a per-variant copy of the driver. The bridged
-regular-GEMM path (`gemm_universal`) uses the op-root `configs/`; `--variant`
-selects a not-yet-bridged variant's own `configs/` subdirectory.
+`gemm_full_benchmark.py` + `run_one_gemm_kernel.py` form **one shared,
+variant-aware driver**, not a per-variant copy. `--variant` selects both the
+`configs/` directory and the codegen variant:
 
-What that means for this PR:
+| `--variant` | Configs | Codegen variant |
+|---|---|---|
+| `gemm_universal` (default) | `configs/` | `standard` |
+| `gemm_multi_d` | `gemm_multi_d/configs/` | `multi_d` |
+| `gemm_multi_abd` | `gemm_multi_abd/configs/` | `multi_abd` |
+| `gemm_preshuffle` | `gemm_preshuffle/configs/` | `preshuffle` |
 
-- **Only `gemm_universal` is wired and validated through the bridge here.** It is
-  the foundation variant; the dispatcher codegen path is exercised and parity-
-  checked for it alone.
-- The `gemm_multi_d/`, `gemm_preshuffle/`, and `grouped_gemm/` `configs/`
-  directories are **scaffolding** that follows the per-variant convention so the
-  layout is ready. `--variant` will select them, but the bridge does **not** yet
-  produce correct kernels for those variants on this PR — do not treat their
-  presence as working support.
-- Grouped GEMM and stream-K go through **separate bridge efforts** (stream-K in
-  #8136, grouped GEMM on its own branch), not this PR.
+Grouped GEMM, batched GEMM, batched contraction, mx_gemm, stream-K and
+gemm_bquant have their own `<op>_full_benchmark.py` drivers (gemm_bquant's lives
+in `block_scale_gemm/gemm_bquant/`). `gemm_multi_d` also has a dedicated
+`gemm_multi_d_full_benchmark.py`. `--variant grouped_gemm` is rejected; use
+`grouped_gemm_full_benchmark.py`.
 
-### Removal note
+### Native (legacy) Tile Engine builds
 
-The legacy regular-GEMM standalone build path has been **removed**, and the
-`gemm_universal/` folder is gone entirely. The per-config benchmark generator and
-driver (`gemm_universal_instance_builder.py`, `gemm_universal_benchmark.py`,
-`gemm_universal_benchmark*.{cpp,hpp}`, and `gemm_universal/CMakeLists.txt`) no
-longer exist; its sweep configs were promoted to the op-root `configs/` directory
-(matching the `fmha/` and `grouped_conv/` bridge convention) and are consumed by
-the bridge. Regular GEMM now runs exclusively through the Dispatcher bridge
-workflow above (`gemm_full_benchmark.py` / `run_one_gemm_kernel.py`). The other
-variants (`gemm_multi_d/`, `gemm_preshuffle/`, `grouped_gemm/`) still use the
-shared `gemm_instance_builder.py` generator.
-
-The build-system, build-instruction, and benchmark-execution sections below
-describe that removed standalone path and are retained only as historical
-reference for the non-bridged variants; the `benchmark_gemm_universal_*` targets
-they mention are no longer produced.
+The per-variant native builds — `CMakeLists.txt` + `*_instance_builder.py` +
+`*_benchmark*.{py,cpp,hpp}` producing `benchmark_<op>_*` executables — are
+**still present and still used**: the nightly `DISPATCHER_PERF` CI lane
+(`groovy/vars/ck.groovy`) builds `benchmark_<op>_all` with
+`-DBUILD_CK_TILE_ENGINE=ON` and runs each op's `*_benchmark.py`. This includes
+`gemm_universal/`. They will be removed once that lane runs on the bridge
+drivers. The sections below document that native path.
 
 ## Build System Architecture
 
@@ -814,12 +810,12 @@ The new tile engine benchmark system compiles each kernel configuration into a s
 
 Each benchmark executable follows the naming pattern:
 ```
-benchmark_gemm_<dtype>_<layout>_<config>_<tile_sizes>
+benchmark_gemm_universal_<dtype>_<layout>_<config>_<tile_sizes>
 ```
 
 ### Monolithic Build (Legacy Approach)
 
-The original system compiles all kernels into a single executable (`benchmark_gemm_[Datatype]_[Layout]`), which can then be filtered at runtime using command-line arguments.
+The original system compiles all kernels into a single executable (`benchmark_gemm_universal_[Datatype]_[Layout]`), which can then be filtered at runtime using command-line arguments.
 
 ## Build Instructions
 
@@ -838,10 +834,10 @@ mkdir build && cd build
 # Replace [Arch] with your GPU architecture (e.g., gfx90a, gfx942)
 # Replace [Datatype1;Datatype2;...] with datatypes (fp8, bf8, int8, fp16, bf16, fp32, fp64)
 # Replace [Layout1;Layout2;...] with layouts (rcr, rrr, crr, ccr)
-../script/cmake-ck-dev.sh ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" -DGEMM_LAYOUT="[Layout1;Layout2]"
+../script/cmake-ck-dev.sh ../ [Arch] -DBUILD_CK_TILE_ENGINE=ON -DGEMM_UNIVERSAL_DATATYPE="[Datatype1;Datatype2]" -DGEMM_UNIVERSAL_LAYOUT="[Layout1;Layout2]"
 
 # Build specific benchmarks
-make benchmark_gemm_[Datatype1]_[Layout1] -j
+make benchmark_gemm_universal_[Datatype1]_[Layout1] -j
 ```
 
 ### Configuration Options
@@ -851,16 +847,16 @@ The build system supports several configuration options:
 #### Using Custom Config Files
 ```bash
 # Method 1: CMake variable (config file must be in configs/ directory)
-cmake -DGEMM_CONFIG_FILE=my_custom_config.json ...
+cmake -DGEMM_UNIVERSAL_CONFIG_FILE=my_custom_config.json ...
 
 # Method 2: Environment variable (takes precedence over CMake variable)
-export GEMM_CONFIG_FILE=my_custom_config.json
+export GEMM_UNIVERSAL_CONFIG_FILE=my_custom_config.json
 cmake ...
 ```
 
 #### Config File Priority Order
-1. **Environment variable** `GEMM_CONFIG_FILE` (highest priority)
-2. **CMake variable** `GEMM_CONFIG_FILE`
+1. **Environment variable** `GEMM_UNIVERSAL_CONFIG_FILE` (highest priority)
+2. **CMake variable** `GEMM_UNIVERSAL_CONFIG_FILE`
 3. **Default config** (default_config.json for all layouts)
 
 **Note**: All custom config files must be placed in the `tile_engine/ops/gemm/configs/` directory.
@@ -870,7 +866,7 @@ cmake ...
 ```bash
 # Build for gfx942 with fp8 and fp16 datatypes, rcr layout
 mkdir build && cd build
-../script/cmake-ck-dev.sh ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" -DGEMM_LAYOUT="rcr;ccr;rrr;crr"
+../script/cmake-ck-dev.sh ../ gfx942 -DBUILD_CK_TILE_ENGINE=ON -DGEMM_UNIVERSAL_DATATYPE="fp8;fp16" -DGEMM_UNIVERSAL_LAYOUT="rcr;ccr;rrr;crr"
 make benchmark_gemm_universal_fp8_rcr -j
 make benchmark_gemm_universal_fp16_rcr -j
 ```
@@ -882,7 +878,7 @@ make benchmark_gemm_universal_fp16_rcr -j
 make benchmark_gemm_universal_fp8_rcr_compv4_default_intrawave_False_False_False_False_256x256x32_1x4x1_32x32x32
 
 # Build all fp16 benchmarks in parallel
-make -j$(nproc) $(make help | grep benchmark_gemm_fp16 | awk '{print $2}')
+make -j$(nproc) $(make help | grep benchmark_gemm_universal_fp16 | awk '{print $2}')
 ```
 
 ### Rebuilding After Configuration Changes
@@ -907,14 +903,6 @@ cd /path/to/build/directory
 ```bash
 # Run specific pipeline/scheduler/epilogue combination
 ./bin/benchmark_gemm_universal_[Datatype]_[Layout] -pipeline=compv3 -scheduler=intrawave -epilogue=default
-```
-
-### Automated Testing
-
-Use the provided test script to run multiple benchmarks:
-```bash
-cd /path/to/composable_kernel/tile_engine/ops/gemm
-./test_benchmark.sh [build_directory]
 ```
 
 ## Configuration System
@@ -971,20 +959,13 @@ implementations based on configuration files.
 - Validates tile configurations for correctness
 - Creates CMake integration files
 
-#### gemm_instance_builder_parallel.py
-**Purpose**: Parallel version of the instance builder for faster generation of multiple kernel configurations.
-
-**Features**:
-- Multi-threaded kernel generation
-- Improved performance for large configuration spaces
-
-#### validation_utils.py
+#### gemm_validation_utils.py
 **Purpose**: Provides comprehensive validation functions for kernel configurations.
 
 **Key Functions**:
 - `is_tile_config_valid()` - Validates tile dimensions and alignments
 - `is_trait_combination_valid()` - Checks if pipeline/epilogue/scheduler combinations are supported
-- `validate_warp_tile_combination()` - GPU-specific warp tile validation
+- `validate_gemm_warp_tile_combination()` - GPU-specific warp tile validation
 - `validate_lds_capacity()` - Ensures configurations fit in LDS memory
 
 **Validation Checks**:
@@ -992,63 +973,6 @@ implementations based on configuration files.
 - LDS capacity constraints
 - GPU-specific warp tile support
 - Unsupported trait combinations
-
-#### test_validation.py
-**Purpose**: Test suite for the validation logic to ensure correctness.
-
-**Usage**:
-```bash
-python test_validation.py
-```
-
-**Tests**:
-- Warp tile combination validation
-- Trait combination validation
-- Full tile configuration validation
-
-#### json_config.py
-**Purpose**: Configuration file parsing and management.
-
-**Features**:
-- JSON configuration loading
-- Default configuration handling
-- Configuration validation
-
-#### codegen_utils.py
-**Purpose**: Utility functions for code generation.
-
-**Features**:
-- Template processing
-- Code formatting utilities
-- File generation helpers
-
-### Shell Scripts
-
-#### test_benchmark.sh
-**Purpose**: Automated benchmark testing script that finds and runs all built benchmark executables.
-
-**Features**:
-- Automatic build directory detection
-- Batch execution of multiple benchmarks
-- CSV result collection
-- Colored output for easy reading
-- Example command generation
-
-**Usage**:
-```bash
-# Auto-detect build directory
-./test_benchmark.sh
-
-# Specify build directory
-./test_benchmark.sh /path/to/build/directory
-```
-
-**What it does**:
-1. Finds all benchmark executables in the build directory
-2. Runs each with multiple problem sizes (512, 1024, 2048)
-3. Performs GPU verification
-4. Saves results to timestamped CSV file
-5. Provides summary statistics
 
 ## Command Line Options
 
@@ -1159,11 +1083,6 @@ Enable verbose logging:
 ./bin/benchmark_gemm_... -log=true -verify=1
 ```
 
-Test validation logic:
-```bash
-python test_validation.py
-```
-
 ## Performance Tips
 
 1. **Optimal Problem Sizes**: Use sizes that are multiples of tile dimensions
@@ -1207,9 +1126,8 @@ done
 ## Contributing
 
 When adding new features or configurations:
-1. Update validation logic in `validation_utils.py`
-2. Add tests to `test_validation.py`
-3. Update configuration examples
-4. Document new command-line options
+1. Update validation logic in `gemm_validation_utils.py`
+2. Update configuration examples
+3. Document new command-line options
 
 For more information about the Composable Kernel project, visit the main repository documentation.

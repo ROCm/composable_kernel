@@ -93,10 +93,6 @@ log = logging.getLogger(__name__)
 # so the codegen, arch_filter and python/gemm_utils share one rule set.
 
 
-def _is_power_of_two(x: int) -> bool:
-    return x > 0 and (x & (x - 1)) == 0
-
-
 # ============================================================================
 # Configuration and Data Structures
 # ============================================================================
@@ -679,9 +675,9 @@ using ADataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.datatype]};
 using BDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.datatype]};
 using CDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[output_dtype]};
 using AccDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[acc_dtype]};
-// Layout aliases in the global namespace so single-kernel consumers (the
-// ctypes lib's fallback key derivation and the preshuffle B-shuffle) can query
-// this kernel's operand layouts by type.
+// Layout aliases in the global namespace so single-kernel consumers (e.g. the
+// ctypes lib's preshuffle B-shuffle) can query this kernel's operand layouts by
+// type.
 {self._multi_abd_global_exports(config, ns_name)}
 using ALayout = {ns_name}::ALayout;
 using BLayout = {ns_name}::BLayout;
@@ -1708,8 +1704,8 @@ class UnifiedGemmCodegen:
 
         # Match tile_engine default configs for GEMM/Preshuffle/Multi-D
         # See: tile_engine/ops/gemm/configs/default_config.json
-        #      tile_engine/ops/gemm_preshuffle/configs/default_config.json
-        #      tile_engine/ops/gemm_multi_d/configs/default_config.json
+        #      tile_engine/ops/gemm/gemm_preshuffle/configs/default_config.json
+        #      tile_engine/ops/gemm/gemm_multi_d/configs/default_config.json
         return {
             "tile_config": {
                 # tile_m/n/k: 64-256 step 64 = [64, 128, 192, 256]

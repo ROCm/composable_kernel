@@ -543,7 +543,6 @@ pip install -r requirements-ml.txt  # ~500 MB (LightGBM, pandas, pyarrow, scikit
 **Examples:**
 ```bash
 python3 examples/gemm/python/09_ml_heuristic.py      # ML-based kernel selection
-python3 examples/gemm/python/10_rank_kernels.py      # Kernel ranking
 ```
 
 **Model Compression:** Trained models are stored in compressed `.lgbm.gz` format to save space (~67% size reduction). Python tools automatically decompress models on first use. For C++ examples, decompress manually:
@@ -824,13 +823,9 @@ not runtime knobs, and are covered under [CMake Options](#cmake-options-referenc
 |----------|---------|-------------|---------|
 | `HIPCC` | `hipcc` (from `PATH`) | `python/dispatcher_common.py`, `scripts/compile_gemm_examples.py`, other `*_builder` scripts | Override the hipcc compiler used to JIT-build the ctypes kernel libraries. |
 | `CK_TILE_HIPCC` | `/opt/rocm/bin/hipcc` | `python/batched_contraction_utils.py`, `python/mx_gemm_utils.py` | Per-op hipcc override for the batched-contraction and mx_gemm bindings (takes precedence there). |
-| `GFX_ARCH` | `gfx942` (parity harness only) | `parity_diag/regression/ab_same_harness.py`; also required as a `-DGFX_ARCH=<arch>` compile flag by the ctypes libs | Target GPU architecture. The ctypes kernel build **requires** it (no silent default); the parity harness falls back to `gfx942`. |
 | `CK_DISPATCHER_LOG_LEVEL` | `info` | `include/ck_tile/dispatcher/dispatcher_log.hpp` | Dispatcher log verbosity. |
 | `CK_DISPATCHER_PRESHUFFLE_CACHE` | off | `bindings/ctypes/gemm_ctypes_lib.cpp` | Opt-in host-side shuffled-B cache for the preshuffle GEMM bridge. Safe **only** when B is immutable and kept alive across calls (perf sweeps); off by default so every call recomputes the shuffle. |
 | `GEMM_PARITY_UNITTEST` | off | `tests/test_gemm_parity.py` | Gate that enables the on-device GEMM parity unittest (skipped unless set). |
-| `PARITY_DEVICE` | `0` | `parity_diag/regression/ab_efficient_sweep.py`, `ab_same_harness.py` | GPU index the A/B parity harness runs on. |
-| `AB_REPEATS` | `3` | `parity_diag/regression/ab_same_harness.py` | Repeat count for the interleaved A/B parity sweep. |
-| `OLD_TE_GEN` | unset | `parity_diag/regression/ab_same_harness.py` | Pin/override the Old-TE baseline generation used by the parity sweep. |
 
 ## Troubleshooting
 
@@ -921,10 +916,10 @@ dispatcher/
 |   |---- codegen_common.py       # Shared: TileConfig, TraitConfigBase, type mappings
 |   |---- unified_gemm_codegen.py # GEMM kernel generator
 |   |---- unified_grouped_conv_codegen.py  # Grouped conv kernel generator
-|   |---- unified_fmha_codegen.py # FMHA kernel generator
-|   |---- fmha_arch_specs.json    # FMHA per-arch tile/pipeline specs
-|   |---- fmha_rules.py           # FMHA validation rules
-|   |---- fmha_profiles.py        # FMHA named profiles/receipts
+|   |---- fmha/                   # FMHA kernel generator package
+|   |   |---- codegen.py          # FMHA kernel generator entry point
+|   |   |---- fmha_arch_specs.json  # FMHA per-arch tile/pipeline specs
+|   |   +---- validation.py       # FMHA validation rules
 |   +---- arch_specs.json         # GPU specifications
 |
 |---- python/                     # Python utilities
@@ -944,11 +939,11 @@ dispatcher/
 |
 |---- examples/                   # Examples
 |   |---- gemm/
-|   |   |---- cpp/                # C++ GEMM examples (01-07)
-|   |   +---- python/             # Python GEMM examples (01-11)
+|   |   |---- cpp/                # C++ GEMM examples (01-09)
+|   |   +---- python/             # Python GEMM examples (01-15)
 |   |---- grouped_conv/
 |   |   |---- cpp/                # C++ Grouped Conv examples (01-07)
-|   |   +---- python/             # Python Grouped Conv examples (01-06)
+|   |   +---- python/             # Python Grouped Conv examples (01-12)
 |   +---- fmha/
 |       |---- cpp/                # C++ FMHA examples (01-35)
 |       +---- python/             # Python FMHA examples (01-38)

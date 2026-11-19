@@ -1735,10 +1735,12 @@ def runDispatcherPerfTests(String compiler, String gpuTarget = "gfx942") {
     def quantDatatype  = "fp8"
     def quantLayout    = "rcr"
     // Stream-K below is tile_engine/ops/gemm_streamk/ (top level), not
-    // tile_engine/ops/gemm/gemm_streamk/. Two paths exist and only the first is
-    // real: it holds the CMakeLists, the instance builder and the benchmark. The
-    // nested one contains a lone configs/default_config.json that nothing in the
-    // tree reads. Edit the top-level tree.
+    // tile_engine/ops/gemm/gemm_streamk/. Two paths exist: the top-level tree is
+    // the native Tile Engine build this lane runs (CMakeLists, instance builder,
+    // benchmark). The nested one holds only configs/default_config.json, which is
+    // the default sweep of the Dispatcher bridge driver
+    // (tile_engine/ops/gemm/streamk_gemm_full_benchmark.py), not of this lane.
+    // Edit the top-level tree to change what this lane builds.
     def execute_cmd = _dispatcherPerfCmd(compiler, gpuTarget, samplingTier, gemmDatatype, gemmLayout, multiLayout, quantDatatype, quantLayout, problemSizes, problemConfigs, multiAbdConfigs, perOpInstances)
     try {
         buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)

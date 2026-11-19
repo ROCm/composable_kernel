@@ -1050,7 +1050,7 @@ def main():
     if args.variant == "grouped_gemm":
         print(
             "  ERROR: grouped_gemm is not supported by this driver; "
-            "use tile_engine/ops/gemm/grouped_gemm/grouped_gemm_benchmark.py"
+            "use tile_engine/ops/gemm/grouped_gemm_full_benchmark.py"
         )
         return 1
     codegen_variant = CODEGEN_VARIANT[args.variant]

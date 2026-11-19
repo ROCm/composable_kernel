@@ -2024,7 +2024,7 @@ def preshuffle_pipeline_reject_reason(
 
 
 # =============================================================================
-# Preshuffle Validation (copied from tile_engine/ops/commons/gemm_validation_utils.py)
+# Preshuffle Validation (copied from tile_engine/ops/gemm/gemm_validation_utils.py)
 # =============================================================================
 
 ELEMENT_SIZE_MAP = {
@@ -2123,7 +2123,7 @@ def is_preshuffle_config_valid(
 ) -> bool:
     """
     Comprehensive preshuffle configuration validation.
-    Copied from tile_engine/ops/commons/gemm_validation_utils.py
+    Copied from tile_engine/ops/gemm/gemm_validation_utils.py
     """
     # Basic divisibility checks
     if tile_m % (warp_m * warp_tile_m) != 0:
