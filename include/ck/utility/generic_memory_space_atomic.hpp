@@ -63,10 +63,10 @@ __device__ float2_t atomic_add<float2_t>(float2_t* p_dst, const float2_t& x)
     const vector_type<float, 2> vx{x};
     vector_type<float, 2> vy{0};
 
-    vy.template AsType<float>()(I0) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst), vx.template AsType<float>()[I0]);
-    vy.template AsType<float>()(I1) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, vx.template AsType<float>()[I1]);
+    float(&dst)[2] = *c_style_pointer_cast<float(*)[2]>(p_dst);
+
+    vy.template AsType<float>()(I0) = atomicAdd(&dst[0], vx.template AsType<float>()[I0]);
+    vy.template AsType<float>()(I1) = atomicAdd(&dst[1], vx.template AsType<float>()[I1]);
 
     return vy.template AsType<float2_t>()[I0];
 }
@@ -82,14 +82,12 @@ __device__ float4_t atomic_add<float4_t>(float4_t* p_dst, const float4_t& x)
     const vector_type<float, 4> vx{x};
     vector_type<float, 4> vy{0};
 
-    vy.template AsType<float>()(I0) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst), vx.template AsType<float>()[I0]);
-    vy.template AsType<float>()(I1) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, vx.template AsType<float>()[I1]);
-    vy.template AsType<float>()(I2) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 2, vx.template AsType<float>()[I2]);
-    vy.template AsType<float>()(I3) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 3, vx.template AsType<float>()[I3]);
+    float(&dst)[4] = *c_style_pointer_cast<float(*)[4]>(p_dst);
+
+    vy.template AsType<float>()(I0) = atomicAdd(&dst[0], vx.template AsType<float>()[I0]);
+    vy.template AsType<float>()(I1) = atomicAdd(&dst[1], vx.template AsType<float>()[I1]);
+    vy.template AsType<float>()(I2) = atomicAdd(&dst[2], vx.template AsType<float>()[I2]);
+    vy.template AsType<float>()(I3) = atomicAdd(&dst[3], vx.template AsType<float>()[I3]);
 
     return vy.template AsType<float4_t>()[I0];
 }
@@ -103,10 +101,10 @@ __device__ double2_t atomic_add<double2_t>(double2_t* p_dst, const double2_t& x)
     const vector_type<double, 2> vx{x};
     vector_type<double, 2> vy{0};
 
-    vy.template AsType<double>()(I0) =
-        atomicAdd(c_style_pointer_cast<double*>(p_dst), vx.template AsType<double>()[I0]);
-    vy.template AsType<double>()(I1) =
-        atomicAdd(c_style_pointer_cast<double*>(p_dst) + 1, vx.template AsType<double>()[I1]);
+    double(&dst)[2] = *c_style_pointer_cast<double(*)[2]>(p_dst);
+
+    vy.template AsType<double>()(I0) = atomicAdd(&dst[0], vx.template AsType<double>()[I0]);
+    vy.template AsType<double>()(I1) = atomicAdd(&dst[1], vx.template AsType<double>()[I1]);
 
     return vy.template AsType<double2_t>()[I0];
 }
@@ -127,22 +125,16 @@ __device__ float8_t atomic_add<float8_t>(float8_t* p_dst, const float8_t& x)
     const vector_type<float, 8> vx{x};
     vector_type<float, 8> vy{0};
 
-    vy.template AsType<float>()(I0) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst), vx.template AsType<float>()[I0]);
-    vy.template AsType<float>()(I1) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, vx.template AsType<float>()[I1]);
-    vy.template AsType<float>()(I2) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 2, vx.template AsType<float>()[I2]);
-    vy.template AsType<float>()(I3) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 3, vx.template AsType<float>()[I3]);
-    vy.template AsType<float>()(I4) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 4, vx.template AsType<float>()[I4]);
-    vy.template AsType<float>()(I5) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 5, vx.template AsType<float>()[I5]);
-    vy.template AsType<float>()(I6) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 6, vx.template AsType<float>()[I6]);
-    vy.template AsType<float>()(I7) =
-        atomicAdd(c_style_pointer_cast<float*>(p_dst) + 7, vx.template AsType<float>()[I7]);
+    float(&dst)[8] = *c_style_pointer_cast<float(*)[8]>(p_dst);
+
+    vy.template AsType<float>()(I0) = atomicAdd(&dst[0], vx.template AsType<float>()[I0]);
+    vy.template AsType<float>()(I1) = atomicAdd(&dst[1], vx.template AsType<float>()[I1]);
+    vy.template AsType<float>()(I2) = atomicAdd(&dst[2], vx.template AsType<float>()[I2]);
+    vy.template AsType<float>()(I3) = atomicAdd(&dst[3], vx.template AsType<float>()[I3]);
+    vy.template AsType<float>()(I4) = atomicAdd(&dst[4], vx.template AsType<float>()[I4]);
+    vy.template AsType<float>()(I5) = atomicAdd(&dst[5], vx.template AsType<float>()[I5]);
+    vy.template AsType<float>()(I6) = atomicAdd(&dst[6], vx.template AsType<float>()[I6]);
+    vy.template AsType<float>()(I7) = atomicAdd(&dst[7], vx.template AsType<float>()[I7]);
 
     return vy.template AsType<float8_t>()[I0];
 }
@@ -156,10 +148,12 @@ __device__ half2_t atomic_add<half2_t>(half2_t* p_dst, const half2_t& x)
     const vector_type<half_t, 2> vx{x};
     vector_type<half_t, 2> vy{0};
 
+    half_t(&dst)[2] = *c_style_pointer_cast<half_t(*)[2]>(p_dst);
+
     vy.template AsType<half_t>()(I0) =
-        atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst), vx.template AsType<half_t>()[I0]);
-    vy.template AsType<half_t>()(I1) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 1,
-                                                          vx.template AsType<half_t>()[I1]);
+        atomic_add<half_t>(&dst[0], vx.template AsType<half_t>()[I0]);
+    vy.template AsType<half_t>()(I1) =
+        atomic_add<half_t>(&dst[1], vx.template AsType<half_t>()[I1]);
 
     return vy.template AsType<half2_t>()[I0];
 }
@@ -175,14 +169,16 @@ __device__ half4_t atomic_add<half4_t>(half4_t* p_dst, const half4_t& x)
     const vector_type<half_t, 4> vx{x};
     vector_type<half_t, 4> vy{0};
 
+    half_t(&dst)[4] = *c_style_pointer_cast<half_t(*)[4]>(p_dst);
+
     vy.template AsType<half_t>()(I0) =
-        atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst), vx.template AsType<half_t>()[I0]);
-    vy.template AsType<half_t>()(I1) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 1,
-                                                          vx.template AsType<half_t>()[I1]);
-    vy.template AsType<half_t>()(I2) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 2,
-                                                          vx.template AsType<half_t>()[I2]);
-    vy.template AsType<half_t>()(I3) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 3,
-                                                          vx.template AsType<half_t>()[I3]);
+        atomic_add<half_t>(&dst[0], vx.template AsType<half_t>()[I0]);
+    vy.template AsType<half_t>()(I1) =
+        atomic_add<half_t>(&dst[1], vx.template AsType<half_t>()[I1]);
+    vy.template AsType<half_t>()(I2) =
+        atomic_add<half_t>(&dst[2], vx.template AsType<half_t>()[I2]);
+    vy.template AsType<half_t>()(I3) =
+        atomic_add<half_t>(&dst[3], vx.template AsType<half_t>()[I3]);
 
     return vy.template AsType<half4_t>()[I0];
 }
@@ -202,22 +198,24 @@ __device__ half8_t atomic_add<half8_t>(half8_t* p_dst, const half8_t& x)
     const vector_type<half_t, 8> vx{x};
     vector_type<half_t, 8> vy{0};
 
+    half_t(&dst)[8] = *c_style_pointer_cast<half_t(*)[8]>(p_dst);
+
     vy.template AsType<half_t>()(I0) =
-        atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst), vx.template AsType<half_t>()[I0]);
-    vy.template AsType<half_t>()(I1) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 1,
-                                                          vx.template AsType<half_t>()[I1]);
-    vy.template AsType<half_t>()(I2) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 2,
-                                                          vx.template AsType<half_t>()[I2]);
-    vy.template AsType<half_t>()(I3) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 3,
-                                                          vx.template AsType<half_t>()[I3]);
-    vy.template AsType<half_t>()(I4) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 4,
-                                                          vx.template AsType<half_t>()[I4]);
-    vy.template AsType<half_t>()(I5) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 5,
-                                                          vx.template AsType<half_t>()[I5]);
-    vy.template AsType<half_t>()(I6) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 6,
-                                                          vx.template AsType<half_t>()[I6]);
-    vy.template AsType<half_t>()(I7) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 7,
-                                                          vx.template AsType<half_t>()[I7]);
+        atomic_add<half_t>(&dst[0], vx.template AsType<half_t>()[I0]);
+    vy.template AsType<half_t>()(I1) =
+        atomic_add<half_t>(&dst[1], vx.template AsType<half_t>()[I1]);
+    vy.template AsType<half_t>()(I2) =
+        atomic_add<half_t>(&dst[2], vx.template AsType<half_t>()[I2]);
+    vy.template AsType<half_t>()(I3) =
+        atomic_add<half_t>(&dst[3], vx.template AsType<half_t>()[I3]);
+    vy.template AsType<half_t>()(I4) =
+        atomic_add<half_t>(&dst[4], vx.template AsType<half_t>()[I4]);
+    vy.template AsType<half_t>()(I5) =
+        atomic_add<half_t>(&dst[5], vx.template AsType<half_t>()[I5]);
+    vy.template AsType<half_t>()(I6) =
+        atomic_add<half_t>(&dst[6], vx.template AsType<half_t>()[I6]);
+    vy.template AsType<half_t>()(I7) =
+        atomic_add<half_t>(&dst[7], vx.template AsType<half_t>()[I7]);
 
     return vy.template AsType<half8_t>()[I0];
 }
@@ -264,10 +262,10 @@ __device__ float2_t atomic_max<float2_t>(float2_t* p_dst, const float2_t& x)
     const vector_type<float, 2> vx{x};
     vector_type<float, 2> vy{0};
 
-    vy.template AsType<float>()(I0) =
-        atomicMax(c_style_pointer_cast<float*>(p_dst), vx.template AsType<float>()[I0]);
-    vy.template AsType<float>()(I1) =
-        atomicMax(c_style_pointer_cast<float*>(p_dst) + 1, vx.template AsType<float>()[I1]);
+    float(&dst)[2] = *c_style_pointer_cast<float(*)[2]>(p_dst);
+
+    vy.template AsType<float>()(I0) = atomicMax(&dst[0], vx.template AsType<float>()[I0]);
+    vy.template AsType<float>()(I1) = atomicMax(&dst[1], vx.template AsType<float>()[I1]);
 
     return vy.template AsType<float2_t>()[I0];
 }
