@@ -1369,10 +1369,10 @@ __device__ void amd_tensor_load_to_lds(const TdmDesc& tdm_desc)
 {
 #if defined(__gfx125__)
     __builtin_amdgcn_tensor_load_to_lds(bit_cast<uint32x4_t>(tdm_desc.g0),
-                                        tdm_desc.g1,
-                                        tdm_desc.g2,
-                                        tdm_desc.g3,
-                                        tdm_desc.g4,
+                                        bit_cast<uint32x8_t>(tdm_desc.g1),
+                                        bit_cast<uint32x4_t>(tdm_desc.g2),
+                                        bit_cast<uint32x4_t>(tdm_desc.g3),
+                                        bit_cast<uint32x8_t>(tdm_desc.g4),
                                         static_cast<index_t>(coherence));
 #else
     ignore = tdm_desc;

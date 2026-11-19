@@ -151,9 +151,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 32u, CompilerTarget, MmaOpF
     {
         using P = WarpGemmParamsParser<Params...>;
         return {__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32(true, // A signedness
-                                                             aVec,
+                                                             bit_cast<int32x2_t>(aVec),
                                                              true, // B signedness
-                                                             bVec,
+                                                             bit_cast<int32x4_t>(bVec),
                                                              cVec,
                                                              idx,
                                                              P::clamp)};
