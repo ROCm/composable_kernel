@@ -609,7 +609,12 @@ struct BlockFmhaPipelineQRKSVS
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
             }
-            const auto bias_tile = load_tile(bias_dram_window); // load bias tile
+            // No per-element OOB check: with kPadSeqLenK the bias layout is one element per
+            // access, and the check wraps each load in its own branch, serializing them.
+            // Padded columns are set to -inf after the bias add, padded rows are never stored,
+            // and reads past the buffer end return 0 via the buffer range check.
+            const auto bias_tile =
+                load_tile(bias_dram_window, number<-1>{}, bool_constant<false>{});
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 __builtin_amdgcn_sched_barrier(
