@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: MIT
 
 /// Unit tests for the supports() gate of the generated GEMM backends.
-/// Note: Uses a stub kernel struct; no kernel is compiled or launched.
+/// Note: Uses stub kernel structs; no kernel is compiled or launched. The gfx125 gate tests
+/// query the current device (no device reads as not gfx125).
 
 #include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include "ck_tile/dispatcher/backends/generated_kernel_backend.hpp"
 #include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
+#include "ck_tile/dispatcher/backends/gfx125_gate.hpp"
 #include "ck_tile/dispatcher/dispatcher.hpp"
 #include "ck_tile/dispatcher/registry.hpp"
 #include "test_mock_kernel.hpp"
@@ -47,6 +49,26 @@ struct PaddedStubKernel
     };
     static constexpr int VectorSizeC = C;
     static float launch(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&) { return 0.f; }
+};
+
+// Same kernel, but its pipeline carries a gfx125-only marker: the TDM flag that
+// UniversalGemmKernel::kIsTdmPipeline reads, or a named BarrierPipeline.
+struct TdmMarker
+{
+    static constexpr bool skipCheckValidLaunchParams = true;
+};
+struct NamedBarrierMarker
+{
+    struct BarrierPipeline
+    {
+    };
+};
+template <typename Marker>
+struct Gfx125StubKernel : PaddedStubKernel<8, 8, 8>
+{
+    struct GemmPipeline : PaddedStubKernel<8, 8, 8>::GemmPipeline, Marker
+    {
+    };
 };
 
 template <int A, int B, int C>
@@ -147,12 +169,28 @@ struct TdmStubKernel
     static float launch(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&) { return 0.f; }
 };
 
-template <typename Kernel>
-using TdmTileInstance = backends::
-    GeneratedTileKernelInstance<Kernel, ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t, float>;
+// Shape rules only. supports() also requires a gfx125 device for TDM pipelines, which would
+// reject every stub below off gfx125; expect_gfx125_gate covers that device gate.
+template <typename Kernel, typename Base>
+struct ShapeOnlyInstance : Base
+{
+    using Base::Base;
+    bool supports(const Problem& problem) const override
+    {
+        return backends::generated_gemm_supports<Kernel>(this->get_key(), problem);
+    }
+};
 
 template <typename Kernel>
-using TdmKernelInstance = backends::GeneratedKernelInstance<Kernel>;
+using TdmTileInstance = ShapeOnlyInstance<Kernel,
+                                          backends::GeneratedTileKernelInstance<Kernel,
+                                                                                ck_tile::bf16_t,
+                                                                                ck_tile::bf16_t,
+                                                                                ck_tile::bf16_t,
+                                                                                float>>;
+
+template <typename Kernel>
+using TdmKernelInstance = ShapeOnlyInstance<Kernel, backends::GeneratedKernelInstance<Kernel>>;
 
 struct StrideCaptureKernel
 {
@@ -355,4 +393,73 @@ TEST(GeneratedBackendTest, GeneratedKernelInstanceDerivesStridesFromLayout)
     check_strides(LayoutTag::ColMajor, LayoutTag::RowMajor, LayoutTag::RowMajor, 300, 512, 512);
     check_strides(LayoutTag::ColMajor, LayoutTag::ColMajor, LayoutTag::RowMajor, 300, 400, 512);
     check_strides(LayoutTag::ColMajor, LayoutTag::ColMajor, LayoutTag::ColMajor, 300, 400, 300);
+}
+
+static_assert(!backends::pipeline_requires_gfx125<PaddedStubKernel<8, 8, 8>::GemmPipeline>);
+static_assert(backends::pipeline_requires_gfx125<Gfx125StubKernel<TdmMarker>::GemmPipeline>);
+static_assert(
+    backends::pipeline_requires_gfx125<Gfx125StubKernel<NamedBarrierMarker>::GemmPipeline>);
+
+// A gfx125-only kernel is selectable exactly when the current device is gfx125 (the same
+// ck_tile::is_gfx125_supported() check IsSupportedArgument makes), so a mixed-target registry
+// falls through to a kernel valid for this GPU instead of throwing at launch. Holds with or
+// without a GPU: no device reads as not gfx125.
+template <typename Marker>
+void expect_gfx125_gate()
+{
+    using Tile   = backends::GeneratedTileKernelInstance<Gfx125StubKernel<Marker>,
+                                                         ck_tile::half_t,
+                                                         ck_tile::half_t,
+                                                         ck_tile::half_t,
+                                                         float>;
+    using Legacy = backends::GeneratedKernelInstance<Gfx125StubKernel<Marker>>;
+
+    const bool on_gfx125 = ck_tile::is_gfx125_supported();
+    const auto key       = make_test_key(128, 128, 32, "gfx1250");
+    const Problem problem(512, 512, 512);
+    EXPECT_EQ(Tile(key, "tile").supports(problem), on_gfx125);
+    EXPECT_EQ(Legacy(key, "legacy").supports(problem), on_gfx125);
+
+    Registry registry;
+    auto gated = std::make_shared<Legacy>(key, "gated");
+    auto plain =
+        std::make_shared<LegacyInstance<8, 8, 8>>(make_test_key(128, 128, 64, "gfx950"), "plain");
+    ASSERT_TRUE(registry.register_kernel(gated));
+    ASSERT_TRUE(registry.register_kernel(plain));
+
+    Dispatcher dispatcher(&registry);
+    const auto selected = dispatcher.select_kernel(problem);
+    if(on_gfx125)
+        EXPECT_TRUE(selected == gated || selected == plain);
+    else
+        EXPECT_EQ(selected, plain);
+}
+
+TEST(GeneratedBackendTest, TdmPipelineGatedOnGfx125Device) { expect_gfx125_gate<TdmMarker>(); }
+
+TEST(GeneratedBackendTest, NamedBarrierPipelineGatedOnGfx125Device)
+{
+    expect_gfx125_gate<NamedBarrierMarker>();
+}
+
+// A Tile Engine SelectedKernel declares its GemmPipeline inside launch(), so it publishes
+// kRequiresGfx125 at struct scope for TileKernelInstance::supports(). A kernel with neither that
+// flag nor a GemmPipeline is left to its own IsSupportedArgument.
+template <bool Requires>
+struct TileEngineStubKernel
+{
+    static constexpr bool kRequiresGfx125 = Requires;
+};
+struct OpaqueStubKernel
+{
+};
+
+TEST(GeneratedBackendTest, TileEngineKernelGatedOnGfx125Device)
+{
+    EXPECT_EQ(backends::device_supports_kernel<TileEngineStubKernel<true>>(),
+              ck_tile::is_gfx125_supported());
+    EXPECT_TRUE(backends::device_supports_kernel<TileEngineStubKernel<false>>());
+    EXPECT_TRUE(backends::device_supports_kernel<OpaqueStubKernel>());
+    EXPECT_EQ(backends::device_supports_kernel<Gfx125StubKernel<TdmMarker>>(),
+              ck_tile::is_gfx125_supported());
 }

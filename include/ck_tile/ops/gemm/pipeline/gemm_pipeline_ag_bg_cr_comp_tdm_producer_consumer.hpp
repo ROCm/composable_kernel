@@ -298,19 +298,6 @@ struct GemmPipelineAgBgCrCompTDMProducerConsumer
     }
 
     private:
-    template <bool IsA>
-    CK_TILE_DEVICE static TDMConfig MakeTdmConfig()
-    {
-        constexpr auto padding = Policy::template GetLdsPaddingConfig<Problem, IsA>();
-
-        TDMConfig config;
-        config.pad_enable              = padding[number<0>{}];
-        config.pad_config.pad_amount   = padding[number<1>{}];
-        config.pad_config.pad_interval = padding[number<2>{}];
-        // workgroup_mask stays 0: a non-zero mask makes the transfer wait for cluster peers.
-        return config;
-    }
-
     // One producer wave: streams operand Operand (0 = A, 1 = B) into the ring, one TDM per step.
     // Producer is the ring ROLE this wave plays; Operand is which matrix it streams. The two
     // coincide while NumProducerWaves == 2, but they are distinct concepts -- see "Producer<P>
@@ -351,7 +338,7 @@ struct GemmPipelineAgBgCrCompTDMProducerConsumer
         constexpr DramStep k_step =
             k_is_outer ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
-        const TDMConfig tdm_config = MakeTdmConfig<IsA>();
+        const TDMConfig tdm_config = Policy::template MakeTdmConfig<Problem, IsA>();
 
         using Ring = typename BarrierPipeline::template ring<0>;
         Ring::template producer<Producer>::template run<PublishLag>(

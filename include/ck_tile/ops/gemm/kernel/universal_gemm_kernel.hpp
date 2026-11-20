@@ -489,34 +489,45 @@ struct UniversalGemmKernel
     // for skipping validation of launch parameters especially for TDM where padding is unused
     struct has_skip_check_valid_launch_params
     {
-        template <typename T>
-        using has_skip_check_type = decltype(T::skipCheckValidLaunchParams);
-
-        static constexpr bool value = []() {
-            if constexpr(is_detected<has_skip_check_type, GemmPipeline>{})
-                return GemmPipeline::skipCheckValidLaunchParams;
-            else
-                return false;
-        }();
+        static constexpr bool value = pipeline_is_tdm_v<GemmPipeline>;
     };
 
-    /// True for the gfx125 TDM pipelines (CompTDM V1, V2 and V3 through inheritance, and the
-    /// producer/consumer pipeline): they expose skipCheckValidLaunchParams and consume tuples of
-    /// A/B windows. UniversalGemmKernel also pairs them with a non-TDM epilogue (e.g.
-    /// CShuffleEpilogue for split-K), subject to the whole-tile checks in IsSupportedArgument
-    /// unless the pipeline declares kSupportsTdmSplitK (comp_tdm_v3).
+    /// True for the gfx125 TDM pipelines (CompTDM V1, V2 and V3 through inheritance, the
+    /// producer/consumer pipeline and the run-ahead pipeline): they expose
+    /// skipCheckValidLaunchParams and consume tuples of A/B windows. UniversalGemmKernel also pairs
+    /// them with a non-TDM epilogue (e.g. CShuffleEpilogue for split-K), subject to the whole-tile
+    /// checks in IsSupportedArgument unless the pipeline declares kSupportsTdmSplitK (comp_tdm_v3).
     /// Kernels that host them take a dedicated TDM path.
     static constexpr bool kIsTdmPipeline = has_skip_check_valid_launch_params::value;
 
+    /// True for the TDM and named-barrier pipelines, which only run on gfx125
+    /// (pipeline_requires_gfx125_v, shared with the dispatcher's kernel selection).
+    /// IsSupportedArgument rejects them on any other device.
+    static constexpr bool kRequiresGfx125 = pipeline_requires_gfx125_v<GemmPipeline>;
+
     template <typename T>
-    using has_plain_gemm_only = decltype(T::kPlainGemmOnly);
-    /// True for a pipeline tested only in the plain GEMM kernel (comp_tdm_v3). The kernels that
-    /// derive from or wrap this one static_assert against it.
-    static constexpr bool kIsPlainGemmOnlyPipeline = []() {
-        if constexpr(is_detected<has_plain_gemm_only, GemmPipeline>{})
-            return GemmPipeline::kPlainGemmOnly;
+    using has_gemm_kernel_only = decltype(T::kGemmKernelOnly);
+    /// True for a pipeline validated only in this kernel itself, persistent or not (comp_tdm_ra).
+    /// Every kernel that derives from or wraps UniversalGemmKernel static_asserts against it:
+    /// through kIsPlainGemmOnlyPipeline, which it implies, and directly in the Stream-K and MX
+    /// kernels, which accept plain-GEMM-only pipelines.
+    static constexpr bool kIsGemmKernelOnlyPipeline = []() {
+        if constexpr(is_detected<has_gemm_kernel_only, GemmPipeline>{})
+            return static_cast<bool>(GemmPipeline::kGemmKernelOnly);
         else
             return false;
+    }();
+
+    template <typename T>
+    using has_plain_gemm_only = decltype(T::kPlainGemmOnly);
+    /// True for a pipeline tested only in the plain GEMM kernel and the kernels built directly on
+    /// it, Stream-K and MX (comp_tdm_v3), and for every kIsGemmKernelOnlyPipeline. The multi-D,
+    /// grouped, batched, multi-ABD and batched-contraction kernels static_assert against it.
+    static constexpr bool kIsPlainGemmOnlyPipeline = []() {
+        if constexpr(is_detected<has_plain_gemm_only, GemmPipeline>{})
+            return static_cast<bool>(GemmPipeline::kPlainGemmOnly) || kIsGemmKernelOnlyPipeline;
+        else
+            return kIsGemmKernelOnlyPipeline;
     }();
 
     template <typename T>
@@ -592,9 +603,10 @@ struct UniversalGemmKernel
     ///          12-byte 6-bit pack has a 1-byte unit, so its 4 comes from alignof(T) alone.
     ///          IsSupportedArgument ends with this check for TDM pipelines, after its k_batch
     ///          guards and, for a non-TDM epilogue and a pipeline without kSupportsTdmSplitK, its
-    ///          tile-multiple checks, but checks the device only for named-barrier pipelines. The
-    ///          MultiD GEMM, grouped GEMM, batched contraction, MX GEMM and Stream-K kernels
-    ///          therefore call this and IsTdmDeviceSupported themselves.
+    ///          tile-multiple checks, and it rejects every TDM pipeline on a non-gfx125 device
+    ///          first. The MultiD GEMM, grouped GEMM, batched contraction, MX GEMM and Stream-K
+    ///          kernels also call this and IsTdmDeviceSupported themselves, with their own
+    ///          k_batch and operation name.
     CK_TILE_HOST static bool IsTdmArgumentSupported(const char* op_name,
                                                     index_t k_batch,
                                                     index_t K,
@@ -703,14 +715,15 @@ struct UniversalGemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
     {
-        if constexpr(!std::is_void_v<barrier_pipeline>)
+        // Named-barrier pipelines and TDM pipelines alike compile only an inert fallback on
+        // other targets, so a non-gfx125 device must be rejected here, not left to return zeros.
+        if constexpr(kRequiresGfx125)
         {
-            // Other targets compile only the pipeline's inert fallback.
             if(!is_gfx125_supported())
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    CK_TILE_ERROR("Hardware named barriers require gfx1250!");
+                    CK_TILE_ERROR("TDM / named-barrier pipelines require gfx1250!");
                 }
                 return false;
             }

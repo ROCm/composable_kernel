@@ -855,6 +855,7 @@ def expand_sweep(
             vector_size_c=b.vector_size_c,
             num_slots=b.num_slots,
             publish_lag=b.publish_lag,
+            run_ahead=b.run_ahead,
             variant="batched",
         )
         if c.name in seen:

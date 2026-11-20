@@ -95,6 +95,8 @@ class GeneratedStreamKKernelInstance : public KernelInstance
         // box to the tensor's real extent, so they skip it like the regular backend;
         // IsSupported() below still rejects a ragged C tile for a non-TDM epilogue.
         using Pipeline = typename SelectedKernel::StreamKGemmKernel::GemmPipeline;
+        if(!device_supports_pipeline<Pipeline>())
+            return false;
         if constexpr(!pipeline_skips_launch_checks<Pipeline>::value)
         {
             constexpr bool pad_m = SelectedKernel::kPadM;

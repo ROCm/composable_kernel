@@ -369,7 +369,7 @@ class GemmKernelBuilder:
                 c_datatype,
                 pipeline,
                 self.layout,
-                self.validation_gpu_target
+                self.validation_gpu_target,
             )
 
     def _generate_trait_combinations(self):
@@ -505,6 +505,9 @@ class GemmKernelBuilder:
             "compv3": "ck_tile::GemmPipelineAgBgCrCompV3",
             "compv4": "ck_tile::GemmPipelineAgBgCrCompV4",
         }
+        if pipeline not in pipeline_impl_map:
+            # Never fall back to another pipeline under this one's name.
+            raise ValueError(f"gemm_streamk does not support the {pipeline} pipeline")
 
         reduction_strategy_map = {
             "atomic": "ck_tile::StreamKReductionStrategy::Atomic",
@@ -624,7 +627,7 @@ struct SelectedKernel {{
                                                                                GemmUniversalTraits,
                                                                                scheduler>;
             
-            using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::GemmPipelineAgBgCrCompV3")}<UniversalGemmProblem>;
+            using GemmPipeline = {pipeline_impl_map[pipeline]}<UniversalGemmProblem>;
             
             // Epilogue
             using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
@@ -995,9 +998,11 @@ def main():
     gpu_target = args.gpu_targets or ""
     validation_gpu_target = ""
     if gpu_target:
-        targets = [t.strip() for t in gpu_target.split(';') if t.strip()]
+        targets = [t.strip() for t in gpu_target.split(";") if t.strip()]
         if targets:
-            validation_gpu_target = targets[0].split(":")[0]  # e.g., "gfx90a" from "gfx90a:xnack+"
+            validation_gpu_target = targets[0].split(":")[
+                0
+            ]  # e.g., "gfx90a" from "gfx90a:xnack+"
             if len(targets) > 1:
                 logging.warning(
                     f"Multiple GPU targets provided ({targets}), "

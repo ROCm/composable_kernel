@@ -68,11 +68,36 @@ inline constexpr bool is_wavelet_pipeline = []() {
         return false;
 }();
 
-// The named barrier pipeline a GEMM pipeline synchronises over, or void when it uses none. The
-// hardware allows one named barrier array per kernel, so the kernel running such a pipeline
-// declares it as its own `barrier_pipeline` and arms it with init().
+// The named barrier pipeline a GEMM pipeline synchronises over, or void when it uses none. A
+// kernel may use only one named barrier pipeline, so the kernel running such a pipeline declares
+// it as its own `barrier_pipeline` and arms it with init().
 template <typename Pipeline>
 using barrier_pipeline_of_t = typename impl::pipeline_barrier_pipeline<Pipeline>::type;
+
+namespace impl {
+template <typename T, typename = void>
+struct pipeline_skips_launch_checks : std::false_type
+{
+};
+template <typename T>
+struct pipeline_skips_launch_checks<T, std::void_t<decltype(T::skipCheckValidLaunchParams)>>
+    : std::bool_constant<T::skipCheckValidLaunchParams>
+{
+};
+} // namespace impl
+
+// True for the gfx125 TDM pipelines: they declare skipCheckValidLaunchParams, because TDM clips
+// every box to the tensor's real extent and no dimension has to be a tile multiple.
+template <typename Pipeline>
+inline constexpr bool pipeline_is_tdm_v = impl::pipeline_skips_launch_checks<Pipeline>::value;
+
+// True for a pipeline that only runs on gfx125: a TDM pipeline, or one that synchronises over
+// named barriers. On every other target it compiles an inert fallback that returns zeros, so it
+// must be rejected at run time on any other device. UniversalGemmKernel::IsSupportedArgument and
+// the dispatcher's kernel selection both read this one trait.
+template <typename Pipeline>
+inline constexpr bool pipeline_requires_gfx125_v =
+    pipeline_is_tdm_v<Pipeline> || !std::is_void_v<barrier_pipeline_of_t<Pipeline>>;
 
 // Run GemmPipeline over one C tile. A pipeline with named barriers takes the token its kernel
 // minted with BarrierPipeline::init(); every other pipeline takes none, and @p barriers is a

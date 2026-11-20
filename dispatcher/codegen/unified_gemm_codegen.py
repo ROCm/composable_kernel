@@ -56,6 +56,8 @@ from codegen_common import (
     gemm_lockstep_vector_bytes,
     gemm_default_epilogue_vector_size,
     gemm_vector_size_suffix,
+    pipeline_ring_fields,
+    pipeline_ring_param,
     pipeline_ring_suffix,
     resolve_gemm_vector_sizes,
     streamk_c_reject_reason,
@@ -141,14 +143,26 @@ class TraitConfig(TraitConfigBase):
     vector_size_a: int = 0
     vector_size_b: int = 0
     vector_size_c: int = 0
-    # comp_tdm_pc ring (codegen_common.split_pipeline_ring): num_slots=0 is the
-    # policy default <4, 0>.
+    # comp_tdm_pc / comp_tdm_ra ring (codegen_common.split_pipeline_ring):
+    # num_slots=0 is the policy default (<4, 0> / <4, 3>); the ring parameter is
+    # publish_lag for comp_tdm_pc and run_ahead for comp_tdm_ra.
     num_slots: int = 0
     publish_lag: int = 0
+    run_ahead: int = 0
 
     @property
     def vector_sizes(self) -> Tuple[int, int, int]:
         return (self.vector_size_a, self.vector_size_b, self.vector_size_c)
+
+    @property
+    def ring_param(self) -> int:
+        """The ring parameter of the pipeline's policy (PublishLag / RunAhead)."""
+        return pipeline_ring_param(self.pipeline, self.publish_lag, self.run_ahead)
+
+    @property
+    def ring_suffix(self) -> str:
+        """Kernel-name suffix of a non-default ring, "" for the default."""
+        return pipeline_ring_suffix(self.pipeline, self.num_slots, self.ring_param)
 
 
 @dataclass
@@ -216,7 +230,7 @@ class KernelConfig:
         if any(self.trait.vector_sizes):
             parts.append("vec{}_{}_{}".format(*self.trait.vector_sizes))
         if self.trait.num_slots:
-            parts.append(f"s{self.trait.num_slots}l{self.trait.publish_lag}")
+            parts.append(self.trait.ring_suffix[1:])
 
         # Traits
         parts.append(f"pipe_{self.trait.pipeline}")
@@ -317,7 +331,7 @@ class KernelNaming:
         name += f"_{t.warp_m}x{t.warp_n}x{t.warp_k}"
         name += f"_{t.warp_tile_m}x{t.warp_tile_n}x{t.warp_tile_k}"
         name += gemm_vector_size_suffix(tr.vector_sizes)
-        name += pipeline_ring_suffix(tr.num_slots, tr.publish_lag)
+        name += tr.ring_suffix
 
         # Add variant suffix
         if config.variant == GemmVariant.PRESHUFFLE:
@@ -729,6 +743,7 @@ using CLayout = {ns_name}::CLayout;
 #define GEMM_KEY_VECTOR_SIZE_C {tr.vector_size_c}
 #define GEMM_KEY_NUM_SLOTS {tr.num_slots}
 #define GEMM_KEY_PUBLISH_LAG {tr.publish_lag}
+#define GEMM_KEY_RUN_AHEAD {tr.run_ahead}
 {self._multi_d_single_include(config)}#endif // CK_TILE_SINGLE_KERNEL_INCLUDE
 """
 
@@ -1332,13 +1347,14 @@ using CLayout = {ns_name}::CLayout;
     }}"""
 
     def _pipeline_type(self, config: KernelConfig, problem: str) -> str:
-        """The GemmPipeline type for ``problem``, with a non-default comp_tdm_pc ring."""
+        """The GemmPipeline type for ``problem``, with a non-default comp_tdm_pc /
+        comp_tdm_ra ring."""
         tr = config.trait
         pipeline = f"{self.tm.PIPELINE_TO_CK[tr.pipeline]}<{problem}"
         if tr.num_slots:
             pipeline += (
-                ", GemmPipelineAgBgCrCompTDMProducerConsumerPolicy"
-                f"<{tr.num_slots}, {tr.publish_lag}>"
+                f", {self.tm.PIPELINE_TO_RING_POLICY[tr.pipeline]}"
+                f"<{tr.num_slots}, {tr.ring_param}>"
             )
         return pipeline + ">"
 
@@ -1639,7 +1655,8 @@ inline KernelInstancePtr make_{kernel_name}(const std::string& gfx_arch = "gfx94
     key.algorithm.vector_size_b = {config.trait.vector_size_b};
     key.algorithm.vector_size_c = {config.trait.vector_size_c};
     key.algorithm.num_slots = {config.trait.num_slots};
-    key.algorithm.publish_lag = {config.trait.publish_lag};{sk_fields}
+    key.algorithm.publish_lag = {config.trait.publish_lag};
+    key.algorithm.run_ahead = {config.trait.run_ahead};{sk_fields}
 
     key.gfx_arch = gfx_arch;
 
@@ -1938,6 +1955,7 @@ class UnifiedGemmCodegen:
                     scheduler=trait.scheduler,
                     epilogue=trait.epilogue,
                     num_slots=trait.num_slots,
+                    ring_param=trait.ring_param,
                 ):
                     continue
 
@@ -2226,7 +2244,7 @@ class UnifiedGemmCodegen:
             streamk=variant == GemmVariant.STREAM_K,
             waves=(tile.warp_m, tile.warp_n, tile.warp_k),
             tile_k=tile.tile_k,
-            ring=(trait.num_slots, trait.publish_lag),
+            ring=(trait.num_slots, trait.ring_param),
         )
 
     def _is_tile_arch_valid(
@@ -2237,6 +2255,7 @@ class UnifiedGemmCodegen:
         scheduler: str = None,
         epilogue: str = None,
         num_slots: int = 0,
+        ring_param: int = 0,
     ) -> bool:
         """Check if tile configuration is valid for target architecture
 
@@ -2252,7 +2271,9 @@ class UnifiedGemmCodegen:
             epilogue: Trait epilogue to validate against (defaults to ``tdm``
                 for the TDM pipelines, which require a TDM epilogue, else
                 ``cshuffle``).
-            num_slots: comp_tdm_pc ring slots (0 = default), for the LDS budget.
+            num_slots: comp_tdm_pc / comp_tdm_ra ring slots (0 = default), for
+                the LDS budget.
+            ring_param: ring PublishLag / RunAhead, for the ring rule.
         """
         if not self.arch_filter or not HAS_ARCH_FILTER:
             return True
@@ -2306,6 +2327,7 @@ class UnifiedGemmCodegen:
             layout=self.layout,
             operator=operator,
             num_slots=num_slots,
+            ring_param=ring_param,
         )
 
     def _warp_tiles_unlisted(self, variant: Optional["GemmVariant"]) -> bool:
@@ -2351,15 +2373,14 @@ class UnifiedGemmCodegen:
         ):
             # JSON configs may spell the boolean traits as strings ("false").
             pads_persistent = tuple(is_true(v) for v in params[3:7])
-            # "comp_tdm_pc_s{S}l{L}" names a non-default producer/consumer ring.
-            pipeline, num_slots, publish_lag = split_pipeline_ring(params[0])
+            # "comp_tdm_pc_s{S}l{L}" / "comp_tdm_ra_s{S}r{R}" name a non-default ring.
+            pipeline, num_slots, ring_param = split_pipeline_ring(params[0])
             trait = TraitConfig(
                 pipeline,
                 *params[1:3],
                 *pads_persistent,
                 *params[7:],
-                num_slots=num_slots,
-                publish_lag=publish_lag,
+                **pipeline_ring_fields(pipeline, num_slots, ring_param),
             )
 
             # Basic trait validation (unsupported combinations)

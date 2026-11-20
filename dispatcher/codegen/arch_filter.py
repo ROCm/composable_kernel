@@ -51,12 +51,12 @@ from codegen_common import (
     CommonTypeMappings,
     TDM_EPILOGUES,
     TDM_PIPELINES,
-    comp_tdm_pc_lds_limit,
     gfx1250_fp32_tile_reject_reason,
     pipeline_warp_combos,
     gfx1250_lds_operand_bytes,
     gfx1250_lds_operand_transposed,
     gfx1250_pipeline_reject_reason,
+    pipeline_ring_lds_limit,
 )
 
 logger = logging.getLogger(__name__)
@@ -284,8 +284,9 @@ except ImportError:
         "preshuffle_tdm": 32768,
         # Mandatory double buffering (num_lds_buffers = 2), so half the budget.
         "comp_async": 32768,
-        # Ring of four LDS slots (producer/consumer TDM), so a quarter.
+        # Ring of four LDS slots (producer/consumer and run-ahead TDM), so a quarter.
         "comp_tdm_pc": 16384,
+        "comp_tdm_ra": 16384,
         "wavelet": 65536,
         "default": 65536,
     }
@@ -334,6 +335,9 @@ except ImportError:
         ("comp_tdm_v3", "tdmstaged", "interwave"),
         ("comp_tdm_v3", "cshuffle", "interwave"),
         ("comp_tdm_v3", "default", "interwave"),
+        ("comp_tdm_ra", "tdm", "interwave"),
+        ("comp_tdm_ra", "cshuffle", "interwave"),
+        ("comp_tdm_ra", "default", "interwave"),
     }
 
     DTYPE_COMBINATIONS = {
@@ -436,8 +440,12 @@ class KernelConfig:
     # carry it in their per-pipeline budget.
     double_smem_buffer: bool = False
 
-    # comp_tdm_pc ring slots; 0 is the policy default (the per-pipeline budget).
+    # comp_tdm_pc / comp_tdm_ra ring slots; 0 is the policy default (the
+    # per-pipeline budget).
     num_slots: int = 0
+    # Ring PublishLag / RunAhead (codegen_common.split_pipeline_ring); 0 with
+    # the default ring.
+    ring_param: int = 0
 
     # Layout (for whole-workgroup cover validation)
     layout: str = "rcr"
@@ -642,6 +650,7 @@ class ArchFilter:
         pad_n: Optional[bool] = None,
         pad_k: Optional[bool] = None,
         num_slots: int = 0,
+        ring_param: int = 0,
     ) -> bool:
         """
         Quick validation check for a kernel configuration.
@@ -659,7 +668,8 @@ class ArchFilter:
                      Affects validation rules for tile constraints.
                      Defaults to GEMM if not specified.
             pad_m, pad_n, pad_k: Padding traits; None skips the pad rules.
-            num_slots: comp_tdm_pc ring slots; 0 is the default ring.
+            num_slots: comp_tdm_pc / comp_tdm_ra ring slots; 0 is the default ring.
+            ring_param: ring PublishLag / RunAhead; 0 with the default ring.
 
         Returns:
             True if configuration is valid for this architecture
@@ -687,6 +697,7 @@ class ArchFilter:
             pad_n=pad_n,
             pad_k=pad_k,
             num_slots=num_slots,
+            ring_param=ring_param,
         )
         return self.validate_kernel(config).valid
 
@@ -929,8 +940,7 @@ class ArchFilter:
             streamk=is_streamk,
             waves=(config.warp_m, config.warp_n, config.warp_k),
             tile_k=config.tile_k,
-            # The publish lag does not reach this filter; the codegen checks it.
-            ring=(config.num_slots, 0),
+            ring=(config.num_slots, config.ring_param),
         )
         if reason:
             result.add_error(reason)
@@ -980,9 +990,12 @@ class ArchFilter:
             self.gpu_arch, config.pipeline, config.double_smem_buffer
         )
         if config.num_slots:
-            # A non-default comp_tdm_pc ring splits the LDS over its own slots.
-            max_lds = comp_tdm_pc_lds_limit(
-                get_lds_limit(self.gpu_arch, "default"), config.num_slots
+            # A non-default comp_tdm_pc / comp_tdm_ra ring splits the LDS over its
+            # own slots.
+            max_lds = pipeline_ring_lds_limit(
+                config.pipeline,
+                get_lds_limit(self.gpu_arch, "default"),
+                config.num_slots,
             )
 
         if total_lds > max_lds:

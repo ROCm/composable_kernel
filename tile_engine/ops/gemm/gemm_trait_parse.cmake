@@ -6,20 +6,21 @@
 # Split a Tile Engine GEMM trait-combo string
 #   <pipeline>_<epilogue>_<scheduler>_<pad_m>_<pad_n>_<pad_k>[_<persistent>]
 # into its pipeline / epilogue / scheduler fields. Multi-token pipeline names
-# (comp_async_eight_waves, comp_tdm_v2, comp_tdm_pc, comp_tdm_v3, comp_async, comp_tdm,
-# weight_preshuffle, preshuffle_tdm) and producer/consumer ring variants
-# (comp_tdm_pc_s<slots>l<lag>) are matched first; every other trait falls back to
-# the legacy "_" split, so existing trait strings resolve exactly as before.
+# (comp_async_eight_waves, comp_tdm_v2, comp_tdm_pc, comp_tdm_v3, comp_tdm_ra, comp_async,
+# comp_tdm, weight_preshuffle, preshuffle_tdm), producer/consumer ring variants
+# (comp_tdm_pc_s<slots>l<lag>) and run-ahead ring variants (comp_tdm_ra_s<slots>r<ahead>)
+# are matched first; every other trait falls back to the legacy "_" split, so existing
+# trait strings resolve exactly as before.
 #
 # CMake MATCHES alternation is leftmost-alternative-first, not leftmost-longest,
-# so comp_tdm_pc, comp_tdm_v2 and comp_tdm_v3 MUST precede comp_tdm below. Listed after it,
+# so comp_tdm_pc, comp_tdm_v2, comp_tdm_v3 and comp_tdm_ra MUST precede comp_tdm below. Listed after it,
 # "comp_tdm_pc_tdm_..." matches "comp_tdm" and leaves "pc" as the epilogue.
 #
 # Python mirror: trait_parse.py (split_trait).
 function(ck_tile_gemm_split_trait trait out_pipeline out_epilogue out_scheduler)
     set(_ck_rest "${trait}")
     set(_ck_pipeline "")
-    set(_ck_multi_token "comp_tdm_pc_s[0-9]+l[0-9]+|comp_async_eight_waves|comp_tdm_v2|comp_tdm_pc|comp_tdm_v3|comp_async|comp_tdm|weight_preshuffle|preshuffle_tdm")
+    set(_ck_multi_token "comp_tdm_pc_s[0-9]+l[0-9]+|comp_tdm_ra_s[0-9]+r[0-9]+|comp_async_eight_waves|comp_tdm_v2|comp_tdm_pc|comp_tdm_v3|comp_tdm_ra|comp_async|comp_tdm|weight_preshuffle|preshuffle_tdm")
     if("${trait}" MATCHES "^(${_ck_multi_token})_(.*)$")
         set(_ck_pipeline "${CMAKE_MATCH_1}")
         set(_ck_rest "${CMAKE_MATCH_2}")
@@ -40,10 +41,11 @@ endfunction()
 
 # ck_tile_gemm_pipeline_group(<pipeline> <out_group>)
 #
-# The per-pipeline collection target a pipeline builds under: a comp_tdm_pc ring
-# variant (comp_tdm_pc_s<slots>l<lag>) groups with comp_tdm_pc, every other
-# pipeline with itself.
+# The per-pipeline collection target a pipeline builds under: a ring variant
+# (comp_tdm_pc_s<slots>l<lag>, comp_tdm_ra_s<slots>r<ahead>) groups with its base
+# pipeline, every other pipeline with itself.
 function(ck_tile_gemm_pipeline_group pipeline out_group)
     string(REGEX REPLACE "^(comp_tdm_pc)_s[0-9]+l[0-9]+$" "\\1" _ck_group "${pipeline}")
+    string(REGEX REPLACE "^(comp_tdm_ra)_s[0-9]+r[0-9]+$" "\\1" _ck_group "${_ck_group}")
     set(${out_group} "${_ck_group}" PARENT_SCOPE)
 endfunction()

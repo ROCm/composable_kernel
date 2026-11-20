@@ -90,8 +90,12 @@ struct StreamKKernel
         TilePartitioner::PERSISTENT == PersistentDP,
         "Persistent flag from TilePartitioner must match Persistent flag from UniversalGemm.");
 
+    static_assert(!UniversalGemmKernel::kIsGemmKernelOnlyPipeline,
+                  "Stream-K GEMM does not support this pipeline (validated with the plain GEMM "
+                  "kernel only)");
+
     /// The named barriers this kernel arms for GemmPipeline; void when it uses none. Declared here
-    /// because the launched kernel, not the wrapped UniversalGemmKernel, owns the barrier array.
+    /// because the launched kernel, not the wrapped UniversalGemmKernel, owns the barriers.
     using barrier_pipeline = typename UniversalGemmKernel::barrier_pipeline;
     /// Stands in for the barrier token when the pipeline uses no named barriers.
     using NoBarriers = typename UniversalGemmKernel::NoBarriers;
@@ -357,9 +361,9 @@ struct StreamKKernel
         {
             // Revalidate the actual k_batch (UniversalGemmKernel substitutes 1 for a
             // split-K-capable TDM pipeline with a non-TDM epilogue, but Stream-K splits K itself)
-            // and the device (UniversalGemmKernel checks it only for named-barrier pipelines; off
-            // gfx125 the TDM instructions compile to no-ops). UniversalGemmKernel checks the rest,
-            // including the C tail with a non-TDM epilogue.
+            // and the device (off gfx125 the TDM instructions compile to no-ops;
+            // UniversalGemmKernel also rejects it, but this keeps the Stream-K message).
+            // UniversalGemmKernel checks the rest, including the C tail with a non-TDM epilogue.
             if(!UniversalGemmKernel::IsTdmArgumentSupported("Stream-K GEMM",
                                                             kargs.k_batch,
                                                             kargs.K,

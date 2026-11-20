@@ -328,6 +328,10 @@ int dispatcher_initialize()
     key.algorithm.num_slots   = GEMM_KEY_NUM_SLOTS;
     key.algorithm.publish_lag = GEMM_KEY_PUBLISH_LAG;
 #endif
+#ifdef GEMM_KEY_RUN_AHEAD
+    // So is a non-default comp_tdm_ra ring.
+    key.algorithm.run_ahead = GEMM_KEY_RUN_AHEAD;
+#endif
     key.gfx_arch = GFX_ARCH;
 
     // Register kernel using types from force-included header

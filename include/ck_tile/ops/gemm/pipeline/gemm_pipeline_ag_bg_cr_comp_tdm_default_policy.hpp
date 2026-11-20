@@ -539,6 +539,20 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
         return make_tuple(number<AccVGPRNum>{}, number<TotalInputVGPRNum>{});
     }
 
+    /// The TDM descriptor config that reproduces this policy's LDS padding for operand A or B.
+    template <typename Problem, bool IsA>
+    CK_TILE_DEVICE static TDMConfig MakeTdmConfig()
+    {
+        constexpr auto padding = GetLdsPaddingConfig<Problem, IsA>();
+
+        TDMConfig config;
+        config.pad_enable              = padding[number<0>{}];
+        config.pad_config.pad_amount   = padding[number<1>{}];
+        config.pad_config.pad_interval = padding[number<2>{}];
+        // workgroup_mask stays 0: a non-zero mask makes the transfer wait for cluster peers.
+        return config;
+    }
+
     // K sub-tile count: the register estimate's request, rounded up to a divisor of the number of
     // warp GEMMs in the K tile
     template <typename Problem>

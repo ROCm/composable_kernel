@@ -130,6 +130,10 @@ class TraitConfigBase:
             ("comp_tdm_v3", "tdmstaged", "interwave"),
             ("comp_tdm_v3", "cshuffle", "interwave"),
             ("comp_tdm_v3", "default", "interwave"),
+            ("comp_tdm_ra", "tdm", "interwave"),
+            ("comp_tdm_ra", "tdmstaged", "interwave"),
+            ("comp_tdm_ra", "cshuffle", "interwave"),
+            ("comp_tdm_ra", "default", "interwave"),
         }
     )
 
@@ -208,7 +212,15 @@ class CommonTypeMappings:
         "comp_tdm_v2": "GemmPipelineAgBgCrCompTDMV2",
         "comp_tdm_pc": "GemmPipelineAgBgCrCompTDMProducerConsumer",
         "comp_tdm_v3": "GemmPipelineAgBgCrCompTDMV3",
+        "comp_tdm_ra": "GemmPipelineAgBgCrCompTDMRunAhead",
         "preshuffle_tdm": "WeightPreshufflePipelineAGmemBGmemCRegTDM",
+    }
+
+    # Policy template of the ring-configurable pipelines (RING_PIPELINES), taking
+    # <NumSlots, ring parameter>; emitted only for a non-default ring.
+    PIPELINE_TO_RING_POLICY = {
+        "comp_tdm_pc": "GemmPipelineAgBgCrCompTDMProducerConsumerPolicy",
+        "comp_tdm_ra": "GemmPipelineAgBgCrCompTDMRunAheadPolicy",
     }
 
     PIPELINE_TO_BASE = {
@@ -222,6 +234,7 @@ class CommonTypeMappings:
         "comp_tdm_v2": "BaseGemmPipelineAgBgCrCompTDM",
         "comp_tdm_pc": "BaseGemmPipelineAgBgCrCompTDM",
         "comp_tdm_v3": "BaseGemmPipelineAgBgCrCompTDM",
+        "comp_tdm_ra": "BaseGemmPipelineAgBgCrCompTDM",
         "preshuffle_tdm": "BaseWeightPreshufflePipelineAGmemBGmemCRegTDM",
     }
 
@@ -236,6 +249,7 @@ class CommonTypeMappings:
         "comp_tdm_v2": "Pipeline::CompTDMV2",
         "comp_tdm_pc": "Pipeline::CompTDMPC",
         "comp_tdm_v3": "Pipeline::CompTDMV3",
+        "comp_tdm_ra": "Pipeline::CompTDMRA",
         "preshuffle_tdm": "Pipeline::PreShuffleTDM",
     }
 
@@ -1410,7 +1424,7 @@ def gfx1250_comp_async_8bit_warp_tile_mn_rejected(
 # arch gate is exact) plus non-MX comp_async (MX comp_async on gfx950 is a
 # separate kernel family and is not gated here).
 GFX1250_ARCH = "gfx1250"
-TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc", "comp_tdm_v3")
+TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc", "comp_tdm_v3", "comp_tdm_ra")
 # Epilogues that store C with TDM: "tdm" is TdmEpilogue (whole tile through LDS),
 # "tdmstaged" is TdmEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>
 # (M slabs in the pipeline's LDS). tdmstaged follows every tdm rule and also needs
@@ -1494,43 +1508,148 @@ COMP_TDM_PC_WARP_K_REJECT_REASON = (
 # GEMM_TDM_CSHUFFLE_PIPELINES in tile_engine/ops/gemm/gemm_validation_utils.py.
 GEMM_TDM_CSHUFFLE_PIPELINES = ("comp_tdm_pc",)
 
-# comp_tdm_pc ring shape (GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<NumSlots,
-# PublishLag>). Configs name a non-default ring as a pipeline variant,
-# "comp_tdm_pc_s{slots}l{lag}"; plain "comp_tdm_pc" is the policy default <4, 0>.
-# Traits carry the ring as (num_slots, publish_lag) with num_slots=0 meaning the
-# default, so default kernels keep their names. Two producer waves need
-# 3 * NumSlots named barriers out of 15 (ring_spec), which caps the ring at 5 slots.
+# comp_tdm_ra (GemmPipelineAgBgCrCompTDMRunAhead): the math waves fill the LDS
+# ring themselves, RunAhead K steps ahead, with no producer waves. It is built for
+# large per-wave C tiles (128x128 per wave, e.g. 256x256 on 4 waves), one wave per
+# SIMD, so comp_tdm_pc's accumulator cap (COMP_TDM_PC_MAX_ACC_VGPRS_PER_LANE) does
+# not apply. It hands off through an ordinary workgroup barrier rather than named
+# barriers, so it is not a wavelet pipeline and UniversalGemmKernel rejects
+# k_batch > 1 for it. It is validated with the plain GemmKernel only.
+COMP_TDM_RA_BATCHED_REJECT_REASON = (
+    "comp_tdm_ra is not supported for batched GEMM: the run-ahead pipeline is "
+    "validated with the plain GemmKernel only"
+)
+COMP_TDM_RA_WARP_K_REJECT_REASON = (
+    "comp_tdm_ra requires warp_k=1: it is validated with K-wave-free layouts "
+    "(2x2x1, 1x1x1) only"
+)
+
+# Ring-configurable TDM pipelines. Configs name a non-default ring as a pipeline
+# variant, "{pipeline}_s{slots}{letter}{param}", whose ring parameter is the
+# comp_tdm_pc PublishLag ("l") or the comp_tdm_ra RunAhead ("r"); the plain name
+# is the policy default. Traits carry the ring as num_slots (0 = the default, so
+# default kernels keep their names) plus the pipeline's own publish_lag or
+# run_ahead field (pipeline_ring_fields). Mirrors split_pipeline_ring /
+# pipeline_ring_reject_reason in tile_engine/ops/gemm/gemm_validation_utils.py.
+#
+# comp_tdm_pc (GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<NumSlots,
+# PublishLag>, default <4, 0>): two producer waves need 3 * NumSlots named
+# barriers out of 15 (ring_spec), which caps the ring at 5 slots.
 COMP_TDM_PC = "comp_tdm_pc"
 COMP_TDM_PC_DEFAULT_RING = (4, 0)
 COMP_TDM_PC_MIN_SLOTS = 2
 COMP_TDM_PC_MAX_SLOTS = 5
-_COMP_TDM_PC_RING_RE = re.compile(rf"^{COMP_TDM_PC}_s(\d+)l(\d+)$")
+# comp_tdm_ra (GemmPipelineAgBgCrCompTDMRunAheadPolicy<NumSlots, RunAhead>,
+# default <4, 3>): the policy static_asserts NumSlots >= 2 and
+# 1 <= RunAhead < NumSlots. Only the LDS budget, split over the slots, bounds
+# NumSlots from above.
+COMP_TDM_RA = "comp_tdm_ra"
+COMP_TDM_RA_DEFAULT_RING = (4, 3)
+COMP_TDM_RA_MIN_SLOTS = 2
+# Base pipeline -> (ring parameter letter of its variant names, default ring).
+RING_PIPELINES = {
+    COMP_TDM_PC: ("l", COMP_TDM_PC_DEFAULT_RING),
+    COMP_TDM_RA: ("r", COMP_TDM_RA_DEFAULT_RING),
+}
+_PIPELINE_RING_RES = {
+    pipeline: re.compile(rf"^{pipeline}_s(\d+){letter}(\d+)$")
+    for pipeline, (letter, _) in RING_PIPELINES.items()
+}
 
 
 def split_pipeline_ring(pipeline: str) -> Tuple[str, int, int]:
-    """(base pipeline, num_slots, publish_lag) of a pipeline name.
+    """(base pipeline, num_slots, ring_param) of a pipeline name.
 
-    "comp_tdm_pc_s2l1" -> ("comp_tdm_pc", 2, 1). The default ring and every other
-    pipeline give num_slots = publish_lag = 0. The ring is not validated here; see
-    comp_tdm_pc_ring_reject_reason.
+    ring_param is the PublishLag of comp_tdm_pc and the RunAhead of comp_tdm_ra:
+    "comp_tdm_pc_s2l1" -> ("comp_tdm_pc", 2, 1), "comp_tdm_ra_s3r2" ->
+    ("comp_tdm_ra", 3, 2). The default ring (e.g. "comp_tdm_ra_s4r3") and every
+    other name, including a ring letter that does not match the pipeline
+    ("comp_tdm_ra_s2l1"), give num_slots = ring_param = 0. The ring is not
+    validated here; see pipeline_ring_reject_reason.
     """
-    m = _COMP_TDM_PC_RING_RE.match(pipeline)
-    if not m:
-        return pipeline, 0, 0
-    ring = (int(m.group(1)), int(m.group(2)))
-    return (
-        (COMP_TDM_PC, 0, 0)
-        if ring == COMP_TDM_PC_DEFAULT_RING
-        else (COMP_TDM_PC, *ring)
-    )
+    for base, ring_re in _PIPELINE_RING_RES.items():
+        m = ring_re.match(pipeline)
+        if m:
+            ring = (int(m.group(1)), int(m.group(2)))
+            return (base, 0, 0) if ring == RING_PIPELINES[base][1] else (base, *ring)
+    return pipeline, 0, 0
 
 
-def pipeline_ring_suffix(num_slots: int, publish_lag: int) -> str:
-    """Name suffix of a non-default comp_tdm_pc ring ("" for the default).
+def pipeline_ring_fields(
+    pipeline: str, num_slots: int, ring_param: int
+) -> Dict[str, int]:
+    """Trait fields of a split_pipeline_ring ring: num_slots plus the ring
+    parameter as the comp_tdm_ra run_ahead or, for any other pipeline, the
+    comp_tdm_pc publish_lag."""
+    if pipeline == COMP_TDM_RA:
+        return dict(num_slots=num_slots, publish_lag=0, run_ahead=ring_param)
+    return dict(num_slots=num_slots, publish_lag=ring_param, run_ahead=0)
+
+
+def pipeline_ring_param(pipeline: str, publish_lag: int, run_ahead: int) -> int:
+    """The split_pipeline_ring ring parameter of the trait fields (the inverse
+    of pipeline_ring_fields). The other ring pipeline's field must be 0: it
+    reaches neither the policy nor split_pipeline_ring, only the kernel name."""
+    is_ra = pipeline == COMP_TDM_RA
+    param, stray = (run_ahead, publish_lag) if is_ra else (publish_lag, run_ahead)
+    if stray:
+        raise ValueError(
+            f"pipeline={pipeline} takes {'run_ahead' if is_ra else 'publish_lag'}, "
+            f"got publish_lag={publish_lag}, run_ahead={run_ahead}"
+        )
+    return param
+
+
+def pipeline_ring_suffix(pipeline: str, num_slots: int, ring_param: int) -> str:
+    """Name suffix of a non-default ring ("" for the default): "_s{S}{letter}{P}"
+    with the pipeline's RING_PIPELINES letter, the inverse of split_pipeline_ring.
 
     Must match KernelKey::encode_identifier() in kernel_key.hpp.
     """
-    return f"_s{num_slots}l{publish_lag}" if num_slots else ""
+    if not num_slots:
+        return ""
+    letter = RING_PIPELINES.get(pipeline, RING_PIPELINES[COMP_TDM_PC])[0]
+    return f"_s{num_slots}{letter}{ring_param}"
+
+
+def pipeline_ring_reject_reason(pipeline: str, num_slots: int, ring_param: int) -> str:
+    """Why a (pipeline, num_slots, ring_param) ring is rejected ("" when accepted).
+
+    Takes the split_pipeline_ring tuple, so it accepts exactly the pipeline
+    names the Tile Engine pipeline_ring_reject_reason accepts. num_slots = 0 is
+    the default ring of every pipeline; a non-default ring is only valid for
+    RING_PIPELINES, each under its own policy's rule.
+    """
+    if pipeline == COMP_TDM_RA:
+        return comp_tdm_ra_ring_reject_reason(pipeline, num_slots, ring_param)
+    if num_slots and pipeline not in RING_PIPELINES:
+        return (
+            f"num_slots/publish_lag/run_ahead only apply to "
+            f"{'/'.join(RING_PIPELINES)}, got pipeline={pipeline}"
+        )
+    return comp_tdm_pc_ring_reject_reason(pipeline, num_slots, ring_param)
+
+
+def comp_tdm_ra_ring_reject_reason(
+    pipeline: str, num_slots: int, run_ahead: int
+) -> str:
+    """Why a (pipeline, comp_tdm_ra ring) pair is rejected ("" when accepted)."""
+    if not num_slots:
+        return "" if not run_ahead else "run_ahead needs an explicit num_slots"
+    if pipeline != COMP_TDM_RA:
+        return (
+            f"num_slots/run_ahead only apply to {COMP_TDM_RA}, got pipeline={pipeline}"
+        )
+    if num_slots < COMP_TDM_RA_MIN_SLOTS:
+        return (
+            f"{COMP_TDM_RA} num_slots={num_slots} is below {COMP_TDM_RA_MIN_SLOTS} "
+            "(the ring needs a slot to fill while another is read)"
+        )
+    if not 1 <= run_ahead < num_slots:
+        return (
+            f"{COMP_TDM_RA} run_ahead={run_ahead} must be in [1, num_slots={num_slots})"
+        )
+    return ""
 
 
 def comp_tdm_pc_ring_reject_reason(
@@ -1552,9 +1671,10 @@ def comp_tdm_pc_ring_reject_reason(
     return ""
 
 
-def comp_tdm_pc_lds_limit(lds_total: int, num_slots: int) -> int:
-    """A+B staging budget of one comp_tdm_pc slot: the LDS split over the ring."""
-    return lds_total // (num_slots or COMP_TDM_PC_DEFAULT_RING[0])
+def pipeline_ring_lds_limit(pipeline: str, lds_total: int, num_slots: int) -> int:
+    """A+B staging budget of one slot of a RING_PIPELINES ring: the LDS split
+    over its slots (num_slots = 0 is the policy default)."""
+    return lds_total // (num_slots or RING_PIPELINES[pipeline][1][0])
 
 
 # comp_tdm_v3 (GemmPipelineAgBgCrCompTDMV3). Same rules as the Tile Engine
@@ -1831,15 +1951,18 @@ def gfx1250_pipeline_reject_reason(
     STREAMK_GFX1250_PIPELINES; comp_tdm_v3 is plain and Stream-K only). ``pads``
     is (pad_m, pad_n, pad_k); None means unknown and skips the pad rules.
     ``batched`` marks the batched GEMM variant, which does not take the cshuffle
-    pairing below, and ``tile_mn`` (tile_m, tile_n) enables the comp_tdm_pc
-    accumulator rule (None skips it). ``warp_k`` enables the comp_tdm_pc
-    warp_k=1 rule (None skips it); ``waves`` (warp_m, warp_n, warp_k) enables
-    the comp_tdm_v3 wave-map rule and ``tile_k`` its K-tile rule (None skips them).
+    pairing below nor comp_tdm_ra, and ``tile_mn`` (tile_m, tile_n) enables the
+    comp_tdm_pc accumulator rule (None skips it). ``warp_k`` enables the
+    comp_tdm_pc / comp_tdm_ra warp_k=1 rule (None skips it); ``waves`` (warp_m,
+    warp_n, warp_k) enables the comp_tdm_v3 wave-map rule and ``tile_k`` its
+    K-tile rule (None skips them).
     A TDM pipeline needs one of tdm_pipeline_epilogues(pipeline) ("cshuffle" for
     comp_tdm_v3, a TDM epilogue (TDM_EPILOGUES) otherwise), except that plain
-    GEMM may also pair GEMM_TDM_CSHUFFLE_PIPELINES with cshuffle. ``ring`` is the
-    comp_tdm_pc (num_slots, publish_lag); (0, 0) is the default ring, and a
-    non-default ring on any other pipeline is rejected.
+    GEMM may also pair GEMM_TDM_CSHUFFLE_PIPELINES with cshuffle. ``ring`` is
+    (num_slots, ring_param) as split_pipeline_ring returns them: the comp_tdm_pc
+    PublishLag or the comp_tdm_ra RunAhead. (0, 0) is the default ring; a
+    non-default ring is checked by pipeline_ring_reject_reason, which rejects it
+    on any pipeline outside RING_PIPELINES.
     ``streamk`` marks the Stream-K variant: only STREAMK_GFX1250_PIPELINES are
     accepted, with a row-major C and warp_k=1, and the epilogue rules are
     streamk_trait_reject_reason's (they depend on the reduction strategy); Stream-K
@@ -1851,7 +1974,7 @@ def gfx1250_pipeline_reject_reason(
     """
     is_tdm = pipeline in TDM_PIPELINES
     is_tdm_epilogue = epilogue in TDM_EPILOGUES
-    ring_reason = comp_tdm_pc_ring_reject_reason(pipeline, *ring)
+    ring_reason = pipeline_ring_reject_reason(pipeline, *ring)
     if ring_reason:
         return ring_reason
     if pipeline == "compv5" and normalize_gfx_arch(gpu_target).lower() == GFX1250_ARCH:
@@ -1868,6 +1991,8 @@ def gfx1250_pipeline_reject_reason(
         return f"pipeline={pipeline} is not supported for stream_k"
     if not variant_supported:
         return f"pipeline={pipeline} is not supported for {variant_name}"
+    if batched and pipeline == COMP_TDM_RA:
+        return COMP_TDM_RA_BATCHED_REJECT_REASON
     if is_tdm:
         # StreamKKernel takes a TDM pipeline with either epilogue and persistent or not;
         # streamk_trait_reject_reason decides the epilogue per reduction strategy. Plain
@@ -1912,6 +2037,8 @@ def gfx1250_pipeline_reject_reason(
                 reason = comp_tdm_pc_acc_reject_reason(*tile_mn, num_waves)
                 if reason:
                     return reason
+        if pipeline == COMP_TDM_RA and warp_k is not None and warp_k != 1:
+            return COMP_TDM_RA_WARP_K_REJECT_REASON
         if "fp32" in (dtype_a, dtype_b) and layout and layout != "rcr":
             return GFX1250_TDM_FP32_LAYOUT_REJECT_REASON
         return ""
@@ -1954,7 +2081,8 @@ def rcr_only_layout_guard(layout: str) -> Optional[str]:
 # here, see normalize_gfx_arch); tests/test_preshuffle_gfx1250_pipelines.py
 # pins the two copies to identical behaviour.
 PACKED_B_PIPELINES = ("preshufflev2", "preshuffle_tdm")
-# Listed explicitly: comp_tdm_pc is a TDM pipeline without preshuffle wiring.
+# Listed explicitly: comp_tdm_pc and comp_tdm_ra are TDM pipelines without
+# preshuffle wiring.
 PRESHUFFLE_GFX1250_PIPELINES = (
     "preshuffle_tdm",
     "comp_async",

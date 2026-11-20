@@ -216,7 +216,7 @@ template <typename Pipe>
 struct slot_ring_kernel
 {
     // Names this kernel's one barrier pipeline. init() rejects any other, which is what keeps a
-    // kernel to a single barrier array.
+    // kernel to a single set of named barriers.
     using barrier_pipeline = Pipe;
 
     using ring = typename Pipe::template ring<0>;

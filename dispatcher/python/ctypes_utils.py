@@ -62,6 +62,7 @@ def detect_gpu_arch(fallback: str = "gfx942") -> str:
     # Prefer amd-smi via the single canonical bridge.
     try:
         from dispatcher_common import _detect_gpu_arch_via_amd_smi
+
         arch = _detect_gpu_arch_via_amd_smi()
         if arch:
             _detected_arch = arch
@@ -183,6 +184,8 @@ def get_arch_filter_data() -> Dict[str, Any]:
             },
             "supported_archs": ["gfx90a", "gfx942", "gfx950"],
         }
+
+
 @dataclass
 class ValidationResult:
     """Result of kernel config validation."""
@@ -256,8 +259,10 @@ def listed_warp_tiles(
         pipeline is None or pipeline in PACKED_B_PIPELINES
     )
     table_key = "preshuffle_warp_tile_combos" if packed_b else "warp_tile_combos"
-    return dtype_key, table_key, arch_data.get(table_key, {}).get(arch, {}).get(
-        dtype_key, []
+    return (
+        dtype_key,
+        table_key,
+        arch_data.get(table_key, {}).get(arch, {}).get(dtype_key, []),
     )
 
 
@@ -291,22 +296,53 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
     warp_n = config.warp_n
     warp_k = config.warp_k
 
+    # A ring variant name (comp_tdm_ra_s3r2) carries its ring separately from the
+    # base pipeline the rules know, exactly as the codegen's traits do.
+    from codegen_common import split_pipeline_ring
+
+    base_pipeline, num_slots, ring_param = split_pipeline_ring(pipeline)
+
     # Variant-specific tile constraints
     if variant == "preshuffle":
-        from arch_filter import ArchFilter, KernelConfig as ArchKernelConfig, OperatorType
-        result = ArchFilter(arch).validate_kernel(ArchKernelConfig(
-            datatype_a=dtype, datatype_b=config.dtype_b, datatype_c=config.dtype_acc,
-            tile_m=config.tile_m, tile_n=config.tile_n, tile_k=config.tile_k,
-            warp_m=wave_m, warp_n=wave_n, warp_k=wave_k,
-            warp_tile_m=warp_m, warp_tile_n=warp_n, warp_tile_k=warp_k,
-            pipeline=pipeline, epilogue=epilogue, scheduler=scheduler,
-            layout=config.layout, operator=OperatorType.GEMM_PRESHUFFLE,
-        ))
+        from arch_filter import (
+            ArchFilter,
+            KernelConfig as ArchKernelConfig,
+            OperatorType,
+        )
+
+        result = ArchFilter(arch).validate_kernel(
+            ArchKernelConfig(
+                datatype_a=dtype,
+                datatype_b=config.dtype_b,
+                datatype_c=config.dtype_acc,
+                tile_m=config.tile_m,
+                tile_n=config.tile_n,
+                tile_k=config.tile_k,
+                warp_m=wave_m,
+                warp_n=wave_n,
+                warp_k=wave_k,
+                warp_tile_m=warp_m,
+                warp_tile_n=warp_n,
+                warp_tile_k=warp_k,
+                pipeline=base_pipeline,
+                epilogue=epilogue,
+                scheduler=scheduler,
+                num_slots=num_slots,
+                ring_param=ring_param,
+                layout=config.layout,
+                operator=OperatorType.GEMM_PRESHUFFLE,
+            )
+        )
         errors.extend(result.errors)
         # ArchFilter gets no pads or persistent flag; the shared rules cover them.
         from codegen_common import preshuffle_pipeline_reject_reason
+
         reason = preshuffle_pipeline_reject_reason(
-            pipeline, arch, pad_m=config.pad_m, pad_n=config.pad_n, pad_k=config.pad_k,
+            base_pipeline,
+            arch,
+            pad_m=config.pad_m,
+            pad_n=config.pad_n,
+            pad_k=config.pad_k,
             persistent=getattr(config, "persistent", False),
         )
         if reason:
@@ -324,9 +360,51 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
 
     else:
         from codegen_common import packed_b_pipeline_reject_reason
+
         reason = packed_b_pipeline_reject_reason(pipeline, preshuffle=False)
         if reason:
             errors.append(reason)
+
+    # The gfx1250 pipeline gate (arch, variant, warp_k, epilogue, pads, ring) and the
+    # fp32 tile cap are the codegen's own per-config rules, called as
+    # unified_gemm_codegen calls them, so this validator rejects e.g. comp_tdm_ra off
+    # gfx1250, batched or with K waves. The Stream-K reduction/epilogue rules stay with
+    # the codegen: KernelConfig has no reduction strategy. For preshuffle, ArchFilter
+    # already ran the gate, so its reason is not repeated.
+    from codegen_common import (
+        gfx1250_fp32_tile_reject_reason,
+        gfx1250_pipeline_reject_reason,
+    )
+
+    reason = gfx1250_pipeline_reject_reason(
+        arch,
+        base_pipeline,
+        epilogue,
+        scheduler,
+        num_waves=wave_m * wave_n * wave_k,
+        warp_tile_k=warp_k,
+        warp_tile_m=warp_m,
+        warp_tile_n=warp_n,
+        dtype_a=dtype,
+        dtype_b=getattr(config, "dtype_b", None) or dtype,
+        layout=config.layout,
+        variant_supported=variant in ("standard", "batched", "preshuffle", "stream_k"),
+        variant_name=variant,
+        persistent=bool(getattr(config, "persistent", False)),
+        pads=(bool(config.pad_m), bool(config.pad_n), bool(config.pad_k)),
+        batched=variant == "batched",
+        tile_mn=(config.tile_m, config.tile_n),
+        warp_k=wave_k,
+        streamk=variant == "stream_k",
+        ring=(num_slots, ring_param),
+    )
+    if reason and reason not in errors:
+        errors.append(reason)
+    reason = gfx1250_fp32_tile_reject_reason(
+        arch, dtype, config.tile_m, config.tile_n, wave_m * wave_n * wave_k
+    )
+    if reason and reason not in errors:
+        errors.append(reason)
 
     if variant == "multi_d":
         # Multi-D has standard GEMM constraints
@@ -390,6 +468,8 @@ def validate_kernel_config(config: "KernelConfig") -> ValidationResult:
         warnings=warnings,
         suggested_fixes=suggested_fixes,
     )
+
+
 def auto_correct_kernel_config(
     config: "KernelConfig", verbose: bool = False
 ) -> Tuple["KernelConfig", bool, List[str]]:
@@ -1127,9 +1207,13 @@ def _generate_single_kernel_subprocess(args: dict) -> Tuple[bool, Optional[str],
             pattern = args["hpp_glob_pattern"]
             matches = sorted(gen_dir.glob(pattern))
             if len(matches) != 1:
-                return False, None, (
-                    f"Expected one .hpp matching {pattern} after codegen, "
-                    f"got {len(matches)}"
+                return (
+                    False,
+                    None,
+                    (
+                        f"Expected one .hpp matching {pattern} after codegen, "
+                        f"got {len(matches)}"
+                    ),
                 )
             # The name encodes every generated field, so replacing an existing
             # file of the same name keeps identical content.
@@ -1180,11 +1264,13 @@ def _parse_gemm_header_metadata(header: Path) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        flag_index = next(i for i in range(3, len(parts)) if parts[i].lower() in ("true", "false"))
+        flag_index = next(
+            i for i in range(3, len(parts)) if parts[i].lower() in ("true", "false")
+        )
     except StopIteration:
         return None
     # Collapse the variable-length pipeline token to retain the canonical field positions.
-    parts = parts[:3] + ["_".join(parts[3:flag_index - 2])] + parts[flag_index - 2:]
+    parts = parts[:3] + ["_".join(parts[3 : flag_index - 2])] + parts[flag_index - 2 :]
     if len(parts) < 13:
         return None
     tile = _parse_triplet(parts[10])
@@ -2316,7 +2402,9 @@ def setup_gemm_dispatcher(
     header_dir = get_generated_kernels_dir() / "jit" / _gemm_library_name(config)[:-3]
     codegen_result = codegen.generate_from_config(config, output_dir=header_dir)
     if not codegen_result.success or len(codegen_result.instance_names) != 1:
-        result.error = "Could not generate the requested kernel: " + codegen_result.stderr
+        result.error = (
+            "Could not generate the requested kernel: " + codegen_result.stderr
+        )
         return result
     kernel_header = header_dir / (codegen_result.instance_names[0] + ".hpp")
     result.kernel_header = kernel_header
@@ -2338,7 +2426,9 @@ def setup_gemm_dispatcher(
             if candidate is not None and candidate.initialize():
                 lib = candidate
         if lib is None:
-            result.error = "Failed to build or initialize the requested dispatcher library"
+            result.error = (
+                "Failed to build or initialize the requested dispatcher library"
+            )
             return result
     elif lib is None:
         # Legacy default libraries carry no target metadata. Their kernel name
@@ -2641,7 +2731,9 @@ def setup_multiple_gemm_dispatchers(
                 if ok and lp:
                     lib_paths[i] = Path(lp)
                     if verbose:
-                        print(f"  OK [{i}] {valid_configs[i].tile_str}: {Path(lp).name}")
+                        print(
+                            f"  OK [{i}] {valid_configs[i].tile_str}: {Path(lp).name}"
+                        )
                 else:
                     results[i].error = f"Compile: {err}"
                     if verbose:

@@ -44,7 +44,9 @@ def _load_te_validation():
 
 TE = _load_te_validation()
 ALL_PIPELINES = (
-    ("preshufflev2",) + cc.PRESHUFFLE_GFX1250_PIPELINES + ("comp_tdm_pc", "compv3")
+    ("preshufflev2",)
+    + cc.PRESHUFFLE_GFX1250_PIPELINES
+    + ("comp_tdm_pc", "comp_tdm_ra", "compv3")
 )
 PRESHUFFLE_COMP_TDM = tuple(
     p for p in cc.TDM_PIPELINES if p in cc.PRESHUFFLE_GFX1250_PIPELINES

@@ -48,6 +48,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <random>
 #include <string>
 #include <thread>
@@ -57,6 +58,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/device_memory.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
@@ -281,6 +283,27 @@ template <typename Config>
 class TestCkTileGemmPipelineCompTDMV3 : public ::testing::Test
 {
     protected:
+    // comp_tdm_v3 is gfx1250-only: this binary carries no other target's code object, and
+    // UniversalGemmKernel::IsSupportedArgument rejects every TDM pipeline elsewhere before any
+    // argument check, so off gfx1250 the negative checks would pass for the wrong reason. The
+    // runs and ExpectSupported's host-side checks, positive and negative, therefore all skip.
+    void SetUp() override
+    {
+        if(!ck_tile::is_gfx125_supported())
+        {
+            // CTest reports a skip as PASS. Set CK_TILE_REQUIRE_GFX125=1 on runners that are
+            // meant to be gfx1250 to make it a failure instead.
+            const char* required = std::getenv("CK_TILE_REQUIRE_GFX125");
+            if(required != nullptr && required[0] == '1')
+            {
+                FAIL() << "CK_TILE_REQUIRE_GFX125=1 but the device reports '"
+                       << ck_tile::get_device_name() << "'";
+            }
+            GTEST_SKIP() << "TDM requires gfx1250; device reports '" << ck_tile::get_device_name()
+                         << "'";
+        }
+    }
+
     void Run(ck_tile::index_t M,
              ck_tile::index_t N,
              ck_tile::index_t K,

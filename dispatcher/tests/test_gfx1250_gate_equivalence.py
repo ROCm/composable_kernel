@@ -5,7 +5,8 @@
 
 """
 CPU-only equivalence of the gfx1250 pipeline gates (non-MX comp_async,
-comp_tdm, comp_tdm_v2, comp_tdm_pc, comp_tdm_v3 and the tdm / tdmstaged epilogues).
+comp_tdm, comp_tdm_v2, comp_tdm_pc, comp_tdm_v3, comp_tdm_ra and the tdm / tdmstaged
+epilogues).
 
 The Tile Engine keeps its own copy of these rules
 (tile_engine/ops/gemm/gemm_validation_utils.py); the dispatcher uses
@@ -38,11 +39,13 @@ try:
 except ImportError:  # pragma: no cover - TE tree not present
     te = None
 
-from arch_filter import ArchFilter  # noqa: E402
+from arch_filter import ArchFilter, OperatorType  # noqa: E402
 from codegen_common import (  # noqa: E402
     TDM_EPILOGUES,
     CommonTypeMappings,
     comp_tdm_v3_reject_reason,
+    preshuffle_pipeline_reject_reason,
+    split_pipeline_ring,
     valid_warp_configs,
 )
 
@@ -50,6 +53,11 @@ try:
     import gemm_utils  # noqa: E402
 except ImportError:  # pragma: no cover - numpy missing
     gemm_utils = None
+
+try:
+    import ctypes_utils  # noqa: E402
+except ImportError:  # pragma: no cover - numpy missing
+    ctypes_utils = None
 
 ARCH = "gfx1250"
 TE_PREFIX = "gemm_universal"
@@ -59,6 +67,7 @@ PIPELINES = (
     "comp_tdm_v2",
     "comp_tdm_pc",
     "comp_tdm_v3",
+    "comp_tdm_ra",
     "compv3",
     "compv4",
     "mem",
@@ -69,6 +78,7 @@ GATED_PIPELINES = (
     "comp_tdm_v2",
     "comp_tdm_pc",
     "comp_tdm_v3",
+    "comp_tdm_ra",
 )
 EPILOGUES = ("cshuffle", "default") + TDM_EPILOGUES
 SCHEDULERS = ("intrawave", "interwave")
@@ -208,6 +218,7 @@ LEGAL_TRAITS = {
     "comp_tdm_v2": ("tdm", "intrawave", (False, False, False)),
     "comp_tdm_pc": ("tdm", "intrawave", (False, False, False)),
     "comp_tdm_v3": ("cshuffle", "intrawave", (False, False, False)),
+    "comp_tdm_ra": ("tdm", "intrawave", (False, False, False)),
 }
 
 
@@ -436,6 +447,234 @@ class TestGfx1250GateEquivalence(unittest.TestCase):
         self.assertEqual(
             mismatches[:10], [], f"{len(mismatches)} mismatches of {compared}"
         )
+
+    def test_ring_tile_space(self):
+        """Ring variants: the TE takes the variant name, the dispatcher the
+        split ring (num_slots / ring_param), over the whole tile space."""
+        variants = (
+            "comp_tdm_ra_s3r2",
+            "comp_tdm_ra_s2r1",
+            "comp_tdm_ra_s4r1",
+            "comp_tdm_pc_s2l1",
+        )
+        mismatches = []
+        accepted = dict.fromkeys(variants, 0)
+        rejected = dict.fromkeys(variants, 0)
+        pads = (False, False, False)
+        for t in _tile_space():
+            for dtype in DTYPES:
+                if not self._baseline_ok("rcr", dtype, t, (True, True, True)):
+                    continue
+                for name in variants:
+                    base, slots, param = split_pipeline_ring(name)
+                    want = _te_accepts(
+                        name, "tdm", "intrawave", False, "rcr", pads, dtype, t
+                    )
+                    got = self.filt.is_kernel_valid(
+                        datatype_a=dtype,
+                        datatype_b=dtype,
+                        datatype_c=CommonTypeMappings.get_output_dtype(dtype),
+                        pipeline=base,
+                        epilogue="tdm",
+                        scheduler="intrawave",
+                        layout="rcr",
+                        pad_m=False,
+                        pad_n=False,
+                        pad_k=False,
+                        num_slots=slots,
+                        ring_param=param,
+                        **t,
+                    )
+                    if gemm_utils is not None:
+                        got = got and gemm_utils._gfx1250_pipeline_supported(
+                            base,
+                            "intrawave",
+                            "tdm",
+                            False,
+                            t["warp_m"],
+                            t["warp_n"],
+                            t["warp_k"],
+                            ARCH,
+                            "standard",
+                            layout="rcr",
+                            dtype=dtype,
+                            warp_tile_k=t["warp_tile_k"],
+                            warp_tile_m=t["warp_tile_m"],
+                            warp_tile_n=t["warp_tile_n"],
+                            tile_mn=(t["tile_m"], t["tile_n"]),
+                            ring=(slots, param),
+                        )
+                    accepted[name] += want
+                    rejected[name] += not want
+                    if want != got:
+                        mismatches.append((name, dtype, t, want, got))
+        for name in variants:
+            self.assertGreater(accepted[name], 0, name)
+            self.assertGreater(rejected[name], 0, name)
+        self.assertEqual(mismatches[:10], [], f"{len(mismatches)} mismatches")
+
+
+# comp_tdm_ra is validated with the plain gfx1250 GEMM kernel and warp_k=1 only.
+# Dispatcher GEMM variant -> (Tile Engine kernel_name_prefix, ArchFilter operator).
+# The Tile Engine Stream-K builder has its own validation module; "gemm_streamk"
+# exercises the shared per-op rule that keeps comp_tdm_ra on gemm_universal.
+# Batched GEMM has no ArchFilter operator.
+RA_VARIANTS = {
+    "standard": ("gemm_universal", OperatorType.GEMM),
+    "batched": ("batched_gemm", None),
+    "grouped": ("grouped_gemm", OperatorType.GEMM_GROUPED),
+    "multi_d": ("gemm_multi_d", OperatorType.GEMM_MULTI_D),
+    "preshuffle": ("gemm_preshuffle", OperatorType.GEMM_PRESHUFFLE),
+    "stream_k": ("gemm_streamk", OperatorType.GEMM_STREAMK),
+}
+RA_PIPELINES = ("comp_tdm_ra", "comp_tdm_ra_s3r2", "comp_tdm_ra_s2r1")
+# is_tile_config_valid's positional tile arguments.
+TILE_KEYS = (
+    "tile_m",
+    "tile_n",
+    "tile_k",
+    "warp_m",
+    "warp_n",
+    "warp_k",
+    "warp_tile_m",
+    "warp_tile_n",
+    "warp_tile_k",
+)
+RA_TILE = _tile(256, 256, 64, 2, 2, 1, 16, 16, 32)
+RA_TILE_WARP_K2 = _tile(256, 256, 64, 1, 2, 2, 16, 16, 32)
+
+
+@unittest.skipIf(te is None, "tile_engine/ops/gemm not importable")
+class TestCompTdmRaRejectedOutsidePlainGfx1250(unittest.TestCase):
+    """Every layer that can produce or select a comp_tdm_ra kernel (Tile Engine
+    trait + tile rules, ArchFilter, the gemm_utils sweep gate and ctypes_utils
+    validate_kernel_config) accepts it for plain gfx1250 GEMM with warp_k=1 and
+    rejects it on other archs, other GEMM variants and warp_k=2."""
+
+    def _layers(self, arch, variant, name, t, dtype="fp16"):
+        """{layer: accepts} for one config; layers that do not model it are absent."""
+        prefix, operator = RA_VARIANTS[variant]
+        base, slots, param = split_pipeline_ring(name)
+        pads = (False, False, False)
+        out_dtype = CommonTypeMappings.get_output_dtype(dtype)
+        got = {
+            "tile_engine": te.is_trait_combination_valid(
+                name,
+                "tdm",
+                "intrawave",
+                False,
+                kernel_name_prefix=prefix,
+                layout="rcr",
+                pad_m=False,
+                pad_n=False,
+                pad_k=False,
+                gpu_target=arch,
+            )
+            and te.is_tile_config_valid(
+                *(t[k] for k in TILE_KEYS),
+                dtype,
+                dtype,
+                out_dtype,
+                name,
+                "rcr",
+                arch,
+                kernel_name_prefix=prefix,
+            )
+        }
+        if operator is not None:
+            got["arch_filter"] = ArchFilter(arch).is_kernel_valid(
+                datatype_a=dtype,
+                datatype_b=dtype,
+                datatype_c=out_dtype,
+                pipeline=base,
+                epilogue="tdm",
+                scheduler="intrawave",
+                layout="rcr",
+                pad_m=False,
+                pad_n=False,
+                pad_k=False,
+                num_slots=slots,
+                ring_param=param,
+                operator=operator,
+                **t,
+            )
+        if variant == "preshuffle":
+            # The preshuffle sweep gates its pipelines through this rule.
+            got["preshuffle_gate"] = not preshuffle_pipeline_reject_reason(
+                base, arch, "rcr", *pads, warp_k=t["warp_k"], scheduler="intrawave"
+            )
+        elif gemm_utils is not None:
+            got["gemm_utils"] = gemm_utils._gfx1250_pipeline_supported(
+                base,
+                "intrawave",
+                "tdm",
+                False,
+                t["warp_m"],
+                t["warp_n"],
+                t["warp_k"],
+                arch,
+                variant,
+                layout="rcr",
+                dtype=dtype,
+                warp_tile_k=t["warp_tile_k"],
+                warp_tile_m=t["warp_tile_m"],
+                warp_tile_n=t["warp_tile_n"],
+                tile_mn=(t["tile_m"], t["tile_n"]),
+                ring=(slots, param),
+            )
+        if ctypes_utils is not None:
+            config = ctypes_utils.KernelConfig(
+                dtype_a=dtype,
+                dtype_b=dtype,
+                dtype_c=out_dtype,
+                tile_m=t["tile_m"],
+                tile_n=t["tile_n"],
+                tile_k=t["tile_k"],
+                wave_m=t["warp_m"],
+                wave_n=t["warp_n"],
+                wave_k=t["warp_k"],
+                warp_m=t["warp_tile_m"],
+                warp_n=t["warp_tile_n"],
+                warp_k=t["warp_tile_k"],
+                pipeline=name,
+                scheduler="intrawave",
+                epilogue="tdm",
+                pad_m=False,
+                pad_n=False,
+                pad_k=False,
+                gfx_arch=arch,
+                variant=variant,
+            )
+            got["ctypes_utils"] = ctypes_utils.validate_kernel_config(config).is_valid
+        return got
+
+    def test_plain_gfx1250_accepted(self):
+        """Control: the rejections below are not a tile every layer refuses."""
+        for name in RA_PIPELINES:
+            got = self._layers(ARCH, "standard", name, RA_TILE)
+            self.assertTrue(all(got.values()), (name, got))
+
+    def test_other_arch_rejected(self):
+        for arch, variant, name in itertools.product(
+            ("gfx950", "gfx942"), RA_VARIANTS, RA_PIPELINES
+        ):
+            got = self._layers(arch, variant, name, RA_TILE)
+            self.assertFalse(any(got.values()), (arch, variant, name, got))
+
+    def test_other_variants_rejected(self):
+        for variant, name in itertools.product(RA_VARIANTS, RA_PIPELINES):
+            if variant == "standard":
+                continue
+            got = self._layers(ARCH, variant, name, RA_TILE)
+            self.assertFalse(any(got.values()), (variant, name, got))
+
+    def test_warp_k2_rejected(self):
+        # comp_tdm takes the same 1x2x2 tile, so warp_k is the only reason.
+        control = self._layers(ARCH, "standard", "comp_tdm", RA_TILE_WARP_K2)
+        self.assertTrue(all(control.values()), control)
+        for variant, name in itertools.product(RA_VARIANTS, RA_PIPELINES):
+            got = self._layers(ARCH, variant, name, RA_TILE_WARP_K2)
+            self.assertFalse(any(got.values()), (variant, name, got))
 
 
 if __name__ == "__main__":

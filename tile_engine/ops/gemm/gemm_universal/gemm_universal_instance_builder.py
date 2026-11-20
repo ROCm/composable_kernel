@@ -85,6 +85,10 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
         work_items = []
         for tile_config in tile_configs:
             for trait_combo in trait_combos:
+                # _generate_kernel_instance raises on these; skipping here keeps
+                # an expected rejection out of the per-kernel error output.
+                if self.gfx1250_instance_reject_reason(tile_config, trait_combo[0]):
+                    continue
                 work_items.append(
                     (
                         tile_config,

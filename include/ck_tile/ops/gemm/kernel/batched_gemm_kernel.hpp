@@ -95,6 +95,9 @@ struct BatchedGemmKernel
                       !is_detected<is_tuple, CDataType>::value,
                   "C/CLayout and C/EDataType must be scalars.");
 
+    static_assert(!UniversalGemmKernel::kIsPlainGemmOnlyPipeline,
+                  "Batched GEMM does not support this pipeline (plain GEMM only)");
+
     struct BatchedGemmKernelArgs : ck_tile::UniversalGemmKernelArgs<>
     {
         index_t batch_stride_A;

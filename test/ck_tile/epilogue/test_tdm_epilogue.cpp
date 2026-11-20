@@ -307,7 +307,14 @@ struct TdmGemmWithFp32E
 TEST(TdmEpilogue, GemmKernelTdmV1RejectsSplitKWithFp32E)
 {
     using Gemm = TdmGemmWithFp32E<GemmPipelineAgBgCrCompTDMV1>;
+    // A compile-time property, so it is checked on every device.
     EXPECT_FALSE(Gemm::Kernel::UniversalGemmKernel::EpilogueSupportsSplitK);
+    // IsSupportedArgument rejects every TDM pipeline off gfx1250 before it looks at k_batch, so
+    // the runtime checks only show the split-K rejection on gfx1250.
+    if(skip_without_gfx125())
+    {
+        GTEST_SKIP() << "TDM requires gfx1250; device reports '" << get_device_name() << "'";
+    }
     EXPECT_TRUE(Gemm::IsSupported(1));
     EXPECT_FALSE(Gemm::IsSupported(2));
 }
@@ -315,7 +322,14 @@ TEST(TdmEpilogue, GemmKernelTdmV1RejectsSplitKWithFp32E)
 TEST(TdmEpilogue, GemmKernelTdmV2RejectsSplitKWithFp32E)
 {
     using Gemm = TdmGemmWithFp32E<GemmPipelineAgBgCrCompTDMV2>;
+    // A compile-time property, so it is checked on every device.
     EXPECT_FALSE(Gemm::Kernel::UniversalGemmKernel::EpilogueSupportsSplitK);
+    // IsSupportedArgument rejects every TDM pipeline off gfx1250 before it looks at k_batch, so
+    // the runtime checks only show the split-K rejection on gfx1250.
+    if(skip_without_gfx125())
+    {
+        GTEST_SKIP() << "TDM requires gfx1250; device reports '" << get_device_name() << "'";
+    }
     EXPECT_TRUE(Gemm::IsSupported(1));
     EXPECT_FALSE(Gemm::IsSupported(2));
 }

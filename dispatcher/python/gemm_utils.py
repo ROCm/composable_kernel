@@ -361,11 +361,13 @@ class GemmKernelConfig:
     vector_size_a: int = 0
     vector_size_b: int = 0
     vector_size_c: int = 0
-    # comp_tdm_pc ring (NumSlots, PublishLag); num_slots=0 is the policy
-    # default <4, 0>. Sweep configs spell a non-default ring as the pipeline
-    # "comp_tdm_pc_s{S}l{L}" (codegen_common.split_pipeline_ring).
+    # comp_tdm_pc ring (NumSlots, PublishLag) or comp_tdm_ra ring (NumSlots,
+    # RunAhead); num_slots=0 is the policy default (<4, 0> / <4, 3>). Sweep
+    # configs spell a non-default ring as the pipeline "comp_tdm_pc_s{S}l{L}" /
+    # "comp_tdm_ra_s{S}r{R}" (codegen_common.split_pipeline_ring).
     num_slots: int = 0
     publish_lag: int = 0
+    run_ahead: int = 0
 
     # No silent default: the arch must be resolved (rocminfo-detected or passed
     # explicitly) before this config feeds the compiler. expand_sweep /
@@ -452,8 +454,18 @@ class GemmKernelConfig:
 
     @property
     def ring_suffix(self) -> str:
-        """ "_s{S}l{L}" for a non-default comp_tdm_pc ring, else ""."""
-        return _codegen_common().pipeline_ring_suffix(self.num_slots, self.publish_lag)
+        """ "_s{S}l{L}" / "_s{S}r{R}" for a non-default comp_tdm_pc / comp_tdm_ra
+        ring, else ""."""
+        return _codegen_common().pipeline_ring_suffix(
+            self.pipeline, self.num_slots, self.ring_param
+        )
+
+    @property
+    def ring_param(self) -> int:
+        """The ring parameter of the pipeline's policy (PublishLag / RunAhead)."""
+        return _codegen_common().pipeline_ring_param(
+            self.pipeline, self.publish_lag, self.run_ahead
+        )
 
     def _vector_args(self) -> Dict[str, Any]:
         return dict(
@@ -654,7 +666,8 @@ class GemmKernelConfig:
             "pad": [self.pad_m, self.pad_n, self.pad_k],
             "persistent": self.persistent,
             "vector_sizes": list(self.vector_sizes),
-            "ring": [self.num_slots, self.publish_lag],
+            # (num_slots, PublishLag / RunAhead), as split_pipeline_ring.
+            "ring": [self.num_slots, self.ring_param],
             "gfx_arch": self.gfx_arch,
             "variant": self.variant,
             "name": self.name,
@@ -2811,7 +2824,7 @@ def _warp_config_supported(
 
 
 # --- gfx1250 pipeline gate (parity with unified_gemm_codegen) --------------
-# Non-MX comp_async / comp_tdm / comp_tdm_v2 / comp_tdm_pc are only generated
+# Non-MX comp_async / comp_tdm / comp_tdm_v2 / comp_tdm_pc / comp_tdm_ra are only generated
 # for gfx1250 by unified_gemm_codegen. expand_sweep must drop the same combinations up front,
 # otherwise it hands back configs whose header is never emitted. The rules live
 # in codegen_common.gfx1250_pipeline_reject_reason (single source of truth
@@ -2865,8 +2878,9 @@ def _gfx1250_pipeline_supported(
     8-bit warp_tile_k rule; an empty dtype skips it. ``warp_tile_m``/
     ``warp_tile_n`` feed the comp_async 8-bit warp_tile_m/n rule; 0 skips it.
     ``tile_mn`` feeds the comp_tdm_pc accumulator rule and ``tile_k`` the
-    comp_tdm_v3 K-tile rule; None skips them. ``ring`` is the comp_tdm_pc
-    (num_slots, publish_lag); (0, 0) is the default."""
+    comp_tdm_v3 K-tile rule; None skips them. ``ring`` is the (num_slots,
+    ring_param) of split_pipeline_ring: the comp_tdm_pc PublishLag or the
+    comp_tdm_ra RunAhead; (0, 0) is the default."""
     reason = _codegen_common().gfx1250_pipeline_reject_reason(
         arch,
         pipeline,
@@ -2915,6 +2929,7 @@ def _arch_filter_accepts(
     epilogue: str,
     scheduler: str,
     num_slots: int = 0,
+    ring_param: int = 0,
 ) -> bool:
     """Mirror of unified_gemm_codegen's _is_tile_arch_valid ArchFilter call
     (LDS capacity, warp and trait rules), so expand_sweep drops every config
@@ -2952,6 +2967,7 @@ def _arch_filter_accepts(
         layout=layout[:3],
         operator=operator,
         num_slots=num_slots,
+        ring_param=ring_param,
     )
 
 
@@ -3247,8 +3263,11 @@ def expand_sweep(
         persistents,
         reductions,
     ):
-        # "comp_tdm_pc_s{S}l{L}" names a non-default producer/consumer ring.
-        pipe, num_slots, publish_lag = _codegen_common().split_pipeline_ring(pipe)
+        # "comp_tdm_pc_s{S}l{L}" / "comp_tdm_ra_s{S}r{R}" name a non-default ring.
+        pipe, num_slots, ring_param = _codegen_common().split_pipeline_ring(pipe)
+        ring_fields = _codegen_common().pipeline_ring_fields(
+            pipe, num_slots, ring_param
+        )
         # Tile/CShuffle correctness gate. A block tile must split evenly across
         # its waves -- tile % (wave * warp_tile) == 0 -- else the kernel is
         # genuinely invalid.
@@ -3295,7 +3314,7 @@ def expand_sweep(
             warp_tile_n=wtn,
             tile_mn=(tm, tn),
             tile_k=tk,
-            ring=(num_slots, publish_lag),
+            ring=(num_slots, ring_param),
         ):
             continue
         if epi == "cshuffle" and not _cshuffle_store_ok(
@@ -3338,8 +3357,7 @@ def expand_sweep(
                     pad_n=bool(pn),
                     pad_k=bool(pk),
                     persistent=bool(persist),
-                    num_slots=num_slots,
-                    publish_lag=publish_lag,
+                    **ring_fields,
                     gfx_arch=arch,
                     variant=variant,
                     reduction_strategy=red,
@@ -3397,6 +3415,7 @@ def expand_sweep(
                             epi,
                             sched,
                             num_slots,
+                            ring_param,
                         )
                     if not val:
                         # Keep counting the later widths' rejects, as the codegen does.

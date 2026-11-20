@@ -349,6 +349,22 @@ set_tests_properties(dispatcher_test_gfx1250_gate_equivalence PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# The Tile Engine side of that gate (gemm_validation_utils trait/tile rules and the
+# instance builder) has no CTest of its own; registered here so CI runs it next to
+# the equivalence test. CPU-only.
+set(TE_GEMM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../tile_engine/ops/gemm)
+add_test(
+    NAME dispatcher_test_tile_engine_gfx1250_pipelines
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${TE_GEMM_DIR}/test_gfx1250_pipelines.py
+    WORKING_DIRECTORY ${TE_GEMM_DIR}
+)
+
+set_tests_properties(dispatcher_test_tile_engine_gfx1250_pipelines PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${TE_GEMM_DIR}"
+)
+
 # Stream-K on the gfx1250 comp_tdm / comp_tdm_v2 pipelines: the reduction x
 # epilogue x pad x persistent gate, its agreement across codegen, arch_filter
 # and expand_sweep, and the generated kernel header. CPU-only.
@@ -984,8 +1000,8 @@ foreach(test_source ${TEST_SOURCES})
     set_tests_properties(${test_name} PROPERTIES LABELS "dispatcher;cpp;unit")
 endforeach()
 
-# Instantiates the GEMM backends, so the ck_tile headers need HIP compilation
-# (no GPU is touched at runtime).
+# Instantiates the GEMM backends, so the ck_tile headers need HIP compilation. No kernel is
+# launched; the gfx125 gate tests only query the current device (no device reads as not gfx125).
 if(hip_FOUND)
     target_link_libraries(test_generated_backend PRIVATE hip::device hip::host)
 endif()
