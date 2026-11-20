@@ -889,8 +889,8 @@ struct Clamp
     template <>
     __host__ __device__ constexpr void operator()<int, int>(int& y, const int& x) const
     {
-        const int8_t& a = x;
-        y               = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+        const int& a = x;
+        y            = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
     };
 
     template <>
