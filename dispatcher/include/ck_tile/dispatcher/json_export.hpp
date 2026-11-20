@@ -90,6 +90,8 @@ inline std::string epilogue_to_string(Epilogue epilogue)
     case Epilogue::Activation: return "activation";
     case Epilogue::CShuffle: return "cshuffle";
     case Epilogue::Default: return "default";
+    case Epilogue::Tdm: return "tdm";
+    case Epilogue::TdmStaged: return "tdmstaged";
     default: return "unknown";
     }
 }

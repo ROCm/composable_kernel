@@ -75,7 +75,8 @@
             "values": [
                 "cshuffle",
                 "default",
-                "tdm"
+                "tdm",
+                "tdmstaged"
             ]
         },
         "pad_m": {

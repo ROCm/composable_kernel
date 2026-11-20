@@ -18,7 +18,7 @@ Chosen at run time; each combination is one compiled kernel.
 | Option | Values | Default |
 |---|---|---|
 | `-layout` | `rcr`, `rrr`, `crr`, `ccr` (A, B; C is row-major) | `rcr` |
-| `-epilogue` | `tdm`, `cshuffle` | `tdm` |
+| `-epilogue` | `tdm`, `tdmstaged`, `cshuffle` | `tdm` |
 | `-tile` | `256x256x64` (16 waves, 4x4x1), `128x128x64` (4 waves, 2x2x1) | `256x256x64` |
 | `-vector_c` | `auto`, `8`, `2`, `1` (CShuffle C store vector) | `auto` |
 | `-k_batch` | split K into this many ranges (CShuffle only) | `1` |
@@ -28,13 +28,18 @@ every A/B box to the real extent, so no instance needs M, N or K to be a multipl
 
 - `tdm`: TdmEpilogue writes C with one TDM store that clips to the real M x N, so it serves every
   shape.
+- `tdmstaged`: TdmEpilogueStagedForPipeline writes C the same way, one M iteration (a 16-row band
+  per wave row) at a time: each slab goes to LDS and out with its own TDM store, overlapping the
+  LDS writes of the next one. It uses as many slab buffers as fit in the pipeline's LDS. Like
+  `tdm`, it serves every shape.
 - `cshuffle`: CShuffleEpilogue with kPadM and kPadN, storing C in vectors of `-vector_c`
   elements, which must divide N. `auto` picks the widest of 8, 2 and 1 that divides N, so CShuffle
   also serves every shape; a forced width that does not divide N is rejected (exit code 2).
 - `-k_batch` > 1 (split-K): the K ranges run as separate workgroups and each adds its bf16
   partial C into C atomically, so C is zeroed before every launch (inside the timed loop) and the
   result depends on the order of the adds. Only CShuffle can do this, with a C vector of at least 2
-  (N even under `auto`): TdmEpilogue overwrites C, so it rejects any `-k_batch` > 1 (exit code 2).
+  (N even under `auto`): the TDM epilogues overwrite C, so they reject any `-k_batch` > 1 (exit
+  code 2).
 
 ## Modes
 
@@ -70,6 +75,7 @@ B=./bin/tile_example_gemm_comp_tdm_v3_bf16_bench
 $B                                                   # 4096^3, RCR, verify-int
 $B -m=333 -n=517 -k=1000 -layout=crr -mode=verify-rand
 $B -mode=peak                                        # 4096^3 timing
+$B -mode=peak -epilogue=tdmstaged                    # the same with the staged TDM epilogue
 $B -m=192 -n=448 -k=524288 -layout=crr -tile=128x128x64 -epilogue=cshuffle -k_batch=16 \
    -mode=verify-sparse                                # split-K, exact check
 

@@ -68,7 +68,7 @@ class TestTraitParse(unittest.TestCase):
 
     def test_multi_token_pipelines(self):
         for pipeline in MULTI_TOKEN_PIPELINES:
-            for epilogue in ("cshuffle", "default", "tdm"):
+            for epilogue in ("cshuffle", "default", "tdm", "tdmstaged"):
                 trait = f"{pipeline}_{epilogue}_intrawave_True_False_True_False"
                 parts = split_trait(trait)
                 self.assertEqual(parts[0], pipeline)
@@ -112,6 +112,8 @@ class TestTraitParse(unittest.TestCase):
             "comp_tdm_pc_tdm_intrawave_False_False_False_False",
             "comp_tdm_pc_s2l1_tdm_intrawave_False_False_False_False",
             "comp_tdm_pc_s5l4_cshuffle_intrawave_False_False_False",
+            "comp_tdm_pc_tdmstaged_intrawave_False_False_False_False",
+            "comp_tdm_v2_tdmstaged_intrawave_False_False_False",
             "comp_tdm_v3_cshuffle_intrawave_False_False_False_False",
             "comp_async_eight_waves_cshuffle_intrawave_False_False_False",
             "weight_preshuffle_default_intrawave_False_False_False",
@@ -1026,8 +1028,28 @@ class TestCompTdmV3(unittest.TestCase):
                 self.assertEqual(
                     ok(p, "cshuffle", "intrawave", False, prefix), allowed, (p, prefix)
                 )
-                self.assertEqual(vu.tdm_pipeline_epilogue(p), "tdm")
-        self.assertEqual(vu.tdm_pipeline_epilogue("comp_tdm_v3"), "cshuffle")
+                self.assertEqual(vu.tdm_pipeline_epilogues(p), ("tdm", "tdmstaged"))
+        self.assertEqual(vu.tdm_pipeline_epilogues("comp_tdm_v3"), ("cshuffle",))
+
+    def test_tdm_staged_trait_rules(self):
+        ok = vu.is_trait_combination_valid
+        for p in ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc"):
+            self.assertTrue(ok(p, "tdmstaged", "intrawave", False, "gemm_universal"))
+            self.assertFalse(ok(p, "tdmstaged", "interwave", False, "gemm_universal"))
+            self.assertFalse(ok(p, "tdmstaged", "intrawave", True, "gemm_universal"))
+            self.assertFalse(
+                ok(p, "tdmstaged", "intrawave", False, "gemm_universal", pad_m=True)
+            )
+            self.assertFalse(
+                ok(p, "tdmstaged", "intrawave", False, "gemm_universal", "rrc")
+            )
+        self.assertFalse(ok("comp_tdm_v3", "tdmstaged", "intrawave", False))
+        self.assertFalse(ok("compv3", "tdmstaged", "intrawave", False))
+        # MX GEMM and the quant ops have no staged TDM epilogue.
+        self.assertFalse(ok("comp_tdm", "tdmstaged", "intrawave", False, "mx_gemm"))
+        self.assertFalse(ok("compv3", "tdmstaged", "intrawave", False, "gemm_aquant"))
+        with self.assertRaisesRegex(ValueError, "tdmstaged epilogue"):
+            vu.reject_async_tdm_traits("grouped_gemm_rowcolquant", None, "tdmstaged")
 
     def test_config_lists_only_the_v3_instance(self):
         with open(_V3_CONFIG) as f:
@@ -1128,7 +1150,9 @@ class TestBuilderCompTdmV3(_BuilderCase):
             self._gen_v3(prefix="batched_gemm")
         # comp_tdm_pc is left out: it also takes cshuffle on gemm_universal (split-K).
         for pipeline in ("comp_tdm", "comp_tdm_v2"):
-            with self.assertRaisesRegex(ValueError, "requires the tdm epilogue"):
+            with self.assertRaisesRegex(
+                ValueError, "requires the tdm or tdmstaged epilogue"
+            ):
                 self._gen_v3(pipeline=pipeline)
 
 

@@ -219,7 +219,11 @@ TEST(KernelKeyTest, Gfx1250PipelineIdentity)
     }
     EXPECT_EQ(string_to_epilogue("tdm"), Epilogue::Tdm);
     EXPECT_EQ(to_string(Epilogue::Tdm), "tdm");
+    EXPECT_EQ(string_to_epilogue("tdmstaged"), Epilogue::TdmStaged);
+    EXPECT_EQ(to_string(Epilogue::TdmStaged), "tdmstaged");
     // Existing values form part of the dispatcher ABI; new values are appended.
     EXPECT_EQ(static_cast<unsigned>(Pipeline::Wavelet), 9u);
     EXPECT_EQ(static_cast<unsigned>(Epilogue::BiasActivation), 5u);
+    EXPECT_EQ(static_cast<unsigned>(Epilogue::Tdm), 6u);
+    EXPECT_EQ(static_cast<unsigned>(Epilogue::TdmStaged), 7u);
 }

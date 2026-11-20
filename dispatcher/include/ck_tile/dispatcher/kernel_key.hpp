@@ -68,7 +68,8 @@ enum class Epilogue : std::uint8_t
     Bias,           // Bias addition
     Activation,     // Fused activation
     BiasActivation, // Fused bias + activation
-    Tdm             // TdmEpilogue (Tensor Data Mover store, gfx1250 only)
+    Tdm,            // TdmEpilogue (Tensor Data Mover store, gfx1250 only)
+    TdmStaged       // TdmEpilogueStagedForPipeline (TDM store in M slabs, gfx1250 only)
 };
 
 /// Scheduler types for wave coordination
@@ -408,6 +409,7 @@ inline std::string to_string(Epilogue epilogue)
     case Epilogue::Activation: return "activation";
     case Epilogue::BiasActivation: return "bias_activation";
     case Epilogue::Tdm: return "tdm";
+    case Epilogue::TdmStaged: return "tdmstaged";
     default: return "unknown";
     }
 }
@@ -429,6 +431,8 @@ inline Epilogue string_to_epilogue(const std::string& str)
         return Epilogue::BiasActivation;
     if(str == "tdm")
         return Epilogue::Tdm;
+    if(str == "tdmstaged")
+        return Epilogue::TdmStaged;
     return Epilogue::Default; // Default
 }
 

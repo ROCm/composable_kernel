@@ -5,7 +5,7 @@
  * AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
  *
  * Generated from: arch_specs.json
- * Generated at: 2026-11-16T14:42:30.395294
+ * Generated at: 2026-11-18T12:25:51.029931
  *
  * To update this file:
  * 1. Edit arch_specs.json
@@ -416,11 +416,15 @@ inline bool is_trait_unsupported(Pipeline pipeline, Epilogue epilogue, Scheduler
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV1 && epilogue == Epilogue::Tdm &&
             scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMV1 && epilogue == Epilogue::TdmStaged &&
+            scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV2 && epilogue == Epilogue::CShuffle &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV2 && epilogue == Epilogue::Default &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV2 && epilogue == Epilogue::Tdm &&
+            scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMV2 && epilogue == Epilogue::TdmStaged &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMPC && epilogue == Epilogue::CShuffle &&
             scheduler == Scheduler::Interwave) ||
@@ -428,11 +432,15 @@ inline bool is_trait_unsupported(Pipeline pipeline, Epilogue epilogue, Scheduler
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMPC && epilogue == Epilogue::Tdm &&
             scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMPC && epilogue == Epilogue::TdmStaged &&
+            scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV3 && epilogue == Epilogue::CShuffle &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV3 && epilogue == Epilogue::Default &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV3 && epilogue == Epilogue::Tdm &&
+            scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMV3 && epilogue == Epilogue::TdmStaged &&
             scheduler == Scheduler::Interwave);
 }
 

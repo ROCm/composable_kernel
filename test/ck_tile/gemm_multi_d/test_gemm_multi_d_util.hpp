@@ -42,6 +42,8 @@ struct MultiplyMultiply
 //   MultiDTdmV1     -> CompTDMV1 pipeline + TdmMultiDEpilogue (gfx1250 only)
 //   MultiDTdmV2     -> CompTDMV2 pipeline + TdmMultiDEpilogue (gfx1250 only)
 //   MultiDTdmPC     -> CompTDMProducerConsumer pipeline + TdmMultiDEpilogue (gfx1250 only)
+//   MultiDTdmV1Staged -> CompTDMV1 pipeline + TdmMultiDEpilogueStagedForPipeline, one M iteration
+//                        per slab (gfx1250 only)
 // For the TDM selectors, tuple element 13 is TransposeC (default std::false_type) and element 14
 // is the block tile as ck_tile::sequence<M, N, K> (default 128x128x64).
 struct MultiDTdmV1
@@ -53,11 +55,14 @@ struct MultiDTdmV2
 struct MultiDTdmPC
 {
 };
+struct MultiDTdmV1Staged
+{
+};
 
 template <typename T>
 inline constexpr bool is_multi_d_tdm_v =
     std::is_same_v<T, MultiDTdmV1> || std::is_same_v<T, MultiDTdmV2> ||
-    std::is_same_v<T, MultiDTdmPC>;
+    std::is_same_v<T, MultiDTdmPC> || std::is_same_v<T, MultiDTdmV1Staged>;
 
 // How the D tensors are filled by TestCkTileGemmMultiD::Run.
 enum class MultiDFill
@@ -329,32 +334,37 @@ class TestCkTileGemmMultiD : public ::testing::Test
         using GemmPipeline = std::conditional_t<
             std::is_same_v<TdmSelector, MultiDTdmPC>,
             ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumer<UniversalGemmProblem>,
-            std::conditional_t<std::is_same_v<TdmSelector, MultiDTdmV1>,
-                               ck_tile::GemmPipelineAgBgCrCompTDMV1<UniversalGemmProblem>,
-                               ck_tile::GemmPipelineAgBgCrCompTDMV2<UniversalGemmProblem>>>;
+            std::conditional_t<std::is_same_v<TdmSelector, MultiDTdmV2>,
+                               ck_tile::GemmPipelineAgBgCrCompTDMV2<UniversalGemmProblem>,
+                               ck_tile::GemmPipelineAgBgCrCompTDMV1<UniversalGemmProblem>>>;
 
-        using GemmEpilogue = ck_tile::TdmMultiDEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             AccDataType,
-                                             EDataType,
-                                             DsLayout,
-                                             ELayout,
-                                             CDElementWiseFn,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             1,     /*kNumWaveGroups_*/
-                                             false, /*FixedVectorSize_*/
-                                             1,     /*VectorSizeC_*/
-                                             1,     /*BlockedXDLN_PerWarp_*/
-                                             DoubleSmemBuffer>>;
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                                 BDataType,
+                                                                 DsDataType,
+                                                                 AccDataType,
+                                                                 EDataType,
+                                                                 DsLayout,
+                                                                 ELayout,
+                                                                 CDElementWiseFn,
+                                                                 TilePartitioner::MPerBlock,
+                                                                 TilePartitioner::NPerBlock,
+                                                                 M_Warp,
+                                                                 N_Warp,
+                                                                 M_Warp_Tile,
+                                                                 N_Warp_Tile,
+                                                                 K_Warp_Tile,
+                                                                 UniversalGemmProblem::TransposeC,
+                                                                 1,     /*kNumWaveGroups_*/
+                                                                 false, /*FixedVectorSize_*/
+                                                                 1,     /*VectorSizeC_*/
+                                                                 1,     /*BlockedXDLN_PerWarp_*/
+                                                                 DoubleSmemBuffer>;
+
+        using GemmEpilogue = std::conditional_t<
+            std::is_same_v<TdmSelector, MultiDTdmV1Staged>,
+            ck_tile::TdmMultiDEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>,
+            ck_tile::TdmMultiDEpilogue<EpilogueProblem>>;
+        static_assert(ck_tile::is_tdm_epilogue_v<GemmEpilogue>);
 
         using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
     };

@@ -234,7 +234,7 @@ Every parquet file follows this schema:
 | `warp_tile_m/n/k` | int | Warp tile dimensions |
 | `pipeline` | str | `compv3`, `compv4`, `mem`, etc. |
 | `scheduler` | str | `intrawave`, `interwave` |
-| `epilogue` | str | `cshuffle`, `default`, `tdm` |
+| `epilogue` | str | `cshuffle`, `default`, `tdm`, `tdmstaged` |
 | `pad_m`, `pad_n`, `pad_k` | bool | Padding flags |
 | `persistent` | bool | Persistent kernel flag |
 | `vec_a/b/c` | int | Fixed A/B/C global vector width, in elements; 0 if none |

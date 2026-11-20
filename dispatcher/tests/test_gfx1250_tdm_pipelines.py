@@ -5,9 +5,9 @@
 
 """
 CPU tests for the gfx1250 comp_async / comp_tdm / comp_tdm_v2 / comp_tdm_pc
-pipelines and the
-tdm epilogue in the dispatcher: arch filter rules, codegen type maps, LDS
-budgets, generated kernel headers, the Python sweep gate and the C++ enums.
+pipelines and the tdm / tdmstaged epilogues in the dispatcher: arch filter
+rules, codegen type maps, LDS budgets, generated kernel headers, the Python
+sweep gate and the C++ enums.
 
 Run: python3 -m pytest tests/test_gfx1250_tdm_pipelines.py -v
 """
@@ -42,6 +42,9 @@ from codegen_common import (  # noqa: E402
     COMP_TDM_V3_BATCHED_REJECT_REASON,
     CommonTypeMappings,
     GFX1250_COMP_ASYNC_PAD_REJECT_REASON,
+    TDM_EPILOGUES,
+    TDM_PAD_REJECT_REASON,
+    TDM_STAGED_LAYOUT_REJECT_REASON,
     comp_tdm_pc_acc_reject_reason,
     comp_tdm_pc_ring_reject_reason,
     pipeline_ring_suffix,
@@ -52,9 +55,10 @@ from codegen_common import (  # noqa: E402
     gfx1250_comp_async_8bit_warp_tile_k_rejected,
     gfx1250_comp_async_8bit_warp_tile_mn_rejected,
     gfx1250_pipeline_reject_reason,
+    preshuffle_pipeline_reject_reason,
+    reject_async_tdm_traits,
     streamk_trait_reject_reason,
     tdm_pipeline_epilogue as epi_of,
-    TDM_PAD_REJECT_REASON,
 )
 
 TE_GEMM_DIR = DISPATCHER_DIR.parent / "tile_engine" / "ops" / "gemm"
@@ -594,6 +598,7 @@ class TestTypeMappings(unittest.TestCase):
         )
         self.assertEqual(m.PIPELINE_TO_DISPATCHER["comp_tdm_pc"], "Pipeline::CompTDMPC")
         self.assertEqual(m.EPILOGUE_TO_DISPATCHER["tdm"], "Epilogue::Tdm")
+        self.assertEqual(m.EPILOGUE_TO_DISPATCHER["tdmstaged"], "Epilogue::TdmStaged")
 
     def test_legacy_maps_unchanged(self):
         m = CommonTypeMappings
@@ -1657,6 +1662,293 @@ class TestExpandSweepGfx1250Waves(unittest.TestCase):
         self.assertFalse(any(c.pipeline == "compv5" for c in got))
 
 
+class TestTdmStagedEpilogue(unittest.TestCase):
+    """epilogue=tdmstaged (TdmEpilogueStagedForPipeline) is accepted exactly where
+    tdm is, and additionally needs a row-major C."""
+
+    CONFIG = {
+        "tile_config": TestUnifiedCodegenGolden.CONFIG["tile_config"],
+        "trait_config": dict(
+            TestUnifiedCodegenGolden.CONFIG["trait_config"],
+            epilogue=["tdm", "tdmstaged", "cshuffle"],
+        ),
+    }
+    VARIANTS = ("standard", "batched", "preshuffle")
+    # comp_tdm_v3 takes the CShuffle epilogue, so it rejects tdmstaged exactly as tdm.
+    TDM_EPILOGUE_PIPELINES = tuple(p for p in TDM_PIPELINES if epi_of(p) == "tdm")
+    ROW_C_LAYOUTS = ("rcr", "rrr", "crr", "ccr")
+    COL_C_LAYOUTS = ("rcc", "rrc", "crc", "ccc")
+    STAGED = "using GemmEpilogue = TdmEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>;"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="tdmstaged_codegen_"))
+        cls.cfg = cls.tmp / "cfg.json"
+        cls.cfg.write_text(json.dumps(cls.CONFIG))
+        cls.generated = {}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def _gen(self, variant, layout="rcr"):
+        key = (variant, layout)
+        if key not in self.generated:
+            out = self.tmp / f"{variant}_{layout}"
+            self.generated[key] = (
+                out,
+                _run_codegen(out, "gfx1250", variant, self.cfg, layout),
+            )
+        return self.generated[key]
+
+    @staticmethod
+    def _valid(arch="gfx1250", **kw):
+        args = dict(TDM_TILE)
+        args.update(kw)
+        return ArchFilter(arch).is_kernel_valid(**args)
+
+    @staticmethod
+    def _reason(pipeline="comp_tdm", epilogue="tdmstaged", layout="rcr", **kw):
+        arch = kw.pop("arch", "gfx1250")
+        scheduler = kw.pop("scheduler", "intrawave")
+        return gfx1250_pipeline_reject_reason(
+            arch, pipeline, epilogue, scheduler, 4, 32, "fp16", "fp16", layout, **kw
+        )
+
+    def test_constants(self):
+        self.assertEqual(TDM_EPILOGUES, ("tdm", "tdmstaged"))
+        # The trait tables list tdmstaged with tdm; the gfx1250 gate rejects interwave for both.
+        for pipe in TDM_PIPELINES:
+            self.assertIn(
+                "scheduler=intrawave", self._reason(pipe, scheduler="interwave")
+            )
+
+    def test_arch_filter_accepts_tdmstaged_where_tdm(self):
+        variations = (
+            {},
+            {"warp_m": 4},
+            {"scheduler": "interwave"},
+            {"pad_m": True},
+            {"pad_k": True},
+            {"tile_m": 256, "tile_n": 256, "tile_k": 32},
+        )
+        for arch, pipe, layout, extra in itertools.product(
+            ("gfx1250", "gfx950"),
+            TDM_PIPELINES + ("comp_async", "compv3", "mem"),
+            self.ROW_C_LAYOUTS,
+            variations,
+        ):
+            kw = dict(pipeline=pipe, layout=layout, **extra)
+            self.assertEqual(
+                self._valid(arch, epilogue="tdmstaged", **kw),
+                self._valid(arch, epilogue="tdm", **kw),
+                (arch, kw),
+            )
+        for pipe in self.TDM_EPILOGUE_PIPELINES:
+            self.assertTrue(self._valid(pipeline=pipe, epilogue="tdmstaged"), pipe)
+        self.assertEqual(
+            self._reason("comp_tdm_v3"), "pipeline=comp_tdm_v3 requires epilogue=cshuffle"
+        )
+
+    def test_column_major_c_rejected(self):
+        for pipe, layout in itertools.product(
+            self.TDM_EPILOGUE_PIPELINES, self.COL_C_LAYOUTS
+        ):
+            self.assertEqual(
+                self._reason(pipe, layout=layout), TDM_STAGED_LAYOUT_REJECT_REASON
+            )
+            self.assertEqual(self._reason(pipe, "tdm", layout=layout), "")
+            self.assertFalse(
+                self._valid(pipeline=pipe, epilogue="tdmstaged", layout=layout)
+            )
+            self.assertTrue(self._valid(pipeline=pipe, epilogue="tdm", layout=layout))
+        # An unknown layout skips the rule.
+        self.assertEqual(self._reason(layout=""), "")
+
+    def test_shared_gate_reasons(self):
+        self.assertEqual(self._reason(), "")
+        for pipe in ("compv3", "comp_async", "mem"):
+            self.assertIn(
+                "epilogue=tdmstaged requires a TDM pipeline", self._reason(pipe)
+            )
+        self.assertIn("requires gfx1250", self._reason(arch="gfx950"))
+        self.assertIn("intrawave", self._reason(scheduler="interwave"))
+        self.assertIn("persistent", self._reason(persistent=True))
+        self.assertEqual(self._reason(pads=(False, True, False)), TDM_PAD_REJECT_REASON)
+        self.assertIn(
+            "not supported",
+            self._reason(variant_supported=False, variant_name="multi_d"),
+        )
+        self.assertIn("tdm or tdmstaged", self._reason(epilogue="cshuffle"))
+
+    def test_gemm_utils_gate_matches_tdm(self):
+        try:
+            import gemm_utils
+        except Exception as exc:  # pragma: no cover - environment dependent
+            self.skipTest(f"gemm_utils not importable: {exc}")
+        gate = gemm_utils._gfx1250_pipeline_supported
+
+        def ok(
+            pipe,
+            epi,
+            sched="intrawave",
+            persist=False,
+            waves=(2, 2, 1),
+            arch="gfx1250",
+            variant="standard",
+            **kw,
+        ):
+            return gate(pipe, sched, epi, persist, *waves, arch, variant, **kw)
+
+        variations = (
+            {},
+            {"persist": True},
+            {"sched": "interwave"},
+            {"arch": "gfx950"},
+            {"waves": (4, 2, 1)},
+            {"pad_n": True},
+            {"tile_mn": (256, 256)},
+        ) + tuple(
+            {"variant": v}
+            for v in (
+                "batched",
+                "preshuffle",
+                "multi_d",
+                "grouped",
+                "multi_abd",
+                "stream_k",
+            )
+        )
+        for pipe, extra in itertools.product(
+            TDM_PIPELINES + ("comp_async", "compv3"), variations
+        ):
+            self.assertEqual(
+                ok(pipe, "tdmstaged", layout="rcr", **extra),
+                ok(pipe, "tdm", layout="rcr", **extra),
+                (pipe, extra),
+            )
+        self.assertTrue(ok("comp_tdm", "tdmstaged", layout="rcr"))
+        self.assertFalse(ok("comp_tdm", "tdmstaged", layout="rcc"))
+        self.assertTrue(ok("comp_tdm", "tdm", layout="rcc"))
+
+    def test_kernel_set_mirrors_tdm(self):
+        for variant in self.VARIANTS:
+            _, names = self._gen(variant)
+            staged = {n for n in names if "_tdmstaged_intrawave_" in n}
+            tdm = {
+                n.replace("_tdm_intrawave_", "_tdmstaged_intrawave_")
+                for n in names
+                if "_tdm_intrawave_" in n
+            }
+            self.assertTrue(staged, variant)
+            self.assertEqual(staged, tdm, variant)
+            # Unpadded, non-persistent only, like tdm.
+            for n in staged:
+                self.assertIn("_tdmstaged_intrawave_False_False_False_False_", n)
+
+    def test_header_contents(self):
+        for variant in self.VARIANTS:
+            out, names = self._gen(variant)
+            for name in (n for n in names if "_tdmstaged_" in n):
+                text = (out / name).read_text()
+                self.assertIn('#include "ck_tile/ops/epilogue/tdm_epilogue.hpp"', text)
+                self.assertIn(self.STAGED, text)
+                self.assertNotIn("TdmEpilogue<", text)
+                self.assertNotIn("CShuffleEpilogue<", text)
+                # The staged epilogue sizes its slab buffers from GemmPipeline.
+                self.assertLess(
+                    text.index("using GemmPipeline ="), text.index(self.STAGED), name
+                )
+                self.assertIn("args.k_batch != 1", text)
+                self.assertIn('#define GEMM_KEY_EPILOGUE "tdmstaged"', text)
+                wrapper = (
+                    out / "dispatcher_wrappers" / f"dispatcher_wrapper_{name}"
+                ).read_text()
+                self.assertIn("key.algorithm.epilogue = Epilogue::TdmStaged;", wrapper)
+            # tdm kernels keep the full-tile TdmEpilogue.
+            name = next(n for n in names if "_comp_tdm_tdm_" in n)
+            text = (out / name).read_text()
+            self.assertIn("using GemmEpilogue = TdmEpilogue<EpilogueProblem>;", text)
+            self.assertNotIn("TdmEpilogueStaged", text)
+
+    def test_column_major_c_has_no_tdmstaged_kernel(self):
+        for variant in ("standard", "batched"):
+            _, names = self._gen(variant, "rcc")
+            self.assertTrue(any("_comp_tdm_tdm_" in n for n in names), variant)
+            self.assertFalse(any("_tdmstaged_" in n for n in names), variant)
+
+    def test_generator_rejects_column_major_c(self):
+        import unified_gemm_codegen as ugc
+
+        gen = ugc.UnifiedGemmCodegen(
+            self.tmp / "direct", "fp16", "rcr", "gfx1250", self.cfg
+        )
+        staged = [
+            k
+            for k in gen._get_configs_for_variant(ugc.GemmVariant.STANDARD)
+            if k.trait.epilogue == "tdmstaged"
+        ]
+        self.assertTrue(staged)
+        self.assertIn(
+            self.STAGED, ugc.CKTileKernelGenerator("fp16", "rcr").generate(staged[0])
+        )
+        # The sweep filter drops these for a column-major C; a direct generate() must
+        # not emit a kernel that static_asserts.
+        with self.assertRaisesRegex(ValueError, "requires a row-major C"):
+            ugc.CKTileKernelGenerator("fp16", "rcc").generate(staged[0])
+
+    def test_stream_k_rejects_tdmstaged(self):
+        import dataclasses
+
+        import unified_gemm_codegen as ugc
+
+        # Stream-K pairs a TDM pipeline with cshuffle or tdm only, and its launcher
+        # names the pipeline SkGemmPipeline, which the staged epilogue cannot see.
+        for strategy in ("atomic", "linear", "tree"):
+            self.assertTrue(
+                streamk_trait_reject_reason("comp_tdm", "tdmstaged", strategy),
+                strategy,
+            )
+        gen = ugc.UnifiedGemmCodegen(
+            self.tmp / "streamk", "fp16", "rcr", "gfx1250", self.cfg
+        )
+        staged = next(
+            k
+            for k in gen._get_configs_for_variant(ugc.GemmVariant.STANDARD)
+            if k.trait.epilogue == "tdmstaged"
+        )
+        streamk = dataclasses.replace(
+            staged, variant=ugc.GemmVariant.STREAM_K, reduction_strategy="tree"
+        )
+        with self.assertRaisesRegex(ValueError, "not supported for stream_k"):
+            ugc.CKTileKernelGenerator("fp16", "rcr").generate(streamk)
+
+    def test_other_ops_reject_tdmstaged(self):
+        with self.assertRaisesRegex(ValueError, "'tdmstaged' epilogue"):
+            reject_async_tdm_traits("grouped_gemm_aquant", "compv3", "tdmstaged")
+        for pipe in ("comp_tdm", "comp_tdm_v2"):
+            reason = preshuffle_pipeline_reject_reason(
+                pipe,
+                "gfx1250",
+                "rcr",
+                pad_m=False,
+                pad_n=False,
+                pad_k=False,
+                num_waves=4,
+                dtype="fp16",
+                scheduler="intrawave",
+                epilogue="tdmstaged",
+            )
+            self.assertEqual(reason, "", pipe)
+        for pipe in ("preshufflev2", "preshuffle_tdm", "comp_async"):
+            self.assertIn(
+                "cannot use the tdmstaged epilogue",
+                preshuffle_pipeline_reject_reason(
+                    pipe, "gfx1250", epilogue="tdmstaged"
+                ),
+            )
+
+
 _CPP_PROBE = r"""
 #include "ck_tile/dispatcher/arch_specs_generated.hpp"
 #include "ck_tile/dispatcher/kernel_key.hpp"
@@ -1679,6 +1971,7 @@ static_assert(static_cast<int>(Pipeline::CompTDMV3) == 15, "");
 static_assert(static_cast<int>(Epilogue::CShuffle) == 2, "");
 static_assert(static_cast<int>(Epilogue::BiasActivation) == 5, "");
 static_assert(static_cast<int>(Epilogue::Tdm) == 6, "");
+static_assert(static_cast<int>(Epilogue::TdmStaged) == 7, "");
 
 int main()
 {
@@ -1694,6 +1987,7 @@ int main()
     CHECK(arch_specs::is_trait_unsupported(Pipeline::CompTDMV3, Epilogue::CShuffle, Scheduler::Interwave));
     CHECK(!arch_specs::is_trait_unsupported(Pipeline::CompTDMV3, Epilogue::CShuffle, Scheduler::Intrawave));
     CHECK(to_string(Epilogue::Tdm) == "tdm");
+    CHECK(to_string(Epilogue::TdmStaged) == "tdmstaged");
     CHECK(string_to_pipeline("comp_async") == Pipeline::CompAsync);
     CHECK(string_to_pipeline("comp_tdm") == Pipeline::CompTDMV1);
     CHECK(string_to_pipeline("comp_tdm_v2") == Pipeline::CompTDMV2);
@@ -1701,6 +1995,7 @@ int main()
     CHECK(string_to_pipeline("compv3") == Pipeline::CompV3);
     CHECK(string_to_pipeline("no_such_pipeline") == Pipeline::Mem);
     CHECK(string_to_epilogue("tdm") == Epilogue::Tdm);
+    CHECK(string_to_epilogue("tdmstaged") == Epilogue::TdmStaged);
     CHECK(string_to_epilogue("cshuffle") == Epilogue::CShuffle);
     CHECK(arch_specs::get_lds_capacity(GpuArch::GFX_1250, Pipeline::CompTDMV1) == 163840);
     CHECK(arch_specs::get_lds_capacity(GpuArch::GFX_1250, Pipeline::CompTDMV2) == 163840);
@@ -1727,6 +2022,10 @@ int main()
     KernelKey other = key;
     other.algorithm.publish_lag = 0;
     CHECK(!(key == other));
+    CHECK(arch_specs::is_trait_unsupported(Pipeline::CompTDMV1, Epilogue::TdmStaged, Scheduler::Interwave));
+    CHECK(arch_specs::is_trait_unsupported(Pipeline::CompTDMV2, Epilogue::TdmStaged, Scheduler::Interwave));
+    CHECK(arch_specs::is_trait_unsupported(Pipeline::CompTDMPC, Epilogue::TdmStaged, Scheduler::Interwave));
+    CHECK(!arch_specs::is_trait_unsupported(Pipeline::CompTDMV1, Epilogue::TdmStaged, Scheduler::Intrawave));
     return fails == 0 ? 0 : 1;
 }
 """

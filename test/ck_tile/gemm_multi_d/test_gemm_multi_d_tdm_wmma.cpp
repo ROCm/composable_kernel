@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Multi-D GEMM with the TDM pipelines (CompTDMV1 / CompTDMV2 / producer/consumer) and
-// TdmMultiDEpilogue (gfx1250).
+// TdmMultiDEpilogue, full tile and staged (gfx1250).
 
 #include <tuple>
 
@@ -23,6 +23,7 @@ using TransC   = std::true_type;
 
 using Tile64  = ck_tile::sequence<64, 64, 32>;
 using Tile128 = ck_tile::sequence<128, 128, 64>;
+using Tile256 = ck_tile::sequence<256, 256, 32>;
 
 // clang-format off
 using KernelTypes = ::testing::Types<
@@ -59,7 +60,15 @@ using KernelTypes = ::testing::Types<
     std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       BF16,       BF16,       F32,        F16,  ElementWiseAddAdd, MultiDTdmPC, NoTransC,   Tile64>,
     std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       BF16,       BF16,       F32,        F16,  ElementWiseAddAdd, MultiDTdmPC, TransC,     Tile128>,
     std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F16,        F16,        F32,        F16,  MultiplyMultiply,  MultiDTdmPC, NoTransC,   Tile128>,
-    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,        F32,        F32,        F32,  MultiplyMultiply,  MultiDTdmPC, TransC,     Tile64>
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,        F32,        F32,        F32,  MultiplyMultiply,  MultiDTdmPC, TransC,     Tile64>,
+
+    // Staged Multi-D TdmEpilogue
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       BF16,      BF16,      F32,        F16,  ElementWiseAddAdd, MultiDTdmV1Staged, NoTransC,   Tile64>,
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       BF16,      BF16,      F32,        F16,  ElementWiseAddAdd, MultiDTdmV1Staged, TransC,     Tile128>,
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       BF16,      BF16,      F32,        F16,  ElementWiseAddAdd, MultiDTdmV1Staged, NoTransC,   Tile256>,
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       BF16,      BF16,      F32,        F16,  ElementWiseAddAdd, MultiDTdmV1Staged, TransC,     Tile256>,
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F16,       F16,       F32,        F16,  MultiplyMultiply,  MultiDTdmV1Staged, TransC,     Tile256>,
+    std::tuple<    Row,     Col,     Row,      Row,      Row,      F16,       F16,       F32,       F32,       F32,        F32,  MultiplyMultiply,  MultiDTdmV1Staged, NoTransC,   Tile128>
     >;
 // clang-format on
 

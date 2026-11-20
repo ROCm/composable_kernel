@@ -257,16 +257,44 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompTDMProducerConsumerCShuffl
 {
 };
 
-template <GemmPipelineType PT, typename Problem, typename Enable = void>
+// <MIterPerStage, NumStageBuffers> of the TdmEpilogueStaged that a TDM pipeline test uses, given
+// as tuple element 17. It has a type of its own because derived fixtures keep their own data in
+// element 17 (the LDS padding test keeps a ck_tile::sequence there).
+template <ck_tile::index_t MIterPerStage_, ck_tile::index_t NumStageBuffers_>
+struct TdmStage
+{
+    static constexpr ck_tile::index_t MIterPerStage   = MIterPerStage_;
+    static constexpr ck_tile::index_t NumStageBuffers = NumStageBuffers_;
+};
+
+// MIterPerStage 0: the full-tile TdmEpilogue<Problem>
+using TdmStageFullTile = TdmStage<0, 2>;
+
+template <typename T>
+struct is_tdm_stage : std::false_type
+{
+};
+
+template <ck_tile::index_t MIterPerStage, ck_tile::index_t NumStageBuffers>
+struct is_tdm_stage<TdmStage<MIterPerStage, NumStageBuffers>> : std::true_type
+{
+};
+
+template <GemmPipelineType PT, typename Problem, typename TdmStageConfig, typename Enable = void>
 struct GemmEpilogueTypeSelector
 {
     using epilogue = ck_tile::CShuffleEpilogue<Problem>;
 };
 
-template <GemmPipelineType PT, typename Problem>
-struct GemmEpilogueTypeSelector<PT, Problem, std::enable_if_t<uses_tdm_epilogue(PT)>>
+template <GemmPipelineType PT, typename Problem, typename TdmStageConfig>
+struct GemmEpilogueTypeSelector<PT,
+                                Problem,
+                                TdmStageConfig,
+                                std::enable_if_t<uses_tdm_epilogue(PT)>>
 {
-    using epilogue = ck_tile::TdmEpilogue<Problem>;
+    static_assert(is_tdm_stage<TdmStageConfig>::value, "TdmStageConfig must be a TdmStage");
+    using epilogue = ck_tile::
+        TdmEpilogueStaged<Problem, TdmStageConfig::MIterPerStage, TdmStageConfig::NumStageBuffers>;
 };
 
 template <GemmPipelineType PT, typename Enable = void>
@@ -360,6 +388,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
         Tuple,
         16,
         ck_tile::sequence<PipelineType == GemmPipelineType::CompAsyncEightWaves ? 4 : 2, 2, 1>>;
+
+    // TDM pipelines: the TdmStage in tuple element 17 (default: TdmEpilogue). An element 17 of any
+    // other type is a derived fixture's own data and keeps the default.
+    using TdmStageElement = ck_tile::tuple_element_or_default_t<Tuple, 17, TdmStageFullTile>;
+    using TdmStageConfig =
+        std::conditional_t<is_tdm_stage<TdmStageElement>::value, TdmStageElement, TdmStageFullTile>;
 
     protected:
     // The kernel type the fixture instantiates for a given pad/preshuffle combination.
@@ -499,7 +533,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                              1,                /*BlockedXDLN_PerWarp_*/
                                              DoubleSmemBuffer, /*DoubleSmemBuffer*/
                                              AComputeDataType, /*AComputeDataType_*/
-                                             BComputeDataType /*BComputeDataType_*/>>::epilogue;
+                                             BComputeDataType /*BComputeDataType_*/>,
+            TdmStageConfig>::epilogue;
 
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
     };

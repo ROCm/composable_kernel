@@ -13,9 +13,9 @@ namespace ck_tile {
 //
 // This is a separate type from TdmEpilogue on purpose: TdmEpilogue keeps rejecting D tensors so
 // that no existing TdmEpilogue user (grouped convolution, mx flatmm, ...) silently starts to
-// accept Ds. The LDS layout, the LDS size and the final TDM store are the same as TdmEpilogue;
-// only the register stage differs: every D tile is loaded with the accumulator distribution and
-// fused on the fp32 accumulator before the single cast to ODataType.
+// accept Ds. The LDS layout, the LDS size and the TDM stores are the same as TdmEpilogueStaged;
+// only the register stage differs: every D tile is loaded with the accumulator distribution (one
+// slab of it when staged) and fused on the fp32 accumulator before the cast to ODataType.
 //
 // Restrictions:
 //  - NumDTensor > 0 (use TdmEpilogue for plain GEMM),
@@ -28,10 +28,11 @@ namespace ck_tile {
 //    time without reading that marker.
 //
 // The Problem is reused from CShuffleEpilogueProblem.
-template <typename Problem_>
-struct TdmMultiDEpilogue : public TdmEpilogue<Problem_>
+template <typename Problem_, index_t MIterPerStage_ = 0, index_t NumStageBuffers_ = 2>
+struct TdmMultiDEpilogueStaged
+    : public TdmEpilogueStaged<Problem_, MIterPerStage_, NumStageBuffers_>
 {
-    using Base          = TdmEpilogue<Problem_>;
+    using Base          = TdmEpilogueStaged<Problem_, MIterPerStage_, NumStageBuffers_>;
     using Problem       = typename Base::Problem;
     using AccDataType   = typename Base::AccDataType;
     using ODataType     = typename Base::ODataType;
@@ -67,8 +68,6 @@ struct TdmMultiDEpilogue : public TdmEpilogue<Problem_>
     }
     static_assert(AllDsRowMajor(), "TdmMultiDEpilogue supports only row-major D tensors");
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return Base::GetSmemSize(); }
-
     template <typename ODramWindow,
               typename OAccTile,
               typename DsDramWindows,
@@ -100,6 +99,32 @@ struct TdmMultiDEpilogue : public TdmEpilogue<Problem_>
             ignore = p_smem;
             __builtin_trap();
         }
+        else if constexpr(Base::kStaged)
+        {
+            this->run_staged(
+                out_dram_window,
+                o_acc_tile,
+                p_smem,
+                [&](const auto& stage_tile, auto& in_lds_window, auto stage) {
+                    const auto stage_dstr = stage_tile.get_tile_distribution();
+
+                    // D tiles are loaded per slab to keep their live ranges short.
+                    // Rows past M are outside the buffer range and read as zero, as in the
+                    // full-tile path.
+                    const auto d_tiles = generate_tuple(
+                        [&](auto i) {
+                            const auto d_origin = ds_dram_windows[i].get_window_origin();
+                            return load_tile(make_tile_window(
+                                ds_dram_windows[i].get_bottom_tensor_view(),
+                                make_tuple(number<Base::kStageRows>{}, number<kNPerBlock>{}),
+                                {d_origin[0] + stage.value * Base::kStageRows, d_origin[1]},
+                                stage_dstr));
+                        },
+                        number<NumDTensor>{});
+
+                    fuse_and_store_lds(stage_tile, d_tiles, in_lds_window);
+                });
+        }
         else
         {
             // Same LDS layout and TDM store distribution as TdmEpilogue (E is row-major).
@@ -130,16 +155,7 @@ struct TdmMultiDEpilogue : public TdmEpilogue<Problem_>
                 [&](auto i) { return load_tile(make_tile_window(ds_dram_windows[i], acc_dstr)); },
                 number<NumDTensor>{});
 
-            auto e_tile = make_static_distributed_tensor<ODataType>(acc_dstr);
-
-            tile_elementwise_inout_unpack(
-                CDElementwise{},
-                concat_tuple_of_reference(
-                    tie(e_tile, o_acc_tile),
-                    generate_tie([&](auto i) -> const auto& { return d_tiles[i]; },
-                                 number<NumDTensor>{})));
-
-            store_tile(in_lds_window, e_tile);
+            fuse_and_store_lds(o_acc_tile, d_tiles, in_lds_window);
             block_sync_lds();
 
             store_tile_tdm(tdm_config, out_dram_window, out_lds_window);
@@ -147,6 +163,40 @@ struct TdmMultiDEpilogue : public TdmEpilogue<Problem_>
             s_wait_tensorcnt();
         }
     }
+
+    private:
+    // E = CDElementwise(C, D0, D1, ...), written to LDS as ODataType.
+    template <typename OAccTile, typename DTiles, typename InLdsWindow>
+    CK_TILE_DEVICE static void fuse_and_store_lds(const OAccTile& o_acc_tile,
+                                                  const DTiles& d_tiles,
+                                                  InLdsWindow& in_lds_window)
+    {
+        auto e_tile = make_static_distributed_tensor<ODataType>(o_acc_tile.get_tile_distribution());
+
+        tile_elementwise_inout_unpack(
+            CDElementwise{},
+            concat_tuple_of_reference(
+                tie(e_tile, o_acc_tile),
+                generate_tie([&](auto i) -> const auto& { return d_tiles[i]; },
+                             number<NumDTensor>{})));
+
+        store_tile(in_lds_window, e_tile);
+    }
+};
+
+// Full-tile TdmMultiDEpilogue
+template <typename Problem_>
+using TdmMultiDEpilogue = TdmMultiDEpilogueStaged<Problem_>;
+
+// TdmMultiDEpilogueStaged with as many slab buffers as fit in GemmPipeline_'s LDS.
+// Takes the pipeline type for the reason given at TdmEpilogueStagedForPipeline.
+template <typename Problem_, index_t MIterPerStage_, typename GemmPipeline_>
+struct TdmMultiDEpilogueStagedForPipeline
+    : public TdmMultiDEpilogueStaged<Problem_,
+                                     MIterPerStage_,
+                                     tdm_stage_buffers_for_lds<Problem_, MIterPerStage_>(
+                                         GemmPipeline_::GetSmemSize())>
+{
 };
 
 } // namespace ck_tile

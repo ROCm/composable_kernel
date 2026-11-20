@@ -5,7 +5,7 @@
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2026-11-16T14:42:30.392585
+Generated at: 2026-11-18T12:25:51.027588
 
 To update this file:
 1. Edit arch_specs.json
@@ -332,15 +332,19 @@ TRAIT_UNSUPPORTED_COMBINATIONS: Set[Tuple[str, str, str]] = {
     ("comp_tdm", "cshuffle", "interwave"),
     ("comp_tdm", "default", "interwave"),
     ("comp_tdm", "tdm", "interwave"),
+    ("comp_tdm", "tdmstaged", "interwave"),
     ("comp_tdm_v2", "cshuffle", "interwave"),
     ("comp_tdm_v2", "default", "interwave"),
     ("comp_tdm_v2", "tdm", "interwave"),
+    ("comp_tdm_v2", "tdmstaged", "interwave"),
     ("comp_tdm_pc", "cshuffle", "interwave"),
     ("comp_tdm_pc", "default", "interwave"),
     ("comp_tdm_pc", "tdm", "interwave"),
+    ("comp_tdm_pc", "tdmstaged", "interwave"),
     ("comp_tdm_v3", "cshuffle", "interwave"),
     ("comp_tdm_v3", "default", "interwave"),
     ("comp_tdm_v3", "tdm", "interwave"),
+    ("comp_tdm_v3", "tdmstaged", "interwave"),
 }
 
 # Pipelines whose C++ problem requires DoubleSmemBuffer == true.

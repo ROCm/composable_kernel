@@ -111,9 +111,10 @@ bool generated_gemm_supports(const KernelKey& key, const Problem& problem)
             if constexpr(kernel_declares_epilogue<SelectedKernel>::value)
                 return ck_tile::is_tdm_epilogue_v<typename SelectedKernel::GemmEpilogue>;
             else
-                return key.algorithm.epilogue == Epilogue::Tdm;
+                return key.algorithm.epilogue == Epilogue::Tdm ||
+                       key.algorithm.epilogue == Epilogue::TdmStaged;
         }();
-        // TdmEpilogue overwrites C, and non-PC TDM launchers emit a host k_batch == 1
+        // The TDM epilogues overwrite C, and non-PC TDM launchers emit a host k_batch == 1
         // guard. Plain CompTDMPC with CShuffle omits that guard for split-K, where
         // UniversalGemmKernel::IsSupportedArgument requires whole TileK splits per batch.
         const bool pc_cshuffle_split_k = !tdm_epilogue &&

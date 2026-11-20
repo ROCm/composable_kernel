@@ -320,7 +320,7 @@ set_tests_properties(dispatcher_test_gemm_driver_verify PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
-# gfx1250 comp_async / comp_tdm / comp_tdm_v2 pipelines and the tdm epilogue:
+# gfx1250 comp_async / comp_tdm / comp_tdm_v2 pipelines and the tdm / tdmstaged epilogues:
 # ArchFilter, codegen and gemm_utils gates, LDS budget and codegen output.
 # CPU-only.
 add_test(

@@ -325,7 +325,7 @@ else()
         # gfx1250 weight-preshuffle pipelines (see gemm_validation_utils.py;
         # the comp_* ones run Intrawave only)
         list(APPEND GEMM_PRESHUFFLE_PIPELINES "preshuffle_tdm;comp_tdm;comp_tdm_v2;comp_async")
-        list(APPEND GEMM_PRESHUFFLE_EPILOGUES "tdm")
+        list(APPEND GEMM_PRESHUFFLE_EPILOGUES "tdm;tdmstaged")
         list(APPEND GEMM_PRESHUFFLE_SCHEDULERS "intrawave")
     endif()
 

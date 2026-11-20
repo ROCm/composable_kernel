@@ -92,6 +92,8 @@ class TestParseKernelName:
             ("comp_async", "cshuffle", "True_True_True"),
             ("comp_tdm", "tdm", "False_False_False"),
             ("comp_tdm_v2", "tdm", "False_False_False"),
+            ("comp_tdm", "tdmstaged", "False_False_False"),
+            ("comp_tdm_pc", "tdmstaged", "False_False_False"),
             ("basic_v1", "cshuffle", "True_True_True"),
         ],
     )
@@ -861,9 +863,7 @@ class TestBatchedGemmCsv:
     def _write(self, directory: Path, name: str, rows: str) -> None:
         path = directory / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            "kernel,M,N,K,batch_count,tflops,latency_ms,verified\n" + rows
-        )
+        path.write_text("kernel,M,N,K,batch_count,tflops,latency_ms,verified\n" + rows)
 
     def test_directory_merge_skips_csv_copies_and_keeps_the_median(self, tmp_path):
         from data_pipeline import load_batched_gemm_results

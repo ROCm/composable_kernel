@@ -443,15 +443,19 @@
       ["comp_tdm", "cshuffle", "interwave"],
       ["comp_tdm", "default", "interwave"],
       ["comp_tdm", "tdm", "interwave"],
+      ["comp_tdm", "tdmstaged", "interwave"],
       ["comp_tdm_v2", "cshuffle", "interwave"],
       ["comp_tdm_v2", "default", "interwave"],
       ["comp_tdm_v2", "tdm", "interwave"],
+      ["comp_tdm_v2", "tdmstaged", "interwave"],
       ["comp_tdm_pc", "cshuffle", "interwave"],
       ["comp_tdm_pc", "default", "interwave"],
       ["comp_tdm_pc", "tdm", "interwave"],
+      ["comp_tdm_pc", "tdmstaged", "interwave"],
       ["comp_tdm_v3", "cshuffle", "interwave"],
       ["comp_tdm_v3", "default", "interwave"],
-      ["comp_tdm_v3", "tdm", "interwave"]
+      ["comp_tdm_v3", "tdm", "interwave"],
+      ["comp_tdm_v3", "tdmstaged", "interwave"]
     ]
   },
   

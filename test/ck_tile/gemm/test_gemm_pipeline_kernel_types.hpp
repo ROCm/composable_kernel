@@ -39,6 +39,11 @@ using NonPersistent = std::false_type;
 using ClusterEnable  = std::true_type;
 using ClusterDisable = std::false_type;
 
+// Staged TdmEpilogue rows: block warps, MIterPerStage, NumStageBuffers.
+using TdmWarps    = ck_tile::sequence<2, 2, 1>;
+using TdmStage1x1 = TdmStage<1, 1>;
+using TdmStage1x2 = TdmStage<1, 2>;
+
 using I8   = ck_tile::number<8>;
 using I16  = ck_tile::number<16>;
 using I32  = ck_tile::number<32>;
@@ -322,7 +327,10 @@ using KernelTypesCompTDMWmma = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F4,        F4,          F32,       F16,        I64,         I64,          I128,       I32,        I32, Intrawave,        CompTDMV1>,
     std::tuple<    Row,     Col,     Row,       F8,        F4,          F32,       F16,        I64,         I64,          I128,       I32,        I32, Intrawave,        CompTDMV1>,
     std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,        I64,         I64,          I128,       I16,        I16, Intrawave,        CompTDMV1>,
-    std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,        I64,         I64,          I128,       I16,        I16, Intrawave,        CompTDMV1>
+    std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,        I64,         I64,          I128,       I16,        I16, Intrawave,        CompTDMV1>,
+    // Staged TdmEpilogue
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I16,        I16, Intrawave,        CompTDMV1, NonPersistent, ClusterDisable, TdmWarps, TdmStage1x2>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMV2, NonPersistent, ClusterDisable, TdmWarps, TdmStage1x1>
 >;
 
 using KernelTypesCompAsyncWmma = ::testing::Types<
@@ -349,7 +357,10 @@ using KernelTypesCompTDMProducerConsumerWmma = ::testing::Types<
     // The tile_engine gfx1250 sweep starts tile_k at 64 step 64, so the 64x64x32
     // shape above is not in the search grid at all. These two are.
     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer>
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer>,
+    // Staged TdmEpilogue
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,       I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer, NonPersistent, ClusterDisable, TdmWarps, TdmStage1x2>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I128,        I128,         I64,        I16,        I16, Intrawave,        CompTDMProducerConsumer, Persistent, ClusterDisable, TdmWarps, TdmStage1x2>
 >;
 
 // The producer/consumer pipeline with a CShuffleEpilogue, the pairing that can split K.

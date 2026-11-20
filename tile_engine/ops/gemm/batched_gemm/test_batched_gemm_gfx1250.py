@@ -37,6 +37,7 @@ _LEGACY_CONFIGS = ("default_config.json", "default_ci_config.json")
 _LDS_CAPACITY_GFX1250 = 327680
 _NEW_PIPELINES = ("comp_async", "comp_tdm", "comp_tdm_v2", "comp_tdm_pc")
 _TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc")
+_TDM_EPILOGUES = ("tdm", "tdmstaged")
 # Warp layouts of the gfx1250 row in the dispatcher arch specs.
 _GFX1250_WARP_LAYOUTS = {
     (2, 4, 1),
@@ -116,6 +117,7 @@ class TestTraitParsing(unittest.TestCase):
             ("comp_async", "cshuffle"),
             ("comp_tdm", "tdm"),
             ("comp_tdm_v2", "tdm"),
+            ("comp_tdm", "tdmstaged"),
         ):
             name = (
                 f"benchmark_batched_gemm_fp16_rcr_{pipeline}_{epilogue}_intrawave"
@@ -158,6 +160,11 @@ class TestPreshuffleRejection(unittest.TestCase):
             b._check_pipeline_allowed_for_op("comp_tdm_v2", "tdm")
             # BatchedGemmKernel arms the producer/consumer named barriers.
             b._check_pipeline_allowed_for_op("comp_tdm_pc", "tdm")
+            b._check_pipeline_allowed_for_op("comp_tdm", "tdmstaged")
+            b._check_pipeline_allowed_for_op("comp_tdm_v2", "tdmstaged")
+            b._check_pipeline_allowed_for_op("comp_tdm_pc", "tdmstaged")
+            with self.assertRaisesRegex(ValueError, "tdmstaged epilogue requires"):
+                b._check_pipeline_allowed_for_op("compv3", "tdmstaged")
 
     def test_config_with_preshuffle_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -201,13 +208,32 @@ class TestGfx1250Configs(unittest.TestCase):
                 k["name"],
             )
             if pipe in _TDM_PIPELINES:
-                self.assertEqual((epi, sched), ("tdm", "intrawave"), k["name"])
+                self.assertIn(epi, _TDM_EPILOGUES, k["name"])
+                self.assertEqual(sched, "intrawave", k["name"])
                 self.assertEqual((pad_m, pad_n, pad_k), (False,) * 3, k["name"])
             if pipe == "comp_async":
                 self.assertEqual((epi, sched), ("cshuffle", "intrawave"), k["name"])
                 self.assertEqual((pad_m, pad_n, pad_k), (True,) * 3, k["name"])
-            if epi == "tdm":
+            if epi in _TDM_EPILOGUES:
                 self.assertIn(pipe, _TDM_PIPELINES, k["name"])
+
+    def test_tdm_epilogue_coverage(self):
+        # Full config: every TDM pipeline gets tdmstaged exactly where it gets tdm.
+        # CI config: tdm only (tdmstaged is not built in the batched CI set).
+        for kernels, want in ((self.full, set(_TDM_EPILOGUES)), (self.ci, {"tdm"})):
+            for p in _TDM_PIPELINES:
+                by_epilogue = {}
+                for k in kernels:
+                    pipe, epi = k["trait_combo"][:2]
+                    if pipe == p:
+                        by_epilogue.setdefault(epi, []).append(
+                            k["name"].replace(f"_{p}_{epi}_", f"_{p}_*_")
+                        )
+                self.assertEqual(set(by_epilogue), want, p)
+                if "tdmstaged" in want:
+                    self.assertEqual(
+                        sorted(by_epilogue["tdm"]), sorted(by_epilogue["tdmstaged"]), p
+                    )
 
     def test_warp_layout_and_warp_tile(self):
         for k in self._all():
@@ -290,8 +316,25 @@ class TestGeneratedHeaders(unittest.TestCase):
         ):
             code = self._gen(pipe, "tdm")
             self.assertIn(impl, code)
-            self.assertIn("TdmEpilogue", code)
+            self.assertIn("ck_tile::TdmEpilogue<EpilogueProblem>", code)
             self.assertIn("DoubleSmemBuffer = true", code)
+            self.assertIn("k_batch != 1", code)
+            self.assertIn("BatchedGemmKernel", code)
+
+    def test_tdm_staged_headers(self):
+        staged = (
+            "ck_tile::TdmEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>"
+        )
+        for pipe, impl in (
+            ("comp_tdm", "GemmPipelineAgBgCrCompTDMV1"),
+            ("comp_tdm_v2", "GemmPipelineAgBgCrCompTDMV2"),
+        ):
+            code = self._gen(pipe, "tdmstaged")
+            self.assertIn(impl, code)
+            self.assertIn(f"using GemmEpilogue = {staged};", code)
+            self.assertNotIn("ck_tile::TdmEpilogue<", code)
+            # The staged epilogue sizes its slab buffers from the pipeline type.
+            self.assertLess(code.index("using GemmPipeline"), code.index(staged))
             self.assertIn("k_batch != 1", code)
             self.assertIn("BatchedGemmKernel", code)
 
@@ -315,7 +358,7 @@ class TestOtherArchesUnaffected(unittest.TestCase):
                 pipes = {k["trait_combo"][0] for k in _kernels(cfg, arch)}
                 epis = {k["trait_combo"][1] for k in _kernels(cfg, arch)}
                 self.assertFalse(pipes & set(_NEW_PIPELINES), (arch, cfg, pipes))
-                self.assertNotIn("tdm", epis, (arch, cfg))
+                self.assertFalse(epis & set(_TDM_EPILOGUES), (arch, cfg))
 
     def test_legacy_configs_have_no_gfx1250_pipelines(self):
         for name in _LEGACY_CONFIGS:
@@ -324,7 +367,9 @@ class TestOtherArchesUnaffected(unittest.TestCase):
             self.assertFalse(
                 set(traits["pipeline"]["values"]) & set(_NEW_PIPELINES), name
             )
-            self.assertNotIn("tdm", traits["epilogue"]["values"], name)
+            self.assertFalse(
+                set(traits["epilogue"]["values"]) & set(_TDM_EPILOGUES), name
+            )
 
 
 class TestDtypeLayoutCoverage(unittest.TestCase):

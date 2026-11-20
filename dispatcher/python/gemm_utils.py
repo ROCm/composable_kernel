@@ -36,7 +36,7 @@ import multiprocessing
 import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -424,10 +424,12 @@ class GemmKernelConfig:
     def codegen_layout(self) -> str:
         """Layout string passed to unified_gemm_codegen.py --layout.
 
-        Multi-D takes a 4-char layout (A,B,C + D); the codegen splits off the
-        4th char as the D-tensor layout. Every other variant uses the 3-char
-        A,B,C layout.
+        Multi-D takes a 4-char layout (A,B,C + D) and multi-ABD the 4-char
+        (A,B,E,D) one; the codegen splits off the 4th char as the D-tensor
+        layout. Every other variant uses the 3-char A,B,C layout.
         """
+        if self.variant == "multi_abd":
+            return self.layout4
         if self.variant == "multi_d":
             return self.layout + _LAYOUT_CHAR[self.d_layout]
         return self.layout
@@ -2618,9 +2620,6 @@ def setup_multiple_gemm_dispatchers(
                 "output_dir": str(output_dir),
                 "dtype": c.dtype_a,
                 "layout": c.codegen_layout,
-                # Multi-ABD codegen expects the 4-char (A,B,E,D) layout so it can
-                # split off the D layout; every other variant uses 3-char.
-                "layout": c.layout4 if c.variant == "multi_abd" else c.layout,
                 "gpu_target": c.gfx_arch,
                 "tile_config_json": c.to_codegen_json(),
                 "hpp_glob_pattern": f"{c.name}.hpp",
@@ -2861,7 +2860,8 @@ def _gfx1250_pipeline_supported(
     the codegen would reject for this arch/variant/trait.
 
     ``layout`` is the A/B/C layout code (e.g. ``rcr``); empty skips the
-    comp_async layout rule. ``dtype``/``warp_tile_k`` feed the comp_async
+    comp_async layout and tdmstaged row-major C rules. ``dtype``/``warp_tile_k``
+    feed the comp_async
     8-bit warp_tile_k rule; an empty dtype skips it. ``warp_tile_m``/
     ``warp_tile_n`` feed the comp_async 8-bit warp_tile_m/n rule; 0 skips it.
     ``tile_mn`` feeds the comp_tdm_pc accumulator rule and ``tile_k`` the

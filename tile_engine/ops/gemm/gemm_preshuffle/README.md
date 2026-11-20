@@ -10,13 +10,13 @@ bridge skips the shuffle for them (the kernel's `Preshuffle` trait selects it).
 | --- | --- | --- | --- | --- |
 | PRESHUFFLE_V2 | `preshufflev2` | packed | `default` | `default`, `cshuffle` |
 | PRESHUFFLE_TDM | `preshuffle_tdm` | packed | `default` | `cshuffle` |
-| COMPUTE_TDM_V1 | `comp_tdm` | ordinary | `intrawave` | `tdm` |
-| COMPUTE_TDM_V2 | `comp_tdm_v2` | ordinary | `intrawave` | `tdm` |
+| COMPUTE_TDM_V1 | `comp_tdm` | ordinary | `intrawave` | `tdm`, `tdmstaged` |
+| COMPUTE_TDM_V2 | `comp_tdm_v2` | ordinary | `intrawave` | `tdm`, `tdmstaged` |
 | COMPUTE_ASYNC | `comp_async` | ordinary | `intrawave` | `cshuffle` |
 
 The config targets `rcr`, a 128x128 block with tile K 64 or 128, 1x4x1 waves
 and a 16x16 warp tile (warp tile K 32 for 16-bit, 64 for 8-bit types). It
-builds **12 kernels for fp16/bf16 and 10 for fp8/bf8** (`comp_async` needs warp
+builds **16 kernels for fp16/bf16 and 14 for fp8/bf8** (`comp_async` needs warp
 tile K 128 for fp8/bf8, which this config does not include). Invalid pipeline/scheduler/epilogue combinations in the
 Cartesian sweep are filtered before compilation by one shared rule set
 (`preshuffle_pipeline_reject_reason`, used by both the dispatcher and the

@@ -41,14 +41,7 @@ from gemm_utils import (  # noqa: E402
 )
 
 # The shipped multi_abd sweep configs the bridge codegens from.
-_CONFIG_DIR = (
-    REPO_ROOT
-    / "tile_engine"
-    / "ops"
-    / "gemm"
-    / "gemm_multi_abd"
-    / "configs"
-)
+_CONFIG_DIR = REPO_ROOT / "tile_engine" / "ops" / "gemm" / "gemm_multi_abd" / "configs"
 
 
 def _make_config(**overrides):
@@ -81,20 +74,29 @@ class TestMultiAbdName(unittest.TestCase):
         self.assertIn("_rcrr_", name)
         # multiabd tensor-count + op suffix, exactly as codegen emits it.
         self.assertTrue(
-            name.endswith(
-                "_multiabd_a2_b2_d2_PassThrough_PassThrough_PassThrough"
-            ),
+            name.endswith("_multiabd_a2_b2_d2_PassThrough_PassThrough_PassThrough"),
             name,
         )
 
     def test_full_stem_is_stable(self):
         # Pin the entire stem so any drift in the naming scheme is caught.
         cfg = _make_config(
-            tile_m=128, tile_n=128, tile_k=32,
-            wave_m=2, wave_n=2, wave_k=1,
-            warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
-            pipeline="compv4", scheduler="intrawave", epilogue="cshuffle",
-            pad_m=True, pad_n=True, pad_k=True, persistent=False,
+            tile_m=128,
+            tile_n=128,
+            tile_k=32,
+            wave_m=2,
+            wave_n=2,
+            wave_k=1,
+            warp_tile_m=32,
+            warp_tile_n=32,
+            warp_tile_k=16,
+            pipeline="compv4",
+            scheduler="intrawave",
+            epilogue="cshuffle",
+            pad_m=True,
+            pad_n=True,
+            pad_k=True,
+            persistent=False,
         )
         expected = (
             "gemm_fp16_rcrr_compv4_cshuffle_intrawave"
@@ -123,7 +125,9 @@ class TestMultiAbdName(unittest.TestCase):
         # name, so every dtype the bridge builds must round-trip.
         for dtype in ("fp16", "bf16"):
             cfg = _make_config(
-                dtype_a=dtype, dtype_b=dtype, dtype_c=_output_dtype(dtype),
+                dtype_a=dtype,
+                dtype_b=dtype,
+                dtype_c=_output_dtype(dtype),
             )
             self.assertEqual(_dtype_from_kernel_name(cfg.name), dtype)
 
@@ -136,9 +140,13 @@ class TestMultiAbdName(unittest.TestCase):
             ("col", "col", "row", "row"),
         ):
             cfg = _make_config(
-                layout_a=la, layout_b=lb, layout_c=lc, layout_d=ld,
+                layout_a=la,
+                layout_b=lb,
+                layout_c=lc,
+                layout_d=ld,
             )
             self.assertIn(f"_{cfg.layout4}_", cfg.name)
+            self.assertEqual(cfg.codegen_layout, cfg.layout4)
 
 
 class TestMultiAbdCodegenJson(unittest.TestCase):
@@ -146,7 +154,9 @@ class TestMultiAbdCodegenJson(unittest.TestCase):
 
     def test_codegen_json_has_multi_abd_block(self):
         cfg = _make_config(
-            num_a_tensors=2, num_b_tensors=2, num_d_tensors=2,
+            num_a_tensors=2,
+            num_b_tensors=2,
+            num_d_tensors=2,
             cde_elementwise_op="AddScale",
         )
         j = cfg.to_codegen_json()
@@ -192,9 +202,15 @@ class TestMultiAbdShippedConfigs(unittest.TestCase):
                 self.assertIn("trait_config", data)
                 tc = data["tile_config"]
                 for key in (
-                    "tile_m", "tile_n", "tile_k",
-                    "warp_m", "warp_n", "warp_k",
-                    "warp_tile_m", "warp_tile_n", "warp_tile_k",
+                    "tile_m",
+                    "tile_n",
+                    "tile_k",
+                    "warp_m",
+                    "warp_n",
+                    "warp_k",
+                    "warp_tile_m",
+                    "warp_tile_n",
+                    "warp_tile_k",
                 ):
                     self.assertIn(key, tc, f"{path.name} missing {key}")
                 tr = data["trait_config"]
@@ -239,9 +255,21 @@ class TestMultiAbdAbiMarshalling(unittest.TestCase):
         ds_arrays = [np.zeros(4, np.float16) for _ in range(nd)]
         e = np.zeros(4, np.float16)
         status, _ = lib.run(
-            as_arrays, bs_arrays, ds_arrays, e,
-            M=2, N=2, K=2, elem_a=2, elem_b=2, elem_d=2, elem_e=2,
-            stride_as=[2, 2], stride_bs=[2, 2], stride_ds=[2, 2], stride_e=2,
+            as_arrays,
+            bs_arrays,
+            ds_arrays,
+            e,
+            M=2,
+            N=2,
+            K=2,
+            elem_a=2,
+            elem_b=2,
+            elem_d=2,
+            elem_e=2,
+            stride_as=[2, 2],
+            stride_bs=[2, 2],
+            stride_ds=[2, 2],
+            stride_e=2,
         )
         self.assertEqual(status, 0)
         fake.dispatcher_run_multi_abd.assert_called_once()
@@ -261,9 +289,21 @@ class TestMultiAbdAbiMarshalling(unittest.TestCase):
         lib, fake = self._make_lib(status=-3)
         a = [np.zeros(4, np.float16)]
         status, _ = lib.run(
-            a, a, a, np.zeros(4, np.float16),
-            M=1, N=1, K=1, elem_a=2, elem_b=2, elem_d=2, elem_e=2,
-            stride_as=[1], stride_bs=[1], stride_ds=[1], stride_e=1,
+            a,
+            a,
+            a,
+            np.zeros(4, np.float16),
+            M=1,
+            N=1,
+            K=1,
+            elem_a=2,
+            elem_b=2,
+            elem_d=2,
+            elem_e=2,
+            stride_as=[1],
+            stride_bs=[1],
+            stride_ds=[1],
+            stride_e=1,
         )
         self.assertEqual(status, -3)
 
@@ -299,9 +339,7 @@ class TestMultiAbdGfx1250Config(unittest.TestCase):
     def test_gfx1250_config_wave_triple_is_supported(self):
         # The swept warps-per-block triple must be one gfx1250 actually supports,
         # or expand_sweep gates the whole sweep away to an empty kernel set.
-        sys.path.insert(
-            0, str(REPO_ROOT / "tile_engine" / "ops" / "gemm")
-        )
+        sys.path.insert(0, str(REPO_ROOT / "tile_engine" / "ops" / "gemm"))
         from gemm_validation_utils import (  # noqa: E402
             WARP_SUPPORTED_COMBINATIONS,
         )

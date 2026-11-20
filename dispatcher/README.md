@@ -766,7 +766,7 @@ This matrix shows all CK Tile operations with per-data-type, per-layout, and per
 | GEMM Variant | Pipelines | Schedulers | Epilogues | Element-wise Ops | Output Dtype |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | gemm_universal | mem, compv3, compv4 | intrawave, interwave | cshuffle, default | PassThrough | Same as input (fp8/bf8 -> fp16) |
-| gemm_preshuffle | preshufflev2; gfx1250 also comp_tdm, comp_tdm_v2, preshuffle_tdm, comp_async | default (packed B), intrawave (compute) | default, cshuffle; tdm for compute TDM | PassThrough | Same as input (fp8/bf8 -> fp16) |
+| gemm_preshuffle | preshufflev2; gfx1250 also comp_tdm, comp_tdm_v2, preshuffle_tdm, comp_async | default (packed B), intrawave (compute) | default, cshuffle; tdm or tdmstaged for compute TDM | PassThrough | Same as input (fp8/bf8 -> fp16) |
 | gemm_multi_d | mem, compv3, compv4 | intrawave, interwave | cshuffle, default | MultiDAdd, MultiDMultiply | Same as input (fp8/bf8 -> fp16) |
 
 #### Warp Tile Combinations per GPU

@@ -40,6 +40,7 @@ sys.path.insert(0, str(DISPATCHER_DIR / "python"))
 sys.path.append(str(DISPATCHER_DIR.parent / "tile_engine" / "ops" / "gemm"))
 
 from codegen_common import (  # noqa: E402
+    TDM_EPILOGUES,
     TileConfig,
     _native_ab_vector_size,
     gemm_native_vector_sizes,
@@ -264,8 +265,12 @@ class TestResolution(unittest.TestCase):
                 dtype_ab = "int8" if dtype_c == "int32" else "bf16"
                 for variant in ("stream_k", "standard"):
                     _, reason = _resolve(
-                        "rr" + layout_c, (8, 1, width), dtype_a=dtype_ab,
-                        dtype_b=dtype_ab, dtype_c=dtype_c, variant=variant,
+                        "rr" + layout_c,
+                        (8, 1, width),
+                        dtype_a=dtype_ab,
+                        dtype_b=dtype_ab,
+                        dtype_c=dtype_c,
+                        variant=variant,
                         reduction_strategy=strategy,
                     )
                     self.assertEqual(
@@ -351,11 +356,11 @@ class TestNativeEpilogueWidths(unittest.TestCase):
 class TestTdmWidthsAndPairing(unittest.TestCase):
     """TDM moves A/B/C at width 1 and clips to real extents (skipCheckValidLaunchParams)."""
 
-    def _tdm(self, pipeline="comp_tdm"):
+    def _tdm(self, pipeline="comp_tdm", epilogue="tdm"):
         cfg, _ = _bridge_config(vec=(0, 0, 0), pipeline=pipeline)
         return replace(
             cfg,
-            epilogue="tdm",
+            epilogue=epilogue,
             pad_m=False,
             pad_n=False,
             pad_k=False,
@@ -366,24 +371,33 @@ class TestTdmWidthsAndPairing(unittest.TestCase):
         )
 
     def test_tdm_native_widths_are_one(self):
-        for layout in ("rcr", "rrr", "crr", "ccr"):
+        for epilogue, layout in itertools.product(
+            TDM_EPILOGUES, ("rcr", "rrr", "crr", "ccr")
+        ):
             got = gemm_native_vector_sizes(
                 dtype_a="bf16",
                 dtype_b="bf16",
                 dtype_c="bf16",
                 layout=layout,
                 gfx_arch="gfx1250",
-                epilogue="tdm",
+                epilogue=epilogue,
                 **TILE,
             )
-            self.assertEqual(got, (1, 1, 1), layout)
-        self.assertEqual(self._tdm().effective_vector_sizes, (1, 1, 1))
+            self.assertEqual(got, (1, 1, 1), (epilogue, layout))
+            self.assertEqual(
+                self._tdm(epilogue=epilogue).effective_vector_sizes, (1, 1, 1)
+            )
 
     def test_tdm_requested_widths_canonicalize_to_native(self):
-        vec, reason = _resolve(
-            "rcr", (1, 1, 8), epilogue="tdm", pipeline="comp_tdm", gfx_arch="gfx1250"
-        )
-        self.assertEqual((vec, reason), ((0, 0, 0), None))
+        for epilogue in TDM_EPILOGUES:
+            vec, reason = _resolve(
+                "rcr",
+                (1, 1, 8),
+                epilogue=epilogue,
+                pipeline="comp_tdm",
+                gfx_arch="gfx1250",
+            )
+            self.assertEqual((vec, reason), ((0, 0, 0), None), epilogue)
 
     def test_unpadded_tdm_pairs_every_shape(self):
         problems = [
@@ -392,11 +406,14 @@ class TestTdmWidthsAndPairing(unittest.TestCase):
             {"M": 1031, "N": 1, "K": 777},
             {"M": 777, "N": 1031, "K": 1},
         ]
-        for pipeline in ("comp_tdm", "comp_tdm_v2"):
-            cfg = self._tdm(pipeline)
+        for pipeline, epilogue in itertools.product(
+            ("comp_tdm", "comp_tdm_v2"), TDM_EPILOGUES
+        ):
+            cfg = self._tdm(pipeline, epilogue)
             for p in problems:
                 self.assertTrue(
-                    _tile_fits(cfg, {d.lower(): p[d] for d in "MNK"}), (pipeline, p)
+                    _tile_fits(cfg, {d.lower(): p[d] for d in "MNK"}),
+                    (pipeline, epilogue, p),
                 )
             fallback = VectorFallback(problems, "rcr", "bf16", "standard")
             self.assertEqual(
@@ -688,7 +705,12 @@ class TestStreamKMisalignedShapes(unittest.TestCase):
     """Problems whose contiguous extent is not a multiple of the 8-element bf16 load."""
 
     CONFIG = (
-        DISPATCHER_DIR.parent / "tile_engine" / "ops" / "gemm" / "gemm_streamk" / "configs"
+        DISPATCHER_DIR.parent
+        / "tile_engine"
+        / "ops"
+        / "gemm"
+        / "gemm_streamk"
+        / "configs"
         / "default_config_gfx1250.json"
     )
     ALL_STRATEGIES = list(STREAMK_REDUCTION_STRATEGIES)
@@ -698,8 +720,13 @@ class TestStreamKMisalignedShapes(unittest.TestCase):
 
         vfb = VectorFallback([problem], layout, "bf16", "stream_k")
         cfgs = expand_sweep(
-            str(self.CONFIG), "gfx1250", dtype="bf16", layout=layout, variant="stream_k",
-            reduction_strategies=strategies, **vfb.expand_kwargs,
+            str(self.CONFIG),
+            "gfx1250",
+            dtype="bf16",
+            layout=layout,
+            variant="stream_k",
+            reduction_strategies=strategies,
+            **vfb.expand_kwargs,
         )
         return [c for c in cfgs if any(c.vector_sizes)], vfb.rejects
 
@@ -718,7 +745,9 @@ class TestStreamKMisalignedShapes(unittest.TestCase):
                 with self.subTest(layout=layout, problem=problem, strategy=strategy):
                     self.assertTrue(fixed)
                     self.assertIn(vec, {c.effective_vector_sizes for c in fixed})
-                    self.assertTrue(all(c.reduction_strategy == strategy for c in fixed))
+                    self.assertTrue(
+                        all(c.reduction_strategy == strategy for c in fixed)
+                    )
 
     def test_two_byte_c_needs_linear_or_tree(self):
         # N odd or N = 1: the C store is one bf16 element.
@@ -733,7 +762,9 @@ class TestStreamKMisalignedShapes(unittest.TestCase):
                 fixed, _ = self._expand(layout, problem, [strategy])
                 with self.subTest(problem=problem, strategy=strategy):
                     self.assertTrue(fixed)
-                    self.assertTrue(all(c.effective_vector_sizes[2] == 1 for c in fixed))
+                    self.assertTrue(
+                        all(c.effective_vector_sizes[2] == 1 for c in fixed)
+                    )
 
     def test_codegen_checks_c_per_strategy(self):
         # The codegen resolves the widths with the strategy deferred, then checks C
@@ -749,9 +780,10 @@ class TestStreamKMisalignedShapes(unittest.TestCase):
             config["streamk_config"] = {"reduction_strategy": self.ALL_STRATEGIES}
             # Record the reject log directly; assertLogs would also need an
             # unrelated INFO line in the clean case.
-            with tempfile.TemporaryDirectory() as d, mock.patch(
-                "unified_gemm_codegen.log"
-            ) as log:
+            with (
+                tempfile.TemporaryDirectory() as d,
+                mock.patch("unified_gemm_codegen.log") as log,
+            ):
                 path = Path(d) / "config.json"
                 path.write_text(json.dumps(config))
                 gen = UnifiedGemmCodegen(Path(d), "bf16", layout, "gfx950", path)
@@ -772,15 +804,19 @@ class TestStreamKMisalignedShapes(unittest.TestCase):
             "streamk_gemm_full_benchmark.py --arch gfx1250 --layout rrr --dtype bf16"
             " --reduction-strategy linear"
         ).split()
-        with mock.patch.object(sys, "argv", argv), mock.patch.object(
-            driver, "resolve_devices", return_value=["0"]
-        ), mock.patch.object(
-            driver, "load_problems", return_value=[dict(M=3072, N=1, K=1024)]
-        ), mock.patch.object(
-            driver,
-            "setup_multiple_gemm_dispatchers",
-            side_effect=lambda configs, **kwargs: [None] * len(configs),
-        ) as build, contextlib.redirect_stdout(io.StringIO()):
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(driver, "resolve_devices", return_value=["0"]),
+            mock.patch.object(
+                driver, "load_problems", return_value=[dict(M=3072, N=1, K=1024)]
+            ),
+            mock.patch.object(
+                driver,
+                "setup_multiple_gemm_dispatchers",
+                side_effect=lambda configs, **kwargs: [None] * len(configs),
+            ) as build,
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
             self.assertEqual(driver.main(), 1)
         configs = build.call_args.args[0]
         self.assertEqual({c.reduction_strategy for c in configs}, {"linear"})
@@ -824,8 +860,12 @@ class TestStreamKMisalignedShapes(unittest.TestCase):
             with self.subTest(layout=layout, variant=variant, strategy=strategy):
                 with self.assertRaisesRegex(ValueError, error):
                     expand_sweep(
-                        str(self.CONFIG), "gfx1250", dtype="bf16", layout=layout,
-                        variant=variant, reduction_strategies=[strategy],
+                        str(self.CONFIG),
+                        "gfx1250",
+                        dtype="bf16",
+                        layout=layout,
+                        variant=variant,
+                        reduction_strategies=[strategy],
                     )
 
 

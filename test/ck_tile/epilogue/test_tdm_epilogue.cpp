@@ -320,6 +320,168 @@ TEST(TdmEpilogue, GemmKernelTdmV2RejectsSplitKWithFp32E)
     EXPECT_FALSE(Gemm::IsSupported(2));
 }
 
+// 4 iterations along M per wave, so 1-, 2- and 4-iteration slabs give 4, 2 and 1 stages
+// respectively.
+template <bool CTransposed>
+using StagedProblem = CShuffleEpilogueProblem<half_t,
+                                              half_t,
+                                              tuple<>,
+                                              float,
+                                              half_t,
+                                              tuple<>,
+                                              tensor_layout::gemm::RowMajor,
+                                              element_wise::PassThrough,
+                                              128, // kM
+                                              64,  // kN
+                                              2,   // MWave
+                                              2,   // NWave
+                                              16,  // MPerXdl
+                                              16,  // NPerXdl
+                                              32,  // KPerXdl
+                                              CTransposed>;
+
+constexpr index_t kStagedBlocks = 64;
+
+// LDS sizes and barrier counts of the staged configurations
+static_assert(TdmEpilogue<StagedProblem<true>>::GetSmemSize() == 128 * 64 * 2);
+static_assert(TdmEpilogue<StagedProblem<true>>::GetBarrierCount() == 2);
+static_assert(TdmEpilogueStaged<StagedProblem<true>, 1, 1>::GetSmemSize() == 32 * 64 * 2);
+static_assert(TdmEpilogueStaged<StagedProblem<true>, 1, 1>::GetBarrierCount() == 1 + 4 + 3);
+static_assert(TdmEpilogueStaged<StagedProblem<true>, 1, 2>::GetSmemSize() == 2 * 32 * 64 * 2);
+static_assert(TdmEpilogueStaged<StagedProblem<true>, 1, 2>::GetBarrierCount() == 1 + 4 + 2);
+static_assert(TdmEpilogueStaged<StagedProblem<true>, 2, 2>::GetSmemSize() == 2 * 64 * 64 * 2);
+static_assert(TdmEpilogueStaged<StagedProblem<true>, 2, 2>::GetBarrierCount() == 1 + 2 + 0);
+// More buffers than stages: the ring is cut to the stage count.
+static_assert(TdmEpilogueStaged<StagedProblem<true>, 4, 2>::GetSmemSize() == 128 * 64 * 2);
+static_assert(TdmEpilogueStaged<StagedProblem<true>, 4, 2>::GetBarrierCount() == 1 + 1 + 0);
+static_assert(tdm_stage_buffers_for_lds<StagedProblem<true>, 1>(0) == 1);
+static_assert(tdm_stage_buffers_for_lds<StagedProblem<true>, 1>(2 * 32 * 64 * 2) == 2);
+static_assert(tdm_stage_buffers_for_lds<StagedProblem<true>, 1>(128 * 64 * 2) == 4);
+// A budget past the whole tile is cut to the stage count.
+static_assert(tdm_stage_buffers_for_lds<StagedProblem<true>, 1>(1 << 20) == 4);
+
+// Stands in for a GEMM pipeline with the LDS budget of two slabs.
+struct TwoSlabPipeline
+{
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 2 * 32 * 64 * 2; }
+};
+static_assert(
+    TdmEpilogueStagedForPipeline<StagedProblem<true>, 1, TwoSlabPipeline>::GetSmemSize() ==
+    2 * 32 * 64 * 2);
+
+static_assert(is_tdm_epilogue_v<TdmEpilogueStaged<StagedProblem<true>, 1, 2>>);
+static_assert(
+    is_tdm_epilogue_v<TdmEpilogueStagedForPipeline<StagedProblem<true>, 1, TwoSlabPipeline>>);
+static_assert(!is_tdm_epilogue_v<CShuffleEpilogue<StagedProblem<true>>>);
+
+template <typename Tuple>
+class TdmEpilogueStagedTest : public ::testing::Test
+{
+    protected:
+    using Problem                             = std::tuple_element_t<0, Tuple>;
+    static constexpr index_t kMIterPerStage   = std::tuple_element_t<1, Tuple>::value;
+    static constexpr index_t kNumStageBuffers = std::tuple_element_t<2, Tuple>::value;
+
+    // Same device check as OverwritingLdsAfterReturnKeepsC.
+    void SetUp() override
+    {
+        if(skip_without_gfx125())
+        {
+            GTEST_SKIP() << "TDM requires gfx1250; device reports '" << get_device_name() << "'";
+        }
+    }
+
+    // Same steps as OverwritingLdsAfterReturnKeepsC, over kStagedBlocks blocks of which the
+    // first kValidRows rows are the output view; rows past it must keep their guard value.
+    template <index_t kValidRows>
+    void Run()
+    {
+        constexpr index_t kTileRows = Problem::kMPerBlock;
+        constexpr index_t kTileCols = Problem::kNPerBlock;
+        constexpr index_t kRows     = kTileRows * kStagedBlocks;
+
+        auto host_input = generate_unique_fp16_input<float, kTileRows, kTileCols>();
+        DeviceMem input_buf(host_input.get_element_space_size_in_bytes());
+        input_buf.ToDevice(host_input.data());
+
+        // Inputs are positive fp16 normals, so -1 can only come from the overwritten LDS
+        // and -2 only from rows the epilogue did not write.
+        const half_t sentinel = type_convert<half_t>(-1.0F);
+        const half_t guard    = type_convert<half_t>(-2.0F);
+        HostTensor<half_t> host_output({kRows, kTileCols});
+        for(index_t m = 0; m < kRows; ++m)
+        {
+            for(index_t n = 0; n < kTileCols; ++n)
+            {
+                host_output(m, n) = guard;
+            }
+        }
+        DeviceMem output_buf(host_output.get_element_space_size_in_bytes());
+        output_buf.ToDevice(host_output.data());
+
+        int device    = 0;
+        int warp_size = 0;
+        HIP_CHECK_ERROR(hipGetDevice(&device));
+        HIP_CHECK_ERROR(hipDeviceGetAttribute(&warp_size, hipDeviceAttributeWarpSize, device));
+        const dim3 grid_size(kStagedBlocks, 1, 1);
+        const dim3 block_size(Problem::MWave * Problem::NWave * warp_size, 1, 1);
+
+        // No D tensors, so d_data is never read.
+        using Epilogue = TdmEpilogueStaged<Problem, kMIterPerStage, kNumStageBuffers>;
+        test_tdm_epilogue_lds_reuse_kernel<Epilogue, kValidRows, kTileCols>
+            <<<grid_size, block_size>>>(static_cast<const float*>(input_buf.GetDeviceBuffer()),
+                                        static_cast<half_t*>(output_buf.GetDeviceBuffer()),
+                                        nullptr,
+                                        sentinel);
+        HIP_CHECK_ERROR(hipGetLastError());
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
+        output_buf.FromDevice(host_output.data());
+
+        // Bit-exact compare, as in OverwritingLdsAfterReturnKeepsC.
+        index_t mismatches = 0;
+        index_t guard_hits = 0;
+        for(index_t m = 0; m < kRows; ++m)
+        {
+            for(index_t n = 0; n < kTileCols; ++n)
+            {
+                const auto got =
+                    ck_tile::bit_cast<uint32_t>(type_convert<float>(host_output(m, n)));
+                if(m < kValidRows)
+                {
+                    mismatches += got != ck_tile::bit_cast<uint32_t>(host_input(m % kTileRows, n));
+                }
+                else
+                {
+                    guard_hits += got != ck_tile::bit_cast<uint32_t>(type_convert<float>(guard));
+                }
+            }
+        }
+        EXPECT_EQ(mismatches, 0) << "wrong C values (a TDM store that still read LDS after return "
+                                    "writes -1, an unwritten row keeps -2)";
+        EXPECT_EQ(guard_hits, 0) << "the epilogue wrote rows past the end of the output view";
+    }
+};
+
+// Problem, MIterPerStage and NumStageBuffers of each TdmEpilogueStaged; 0 and 2 are the defaults.
+using StagedEpilogues = ::testing::Types<std::tuple<StagedProblem<true>, number<0>, number<2>>,
+                                         std::tuple<StagedProblem<true>, number<1>, number<1>>,
+                                         std::tuple<StagedProblem<true>, number<1>, number<2>>,
+                                         std::tuple<StagedProblem<true>, number<1>, number<4>>,
+                                         std::tuple<StagedProblem<true>, number<2>, number<2>>,
+                                         std::tuple<StagedProblem<true>, number<4>, number<2>>,
+                                         std::tuple<StagedProblem<false>, number<0>, number<2>>,
+                                         std::tuple<StagedProblem<false>, number<1>, number<2>>,
+                                         std::tuple<StagedProblem<false>, number<2>, number<1>>>;
+TYPED_TEST_SUITE(TdmEpilogueStagedTest, StagedEpilogues);
+
+TYPED_TEST(TdmEpilogueStagedTest, FullTilesKeepC) { this->template Run<128 * kStagedBlocks>(); }
+
+// Cut the last 40 rows, so the last block has only 88 valid rows
+TYPED_TEST(TdmEpilogueStagedTest, TailRowsAreClipped)
+{
+    this->template Run<128 * kStagedBlocks - 40>();
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

@@ -361,10 +361,10 @@ else()
     if(GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL MATCHES "gfx1250")
         # gfx1250 pipelines: non-MX comp_async (cshuffle epilogue) and the TDM
         # pipelines comp_tdm / comp_tdm_v2 / comp_tdm_pc (producer/consumer;
-        # tdm epilogue), and comp_tdm_v3 (cshuffle epilogue; only in
+        # tdm or tdmstaged epilogue), and comp_tdm_v3 (cshuffle epilogue; only in
         # configs/gfx1250_fp8_comp_tdm_v3.json, not in the default configs)
         list(APPEND GEMM_UNIVERSAL_PIPELINES "comp_async;comp_tdm;comp_tdm_v2;comp_tdm_pc;comp_tdm_v3")
-        list(APPEND GEMM_UNIVERSAL_EPILOGUES "tdm")
+        list(APPEND GEMM_UNIVERSAL_EPILOGUES "tdm;tdmstaged")
     endif()
 
     foreach(pipeline IN LISTS GEMM_UNIVERSAL_PIPELINES)
