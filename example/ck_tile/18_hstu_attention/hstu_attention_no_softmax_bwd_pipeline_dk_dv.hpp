@@ -592,9 +592,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                         const CompDataType s   = pcomp_tile[ij];
                         const CompDataType sig = f_sigmoid(s);
                         const CompDataType dp  = dscomp_tile[ij];
-                        CompDataType p = f_silu(s, sig) * type_convert<CompDataType>(scale_p);
-                        CompDataType ds =
-                            dp * type_convert<CompDataType>(scale_p) * f_dsilu(s, sig);
+                        CompDataType p         = f_silu(s, sig);
+                        CompDataType ds        = dp * f_dsilu(s, sig);
                         // Dropout propagates through the chain rule: kept -> *rp_undrop on
                         // BOTH P (-> dV) and dS (-> dK); dropped -> 0. drop_mask > 0 means
                         // kept.
@@ -656,9 +655,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
                         const CompDataType s   = pcomp_tile[ij];
                         const CompDataType sig = f_sigmoid(s);
                         const CompDataType dp  = dscomp_tile[ij];
-                        CompDataType p = f_silu(s, sig) * type_convert<CompDataType>(scale_p);
-                        CompDataType ds =
-                            dp * type_convert<CompDataType>(scale_p) * f_dsilu(s, sig);
+                        CompDataType p         = f_silu(s, sig);
+                        CompDataType ds        = dp * f_dsilu(s, sig);
 
                         pcomp_tile(ij)  = p * type_convert<CompDataType>(hstu_mask(ij));
                         dscomp_tile(ij) = ds * type_convert<CompDataType>(hstu_mask(ij));
@@ -714,7 +712,9 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
         } while(seqlen_q_curr < seqlen_q_end);
 
         // Apply alpha scaling to accumulated dK
-        tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, dk_acc);
+        tile_elementwise_inout([&scale_s, &scale_p](auto& x) { x = x * (scale_s * scale_p); },
+                               dk_acc);
+        tile_elementwise_inout([&scale_p](auto& x) { x = x * scale_p; }, dv_acc);
 
         return make_tuple(dk_acc, dv_acc);
     }

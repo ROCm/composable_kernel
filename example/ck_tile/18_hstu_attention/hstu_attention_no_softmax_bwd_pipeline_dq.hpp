@@ -478,7 +478,7 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
                     constexpr auto ij     = make_tuple(idx0, idx1);
                     const CompDataType s  = pcomp_tile[ij];
                     const CompDataType dp = dpcomp_tile[ij];
-                    CompDataType ds       = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+                    CompDataType ds       = dp * f_dsilu(s);
 
                     dpcomp_tile(ij) = ds;
                 });
@@ -524,7 +524,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
         } while(seqlen_k_curr < seqlen_k_end);
 
         // Apply alpha scaling to accumulated dQ
-        tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, dq_acc);
+        tile_elementwise_inout([&scale_s, &scale_p](auto& x) { x = x * (scale_s * scale_p); },
+                               dq_acc);
 
         return dq_acc;
     }
