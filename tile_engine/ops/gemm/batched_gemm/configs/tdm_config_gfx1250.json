@@ -1,0 +1,107 @@
+{
+    "_comment": [
+        "Batched GEMM on every gfx1250 TDM pipeline: comp_tdm, comp_tdm_v2, comp_tdm_pc",
+        "(producer/consumer; the batched kernel arms its named barriers) with the tdm epilogue, and",
+        "comp_tdm_v3 with the cshuffle epilogue (its wave maps are 2x2x1 and 4x4x1; comp_tdm_v2",
+        "takes 4 waves). Unpadded: TDM clips every shape, except that the CShuffle epilogue of",
+        "comp_tdm_v3 needs N to be a multiple of tile_n.",
+        "Usage: python batched_gemm_full_benchmark.py batched_gemm/configs/tdm_config_gfx1250.json",
+        "  --arch gfx1250 --dtype bf16 --layout rcr --verify"
+    ],
+    "tile_config": {
+        "tile_m": {
+            "values": [
+                64,
+                128,
+                256
+            ]
+        },
+        "tile_n": {
+            "values": [
+                64,
+                128,
+                256
+            ]
+        },
+        "tile_k": {
+            "values": [
+                64,
+                128
+            ]
+        },
+        "warp_m": {
+            "values": [
+                2,
+                4
+            ]
+        },
+        "warp_n": {
+            "values": [
+                2,
+                4
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                32
+            ]
+        }
+    },
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "comp_tdm",
+                "comp_tdm_v2",
+                "comp_tdm_pc",
+                "comp_tdm_v3"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "tdm",
+                "cshuffle"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                false
+            ]
+        },
+        "pad_n": {
+            "values": [
+                false
+            ]
+        },
+        "pad_k": {
+            "values": [
+                false
+            ]
+        },
+        "persistent": {
+            "values": [
+                false
+            ]
+        }
+    },
+    "k_block_per_cu": 1
+}

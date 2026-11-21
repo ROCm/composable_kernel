@@ -14,9 +14,18 @@ kernel directly via ``SelectedKernel::launch(BatchedGemmHostArgs{...}, ...)``
 ``stream_config`` the Tile Engine batched_gemm profiler uses, so A/B timing is
 fair; ``k_batch`` mirrors Old-TE's split-K support.
 
+Stream-K runs batched problems too: a ``BatchedGemmKernelConfig`` with
+``variant="stream_k"`` is the codegen's Stream-K kernel (StreamKKernel folds the
+batch into its tile space) built into this batched ABI. Its .so name appends
+``_batched`` to the Stream-K kernel name, the lib launches it with
+``StreamKHostArgs`` and reads the workgroup budget from
+``CK_TILE_STREAMK_BUDGET_PCT`` (gemm_utils.STREAMK_BUDGET_ENV). A sweep config with a
+``streamk_config`` block expands to Stream-K kernels (``config_variant``).
+
 Public surface (mirrors gemm_utils):
 
-    BatchedGemmKernelConfig  -- shared contract dataclass (variant="batched")
+    BatchedGemmKernelConfig  -- shared contract dataclass (variant="batched"
+                                or "stream_k")
         .name                -- registry/runtime lookup key (byte-exact vs the
                                 codegen kernel header stem)
         .to_codegen_json()   -- feeds unified_gemm_codegen.py
@@ -37,7 +46,8 @@ from dispatcher_common import unified_framework_flags, arch_feature_defines
 import ctypes
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -109,6 +119,9 @@ _C_SIZEOF: Dict[str, int] = {"fp16": 2, "bf16": 2, "fp32": 4, "int32": 4}
 # builder (--datatype/--layout choices) and the full benchmark CLI.
 BATCHED_SUPPORTED_DTYPES: Tuple[str, ...] = ("fp16", "bf16", "fp32", "fp8", "bf8")
 BATCHED_SUPPORTED_LAYOUTS: Tuple[str, ...] = ("rcr", "rrr", "crr", "ccr")
+# Kernels a batched problem runs on: the batched GEMM kernel and the Stream-K
+# kernel (a sweep config with a streamk_config block, see config_variant).
+BATCHED_VARIANTS: Tuple[str, ...] = ("batched", "stream_k")
 # Default --verify relative tolerance (max|got-ref| / max|ref| against an fp32
 # reference on the unquantized inputs), sized to each dtype's input rounding.
 BATCHED_VERIFY_TOL: Dict[str, float] = {
@@ -165,12 +178,15 @@ def _resolve_arch(arch: Optional[str]) -> str:
 
 @dataclass
 class BatchedGemmKernelConfig(_gu.GemmKernelConfig):
-    """GEMM kernel config specialised to the batched variant.
+    """GEMM kernel config specialised to the batched problem.
 
-    Inherits every field/property from GemmKernelConfig and only pins the
-    variant to ``"batched"`` so ``.name`` gains the ``_batched`` suffix that the
-    codegen (unified_gemm_codegen.py::KernelNaming.generate) also appends -- the
-    single thread tying config -> codegen -> runtime name together.
+    Inherits every field/property from GemmKernelConfig and pins the variant
+    to ``"batched"`` (or ``"stream_k"``, see BATCHED_VARIANTS) so ``.name``
+    gains the ``_batched`` suffix. For the batched variant the codegen
+    (unified_gemm_codegen.py::KernelNaming.generate) appends it too -- the
+    single thread tying config -> codegen -> runtime name together; a Stream-K
+    kernel keeps its codegen name (``header_stem``) and only the .so is named
+    ``<stem>_batched``, apart from the single-problem Stream-K .so.
 
     ``gfx_arch`` is overridden to default to ``None`` (rather than the parent's
     hardcoded ``"gfx942"``) so the batched bridge never silently builds for the
@@ -185,13 +201,18 @@ class BatchedGemmKernelConfig(_gu.GemmKernelConfig):
 # Extend GemmKernelConfig.name handling for the batched variant. The parent
 # already appends "_streamk"/"_preshuffle" for those variants; "batched" needs
 # the same treatment, so we patch the property lookup by overriding name here.
-def _batched_name(self: BatchedGemmKernelConfig) -> str:  # pragma: no cover - thin
+def _batched_header_stem(self: BatchedGemmKernelConfig) -> str:
+    """The codegen's kernel name (the generated header's stem)."""
     base = _gu.GemmKernelConfig.name.fget(self)  # type: ignore[attr-defined]
-    if self.variant == "batched" and not base.endswith("_batched"):
-        return base + "_batched"
-    return base
+    return base + "_batched" if self.variant == "batched" else base
 
 
+def _batched_name(self: BatchedGemmKernelConfig) -> str:  # pragma: no cover - thin
+    stem = self.header_stem
+    return stem if stem.endswith("_batched") else stem + "_batched"
+
+
+BatchedGemmKernelConfig.header_stem = property(_batched_header_stem)  # type: ignore[attr-defined]
 BatchedGemmKernelConfig.name = property(_batched_name)  # type: ignore[assignment]
 
 
@@ -609,9 +630,10 @@ def _build_batched_compile_jobs(
         # WMMA/MX features, matching the CMake build and gemm_utils.
         *arch_feature_defines(gfx_arch),
         # Byte-identical AMDGPU backend flags to the single-problem bridge and
-        # Old-TE (see gemm_utils._tile_engine_codegen_flags) -- required for a
-        # fair A/B parity comparison.
-        *_gu._tile_engine_codegen_flags(),
+        # Old-TE for the same kernel (see gemm_utils._kernel_codegen_flags:
+        # Stream-K and comp_tdm_v3 differ) -- required for a fair A/B parity
+        # comparison.
+        *_gu._kernel_codegen_flags(config),
         "-Wno-undefined-func-template",
         "-Wno-float-equal",
         str(ctypes_source),
@@ -689,10 +711,9 @@ def setup_multiple_batched_gemm_dispatchers(
                 "layout": c.layout,
                 "gpu_target": gpu_target,
                 "tile_config_json": c.to_codegen_json(),
-                "hpp_glob_pattern": f"{c.name}.hpp",
-                # Thread the batched variant so the emitted header is the batched
-                # kernel and its name carries the _batched suffix (matching the
-                # glob pattern above).
+                "hpp_glob_pattern": f"{c.header_stem}.hpp",
+                # Thread the variant so the emitted header is the batched (or
+                # Stream-K) kernel the glob pattern above names.
                 "variant": c.variant,
             }
         )
@@ -767,16 +788,27 @@ def setup_multiple_batched_gemm_dispatchers(
 # ============================================================================
 
 
+def config_variant(config_path: str) -> str:
+    """``"stream_k"`` for a sweep config with a ``streamk_config`` block (its
+    reduction strategies), ``"batched"`` otherwise."""
+    with open(config_path) as f:
+        return "stream_k" if "streamk_config" in json.load(f) else "batched"
+
+
 def expand_sweep(
     config_path: str,
     arch: Optional[str] = None,
     dtype: str = "fp16",
     layout: str = "rcr",
+    reduction_strategies: Optional[List[str]] = None,
     **vector_kwargs,
 ) -> List[BatchedGemmKernelConfig]:
     """Expand a Tile Engine batched GEMM JSON sweep config into
     [BatchedGemmKernelConfig]. Reuses gemm_utils.expand_sweep (same tile/trait
-    sweep + validity gates) and re-stamps each result as the batched variant.
+    sweep + validity gates) and re-stamps each result for the batched problem.
+    A config with a ``streamk_config`` block expands to Stream-K kernels
+    (``config_variant``) under the Stream-K gates; ``reduction_strategies``
+    overrides its strategies (Stream-K configs only, as in gemm_utils).
 
     ``arch`` is resolved via ``_get_arch()`` (rocminfo) when omitted and
     validated against the supported set otherwise -- never a silent gfx942
@@ -794,12 +826,17 @@ def expand_sweep(
             raise ValueError(
                 f"batched_gemm bridge supports {name} {list(supported)}; got {value!r}"
             )
+    variant = config_variant(config_path)
+    if variant == "stream_k":
+        vector_kwargs["reduction_strategies"] = reduction_strategies
+    elif reduction_strategies:
+        raise ValueError(f"reduction_strategies needs a Stream-K config, not {config_path}")
     base_configs = _gu.expand_sweep(
         config_path,
         arch,
         dtype=dtype,
         layout=layout,
-        variant="batched",
+        variant=variant,
         **vector_kwargs,
     )
     out: List[BatchedGemmKernelConfig] = []
@@ -826,37 +863,7 @@ def expand_sweep(
         ):
             continue
         c = BatchedGemmKernelConfig(
-            dtype_a=b.dtype_a,
-            dtype_b=b.dtype_b,
-            dtype_c=b.dtype_c,
-            dtype_acc=b.dtype_acc,
-            layout_a=b.layout_a,
-            layout_b=b.layout_b,
-            layout_c=b.layout_c,
-            tile_m=b.tile_m,
-            tile_n=b.tile_n,
-            tile_k=b.tile_k,
-            wave_m=b.wave_m,
-            wave_n=b.wave_n,
-            wave_k=b.wave_k,
-            warp_tile_m=b.warp_tile_m,
-            warp_tile_n=b.warp_tile_n,
-            warp_tile_k=b.warp_tile_k,
-            pipeline=b.pipeline,
-            scheduler=b.scheduler,
-            epilogue=b.epilogue,
-            pad_m=b.pad_m,
-            pad_n=b.pad_n,
-            pad_k=b.pad_k,
-            persistent=b.persistent,
-            gfx_arch=b.gfx_arch,
-            vector_size_a=b.vector_size_a,
-            vector_size_b=b.vector_size_b,
-            vector_size_c=b.vector_size_c,
-            num_slots=b.num_slots,
-            publish_lag=b.publish_lag,
-            run_ahead=b.run_ahead,
-            variant="batched",
+            **{f.name: getattr(b, f.name) for f in fields(_gu.GemmKernelConfig)}
         )
         if c.name in seen:
             continue

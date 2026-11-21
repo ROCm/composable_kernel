@@ -93,6 +93,15 @@ TYPED_TEST(TestGfx1250StreamK, MixedDataParallelAndStreamK)
     this->Run(128, 33 * 128, 512, 0, 0, 0, 8, true);
 }
 
+TYPED_TEST(TestGfx1250StreamK, Batched)
+{
+    // Batched Stream-K numbers the tiles of all batches in one space. 7 batches of 2 x 3 tiles on
+    // eight workgroups: 32 data-parallel tiles, then Stream-K segments over the last two batches;
+    // then 3 batches with padded M, N and K.
+    this->Run(256, 384, 384, 0, 0, 0, 8, true, 7);
+    this->Run(136, 264, 1056, 0, 0, 0, 8, true, 3);
+}
+
 template <typename T>
 __global__ void AddAcrossWorkgroups(T* output)
 {

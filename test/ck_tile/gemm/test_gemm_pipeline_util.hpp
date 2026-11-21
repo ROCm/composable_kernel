@@ -570,6 +570,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
             TdmStageConfig>::epilogue;
 
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        using BatchedKernel =
+            ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
     };
 
     public:
@@ -736,6 +738,106 @@ class TestCkTileGemmPipeline : public ::testing::Test
                 RunSingle<PadM, PadN, PadK, Preshuffle>(M, N, K, StrideA, StrideB, StrideC, kb);
             }
         }
+    }
+
+    // batch_count M x N x K GEMMs with their own A, B and C, stored back to back, in one
+    // BatchedGemmKernel launch (one workgroup per output tile and batch, no split-K).
+    template <bool PadM       = PipelineDefaultParams<PipelineType>::PadM,
+              bool PadN       = PipelineDefaultParams<PipelineType>::PadN,
+              bool PadK       = PipelineDefaultParams<PipelineType>::PadK,
+              bool Preshuffle = PipelineDefaultParams<PipelineType>::Preshuffle>
+    void RunBatched(const int M, const int N, const int K, const int batch_count)
+    {
+        static_assert(!Persistent && !ClusterLaunch && !Preshuffle,
+                      "BatchedGemmKernel runs one workgroup per tile on an unshuffled B");
+        using Kernel = typename KernelFor<PadM, PadN, PadK, Preshuffle>::BatchedKernel;
+        SCOPED_TRACE(::testing::Message()
+                     << "M: " << M << ", N: " << N << ", K: " << K << ", batches: " << batch_count);
+
+        const ck_tile::index_t stride_A =
+            ck_tile::get_default_stride(M, K, 0, is_row_major(ALayout{}));
+        const ck_tile::index_t stride_B =
+            ck_tile::get_default_stride(K, N, 0, is_row_major(BLayout{}));
+        const ck_tile::index_t stride_C =
+            ck_tile::get_default_stride(M, N, 0, is_row_major(CLayout{}));
+        const auto f_desc =
+            [batch_count](std::size_t rows, std::size_t cols, std::size_t stride, auto layout) {
+                const std::size_t batches = batch_count;
+                return is_row_major(layout)
+                           ? ck_tile::HostTensorDescriptor({batches, rows, cols},
+                                                           {rows * cols, stride, std::size_t{1}})
+                           : ck_tile::HostTensorDescriptor({batches, rows, cols},
+                                                           {rows * cols, std::size_t{1}, stride});
+            };
+        ck_tile::HostTensor<ADataType> a(f_desc(M, K, stride_A, ALayout{}));
+        ck_tile::HostTensor<BDataType> b(f_desc(K, N, stride_B, BLayout{}));
+        ck_tile::HostTensor<CDataType> c(f_desc(M, N, stride_C, CLayout{}));
+        ck_tile::HostTensor<CDataType> c_ref(f_desc(M, N, stride_C, CLayout{}));
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a);
+        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b);
+
+        ck_tile::DeviceMem a_buf(a.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem b_buf(b.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem c_buf(c.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem c_ref_buf(c_ref.get_element_space_size_in_bytes());
+        a_buf.ToDevice(a.data());
+        b_buf.ToDevice(b.data());
+        c_buf.SetZero();
+        c_ref_buf.SetZero();
+
+        const ck_tile::BatchedGemmHostArgs args{a_buf.GetDeviceBuffer(),
+                                                b_buf.GetDeviceBuffer(),
+                                                c_buf.GetDeviceBuffer(),
+                                                1,
+                                                M,
+                                                N,
+                                                K,
+                                                stride_A,
+                                                stride_B,
+                                                stride_C,
+                                                M * K,
+                                                K * N,
+                                                M * N,
+                                                batch_count};
+        const auto kargs = Kernel::MakeKernelArgs(args);
+        ASSERT_TRUE(Kernel::IsSupportedArgument(kargs));
+        ck_tile::launch_kernel(
+            ck_tile::stream_config{nullptr, false},
+            ck_tile::make_kernel<1>(
+                Kernel{}, Kernel::GridSize(M, N, 1, batch_count), Kernel::BlockSize(), 0, kargs));
+        c_buf.FromDevice(c.data());
+
+        ck_tile::reference_batched_gemm_gpu<ADataType,
+                                            BDataType,
+                                            AccDataType,
+                                            CDataType,
+                                            ALayout,
+                                            BLayout,
+                                            CLayout>(
+            static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            stride_A,
+            stride_B,
+            stride_C,
+            M * K,
+            K * N,
+            M * N,
+            batch_count);
+        c_ref_buf.FromDevice(c_ref.data());
+
+        const float max_accumulated_value =
+            *std::max_element(c_ref.mData.begin(), c_ref.mData.end());
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, 1, max_accumulated_value);
+        EXPECT_TRUE(ck_tile::check_err(c,
+                                       c_ref,
+                                       "Error: Incorrect results!",
+                                       rtol_atol.at(ck_tile::number<0>{}),
+                                       rtol_atol.at(ck_tile::number<1>{})));
     }
 
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>

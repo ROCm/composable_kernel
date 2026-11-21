@@ -39,6 +39,20 @@ function(ck_tile_gemm_split_trait trait out_pipeline out_epilogue out_scheduler)
     set(${out_scheduler} "${_ck_scheduler}" PARENT_SCOPE)
 endfunction()
 
+# ck_tile_gemm_pipeline_compile_options(<target> <pipeline>)
+#
+# Pipeline-specific compile options of a Tile Engine GEMM benchmark target. comp_tdm_v3
+# kernels build with the post-RA machine scheduler that the top-level CMakeLists turns off
+# (-enable-post-misched=0; the later option wins), as its gtests do
+# (test/ck_tile/gemm/CMakeLists.txt). No other pipeline's targets change.
+#
+# Python mirror: PIPELINE_EXTRA_COMPILE_FLAGS (dispatcher/codegen/codegen_common.py).
+function(ck_tile_gemm_pipeline_compile_options target pipeline)
+    if(pipeline STREQUAL "comp_tdm_v3")
+        target_compile_options(${target} PRIVATE "SHELL:-mllvm -enable-post-misched=1")
+    endif()
+endfunction()
+
 # ck_tile_gemm_pipeline_group(<pipeline> <out_group>)
 #
 # The per-pipeline collection target a pipeline builds under: a ring variant

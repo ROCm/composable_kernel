@@ -1,0 +1,113 @@
+{
+    "_comment": [
+        "gfx950 batched Stream-K with a 32-wide M or N block (streamk_config.json starts at 64):",
+        "warp tile 16x16x32, waves 1x4x1/2x2x1/4x1x1, tile_k 64/128, padded like",
+        "streamk_config.json, persistent and not, linear and tree reduction (atomic needs a C",
+        "store of >= 4 bytes).",
+        "This half: N block 32, M block 64..256.",
+        "Use next to streamk_config.json (kernel names that both list dedupe). Usage: python batched_gemm_full_benchmark.py batched_gemm/configs/streamk_config.json batched_gemm/configs/streamk_narrow_n_config_gfx950.json --arch gfx950 --dtype bf16 --layout rcr --budget-pct 100,50"
+    ],
+    "tile_config": {
+        "tile_m": {
+            "values": [
+                64,
+                128,
+                256
+            ]
+        },
+        "tile_n": {
+            "values": [
+                32
+            ]
+        },
+        "tile_k": {
+            "values": [
+                64,
+                128
+            ]
+        },
+        "warp_m": {
+            "values": [
+                1,
+                2,
+                4
+            ]
+        },
+        "warp_n": {
+            "values": [
+                1,
+                2,
+                4
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                32
+            ]
+        }
+    },
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "compv3",
+                "compv4",
+                "mem"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "cshuffle"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                true
+            ]
+        },
+        "pad_n": {
+            "values": [
+                true
+            ]
+        },
+        "pad_k": {
+            "values": [
+                true
+            ]
+        },
+        "persistent": {
+            "values": [
+                false,
+                true
+            ]
+        }
+    },
+    "streamk_config": {
+        "reduction_strategy": {
+            "values": [
+                "linear",
+                "tree"
+            ]
+        }
+    },
+    "k_block_per_cu": 1
+}

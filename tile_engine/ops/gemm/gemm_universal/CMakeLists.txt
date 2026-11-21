@@ -129,13 +129,7 @@ function(create_individual_gemm_universal_target datatype layout trait tile_conf
 
     # Add to trait-specific targets
     ck_tile_gemm_split_trait("${trait}" pipeline epilogue scheduler)
-
-    # comp_tdm_v3 kernels build with the post-RA machine scheduler that the top-level CMakeLists
-    # turns off (-enable-post-misched=0; the later option wins), as its gtests do
-    # (test/ck_tile/gemm/CMakeLists.txt). No other pipeline's targets change.
-    if(pipeline STREQUAL "comp_tdm_v3")
-        target_compile_options(${target_name} PRIVATE "SHELL:-mllvm -enable-post-misched=1")
-    endif()
+    ck_tile_gemm_pipeline_compile_options(${target_name} "${pipeline}")
 
     ck_tile_gemm_pipeline_group("${pipeline}" pipeline_group)
     add_dependencies(benchmark_gemm_universal_${pipeline_group}_pipeline ${target_name})

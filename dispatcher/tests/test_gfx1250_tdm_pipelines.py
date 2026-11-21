@@ -41,7 +41,6 @@ from codegen_common import (  # noqa: E402
     COMP_TDM_PC_WARP_K_REJECT_REASON,
     COMP_TDM_RA_BATCHED_REJECT_REASON,
     COMP_TDM_RA_WARP_K_REJECT_REASON,
-    COMP_TDM_V3_BATCHED_REJECT_REASON,
     CommonTypeMappings,
     GFX1250_COMP_ASYNC_PAD_REJECT_REASON,
     TDM_EPILOGUES,
@@ -902,11 +901,15 @@ class TestUnifiedCodegenGolden(unittest.TestCase):
             self.assertTrue(all("_compv3_cshuffle_" in n for n in names), names)
 
     def test_gfx1250_batched_has_tdm(self):
-        _, names = self._gen("gfx1250", "batched")
+        out, names = self._gen("gfx1250", "batched")
         self.assertTrue(any("_comp_tdm_tdm_" in n for n in names))
         self.assertTrue(any("_comp_tdm_v2_tdm_" in n for n in names))
-        # BatchedGemmKernel arms the producer/consumer barriers.
-        self.assertTrue(any("_comp_tdm_pc_tdm_" in n for n in names))
+        # BatchedGemmKernel arms the producer/consumer named barriers.
+        name = next(n for n in names if "_comp_tdm_pc_tdm_" in n)
+        text = (out / name).read_text()
+        self.assertIn("ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline", text)
+        self.assertIn("GemmPipelineAgBgCrCompTDMProducerConsumer<", text)
+        self.assertIn("TdmEpilogue<", text)
         # comp_tdm_ra is plain GEMM only.
         self.assertFalse(any("_comp_tdm_ra_" in n for n in names))
 
@@ -1603,7 +1606,8 @@ class TestCtypesValidateCompTdmRa(unittest.TestCase):
             persistent=True,
         )
         self.assertRejected(
-            "pipeline=comp_tdm_ra requires epilogue=tdm", epilogue="cshuffle"
+            "pipeline=comp_tdm_ra requires epilogue=tdm or tdmstaged",
+            epilogue="cshuffle",
         )
 
 
@@ -1848,7 +1852,9 @@ class TestCompTdmV3(unittest.TestCase):
         )
         self.assertIn("requires epilogue=cshuffle", self._gate(epi="tdm"))
         self.assertIn("persistent", self._gate(persist=True))
-        self.assertEqual(self._gate(variant="batched"), COMP_TDM_V3_BATCHED_REJECT_REASON)
+        # Batched GEMM runs it like plain GEMM.
+        self.assertEqual(self._gate(variant="batched"), "")
+        self.assertEqual(self._gate(waves=(4, 4, 1), variant="batched"), "")
         self.assertIn("requires gfx1250", self._gate(arch="gfx950"))
         self.assertEqual(self._gate(pads=(True, False, False)), TDM_PAD_REJECT_REASON)
         # Stream-K takes either epilogue (the reduction decides) and persistence.

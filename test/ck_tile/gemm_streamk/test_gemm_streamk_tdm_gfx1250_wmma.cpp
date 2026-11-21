@@ -177,6 +177,16 @@ TYPED_TEST(TestGfx1250StreamKTdm, RaggedMN)
     this->Run(118, 102, 8 * 64 * 3, 8, TestFixture::Split::Any, TestFixture::UseTdmEpilogue);
 }
 
+TYPED_TEST(TestGfx1250StreamKTdm, Batched)
+{
+    // Batched Stream-K numbers the tiles of all batches in one space. 7 batches of 2 x 3 tiles on
+    // eight workgroups: 32 data-parallel tiles, then Stream-K segments that cross the boundary of
+    // the last two batches; then 3 batches with a ragged M and K, all Stream-K.
+    constexpr auto T = TestFixture::Tile;
+    this->Run(2 * T, 3 * T, 6 * 64, 8, TestFixture::Split::MultiTile, true, 7);
+    this->Run(T + 8, 2 * T, 1000, 8, TestFixture::Split::Partial, true, 3);
+}
+
 #if !GFX1250_STREAMK_SMOKE
 TYPED_TEST(TestGfx1250StreamKTdm, FullDevice)
 {

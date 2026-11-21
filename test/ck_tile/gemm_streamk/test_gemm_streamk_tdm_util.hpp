@@ -142,13 +142,15 @@ struct StreamKTdmHarness
 
     // num_wgs is passed as num_cu with occupancy one: a fixed workgroup budget, so the partition
     // does not depend on the device. num_wgs = 0 takes the device's budget (CU count x occupancy).
+    // batch_count GEMMs are stored back to back (packed batch strides).
     static auto MakeKargs(ck_tile::index_t M,
                           ck_tile::index_t N,
                           ck_tile::index_t K,
                           int num_wgs,
-                          const void* a = nullptr,
-                          const void* b = nullptr,
-                          void* c       = nullptr)
+                          const void* a                = nullptr,
+                          const void* b                = nullptr,
+                          void* c                      = nullptr,
+                          ck_tile::index_t batch_count = 1)
     {
         const ck_tile::StreamKHostArgs args{a,
                                             b,
@@ -158,7 +160,11 @@ struct StreamKTdmHarness
                                             K,
                                             DefaultStride<ALayout>(M, K),
                                             DefaultStride<BLayout>(K, N),
-                                            DefaultStride<CLayout>(M, N)};
+                                            DefaultStride<CLayout>(M, N),
+                                            static_cast<ck_tile::long_index_t>(M) * K,
+                                            static_cast<ck_tile::long_index_t>(K) * N,
+                                            static_cast<ck_tile::long_index_t>(M) * N,
+                                            batch_count};
         return num_wgs > 0 ? Kernel::MakeKernelArgs(args, num_wgs, 1)
                            : Kernel::MakeKernelArgs(args);
     }
@@ -180,27 +186,32 @@ struct StreamKTdmHarness
         return {partial, multi};
     }
 
-    // Runs M x N x K on num_wgs workgroups and checks C, or checks that IsSupportedArgument
-    // rejects the problem when supported is false.
+    // Runs batch_count M x N x K GEMMs on num_wgs workgroups and checks C, or checks that
+    // IsSupportedArgument rejects the problem when supported is false.
     static void Run(ck_tile::index_t M,
                     ck_tile::index_t N,
                     ck_tile::index_t K,
                     int num_wgs,
-                    Split split    = Split::Any,
-                    bool supported = true)
+                    Split split                  = Split::Any,
+                    bool supported               = true,
+                    ck_tile::index_t batch_count = 1)
     {
         SCOPED_TRACE(::testing::Message()
-                     << "M: " << M << ", N: " << N << ", K: " << K << ", workgroups: " << num_wgs);
+                     << "M: " << M << ", N: " << N << ", K: " << K << ", workgroups: " << num_wgs
+                     << ", batches: " << batch_count);
 
         const ck_tile::index_t stride_A = DefaultStride<ALayout>(M, K);
         const ck_tile::index_t stride_B = DefaultStride<BLayout>(K, N);
         const ck_tile::index_t stride_C = DefaultStride<CLayout>(M, N);
-        const auto f_desc               = [](std::size_t rows, std::size_t cols, auto layout) {
-            const std::size_t stride = DefaultStride<decltype(layout)>(rows, cols);
+        const auto f_desc = [batch_count](std::size_t rows, std::size_t cols, auto layout) {
+            const std::size_t stride  = DefaultStride<decltype(layout)>(rows, cols);
+            const std::size_t batches = batch_count;
             if constexpr(std::is_same_v<decltype(layout), Row>)
-                return ck_tile::HostTensorDescriptor({rows, cols}, {stride, std::size_t{1}});
+                return ck_tile::HostTensorDescriptor({batches, rows, cols},
+                                                     {rows * cols, stride, std::size_t{1}});
             else
-                return ck_tile::HostTensorDescriptor({rows, cols}, {std::size_t{1}, stride});
+                return ck_tile::HostTensorDescriptor({batches, rows, cols},
+                                                     {rows * cols, std::size_t{1}, stride});
         };
 
         ck_tile::HostTensor<ADataType> a_m_k(f_desc(M, K, ALayout{}));
@@ -225,7 +236,8 @@ struct StreamKTdmHarness
                                num_wgs,
                                a_buf.GetDeviceBuffer(),
                                b_buf.GetDeviceBuffer(),
-                               c_buf.GetDeviceBuffer());
+                               c_buf.GetDeviceBuffer(),
+                               batch_count);
         ASSERT_EQ(Kernel::IsSupportedArgument(kargs), supported);
         if(!supported)
         {
@@ -262,21 +274,26 @@ struct StreamKTdmHarness
                 Kernel{}, Kernel::GridSize(partitioner), Kernel::BlockSize(), 0, kargs));
         c_buf.FromDevice(c_m_n.data());
 
-        ck_tile::reference_gemm_gpu<ADataType,
-                                    BDataType,
-                                    AccDataType,
-                                    CDataType,
-                                    ALayout,
-                                    BLayout,
-                                    CLayout>(static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
-                                             static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-                                             static_cast<CDataType*>(c_ref_buf.GetDeviceBuffer()),
-                                             M,
-                                             N,
-                                             K,
-                                             stride_A,
-                                             stride_B,
-                                             stride_C);
+        ck_tile::reference_batched_gemm_gpu<ADataType,
+                                            BDataType,
+                                            AccDataType,
+                                            CDataType,
+                                            ALayout,
+                                            BLayout,
+                                            CLayout>(
+            static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            stride_A,
+            stride_B,
+            stride_C,
+            M * K,
+            K * N,
+            M * N,
+            batch_count);
         c_ref_buf.FromDevice(c_m_n_ref.data());
 
         const float max_accumulated_value =

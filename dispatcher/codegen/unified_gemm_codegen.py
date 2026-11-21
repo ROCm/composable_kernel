@@ -1322,14 +1322,24 @@ using CLayout = {ns_name}::CLayout;
             if constexpr (SkReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic) {{
                 // Stride-aware: CLayout is row-major with stride_E elems/row, so a
                 // padded C is zeroed correctly (not just the contiguous M*N case).
-                if(hipMemset2DAsync(args.e_ptr,
-                    args.stride_E * sizeof(CDataType),
-                    0,
-                    args.N * sizeof(CDataType),
-                    args.M,
-                    stream.stream_id_) != hipSuccess) {{
-                    throw std::runtime_error(
-                        "stream-k: hipMemset2DAsync failed to reset C between iterations");
+                // Batches stored back to back (batch_stride_E == M * stride_E) are one
+                // matrix of M * batch_count rows; other batch strides are reset batch by
+                // batch, leaving the gaps between batches untouched.
+                const bool packed_batches =
+                    args.batch_stride_E == static_cast<ck_tile::long_index_t>(args.M) * args.stride_E;
+                const ck_tile::index_t resets = packed_batches ? 1 : args.batch_count;
+                const std::size_t rows =
+                    static_cast<std::size_t>(args.M) * (packed_batches ? args.batch_count : 1);
+                for(ck_tile::index_t b = 0; b < resets; ++b) {{
+                    if(hipMemset2DAsync(static_cast<CDataType*>(args.e_ptr) + b * args.batch_stride_E,
+                        args.stride_E * sizeof(CDataType),
+                        0,
+                        args.N * sizeof(CDataType),
+                        rows,
+                        stream.stream_id_) != hipSuccess) {{
+                        throw std::runtime_error(
+                            "stream-k: hipMemset2DAsync failed to reset C between iterations");
+                    }}
                 }}
             }} else if (flags_bytes > 0) {{
                 if(hipMemsetAsync(kargs.workspace_ptr, 0, flags_bytes, stream.stream_id_) !=

@@ -241,6 +241,33 @@ class TestParseTypesHeader(unittest.TestCase):
             self.validate_entries(entries, expected)
 
 
+    def test_batched_smoke(self):
+        """Test batched_smoke target: matches suffix == 'Batched' only."""
+        mock_content = (
+            "using KernelTypesStreamKBatched = ...\n"
+            "using KernelTypesStreamKPipelines = ...\n"
+            "using KernelTypesStreamKRegression = ...\n"
+        )
+        with patch("builtins.open", mock_open(read_data=mock_content)):
+            entries = parse_types_header("fake_path.hpp", "batched_smoke")
+            expected = [
+                {
+                    "type_alias": "KernelTypesStreamKBatched",
+                    "class_name": "TestCkTileStreamKBatched",
+                    "file_tag": "batched",
+                }
+            ]
+            self.validate_entries(entries, expected)
+        # The batched types belong to no other target.
+        for target in ("extended", "atomic_smoke", "linear_smoke", "tree_smoke",
+                       "pipelines_smoke", "regression"):
+            with patch("builtins.open", mock_open(read_data=mock_content)):
+                entries = parse_types_header("fake_path.hpp", target)
+            self.assertNotIn(
+                "KernelTypesStreamKBatched", [e["type_alias"] for e in entries], target
+            )
+
+
 class TestVariantFiltering(unittest.TestCase):
     MOCK_CONTENT = (
         "using KernelTypesStreamKFp16PersistentLinearCompV3 = ...\n"

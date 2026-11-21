@@ -35,13 +35,14 @@ if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950|gfx11|gfx12" AND NOT GPU_TARGETS MA
 
     # Define the targets and their corresponding executable names
     # Note that wmma versions are suffixed with _wmma (e.g, test_ck_tile_streamk_linear_smoke_wmma)
-    set(STREAMK_GEN_TARGETS extended atomic_smoke linear_smoke tree_smoke pipelines_smoke regression)
+    set(STREAMK_GEN_TARGETS extended atomic_smoke linear_smoke tree_smoke pipelines_smoke regression batched_smoke)
     set(STREAMK_GEN_EXEC_EXTENDED         test_ck_tile_streamk_extended)
     set(STREAMK_GEN_EXEC_ATOMIC_SMOKE     test_ck_tile_streamk_atomic_smoke)
     set(STREAMK_GEN_EXEC_LINEAR_SMOKE     test_ck_tile_streamk_linear_smoke)
     set(STREAMK_GEN_EXEC_TREE_SMOKE       test_ck_tile_streamk_tree_smoke)
     set(STREAMK_GEN_EXEC_PIPELINES_SMOKE  test_ck_tile_streamk_pipelines_smoke)
     set(STREAMK_GEN_EXEC_REGRESSION       test_ck_tile_streamk_regression)
+    set(STREAMK_GEN_EXEC_BATCHED_SMOKE    test_ck_tile_streamk_batched_smoke)
 
     # Determine which variants to generate based on GPU_TARGETS.
     # add_gtest_executable handles the per-source arch filtering (removing wmma

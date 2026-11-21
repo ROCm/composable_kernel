@@ -15,10 +15,26 @@ Tile Engine generates NO binaries here: it expands its sweep config into shared
 codegens + compiles each into a .so. Each kernel runs in a disposable worker
 subprocess so a GPU fault takes down only one worker.
 
+Stream-K: a sweep config with a ``streamk_config`` block expands to Stream-K
+kernels, which fold the batch into their tile space (StreamKKernel); configs of
+both kinds can be mixed in one run. Each Stream-K kernel x problem runs once per
+``--budget-pct`` workgroup budget; the other kernels run once.
+
 Examples:
     python batched_gemm_full_benchmark.py
     python batched_gemm_full_benchmark.py \
         batched_gemm/configs/default_config.json --devices 4 --csv out.csv
+
+    # gfx950: batched Stream-K (compv3/compv4/mem, atomic/linear/tree) next to
+    # the batched kernels, Stream-K at the full and at half the workgroup budget:
+    python batched_gemm_full_benchmark.py batched_gemm/configs/default_config.json \
+        batched_gemm/configs/streamk_config.json --dtype bf16 --verify --budget-pct 100,50
+
+    # gfx1250: batched comp_tdm / comp_tdm_v2 / comp_tdm_v3 / comp_tdm_pc kernels and
+    # Stream-K on comp_tdm, comp_tdm_v2 and comp_tdm_v3 (add
+    # streamk_config_gfx1250.json for Stream-K on compv3/compv4/mem):
+    python batched_gemm_full_benchmark.py batched_gemm/configs/tdm_config_gfx1250.json \
+        batched_gemm/configs/streamk_tdm_config_gfx1250.json --arch gfx1250 --dtype bf16 --verify
 """
 
 import argparse
@@ -44,8 +60,16 @@ from batched_gemm_utils import (  # noqa: E402
     BATCHED_SUPPORTED_DTYPES as SUPPORTED_DTYPES,
     BATCHED_SUPPORTED_LAYOUTS as SUPPORTED_LAYOUTS,
     BATCHED_VERIFY_TOL,
+    config_variant,
     setup_multiple_batched_gemm_dispatchers,
     expand_sweep,
+)
+from gemm_utils import (  # noqa: E402
+    STREAMK_BUDGET_ENV,
+    add_streamk_args,
+    streamk_budgets_arg,
+    streamk_work_units,
+    unique_by_name,
 )
 from smi_utils import detect_gpu_ids  # noqa: E402
 from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa: E402
@@ -113,8 +137,9 @@ def load_problems(path):
 
 
 def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
-    """Run one (problem, kernel-batch) unit in a device-pinned subprocess."""
-    prob_idx, prob_dict, batch = unit
+    """Run one (problem, kernel-batch, Stream-K budget) unit in a device-pinned
+    subprocess; the budget is None for a batch of non-Stream-K kernels."""
+    prob_idx, prob_dict, batch, budget_pct = unit
     bc, M, N, K = (
         prob_dict["batch_count"],
         prob_dict["M"],
@@ -137,6 +162,9 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
 
     env = base_env.copy()
     env["HIP_VISIBLE_DEVICES"] = str(device_id)
+    if budget_pct is not None:
+        env[STREAMK_BUDGET_ENV] = str(budget_pct)
+    budget_str = f"{budget_pct:>4}%" if budget_pct is not None else " " * 5
 
     rows, lines, n_fail = [], [], 0
     proc = None
@@ -181,7 +209,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                     f" rel={result['max_rel']:.2e}" if "max_rel" in result else ""
                 )
                 lines.append(
-                    f"  [gpu{device_id}] {cfg.name:<62} {result['ms']:>10.3f} "
+                    f"  [gpu{device_id}] {cfg.name:<62} {budget_str} {result['ms']:>10.3f} "
                     f"{result['tflops']:>10.2f} {status:>8}{extra}"
                 )
                 rows.append(
@@ -193,6 +221,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                         "N": N,
                         "K": K,
                         "device": device_id,
+                        "budget_pct": "" if budget_pct is None else budget_pct,
                         "latency_ms": result["ms"],
                         "tflops": result["tflops"],
                         "non_zero": result.get("non_zero", 0),
@@ -295,6 +324,7 @@ def main():
         default=0,
         help="Limit to first N kernels plus their vector-width variants (0=all)",
     )
+    add_streamk_args(parser)
     parser.add_argument(
         "--verify",
         action="store_true",
@@ -319,6 +349,7 @@ def main():
     # so reject non-positive values up front with a clear message.
     if args.batch_size <= 0:
         parser.error("--batch-size must be a positive integer (kernels per subprocess)")
+    budget_pcts = streamk_budgets_arg(parser, args)
 
     config_paths = resolve_configs(args)
     devices = resolve_devices(args.devices)
@@ -339,19 +370,27 @@ def main():
 
     all_configs = []
     for cfg_path in config_paths:
+        streamk = config_variant(cfg_path) == "stream_k"
         all_configs.extend(
             expand_sweep(
                 cfg_path,
                 args.arch,
                 dtype=args.dtype,
                 layout=args.layout,
+                reduction_strategies=(
+                    [args.reduction_strategy]
+                    if streamk and args.reduction_strategy
+                    else None
+                ),
                 **vfb.expand_kwargs,
             )
         )
 
     vfb.report_rejects()
 
-    all_configs = vfb.limit_base_kernels(all_configs, args.max_kernels)
+    # Positional configs can share kernels: dedupe so --max-kernels counts
+    # distinct ones.
+    all_configs = vfb.limit_base_kernels(unique_by_name(all_configs), args.max_kernels)
 
     print(f"  Expanded configs: {len(all_configs)}")
     print(f"  Build workers: {args.workers}")
@@ -416,6 +455,7 @@ def main():
         "N",
         "K",
         "device",
+        "budget_pct",
         "latency_ms",
         "tflops",
         "non_zero",
@@ -433,16 +473,11 @@ def main():
     )
 
     work_q = queue.Queue()
-    for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
-        prob_dict = {
-            "batch_count": int(prob["batch_count"]),
-            "M": int(prob["M"]),
-            "N": int(prob["N"]),
-            "K": int(prob["K"]),
-        }
-        for start in range(0, len(idx), args.batch_size):
-            batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
-            work_q.put((prob_idx, prob_dict, batch))
+    for unit in streamk_work_units(
+        problems, pairs, built_kernels, args.batch_size, budget_pcts,
+        ("batch_count", "M", "N", "K"),
+    ):
+        work_q.put(unit)
 
     io_lock = threading.Lock()
     stats = {"measurements": 0, "failures": 0}

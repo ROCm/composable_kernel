@@ -101,6 +101,16 @@ class TestCkTileStreamKTdmV3Gfx1250 : public ::testing::Test, public StreamKTdmH
                   4 * Harness::TileK,
                   4,
                   Harness::Split::MultiTile);
+        // Batched: 3 batches of those 6 tiles share one tile space of 18 tiles on 4 workgroups:
+        // tiles 0-11 (batches 0 and 1) are data-parallel and the 6 Stream-K tiles are exactly
+        // batch 2, so every Stream-K segment runs at a non-zero batch offset.
+        this->Run(2 * Harness::TileM,
+                  3 * Harness::TileN,
+                  4 * Harness::TileK,
+                  4,
+                  Harness::Split::MultiTile,
+                  true,
+                  3);
 #endif
     }
 };

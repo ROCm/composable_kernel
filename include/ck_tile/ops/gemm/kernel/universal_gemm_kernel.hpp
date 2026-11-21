@@ -509,8 +509,8 @@ struct UniversalGemmKernel
     using has_gemm_kernel_only = decltype(T::kGemmKernelOnly);
     /// True for a pipeline validated only in this kernel itself, persistent or not (comp_tdm_ra).
     /// Every kernel that derives from or wraps UniversalGemmKernel static_asserts against it:
-    /// through kIsPlainGemmOnlyPipeline, which it implies, and directly in the Stream-K and MX
-    /// kernels, which accept plain-GEMM-only pipelines.
+    /// through kIsPlainGemmOnlyPipeline, which it implies, and directly in the batched, Stream-K
+    /// and MX kernels, which accept plain-GEMM-only pipelines.
     static constexpr bool kIsGemmKernelOnlyPipeline = []() {
         if constexpr(is_detected<has_gemm_kernel_only, GemmPipeline>{})
             return static_cast<bool>(GemmPipeline::kGemmKernelOnly);
@@ -520,9 +520,9 @@ struct UniversalGemmKernel
 
     template <typename T>
     using has_plain_gemm_only = decltype(T::kPlainGemmOnly);
-    /// True for a pipeline tested only in the plain GEMM kernel and the kernels built directly on
-    /// it, Stream-K and MX (comp_tdm_v3), and for every kIsGemmKernelOnlyPipeline. The multi-D,
-    /// grouped, batched, multi-ABD and batched-contraction kernels static_assert against it.
+    /// True for a pipeline tested only in the plain, batched, Stream-K and MX GEMM kernels
+    /// (comp_tdm_v3), and for every kIsGemmKernelOnlyPipeline. The multi-D, grouped, multi-ABD
+    /// and batched-contraction kernels static_assert against it.
     static constexpr bool kIsPlainGemmOnlyPipeline = []() {
         if constexpr(is_detected<has_plain_gemm_only, GemmPipeline>{})
             return static_cast<bool>(GemmPipeline::kPlainGemmOnly) || kIsGemmKernelOnlyPipeline;

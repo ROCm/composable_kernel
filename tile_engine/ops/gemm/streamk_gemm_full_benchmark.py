@@ -56,11 +56,13 @@ sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
 from gemm_utils import (  # noqa: E402
-    parse_streamk_budgets,
-    STREAMK_REDUCTION_STRATEGIES,
+    STREAMK_BUDGET_ENV,
     _resolve_arch,
+    add_streamk_args,
     expand_sweep,
     setup_multiple_gemm_dispatchers,
+    streamk_budgets_arg,
+    streamk_work_units,
     unique_by_name,
 )
 from smi_utils import detect_gpu_ids  # noqa: E402
@@ -163,7 +165,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
 
     env = base_env.copy()
     env["HIP_VISIBLE_DEVICES"] = str(device_id)
-    env["CK_TILE_STREAMK_BUDGET_PCT"] = str(budget_pct)
+    env[STREAMK_BUDGET_ENV] = str(budget_pct)
 
     rows, lines, n_fail = [], [], 0
     proc = None
@@ -272,13 +274,7 @@ def main():
     parser.add_argument(
         "--arch", default=None, help="GPU architecture (default: detect device)"
     )
-    parser.add_argument(
-        "--reduction-strategy",
-        choices=STREAMK_REDUCTION_STRATEGIES,
-        default=None,
-        help="Override the config's reduction strategy; linear/tree reduce "
-        "partials in FP32",
-    )
+    add_streamk_args(parser)
     parser.add_argument(
         "--dtype",
         default="fp16",
@@ -317,14 +313,6 @@ def main():
         help="Limit to first N kernels plus their vector-width variants (0=all)",
     )
     parser.add_argument(
-        "--budget-pct",
-        default="100",
-        help="Comma-list of distinct integer Stream-K workgroup budgets in 1..100, "
-        "in percent of the kernel's "
-        "default (CUs x occupancy, 100); each kernel x problem runs once per value "
-        "(e.g. 100,75,50,25)",
-    )
-    parser.add_argument(
         "--verify",
         action="store_true",
         help="Check each kernel's output against an fp32 numpy reference "
@@ -339,10 +327,7 @@ def main():
     )
     add_vector_fallback_arg(parser)
     args = parser.parse_args()
-    try:
-        budget_pcts = parse_streamk_budgets(args.budget_pct)
-    except ValueError as exc:
-        parser.error(str(exc))
+    budget_pcts = streamk_budgets_arg(parser, args)
     args.arch = _resolve_arch(args.arch)
 
     config_paths = resolve_configs(args)
@@ -465,15 +450,13 @@ def main():
         [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
     )
 
-    # Build a single work queue of (prob_idx, prob_dict, kernel-batch) units and
-    # fan them out across device-pinned worker threads.
+    # Build a single work queue of (prob_idx, prob_dict, kernel-batch, budget)
+    # units and fan them out across device-pinned worker threads.
     work_q = queue.Queue()
-    for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
-        prob_dict = {"M": int(prob["M"]), "N": int(prob["N"]), "K": int(prob["K"])}
-        for start in range(0, len(idx), args.batch_size):
-            batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
-            for budget_pct in budget_pcts:
-                work_q.put((prob_idx, prob_dict, batch, budget_pct))
+    for unit in streamk_work_units(
+        problems, pairs, built_kernels, args.batch_size, budget_pcts, ("M", "N", "K")
+    ):
+        work_q.put(unit)
 
     io_lock = threading.Lock()
     stats = {"measurements": 0, "failures": 0}

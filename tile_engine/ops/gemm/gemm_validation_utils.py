@@ -56,16 +56,17 @@ GEMM_PIPELINES_BY_ARCH = {
 #   (PIPELINE_EXTRA_WARP_COMBINATIONS; the shared table is unchanged);
 # - its wave maps are the two it is tested with, 2x2x1 and 4x4x1; its A/B are
 #   fp8/bf8 (layout rcr only) or fp16/bf16 (any A/B layout, row-major C);
-# - it is registered for gemm_universal only.
+# - it is registered for gemm_universal and batched_gemm only.
 # No default or CI config lists it; gemm_universal/configs/
-# gfx1250_fp8_comp_tdm_v3.json and gfx1250_bf16_comp_tdm_v3.json hold its instances.
+# gfx1250_fp8_comp_tdm_v3.json and gfx1250_bf16_comp_tdm_v3.json hold its instances
+# (batched_gemm/configs/tdm_config_gfx1250.json for batched GEMM).
 GEMM_TDM_V3_PIPELINE = "comp_tdm_v3"
 TDM_PIPELINE_EPILOGUE = {GEMM_TDM_V3_PIPELINE: "cshuffle"}
 PIPELINE_EXTRA_WARP_COMBINATIONS = {GEMM_TDM_V3_PIPELINE: {"gfx1250": [[4, 4, 1]]}}
 GFX1250_TDM_V3_WARPS = ([2, 2, 1], [4, 4, 1])
 GFX1250_TDM_V3_8BIT_DTYPES = ("fp8", "bf8")
 GFX1250_TDM_V3_16BIT_DTYPES = ("fp16", "bf16")
-GFX1250_TDM_V3_OPS = ("gemm_universal",)
+GFX1250_TDM_V3_OPS = ("gemm_universal", "batched_gemm")
 # 8-bit A/B: A row-major, B column-major, C row-major, the only layout the
 # pipeline accepts for them (other A/B layouts spill VGPRs in the K loop at the
 # 16-wave tile). 16-bit A/B: any A/B layout with row-major C.
