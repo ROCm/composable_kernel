@@ -629,8 +629,8 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
                         constexpr auto ij     = make_tuple(idx0, idx1);
                         const CompDataType s  = pcomp_tile[ij];
                         const CompDataType dp = dscomp_tile[ij];
-                        CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
-                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+                        CompDataType p        = f_silu(s);
+                        CompDataType ds       = dp * f_dsilu(s);
                         // Dropout propagates through the chain rule: kept -> *rp_undrop on
                         // BOTH P (-> dV) and dS (-> dK); dropped -> 0. drop_mask > 0 means
                         // kept.
@@ -691,8 +691,8 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
                         constexpr auto ij     = make_tuple(idx0, idx1);
                         const CompDataType s  = pcomp_tile[ij];
                         const CompDataType dp = dscomp_tile[ij];
-                        CompDataType p        = f_silu(s) * type_convert<CompDataType>(scale_p);
-                        CompDataType ds = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
+                        CompDataType p        = f_silu(s);
+                        CompDataType ds       = dp * f_dsilu(s);
 
                         pcomp_tile(ij)  = p * type_convert<CompDataType>(hstu_mask(ij));
                         dscomp_tile(ij) = ds * type_convert<CompDataType>(hstu_mask(ij));
@@ -748,7 +748,9 @@ struct HstuAttentionNoSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
             main_loop_func(number<0>{});
 
         // Apply alpha scaling to accumulated dK
-        tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, dk_acc);
+        tile_elementwise_inout([&scale_s, &scale_p](auto& x) { x = x * (scale_s * scale_p); },
+                               dk_acc);
+        tile_elementwise_inout([&scale_p](auto& x) { x = x * scale_p; }, dv_acc);
 
         return make_tuple(dk_acc, dv_acc);
     }
