@@ -14,6 +14,7 @@
 #include "block_gemm_areg_bsmem_creg_slice_gemmk_full_gemmn.hpp"
 #include "block_gemm_areg_bsmem_trload_creg_slice_gemmk_full_gemmn.hpp"
 #include "block_gemm_asmem_breg_creg_full_gemmk_slice_gemmm.hpp"
+#include "block_gemm_tdm_group_prefetch.hpp"
 #include "block_gemm_tdm_group_prefetch_for_bwd.hpp"
 
 #include "hstu_attention_config.hpp"
