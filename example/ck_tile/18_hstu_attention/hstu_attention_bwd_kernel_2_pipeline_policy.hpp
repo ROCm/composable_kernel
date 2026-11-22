@@ -14,7 +14,7 @@
 #include "block_gemm_areg_bsmem_creg_slice_gemmk_full_gemmn.hpp"
 #include "block_gemm_areg_bsmem_trload_creg_slice_gemmk_full_gemmn.hpp"
 #include "block_gemm_asmem_breg_creg_full_gemmk_slice_gemmm.hpp"
-#include "block_gemm_tdm_group_prefetch.hpp"
+#include "block_gemm_tdm_group_prefetch_for_bwd.hpp"
 
 #include "hstu_attention_config.hpp"
 #include "hstu_attention_kernel_util.hpp"
@@ -1067,12 +1067,13 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t KIterPerWarp =
             Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kK;
         constexpr index_t kTdmGemmPrefetchDepth = MIterPerWarp * KIterPerWarp / 2;
-        constexpr index_t kTdmGemmStepsPerGroup = 1;
+        constexpr index_t kTdmGemmStepsPerGroup = MIterPerWarp;
 
-        return BlockGemmASmemBRegCRegTdmGroupPrefetchFullGemmKSliceGemmM<GemmProblem,
-                                                                         BlockGemmPolicy,
-                                                                         kTdmGemmPrefetchDepth,
-                                                                         kTdmGemmStepsPerGroup>{};
+        return BlockGemmASmemBRegCRegTdmGroupPrefetchFullGemmKSliceGemmMWithPrologueHook<
+            GemmProblem,
+            BlockGemmPolicy,
+            kTdmGemmPrefetchDepth,
+            kTdmGemmStepsPerGroup>{};
 #else
         return BlockGemmASmemBRegCRegFullGemmKSliceGemmM<GemmProblem, BlockGemmPolicy>{};
 #endif
@@ -1213,12 +1214,13 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         constexpr index_t KIterPerWarp =
             Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kK;
         constexpr index_t kTdmGemmPrefetchDepth = MIterPerWarp * KIterPerWarp / 2;
-        constexpr index_t kTdmGemmStepsPerGroup = 1;
+        constexpr index_t kTdmGemmStepsPerGroup = MIterPerWarp;
 
-        return BlockGemmASmemBRegCRegTdmGroupPrefetchFullGemmKSliceGemmM<GemmProblem,
-                                                                         BlockGemmPolicy,
-                                                                         kTdmGemmPrefetchDepth,
-                                                                         kTdmGemmStepsPerGroup>{};
+        return BlockGemmASmemBRegCRegTdmGroupPrefetchFullGemmKSliceGemmMWithPrologueHook<
+            GemmProblem,
+            BlockGemmPolicy,
+            kTdmGemmPrefetchDepth,
+            kTdmGemmStepsPerGroup>{};
 #else
         return BlockGemmASmemBRegCRegFullGemmKSliceGemmM<GemmProblem, BlockGemmPolicy>{};
 #endif

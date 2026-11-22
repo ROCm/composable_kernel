@@ -402,6 +402,8 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
             // Ensure the trloading of q in previous itertation completely done by all warps
             __builtin_amdgcn_s_barrier();
 
+            bool need_mask;
+
             static_for<0, m0_loops, 1>{}([&](auto i_m0) {
                 s_wait_tensorcnt_barrier<0>();
 
@@ -412,29 +414,42 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 // Gemm2: dpacc_tile = dO_sub @ V
                 if constexpr(i_m0 < m0_loops - 1)
                 {
-                    load_tile_tdm(
-                        tdm_config_q, q_lds_windows[i_buf][number<i_m0 + 1>{}], q_dram_window);
-                    move_tile_window(q_dram_window, {kM0Sub, 0});
-                    load_tile_tdm(
-                        tdm_config_do, do_lds_windows[i_buf][number<i_m0 + 1>{}], do_dram_window);
-                    move_tile_window(do_dram_window, {kM0Sub, 0});
+                    const auto load_q_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_q, q_lds_windows[i_buf][number<i_m0 + 1>{}], q_dram_window);
+                        move_tile_window(q_dram_window, {kM0Sub, 0});
+                    };
+                    gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile, load_q_tile);
+
+                    const auto load_do_tile = [&]() {
+                        load_tile_tdm(tdm_config_do,
+                                      do_lds_windows[i_buf][number<i_m0 + 1>{}],
+                                      do_dram_window);
+                        move_tile_window(do_dram_window, {kM0Sub, 0});
+                    };
+                    gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile, load_do_tile);
                 }
                 else
                 {
                     constexpr auto next_buf = number<1 - i_buf>{};
-                    load_tile_tdm(
-                        tdm_config_q, q_lds_windows[next_buf][number<0>{}], q_dram_window);
-                    move_tile_window(q_dram_window, {kM0Sub, 0});
-                    load_tile_tdm(
-                        tdm_config_do, do_lds_windows[next_buf][number<0>{}], do_dram_window);
-                    move_tile_window(do_dram_window, {kM0Sub, 0});
+
+                    const auto load_q_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_q, q_lds_windows[next_buf][number<0>{}], q_dram_window);
+                        move_tile_window(q_dram_window, {kM0Sub, 0});
+                    };
+                    gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile, load_q_tile);
+
+                    const auto load_do_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_do, do_lds_windows[next_buf][number<0>{}], do_dram_window);
+                        move_tile_window(do_dram_window, {kM0Sub, 0});
+
+                        need_mask = !mask.IsFullTileInsideMask(
+                            seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{});
+                    };
+                    gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile, load_do_tile);
                 }
-
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
-                                               LLVMSchedGroupMask::TRANS);
-
-                gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile);
-                gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile);
 
                 auto s_tmp = cast_tile<CompDataType>(sacc_tile);
                 // Place the [kM0Sub, kN0] sub-tile into the combined [kM0, kN0] pcomp_tile by a
@@ -482,7 +497,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
             // (seqlen_q not a multiple of kM0). Kernel 2 reduces over Q (rows), so a padded row
             // that slips through the mask (IsTokenPairInsideMask clamps and may return true for
             // it) would pollute every dK/dV column; forcing S=-inf makes P=0 (hence dS=0) there.
-            if(!mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{}))
+            if(need_mask)
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
