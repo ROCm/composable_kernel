@@ -8,9 +8,9 @@ Covers all 9 FMHA kernel families: Forward, Split-KV (main + combine), Paged-KV,
 
 ```
 fmha/
-  fmha_instance_builder.py     Kernel enumeration from JSON config + pipeline rules
   fmha_benchmark.py            Single-config JIT compile and GPU benchmark
   fmha_full_benchmark.py       Full sweep: compile all kernels, benchmark across test shapes
+  run_one_kernel.py            Disposable per-kernel worker used by fmha_full_benchmark.py
   ck_fmha_testing_matrix.yaml  Test shapes (smoke / full / nightly)
   CMakeLists.txt               CMake targets
   README.md                    This file
@@ -30,9 +30,6 @@ fmha/
 ## Quick Start
 
 ```bash
-# Count kernels without compiling
-python fmha_instance_builder.py configs/receipt0_fwd.json --count-only
-
 # Minimal CI build + run (~16 kernels, <1 min)
 python fmha_benchmark.py configs/fwd_ci.json --workers 128 --verify
 
@@ -52,14 +49,13 @@ python fmha_full_benchmark.py --category smoke --variant fwd --max-kernels 2 --w
 
 ```
 JSON config (variant + trait_config allow-list)
-  --> fmha_instance_builder.py
-    --> fmha_pipeline_rules.py (self-contained CK parity logic)
-      --> fmha_arch_specs.json (tile tables per arch / dtype / hdim)
+  --> dispatcher/codegen/fmha/instance_gen.py (expand_sweep: CK parity pipeline rules)
+      --> dispatcher/codegen/fmha/fmha_arch_specs.json (tile tables per arch / dtype / hdim)
         --> list of FmhaKernelConfig (33,541 total on gfx950)
           --> optional --filter / --filter-file
 ```
 
-The pipeline rules in `dispatcher/codegen/fmha_pipeline_rules.py` reproduce the exact kernel enumeration from CK Tile's `01_fmha/codegen/`, including per-arch tile constraints, pipeline selection, padding variants, and feature products. Parity is verified by `dispatcher/tests/validate_arch_specs_parity.py`.
+The pipeline rules in `dispatcher/codegen/fmha/instance_gen.py` reproduce the kernel enumeration from CK Tile's `01_fmha/codegen/`, including per-arch tile constraints, pipeline selection, padding variants, and feature products.
 
 ### Benchmark Tools
 
@@ -170,15 +166,6 @@ make benchmark_fmha_bwd      # Backward sweep
 make benchmark_fmha_all      # All variants
 make benchmark_fmha_splitkv  # Split-KV only
 ```
-
-## Parity Verification
-
-```bash
-python dispatcher/tests/validate_arch_specs_parity.py --arch gfx950 --receipt 0
-# PASS: 33,541 kernels across all 9 families
-```
-
-This confirms the dispatcher's self-contained enumeration exactly matches CK Tile's upstream codegen.
 
 ## Example: Single-Shape All-Kernel Benchmark
 

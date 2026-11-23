@@ -24,9 +24,10 @@ import json
 import argparse
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional
 
 from codegen_common import CommonTypeMappings
 
@@ -203,7 +204,7 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
     lds_budgets_str = "{\n"
     for arch, per_pipeline in lds_budgets.items():
         capacity_kb = archs[arch]["lds_capacity_kb"]
-        lds_budgets_str += f'    # {arch}: {capacity_kb} KB of LDS\n'
+        lds_budgets_str += f"    # {arch}: {capacity_kb} KB of LDS\n"
         lds_budgets_str += f'    "{arch}": {{\n'
         for pipeline, budget in per_pipeline.items():
             lds_budgets_str += f'        "{pipeline}": {budget},\n'
@@ -399,6 +400,7 @@ def get_valid_dtype_combos() -> List[str]:
 '''
 
     output_path.write_text(content)
+    _ruff_format_in_place(output_path)
     print(f"Generated: {output_path}")
 
 
@@ -493,6 +495,7 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
         "comp_tdm": "CompTDMV1",
         "comp_tdm_v2": "CompTDMV2",
         "comp_tdm_pc": "CompTDMPC",
+        "comp_tdm_ra": "CompTDMRA",
         "preshuffle_tdm": "PreShuffleTDM",
         "comp_tdm_v3": "CompTDMV3",
     }
@@ -529,7 +532,9 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
     smallest_arch = min(lds_budgets, key=lambda a: lds_budgets[a]["default"])
     lds_budget_cases.append("    case GpuArch::UNKNOWN:")
     lds_budget_cases.append("    default:")
-    lds_budget_cases.extend(_lds_pipeline_switch(lds_budgets[smallest_arch], "        "))
+    lds_budget_cases.extend(
+        _lds_pipeline_switch(lds_budgets[smallest_arch], "        ")
+    )
 
     # Total physical LDS per architecture, used to halve the budget for
     # pipelines that stage two buffers by configuration.
@@ -648,7 +653,7 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch, [[maybe_
 // pipeline. The budget depends on the target: a tile that overflows one
 // architecture's LDS may fit comfortably in another's. The gfx1250 TDM
 // pipelines (CompTDMV1/V2/V3) share the double-buffered comp_async budget;
-// CompTDMPC has its own four-slot budget.
+// CompTDMPC and CompTDMRA have their own four-slot budget.
 inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline) {{
     switch(arch)
     {{
@@ -728,6 +733,45 @@ def _clang_format_in_place(path: Path):
             print(f"Warning: {tool} failed on {path}: {exc.stderr.decode().strip()}")
             return
     print(f"Warning: clang-format not found; {path.name} may need formatting.")
+
+
+def find_ruff() -> Optional[List[str]]:
+    """Return the command that runs ruff, or None if it is not installed."""
+    exe = shutil.which("ruff")
+    if exe is not None:
+        return [exe]
+    probe = subprocess.run(
+        [sys.executable, "-m", "ruff", "--version"], capture_output=True
+    )
+    if probe.returncode == 0:
+        return [sys.executable, "-m", "ruff"]
+    return None
+
+
+def _ruff_format_in_place(path: Path):
+    """Format the generated module so it satisfies the repository's ruff-format hook.
+
+    CK's pre-commit runs ruff-format (v0.14.0) on Python files. Without this
+    step the hook rewrites the committed module and it no longer matches what
+    this generator emits. '--isolated' ignores any configuration file, which
+    matches the hook (CK has no ruff configuration) and keeps the output the
+    same wherever the module is written.
+
+    Best effort: if ruff is unavailable the module is still valid Python, it
+    just needs formatting before it can be committed.
+    """
+    ruff = find_ruff()
+    if ruff is None:
+        print(f"Warning: ruff not found; {path.name} may need formatting.")
+        return
+    try:
+        subprocess.run(
+            [*ruff, "format", "--isolated", "--quiet", str(path)],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"Warning: ruff failed on {path}: {exc.stderr.decode().strip()}")
 
 
 def main():

@@ -5,7 +5,7 @@
  * AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
  *
  * Generated from: arch_specs.json
- * Generated at: 2026-11-16T14:42:30.395294
+ * Generated at: 2026-11-18T10:33:40.047504
  *
  * To update this file:
  * 1. Edit arch_specs.json
@@ -167,7 +167,7 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch,
 // pipeline. The budget depends on the target: a tile that overflows one
 // architecture's LDS may fit comfortably in another's. The gfx1250 TDM
 // pipelines (CompTDMV1/V2/V3) share the double-buffered comp_async budget;
-// CompTDMPC has its own four-slot budget.
+// CompTDMPC and CompTDMRA have their own four-slot budget.
 inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
 {
     switch(arch)
@@ -189,6 +189,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
         case Pipeline::CompTDMPC: return 16384;
+        case Pipeline::CompTDMRA: return 16384;
         case Pipeline::PreShuffleTDM: return 32768;
         case Pipeline::CompTDMV3: return 32768;
         default: return 65536;
@@ -210,6 +211,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
         case Pipeline::CompTDMPC: return 16384;
+        case Pipeline::CompTDMRA: return 16384;
         case Pipeline::PreShuffleTDM: return 32768;
         case Pipeline::CompTDMV3: return 32768;
         default: return 65536;
@@ -231,6 +233,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
         case Pipeline::CompTDMPC: return 16384;
+        case Pipeline::CompTDMRA: return 16384;
         case Pipeline::PreShuffleTDM: return 32768;
         case Pipeline::CompTDMV3: return 32768;
         default: return 65536;
@@ -252,6 +255,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 81920;
         case Pipeline::CompTDMV2: return 81920;
         case Pipeline::CompTDMPC: return 40960;
+        case Pipeline::CompTDMRA: return 40960;
         case Pipeline::PreShuffleTDM: return 81920;
         case Pipeline::CompTDMV3: return 81920;
         default: return 163840;
@@ -273,6 +277,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
         case Pipeline::CompTDMPC: return 16384;
+        case Pipeline::CompTDMRA: return 16384;
         case Pipeline::PreShuffleTDM: return 32768;
         case Pipeline::CompTDMV3: return 32768;
         default: return 65536;
@@ -294,6 +299,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
         case Pipeline::CompTDMPC: return 16384;
+        case Pipeline::CompTDMRA: return 16384;
         case Pipeline::PreShuffleTDM: return 32768;
         case Pipeline::CompTDMV3: return 32768;
         default: return 65536;
@@ -315,6 +321,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
         case Pipeline::CompTDMPC: return 16384;
+        case Pipeline::CompTDMRA: return 16384;
         case Pipeline::PreShuffleTDM: return 32768;
         case Pipeline::CompTDMV3: return 32768;
         default: return 65536;
@@ -336,6 +343,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 163840;
         case Pipeline::CompTDMV2: return 163840;
         case Pipeline::CompTDMPC: return 81920;
+        case Pipeline::CompTDMRA: return 81920;
         case Pipeline::PreShuffleTDM: return 163840;
         case Pipeline::CompTDMV3: return 163840;
         default: return 327680;
@@ -358,6 +366,7 @@ inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline)
         case Pipeline::CompTDMV1: return 32768;
         case Pipeline::CompTDMV2: return 32768;
         case Pipeline::CompTDMPC: return 16384;
+        case Pipeline::CompTDMRA: return 16384;
         case Pipeline::PreShuffleTDM: return 32768;
         case Pipeline::CompTDMV3: return 32768;
         default: return 65536;
@@ -416,11 +425,15 @@ inline bool is_trait_unsupported(Pipeline pipeline, Epilogue epilogue, Scheduler
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV1 && epilogue == Epilogue::Tdm &&
             scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMV1 && epilogue == Epilogue::TdmStaged &&
+            scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV2 && epilogue == Epilogue::CShuffle &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV2 && epilogue == Epilogue::Default &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV2 && epilogue == Epilogue::Tdm &&
+            scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMV2 && epilogue == Epilogue::TdmStaged &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMPC && epilogue == Epilogue::CShuffle &&
             scheduler == Scheduler::Interwave) ||
@@ -428,11 +441,23 @@ inline bool is_trait_unsupported(Pipeline pipeline, Epilogue epilogue, Scheduler
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMPC && epilogue == Epilogue::Tdm &&
             scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMPC && epilogue == Epilogue::TdmStaged &&
+            scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV3 && epilogue == Epilogue::CShuffle &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV3 && epilogue == Epilogue::Default &&
             scheduler == Scheduler::Interwave) ||
            (pipeline == Pipeline::CompTDMV3 && epilogue == Epilogue::Tdm &&
+            scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMV3 && epilogue == Epilogue::TdmStaged &&
+            scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMRA && epilogue == Epilogue::CShuffle &&
+            scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMRA && epilogue == Epilogue::Default &&
+            scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMRA && epilogue == Epilogue::Tdm &&
+            scheduler == Scheduler::Interwave) ||
+           (pipeline == Pipeline::CompTDMRA && epilogue == Epilogue::TdmStaged &&
             scheduler == Scheduler::Interwave);
 }
 
@@ -442,7 +467,8 @@ inline constexpr bool requires_double_smem_buffer(Pipeline pipeline)
     return pipeline == Pipeline::CompV4 || pipeline == Pipeline::PreShuffleV2 ||
            pipeline == Pipeline::CompAsync || pipeline == Pipeline::CompTDMV1 ||
            pipeline == Pipeline::CompTDMV2 || pipeline == Pipeline::CompTDMPC ||
-           pipeline == Pipeline::CompTDMV3 || pipeline == Pipeline::PreShuffleTDM;
+           pipeline == Pipeline::CompTDMV3 || pipeline == Pipeline::CompTDMRA ||
+           pipeline == Pipeline::PreShuffleTDM;
 }
 
 } // namespace arch_specs

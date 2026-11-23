@@ -16,6 +16,7 @@
 
 #include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
 #include "ck_tile/dispatcher/kernel_instance.hpp"
+#include "ck_tile/dispatcher/backends/gfx125_gate.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include <hip/hip_runtime.h>
@@ -53,7 +54,8 @@ class GeneratedKernelInstance : public KernelInstance
 
     bool supports(const Problem& problem) const override
     {
-        return generated_gemm_supports<SelectedKernel>(key_, problem);
+        return device_supports_pipeline<typename SelectedKernel::GemmPipeline>() &&
+               generated_gemm_supports<SelectedKernel>(key_, problem);
     }
 
     std::string get_name() const override { return name_; }

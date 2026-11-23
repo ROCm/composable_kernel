@@ -81,7 +81,7 @@ __device__ inline f8x4_t i4_to_f8x4(int q)
     const int HI = 0x00f000f0;
 
     int lo = amd_assembly_and_b32(q, LO);
-    int hi = amd_assembly_and_b32(q, HI);
+    int hi = amd_assembly_and_b32(q, HI) >> 4;
 
     float f32_0 = amd_assemble_cvt_f32_i4(lo);
     float f32_1 = amd_assemble_cvt_f32_i4(lo >> 16);
@@ -889,8 +889,8 @@ struct Clamp
     template <>
     __host__ __device__ constexpr void operator()<int, int>(int& y, const int& x) const
     {
-        const int8_t& a = x;
-        y               = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+        const int& a = x;
+        y            = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
     };
 
     template <>

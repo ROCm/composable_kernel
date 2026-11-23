@@ -41,7 +41,7 @@ if(THEROCK_SANITIZER STREQUAL "ASAN" OR THEROCK_SANITIZER STREQUAL "HOST_ASAN")
   message(STATUS "Enabling ASAN for Composable Kernel (THEROCK_SANITIZER=${THEROCK_SANITIZER})")
 endif()
 
-set(version 1.3.0)
+set(version 1.4.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
 
 # CK's large HIP translation units can fail in Clang's heterogeneous DWARF
@@ -489,6 +489,11 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx950" AND NOT FORCE_DISABLE_XDL)
     add_definitions(-DCK_USE_GFX950)
     set(CK_USE_GFX950 "ON")
 endif()
+if ((SUPPORTED_GPU_TARGETS MATCHES "gfx94|gfx95|gfx12") AND NOT FORCE_DISABLE_XDL)
+    message(STATUS "Enabling XDL FP8 instances for MFMA-capable architectures")
+    add_definitions(-DCK_USE_XDL_FP8)
+    set(CK_USE_XDL_FP8 "ON")
+endif()
 
 # new macro CK_TILE_USE_WMMA in order to separately compile examples for MFMA/WMMA
 set(CK_TILE_USE_WMMA 0)
@@ -510,7 +515,7 @@ endif()
 # define the macro with the current value (0 or 1)
 add_definitions(-DCK_TILE_USE_WMMA=${CK_TILE_USE_WMMA})
 
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND NOT FORCE_DISABLE_WMMA)
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx12|gfx117|gfx11-7-generic" AND NOT FORCE_DISABLE_WMMA)
     message(STATUS "Enabling WMMA FP8 gemms on native architectures")
     add_definitions(-DCK_USE_WMMA_FP8)
     set(CK_USE_WMMA_FP8 "ON")

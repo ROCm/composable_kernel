@@ -80,36 +80,60 @@
 //     global_wb / global_inv scope:SCOPE_DEV, invalidating the vector L0 on every ring step --
 //     pure loss, since the ring never leaves one work-group's LDS.
 //
-// ABI, as emitted by the gfx1250 backend (established by compile probe, not by published
-// documentation -- the completion semantics it rests on are cited on named_barrier_signal):
-//   - The compiler assigns ids, not the programmer: within a kernel, the i'th element of a
-//     named barrier array is id i+1. Numbering restarts per kernel, so two kernels may each
-//     size their array independently.
+// ABI, as emitted by the gfx1250 backend (established by compile probe against ROCm 10.1, 10.2
+// and 10.3 toolchains, not by published documentation -- the completion semantics it rests on
+// are cited on named_barrier_signal):
+//   - The compiler assigns ids, not the programmer. Each __amdgpu_named_workgroup_barrier_t
+//     VARIABLE a kernel uses gets one id. The backend (AMDGPULowerExecSync) orders the
+//     variables by how many kernels use them, most first, then by mangled name -- NOT by
+//     declaration or use order -- and gives each one id, the same in every kernel that uses it.
+//   - Barriers are therefore separate scalar variables, one per id, never an array. Pointer
+//     arithmetic on a barrier array has no portable meaning: &pool[i] is id i+1 on some
+//     toolchains and 1+16*i on others (where a barrier pointer's value is its id but array
+//     indexing still steps sizeof() = 16 bytes), and the byte-offset workaround for the latter
+//     gives id 1 for every element on the former. A wrong id is either out of range (ignored:
+//     a silent hang) or, after the hardware's narrower id field, an alias of a low id (silent
+//     corruption of another handshake) -- never a fault.
+//   - Each variable's mangled name contains kNamedBarrierNameKeyBase + id, a fixed-width number,
+//     and is otherwise identical for every barrier of one pipeline. arm() initialises every
+//     barrier of a pipeline and a kernel uses one pipeline, so all of them are used by the same
+//     kernels; name order then decides, and is id order: the kernel's ids are exactly
+//     1..kNumBarriers, the literals S_BARRIER_WAIT carries (see named_barrier_wait).
 //   - S_BARRIER_INIT takes m0 = (member_count << 16) | id; S_BARRIER_JOIN takes the bare id in
-//     m0's low bits. Both are materialised by the backend from the barrier object.
-//   - S_BARRIER_SIGNAL and S_BARRIER_WAIT encode the id as a literal, so ids must be
-//     compile-time constants and cannot be recovered from the object.
+//     m0's low bits; S_BARRIER_SIGNAL is reached through the object too (signal_var). All three
+//     are materialised from the barrier object, so they agree with each other however the
+//     compiler numbers. When optimising, the backend folds signal_var to the literal-id
+//     encoding; at -O0 it emits the m0 form with member count 0, which keeps init()'s count.
+//   - S_BARRIER_WAIT encodes the id as a literal and has no object form. A wave waits on the
+//     named barrier it most recently JOINED, whatever the literal says (LLVM AMDGPU execution
+//     synchronization docs), as long as the literal is an allocated named-barrier id -- so the
+//     join, which goes through the object, is what makes a wait correct, and the literal
+//     matching the backend's id is a second line of defence.
 //   - Named barriers are a separate hardware pool and cost no group-segment bytes. A kernel
-//     reserves ceil(extent / kNamedBarrierGroupSize) groups, driven by the array's EXTENT, not
-//     by how many barriers it actually uses -- so the array is sized to the pipeline, not to
-//     the hardware maximum.
+//     reserves ceil(variables initialised or joined / kNamedBarrierGroupSize) groups -- a
+//     signal folded to its literal form reserves nothing -- and arm() initialises every
+//     barrier of the pipeline, so that is ceil(kNumBarriers / kNamedBarrierGroupSize).
 //
-// Why a kernel may hold only one array. Ids are handed out per array in allocation order,
-// which the front end cannot observe, so a second array leaves S_BARRIER_SIGNAL/WAIT pointing
-// at the first array's ids while INIT/JOIN follow the second's -- a silent hang plus
-// corruption of the other array's barriers. No static_assert can see the allocation, so the
-// rule is enforced through the type system instead: every ring operation requires a token that
-// only named_barrier_pipeline::init() can mint, and init() only accepts a kernel that names
-// this pipeline via
+// Why a kernel may use only one pipeline. A barrier variable shared by several kernels keeps one
+// id in all of them, so a kernel that also touched a second pipeline's barriers would push one
+// set past the other -- ids that no longer match the literals, or past the hardware's 16. No
+// static_assert can see the allocation, so the rule is enforced through the type system
+// instead: every ring operation requires a token that only named_barrier_pipeline::init() can
+// mint, and init() only accepts a kernel that names this pipeline via
 //
 //     using barrier_pipeline = ck_tile::named_barrier_pipeline<...>;
 //
 // So a kernel cannot signal barriers it never reserved, and cannot drive a second pipeline it
 // never armed. The unit is the kernel because that is the hardware's unit -- two kernels may
-// each size their array independently.
+// each use pipelines of different sizes independently.
 //
-// That defends ck_tile's own uses. A __shared__ __amdgpu_named_workgroup_barrier_t[] declared
-// anywhere else in the same kernel reintroduces the defect exactly, and nothing can catch it.
+// That defends ck_tile's own uses, not every composition. init() checks the Kernel it is given,
+// not the __global__ actually running: a functor that calls two inner kernels' operator()s,
+// each arming its own pipeline, still compiles. Likewise any other
+// __amdgpu_named_workgroup_barrier_t variable used by the same kernel joins the numbering and
+// can shift ck_tile's ids, and so does an out-of-line function that touches only some of a
+// pipeline's barriers (the backend numbers those first). Keep the ring operations inlined,
+// which every CK_TILE_DEVICE function is, and nothing else in the kernel declaring barriers.
 //
 // Deliberately NOT ck_tile::static_counter: a counter allocates bases in instantiation order,
 // so the same pipeline type would get different ids in different TUs -- an ODR violation on its
@@ -263,49 +287,68 @@ struct kernel_barrier_pipeline<Kernel, std::void_t<typename Kernel::barrier_pipe
 } // namespace impl
 
 namespace impl {
-/** The kernel's named barrier array, sized to the pipeline that owns it.
- *
- * Keyed on the PIPELINE, not on the extent: two pipelines that happen to need the same number
- * of barriers would otherwise share one array and both number from id 1, which aliases their
- * handshakes with nothing left to detect. Pipeline is also what ties a pool to the token that
- * proves init() ran. T is a parameter only so the __shared__ declaration is dependent and
- * therefore instantiated on use -- off gfx1250 named_barrier is uninstantiable by design.
+/** Every barrier variable's mangled name contains kNamedBarrierNameKeyBase + id, and is otherwise
+ * identical for every barrier of one pipeline. The backend numbers such variables in mangled-name
+ * order (see ABI in the file header), so the keys must sort as their ids do: all the same number
+ * of digits (101..116), never 1..16, where "10" would sort before "2".
  */
-template <typename Pipeline, typename T = named_barrier>
-CK_TILE_DEVICE T (&named_barrier_pool())[Pipeline::kNumBarriers]
+inline constexpr index_t kNamedBarrierNameKeyBase = 100;
+static_assert(kNamedBarrierNameKeyBase + 1 >= 100 &&
+                  kNamedBarrierNameKeyBase + kNumNamedBarriers <= 999,
+              "every name key must have the same number of digits");
+
+/** Barrier Id (1-based) of Pipeline: one scalar variable per id.
+ *
+ * Scalars, not an array: what array indexing means for this type differs between toolchains
+ * (see ABI in the file header), while a scalar's id is assigned by the backend, read back from
+ * the object by INIT/JOIN/SIGNAL, and equal to Id because NameKey sorts as Id does.
+ *
+ * Keyed on the PIPELINE: two pipelines that happen to need the same number of barriers would
+ * otherwise share variables and alias their handshakes. Pipeline is also what ties the barriers
+ * to the token that proves init() ran. T is a parameter only so the __shared__ declaration is
+ * dependent and therefore instantiated on use -- off gfx1250 named_barrier is uninstantiable by
+ * design.
+ */
+template <typename Pipeline, index_t NameKey, typename T = named_barrier>
+CK_TILE_DEVICE T& named_barrier_variable()
 {
-    static_assert(std::is_same_v<T, named_barrier>, "the pool element type is not a knob");
-    __shared__ T pool[Pipeline::kNumBarriers];
-    return pool;
+    static_assert(std::is_same_v<T, named_barrier>, "the barrier type is not a knob");
+    __shared__ T barrier;
+    return barrier;
 }
 
-// Every primitive takes the pool by reference so Id is checked against its extent.
-//
-// Provisioning comes from any op that consumes the barrier OBJECT -- init or join -- not from
-// signal/wait, which carry only a literal. A kernel that solely signals reserves nothing. Every
-// handshake here joins, so this is sound; it is recorded because it is not obvious.
-
-template <index_t Id, index_t N>
-CK_TILE_DEVICE void named_barrier_init(named_barrier (&pool)[N], uint32_t member_count)
+template <typename Pipeline, index_t Id>
+CK_TILE_DEVICE named_barrier& named_barrier_object()
 {
-    static_assert(1 <= Id && Id <= N, "named barrier id outside the pool backing it");
-    ignore = pool;
+    static_assert(1 <= Id && Id <= Pipeline::kNumBarriers,
+                  "named barrier id outside the pipeline that owns it");
+    return named_barrier_variable<Pipeline, kNamedBarrierNameKeyBase + Id>();
+}
+
+// Every primitive is keyed by (Pipeline, Id), so Id is checked against the pipeline's extent.
+//
+// Provisioning comes from init and join only. Signal takes the object too, but once folded to its
+// literal form it reserves nothing, and wait carries only a literal. arm() initialises every
+// barrier of the pipeline, so a kernel always reserves all of them; it is recorded because it is
+// not obvious.
+
+template <typename Pipeline, index_t Id>
+CK_TILE_DEVICE void named_barrier_init(uint32_t member_count)
+{
     ignore = member_count;
 #if defined(__gfx125__)
-    __builtin_amdgcn_s_barrier_init(&pool[Id - 1], member_count);
+    __builtin_amdgcn_s_barrier_init(&named_barrier_object<Pipeline, Id>(), member_count);
 #else
     static_assert(always_false_v<number<Id>>, "named barriers require gfx1250 or later");
 #endif
 }
 
 // Register this wave as a member of the current generation.
-template <index_t Id, index_t N>
-CK_TILE_DEVICE void named_barrier_join(named_barrier (&pool)[N])
+template <typename Pipeline, index_t Id>
+CK_TILE_DEVICE void named_barrier_join()
 {
-    static_assert(1 <= Id && Id <= N, "named barrier id outside the pool backing it");
-    ignore = pool;
 #if defined(__gfx125__)
-    __builtin_amdgcn_s_barrier_join(&pool[Id - 1]);
+    __builtin_amdgcn_s_barrier_join(&named_barrier_object<Pipeline, Id>());
 #else
     static_assert(always_false_v<number<Id>>, "named barriers require gfx1250 or later");
 #endif
@@ -325,11 +368,9 @@ CK_TILE_DEVICE void named_barrier_join(named_barrier (&pool)[N])
  *
  * Carries a release fence (see MEMORY ORDERING in the file header); it is not a bare arrive.
  */
-template <index_t Id, index_t N>
-CK_TILE_DEVICE void named_barrier_signal(named_barrier (&pool)[N])
+template <typename Pipeline, index_t Id>
+CK_TILE_DEVICE void named_barrier_signal()
 {
-    static_assert(1 <= Id && Id <= N, "named barrier id outside the pool backing it");
-    ignore = pool;
 #if defined(__gfx125__)
     // The release half of the handshake; see MEMORY ORDERING in the file header for why a bare
     // s_barrier_signal is not enough. Must precede the signal: it is what the peers' waits
@@ -337,25 +378,33 @@ CK_TILE_DEVICE void named_barrier_signal(named_barrier (&pool)[N])
     // s_wait_tensorcnt -- an asynchronous producer must still drain its own fills before it
     // reaches here. See publish().
     __builtin_amdgcn_fence(__ATOMIC_RELEASE, "workgroup");
-    __builtin_amdgcn_s_barrier_signal(Id);
+    // Through the object, like init and join, so all three take the id from the same variable
+    // however the compiler numbers. Member count 0 keeps the count init() set. When optimising,
+    // the barrier is a distinct variable known at compile time and the backend folds this to
+    // the literal-id S_BARRIER_SIGNAL; at -O0 it stays in the equivalent m0 form.
+    __builtin_amdgcn_s_barrier_signal_var(&named_barrier_object<Pipeline, Id>(), 0);
 #else
     static_assert(always_false_v<number<Id>>, "named barriers require gfx1250 or later");
 #endif
 }
 
 // Block until the current generation completes.
-template <index_t Id, index_t N>
-CK_TILE_DEVICE void named_barrier_wait(named_barrier (&pool)[N])
+template <typename Pipeline, index_t Id>
+CK_TILE_DEVICE void named_barrier_wait()
 {
-    static_assert(1 <= Id && Id <= N, "named barrier id outside the pool backing it");
-    ignore = pool;
+    static_assert(1 <= Id && Id <= Pipeline::kNumBarriers,
+                  "named barrier id outside the pipeline that owns it");
 #if defined(__gfx125__)
-    // The cast is deliberate: llvm.amdgcn.s.barrier.wait takes an i16 immediate while
-    // s.barrier.signal takes i32, so the two calls are asymmetric despite reading alike.
-    // Truncation is impossible today (the static_assert above bounds Id by the pool extent,
-    // which kMaxNamedBarrierId caps at 15) -- but that bounds Id against the POOL, not against
-    // this field's width, and an out-of-range id is silently ignored by the hardware rather
-    // than faulting. Spell the width out at the call site.
+    // S_BARRIER_WAIT has no object form, so its id is a literal. A wave waits on the named
+    // barrier it most recently joined, whatever the literal says, as long as the literal is an
+    // allocated named-barrier id; every wait here directly follows a join of the same barrier
+    // (named_barrier_arrive_and_wait), which goes through the object. The literal also equals
+    // the id the backend gave named_barrier_object<Pipeline, Id>, because the variables' name
+    // keys sort as their ids do (see ABI in the file header) -- a second line of defence.
+    //
+    // The cast is deliberate: llvm.amdgcn.s.barrier.wait takes an i16 immediate. Truncation is
+    // impossible today (Id is bounded by the pipeline, which kMaxNamedBarrierId caps at 15), but
+    // spell the width out at the call site.
     __builtin_amdgcn_s_barrier_wait(static_cast<int16_t>(Id));
     // The acquire half: everything the peers released before completing this generation must
     // be visible to loads issued after this point, and those loads must not be hoisted above
@@ -370,12 +419,12 @@ CK_TILE_DEVICE void named_barrier_wait(named_barrier (&pool)[N])
  * barrier before that generation completes, or it misses the completion broadcast and blocks
  * forever.
  */
-template <index_t Id, index_t N>
-CK_TILE_DEVICE void named_barrier_arrive_and_wait(named_barrier (&pool)[N])
+template <typename Pipeline, index_t Id>
+CK_TILE_DEVICE void named_barrier_arrive_and_wait()
 {
-    named_barrier_join<Id>(pool);
-    named_barrier_signal<Id>(pool);
-    named_barrier_wait<Id>(pool);
+    named_barrier_join<Pipeline, Id>();
+    named_barrier_signal<Pipeline, Id>();
+    named_barrier_wait<Pipeline, Id>();
 }
 
 } // namespace impl
@@ -521,7 +570,7 @@ CK_TILE_HOST_DEVICE void drive_consumer(Token token, index_t num_steps, Drain&& 
  * barrier every step.
  *
  * Reachable only as named_barrier_pipeline::ring<I>, which is what guarantees the BaseId
- * values tile the pool without overlapping.
+ * values tile the pipeline's id range without overlapping.
  *
  * Barrier layout, ids ascending from BaseId:
  *   DATA[s]      producers signal, consumers wait      -- slot s is filled
@@ -572,7 +621,7 @@ struct named_barrier_slot_ring
 
     static_assert(BaseId >= 1, "the backend numbers barriers from 1");
     static_assert(BaseId + kNumBarriers - 1 <= Pipeline::kNumBarriers,
-                  "the ring's id range runs past the end of its pool");
+                  "the ring's id range runs past the end of its pipeline's");
 
     static constexpr uint32_t kDataMemberCount =
         static_cast<uint32_t>(kNumProducerWaves + kNumConsumerWaves);
@@ -609,15 +658,14 @@ struct named_barrier_slot_ring
         template <index_t Slot>
         CK_TILE_DEVICE static void prime(token)
         {
-            named_barrier_signal<data_id<Slot>()>(named_barrier_pool<Pipeline>());
+            named_barrier_signal<Pipeline, data_id<Slot>()>();
         }
 
         /// Block until the consumers have drained this slot.
         template <index_t Slot>
         CK_TILE_DEVICE static void wait(token)
         {
-            named_barrier_arrive_and_wait<free_id<Producer, Slot>()>(
-                named_barrier_pool<Pipeline>());
+            named_barrier_arrive_and_wait<Pipeline, free_id<Producer, Slot>()>();
         }
 
         /** Announce that this slot is filled. Never blocks on a peer, which is what lets the
@@ -630,7 +678,7 @@ struct named_barrier_slot_ring
         template <index_t Slot>
         CK_TILE_DEVICE static void publish(token)
         {
-            named_barrier_signal<data_id<Slot>()>(named_barrier_pool<Pipeline>());
+            named_barrier_signal<Pipeline, data_id<Slot>()>();
         }
 
         /** Drive this producer through a whole K loop: first fills, steady state, ragged tail,
@@ -655,7 +703,7 @@ struct named_barrier_slot_ring
         template <index_t Slot>
         CK_TILE_DEVICE static void wait(token)
         {
-            named_barrier_arrive_and_wait<data_id<Slot>()>(named_barrier_pool<Pipeline>());
+            named_barrier_arrive_and_wait<Pipeline, data_id<Slot>()>();
         }
 
         /** Hand this slot back to every producer. Never blocks on a peer. named_barrier_signal's
@@ -666,9 +714,8 @@ struct named_barrier_slot_ring
         template <index_t Slot>
         CK_TILE_DEVICE static void release(token)
         {
-            static_for<0, kNumProducerWaves, 1>{}([](auto p) {
-                named_barrier_signal<free_id<p.value, Slot>()>(named_barrier_pool<Pipeline>());
-            });
+            static_for<0, kNumProducerWaves, 1>{}(
+                [](auto p) { named_barrier_signal<Pipeline, free_id<p.value, Slot>()>(); });
         }
 
         /** Drive the consumers through a whole K loop, in lockstep with every producer's run().
@@ -696,13 +743,11 @@ struct named_barrier_slot_ring
             constexpr index_t kSlot = rs[number<1>{}];
             if constexpr(kRole == 0)
             {
-                named_barrier_init<data_id<kSlot>()>(named_barrier_pool<Pipeline>(),
-                                                     kDataMemberCount);
+                named_barrier_init<Pipeline, data_id<kSlot>()>(kDataMemberCount);
             }
             else
             {
-                named_barrier_init<free_id<kRole - 1, kSlot>()>(named_barrier_pool<Pipeline>(),
-                                                                kFreeMemberCount);
+                named_barrier_init<Pipeline, free_id<kRole - 1, kSlot>()>(kFreeMemberCount);
             }
         });
     }
@@ -710,15 +755,16 @@ struct named_barrier_slot_ring
 
 } // namespace impl
 
-/** One or more rings tiling the kernel's named barrier pool.
+/** One or more rings tiling the kernel's named barrier ids.
  *
  * Bases are computed, never written, so adding or resizing a ring cannot silently collide with
  * another. Rings may differ in slot depth, which is the usual case when the operands they carry
- * differ in size. The pool is sized to exactly this pipeline, so a kernel reserves only the
+ * differ in size. The barriers are sized to exactly this pipeline, so a kernel reserves only the
  * barrier groups it uses.
  *
  * Put every ring in one pipeline: init() static_asserts that this is the pipeline the program
- * names via `using barrier_pipeline`, so a second one is a compile error rather than a hang.
+ * names via `using barrier_pipeline`, so a second one in the same kernel functor is a compile
+ * error rather than a hang (see the file header for the compositions it cannot see).
  */
 template <typename... Specs>
 struct named_barrier_pipeline
@@ -750,7 +796,7 @@ struct named_barrier_pipeline
      *
      * Every ring operation takes one, and only init() can construct one, so a kernel cannot
      * signal barriers it never reserved and cannot drive a second pipeline it never armed --
-     * the two ways the one-array-per-kernel rule used to be bypassable.
+     * the two ways the one-pipeline-per-kernel rule used to be bypassable.
      */
     class token
     {
@@ -784,7 +830,7 @@ struct named_barrier_pipeline
      * any of them touches a ring.
      *
      * Kernel is the calling kernel's own type, which must declare
-     * `using barrier_pipeline = <this pipeline>;`. That is what pins one barrier array per
+     * `using barrier_pipeline = <this pipeline>;`. That is what pins one pipeline per
      * kernel: a second pipeline cannot also be the kernel's declared one. Passing it as a
      * template parameter also defers the lookup to the call site, where the kernel type is
      * complete.
@@ -795,7 +841,7 @@ struct named_barrier_pipeline
         static_assert(
             std::is_same_v<named_barrier_pipeline,
                            typename impl::kernel_barrier_pipeline<Kernel>::type>,
-            "a kernel may hold only one named barrier array, so it may use only one pipeline: "
+            "a kernel may hold only one set of named barriers, so it may use only one pipeline: "
             "declare it in the kernel as `using barrier_pipeline = <this pipeline>;` and pass "
             "the kernel type to init()");
 

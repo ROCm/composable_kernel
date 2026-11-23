@@ -48,6 +48,25 @@ TYPED_TEST(TestCkTileGemmPipelineCompTDMProducerConsumerWmma, TdmEpilogueRejects
 
 #undef TEST_SUITE_NAME
 
+// BatchedGemmKernel arms the producer/consumer named barriers: every batch has its own A, B and
+// C, and a batch boundary lies between two workgroups of one launch. The kernel is not
+// persistent, so the persistent rows have nothing to add.
+TYPED_TEST(TestCkTileGemmPipelineCompTDMProducerConsumerWmma, Batched)
+{
+    if constexpr(TestFixture::Persistent)
+    {
+        GTEST_SKIP() << "BatchedGemmKernel is not persistent";
+    }
+    else
+    {
+        constexpr auto M_Tile = TestFixture::M_Tile;
+        constexpr auto N_Tile = TestFixture::N_Tile;
+        constexpr auto K_Tile = TestFixture::K_Tile;
+        this->RunBatched(M_Tile, N_Tile, K_Tile, 2);
+        this->RunBatched(2 * M_Tile, 3 * N_Tile, 8 * K_Tile, 5);
+    }
+}
+
 // TdmEpilogue stores C with a plain TDM store, so a split-K launch would overwrite C rather than
 // sum the splits. Half-precision output was already rejected through GetVectorSizeC(); fp32 output
 // must be rejected too. Argument validation only: nothing is allocated or launched.

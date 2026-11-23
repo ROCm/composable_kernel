@@ -51,6 +51,7 @@ DTYPES = ["fp16", "bf16", "fp8", "bf8"]
 LAYOUTS = ["rcr", "rrr", "crr", "ccr"]
 NEW_PIPELINES = ["comp_async", "comp_tdm", "comp_tdm_v2", "comp_tdm_pc"]
 TDM_PIPELINES = ["comp_tdm", "comp_tdm_v2", "comp_tdm_pc"]
+TDM_EPILOGUES = ("tdm", "tdmstaged")
 GFX1250_LDS = 320 * 1024
 
 # Kernel counts per (dtype, layout) for the full gfx1250 config: total and per
@@ -62,18 +63,20 @@ GFX1250_LDS = 320 * 1024
 # all-True, TDM only all-False, and the legacy pipelines keep all 8 combos.
 # comp_tdm_pc trails comp_tdm because its 4-slot LDS ring (PIPELINE_SMEM_SLOTS)
 # drops the widest tiles, partly offset by it not being wave-count locked.
-# comp_tdm_pc counts both epilogues: every tdm instance has a cshuffle twin
-# (the split-K capable pairing, see vu.tdm_epilogue_allowed).
+# Every TDM count covers both TDM epilogues (tdm and tdmstaged, half each);
+# test_full_dtype_layout_set checks the two halves are the same kernels.
+# comp_tdm_pc also counts a cshuffle twin of every tdm instance (the split-K
+# capable pairing, see vu.tdm_epilogue_allowed), so it splits in thirds.
 FULL_COUNTS = {
-    ("fp16", "rcr"): (27683, 348, 174, 87, 194),
-    ("fp16", "rrr"): (27335, 0, 174, 87, 194),
-    ("bf16", "rcr"): (27683, 348, 174, 87, 194),
-    ("bf16", "rrr"): (27335, 0, 174, 87, 194),
+    ("fp16", "rcr"): (28041, 348, 348, 174, 291),
+    ("fp16", "rrr"): (27693, 0, 348, 174, 291),
+    ("bf16", "rcr"): (28041, 348, 348, 174, 291),
+    ("bf16", "rrr"): (27693, 0, 348, 174, 291),
     # fp8/bf8 comp_async keeps only warp_tile_k=128 (the 16x16x64 set is gated).
-    ("fp8", "rcr"): (47394, 288, 360, 180, 486),
-    ("fp8", "rrr"): (47106, 0, 360, 180, 486),
-    ("bf8", "rcr"): (47394, 288, 360, 180, 486),
-    ("bf8", "rrr"): (47106, 0, 360, 180, 486),
+    ("fp8", "rcr"): (48177, 288, 720, 360, 729),
+    ("fp8", "rrr"): (47889, 0, 720, 360, 729),
+    ("bf8", "rcr"): (48177, 288, 720, 360, 729),
+    ("bf8", "rrr"): (47889, 0, 720, 360, 729),
 }
 
 
@@ -199,7 +202,7 @@ class _ConfigLintMixin:
             name,
         )
         if pipeline in TDM_PIPELINES:
-            # tdm, or cshuffle for the pipelines that may split K with it.
+            # tdm or tdmstaged, or cshuffle for the pipelines that may split K with it.
             self.assertTrue(
                 vu.tdm_epilogue_allowed(pipeline, epilogue, "gemm_universal"), name
             )
@@ -208,7 +211,7 @@ class _ConfigLintMixin:
             c_bytes = t["tile_m"] * t["tile_n"] * vu.element_size(_c_dtype(dtype))
             self.assertLessEqual(c_bytes, GFX1250_LDS, name)
         else:
-            self.assertNotEqual(epilogue, "tdm", name)
+            self.assertNotIn(epilogue, TDM_EPILOGUES, name)
         if pipeline == "comp_async":
             self.assertEqual(layout[:2], "rc", name)
             self.assertEqual((pad_m, pad_n, pad_k), (True, True, True), name)
@@ -264,7 +267,8 @@ class TestCiConfig(_ConfigLintMixin, unittest.TestCase):
                 # Adding it here fails TestDispatcherGolden.setUpClass until
                 # the dispatcher side is wired too. The full config
                 # (default_config_gfx1250.json) has no such coupling.
-                expected = {"comp_tdm": 1, "comp_tdm_v2": 1}
+                # Each TDM pipeline gets one tdm and one tdmstaged kernel.
+                expected = {"comp_tdm": 2, "comp_tdm_v2": 2}
                 if layout[:2] == "rc" and dtype not in ("fp8", "bf8"):
                     expected["comp_async"] = 1
                 self.assertEqual(counts, expected, (dtype, layout))
@@ -285,8 +289,23 @@ class TestFullConfig(_ConfigLintMixin, unittest.TestCase):
             for layout in LAYOUTS:
                 kernels = self._lint(dtype, layout)
                 counts = collections.Counter(k["trait_combo"][0] for k in kernels)
+                tdm_names = collections.defaultdict(list)
+                for k in kernels:
+                    pipeline, epilogue = k["trait_combo"][:2]
+                    if pipeline in TDM_PIPELINES:
+                        tdm_names[(pipeline, epilogue)].append(
+                            k["name"].replace(
+                                f"_{pipeline}_{epilogue}_", f"_{pipeline}_*_"
+                            )
+                        )
                 for p in TDM_PIPELINES:
                     self.assertGreater(counts[p], 0, (dtype, layout, p))
+                    # tdmstaged is accepted exactly where tdm is (row-major C).
+                    self.assertEqual(
+                        sorted(tdm_names[(p, "tdm")]),
+                        sorted(tdm_names[(p, "tdmstaged")]),
+                        (dtype, layout, p),
+                    )
                 if layout[:2] == "rc":
                     self.assertGreater(counts["comp_async"], 0, (dtype, layout))
                 else:
@@ -307,7 +326,9 @@ class TestFullConfig(_ConfigLintMixin, unittest.TestCase):
             kernels = _kernels(arch, "fp16", "rcr", _FULL_CONFIG)
             pipelines = {k["trait_combo"][0] for k in kernels}
             self.assertFalse(pipelines & set(NEW_PIPELINES), arch)
-            self.assertFalse(any(k["trait_combo"][1] == "tdm" for k in kernels), arch)
+            self.assertFalse(
+                any(k["trait_combo"][1] in TDM_EPILOGUES for k in kernels), arch
+            )
 
 
 _GOLDEN_TILE = {
@@ -333,10 +354,32 @@ class TestTileEngineGolden(unittest.TestCase):
 
     def test_tdm_with_pad_raises(self):
         for pipeline in TDM_PIPELINES:
-            with self.assertRaisesRegex(
-                ValueError, "padded TDM kernel would duplicate"
-            ):
-                self._instance(pipeline, "tdm", pad=True)
+            for epilogue in TDM_EPILOGUES:
+                with self.assertRaisesRegex(
+                    ValueError, "padded TDM kernel would duplicate"
+                ):
+                    self._instance(pipeline, epilogue, pad=True)
+
+    def test_tdm_staged_column_major_c_raises(self):
+        with self.assertRaisesRegex(ValueError, "tdmstaged requires a row-major C"):
+            self._instance("comp_tdm", "tdmstaged", layout="rcc")
+        self.assertFalse(
+            vu.is_trait_combination_valid(
+                "comp_tdm", "tdmstaged", "intrawave", False, "gemm_universal", "rcc"
+            )
+        )
+        self.assertTrue(
+            vu.is_trait_combination_valid(
+                "comp_tdm", "tdmstaged", "intrawave", False, "gemm_universal", "rcr"
+            )
+        )
+
+    def test_tdm_staged_needs_a_tdm_pipeline(self):
+        for pipeline in ("compv3", "comp_async"):
+            with self.assertRaisesRegex(ValueError, "tdmstaged epilogue requires"):
+                self._instance(pipeline, "tdmstaged", pad=pipeline == "comp_async")
+        with self.assertRaisesRegex(ValueError, "requires the cshuffle epilogue"):
+            self._instance("comp_tdm_v3", "tdmstaged")
 
     def test_comp_async_non_rc_layout_raises(self):
         for layout in ["rrr", "crr", "ccr"]:
@@ -372,6 +415,26 @@ class TestTileEngineGolden(unittest.TestCase):
         self.assertIn("ck_tile::TdmEpilogue<", code)
         self.assertIn("static constexpr bool DoubleSmemBuffer = true;", code)
         self.assertIn("args.k_batch != 1", code)
+
+    def test_tdm_staged(self):
+        staged = (
+            "ck_tile::TdmEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>"
+        )
+        for pipeline, impl in (
+            ("comp_tdm", "GemmPipelineAgBgCrCompTDMV1"),
+            ("comp_tdm_v2", "GemmPipelineAgBgCrCompTDMV2"),
+            ("comp_tdm_pc", "GemmPipelineAgBgCrCompTDMProducerConsumer"),
+        ):
+            name, code = self._instance(pipeline, "tdmstaged")
+            self.assertIn(f"_{pipeline}_tdmstaged_intrawave_", name)
+            self.assertIn('#include "ck_tile/ops/epilogue/tdm_epilogue.hpp"', code)
+            self.assertIn(f"ck_tile::{impl}<", code)
+            self.assertIn(f"using GemmEpilogue = {staged};", code)
+            self.assertNotIn("ck_tile::TdmEpilogue<", code)
+            self.assertNotIn("CShuffleEpilogue<", code)
+            # The staged epilogue sizes its slab buffers from the pipeline type.
+            self.assertLess(code.index("using GemmPipeline"), code.index(staged))
+            self.assertIn("TDM pipeline requires k_batch==1", code)
 
     def test_comp_async(self):
         name, code = self._instance("comp_async", "cshuffle", pad=True)
@@ -586,19 +649,20 @@ class TestDispatcherGolden(unittest.TestCase):
         return (self.out / name).read_text(), wrapper.read_text()
 
     def test_kernel_set(self):
-        # comp_async: pads True only; comp_tdm / comp_tdm_v2: pads False only.
-        self.assertEqual(len(self.names), 3, self.names)
-        counts = collections.Counter(
-            p
-            for n in self.names
-            for p in ("_comp_async_", "_comp_tdm_tdm_", "_comp_tdm_v2_tdm_")
-            if p in n
+        # comp_async: pads True only; comp_tdm / comp_tdm_v2: pads False only, one
+        # kernel per TDM epilogue.
+        markers = (
+            "_comp_async_",
+            "_comp_tdm_tdm_",
+            "_comp_tdm_v2_tdm_",
+            "_comp_tdm_tdmstaged_",
+            "_comp_tdm_v2_tdmstaged_",
         )
-        self.assertEqual(
-            counts, {"_comp_async_": 1, "_comp_tdm_tdm_": 1, "_comp_tdm_v2_tdm_": 1}
-        )
+        self.assertEqual(len(self.names), len(markers), self.names)
+        counts = collections.Counter(p for n in self.names for p in markers if p in n)
+        self.assertEqual(counts, {p: 1 for p in markers})
         for n in self.names:
-            if "_tdm_intrawave_" in n:
+            if "_tdm_intrawave_" in n or "_tdmstaged_intrawave_" in n:
                 self.assertIn("_intrawave_False_False_False_False_", n)
 
     def test_comp_tdm(self):
@@ -617,6 +681,20 @@ class TestDispatcherGolden(unittest.TestCase):
         self.assertIn("static constexpr bool DoubleSmemBuffer = true;", code)
         self.assertIn("args.k_batch != 1", code)
         self.assertIn("Epilogue::Tdm", wrapper)
+
+    def test_tdm_staged(self):
+        for marker, impl in (
+            ("_comp_tdm_tdmstaged_", "GemmPipelineAgBgCrCompTDMV1<"),
+            ("_comp_tdm_v2_tdmstaged_", "GemmPipelineAgBgCrCompTDMV2<"),
+        ):
+            code, wrapper = self._header(marker)
+            self.assertIn(impl, code)
+            self.assertIn(
+                "TdmEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>", code
+            )
+            self.assertNotIn("TdmEpilogue<", code)
+            self.assertIn("args.k_batch != 1", code)
+            self.assertIn("Epilogue::TdmStaged", wrapper)
 
     def test_comp_async(self):
         code, _wrapper = self._header("_comp_async_", pads="True_True_True")

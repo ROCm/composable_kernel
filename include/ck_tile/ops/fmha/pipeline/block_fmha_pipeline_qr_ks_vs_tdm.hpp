@@ -1015,7 +1015,10 @@ struct BlockFmhaPipelineQRKSVSTdm
             {
                 // Pre-scale s_acc by scale_s before adding bias
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-                const auto bias_tile = load_tile(bias_dram_window);
+                // No per-element OOB branch: padded scores are masked to -inf, padded rows are not
+                // stored, and the buffer range check returns 0 past the end.
+                const auto bias_tile =
+                    load_tile(bias_dram_window, number<-1>{}, bool_constant<false>{});
                 tile_elementwise_inout(
                     [](auto& x, const auto& y) {
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
@@ -1919,7 +1922,10 @@ struct BlockFmhaPipelineQRKSVSTdm
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-                const auto bias_tile = load_tile(bias_dram_window);
+                // No per-element OOB branch: padded scores are masked to -inf, padded rows are not
+                // stored, and the buffer range check returns 0 past the end.
+                const auto bias_tile =
+                    load_tile(bias_dram_window, number<-1>{}, bool_constant<false>{});
                 tile_elementwise_inout(
                     [](auto& x, const auto& y) {
 #if !CK_TILE_FMHA_FWD_FAST_EXP2

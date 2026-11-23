@@ -243,8 +243,10 @@ CK_TILE_DEVICE void async_load_fence(index_t cnt = 0)
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
-template <typename WindowLengths>
-CK_TILE_DEVICE auto load_tile(const null_tile_window<WindowLengths>&)
+template <typename WindowLengths, index_t i_access = -1, bool oob_conditional_check = true>
+CK_TILE_DEVICE auto load_tile(const null_tile_window<WindowLengths>&,
+                              number<i_access>                     = {},
+                              bool_constant<oob_conditional_check> = {})
 {
     return null_tensor{};
 }

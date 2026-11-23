@@ -73,8 +73,9 @@ class TestHelpers(unittest.TestCase):
                 mabd.reject_async_tdm_traits(p, "cshuffle")
 
     def test_reject_tdm_epilogue(self):
-        with self.assertRaisesRegex(ValueError, "tdm epilogue"):
-            mabd.reject_async_tdm_traits("compv3", "tdm")
+        for e in ("tdm", "tdmstaged"):
+            with self.assertRaisesRegex(ValueError, f"{e} epilogue"):
+                mabd.reject_async_tdm_traits("compv3", e)
 
     def test_legacy_traits_accepted(self):
         for p in ("compv3", "compv4", "mem"):
@@ -93,6 +94,10 @@ class TestHelpers(unittest.TestCase):
         with self.assertRaises(ValueError):
             mabd.reject_async_tdm_trait_string(
                 "compv3_tdm_intrawave_False_False_False_False"
+            )
+        with self.assertRaises(ValueError):
+            mabd.reject_async_tdm_trait_string(
+                "compv3_tdmstaged_intrawave_False_False_False_False"
             )
 
 
@@ -122,6 +127,7 @@ class TestBuilderRejects(unittest.TestCase):
             ("pipeline", "comp_tdm"),
             ("pipeline", "comp_tdm_v2"),
             ("epilogue", "tdm"),
+            ("epilogue", "tdmstaged"),
         ):
             cfg = copy.deepcopy(_load_config())
             cfg["trait_config"][key]["values"].append(value)

@@ -129,13 +129,7 @@ function(create_individual_gemm_universal_target datatype layout trait tile_conf
 
     # Add to trait-specific targets
     ck_tile_gemm_split_trait("${trait}" pipeline epilogue scheduler)
-
-    # comp_tdm_v3 kernels build with the post-RA machine scheduler that the top-level CMakeLists
-    # turns off (-enable-post-misched=0; the later option wins), as its gtests do
-    # (test/ck_tile/gemm/CMakeLists.txt). No other pipeline's targets change.
-    if(pipeline STREQUAL "comp_tdm_v3")
-        target_compile_options(${target_name} PRIVATE "SHELL:-mllvm -enable-post-misched=1")
-    endif()
+    ck_tile_gemm_pipeline_compile_options(${target_name} "${pipeline}")
 
     ck_tile_gemm_pipeline_group("${pipeline}" pipeline_group)
     add_dependencies(benchmark_gemm_universal_${pipeline_group}_pipeline ${target_name})
@@ -361,10 +355,12 @@ else()
     if(GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL MATCHES "gfx1250")
         # gfx1250 pipelines: non-MX comp_async (cshuffle epilogue) and the TDM
         # pipelines comp_tdm / comp_tdm_v2 / comp_tdm_pc (producer/consumer;
-        # tdm epilogue), and comp_tdm_v3 (cshuffle epilogue; only in
-        # configs/gfx1250_fp8_comp_tdm_v3.json, not in the default configs)
-        list(APPEND GEMM_UNIVERSAL_PIPELINES "comp_async;comp_tdm;comp_tdm_v2;comp_tdm_pc;comp_tdm_v3")
-        list(APPEND GEMM_UNIVERSAL_EPILOGUES "tdm")
+        # tdm or tdmstaged epilogue), comp_tdm_v3 (cshuffle epilogue; only in
+        # configs/gfx1250_fp8_comp_tdm_v3.json, not in the default configs) and
+        # comp_tdm_ra (run-ahead; tdm or tdmstaged epilogue; only in
+        # configs/gfx1250_comp_tdm_ra.json, not in the default configs)
+        list(APPEND GEMM_UNIVERSAL_PIPELINES "comp_async;comp_tdm;comp_tdm_v2;comp_tdm_pc;comp_tdm_v3;comp_tdm_ra")
+        list(APPEND GEMM_UNIVERSAL_EPILOGUES "tdm;tdmstaged")
     endif()
 
     foreach(pipeline IN LISTS GEMM_UNIVERSAL_PIPELINES)

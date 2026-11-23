@@ -4,6 +4,7 @@
 #include "test_streamk_tile_partitioner_common.hpp"
 #include "ck_tile/host/device_prop.hpp"
 
+#include <limits>
 #include <utility>
 
 TEST(StreamKTilePartitionerBaseConstructor, SKOnly)
@@ -942,4 +943,54 @@ TEST(StreamKTilePartitioner_GridSize_NonPersistent, DP2TileSK)
 
     const auto g = tile_partitioner.grid_size();
     EXPECT_EQ(g.x, 6);
+}
+
+TEST(StreamKTilePartitionerBaseConstructor, PreValidationOverflowLeavesPartitionerInvalid)
+{
+    using Shape = StreamKTilePartitionerBaseConfigDP2TileSK::GemmShape; // 4 x 4 x 8
+    using Base =
+        ck_tile::StreamKTilePartitionerBase<Shape, ck_tile::StreamKReductionStrategy::Linear>;
+    using Persistent =
+        ck_tile::StreamKTilePartitioner<Shape, ck_tile::StreamKReductionStrategy::Linear, true>;
+    using NonPersistent =
+        ck_tile::StreamKTilePartitioner<Shape, ck_tile::StreamKReductionStrategy::Linear, false>;
+
+    auto expect_invalid = [](ck_tile::index_t m,
+                             ck_tile::index_t n,
+                             ck_tile::index_t k,
+                             ck_tile::index_t wgs,
+                             ck_tile::index_t batch_count) {
+        const Base base{m, n, k, wgs, wgs, batch_count};
+        EXPECT_FALSE(base.is_valid());
+        EXPECT_EQ(base.get_tiles_per_batch(), 0);
+        EXPECT_EQ(base.get_num_tiles(), 0);
+        EXPECT_EQ(base.get_dp_tiles(), 0);
+        EXPECT_EQ(base.get_sk_tiles(), 0);
+        EXPECT_EQ(base.get_sk_ctas(), 0);
+        EXPECT_EQ(base.get_total_sk_iters(), 0);
+        EXPECT_EQ(base.get_total_dp_iters(), 0);
+        EXPECT_EQ(base.get_workspace_size(sizeof(float)), 0);
+
+        const Persistent persistent{m, n, k, wgs, wgs, batch_count};
+        EXPECT_FALSE(persistent.is_valid());
+        EXPECT_EQ(persistent.get_dp_tiles_per_cta(), 0);
+        EXPECT_EQ(persistent.get_extra_dp_tiles(), 0);
+        EXPECT_EQ(persistent.grid_size().x, 0u);
+
+        const NonPersistent nonpersistent{m, n, k, wgs, wgs, batch_count};
+        EXPECT_FALSE(nonpersistent.is_valid());
+        EXPECT_EQ(nonpersistent.get_dp_ctas(), 0);
+        EXPECT_EQ(nonpersistent.grid_size().x, 0u);
+    };
+
+    // tiles_per_batch > INT32_MAX: (262144 / 4) * (262144 / 4) = 65536^2 = 2^32.
+    expect_invalid(262144, 262144, 8, 8, 1);
+    // tiles_per_batch * batch_count > INT32_MAX: 65536 * 65536 = 2^32.
+    expect_invalid(1024, 1024, 8, 8, 65536);
+    // num_tiles * iters_per_tile > INT32_MAX: num_tiles = 65536 fits, * 65536 K-tiles = 2^32.
+    expect_invalid(1024, 1024, 65536 * 8, 8, 1);
+    // Non-positive dimensions or workgroup budget.
+    expect_invalid(0, 16, 16, 8, 1);
+    expect_invalid(16, 16, 16, 0, 1);
+    expect_invalid(16, 16, 16, 8, 0);
 }

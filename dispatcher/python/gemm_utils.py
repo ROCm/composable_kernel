@@ -36,7 +36,7 @@ import multiprocessing
 import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -361,11 +361,13 @@ class GemmKernelConfig:
     vector_size_a: int = 0
     vector_size_b: int = 0
     vector_size_c: int = 0
-    # comp_tdm_pc ring (NumSlots, PublishLag); num_slots=0 is the policy
-    # default <4, 0>. Sweep configs spell a non-default ring as the pipeline
-    # "comp_tdm_pc_s{S}l{L}" (codegen_common.split_pipeline_ring).
+    # comp_tdm_pc ring (NumSlots, PublishLag) or comp_tdm_ra ring (NumSlots,
+    # RunAhead); num_slots=0 is the policy default (<4, 0> / <4, 3>). Sweep
+    # configs spell a non-default ring as the pipeline "comp_tdm_pc_s{S}l{L}" /
+    # "comp_tdm_ra_s{S}r{R}" (codegen_common.split_pipeline_ring).
     num_slots: int = 0
     publish_lag: int = 0
+    run_ahead: int = 0
 
     # No silent default: the arch must be resolved (rocminfo-detected or passed
     # explicitly) before this config feeds the compiler. expand_sweep /
@@ -424,10 +426,12 @@ class GemmKernelConfig:
     def codegen_layout(self) -> str:
         """Layout string passed to unified_gemm_codegen.py --layout.
 
-        Multi-D takes a 4-char layout (A,B,C + D); the codegen splits off the
-        4th char as the D-tensor layout. Every other variant uses the 3-char
-        A,B,C layout.
+        Multi-D takes a 4-char layout (A,B,C + D) and multi-ABD the 4-char
+        (A,B,E,D) one; the codegen splits off the 4th char as the D-tensor
+        layout. Every other variant uses the 3-char A,B,C layout.
         """
+        if self.variant == "multi_abd":
+            return self.layout4
         if self.variant == "multi_d":
             return self.layout + _LAYOUT_CHAR[self.d_layout]
         return self.layout
@@ -450,8 +454,18 @@ class GemmKernelConfig:
 
     @property
     def ring_suffix(self) -> str:
-        """ "_s{S}l{L}" for a non-default comp_tdm_pc ring, else ""."""
-        return _codegen_common().pipeline_ring_suffix(self.num_slots, self.publish_lag)
+        """ "_s{S}l{L}" / "_s{S}r{R}" for a non-default comp_tdm_pc / comp_tdm_ra
+        ring, else ""."""
+        return _codegen_common().pipeline_ring_suffix(
+            self.pipeline, self.num_slots, self.ring_param
+        )
+
+    @property
+    def ring_param(self) -> int:
+        """The ring parameter of the pipeline's policy (PublishLag / RunAhead)."""
+        return _codegen_common().pipeline_ring_param(
+            self.pipeline, self.publish_lag, self.run_ahead
+        )
 
     def _vector_args(self) -> Dict[str, Any]:
         return dict(
@@ -652,7 +666,8 @@ class GemmKernelConfig:
             "pad": [self.pad_m, self.pad_n, self.pad_k],
             "persistent": self.persistent,
             "vector_sizes": list(self.vector_sizes),
-            "ring": [self.num_slots, self.publish_lag],
+            # (num_slots, PublishLag / RunAhead), as split_pipeline_ring.
+            "ring": [self.num_slots, self.ring_param],
             "gfx_arch": self.gfx_arch,
             "variant": self.variant,
             "name": self.name,
@@ -2367,6 +2382,42 @@ def _ctypes_source_name(config: GemmKernelConfig) -> str:
     return "gemm_ctypes_lib.cpp"
 
 
+def _kernel_codegen_flags(config: GemmKernelConfig) -> Tuple[str, ...]:
+    """AMDGPU codegen flags of the kernel ``config`` describes, whatever ctypes
+    library hosts it.
+
+    The regular path matches Tile Engine's gemm_universal build via
+    _tile_engine_codegen_flags(). Stream-K must instead match TE's gemm_streamk
+    build EXACTLY for a fair A/B: -enable-post-misched=0 is applied
+    unconditionally (not persistent-gated) and it does NOT use
+    -enable-noalias-to-md-conversion=0. Pipeline-specific flags go last so they
+    override the ones above (e.g. comp_tdm_v3 turns the post-RA machine
+    scheduler back on, as the Tile Engine gemm_universal build does for it).
+    """
+    if getattr(config, "variant", "") == "stream_k":
+        variant_flags = (
+            "-std=c++20",
+            "-fno-offload-uniform-block",
+            "-mllvm",
+            "--lsr-drop-solution=1",
+            "-mllvm",
+            "-enable-post-misched=0",
+            "-mllvm",
+            "-amdgpu-early-inline-all=true",
+            "-mllvm",
+            "-amdgpu-function-calls=false",
+            "--offload-compress",
+        )
+    else:
+        variant_flags = _tile_engine_codegen_flags()
+    return (
+        *variant_flags,
+        *_codegen_common().PIPELINE_EXTRA_COMPILE_FLAGS.get(
+            getattr(config, "pipeline", ""), ()
+        ),
+    )
+
+
 def _build_compile_jobs(
     config: GemmKernelConfig, header: Path
 ) -> Tuple[Dict[str, Any], Path]:
@@ -2389,30 +2440,7 @@ def _build_compile_jobs(
     # directory, so ensure it exists before hipcc writes the object/.so here.
     lib_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Per-variant AMDGPU codegen flags. The regular path matches Tile Engine's
-    # gemm_universal build via _tile_engine_codegen_flags(). Stream-K must instead
-    # match TE's gemm_streamk build EXACTLY for a fair A/B: -enable-post-misched=0
-    # is applied unconditionally (not persistent-gated) and it does NOT use
-    # -enable-noalias-to-md-conversion=0.
     is_streamk = getattr(config, "variant", "") == "stream_k"
-    variant_flags = (
-        [
-            "-std=c++20",
-            "-fno-offload-uniform-block",
-            "-mllvm",
-            "--lsr-drop-solution=1",
-            "-mllvm",
-            "-enable-post-misched=0",
-            "-mllvm",
-            "-amdgpu-early-inline-all=true",
-            "-mllvm",
-            "-amdgpu-function-calls=false",
-            "--offload-compress",
-        ]
-        if is_streamk
-        else list(_tile_engine_codegen_flags())
-    )
-
     compile_cmd = [
         _resolve_hipcc(),
         "-c",
@@ -2431,19 +2459,13 @@ def _build_compile_jobs(
         # Keep host/device fp8 encodings consistent and enable the target's
         # WMMA/MX features, matching the CMake build.
         *arch_feature_defines(config.gfx_arch),
-        # Match Tile Engine's AMDGPU codegen flags exactly (see variant_flags /
-        # _tile_engine_codegen_flags). Without them the kernel is compiled with
+        # Match Tile Engine's AMDGPU codegen flags exactly (see
+        # _kernel_codegen_flags). Without them the kernel is compiled with
         # different inlining/register allocation, which changes occupancy;
         # persistent kernels size their grid by occupancy
         # (UniversalGemmKernel::MaxOccupancyGridSize = #CUs x occupancy), so a
         # mismatch shows up as large perf gaps vs Tile Engine on persistent tiles.
-        *variant_flags,
-        # Pipeline-specific flags go last so they override the ones above (e.g.
-        # comp_tdm_v3 turns the post-RA machine scheduler back on, as the Tile
-        # Engine gemm_universal build does for it).
-        *_codegen_common().PIPELINE_EXTRA_COMPILE_FLAGS.get(
-            getattr(config, "pipeline", ""), ()
-        ),
+        *_kernel_codegen_flags(config),
         "-Wno-undefined-func-template",
         "-Wno-float-equal",
         str(ctypes_source),
@@ -2618,9 +2640,6 @@ def setup_multiple_gemm_dispatchers(
                 "output_dir": str(output_dir),
                 "dtype": c.dtype_a,
                 "layout": c.codegen_layout,
-                # Multi-ABD codegen expects the 4-char (A,B,E,D) layout so it can
-                # split off the D layout; every other variant uses 3-char.
-                "layout": c.layout4 if c.variant == "multi_abd" else c.layout,
                 "gpu_target": c.gfx_arch,
                 "tile_config_json": c.to_codegen_json(),
                 "hpp_glob_pattern": f"{c.name}.hpp",
@@ -2745,10 +2764,6 @@ def _expand_values(entry: Optional[Dict[str, Any]], default: List[Any]) -> List[
     return list(entry.get("values", default))
 
 
-def _is_power_of_two(x: int) -> bool:
-    return x > 0 and (x & (x - 1)) == 0
-
-
 def _cshuffle_store_ok(
     m_repeat: int, n_repeat: int, warp_tile_m: int, warp_tile_n: int
 ) -> bool:
@@ -2816,7 +2831,7 @@ def _warp_config_supported(
 
 
 # --- gfx1250 pipeline gate (parity with unified_gemm_codegen) --------------
-# Non-MX comp_async / comp_tdm / comp_tdm_v2 / comp_tdm_pc are only generated
+# Non-MX comp_async / comp_tdm / comp_tdm_v2 / comp_tdm_pc / comp_tdm_ra are only generated
 # for gfx1250 by unified_gemm_codegen. expand_sweep must drop the same combinations up front,
 # otherwise it hands back configs whose header is never emitted. The rules live
 # in codegen_common.gfx1250_pipeline_reject_reason (single source of truth
@@ -2865,12 +2880,14 @@ def _gfx1250_pipeline_supported(
     the codegen would reject for this arch/variant/trait.
 
     ``layout`` is the A/B/C layout code (e.g. ``rcr``); empty skips the
-    comp_async layout rule. ``dtype``/``warp_tile_k`` feed the comp_async
+    comp_async layout and tdmstaged row-major C rules. ``dtype``/``warp_tile_k``
+    feed the comp_async
     8-bit warp_tile_k rule; an empty dtype skips it. ``warp_tile_m``/
     ``warp_tile_n`` feed the comp_async 8-bit warp_tile_m/n rule; 0 skips it.
     ``tile_mn`` feeds the comp_tdm_pc accumulator rule and ``tile_k`` the
-    comp_tdm_v3 K-tile rule; None skips them. ``ring`` is the comp_tdm_pc
-    (num_slots, publish_lag); (0, 0) is the default."""
+    comp_tdm_v3 K-tile rule; None skips them. ``ring`` is the (num_slots,
+    ring_param) of split_pipeline_ring: the comp_tdm_pc PublishLag or the
+    comp_tdm_ra RunAhead; (0, 0) is the default."""
     reason = _codegen_common().gfx1250_pipeline_reject_reason(
         arch,
         pipeline,
@@ -2919,6 +2936,7 @@ def _arch_filter_accepts(
     epilogue: str,
     scheduler: str,
     num_slots: int = 0,
+    ring_param: int = 0,
 ) -> bool:
     """Mirror of unified_gemm_codegen's _is_tile_arch_valid ArchFilter call
     (LDS capacity, warp and trait rules), so expand_sweep drops every config
@@ -2956,11 +2974,61 @@ def _arch_filter_accepts(
         layout=layout[:3],
         operator=operator,
         num_slots=num_slots,
+        ring_param=ring_param,
     )
 
 
 # Stream-K reduction strategies the codegen can emit (atomic/linear/tree).
 STREAMK_REDUCTION_STRATEGIES = ("atomic", "linear", "tree")
+# The Stream-K and batched ctypes libs read a Stream-K kernel's workgroup budget
+# from this variable at each launch, in percent of CUs x occupancy (default 100).
+STREAMK_BUDGET_ENV = "CK_TILE_STREAMK_BUDGET_PCT"
+
+
+def add_streamk_args(parser) -> None:
+    """--reduction-strategy and --budget-pct of the full-benchmark drivers that run
+    Stream-K kernels; read --budget-pct back with streamk_budgets_arg()."""
+    parser.add_argument(
+        "--reduction-strategy",
+        choices=STREAMK_REDUCTION_STRATEGIES,
+        default=None,
+        help="Override the reduction strategy of the Stream-K configs; linear/tree "
+        "reduce partials in FP32",
+    )
+    parser.add_argument(
+        "--budget-pct",
+        default="100",
+        help="Comma-list of distinct integer Stream-K workgroup budgets in 1..100, in "
+        "percent of the kernel's default (CUs x occupancy, 100); each Stream-K kernel "
+        "x problem runs once per value (e.g. 100,75,50,25), any other kernel once",
+    )
+
+
+def streamk_budgets_arg(parser, args) -> List[int]:
+    """The --budget-pct values (parse_streamk_budgets); a parser error if invalid."""
+    try:
+        return parse_streamk_budgets(args.budget_pct)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+
+def streamk_work_units(problems, pairs, built_kernels, batch_size, budget_pcts, dims):
+    """(problem index, problem, kernel batch, Stream-K budget) units of a
+    full-benchmark driver: per problem, its kernels (``pairs``, indices into
+    ``built_kernels`` = [(config, lib)]) in batches of ``batch_size``; a batch of
+    Stream-K kernels once per budget in ``budget_pcts``, any other batch once with
+    budget None. The problem keeps the keys in ``dims``."""
+    units = []
+    for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
+        prob_dict = {k: int(prob[k]) for k in dims}
+        for budgets, streamk in ((budget_pcts, True), ([None], False)):
+            kernels = [
+                i for i in idx if (built_kernels[i][0].variant == "stream_k") == streamk
+            ]
+            for start in range(0, len(kernels), batch_size):
+                batch = [(i, *built_kernels[i]) for i in kernels[start : start + batch_size]]
+                units.extend((prob_idx, prob_dict, batch, b) for b in budgets)
+    return units
 
 
 def unique_by_name(configs: List[GemmKernelConfig]) -> List[GemmKernelConfig]:
@@ -3251,8 +3319,11 @@ def expand_sweep(
         persistents,
         reductions,
     ):
-        # "comp_tdm_pc_s{S}l{L}" names a non-default producer/consumer ring.
-        pipe, num_slots, publish_lag = _codegen_common().split_pipeline_ring(pipe)
+        # "comp_tdm_pc_s{S}l{L}" / "comp_tdm_ra_s{S}r{R}" name a non-default ring.
+        pipe, num_slots, ring_param = _codegen_common().split_pipeline_ring(pipe)
+        ring_fields = _codegen_common().pipeline_ring_fields(
+            pipe, num_slots, ring_param
+        )
         # Tile/CShuffle correctness gate. A block tile must split evenly across
         # its waves -- tile % (wave * warp_tile) == 0 -- else the kernel is
         # genuinely invalid.
@@ -3299,7 +3370,7 @@ def expand_sweep(
             warp_tile_n=wtn,
             tile_mn=(tm, tn),
             tile_k=tk,
-            ring=(num_slots, publish_lag),
+            ring=(num_slots, ring_param),
         ):
             continue
         if epi == "cshuffle" and not _cshuffle_store_ok(
@@ -3342,8 +3413,7 @@ def expand_sweep(
                     pad_n=bool(pn),
                     pad_k=bool(pk),
                     persistent=bool(persist),
-                    num_slots=num_slots,
-                    publish_lag=publish_lag,
+                    **ring_fields,
                     gfx_arch=arch,
                     variant=variant,
                     reduction_strategy=red,
@@ -3401,6 +3471,7 @@ def expand_sweep(
                             epi,
                             sched,
                             num_slots,
+                            ring_param,
                         )
                     if not val:
                         # Keep counting the later widths' rejects, as the codegen does.

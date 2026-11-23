@@ -1,28 +1,39 @@
 {
+    "_comment": [
+        "Batched Stream-K on the universal pipelines (compv3, compv4, mem) with the gfx1250 WMMA",
+        "16x16x32 warp tile; streamk_config.json with the gfx1250 warp tile. Persistent and not,",
+        "every reduction strategy; padded, so every shape runs.",
+        "Usage: python batched_gemm_full_benchmark.py batched_gemm/configs/streamk_config_gfx1250.json",
+        "  --arch gfx1250 --dtype bf16 --layout rcr --verify [--budget-pct 100,50]"
+    ],
     "tile_config": {
         "tile_m": {
             "values": [
-                16
+                64,
+                128,
+                256
             ]
         },
         "tile_n": {
             "values": [
-                64
+                64,
+                128,
+                256
             ]
         },
         "tile_k": {
             "values": [
-                256
+                64
             ]
         },
         "warp_m": {
             "values": [
-                1
+                2
             ]
         },
         "warp_n": {
             "values": [
-                4
+                2
             ]
         },
         "warp_k": {
@@ -42,19 +53,21 @@
         },
         "warp_tile_k": {
             "values": [
-                16, 32, 64, 128
+                32
             ]
         }
     },
     "trait_config": {
         "pipeline": {
             "values": [
+                "compv3",
+                "compv4",
                 "mem"
             ]
         },
         "scheduler": {
             "values": [
-                "interwave"
+                "intrawave"
             ]
         },
         "epilogue": {
@@ -64,12 +77,12 @@
         },
         "pad_m": {
             "values": [
-                false
+                true
             ]
         },
         "pad_n": {
             "values": [
-                false
+                true
             ]
         },
         "pad_k": {
@@ -77,12 +90,21 @@
                 true
             ]
         },
-        "a_preshuffle_quant": {
+        "persistent": {
             "values": [
-                false
+                false,
+                true
             ]
         }
     },
-    "k_block_per_cu": 1,
-    "group_size_k": 128
+    "streamk_config": {
+        "reduction_strategy": {
+            "values": [
+                "atomic",
+                "linear",
+                "tree"
+            ]
+        }
+    },
+    "k_block_per_cu": 1
 }

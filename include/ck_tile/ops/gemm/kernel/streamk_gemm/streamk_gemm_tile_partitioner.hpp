@@ -44,12 +44,19 @@ struct StreamKTilePartitionerBase
      * @param k Length of the reduction (K) dimension.
      * @param max_number_wgs Number of resident workgroup slots (CUs x occupancy).
      * @param num_cu Number of CUs; `max_number_wgs` must be a multiple of it.
+     * @param batch_count Number of GEMMs of identical shape (batched GEMM). Their output tiles are
+     * numbered batch-major in one tile space, so the data-parallel and Stream-K work is shared
+     * over batch x tiles. One (the default) is a single GEMM.
      * @note Stream-K is used only when the tile count is not a multiple of `num_cu`. When it is,
      * the data-parallel waves are already balanced: every CU computes the same number of tiles
      * however many of them are resident at once.
      */
-    StreamKTilePartitionerBase(
-        index_t m, index_t n, index_t k, index_t max_number_wgs, index_t num_cu);
+    StreamKTilePartitionerBase(index_t m,
+                               index_t n,
+                               index_t k,
+                               index_t max_number_wgs,
+                               index_t num_cu,
+                               index_t batch_count = 1);
 
     /**
      * @brief Calculates the total space needed for the partials buffer.
@@ -149,6 +156,16 @@ struct StreamKTilePartitionerBase
                                                     index_t cta_idx) const noexcept;
 
     /**
+     * @brief Splits a 1D tile index over batch x tiles into the batch index and the tile index
+     * within that batch's C tensor.
+     *
+     * @param tile_idx  The 1D tile index over all batches.
+     * @return          The batch index and the 1D tile index within the batch.
+     */
+    CK_TILE_DEVICE auto
+    get_batch_tile_index(index_t tile_idx) const noexcept -> tuple<index_t, index_t>;
+
+    /**
      * @brief Calculates the workgroup's 2D tile index in the C tensor given the 1D tile index.
      *
      * @param tile_idx  The 1D tile index in the C tensor for the workgroup.
@@ -179,9 +196,20 @@ struct StreamKTilePartitionerBase
     CK_TILE_HOST_DEVICE index_t get_workspace_size(index_t acc_element_bytes) const noexcept;
 
     /**
-     * @brief Returns the number of macro tiles in the C tensor.
+     * @brief Returns true if the problem dimensions, workgroup budget, and total tile/iteration
+     * counts are positive and fit within `index_t`.
+     */
+    CK_TILE_HOST_DEVICE bool is_valid() const noexcept;
+
+    /**
+     * @brief Returns the number of macro tiles in the C tensors of all batches.
      */
     CK_TILE_HOST_DEVICE index_t get_num_tiles() const noexcept;
+
+    /**
+     * @brief Returns the number of macro tiles in the C tensor of one batch.
+     */
+    CK_TILE_HOST_DEVICE index_t get_tiles_per_batch() const noexcept;
 
     /**
      * @brief Returns the maximum number of active workgroups; this is assumed to be number of CUs *
@@ -268,6 +296,7 @@ struct StreamKTilePartitionerBase
     remap_xcd(index_t block_1d_id, index_t total_num_tiles, index_t num_xcds = 8) noexcept;
 
     protected:
+    index_t tiles_per_batch_;
     index_t num_tiles_;
     index_t max_active_wgs_;
     index_t dp_tiles_;
@@ -332,7 +361,8 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>
                            ck_tile::index_t n,
                            ck_tile::index_t k,
                            ck_tile::index_t max_active_wgs,
-                           ck_tile::index_t num_cu);
+                           ck_tile::index_t num_cu,
+                           ck_tile::index_t batch_count = 1);
 
     public:
     static constexpr bool PERSISTENT = true;
@@ -386,7 +416,8 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>
                            ck_tile::index_t n,
                            ck_tile::index_t k,
                            ck_tile::index_t max_number_wgs,
-                           ck_tile::index_t num_cu);
+                           ck_tile::index_t num_cu,
+                           ck_tile::index_t batch_count = 1);
 
     public:
     static constexpr bool PERSISTENT = false;

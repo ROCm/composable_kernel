@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "codegen"))
 
 from codegen_common import (
     _VEC_ELEMENT_BYTES,
+    TDM_EPILOGUES,
     CommonTypeMappings,
     gemm_contiguous_dims,
     gemm_native_vector_sizes,
@@ -132,7 +133,7 @@ _GEOMETRY_KEYS = (
 
 
 #: Epilogues whose C store width is modelled.
-_EPILOGUES = frozenset({"default", "tdm", "cshuffle"})
+_EPILOGUES = frozenset({"default", "cshuffle", *TDM_EPILOGUES})
 
 #: Accepted targets after suffix stripping: gfx9 plus two characters, or a
 #: four-digit gfx10/11/12.

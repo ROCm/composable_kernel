@@ -208,6 +208,16 @@ using KernelTypesStreamKRegression = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I256,        I256,        I32,         I32,       I32,       I16,     Persistent,      CompV3,   Atomic>,
     std::tuple<    Col,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I256,        I256,        I32,         I32,       I32,       I16,     Persistent,      CompV3,   Atomic>
 >;
+// Batched Stream-K: every pipeline, reduction strategy, persistence and A/B layout once.
+using KernelTypesStreamKBatched = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I128,        I128,        I32,         I32,       I32,       I16,     Persistent,      CompV3,   Atomic>,
+    std::tuple<    Col,     Row,     Row,       BF16,      BF16,        F32,       BF16,        I128,        I128,        I32,         I32,       I32,       I16,     NonPersistent,   CompV3,   Linear>,
+    std::tuple<    Row,     Row,     Row,       BF16,      BF16,        F32,       BF16,        I128,        I128,        I32,         I32,       I32,       I16,     Persistent,      CompV4,   Tree>,
+    std::tuple<    Col,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I128,        I128,        I32,         I32,       I32,       I16,     NonPersistent,   CompV4,   Atomic>,
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I128,        I128,        I32,         I32,       I32,       I16,     NonPersistent,   Mem,      Tree>,
+    std::tuple<    Col,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I128,        I128,        I32,         I32,       I32,       I16,     Persistent,      Mem,      Linear>
+>;
+
 // ========================== WMMA Variants ==========================
 
 // Linear WMMA - Persistent

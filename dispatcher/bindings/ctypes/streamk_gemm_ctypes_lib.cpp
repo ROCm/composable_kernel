@@ -32,12 +32,13 @@
 
 #include <hip/hip_runtime.h>
 #include <cstdint>
-#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <string>
 #include <type_traits>
+
+#include "streamk_budget_env.hpp"
 
 // Kernel header included via -include compiler flag (with CK_TILE_SINGLE_KERNEL_INCLUDE).
 // Defines: ADataType, BDataType, CDataType, AccDataType, SelectedKernel, KERNEL_NAME
@@ -49,26 +50,6 @@
 #endif
 
 static bool g_initialized = false;
-
-// Parse CK_TILE_STREAMK_BUDGET_PCT strictly: unset/empty => 100; otherwise the
-// entire value must be a base-10 integer in [1, 100], so typos or out-of-range
-// budgets fail fast instead of silently running at 100%.
-static bool parse_streamk_budget_pct(int& out_budget_pct)
-{
-    const char* v = std::getenv("CK_TILE_STREAMK_BUDGET_PCT");
-    if(v == nullptr || *v == '\0')
-    {
-        out_budget_pct = 100;
-        return true;
-    }
-    errno          = 0;
-    char* end      = nullptr;
-    const long val = std::strtol(v, &end, 10);
-    if(errno == ERANGE || end == v || *end != '\0' || val < 1 || val > 100)
-        return false;
-    out_budget_pct = static_cast<int>(val);
-    return true;
-}
 
 // Read an integer benchmark knob from the environment, falling back to
 // `fallback` when unset or unparseable.

@@ -33,10 +33,12 @@ get_abc_layouts = _validation_utils.get_abc_layouts
 get_abcd_layouts = _validation_utils.get_abcd_layouts
 get_dtype_string = _validation_utils.get_dtype_string
 GEMM_PACKED_B_PIPELINES = _validation_utils.GEMM_PACKED_B_PIPELINES
+TDM_EPILOGUES = _validation_utils.TDM_EPILOGUES
+TDM_STAGED_EPILOGUE = _validation_utils.TDM_STAGED_EPILOGUE
 
 # gfx1250 pipelines. Only the ops listed here may emit them; every other op
 # raises instead of silently generating an unsupported kernel.
-TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc", "comp_tdm_v3")
+TDM_PIPELINES = ("comp_tdm", "comp_tdm_v2", "comp_tdm_pc", "comp_tdm_v3", "comp_tdm_ra")
 ASYNC_PIPELINES = ("comp_async",)
 GFX1250_PIPELINES = TDM_PIPELINES + ASYNC_PIPELINES
 GFX1250_PIPELINE_OPS = ("gemm_universal", "batched_gemm")
@@ -54,28 +56,45 @@ DOUBLE_SMEM_BUFFER_PIPELINES = (
 
 
 def _check_tdm_epilogue(pipeline, epilogue, kernel_name_prefix):
-    """Raise unless a TDM pipeline gets an epilogue it accepts on this op (its own one:
-    tdm, or cshuffle for comp_tdm_v3; cshuffle also for the split-K capable pipelines,
-    see tdm_epilogue_allowed) and the tdm epilogue gets a TDM pipeline that writes
-    through it."""
+    """Raise unless a TDM pipeline gets an epilogue it accepts on this op (one of its
+    own: tdm or tdmstaged, or cshuffle for comp_tdm_v3; cshuffle also for the split-K
+    capable pipelines, see tdm_epilogue_allowed) and a TDM epilogue gets a TDM
+    pipeline that writes through it."""
     if pipeline in TDM_PIPELINES and not _validation_utils.tdm_epilogue_allowed(
         pipeline, epilogue, kernel_name_prefix
     ):
-        want = _validation_utils.tdm_pipeline_epilogue(pipeline)
+        accepted = _validation_utils.tdm_pipeline_epilogues(pipeline)
         raise ValueError(
-            f"{pipeline} pipeline requires the {want} epilogue, got '{epilogue}'"
+            f"{pipeline} pipeline requires the {' or '.join(accepted)} epilogue, "
+            f"got '{epilogue}'"
         )
     tdm_epilogue_pipelines = tuple(
-        p for p in TDM_PIPELINES if _validation_utils.tdm_pipeline_epilogue(p) == "tdm"
+        p
+        for p in TDM_PIPELINES
+        if epilogue in _validation_utils.tdm_pipeline_epilogues(p)
     )
-    if epilogue == "tdm" and pipeline not in tdm_epilogue_pipelines:
+    if epilogue in TDM_EPILOGUES and pipeline not in tdm_epilogue_pipelines:
         raise ValueError(
-            f"tdm epilogue requires a TDM pipeline {tdm_epilogue_pipelines}, got '{pipeline}'"
+            f"{epilogue} epilogue requires a TDM pipeline {tdm_epilogue_pipelines}, "
+            f"got '{pipeline}'"
         )
 
 
-# Emitted in place of the pipeline type for a comp_tdm_pc ring variant.
-RING_PIPELINE_ALIAS = "CompTDMPCRingPipeline"
+# Per ringed pipeline: the alias emitted in place of the pipeline type for a
+# non-default ring, the policy template it binds the ring to, and the policy's
+# name for the ring parameter.
+RING_PIPELINE_TYPES = {
+    "comp_tdm_pc": (
+        "CompTDMPCRingPipeline",
+        "ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumerPolicy",
+        "PublishLag",
+    ),
+    "comp_tdm_ra": (
+        "CompTDMRARingPipeline",
+        "ck_tile::GemmPipelineAgBgCrCompTDMRunAheadPolicy",
+        "RunAhead",
+    ),
+}
 
 
 def lookup_pipeline(pipeline_map, pipeline, what="pipeline"):
@@ -294,17 +313,22 @@ class GemmKernelBuilder:
         prefix = self.kernel_name_prefix
         if pipeline in GFX1250_PIPELINES and prefix not in GFX1250_PIPELINE_OPS:
             raise ValueError(f"{prefix} does not support the {pipeline} pipeline")
-        if (
-            pipeline == _validation_utils.GEMM_TDM_V3_PIPELINE
-            and prefix not in _validation_utils.GFX1250_TDM_V3_OPS
-        ):
-            raise ValueError(f"{prefix} does not support the {pipeline} pipeline")
+        op_reason = _validation_utils.gfx1250_pipeline_op_reject_reason(
+            pipeline, prefix
+        )
+        if op_reason:
+            raise ValueError(op_reason)
         _check_tdm_epilogue(pipeline, epilogue, prefix)
         pad_reason = _validation_utils.tdm_pad_reject_reason(
             pipeline, epilogue, pad_m, pad_n, pad_k
         )
         if pad_reason:
             raise ValueError(f"{pipeline}/{epilogue}: {pad_reason}")
+        staged_layout_reason = _validation_utils.tdm_staged_layout_reject_reason(
+            epilogue, self.layout
+        )
+        if staged_layout_reason:
+            raise ValueError(f"layout {self.layout}: {staged_layout_reason}")
         if (
             _validation_utils._base_gfx_arch(self.gpu_target)
             == _validation_utils.GFX1250_ONLY_PIPELINE_ARCH
@@ -321,11 +345,11 @@ class GemmKernelBuilder:
                 raise ValueError(f"{pipeline}/{epilogue}: {async_pad_reason}")
 
     def _tdm_k_batch_guard(self, pipeline, epilogue):
-        """Host-side split-K guard for TDM pipelines on the tdm epilogue (empty
+        """Host-side split-K guard for TDM pipelines on a TDM epilogue (empty
         for all others).
 
-        TdmEpilogue cannot accumulate, so k_batch > 1 is impossible; the kernel
-        rejects it too, this just fails earlier and louder. Only the split-K
+        The TDM epilogues cannot accumulate, so k_batch > 1 is impossible; the
+        kernel rejects it too, this just fails earlier and louder. Only the split-K
         capable pipelines (GEMM_TDM_CSHUFFLE_PIPELINES) can split K on the
         cshuffle epilogue, and the kernel's IsSupportedArgument checks it.
         """
@@ -358,6 +382,7 @@ class GemmKernelBuilder:
             pad_m,
             pad_n,
             pad_k,
+            gpu_target=self.gpu_target,
         ):
             raise ValueError(
                 f"unsupported trait combination {pipeline}-{epilogue}-{scheduler}"
@@ -369,6 +394,41 @@ class GemmKernelBuilder:
             raise ValueError(
                 f"tile config {tile_config} is not valid for {pipeline} on {self.gpu_target}"
             )
+
+    def gfx1250_instance_reject_reason(self, tile_config, pipeline):
+        """Why a gfx1250-only pipeline (comp_async / comp_tdm*, ring variants
+        included) cannot be emitted with this tile on this target, else "".
+
+        Runs on every generation path, not only --gen_single: --gen_all_individual
+        pairs every tile with every trait and never validates, so without it the
+        builder would emit, e.g., comp_tdm_ra for gfx950 or with warp_k=2.
+        """
+        ring_reason = _validation_utils.pipeline_ring_reject_reason(pipeline)
+        if ring_reason:
+            return ring_reason
+        pipeline = _validation_utils.split_pipeline_ring(pipeline)[0]
+        if not _validation_utils._uses_gfx1250_gemm_pipeline(
+            pipeline, self.kernel_name_prefix
+        ):
+            return ""
+        return _validation_utils.gfx1250_gemm_pipeline_reject_reason(
+            pipeline,
+            self.kernel_name_prefix,
+            self.gpu_target,
+            tile_config["tile_m"],
+            tile_config["tile_n"],
+            tile_config["tile_k"],
+            tile_config["warp_m"],
+            tile_config["warp_n"],
+            tile_config["warp_k"],
+            tile_config["warp_tile_m"],
+            tile_config["warp_tile_n"],
+            tile_config["warp_tile_k"],
+            self.datatype,
+            self.datatype,
+            self._c_datatype(),
+            self.layout,
+        )
 
     def _normalize_trait_combo(self, trait_combo):
         if len(trait_combo) == 7:
@@ -706,13 +766,13 @@ class GemmKernelBuilder:
         ) = self._normalize_trait_combo(trait_combo)
 
         kernel_name = self._format_kernel_name(trait_combo, tile_config)
-        # A comp_tdm_pc ring variant names the kernel; everything below sees the
-        # base pipeline, and the ring reaches the C++ only through the alias
-        # emitted by _ring_pipeline_alias.
+        # A comp_tdm_pc / comp_tdm_ra ring variant names the kernel; everything
+        # below sees the base pipeline, and the ring reaches the C++ only through
+        # the alias emitted by _ring_pipeline_alias.
         ring_reason = _validation_utils.pipeline_ring_reject_reason(pipeline)
         if ring_reason:
             raise ValueError(f"{pipeline}: {ring_reason}")
-        pipeline, num_slots, publish_lag = _validation_utils.split_pipeline_ring(
+        pipeline, num_slots, ring_param = _validation_utils.split_pipeline_ring(
             pipeline
         )
         base_trait_combo = (pipeline, *self._normalize_trait_combo(trait_combo)[1:])
@@ -735,6 +795,7 @@ class GemmKernelBuilder:
                 "comp_tdm_v2": "ck_tile::GemmPipelineAgBgCrCompTDMV2",
                 "comp_tdm_pc": "ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumer",
                 "comp_tdm_v3": "ck_tile::GemmPipelineAgBgCrCompTDMV3",
+                "comp_tdm_ra": "ck_tile::GemmPipelineAgBgCrCompTDMRunAhead",
             }
             # Map pipeline names to base pipeline for hot loop detection
             base_pipeline_map = {
@@ -746,8 +807,12 @@ class GemmKernelBuilder:
                 "comp_tdm_v2": "ck_tile::BaseGemmPipelineAgBgCrCompTDM",
                 "comp_tdm_pc": "ck_tile::BaseGemmPipelineAgBgCrCompTDM",
                 "comp_tdm_v3": "ck_tile::BaseGemmPipelineAgBgCrCompTDM",
+                "comp_tdm_ra": "ck_tile::BaseGemmPipelineAgBgCrCompTDM",
             }
             self._check_pipeline_allowed_for_op(pipeline, epilogue, pad_m, pad_n, pad_k)
+            gfx1250_reason = self.gfx1250_instance_reject_reason(tile_config, pipeline)
+            if gfx1250_reason:
+                raise ValueError(gfx1250_reason)
             if validate:
                 self._check_instance_valid(tile_config, trait_combo)
         elif self.kernel_name_prefix == "gemm_preshuffle":
@@ -807,9 +872,15 @@ class GemmKernelBuilder:
         instance_code += self.populate_kernel_dtype_layout()
         if num_slots:
             instance_code += self._ring_pipeline_alias(
-                lookup_pipeline(pipeline_impl_map, pipeline), num_slots, publish_lag
+                pipeline,
+                lookup_pipeline(pipeline_impl_map, pipeline),
+                num_slots,
+                ring_param,
             )
-            pipeline_impl_map = {**pipeline_impl_map, pipeline: RING_PIPELINE_ALIAS}
+            pipeline_impl_map = {
+                **pipeline_impl_map,
+                pipeline: RING_PIPELINE_TYPES[pipeline][0],
+            }
         instance_code += self.populate_strut_begin(kernel_name)
         instance_code += self.populate_tile_config(tile_config)
         instance_code += self.populate_trait_config(base_trait_combo)
@@ -841,15 +912,16 @@ class GemmKernelBuilder:
         return kernel_name, instance_code
 
     @staticmethod
-    def _ring_pipeline_alias(pipeline_impl, num_slots, publish_lag):
-        """Alias template binding a non-default comp_tdm_pc ring, so every emitter
-        can keep spelling the pipeline as ``<impl><Problem>``."""
+    def _ring_pipeline_alias(pipeline, pipeline_impl, num_slots, ring_param):
+        """Alias template binding a non-default comp_tdm_pc / comp_tdm_ra ring, so
+        every emitter can keep spelling the pipeline as ``<impl><Problem>``."""
+        alias, policy, ring_param_name = RING_PIPELINE_TYPES[pipeline]
         return f"""
-// comp_tdm_pc ring: NumSlots = {num_slots}, PublishLag = {publish_lag}
+// {pipeline} ring: NumSlots = {num_slots}, {ring_param_name} = {ring_param}
 template <typename Problem>
-using {RING_PIPELINE_ALIAS} = {pipeline_impl}<
+using {alias} = {pipeline_impl}<
     Problem,
-    ck_tile::GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<{num_slots}, {publish_lag}>>;
+    {policy}<{num_slots}, {ring_param}>>;
 """
 
     def populate_kernel_header(self, kernel_name):
@@ -1020,7 +1092,16 @@ struct SelectedKernel {{
             "true" if pipeline in DOUBLE_SMEM_BUFFER_PIPELINES else "false"
         )
 
+        requires_gfx125 = (
+            _validation_utils.split_pipeline_ring(pipeline)[0]
+            in _validation_utils.GEMM_TDM_PIPELINES
+        )
         instance_code = f"""
+
+    // True for a pipeline that only runs on gfx125. Declared at struct scope for the
+    // dispatcher's kernel selection (TileKernelInstance), which cannot see the GemmPipeline
+    // declared in launch(); launch() static_asserts it against ck_tile::pipeline_requires_gfx125_v.
+    static constexpr bool kRequiresGfx125 = {"true" if requires_gfx125 else "false"};
 
     // Traits configurations
     static constexpr bool kPadM = {"true" if pad_m in [True, "true"] else "false"};
@@ -1339,7 +1420,9 @@ struct SelectedKernel {{
         ]:
             instance_code += f"""
 
-        using GemmPipeline = {lookup_pipeline(pipeline_impl_map, pipeline)}<UniversalGemmProblem>;"""
+        using GemmPipeline = {lookup_pipeline(pipeline_impl_map, pipeline)}<UniversalGemmProblem>;
+        static_assert(kRequiresGfx125 == ck_tile::pipeline_requires_gfx125_v<GemmPipeline>,
+                      "kRequiresGfx125 must match the pipeline's gfx125 requirement");"""
 
         # Scheduler initialization
         if self.kernel_name_prefix in ["gemm_universal", "grouped_gemm", "mx_gemm"]:
@@ -1370,7 +1453,9 @@ struct SelectedKernel {{
         if self.kernel_name_prefix in ["gemm_universal", "grouped_gemm", "mx_gemm"]:
             instance_code += f"""
 
-        using GemmPipeline = {lookup_pipeline(pipeline_impl_map, pipeline)}<UniversalGemmProblem>;"""
+        using GemmPipeline = {lookup_pipeline(pipeline_impl_map, pipeline)}<UniversalGemmProblem>;
+        static_assert(kRequiresGfx125 == ck_tile::pipeline_requires_gfx125_v<GemmPipeline>,
+                      "kRequiresGfx125 must match the pipeline's gfx125 requirement");"""
 
         # Epilogue
         instance_code += self.populate_epilogue(epilogue, pipeline)
@@ -1761,18 +1846,19 @@ struct SelectedKernel {{
         _check_tdm_epilogue(pipeline, epilogue, self.kernel_name_prefix)
         double_smem = pipeline in DOUBLE_SMEM_EPILOGUE_PIPELINES
 
-        if epilogue == "tdm" and self.kernel_name_prefix in [
+        staged = epilogue == TDM_STAGED_EPILOGUE
+        if epilogue in TDM_EPILOGUES and self.kernel_name_prefix in [
             "gemm_universal",
             "gemm_preshuffle",
         ]:
-            instance_code += self.populate_tdm_gemm_universal()
-        elif epilogue == "tdm" and self.kernel_name_prefix == "batched_gemm":
-            instance_code += self.populate_tdm_batched_gemm()
+            instance_code += self.populate_tdm_gemm_universal(staged)
+        elif epilogue in TDM_EPILOGUES and self.kernel_name_prefix == "batched_gemm":
+            instance_code += self.populate_tdm_batched_gemm(staged)
         elif epilogue == "tdm" and self.kernel_name_prefix == "mx_gemm":
             instance_code += self.populate_cshuffle_mx_gemm(tdm=True)
-        elif epilogue == "tdm":
+        elif epilogue in TDM_EPILOGUES:
             raise ValueError(
-                f"{self.kernel_name_prefix} does not support the tdm epilogue"
+                f"{self.kernel_name_prefix} does not support the {epilogue} epilogue"
             )
         elif epilogue == "cshuffle":
             if self.kernel_name_prefix in ["gemm_universal", "grouped_gemm"]:
@@ -1823,8 +1909,15 @@ struct SelectedKernel {{
         )
 
     def _populate_tdm_epilogue(
-        self, m_per_block, n_per_block, transpose_c, num_wave_groups
+        self, m_per_block, n_per_block, transpose_c, num_wave_groups, staged=False
     ):
+        # tdmstaged: one M iteration per slab, as many slab buffers as fit in the
+        # pipeline's LDS (TdmEpilogueStagedForPipeline).
+        epilogue_type = (
+            "ck_tile::TdmEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>"
+            if staged
+            else "ck_tile::TdmEpilogue<EpilogueProblem>"
+        )
         return f"""
         using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
             ADataType,
@@ -1849,19 +1942,20 @@ struct SelectedKernel {{
             1,                           // BlockedXDLN_PerWarp_
             DoubleSmemBuffer>;           // DoubleSmemBuffer_
 
-        using GemmEpilogue = ck_tile::TdmEpilogue<EpilogueProblem>;"""
+        using GemmEpilogue = {epilogue_type};"""
 
-    def populate_tdm_gemm_universal(self):
+    def populate_tdm_gemm_universal(self, staged=False):
         return self._populate_tdm_epilogue(
-            "TileM", "TileN", "TransposeC", "NumWaveGroups"
+            "TileM", "TileN", "TransposeC", "NumWaveGroups", staged
         )
 
-    def populate_tdm_batched_gemm(self):
+    def populate_tdm_batched_gemm(self, staged=False):
         return self._populate_tdm_epilogue(
             "TilePartitioner::MPerBlock",
             "TilePartitioner::NPerBlock",
             "UniversalGemmProblem::TransposeC",
             "1",
+            staged,
         )
 
     def populate_cshuffle_gemm_universal(self, double_smem=False):

@@ -19,11 +19,14 @@ validation/
 
 **Purpose**: Validate ML heuristic for GEMM universal operations (not grouped conv).
 
-**Usage**:
+**Usage** (from `dispatcher/heuristics/`):
 ```bash
-python validate_ml_heuristic.py --dtype fp16 --layout rcr
-python validate_ml_heuristic.py --dtype bf16 --model_dir models/gemm_universal_bf16_gfx950
+python validation/validate_ml_heuristic.py --dtype fp16 --layout rcr
+python validation/validate_ml_heuristic.py --dtype bf16 --model_dir models/gemm_universal_bf16_gfx950
 ```
+
+Default `--model_dir` and `--data_dir` resolve against `dispatcher/heuristics/`
+(`models/` and `data/`), regardless of the current working directory.
 
 **What it does**:
 - Loads benchmark data (oracle-best results for each GEMM shape)

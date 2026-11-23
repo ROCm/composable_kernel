@@ -49,13 +49,14 @@ from codegen_common import (
 
 from codegen_common import (
     CommonTypeMappings,
+    TDM_EPILOGUES,
     TDM_PIPELINES,
-    comp_tdm_pc_lds_limit,
     gfx1250_fp32_tile_reject_reason,
     pipeline_warp_combos,
     gfx1250_lds_operand_bytes,
     gfx1250_lds_operand_transposed,
     gfx1250_pipeline_reject_reason,
+    pipeline_ring_lds_limit,
 )
 
 logger = logging.getLogger(__name__)
@@ -283,8 +284,9 @@ except ImportError:
         "preshuffle_tdm": 32768,
         # Mandatory double buffering (num_lds_buffers = 2), so half the budget.
         "comp_async": 32768,
-        # Ring of four LDS slots (producer/consumer TDM), so a quarter.
+        # Ring of four LDS slots (producer/consumer and run-ahead TDM), so a quarter.
         "comp_tdm_pc": 16384,
+        "comp_tdm_ra": 16384,
         "wavelet": 65536,
         "default": 65536,
     }
@@ -318,17 +320,24 @@ except ImportError:
         ("compv4", "cshuffle", "interwave"),
         ("compv4", "default", "interwave"),
         ("comp_tdm", "tdm", "interwave"),
+        ("comp_tdm", "tdmstaged", "interwave"),
         ("comp_tdm", "cshuffle", "interwave"),
         ("comp_tdm", "default", "interwave"),
         ("comp_tdm_v2", "tdm", "interwave"),
+        ("comp_tdm_v2", "tdmstaged", "interwave"),
         ("comp_tdm_v2", "cshuffle", "interwave"),
         ("comp_tdm_v2", "default", "interwave"),
         ("comp_tdm_pc", "tdm", "interwave"),
+        ("comp_tdm_pc", "tdmstaged", "interwave"),
         ("comp_tdm_pc", "cshuffle", "interwave"),
         ("comp_tdm_pc", "default", "interwave"),
         ("comp_tdm_v3", "tdm", "interwave"),
+        ("comp_tdm_v3", "tdmstaged", "interwave"),
         ("comp_tdm_v3", "cshuffle", "interwave"),
         ("comp_tdm_v3", "default", "interwave"),
+        ("comp_tdm_ra", "tdm", "interwave"),
+        ("comp_tdm_ra", "cshuffle", "interwave"),
+        ("comp_tdm_ra", "default", "interwave"),
     }
 
     DTYPE_COMBINATIONS = {
@@ -348,20 +357,6 @@ except ImportError:
 # gfx1250; elsewhere the TDM instructions are no-ops and the kernel silently
 # produces zeros.
 TDM_ARCH = "gfx1250"
-
-
-# =============================================================================
-# GPU Family Enum (for backwards compatibility)
-# =============================================================================
-
-
-class GpuFamily(Enum):
-    """GPU architecture families"""
-
-    CDNA2 = "cdna2"
-    CDNA3 = "cdna3"
-    CDNA4 = "cdna4"
-    RDNA4 = "rdna4"
 
 
 # =============================================================================
@@ -445,8 +440,12 @@ class KernelConfig:
     # carry it in their per-pipeline budget.
     double_smem_buffer: bool = False
 
-    # comp_tdm_pc ring slots; 0 is the policy default (the per-pipeline budget).
+    # comp_tdm_pc / comp_tdm_ra ring slots; 0 is the policy default (the
+    # per-pipeline budget).
     num_slots: int = 0
+    # Ring PublishLag / RunAhead (codegen_common.split_pipeline_ring); 0 with
+    # the default ring.
+    ring_param: int = 0
 
     # Layout (for whole-workgroup cover validation)
     layout: str = "rcr"
@@ -651,6 +650,7 @@ class ArchFilter:
         pad_n: Optional[bool] = None,
         pad_k: Optional[bool] = None,
         num_slots: int = 0,
+        ring_param: int = 0,
     ) -> bool:
         """
         Quick validation check for a kernel configuration.
@@ -668,7 +668,8 @@ class ArchFilter:
                      Affects validation rules for tile constraints.
                      Defaults to GEMM if not specified.
             pad_m, pad_n, pad_k: Padding traits; None skips the pad rules.
-            num_slots: comp_tdm_pc ring slots; 0 is the default ring.
+            num_slots: comp_tdm_pc / comp_tdm_ra ring slots; 0 is the default ring.
+            ring_param: ring PublishLag / RunAhead; 0 with the default ring.
 
         Returns:
             True if configuration is valid for this architecture
@@ -696,6 +697,7 @@ class ArchFilter:
             pad_n=pad_n,
             pad_k=pad_k,
             num_slots=num_slots,
+            ring_param=ring_param,
         )
         return self.validate_kernel(config).valid
 
@@ -881,17 +883,18 @@ class ArchFilter:
         self, config: KernelConfig, result: ValidationResult
     ):
         """Validate the gfx1250 pipelines (comp_async, comp_tdm*)
-        and the TDM epilogue.
+        and the TDM epilogues (tdm, tdmstaged).
 
         The rules come from codegen_common.gfx1250_pipeline_reject_reason, the
         single source of truth shared with unified_gemm_codegen and
         python/gemm_utils: TDM pipelines are gfx1250-only (off gfx1250 the TDM
         instructions compile to no-ops and the kernel silently writes zeros),
-        need the TDM epilogue (and vice versa; plain GEMM may also pair
-        codegen_common.GEMM_TDM_CSHUFFLE_PIPELINES with cshuffle), intrawave,
-        unpadded tiles and, for comp_tdm_v2, exactly four waves, for
-        comp_tdm_pc, at most 256 fp32 accumulators per lane; only the plain and
-        preshuffle GEMM operators can use them, plus Stream-K GEMM (below).
+        need a TDM epilogue (and vice versa; tdmstaged also needs a row-major C,
+        and plain GEMM may also pair codegen_common.GEMM_TDM_CSHUFFLE_PIPELINES
+        with cshuffle), intrawave, unpadded tiles and, for comp_tdm_v2, exactly
+        four waves, for comp_tdm_pc, at most 256 fp32 accumulators per lane; only
+        the plain and preshuffle GEMM operators can use them, plus Stream-K GEMM
+        (below).
         Non-MX comp_async GEMM on gfx1250 needs the cshuffle
         epilogue, an rc A/B layout, pad_m=pad_n=pad_k=True and, for fp8/bf8,
         warp_tile_k >= 128 and a 16x16 warp tile (32x32 does not compile).
@@ -912,7 +915,7 @@ class ArchFilter:
         is_streamk = config.operator == OperatorType.GEMM_STREAMK
         if (
             config.pipeline == "comp_async"
-            and config.epilogue != "tdm"
+            and config.epilogue not in TDM_EPILOGUES
             and (self.gpu_arch.split(":")[0] != TDM_ARCH or not (is_gemm or is_streamk))
         ):
             return
@@ -937,8 +940,7 @@ class ArchFilter:
             streamk=is_streamk,
             waves=(config.warp_m, config.warp_n, config.warp_k),
             tile_k=config.tile_k,
-            # The publish lag does not reach this filter; the codegen checks it.
-            ring=(config.num_slots, 0),
+            ring=(config.num_slots, config.ring_param),
         )
         if reason:
             result.add_error(reason)
@@ -988,9 +990,12 @@ class ArchFilter:
             self.gpu_arch, config.pipeline, config.double_smem_buffer
         )
         if config.num_slots:
-            # A non-default comp_tdm_pc ring splits the LDS over its own slots.
-            max_lds = comp_tdm_pc_lds_limit(
-                get_lds_limit(self.gpu_arch, "default"), config.num_slots
+            # A non-default comp_tdm_pc / comp_tdm_ra ring splits the LDS over its
+            # own slots.
+            max_lds = pipeline_ring_lds_limit(
+                config.pipeline,
+                get_lds_limit(self.gpu_arch, "default"),
+                config.num_slots,
             )
 
         if total_lds > max_lds:
@@ -1003,9 +1008,11 @@ class ArchFilter:
                 f"Matrix B: {config.tile_n}x{config.tile_k}x{elem_size_b}={matrix_b_size}B"
             )
 
-        if is_gfx1250 and config.epilogue == "tdm":
+        if is_gfx1250 and config.epilogue in TDM_EPILOGUES:
             # TdmEpilogue stages the full output tile in the shared LDS
             # allocation, so it must fit the whole LDS (the "default" budget).
+            # tdmstaged needs at most that (its slab buffers never exceed the
+            # full tile), so the same bound covers it, as in the Tile Engine.
             # A TDM pipeline with the CShuffle epilogue (comp_tdm_v3, Stream-K)
             # does not.
             c_dtype = CommonTypeMappings.get_output_dtype(config.datatype_a)

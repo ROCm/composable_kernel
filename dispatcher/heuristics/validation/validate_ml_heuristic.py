@@ -11,9 +11,13 @@ This script validates ML-based kernel selection by:
 2. Using ML model to predict best kernel for each shape
 3. Comparing ML selection with oracle-best to compute efficiency
 
-Usage:
-    python validate_ml_heuristic.py --dtype fp16 --model_dir models/gemm_universal_fp16_gfx950
-    python validate_ml_heuristic.py --dtype fp8 --layout rcr
+Usage (from dispatcher/heuristics/):
+    python validation/validate_ml_heuristic.py --dtype fp16 --model_dir models/gemm_universal_fp16_gfx950
+    python validation/validate_ml_heuristic.py --dtype fp8 --layout rcr
+
+Default model and data paths resolve against the heuristics root
+(dispatcher/heuristics/), not this script's directory, so the script can be
+invoked from any working directory.
 """
 
 import sys
@@ -22,7 +26,13 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-from predict import Predictor
+# This script lives in heuristics/validation/; predict.py, models/ and data/
+# live one level up in heuristics/.
+_HEURISTICS_DIR = Path(__file__).resolve().parents[1]
+if str(_HEURISTICS_DIR) not in sys.path:
+    sys.path.insert(0, str(_HEURISTICS_DIR))
+
+from predict import Predictor  # noqa: E402
 
 
 def validate_ml_heuristic(dtype: str, layout: str, model_dir: str, data_dir: str):
@@ -288,10 +298,9 @@ def main():
 
     # Auto-detect model directory if not specified
     if args.model_dir is None:
-        heuristics_dir = Path(__file__).parent
         model_candidates = [
-            heuristics_dir / "models" / f"gemm_universal_{args.dtype}_gfx950",
-            heuristics_dir / "models" / f"gemm_universal_{args.dtype}_gfx942",
+            _HEURISTICS_DIR / "models" / f"gemm_universal_{args.dtype}_gfx950",
+            _HEURISTICS_DIR / "models" / f"gemm_universal_{args.dtype}_gfx942",
         ]
         for candidate in model_candidates:
             if candidate.exists():
@@ -306,8 +315,7 @@ def main():
 
     # Auto-detect data directory if not specified
     if args.data_dir is None:
-        heuristics_dir = Path(__file__).parent
-        args.data_dir = str(heuristics_dir / "data")
+        args.data_dir = str(_HEURISTICS_DIR / "data")
 
     validate_ml_heuristic(args.dtype, args.layout, args.model_dir, args.data_dir)
     return 0

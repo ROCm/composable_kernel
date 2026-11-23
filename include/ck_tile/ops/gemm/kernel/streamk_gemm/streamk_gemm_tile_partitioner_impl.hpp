@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+
+#include <limits>
+
 #include "streamk_gemm_tile_partitioner.hpp"
 namespace ck_tile {
 
@@ -14,11 +17,59 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTi
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTilePartitionerBase(
-    index_t m, index_t n, index_t k, index_t max_active_wgs, index_t num_cu)
-    : max_active_wgs_{max_active_wgs}, n_{n}, k_{k}
+    index_t m, index_t n, index_t k, index_t max_active_wgs, index_t num_cu, index_t batch_count)
+    : tiles_per_batch_{0},
+      num_tiles_{0},
+      max_active_wgs_{max_active_wgs},
+      dp_tiles_{0},
+      sk_tiles_{0},
+      sk_ctas_{0},
+      total_sk_iters_{0},
+      iters_per_tile_{0},
+      iters_per_sk_cta_{0},
+      extra_iters_{0},
+      total_dp_iters_{0},
+      n_{n},
+      k_{k},
+      remainder_along_k_{0}
 {
-    iters_per_tile_    = integer_divide_ceil(k, KPerBlock);
-    num_tiles_         = integer_divide_ceil(m, MPerBlock) * integer_divide_ceil(n_, NPerBlock);
+    if(m <= 0 || n <= 0 || k <= 0 || max_active_wgs <= 0 || batch_count <= 0)
+    {
+        return;
+    }
+
+    // StreamKKernel::MakeKernelArgs constructs the partitioner before IsSupportedArgument runs, so
+    // compute the tile and iteration counts in 64-bit arithmetic and leave num_tiles_ == 0
+    // (invalid) instead of overflowing signed 32-bit index_t when an oversized problem is probed.
+    constexpr long_index_t kMaxIndex = std::numeric_limits<index_t>::max();
+    const long_index_t m_tiles =
+        integer_divide_ceil(static_cast<long_index_t>(m), static_cast<long_index_t>(MPerBlock));
+    const long_index_t n_tiles =
+        integer_divide_ceil(static_cast<long_index_t>(n_), static_cast<long_index_t>(NPerBlock));
+    const long_index_t iters_per_tile =
+        integer_divide_ceil(static_cast<long_index_t>(k_), static_cast<long_index_t>(KPerBlock));
+
+    const long_index_t tiles_per_batch = m_tiles * n_tiles;
+    if(tiles_per_batch > kMaxIndex)
+    {
+        return;
+    }
+
+    const long_index_t num_tiles = tiles_per_batch * static_cast<long_index_t>(batch_count);
+    if(num_tiles > kMaxIndex)
+    {
+        return;
+    }
+
+    const long_index_t total_iters = num_tiles * iters_per_tile;
+    if(total_iters > kMaxIndex)
+    {
+        return;
+    }
+
+    iters_per_tile_    = static_cast<index_t>(iters_per_tile);
+    tiles_per_batch_   = static_cast<index_t>(tiles_per_batch);
+    num_tiles_         = static_cast<index_t>(num_tiles);
     remainder_along_k_ = k % KPerBlock;
 
     bool big_enough         = num_tiles_ > max_active_wgs_;
@@ -32,11 +83,13 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTi
         num_cu > 0 && max_active_wgs_ % num_cu == 0 && num_tiles_ % num_cu == 0;
     if(remainder_tiles && !dp_balanced_on_cus)
     {
-        sk_tiles_ = big_enough ? full_tiles_ * max_active_wgs_ + (num_tiles_ % max_active_wgs_)
-                               : num_tiles_;
-        sk_tiles_ = min(num_tiles_, sk_tiles_);
-        sk_ctas_  = max_active_wgs_;
-        total_sk_iters_ = sk_tiles_ * iters_per_tile_;
+        const long_index_t candidate_sk_tiles =
+            big_enough ? static_cast<long_index_t>(full_tiles_) * max_active_wgs_ + remainder_tiles
+                       : num_tiles;
+        sk_tiles_       = static_cast<index_t>(min(num_tiles, candidate_sk_tiles));
+        sk_ctas_        = max_active_wgs_;
+        total_sk_iters_ = static_cast<index_t>(static_cast<long_index_t>(sk_tiles_) *
+                                               static_cast<long_index_t>(iters_per_tile_));
 
         // If there still isn't enough work to saturate all CUs, then just revert to DP only.
         if(total_sk_iters_ < max_active_wgs_)
@@ -57,7 +110,8 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTi
     extra_iters_      = sk_ctas_ ? total_sk_iters_ % sk_ctas_ : 0;
 
     dp_tiles_       = num_tiles_ - sk_tiles_;
-    total_dp_iters_ = dp_tiles_ * iters_per_tile_;
+    total_dp_iters_ = static_cast<index_t>(static_cast<long_index_t>(dp_tiles_) *
+                                           static_cast<long_index_t>(iters_per_tile_));
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
@@ -153,6 +207,15 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_tile_
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 CK_TILE_DEVICE auto
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_batch_tile_index(
+    index_t tile_idx) const noexcept -> tuple<index_t, index_t>
+{
+    const index_t i_batch = amd_wave_read_first_lane(tile_idx / tiles_per_batch_);
+    return make_tuple(i_batch, amd_wave_read_first_lane(tile_idx - i_batch * tiles_per_batch_));
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+CK_TILE_DEVICE auto
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_output_tile_index(
     index_t tile_idx) const noexcept -> tuple<index_t, index_t>
 {
@@ -181,11 +244,26 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_works
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+CK_TILE_HOST_DEVICE bool
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::is_valid() const noexcept
+{
+    return num_tiles_ > 0;
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 CK_TILE_HOST_DEVICE index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_num_tiles()
     const noexcept
 {
     return num_tiles_;
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+CK_TILE_HOST_DEVICE index_t
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_tiles_per_batch()
+    const noexcept
+{
+    return tiles_per_batch_;
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
@@ -405,12 +483,13 @@ StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::StreamK
     ck_tile::index_t n,
     ck_tile::index_t k,
     ck_tile::index_t max_active_wgs,
-    ck_tile::index_t num_cu)
+    ck_tile::index_t num_cu,
+    ck_tile::index_t batch_count)
     : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(
-          m, n, k, max_active_wgs, num_cu)
+          m, n, k, max_active_wgs, num_cu, batch_count)
 { // inherit from base constructor
-    dp_tiles_per_cta_ = this->dp_tiles_ / this->max_active_wgs_;
-    extra_dp_tiles_   = this->dp_tiles_ % this->max_active_wgs_;
+    dp_tiles_per_cta_ = this->max_active_wgs_ > 0 ? this->dp_tiles_ / this->max_active_wgs_ : 0;
+    extra_dp_tiles_   = this->max_active_wgs_ > 0 ? this->dp_tiles_ % this->max_active_wgs_ : 0;
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
@@ -424,7 +503,7 @@ StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::grid_si
     {
         return dim3(this->max_active_wgs_, 1, 1);
     }
-    return dim3(min(this->max_active_wgs_, this->num_tiles_), 1, 1);
+    return dim3(max(index_t{0}, min(this->max_active_wgs_, this->num_tiles_)), 1, 1);
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
@@ -457,9 +536,10 @@ StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>::Stream
     ck_tile::index_t n,
     ck_tile::index_t k,
     ck_tile::index_t max_active_wgs,
-    ck_tile::index_t num_cu)
+    ck_tile::index_t num_cu,
+    ck_tile::index_t batch_count)
     : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(
-          m, n, k, max_active_wgs, num_cu)
+          m, n, k, max_active_wgs, num_cu, batch_count)
 { // inherit from base constructor
     dp_ctas_            = this->dp_tiles_;
     dp_start_block_idx_ = 0;

@@ -134,10 +134,12 @@ amd_assembly_outer_product_1x2(half2_t a, half2_t b0, half2_t b1, float& c0, flo
 __device__ void
 amd_assembly_outer_product_1x2(half4_t a, half4_t b0, half4_t b1, float& c0, float& c1)
 {
-    // TODO remove pointer casting
-    const half2_t* p_a_half2  = c_style_pointer_cast<const half2_t*>(&a);
-    const half2_t* p_b0_half2 = c_style_pointer_cast<const half2_t*>(&b0);
-    const half2_t* p_b1_half2 = c_style_pointer_cast<const half2_t*>(&b1);
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    const vector_type<half_t, 4> va{a};
+    const vector_type<half_t, 4> vb0{b0};
+    const vector_type<half_t, 4> vb1{b1};
 
     // do dot2 two times
     asm volatile("\n \
@@ -147,12 +149,12 @@ amd_assembly_outer_product_1x2(half4_t a, half4_t b0, half4_t b1, float& c0, flo
             v_dot2_f32_f16 %1, %3, %7, %1\n \
             "
                  : "=v"(c0), "=v"(c1)
-                 : "v"(p_a_half2[0]),
-                   "v"(p_a_half2[1]),
-                   "v"(p_b0_half2[0]),
-                   "v"(p_b0_half2[1]),
-                   "v"(p_b1_half2[0]),
-                   "v"(p_b1_half2[1]),
+                 : "v"(va.AsType<half2_t>()[I0]),
+                   "v"(va.AsType<half2_t>()[I1]),
+                   "v"(vb0.AsType<half2_t>()[I0]),
+                   "v"(vb0.AsType<half2_t>()[I1]),
+                   "v"(vb1.AsType<half2_t>()[I0]),
+                   "v"(vb1.AsType<half2_t>()[I1]),
                    "0"(c0),
                    "1"(c1));
 }
@@ -195,12 +197,14 @@ __device__ void amd_assembly_outer_product_1x4(half4_t a,
                                                float& c2,
                                                float& c3)
 {
-    // TODO remove pointer casting
-    const half2_t* p_a_half2  = c_style_pointer_cast<const half2_t*>(&a);
-    const half2_t* p_b0_half2 = c_style_pointer_cast<const half2_t*>(&b0);
-    const half2_t* p_b1_half2 = c_style_pointer_cast<const half2_t*>(&b1);
-    const half2_t* p_b2_half2 = c_style_pointer_cast<const half2_t*>(&b2);
-    const half2_t* p_b3_half2 = c_style_pointer_cast<const half2_t*>(&b3);
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    const vector_type<half_t, 4> va{a};
+    const vector_type<half_t, 4> vb0{b0};
+    const vector_type<half_t, 4> vb1{b1};
+    const vector_type<half_t, 4> vb2{b2};
+    const vector_type<half_t, 4> vb3{b3};
 
     // do dot2 two times
     asm volatile("\n \
@@ -214,16 +218,16 @@ __device__ void amd_assembly_outer_product_1x4(half4_t a,
             v_dot2_f32_f16 %3, %5, %13, %3\n \
             "
                  : "=v"(c0), "=v"(c1), "=v"(c2), "=v"(c3)
-                 : "v"(p_a_half2[0]),
-                   "v"(p_a_half2[1]),
-                   "v"(p_b0_half2[0]),
-                   "v"(p_b0_half2[1]),
-                   "v"(p_b1_half2[0]),
-                   "v"(p_b1_half2[1]),
-                   "v"(p_b2_half2[0]),
-                   "v"(p_b2_half2[1]),
-                   "v"(p_b3_half2[0]),
-                   "v"(p_b3_half2[1]),
+                 : "v"(va.AsType<half2_t>()[I0]),
+                   "v"(va.AsType<half2_t>()[I1]),
+                   "v"(vb0.AsType<half2_t>()[I0]),
+                   "v"(vb0.AsType<half2_t>()[I1]),
+                   "v"(vb1.AsType<half2_t>()[I0]),
+                   "v"(vb1.AsType<half2_t>()[I1]),
+                   "v"(vb2.AsType<half2_t>()[I0]),
+                   "v"(vb2.AsType<half2_t>()[I1]),
+                   "v"(vb3.AsType<half2_t>()[I0]),
+                   "v"(vb3.AsType<half2_t>()[I1]),
                    "0"(c0),
                    "1"(c1),
                    "2"(c2),
@@ -240,19 +244,34 @@ __device__ void amd_assembly_outer_product_1x4(half8_t a,
                                                float& c2,
                                                float& c3)
 {
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
 
-    // TODO remove pointer casting
-    const half4_t* p_a_half4  = c_style_pointer_cast<const half4_t*>(&a);
-    const half4_t* p_b0_half4 = c_style_pointer_cast<const half4_t*>(&b0);
-    const half4_t* p_b1_half4 = c_style_pointer_cast<const half4_t*>(&b1);
-    const half4_t* p_b2_half4 = c_style_pointer_cast<const half4_t*>(&b2);
-    const half4_t* p_b3_half4 = c_style_pointer_cast<const half4_t*>(&b3);
+    const vector_type<half_t, 8> va{a};
+    const vector_type<half_t, 8> vb0{b0};
+    const vector_type<half_t, 8> vb1{b1};
+    const vector_type<half_t, 8> vb2{b2};
+    const vector_type<half_t, 8> vb3{b3};
 
-    amd_assembly_outer_product_1x4(
-        p_a_half4[0], p_b0_half4[0], p_b1_half4[0], p_b2_half4[0], p_b3_half4[0], c0, c1, c2, c3);
+    amd_assembly_outer_product_1x4(va.AsType<half4_t>()[I0],
+                                   vb0.AsType<half4_t>()[I0],
+                                   vb1.AsType<half4_t>()[I0],
+                                   vb2.AsType<half4_t>()[I0],
+                                   vb3.AsType<half4_t>()[I0],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
 
-    amd_assembly_outer_product_1x4(
-        p_a_half4[1], p_b0_half4[1], p_b1_half4[1], p_b2_half4[1], p_b3_half4[1], c0, c1, c2, c3);
+    amd_assembly_outer_product_1x4(va.AsType<half4_t>()[I1],
+                                   vb0.AsType<half4_t>()[I1],
+                                   vb1.AsType<half4_t>()[I1],
+                                   vb2.AsType<half4_t>()[I1],
+                                   vb3.AsType<half4_t>()[I1],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
 }
 
 __device__ void amd_assembly_outer_product_1x4(half16_t a,
@@ -265,18 +284,34 @@ __device__ void amd_assembly_outer_product_1x4(half16_t a,
                                                float& c2,
                                                float& c3)
 {
-    // TODO remove pointer casting
-    const half8_t* p_a_half8  = c_style_pointer_cast<const half8_t*>(&a);
-    const half8_t* p_b0_half8 = c_style_pointer_cast<const half8_t*>(&b0);
-    const half8_t* p_b1_half8 = c_style_pointer_cast<const half8_t*>(&b1);
-    const half8_t* p_b2_half8 = c_style_pointer_cast<const half8_t*>(&b2);
-    const half8_t* p_b3_half8 = c_style_pointer_cast<const half8_t*>(&b3);
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
 
-    amd_assembly_outer_product_1x4(
-        p_a_half8[0], p_b0_half8[0], p_b1_half8[0], p_b2_half8[0], p_b3_half8[0], c0, c1, c2, c3);
+    const vector_type<half_t, 16> va{a};
+    const vector_type<half_t, 16> vb0{b0};
+    const vector_type<half_t, 16> vb1{b1};
+    const vector_type<half_t, 16> vb2{b2};
+    const vector_type<half_t, 16> vb3{b3};
 
-    amd_assembly_outer_product_1x4(
-        p_a_half8[1], p_b0_half8[1], p_b1_half8[1], p_b2_half8[1], p_b3_half8[1], c0, c1, c2, c3);
+    amd_assembly_outer_product_1x4(va.AsType<half8_t>()[I0],
+                                   vb0.AsType<half8_t>()[I0],
+                                   vb1.AsType<half8_t>()[I0],
+                                   vb2.AsType<half8_t>()[I0],
+                                   vb3.AsType<half8_t>()[I0],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
+
+    amd_assembly_outer_product_1x4(va.AsType<half8_t>()[I1],
+                                   vb0.AsType<half8_t>()[I1],
+                                   vb1.AsType<half8_t>()[I1],
+                                   vb2.AsType<half8_t>()[I1],
+                                   vb3.AsType<half8_t>()[I1],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
 }
 
 // c0 += inner_product(a, b0)

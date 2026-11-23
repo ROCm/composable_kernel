@@ -15,9 +15,9 @@ grouped_conv/
   run_one_grouped_conv_kernel.py     Subprocess worker (one kernel, fresh GPU context)
   README.md                          This file
   configs/                           Kernel trait configurations
-    forward_bf16.json                  Forward bf16 (compv3/v4/v5)
-    bwd_data.json                      Backward data (compv3 / mem)
-    bwd_weight.json                    Backward weight (compv3 / mem)
+    forward_2d.json / forward_3d.json        Forward (bf16)
+    bwd_data_2d.json / bwd_data_3d.json      Backward data (bf16)
+    bwd_weight_2d.json / bwd_weight_3d.json  Backward weight (bf16)
   problems/                          Problem datasets (registry keys consumed by --problems)
     forward_2d.py / forward_3d.py
     bwd_data_2d.py / bwd_data_3d.py
@@ -30,10 +30,10 @@ grouped_conv/
 
 ```bash
 # Count kernels matching a trait config without compiling
-python grouped_conv_instance_builder.py configs/forward_bf16.json --arch gfx950 --count-only
+python grouped_conv_instance_builder.py configs/forward_2d.json --arch gfx950 --count-only
 
 # List kernel names
-python grouped_conv_instance_builder.py configs/forward_bf16.json --arch gfx950 --list
+python grouped_conv_instance_builder.py configs/forward_2d.json --arch gfx950 --list
 
 # Smoke benchmark: forward 2D on the validation subset
 python grouped_conv_full_benchmark.py \
@@ -110,12 +110,12 @@ Allowed keys mirror `GroupedConvKernelConfig` fields. See `dispatcher/codegen/gr
 
 ```bash
 # Only large tiles on compv5
-python grouped_conv_instance_builder.py configs/forward_bf16.json \
+python grouped_conv_instance_builder.py configs/forward_2d.json \
   --arch gfx950 \
   --filter "c.tile_n >= 128 and c.pipeline == 'compv5'" --list
 
 # Export the resolved kernel list to JSON
-python grouped_conv_instance_builder.py configs/forward_bf16.json \
+python grouped_conv_instance_builder.py configs/forward_2d.json \
   --arch gfx950 --export-json kernels.json
 ```
 

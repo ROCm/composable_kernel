@@ -1,0 +1,112 @@
+{
+    "_comment": [
+        "Batched Stream-K on the universal pipelines (compv3, compv4, mem) with the gfx9 MFMA",
+        "32x32x16 warp tile: StreamKKernel folds the batch into its tile space and shares the",
+        "data-parallel and Stream-K work over batch x tiles. Persistent and not, every reduction",
+        "strategy; padded, so every shape runs. The streamk_config block makes",
+        "batched_gemm_full_benchmark.py expand it to Stream-K kernels.",
+        "Usage: python batched_gemm_full_benchmark.py batched_gemm/configs/streamk_config.json",
+        "  --dtype bf16 --layout rcr --verify [--budget-pct 100,50]"
+    ],
+    "tile_config": {
+        "tile_m": {
+            "values": [
+                64,
+                128,
+                256
+            ]
+        },
+        "tile_n": {
+            "values": [
+                64,
+                128,
+                256
+            ]
+        },
+        "tile_k": {
+            "values": [
+                64
+            ]
+        },
+        "warp_m": {
+            "values": [
+                2
+            ]
+        },
+        "warp_n": {
+            "values": [
+                2
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                32
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                32
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                16
+            ]
+        }
+    },
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "compv3",
+                "compv4",
+                "mem"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "cshuffle"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                true
+            ]
+        },
+        "pad_n": {
+            "values": [
+                true
+            ]
+        },
+        "pad_k": {
+            "values": [
+                true
+            ]
+        },
+        "persistent": {
+            "values": [
+                false,
+                true
+            ]
+        }
+    },
+    "streamk_config": {
+        "reduction_strategy": {
+            "values": [
+                "atomic",
+                "linear",
+                "tree"
+            ]
+        }
+    },
+    "k_block_per_cu": 1
+}

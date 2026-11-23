@@ -244,6 +244,12 @@ TYPED_TEST(TestCkTileGemmMultiABDPC, RaggedM_300x256x256) { this->Run(300, 256, 
 
 TYPED_TEST(TestCkTileGemmMultiABDPC, HostChecks)
 {
+    // IsSupportedArgument rejects the producer/consumer pipeline off gfx1250 before it looks at
+    // the arguments, so the checks below only mean something on gfx1250.
+    if(!ck_tile::is_gfx125_supported())
+    {
+        GTEST_SKIP() << "the producer/consumer pipeline requires a gfx125 device";
+    }
     EXPECT_TRUE(TestFixture::Supported(256, 256, 256, 1));
     // A ragged contiguous dimension of E would write past the row end.
     EXPECT_FALSE(TestFixture::Supported(256, 250, 256, 1));

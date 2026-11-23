@@ -1129,6 +1129,27 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
                     return false;
                 }
             }
+
+            // With 32-bit indices the 1x1 descriptor does not pad GemmK: the K dimension is split
+            // into (AK0 * k_batch, AK1) tiles of KPerBlock, so loads past ConvK are not marked
+            // invalid. The direct loads of gfx125 (global_load_async_to_lds) have no bounds
+            // check, so they would read past the tensor. On gfx950 the buffer loads are bounded
+            // by the descriptor element space.
+            if constexpr(DirectLoad && !LargeTensors)
+            {
+                if(is_gfx125_supported() && ConvK % (KPerBlock * arg.k_batch_) != 0)
+                {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "ConvK must be divisible by KPerBlock * SplitK for the 1x1 "
+                                     "specialization with direct loads on gfx125!"
+                                  << " In " << __FILE__ << ":" << __LINE__
+                                  << ", in function: " << __func__ << std::endl;
+                    }
+
+                    return false;
+                }
+            }
         }
 
         // vector load for A matrix from global memory to LDS

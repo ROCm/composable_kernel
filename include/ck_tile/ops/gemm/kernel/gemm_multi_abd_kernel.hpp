@@ -131,6 +131,9 @@ struct GemmKernelMultiABD
                       DsLayout::size() == DsDataType::size() && DsLayout::size() > 0,
                   "DsLayout and DsDataType must be tuples and must have the same size.");
 
+    static_assert(!UniversalGemmKernel::kIsPlainGemmOnlyPipeline,
+                  "MultiABD GEMM does not support this pipeline (plain GEMM only)");
+
     /// @brief The sizes of NumATensor, NumBTensor and NumDTensor is set by the user."
     static constexpr index_t NumATensor = AsDataType::size();
     static constexpr index_t NumBTensor = BsDataType::size();

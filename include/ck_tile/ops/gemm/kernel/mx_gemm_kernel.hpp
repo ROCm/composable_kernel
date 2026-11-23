@@ -378,6 +378,11 @@ struct MxGemmKernel
     static constexpr index_t NXdlPackEff = MxGemmPipeline::NXdlPackEff;
     static constexpr index_t KXdlPackEff = MxGemmPipeline::KXdlPackEff;
 
+    // MxGroupedGemmKernel derives from this kernel, so this covers it too.
+    static_assert(!BaseKernel::kIsGemmKernelOnlyPipeline,
+                  "MX GEMM does not support this pipeline (validated with the plain GEMM kernel "
+                  "only)");
+
     // Protects the K loop of the TDM pipelines' block GEMM (BlockGemmARegBRegCRegV1): it runs
     // KPerBlock / (WarpTile K) warp GEMMs per K tile (KIterPerWarp) and drops any remainder, so a
     // K tile that is not a whole number of warp tiles would skip K values in every K tile.

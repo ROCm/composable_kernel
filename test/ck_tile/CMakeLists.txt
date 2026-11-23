@@ -81,9 +81,6 @@ if(BUILD_CK_TILE_FMHA_TESTS)
     add_subdirectory(fmha)
 endif()
 if(BUILD_CK_TILE_ENGINE_TESTS)
-# TODO: The Universal GEMM tile engine test will be either removed
-# or moved to the appropriate location in future work.
-#   add_subdirectory(gemm_tile_engine)
     add_subdirectory(pooling_tile_engine)
 endif()
 add_subdirectory(pooling)

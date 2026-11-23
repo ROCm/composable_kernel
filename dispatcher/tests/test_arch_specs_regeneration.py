@@ -9,7 +9,9 @@ exactly what generate_arch_specs.py emits from arch_specs.json.
 
 A hand edit to either generated file is silently dropped the next time anyone
 regenerates, so every rule must live in arch_specs.json or in the generator.
-Only the "Generated at:" timestamp line is allowed to differ.
+Only the "Generated at:" timestamp line is allowed to differ. The generator
+formats its output with ruff (Python) and clang-format (C++), the same tools
+pre-commit runs; each comparison is skipped when its formatter is missing.
 
 Run: python3 -m pytest tests/test_arch_specs_regeneration.py -v
 """
@@ -30,6 +32,9 @@ COMMITTED_PY = CODEGEN_DIR / "arch_specs_generated.py"
 COMMITTED_HPP = (
     DISPATCHER_DIR / "include" / "ck_tile" / "dispatcher" / "arch_specs_generated.hpp"
 )
+
+sys.path.insert(0, str(CODEGEN_DIR))
+import generate_arch_specs  # noqa: E402
 
 
 def _strip_timestamp(text: str) -> list:
@@ -74,6 +79,8 @@ class TestArchSpecsRegeneration(unittest.TestCase):
         )
 
     def test_python_module_matches_committed(self):
+        if generate_arch_specs.find_ruff() is None:
+            self.skipTest("ruff not available; module is left unformatted")
         self._assert_same(self.regen_py, COMMITTED_PY)
 
     def test_cpp_header_matches_committed(self):

@@ -266,6 +266,21 @@ set_tests_properties(dispatcher_test_batched_bridge PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# Batched Stream-K and the batched comp_tdm_v3 / comp_tdm_pc kernels in the batched
+# bridge: naming, sweep expansion, compile flags, the Stream-K launch and C reset,
+# and the batched benchmark's per-budget work units. CPU-only.
+add_test(
+    NAME dispatcher_test_batched_streamk_bridge
+    COMMAND ${Python3_EXECUTABLE} -m unittest discover -s ${CMAKE_CURRENT_SOURCE_DIR} -p test_batched_streamk_bridge.py -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_batched_streamk_bridge PROPERTIES
+    LABELS "dispatcher;python;gemm;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # Architecture-aware LDS staging budget regression test
 add_test(
     NAME dispatcher_test_lds_capacity_arch_aware
@@ -320,7 +335,7 @@ set_tests_properties(dispatcher_test_gemm_driver_verify PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
-# gfx1250 comp_async / comp_tdm / comp_tdm_v2 pipelines and the tdm epilogue:
+# gfx1250 comp_async / comp_tdm / comp_tdm_v2 pipelines and the tdm / tdmstaged epilogues:
 # ArchFilter, codegen and gemm_utils gates, LDS budget and codegen output.
 # CPU-only.
 add_test(
@@ -347,6 +362,22 @@ set_tests_properties(dispatcher_test_gfx1250_gate_equivalence PROPERTIES
     LABELS "dispatcher;python;codegen;validation"
     TIMEOUT 120
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# The Tile Engine side of that gate (gemm_validation_utils trait/tile rules and the
+# instance builder) has no CTest of its own; registered here so CI runs it next to
+# the equivalence test. CPU-only.
+set(TE_GEMM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../tile_engine/ops/gemm)
+add_test(
+    NAME dispatcher_test_tile_engine_gfx1250_pipelines
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${TE_GEMM_DIR}/test_gfx1250_pipelines.py
+    WORKING_DIRECTORY ${TE_GEMM_DIR}
+)
+
+set_tests_properties(dispatcher_test_tile_engine_gfx1250_pipelines PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${TE_GEMM_DIR}"
 )
 
 # Stream-K on the gfx1250 comp_tdm / comp_tdm_v2 pipelines: the reduction x
@@ -984,8 +1015,8 @@ foreach(test_source ${TEST_SOURCES})
     set_tests_properties(${test_name} PROPERTIES LABELS "dispatcher;cpp;unit")
 endforeach()
 
-# Instantiates the GEMM backends, so the ck_tile headers need HIP compilation
-# (no GPU is touched at runtime).
+# Instantiates the GEMM backends, so the ck_tile headers need HIP compilation. No kernel is
+# launched; the gfx125 gate tests only query the current device (no device reads as not gfx125).
 if(hip_FOUND)
     target_link_libraries(test_generated_backend PRIVATE hip::device hip::host)
 endif()

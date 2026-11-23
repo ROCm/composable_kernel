@@ -23,6 +23,7 @@ ELEMENT_SIZE_MAP = {
     "fp64": 8,
 }
 
+
 def get_warp_size_for_gpu(gpu_target: str) -> int:
     """Get the warp size for a given GPU target.
 
@@ -32,6 +33,7 @@ def get_warp_size_for_gpu(gpu_target: str) -> int:
     if gpu_target.startswith("gfx9"):
         return 64  # CDNA - WAVE64
     return 32  # RDNA and others - WAVE32
+
 
 # Supported warp combinations for different GPU architectures and data types
 WARP_SUPPORTED_COMBINATIONS = {
@@ -141,10 +143,18 @@ def element_size(data_type: str) -> float:
         raise ValueError(f"Unsupported data type: {data_type}")
     return ELEMENT_SIZE_MAP[data_type]
 
+
+# The only pipelines this builder can instantiate (its pipeline_impl_map). Any other name, e.g.
+# a gfx1250 TDM pipeline such as comp_tdm_ra, is rejected rather than emitted under that name.
+STREAMK_PIPELINES = ("mem", "compv3", "compv4")
+
+
 def is_trait_combination_valid(
     pipeline: str, epilogue: str, scheduler: str, reduction_strategy: str
 ) -> bool:
     """Check if a trait combination is valid."""
+    if pipeline not in STREAMK_PIPELINES:
+        return False
     return (
         pipeline,
         epilogue,
@@ -165,7 +175,9 @@ def validate_warp_configuration(
 
     allowed_combinations = WARP_SUPPORTED_COMBINATIONS.get(base_gpu_name)
     if not allowed_combinations:
-        logging.debug(f"No warp_[m/n/k] combinations found for GPU: {base_gpu_name}; using defaults")
+        logging.debug(
+            f"No warp_[m/n/k] combinations found for GPU: {base_gpu_name}; using defaults"
+        )
         allowed_combinations = [[1, 4, 1], [2, 2, 1], [4, 1, 1]]
 
     # Check if current combination is in the allowed list
@@ -173,6 +185,7 @@ def validate_warp_configuration(
         return False
 
     return True
+
 
 def validate_dimension_alignment(
     tile_m: int,
@@ -203,13 +216,15 @@ def validate_dimension_alignment(
 
     return len(alignment_issues) == 0, alignment_issues
 
+
 LDS_SIZE_MAP = {
-    "gfx90a": 2**16,   # 64KB
-    "gfx942": 2**16,   # 64KB
+    "gfx90a": 2**16,  # 64KB
+    "gfx942": 2**16,  # 64KB
     "gfx950": 160 * 1024,  # 160KB
 }
 
 DEFAULT_LDS_SIZE = 2**16  # 64KB
+
 
 def validate_lds_capacity(
     tile_m: int,
@@ -241,6 +256,7 @@ def validate_lds_capacity(
         return False, error_msg
 
     return True, ""
+
 
 def validate_warp_tile_combination(
     warp_tile_m: int,
@@ -358,11 +374,20 @@ def is_tile_config_valid(
         return False
 
     gemm_valid, gemm_error = validate_gemm(
-        tile_m, tile_n, tile_k,
-        warp_m, warp_n, warp_k,
-        warp_tile_m, warp_tile_n, warp_tile_k,
-        a_datatype, b_datatype, c_datatype,
-        pipeline, layout,
+        tile_m,
+        tile_n,
+        tile_k,
+        warp_m,
+        warp_n,
+        warp_k,
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
+        a_datatype,
+        b_datatype,
+        c_datatype,
+        pipeline,
+        layout,
         gpu_target,
     )
     if not gemm_valid:
@@ -371,7 +396,12 @@ def is_tile_config_valid(
 
     # Validate warp tile combination
     warp_tile_valid, warp_tile_error = validate_warp_tile_combination(
-        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, b_datatype, c_datatype,
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
+        a_datatype,
+        b_datatype,
+        c_datatype,
         gpu_target,
     )
     if not warp_tile_valid:
@@ -379,6 +409,7 @@ def is_tile_config_valid(
         return False
 
     return True
+
 
 def validate_whole_wg_cover_configuration(
     tile_m,
@@ -485,6 +516,7 @@ def validate_whole_wg_cover_configuration(
 
     return True, ""
 
+
 def wg_cover_core_validation(
     XPerTile: int,
     YPerTile: int,
@@ -547,7 +579,10 @@ def validate_cshuffle_epilogue_distribution(
     YPerTile = tile_m // warp_m
 
     if XPerTile <= 0 or YPerTile <= 0:
-        return False, f"Invalid tile dimensions: XPerTile={XPerTile}, YPerTile={YPerTile}"
+        return (
+            False,
+            f"Invalid tile dimensions: XPerTile={XPerTile}, YPerTile={YPerTile}",
+        )
 
     num_warps = BlockSize // warp_size
     if num_warps * warp_size == 0:
@@ -569,7 +604,7 @@ def validate_cshuffle_epilogue_distribution(
         return (
             False,
             f"CShuffleEpilogue distribution invalid: X0({X0}) * Y1({Y1}) = {X0 * Y1} != warp_size({warp_size}). "
-            f"XPerTile={XPerTile}, YPerTile={YPerTile}, VecSize={VecSize}, BlockSize={BlockSize}"
+            f"XPerTile={XPerTile}, YPerTile={YPerTile}, VecSize={VecSize}, BlockSize={BlockSize}",
         )
 
     return True, ""
@@ -616,6 +651,7 @@ def get_global_vector_load_size(
         return int(PackedSize * 2 / element_size(DataType))
     else:
         return PackedSize
+
 
 def validate_gemm(
     tile_m: int,
@@ -677,4 +713,3 @@ def validate_gemm(
         return False, cshuffle_error
 
     return True, ""
-

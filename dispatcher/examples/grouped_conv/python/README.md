@@ -82,7 +82,7 @@ Typical training flow:
 ```bash
 # 1. Benchmark to CSV (slow)
 cd tile_engine/ops/grouped_conv
-python3 -u grouped_conv_full_benchmark.py configs/forward_bf16.json \
+python3 -u grouped_conv_full_benchmark.py configs/forward_2d.json \
   --arch gfx950 --problems forward_training \
   --csv benchmark_forward_bf16_gfx950.csv --workers 8
 

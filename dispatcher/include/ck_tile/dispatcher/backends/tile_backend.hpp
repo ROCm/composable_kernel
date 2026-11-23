@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/dispatcher/kernel_instance.hpp"
+#include "ck_tile/dispatcher/backends/gfx125_gate.hpp"
 #include "ck_tile/dispatcher/validation/reference_kernels.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
@@ -29,6 +30,9 @@ class TileKernelInstance : public KernelInstance
 
     bool supports(const Problem& problem) const override
     {
+        if(!device_supports_kernel<SelectedKernel>())
+            return false;
+
         // Tile-divisibility gate, layout-aware to match
         // ck_tile::GemmKernel::IsSupportedArgument (see generated_tile_backend.hpp
         // for the full rationale). A dimension is only constrained when an operand

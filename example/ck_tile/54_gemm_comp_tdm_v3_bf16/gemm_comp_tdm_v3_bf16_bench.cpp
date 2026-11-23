@@ -6,8 +6,12 @@
 //
 // bf16 A and B, fp32 accumulate, bf16 C row-major. Instances, chosen at run time:
 //   -layout   rcr | rrr | crr | ccr     A and B layouts (C is row-major)
-//   -epilogue tdm | cshuffle            TdmEpilogue writes C with one TDM store that clips to the
-//                                       real M x N, so it serves every shape. The CShuffle
+//   -epilogue tdm | tdmstaged | cshuffle
+//                                       TdmEpilogue writes C with one TDM store that clips to the
+//                                       real M x N, so it serves every shape. tdmstaged
+//                                       (TdmEpilogueStagedForPipeline) writes C the same way, one
+//                                       M iteration (16 rows per wave row) at a time, each slab's
+//                                       store overlapping the next slab's LDS writes. The CShuffle
 //                                       instances are padded (kPadM, kPadN) and store C in vectors
 //                                       of -vector_c elements, which must divide N.
 //   -vector_c auto | 8 | 2 | 1          CShuffle only; auto picks the widest of 8, 2 and 1 that
@@ -86,7 +90,8 @@ template <typename ALayout_,
           ck_tile::index_t WarpsM,
           ck_tile::index_t WarpsN,
           bool TdmEpi,
-          ck_tile::index_t VectorC = 0>
+          ck_tile::index_t VectorC          = 0,
+          ck_tile::index_t TdmMIterPerStage = 0>
 struct Instance
 {
     using ALayout = ALayout_;
@@ -133,10 +138,17 @@ struct Instance
                                                              VectorC != 0 ? VectorC : 1,
                                                              1,     // BlockedXDLN_PerWarp
                                                              true>; // DoubleSmemBuffer
-    using Epilogue        = std::conditional_t<TdmEpi,
-                                               ck_tile::TdmEpilogue<EpilogueProblem>,
-                                               ck_tile::CShuffleEpilogue<EpilogueProblem>>;
-    using Kernel          = ck_tile::GemmKernel<Partitioner, Pipeline, Epilogue>;
+    static_assert(TdmEpi || TdmMIterPerStage == 0,
+                  "TdmMIterPerStage applies to the TDM epilogue only");
+    // TdmMIterPerStage > 0: C goes through LDS in slabs of that many M iterations, with as many
+    // slab buffers as fit in the pipeline's LDS.
+    using TdmEpilogueType = std::conditional_t<
+        TdmMIterPerStage == 0,
+        ck_tile::TdmEpilogue<EpilogueProblem>,
+        ck_tile::TdmEpilogueStagedForPipeline<EpilogueProblem, TdmMIterPerStage, Pipeline>>;
+    using Epilogue =
+        std::conditional_t<TdmEpi, TdmEpilogueType, ck_tile::CShuffleEpilogue<EpilogueProblem>>;
+    using Kernel = ck_tile::GemmKernel<Partitioner, Pipeline, Epilogue>;
 };
 
 #define BENCH_HIP_CHECK(expr)                                                                    \
@@ -569,14 +581,22 @@ int run(const ck_tile::ArgParser& arg, const std::string& bench_name)
 }
 
 // Run time -> instance. Each (layout, epilogue, tile, C vector) is one compiled kernel.
-template <typename ALayout, typename BLayout, bool TdmEpi, ck_tile::index_t VectorC = 0>
+template <typename ALayout,
+          typename BLayout,
+          bool TdmEpi,
+          ck_tile::index_t VectorC          = 0,
+          ck_tile::index_t TdmMIterPerStage = 0>
 int dispatch_tile(const ck_tile::ArgParser& arg, const std::string& name)
 {
     const std::string tile = arg.get_str("tile");
     if(tile == "256x256x64")
-        return run<Instance<ALayout, BLayout, 256, 256, 64, 4, 4, TdmEpi, VectorC>>(arg, name);
+        return run<
+            Instance<ALayout, BLayout, 256, 256, 64, 4, 4, TdmEpi, VectorC, TdmMIterPerStage>>(
+            arg, name);
     if(tile == "128x128x64")
-        return run<Instance<ALayout, BLayout, 128, 128, 64, 2, 2, TdmEpi, VectorC>>(arg, name);
+        return run<
+            Instance<ALayout, BLayout, 128, 128, 64, 2, 2, TdmEpi, VectorC, TdmMIterPerStage>>(
+            arg, name);
     std::printf("unknown -tile=%s (256x256x64, 128x128x64)\n", tile.c_str());
     return 2;
 }
@@ -587,6 +607,8 @@ int dispatch_epilogue(const ck_tile::ArgParser& arg, const std::string& name)
     const std::string epi = arg.get_str("epilogue");
     if(epi == "tdm")
         return dispatch_tile<ALayout, BLayout, true>(arg, name);
+    if(epi == "tdmstaged")
+        return dispatch_tile<ALayout, BLayout, true, 0, 1>(arg, name);
     if(epi == "cshuffle")
     {
         // C vector: the widest of 8, 2 and 1 that divides N (auto), or the one given.
@@ -603,7 +625,7 @@ int dispatch_epilogue(const ck_tile::ArgParser& arg, const std::string& name)
         std::printf("unknown -vector_c=%s (auto, 8, 2, 1)\n", vc.c_str());
         return 2;
     }
-    std::printf("unknown -epilogue=%s (tdm, cshuffle)\n", epi.c_str());
+    std::printf("unknown -epilogue=%s (tdm, tdmstaged, cshuffle)\n", epi.c_str());
     return 2;
 }
 
@@ -634,7 +656,7 @@ int main(int argc, char* argv[])
         .insert("n", "4096", "N")
         .insert("k", "4096", "K")
         .insert("layout", "rcr", "A and B layouts, C row-major: rcr | rrr | crr | ccr")
-        .insert("epilogue", "tdm", "tdm | cshuffle (padded)")
+        .insert("epilogue", "tdm", "tdm | tdmstaged | cshuffle (padded)")
         .insert("vector_c",
                 "auto",
                 "cshuffle C vector: auto (8, 2 or 1, widest dividing N) | 8 | 2 | 1")

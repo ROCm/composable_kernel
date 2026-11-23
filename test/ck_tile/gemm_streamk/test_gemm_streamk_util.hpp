@@ -6,7 +6,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -226,6 +228,8 @@ class TestCkTileStreamK : public ::testing::Test
     // Checks a device result against reference_gemm_gpu on the same device inputs. With integer
     // inputs whose fp32 sums stay below 2^24, every summation order gives the same fp32 value,
     // so @p exact demands equality, provided the results are integers CDataType holds exactly.
+    // A batched result (@p batch_count GEMMs, their A, B and C @p batch_stride_* elements apart)
+    // is checked batch by batch; the defaults describe a single GEMM.
     static void ExpectMatchesReference(const ck_tile::HostTensor<CDataType>& c_result,
                                        void* a_dev,
                                        void* b_dev,
@@ -236,26 +240,35 @@ class TestCkTileStreamK : public ::testing::Test
                                        ck_tile::index_t stride_B,
                                        ck_tile::index_t stride_C,
                                        ck_tile::index_t num_accumulations_per_tile,
-                                       bool exact = false)
+                                       bool exact                      = false,
+                                       ck_tile::index_t batch_stride_A = 0,
+                                       ck_tile::index_t batch_stride_B = 0,
+                                       ck_tile::index_t batch_stride_C = 0,
+                                       ck_tile::index_t batch_count    = 1)
     {
         ck_tile::HostTensor<CDataType> c_ref(c_result.mDesc);
         ck_tile::DeviceMem c_ref_buf(c_ref.get_element_space_size_in_bytes());
         c_ref_buf.SetZero();
-        ck_tile::reference_gemm_gpu<ADataType,
-                                    BDataType,
-                                    AccDataType,
-                                    CDataType,
-                                    ALayout,
-                                    BLayout,
-                                    CLayout>(static_cast<ADataType*>(a_dev),
-                                             static_cast<BDataType*>(b_dev),
-                                             static_cast<CDataType*>(c_ref_buf.GetDeviceBuffer()),
-                                             M,
-                                             N,
-                                             K,
-                                             stride_A,
-                                             stride_B,
-                                             stride_C);
+        ck_tile::reference_batched_gemm_gpu<ADataType,
+                                            BDataType,
+                                            AccDataType,
+                                            CDataType,
+                                            ALayout,
+                                            BLayout,
+                                            CLayout>(
+            static_cast<ADataType*>(a_dev),
+            static_cast<BDataType*>(b_dev),
+            static_cast<CDataType*>(c_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            stride_A,
+            stride_B,
+            stride_C,
+            batch_stride_A,
+            batch_stride_B,
+            batch_stride_C,
+            batch_count);
         c_ref_buf.FromDevice(c_ref.data());
 
         // The tolerance must bound the magnitude the atomic adds accumulate, whatever its sign.
@@ -336,32 +349,48 @@ class TestCkTileStreamK : public ::testing::Test
     }
 
     public:
+    // batch_count GEMMs of the same shape run as one batched Stream-K GEMM, their batches stored
+    // back to back.
     void Run(ck_tile::index_t M,
              ck_tile::index_t N,
              ck_tile::index_t K,
-             ck_tile::index_t stride_A = 0,
-             ck_tile::index_t stride_B = 0,
-             ck_tile::index_t stride_C = 0,
-             int num_cu                = 0,
-             bool require_split        = false)
+             ck_tile::index_t stride_A    = 0,
+             ck_tile::index_t stride_B    = 0,
+             ck_tile::index_t stride_C    = 0,
+             int num_cu                   = 0,
+             bool require_split           = false,
+             ck_tile::index_t batch_count = 1)
     {
         // Since M, N, and K will vary depending on the number of CUs, we print it here to
         // facilitate test output readability.
-        std::cout << "M: " << M << ", N: " << N << ", K: " << K << std::endl;
+        std::cout << "M: " << M << ", N: " << N << ", K: " << K << ", batches: " << batch_count
+                  << std::endl;
 
         using namespace ck_tile::literals;
 
-        auto f_host_tensor_descriptor = [](std::size_t row,
-                                           std::size_t col,
-                                           std::size_t stride,
-                                           auto layout) {
+        // The batch stride of a packed [batch, row, col] tensor.
+        auto f_batch_stride =
+            [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+                return (std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>
+                            ? row
+                            : col) *
+                       stride;
+            };
+        auto f_host_tensor_descriptor = [&](std::size_t row,
+                                            std::size_t col,
+                                            std::size_t stride,
+                                            auto layout) {
+            const std::size_t batches      = batch_count;
+            const std::size_t batch_stride = f_batch_stride(row, col, stride, layout);
             if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return ck_tile::HostTensorDescriptor({batches, row, col},
+                                                     {batch_stride, stride, 1_uz});
             }
             else
             {
-                return ck_tile::HostTensorDescriptor({row, col}, {1_uz, stride});
+                return ck_tile::HostTensorDescriptor({batches, row, col},
+                                                     {batch_stride, 1_uz, stride});
             }
         };
 
@@ -404,6 +433,9 @@ class TestCkTileStreamK : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
+        const ck_tile::index_t batch_stride_A = f_batch_stride(M, K, stride_A, ALayout{});
+        const ck_tile::index_t batch_stride_B = f_batch_stride(K, N, stride_B, BLayout{});
+        const ck_tile::index_t batch_stride_C = f_batch_stride(M, N, stride_C, CLayout{});
         ck_tile::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
                                       b_k_n_dev_buf.GetDeviceBuffer(),
                                       c_m_n_dev_buf.GetDeviceBuffer(),
@@ -412,7 +444,11 @@ class TestCkTileStreamK : public ::testing::Test
                                       K,
                                       stride_A,
                                       stride_B,
-                                      stride_C};
+                                      stride_C,
+                                      batch_stride_A,
+                                      batch_stride_B,
+                                      batch_stride_C,
+                                      batch_count};
 
         ck_tile::index_t num_accumulations_per_tile = invoke_streamk<>(
             args, ck_tile::stream_config{nullptr, false, 0, 0, 1}, num_cu, require_split);
@@ -428,6 +464,11 @@ class TestCkTileStreamK : public ::testing::Test
                                stride_A,
                                stride_B,
                                stride_C,
-                               num_accumulations_per_tile);
+                               num_accumulations_per_tile,
+                               /*exact=*/false,
+                               batch_stride_A,
+                               batch_stride_B,
+                               batch_stride_C,
+                               batch_count);
     };
 };

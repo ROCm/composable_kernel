@@ -26,6 +26,8 @@ namespace ck_tile {
  *      arguments object. It contains all necessary information required to build proper kernel
  *      arguments and launch the kernel on GPU. This structure defines the GEMM problem
  *      configuration by stating all required information like M,N,K sizes and respective strides.
+ *      A batched GEMM (batch_count GEMMs of the same shape) also gives the element distance
+ *      between consecutive batches of A, B, and C; the defaults describe a single GEMM.
  */
 struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
 {
@@ -37,7 +39,11 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
                                           index_t K_,
                                           index_t stride_A_,
                                           index_t stride_B_,
-                                          index_t stride_C_)
+                                          index_t stride_C_,
+                                          long_index_t batch_stride_A_ = 0,
+                                          long_index_t batch_stride_B_ = 0,
+                                          long_index_t batch_stride_C_ = 0,
+                                          index_t batch_count_         = 1)
         : UniversalGemmHostArgs<>({a_ptr_},
                                   {b_ptr_},
                                   {/*ds_ptr*/},
@@ -49,9 +55,18 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
                                   {stride_A_},
                                   {stride_B_},
                                   {/*stride_Ds_*/},
-                                  stride_C_)
+                                  stride_C_),
+          batch_stride_A(batch_stride_A_),
+          batch_stride_B(batch_stride_B_),
+          batch_stride_E(batch_stride_C_),
+          batch_count(batch_count_)
     {
     }
+
+    long_index_t batch_stride_A;
+    long_index_t batch_stride_B;
+    long_index_t batch_stride_E;
+    index_t batch_count;
 };
 
 /**
@@ -90,8 +105,12 @@ struct StreamKKernel
         TilePartitioner::PERSISTENT == PersistentDP,
         "Persistent flag from TilePartitioner must match Persistent flag from UniversalGemm.");
 
+    static_assert(!UniversalGemmKernel::kIsGemmKernelOnlyPipeline,
+                  "Stream-K GEMM does not support this pipeline (validated with the plain GEMM "
+                  "kernel only)");
+
     /// The named barriers this kernel arms for GemmPipeline; void when it uses none. Declared here
-    /// because the launched kernel, not the wrapped UniversalGemmKernel, owns the barrier array.
+    /// because the launched kernel, not the wrapped UniversalGemmKernel, owns the barriers.
     using barrier_pipeline = typename UniversalGemmKernel::barrier_pipeline;
     /// Stands in for the barrier token when the pipeline uses no named barriers.
     using NoBarriers = typename UniversalGemmKernel::NoBarriers;
@@ -211,9 +230,13 @@ struct StreamKKernel
                                                host_args.N,
                                                host_args.K,
                                                max_active_wgs,
-                                               num_cu > 0 ? num_cu : max_active_wgs}},
-              num_xccs{num_xccs_}
-
+                                               num_cu > 0 ? num_cu : max_active_wgs,
+                                               host_args.batch_count}},
+              num_xccs{num_xccs_},
+              batch_stride_A{host_args.batch_stride_A},
+              batch_stride_B{host_args.batch_stride_B},
+              batch_stride_E{host_args.batch_stride_E},
+              batch_count{host_args.batch_count}
         {
         }
         /**
@@ -231,6 +254,14 @@ struct StreamKKernel
          * indices to be contiguous.
          */
         int num_xccs;
+        /**
+         * @brief  The element distance between consecutive batches of A, B, and C, and the number
+         * of batches. The tile partitioner numbers the output tiles of all batches.
+         */
+        long_index_t batch_stride_A;
+        long_index_t batch_stride_B;
+        long_index_t batch_stride_E;
+        index_t batch_count;
     };
 
     using KernelArgs = StreamKKernelArgs;
@@ -293,8 +324,13 @@ struct StreamKKernel
                                                          int num_cu    = NumCU(),
                                                          int occupancy = Occupancy())
     {
-        const index_t max_active_wgs = num_cu * occupancy;
-        const int num_xccs           = get_num_xccs();
+        const long_index_t wgs = static_cast<long_index_t>(num_cu) * occupancy;
+        const index_t max_active_wgs =
+            (num_cu > 0 && occupancy > 0 &&
+             wgs <= static_cast<long_index_t>(std::numeric_limits<index_t>::max()))
+                ? static_cast<index_t>(wgs)
+                : 0;
+        const int num_xccs = get_num_xccs();
         return StreamKKernelArgs{host_args, max_active_wgs, num_xccs, num_cu};
     }
 
@@ -353,13 +389,88 @@ struct StreamKKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const StreamKKernelArgs& kargs)
     {
+        const auto reject = [](const char* reason) {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Stream-K GEMM: ", reason, "!");
+            }
+            return false;
+        };
+        if(kargs.M < 1 || kargs.N < 1 || kargs.K < 1)
+        {
+            return reject("M, N, and K must be at least 1");
+        }
+        if(kargs.batch_count < 1)
+        {
+            return reject("batch_count must be at least 1");
+        }
+        auto min_batch_stride_2d =
+            [](auto layout, index_t rows, index_t cols, index_t stride, long_index_t& min_bs) {
+                constexpr bool is_row =
+                    std::is_same_v<remove_cvref_t<decltype(layout)>, tensor_layout::gemm::RowMajor>;
+                const long_index_t outer = is_row ? rows : cols;
+                const long_index_t inner = is_row ? cols : rows;
+                if(stride < inner)
+                {
+                    return false;
+                }
+                min_bs = (outer - 1) * static_cast<long_index_t>(stride) + inner;
+                return true;
+            };
+        long_index_t min_bs_a = 0;
+        long_index_t min_bs_b = 0;
+        long_index_t min_bs_e = 0;
+        const bool b_packed_descriptor =
+            GemmPipeline::BlockGemmShape::PermuteB || GemmPipeline::Preshuffle;
+        const bool valid_leading_strides =
+            min_batch_stride_2d(ALayout{}, kargs.M, kargs.K, kargs.stride_As[0], min_bs_a) &&
+            (b_packed_descriptor ||
+             min_batch_stride_2d(BLayout{}, kargs.K, kargs.N, kargs.stride_Bs[0], min_bs_b)) &&
+            min_batch_stride_2d(CLayout{}, kargs.M, kargs.N, kargs.stride_E, min_bs_e);
+        if(b_packed_descriptor)
+        {
+            min_bs_b = static_cast<long_index_t>(kargs.K) * kargs.N;
+        }
+        if(!valid_leading_strides)
+        {
+            return reject("leading strides of A, B, and C must be at least their contiguous "
+                          "dimensions");
+        }
+        if(kargs.batch_count > 1 &&
+           (kargs.batch_stride_A < min_bs_a || kargs.batch_stride_B < min_bs_b ||
+            kargs.batch_stride_E < min_bs_e))
+        {
+            return reject("the batch strides of A, B, and C must cover each operand's layout and "
+                          "leading stride without overlap");
+        }
+        // The partitioner numbers the K iterations of all tiles of all batches with index_t.
+        constexpr long_index_t kMaxIndex = std::numeric_limits<index_t>::max();
+        const long_index_t tiles_per_batch =
+            integer_divide_ceil(static_cast<long_index_t>(kargs.M),
+                                static_cast<long_index_t>(TilePartitioner::MPerBlock)) *
+            integer_divide_ceil(static_cast<long_index_t>(kargs.N),
+                                static_cast<long_index_t>(TilePartitioner::NPerBlock));
+        const long_index_t iters_per_tile =
+            integer_divide_ceil(static_cast<long_index_t>(kargs.K),
+                                static_cast<long_index_t>(TilePartitioner::KPerBlock));
+        if(tiles_per_batch > kMaxIndex ||
+           tiles_per_batch * static_cast<long_index_t>(kargs.batch_count) > kMaxIndex ||
+           tiles_per_batch * static_cast<long_index_t>(kargs.batch_count) * iters_per_tile >
+               kMaxIndex)
+        {
+            return reject("the K iterations of all output tiles exceed the index_t range");
+        }
+        if(!kargs.tile_partitioner.is_valid())
+        {
+            return reject("the tile partitioner configuration is invalid");
+        }
         if constexpr(UniversalGemmKernel::kIsTdmPipeline)
         {
             // Revalidate the actual k_batch (UniversalGemmKernel substitutes 1 for a
             // split-K-capable TDM pipeline with a non-TDM epilogue, but Stream-K splits K itself)
-            // and the device (UniversalGemmKernel checks it only for named-barrier pipelines; off
-            // gfx125 the TDM instructions compile to no-ops). UniversalGemmKernel checks the rest,
-            // including the C tail with a non-TDM epilogue.
+            // and the device (off gfx125 the TDM instructions compile to no-ops;
+            // UniversalGemmKernel also rejects it, but this keeps the Stream-K message).
+            // UniversalGemmKernel checks the rest, including the C tail with a non-TDM epilogue.
             if(!UniversalGemmKernel::IsTdmArgumentSupported("Stream-K GEMM",
                                                             kargs.k_batch,
                                                             kargs.K,
@@ -438,24 +549,18 @@ struct StreamKKernel
                                  void* smem_ptr_0,
                                  const BarrierToken barriers) const
     {
-        const auto c_macro_tile_idx = kargs.tile_partitioner.get_output_tile_index(tile_idx);
-        index_t i_m = c_macro_tile_idx[UniversalGemmKernel::I0] * TilePartitioner::MPerBlock;
-        index_t i_n = c_macro_tile_idx[UniversalGemmKernel::I1] * TilePartitioner::NPerBlock;
-
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[0]) + i_k_a;
-        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[0]) + i_k_b;
-        CDataType* c_ptr       = static_cast<CDataType*>(kargs.e_ptr);
+        const auto tile = GetTileOperands(kargs, tile_idx, i_k_a, i_k_b);
 
         // Run the GEMM pipeline and Epilogue.
-        RunGemm<true, CMemOp>({a_ptr},
-                              {b_ptr},
+        RunGemm<true, CMemOp>({tile.a_ptr},
+                              {tile.b_ptr},
                               {/*ds_ptr*/},
-                              c_ptr,
+                              tile.c_ptr,
                               smem_ptr_0,
                               kargs,
                               num_loop,
-                              i_m,
-                              i_n,
+                              tile.i_m,
+                              tile.i_n,
                               k_size,
                               barriers);
     }
@@ -509,19 +614,16 @@ struct StreamKKernel
             auto [i_k_a, i_k_b] = GetKOffsets<ALayout, BLayout>(
                 local_iter_start, kargs.stride_As[0], kargs.stride_Bs[0]);
 
-            const auto c_macro_tile_idx = kargs.tile_partitioner.get_output_tile_index(tile_idx);
-            index_t i_m = c_macro_tile_idx[UniversalGemmKernel::I0] * TilePartitioner::MPerBlock;
-            index_t i_n = c_macro_tile_idx[UniversalGemmKernel::I1] * TilePartitioner::NPerBlock;
-
-            const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[0]) + i_k_a;
-            const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[0]) + i_k_b;
-            CDataType* c_ptr       = static_cast<CDataType*>(kargs.e_ptr);
+            const auto tile   = GetTileOperands(kargs, tile_idx, i_k_a, i_k_b);
+            const index_t i_m = tile.i_m;
+            const index_t i_n = tile.i_n;
+            CDataType* c_ptr  = tile.c_ptr;
 
             // Create block windows using specialized methods
             const auto& as_block_window =
-                UniversalGemmKernel::MakeABlockWindows({a_ptr}, kargs, k_size, i_m);
+                UniversalGemmKernel::MakeABlockWindows({tile.a_ptr}, kargs, k_size, i_m);
             const auto& bs_block_window =
-                UniversalGemmKernel::MakeBBlockWindows({b_ptr}, kargs, k_size, i_n);
+                UniversalGemmKernel::MakeBBlockWindows({tile.b_ptr}, kargs, k_size, i_n);
             const auto& ds_block_window =
                 UniversalGemmKernel::MakeDBlockWindows({/*ds_ptr*/}, kargs, i_m, i_n);
 
@@ -750,6 +852,39 @@ struct StreamKKernel
                 UniversalGemmKernel::template MakeCBlockWindows<CMemOp>(c_ptr, kargs, i_m, i_n);
             EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
         });
+    }
+
+    /**
+     * @brief The operands of one output tile: its M and N offsets within its batch's C tensor
+     * and the A, B, and C pointers of that batch, A and B shifted by the K offsets.
+     */
+    struct TileOperands
+    {
+        index_t i_m;
+        index_t i_n;
+        const ADataType* a_ptr;
+        const BDataType* b_ptr;
+        CDataType* c_ptr;
+    };
+
+    /**
+     * @brief Locates the 1D tile index `tile_idx`, numbered over batch x tiles, in its batch.
+     * @param i_k_a The K offset in the A tensor.
+     * @param i_k_b The K offset in the B tensor.
+     */
+    CK_TILE_DEVICE static TileOperands
+    GetTileOperands(const StreamKKernelArgs& kargs, index_t tile_idx, index_t i_k_a, index_t i_k_b)
+    {
+        const auto [i_batch, batch_tile_idx] =
+            kargs.tile_partitioner.get_batch_tile_index(tile_idx);
+        const auto c_macro_tile_idx = kargs.tile_partitioner.get_output_tile_index(batch_tile_idx);
+        const long_index_t batch    = i_batch;
+        return {
+            c_macro_tile_idx[UniversalGemmKernel::I0] * TilePartitioner::MPerBlock,
+            c_macro_tile_idx[UniversalGemmKernel::I1] * TilePartitioner::NPerBlock,
+            static_cast<const ADataType*>(kargs.as_ptr[0]) + batch * kargs.batch_stride_A + i_k_a,
+            static_cast<const BDataType*>(kargs.bs_ptr[0]) + batch * kargs.batch_stride_B + i_k_b,
+            static_cast<CDataType*>(kargs.e_ptr) + batch * kargs.batch_stride_E};
     }
 
     /**

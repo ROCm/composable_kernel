@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/dispatcher/kernel_instance.hpp"
+#include "ck_tile/dispatcher/backends/gfx125_gate.hpp"
 #include "ck_tile/dispatcher/validation/reference_kernels.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
@@ -20,21 +21,6 @@
 namespace ck_tile {
 namespace dispatcher {
 namespace backends {
-
-// True for pipelines that declare skipCheckValidLaunchParams (the TDM pipelines).
-// TDM clips each A/B box to the tensor's real extent; TdmEpilogue clips C too,
-// whereas a non-TDM epilogue (CShuffle on comp_tdm_v3) still requires C tile
-// divisibility when unpadded (UniversalGemmKernel::IsCTensorSupported).
-template <typename Pipeline, typename = void>
-struct pipeline_skips_launch_checks : std::false_type
-{
-};
-template <typename Pipeline>
-struct pipeline_skips_launch_checks<Pipeline,
-                                    std::void_t<decltype(Pipeline::skipCheckValidLaunchParams)>>
-    : std::bool_constant<Pipeline::skipCheckValidLaunchParams>
-{
-};
 
 // True for kernels whose launcher rejects partial N/K tiles (preshuffle compute TDM).
 template <typename Kernel, typename = void>
@@ -111,9 +97,10 @@ bool generated_gemm_supports(const KernelKey& key, const Problem& problem)
             if constexpr(kernel_declares_epilogue<SelectedKernel>::value)
                 return ck_tile::is_tdm_epilogue_v<typename SelectedKernel::GemmEpilogue>;
             else
-                return key.algorithm.epilogue == Epilogue::Tdm;
+                return key.algorithm.epilogue == Epilogue::Tdm ||
+                       key.algorithm.epilogue == Epilogue::TdmStaged;
         }();
-        // TdmEpilogue overwrites C, and non-PC TDM launchers emit a host k_batch == 1
+        // The TDM epilogues overwrite C, and non-PC TDM launchers emit a host k_batch == 1
         // guard. Plain CompTDMPC with CShuffle omits that guard for split-K, where
         // UniversalGemmKernel::IsSupportedArgument requires whole TileK splits per batch.
         const bool pc_cshuffle_split_k = !tdm_epilogue &&
@@ -210,7 +197,8 @@ class GeneratedTileKernelInstance : public KernelInstance
 
     bool supports(const Problem& problem) const override
     {
-        return generated_gemm_supports<SelectedKernel>(key_, problem);
+        return device_supports_pipeline<typename SelectedKernel::GemmPipeline>() &&
+               generated_gemm_supports<SelectedKernel>(key_, problem);
     }
 
     std::string get_name() const override { return name_; }

@@ -2,8 +2,41 @@
 // SPDX-License-Identifier: MIT
 
 #include "gtest/gtest.h"
+#include "ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
 #include "profiler/profile_pool2d_fwd_impl.hpp"
 #include "test_pool_fwd_common.hpp"
+
+// Padding expands a 2x2 input to a 3x3 output. All nine output elements must
+// fit in the descriptor's buffer bound, even though the input has only four.
+TEST(AvgPool2dFwdDescriptor, OutputLargerThanInput)
+{
+    using DevicePool =
+        ck::tensor_operation::device::DevicePool2dFwd_NHWC_NHWC<float,
+                                                                float,
+                                                                int32_t,
+                                                                float,
+                                                                ck::ReduceTensorOp::AVG,
+                                                                false,
+                                                                256,
+                                                                256,
+                                                                1,
+                                                                1,
+                                                                1,
+                                                                1>;
+    const auto descriptors =
+        DevicePool::MakeABGridDescriptor_A_M_K_B_M({1, 1, 2, 2}, // input NCHW lengths
+                                                   {1, 1, 3, 3}, // output NCHW lengths
+                                                   {4, 1, 2, 1}, // input strides for NHWC storage
+                                                   {9, 1, 3, 1}, // output strides for NHWC storage
+                                                   {2, 2},       // window
+                                                   {1, 1},       // stride
+                                                   {1, 1},       // dilation
+                                                   {1, 1},       // left padding
+                                                   {1, 1});      // right padding
+
+    EXPECT_EQ(descriptors[ck::Number<0>{}].GetElementSpaceSize(), 4);
+    EXPECT_EQ(descriptors[ck::Number<1>{}].GetElementSpaceSize(), 9);
+}
 
 static ck::index_t param_mask     = 0xffff;
 static ck::index_t instance_index = -1;
