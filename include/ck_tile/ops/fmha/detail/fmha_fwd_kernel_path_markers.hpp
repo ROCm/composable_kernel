@@ -44,6 +44,30 @@ inline constexpr bool uses_tdm_affine_dram_path_v = []() {
         return Fallback<T>::value;
 }();
 
+template <typename Pipeline, typename = void>
+struct uses_qr_tdm_lds_arena : std::false_type
+{
+};
+
+template <typename Pipeline>
+struct uses_qr_tdm_lds_arena<Pipeline, std::void_t<decltype(Pipeline::kUsesLdsArena)>>
+    : std::bool_constant<Pipeline::kUsesLdsArena>
+{
+};
+
+template <typename Pipeline>
+inline constexpr bool uses_qr_tdm_lds_arena_v = uses_qr_tdm_lds_arena<Pipeline>::value;
+
+// Whether the K/V views take the NT_HT cache hint on gfx1250 (see
+// FmhaFwdKernel::kKVCoherence): TDM pipelines that stage K/V in their LDS arena,
+// fp16/bf16, head dims below 256, tiles of at most 64 rows.
+template <typename Pipeline>
+inline constexpr bool uses_kv_nt_ht_hint_v =
+    uses_qr_tdm_lds_arena_v<Pipeline> && Pipeline::kM0 <= 64 &&
+    Pipeline::BlockFmhaShape::kQKHeaddim < 256 &&
+    (std::is_same_v<typename Pipeline::KDataType, half_t> ||
+     std::is_same_v<typename Pipeline::KDataType, bf16_t>);
+
 } // namespace detail
 
 } // namespace ck_tile

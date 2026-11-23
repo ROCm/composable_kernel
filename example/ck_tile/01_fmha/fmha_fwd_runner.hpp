@@ -711,17 +711,44 @@ fwd_result fmha_fwd_run(mode_enum mode,
         int nhead_merged        = nhead;
         int max_seqlen_q_merged = max_seqlen_q;
         // When max_seqlen_q == 1 and multiple head groups are merged (kMergeNumHeadGroupsSeqLenQ)
-        // then more splits are required
-        if(bias.type == bias_enum::no_bias && mask.type == mask_enum::no_mask &&
-           max_seqlen_q == 1 && nhead_k < nhead)
+        // then more splits are required. With a mask or a sink, only the gfx125 fp16/bf16 (TDM)
+        // instances merge, and not with both.
+        const bool tdm =
+            ck_tile::is_gfx125_supported() && (data_type == "fp16" || data_type == "bf16");
+        const bool has_sink = mask.sink > 0 || init_sink_value != 0;
+        const bool merges_heads =
+            mask.type == mask_enum::no_mask ? (!has_sink || tdm) : (tdm && !has_sink);
+        if(bias.type == bias_enum::no_bias && merges_heads && max_seqlen_q == 1 && nhead_k < nhead)
         {
             nhead_merged        = nhead_k;
             max_seqlen_q_merged = max_seqlen_q * (nhead / nhead_k);
         }
+        // the TDM pipelines split only the tiles inside the mask range, and decide on whole
+        // tiles of 64 keys whether the sink reaches the window
+        const int seqlen_k_in_mask = [&]() {
+            if(mask.type == mask_enum::no_mask || !tdm)
+                return max_seqlen_k;
+            const ck_tile::SimplifiedGenericAttentionMask<true> range_mask{
+                ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
+                    mask.left,
+                    mask.right,
+                    mask.sink,
+                    max_seqlen_q,
+                    max_seqlen_k,
+                    mask.type == mask_enum::mask_top_left)};
+            const int start =
+                range_mask.GetSinkTileRangeAlongX(0, ck_tile::number<1>{}, ck_tile::number<64>{})
+                    .at(ck_tile::number<1>{});
+            const int end = range_mask
+                                .GetSinkTileRangeAlongX(
+                                    max_seqlen_q - 1, ck_tile::number<1>{}, ck_tile::number<64>{})
+                                .at(ck_tile::number<2>{});
+            return std::max(end - start, 0);
+        }();
         num_splits = override_num_splits_if_necessary(batch,
                                                       nhead_merged,
                                                       max_seqlen_q_merged,
-                                                      max_seqlen_k,
+                                                      seqlen_k_in_mask,
                                                       hdim_q,
                                                       hdim_v,
                                                       p_drop,
@@ -1688,6 +1715,12 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);
 
                 args.num_splits = num_splits;
+                // the kernel reads each group's seqlen_q, so the grid and the head merging
+                // choice need the longest one rather than the total
+                if(mode == mode_enum::group)
+                {
+                    args.max_seqlen_q = max_seqlen_q;
+                }
 
                 args.stride_o_acc         = stride_o_acc;
                 args.nhead_stride_lse_acc = nhead_stride_lse_acc;

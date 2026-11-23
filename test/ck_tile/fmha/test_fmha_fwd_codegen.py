@@ -2857,5 +2857,79 @@ class SplitKVQrTdmTiles(unittest.TestCase):
         self.assertEqual(sorted({kernel.F_hdim for kernel in exact}), [64, 128, 256])
 
 
+class SplitKVDecodeDispatch(unittest.TestCase):
+    """Which split-kv instances decode a seqlen_q 1 GQA problem, and how."""
+
+    @staticmethod
+    def _kernels(target, receipt):
+        return get_fwd_splitkv_blobs(
+            targets=[target],
+            kernel_filter="",
+            receipt=receipt,
+            mask_impl="simplified",
+            optdim_list=[-1],
+        )
+
+    def test_only_tdm_pipelines_merge_heads_with_a_sink(self):
+        # A merged row reads the sink logit of its own q head only in the TDM
+        # pipelines; the others read one per kv head.
+        for target in ("gfx1250", "gfx942"):
+            sink = [
+                k
+                for k in self._kernels(target, 0)
+                if k.F_pipeline.F_sink == "t" and k.F_pipeline.F_bias == "no"
+            ]
+            self.assertTrue(sink, target)
+            for kernel in sink:
+                self.assertEqual(
+                    "(!true || true)" in kernel.template,
+                    kernel.F_pipeline.tag in ("qr_tdm", "qr_tdm_pingpong"),
+                    kernel.filename,
+                )
+
+    def test_pingpong_takes_up_to_16_rows_ahead_of_qr_tdm(self):
+        kernels = self._kernels("gfx1250", 0)
+        pingpong = [k for k in kernels if k.F_pipeline.tag == "qr_tdm_pingpong"]
+        self.assertTrue(pingpong)
+        for kernel in pingpong:
+            self.assertEqual(
+                (kernel.F_hdim, kernel.F_mode, kernel.F_tile.F_bm0), (128, "batch", 16)
+            )
+            self.assertEqual(
+                (
+                    kernel.F_pipeline.F_sink,
+                    kernel.F_pipeline.F_bias,
+                    kernel.F_pipeline.F_logits,
+                    kernel.F_pipeline.F_pagedkv,
+                ),
+                ("f", "no", "f", "f"),
+                kernel.filename,
+            )
+            self.assertIn("<= 16", str(kernel.F_tile.F_constraint), kernel.filename)
+        # Dispatch takes the first hit in emission order: rows 17 and up fall
+        # through to the b64 qr_tdm entries behind the 16-row ones.
+        for dtype in ("fp16", "bf16"):
+            d128 = [
+                (i, k.F_pipeline.tag, k.F_tile.F_bm0)
+                for i, k in enumerate(kernels)
+                if (k.F_dtype, k.F_hdim, k.F_mode) == (dtype, 128, "batch")
+            ]
+            last_pingpong = max(i for i, tag, _ in d128 if tag == "qr_tdm_pingpong")
+            first_b64 = min(i for i, tag, bm0 in d128 if tag == "qr_tdm" and bm0 == 64)
+            self.assertLess(last_pingpong, first_b64, dtype)
+        self.assertFalse(
+            [k for k in kernels if k.F_hdim != 128 and k.F_tile.F_bm0 == 16]
+        )
+        for receipt in (2, 100, 200, 600):
+            self.assertFalse(
+                [
+                    k
+                    for k in self._kernels("gfx1250", receipt)
+                    if k.F_pipeline.tag == "qr_tdm_pingpong"
+                ],
+                receipt,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

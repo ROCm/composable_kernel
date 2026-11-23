@@ -29,6 +29,12 @@ inline constexpr bool
     kattr_no_packed_fp32_ops_v<T, std::void_t<decltype(T::kattr_no_packed_fp32_ops)>> =
         T::kattr_no_packed_fp32_ops;
 
+template <typename T, typename = void>
+inline constexpr int kattr_max_waves_per_eu_v = 0;
+template <typename T>
+inline constexpr int kattr_max_waves_per_eu_v<T, std::void_t<decltype(T::kattr_max_waves_per_eu)>> =
+    T::kattr_max_waves_per_eu;
+
 // TODO: rename to something more specific (e.g. kernel_attr_no_packed_fp32) since
 // kernel_attr<bool> only controls the no-packed-fp32-ops flag, not a general attribute bag.
 template <bool no_packed_fp32_ops>
@@ -37,6 +43,12 @@ struct kernel_attr
     // The kernel function attribute "no-packed-fp32-ops": Disable the use of packed FP32
     // instructions so that they can be co-executed with matrix operations
     static constexpr bool kattr_no_packed_fp32_ops = no_packed_fp32_ops;
+};
+
+template <int max_waves_per_eu>
+struct kernel_attr_max_waves_per_eu
+{
+    static constexpr int kattr_max_waves_per_eu = max_waves_per_eu;
 };
 
 // Compose an architecture tag with kernel attributes.
@@ -69,15 +81,21 @@ using kernel_attr_for = typename detail::kernel_attr_for_helper<ArchTag, Attrs..
 // Use compiler-specific encoding of MinBlockPerCu, where 0 is "unspecified".
 #define KENTRY_MIN_WAVES_PER_EU (0 < (MinBlockPerCu) ? (MinBlockPerCu) : 0)
 #define KENTRY_LAUNCH_BOUNDS __launch_bounds__(Kernel::kBlockSize, KENTRY_MIN_WAVES_PER_EU)
+// amdgpu_waves_per_eu is ignored when __launch_bounds__ also gives a minimum
+#define KENTRY_LAUNCH_BOUNDS_NO_MIN __launch_bounds__(Kernel::kBlockSize)
 #else
 #define KENTRY_LAUNCH_BOUNDS
+#define KENTRY_LAUNCH_BOUNDS_NO_MIN
 #endif
 #if defined(__HIP_DEVICE_COMPILE__)
 #define KENTRY_BODY Kernel{}(args...)
 #define KENTRY_ATTR_NO_PACKED_FP32_OPS __attribute__((target("no-packed-fp32-ops")))
+#define KENTRY_ATTR_MAX_WAVES_PER_EU \
+    __attribute__((amdgpu_waves_per_eu(1, kattr_max_waves_per_eu_v<Attr>)))
 #else
 #define KENTRY_BODY (..., (ignore = args, 0))
 #define KENTRY_ATTR_NO_PACKED_FP32_OPS
+#define KENTRY_ATTR_MAX_WAVES_PER_EU
 #endif
 
 template <int MinBlockPerCu, typename Kernel, typename... Args>
@@ -99,11 +117,19 @@ KENTRY_LAUNCH_BOUNDS KENTRY_ATTR_NO_PACKED_FP32_OPS __global__ //
 {
     KENTRY_BODY;
 }
+template <typename Attr, typename Kernel, typename... Args>
+KENTRY_LAUNCH_BOUNDS_NO_MIN KENTRY_ATTR_MAX_WAVES_PER_EU __global__ void
+kentry_max_waves(Args... args)
+{
+    KENTRY_BODY;
+}
 
 #undef KENTRY_LAUNCH_BOUNDS
+#undef KENTRY_LAUNCH_BOUNDS_NO_MIN
 #undef KENTRY_MIN_WAVES_PER_EU
 #undef KENTRY_BODY
 #undef KENTRY_ATTR_NO_PACKED_FP32_OPS
+#undef KENTRY_ATTR_MAX_WAVES_PER_EU
 
 //
 // return a anonymous functor(lambda) to be called later
@@ -129,6 +155,11 @@ CK_TILE_HOST auto make_kernel(KernelImpl /*f*/,
     const auto kernel = []() {
         if constexpr(std::is_void_v<Attr>)
             return kentry<MinBlockPerCu, KernelImpl, Args...>;
+        else if constexpr(kattr_max_waves_per_eu_v<Attr> > 0)
+        {
+            static_assert(!kattr_no_packed_fp32_ops_v<Attr>);
+            return kentry_max_waves<Attr, KernelImpl, Args...>;
+        }
         else
             return kentry<Attr, MinBlockPerCu, KernelImpl, Args...>;
     }();

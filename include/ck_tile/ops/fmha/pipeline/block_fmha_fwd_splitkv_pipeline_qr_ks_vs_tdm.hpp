@@ -6,6 +6,8 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_masking.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_tdm_pingpong.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_tdm_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
@@ -16,7 +18,7 @@ template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSTdmDefaul
 
 // One V buffer and two K buffers in the LDS arena: split-kv problems hardwire
 // kUseDoubleKVLdsBuffer to false, which selects the single-V layout.
-// The sink logit is folded in exactly once, by the first split with work.
+// The sink logit is folded in exactly once, by split 0.
 // fp8/bf8 is not supported here.
 struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
 {
@@ -87,6 +89,11 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
     // so the head erase below is needed there whatever the split bounds look
     // like. Everywhere else this follows the problem.
     static constexpr bool kHasUnevenSplits = kIsPagedKV || Problem::kHasUnevenSplits;
+
+    // Merged rows are the q heads of one kv head at query position 0
+    // (seqlen_q == 1), so they all take the mask of row 0.
+    static constexpr bool kMaskRow0  = Problem::kMergeNumHeadGroupsSeqLenQ && FmhaMask::IsMasking;
+    static constexpr index_t kMaskM0 = kMaskRow0 ? 1 : kM0;
 
     // FmhaFwdSplitKVKernel has no name-based fallback (unlike fmha_fwd_kernel.hpp),
     // so both must be declared: V is stepped by {kN0, 0}, which needs the
@@ -164,6 +171,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
             }
         }
     }();
+    // d256: an occupancy target of 2 lets the scheduler issue the V LDS reads ahead of the softmax
+    static constexpr index_t kMaxWavesPerEu = kN1 >= 256 ? 2 : 0;
 
     static constexpr const char* name = "qr_tdm";
 
@@ -243,7 +252,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding,
               typename AttentionVariantParams,
-              typename BlockIndices>
+              typename BlockIndices,
+              typename SinkRow>
     CK_TILE_HOST_DEVICE auto run_single_v_double_k_lds_buffer(
         const QDramBlockWindowTmp& q_dram_block_window_tmp,         // M0*K0 tile
         const KDramBlockWindowLengths& k_dram_block_window_lengths, // N0*K0 tile
@@ -262,7 +272,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
         const BlockIndices& block_indices,
         index_t kv_l2p_offset,
         void* smem_arena,
-        float sink_v) const
+        float sink_v,
+        SinkRow sink_row) const
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
         auto* smem_ptrq =
@@ -313,10 +324,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
         auto l = MLBlockTileType{};
 
         clear_tile(o_acc);
-        // Split-kv: the sink logit has to be counted exactly once across all the
-        // splits, so only the first split that has work seeds m/l with it. That is
-        // not always split 0 -- an earlier split can come out empty under a mask --
-        // hence the fixup after the early-exit check below.
+        // Split-kv: the sink logit is counted once, by split 0. The splits take the
+        // KV tiles from the start of the range, so no later split has work without it.
         const auto init_ml = [&](bool take_sink) {
             if(take_sink)
             {
@@ -337,24 +346,42 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
         init_ml(__builtin_isinf_sign(sink_v) >= 0 && i_split == 0);
 
         const auto q_origin = q_dram_block_window_tmp.get_window_origin();
+        // merged heads: a callable sink_row gives the sink logit of each Q row
+        constexpr bool kSinkPerRow = std::is_invocable_v<SinkRow, index_t>;
+        const auto row_sink        = [&](auto idx0) {
+            const auto i_row =
+                get_x_indices_from_distributed_indices(m.get_tile_distribution(), make_tuple(idx0));
+            return sink_row(q_origin.at(I0) + i_row.at(I0));
+        };
+        if constexpr(kSinkPerRow)
+        {
+            sweep_tile_span(MLBlockTileType::get_distributed_spans()[I0], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                const float sink =
+                    i_split == 0 ? row_sink(idx0) : -numeric<SMPLComputeDataType>::infinity();
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI ||
+                             BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                             kHasLogitsSoftCap)
+                    m(i_idx) = sink * scale_s * C_LOG2E;
+                else
+                    m(i_idx) = sink * C_LOG2E;
+                l(i_idx) = __builtin_isinf_sign(sink) >= 0 ? 1.0f : 0.0f;
+            });
+        }
+
+        const index_t mask_y = kMaskRow0 ? 0 : q_origin.at(I0);
 
         // Sink-aware tile range: GetSinkTileRangeAlongX returns
         // (sink_seq_end, seqlen_k_start, seqlen_k_end). For non-sink,
         // sink_seq_end is always 0.
-        //
-        // Split-kv: the split-aware overloads intersect that range with this
-        // split's slice of the key sequence. The slice bound is
-        // ceil(seqlen_k / num_splits) and is therefore not kN0 aligned, so the
-        // last tile of a split can reach past it -- kHasUnevenSplits erases that
-        // tail from s_acc in the main loop.
-        const auto tile_range_result = [&mask, &q_origin, num_splits, i_split]() {
+        const auto tile_range_result = [&mask, mask_y, num_splits, i_split]() {
             if constexpr(kHasSink)
-                return mask.GetSinkTileRangeAlongX(
-                    q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
+                return mask.GetSplitSinkTileRangeAlongX(
+                    mask_y, number<kMaskM0>{}, number<kN0>{}, num_splits, i_split);
             else
             {
-                auto [start, end] = mask.GetTileRangeAlongX(
-                    q_origin.at(I0), number<kM0>{}, number<kN0>{}, num_splits, i_split);
+                auto [start, end] = mask.GetSplitTileRangeAlongX(
+                    mask_y, number<kMaskM0>{}, number<kN0>{}, num_splits, i_split);
                 return ck_tile::make_tuple(0, start, end);
             }
         }();
@@ -381,21 +408,16 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
                     // The sink logit must enter the combined softmax denominator
-                    // exactly once. Split 0 owns it only while no split has work
-                    // of its own: any split with work seeds m/l with the sink
-                    // itself, and publishing a sink-bearing lse_acc here as well
-                    // would count exp(sink) twice.
-                    bool keeps_sink = (__builtin_isinf_sign(sink_v) >= 0) && i_split == 0;
-                    if(keeps_sink && 1 < num_splits)
+                    // exactly once, through split 0 (see init_ml).
+                    if constexpr(kSinkPerRow)
                     {
-                        // Ask for the ordinary range over the whole key axis. The
-                        // sink-aware overload returns (sink_offset, start, end),
-                        // and sink_offset answers ownership, not occupancy.
-                        auto [full_start, full_end] = mask.GetTileRangeAlongX(
-                            q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, 1, 0);
-                        keeps_sink = (full_end <= full_start);
+                        sweep_tile_span(lse_acc.get_distributed_spans()[I0], [&](auto idx0) {
+                            lse_acc(make_tuple(idx0)) =
+                                i_split == 0 ? row_sink(idx0) * scale_s
+                                             : -numeric<SMPLComputeDataType>::infinity();
+                        });
                     }
-                    if(keeps_sink)
+                    else if(__builtin_isinf_sign(sink_v) >= 0 && i_split == 0)
                     {
                         set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
                     }
@@ -411,15 +433,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
                 // there is nothing to fence before returning.
                 return o_acc;
             }
-        }
-
-        // Reaching here means this split has work. It owns the sink logit when
-        // the split before it was empty, which the seeding above could not know.
-        if(i_split > 0)
-        {
-            auto [prev_start, prev_end] = mask.GetTileRangeAlongX(
-                q_origin.at(I0), number<kM0>{}, number<kN0>{}, num_splits, i_split - 1);
-            init_ml(__builtin_isinf_sign(sink_v) >= 0 && prev_start >= prev_end);
         }
 
         // ---------------------------------------------------------------------
@@ -801,10 +814,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
 
             const auto k_origin = make_tuple(kv_tile_start, 0);
 
-            if constexpr(kHasUnevenSplits)
+            // Splits start on kN0 boundaries (GetSplitTileRangeAlongX) and only the
+            // last one ends inside a tile, at seqlen_k, which kPadSeqLenK covers.
+            if constexpr(kIsPagedKV)
             {
-                // The walk's ends are not kN0 aligned: erase the last tile's tail and,
-                // under paged-kv, the first tile's head (see aligned_physical_seqlen_k_start).
+                // The paged walk's ends are not kN0 aligned: erase the last tile's tail and
+                // the first tile's head (see aligned_physical_seqlen_k_start).
                 // Sink tiles are exempt from the head check: they start at column 0.
                 const bool is_last_tile = (i_total_loops == (num_total_loop - 1));
                 const bool is_sink_tile = (num_sink_loop > i_total_loops);
@@ -830,13 +845,19 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 // mask accepts only logical coordinates, do conversion here
-                bool need_perpixel_check = mask.IsEdgeTile(
-                    q_origin.at(I0), k_origin.at(I0) - kv_l2p_offset, number<kM0>{}, number<kN0>{});
+                const index_t k_col      = k_origin.at(I0) - kv_l2p_offset;
+                bool need_perpixel_check = [&]() {
+                    if constexpr(FmhaMask::IsMasking)
+                        return mask.IsEdgeTileForValidRows(
+                            mask_y, k_col, number<kMaskM0>{}, number<kN0>{});
+                    else
+                        return mask.IsEdgeTile(mask_y, k_col, number<kM0>{}, number<kN0>{});
+                }();
                 if(need_perpixel_check)
                 {
                     set_tile_if(
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                            const auto row = q_origin.at(I0) + tile_idx.at(I0);
+                            const auto row = mask_y + (kMaskRow0 ? 0 : tile_idx.at(I0));
                             const auto col = k_origin.at(I0) + tile_idx.at(I1) - kv_l2p_offset;
                             if constexpr(kHasSink)
                                 return mask.IsOutOfSinkBound(row, col);
@@ -1077,7 +1098,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding,
               typename AttentionVariantParams,
-              typename BlockIndices>
+              typename BlockIndices,
+              typename SinkValue>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,         // M0*K0 tile
                const KDramBlockWindowLengths& k_dram_block_window_lengths, // N0*K0 tile
@@ -1096,28 +1118,111 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSTdm
                const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
                void* smem_ptr,
-               float sink_v) const
+               SinkValue sink_v) const
     {
         // The navigators are forwarded as-is: the callee builds its K/V windows
         // through them, so a page turn and a plain window step are the same call.
-        return run_single_v_double_k_lds_buffer(q_dram_block_window_tmp,
-                                                k_dram_block_window_lengths,
-                                                k_page_block_navigator,
-                                                v_dram_block_window_lengths,
-                                                v_page_block_navigator,
-                                                bias_dram_block_window_tmp,
-                                                lse_acc_dram_block_window_tmp,
-                                                num_splits,
-                                                i_split,
-                                                mask,
-                                                position_encoding,
-                                                scale_s,
-                                                variant,
-                                                variant_params,
-                                                block_indices,
-                                                kv_l2p_offset,
-                                                smem_ptr,
-                                                sink_v);
+        const auto run = [&](float sink, auto sink_row) {
+            return run_single_v_double_k_lds_buffer(q_dram_block_window_tmp,
+                                                    k_dram_block_window_lengths,
+                                                    k_page_block_navigator,
+                                                    v_dram_block_window_lengths,
+                                                    v_page_block_navigator,
+                                                    bias_dram_block_window_tmp,
+                                                    lse_acc_dram_block_window_tmp,
+                                                    num_splits,
+                                                    i_split,
+                                                    mask,
+                                                    position_encoding,
+                                                    scale_s,
+                                                    variant,
+                                                    variant_params,
+                                                    block_indices,
+                                                    kv_l2p_offset,
+                                                    smem_ptr,
+                                                    sink,
+                                                    sink_row);
+        };
+        if constexpr(std::is_invocable_v<SinkValue, index_t>)
+            return run(-numeric<float>::infinity(), sink_v);
+        else
+            return run(sink_v, nullptr);
+    }
+};
+
+// The problem qr_tdm_pingpong reads for one split of a split-KV problem: its
+// mask limits the K tile range to the split.
+template <typename Problem_>
+struct BlockFmhaFwdSplitKVPingPongProblem : Problem_
+{
+    using FmhaMask =
+        SplitKVAttentionMask<typename Problem_::FmhaMask, Problem_::kMergeNumHeadGroupsSeqLenQ>;
+    using RandValOutputDataType = uint8_t;
+
+    static constexpr bool kHasDropout     = false;
+    static constexpr auto QScaleEnum      = BlockAttentionQuantScaleEnum::NO_SCALE;
+    static constexpr bool kSkipMinSeqlenQ = false;
+};
+
+template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSTdmPingPongPolicy>
+struct BlockFmhaFwdSplitKVPipelineQRKSVSTdmPingPong
+    : BlockFmhaPipelineQRKSVSTdmPingPong<BlockFmhaFwdSplitKVPingPongProblem<Problem_>, Policy_>
+{
+    using Base =
+        BlockFmhaPipelineQRKSVSTdmPingPong<BlockFmhaFwdSplitKVPingPongProblem<Problem_>, Policy_>;
+
+    // what FmhaFwdSplitKVKernel reads: the split-KV problem and its mask
+    using Problem  = remove_cvref_t<Problem_>;
+    using FmhaMask = remove_cvref_t<typename Problem::FmhaMask>;
+
+    // qr_tdm_pingpong reads K and V through one tensor view each, and would fold
+    // the sink logit into the softmax of every split.
+    static_assert(!Problem::kIsPagedKV && !Problem::kHasSink && !Problem::kDoFp8StaticQuant,
+                  "qr_tdm_pingpong split-kv supports neither paged kv, sink nor fp8");
+
+    template <typename QDramBlockWindowTmp,
+              typename KDramBlockWindowLengths,
+              typename KPageBlockNavigator,
+              typename VDramBlockWindowLengths,
+              typename VPageBlockNavigator,
+              typename BiasDramBlockWindowTmp,
+              typename LSEaccDramBlockWindowTmp,
+              typename PositionEncoding,
+              typename AttentionVariantParams,
+              typename BlockIndices>
+    CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
+                                        const KDramBlockWindowLengths& k_dram_block_window_lengths,
+                                        const KPageBlockNavigator& k_page_block_navigator,
+                                        const VDramBlockWindowLengths& v_dram_block_window_lengths,
+                                        const VPageBlockNavigator& v_page_block_navigator,
+                                        const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
+                                        LSEaccDramBlockWindowTmp& lse_acc_dram_block_window_tmp,
+                                        index_t num_splits,
+                                        index_t i_split,
+                                        FmhaMask mask,
+                                        PositionEncoding position_encoding,
+                                        float scale_s,
+                                        const typename Base::AttentionVariant&,
+                                        const AttentionVariantParams&,
+                                        const BlockIndices&,
+                                        index_t, // kv_l2p_offset, 0 without paged kv
+                                        void* smem_ptr,
+                                        float sink_v) const
+    {
+        // without paged kv, each navigator holds one tensor view
+        return Base::operator()(
+            q_dram_block_window_tmp,
+            k_page_block_navigator.make_tile_window(k_dram_block_window_lengths, {0, 0})
+                .at(number<1>{}),
+            v_page_block_navigator.make_tile_window(v_dram_block_window_lengths, {0, 0})
+                .at(number<1>{}),
+            bias_dram_block_window_tmp,
+            lse_acc_dram_block_window_tmp,
+            typename Base::FmhaMask{mask, num_splits, i_split},
+            position_encoding,
+            scale_s,
+            smem_ptr,
+            sink_v);
     }
 };
 

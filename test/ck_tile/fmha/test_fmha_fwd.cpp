@@ -2913,10 +2913,10 @@ TEST_P(SplitKvSoftCapTraits, DataTypeConfig)
     CHECK_SPLITKV_RESULT(result);
 }
 
-// Two paths want to contribute the sink logit to the merged denominator: split
-// 0 publishes it on its early exit, and a split with work seeds it when the
-// split one back is empty. One empty leading split makes both fire, so the
-// window masks below matter more than the split count.
+// The sink logit has to enter the merged denominator exactly once. In the
+// non-TDM split pipelines split 0 publishes it on its early exit, and a split
+// with work seeds it when the split one back is empty; one empty leading split
+// makes both fire, so the window masks below matter more than the split count.
 class SplitKvSinkDoubleCount
     : public TestWithParam<std::tuple<std::tuple<int, int>, int, std::string>>
 {
@@ -2927,13 +2927,20 @@ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(SplitKvSinkDoubleCount);
 INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                          SplitKvSinkDoubleCount,
                          Combine(SplitKVHDimValues,
-                                 Values(2, 4),                 // num_splits
-                                 Values("b:64,0", "xt:128"))); // empty leading split
+                                 Values(2, 4), // num_splits
+                                 Values("b:64,0",
+                                        "xt:128",        // empty leading split
+                                        "b:63,0,192"))); // sink prefix reaching the window
 
 TEST_P(SplitKvSinkDoubleCount, DataTypeConfig)
 {
     auto [hdims, num_splits, mask_str] = GetParam();
     auto [hdim_q, hdim_v]              = hdims;
+
+    // The non-TDM split pipelines skip the sink tiles in front of a window that starts inside
+    // the sink prefix
+    if(mask_str == "b:63,0,192" && !ck_tile::is_gfx125_supported())
+        GTEST_SKIP() << "sink prefix reaching the window needs the gfx1250 TDM split pipelines";
 
     auto result = fmha_fwd_run<DataTypeConfig>(
         mode_enum::batch,
@@ -2970,6 +2977,69 @@ TEST_P(SplitKvSinkDoubleCount, DataTypeConfig)
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1, // do_validation, without which this checks nothing
+        1, // init_sink
+        0, // pack_gqa
+        stream_config);
+    CHECK_SPLITKV_RESULT(result);
+}
+
+// Decode with merged heads: every Q head of a K head has its own sink logit, counted once
+// across the splits. A short seqlen_k keeps the sink weight in the softmax large enough for a
+// wrong sink to fail validation; 80 keys give split 1 work of its own.
+class SplitKvSinkMergedHeads
+    : public TestWithParam<std::tuple<std::tuple<int, int>, mode_enum, int, int>>
+{
+};
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(SplitKvSinkMergedHeads);
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         SplitKvSinkMergedHeads,
+                         Combine(SplitKVHDimValues,
+                                 Values(mode_enum::batch, mode_enum::group),
+                                 Values(16, 80),    // seqlen_k
+                                 Values(1, 2, 4))); // num_splits
+
+TEST_P(SplitKvSinkMergedHeads, DataTypeConfig)
+{
+    auto [hdims, mode, seqlen_k, num_splits] = GetParam();
+    auto [hdim_q, hdim_v]                    = hdims;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(
+        mode,
+        2, // batch
+        8, // nhead
+        2, // nhead_k
+        {1},
+        {seqlen_k},
+        hdim_q,
+        hdim_v,
+        0,    // seqlen_knew
+        {-1}, // seqlen_qpads
+        {-1}, // seqlen_kpads
+        {},   // q_eff
+        {},   // kv_eff
+        0,    // rotary_dim
+        true, // i_perm
+        true, // o_perm
+        0,    // scale_s
+        0,    // logits_soft_cap
+        def_is_v_rowmajor,
+        true,  // lse
+        0,     // page_block_size
+        false, // use_cache_batch_idx
+        "n",   // bias
+        0.0f,  // p_drop
+        0,     // drop_seed
+        0,     // drop_offset
+        false, // drop_prefs
+        "0",   // mask
+        qscale_str,
+        true, // is_rotary_interleaved
+        num_splits,
+        init_method,
+        static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
+        1, // do_validation
         1, // init_sink
         0, // pack_gqa
         stream_config);
@@ -3495,6 +3565,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                  Values(std::tuple{4, 3, 1, 200, 1024, "0"},
                                         std::tuple{2, 2, -1, 512, 2000, "0"},
                                         std::tuple{2, 8, 2, 1, 1024, "0"},
+                                        std::tuple{2, 8, 2, 1, 1024, "b:127,0"},
                                         std::tuple{3, 2, -1, 230, 899, "t:128,128"})));
 
 TEST_P(SplitKV, DataTypeConfig)
@@ -3543,8 +3614,9 @@ TEST_P(SplitKV, DataTypeConfig)
 // Paged split-kv. Kept apart from the SplitKV matrix above so that adding a
 // page_block_size axis does not multiply out every existing combination.
 // The cases below are the ones that stress what paging adds on top of a split:
-// a split start that is not kN0 aligned (num_splits 3/5/8 against these
-// seqlen_k), page crossings, a partial last page, and a page larger than kN0.
+// a split start that is not kN0 aligned in the non-TDM pipelines (num_splits
+// 3/5/8 against these seqlen_k), page crossings, a partial last page, and a page
+// larger than kN0.
 class PagedSplitKV
     : public TestWithParam<std::tuple<std::tuple<int, int>,
                                       mode_enum,
@@ -3604,6 +3676,70 @@ TEST_P(PagedSplitKV, DataTypeConfig)
                                                qscale_str,
                                                true,       // is_rotary_interleaved
                                                num_splits, // num_splits
+                                               COMMON_ARGS);
+    CHECK_SPLITKV_RESULT(result);
+}
+
+// gfx125 merges the q heads of a GQA group when seqlen_q is 1. With b:127,0 the four splits share
+// the three KV tiles of the window, so the last one is empty, and the window starts inside a tile,
+// so the per-element mask runs on the merged rows; t:127,127 takes the top-left window. 16 and 17
+// merged rows fall on both sides of the d128 switch from the 16-row tile to the 64-row tile.
+class SplitKVMaskedMergedHeads
+    : public TestWithParam<
+          std::
+              tuple<bool, std::tuple<int, int>, std::tuple<int, int>, mode_enum, std::string, bool>>
+{
+};
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(SplitKVMaskedMergedHeads);
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         SplitKVMaskedMergedHeads,
+                         Combine(EnableTestIf(std::is_same_v<DataTypeConfig, FmhaFwdFp16> ||
+                                              std::is_same_v<DataTypeConfig, FmhaFwdBf16>),
+                                 Values(std::tuple{64, -1}, std::tuple{128, -1}),
+                                 Values(std::tuple{64, 8}, std::tuple{16, 1}, std::tuple{17, 1}),
+                                 Values(mode_enum::batch, mode_enum::group),
+                                 Values("b:127,0", "t:127,127"),
+                                 Bool())); // lse
+
+TEST_P(SplitKVMaskedMergedHeads, DataTypeConfig)
+{
+    auto [_, hdims, nheads, mode, mask_str, lse] = GetParam();
+    auto [hdim_q, hdim_v]                        = hdims;
+    auto [nhead, nhead_k]                        = nheads;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                               2, // batch
+                                               nhead,
+                                               nhead_k,
+                                               {1},
+                                               {1001},
+                                               hdim_q,
+                                               hdim_v,
+                                               0,                 // seqlen_knew
+                                               {-1},              // seqlen_qpads
+                                               {-1},              // seqlen_kpads
+                                               {},                // q_eff_lens_per_batch
+                                               {},                // kv_eff_lens_per_batch
+                                               0,                 // rotary_dim
+                                               true,              // i_perm
+                                               true,              // o_perm
+                                               0,                 // scale_s
+                                               0,                 // logits_soft_cap
+                                               def_is_v_rowmajor, // is_v_rowmajor
+                                               lse,               // lse
+                                               0,                 // page_block_size
+                                               false,             // use_cache_batch_idx
+                                               "n",               // bias_str
+                                               0.0f,              // p_drop
+                                               0,                 // drop_seed
+                                               0,                 // drop_offset
+                                               false,             // drop_prefs
+                                               mask_str,
+                                               qscale_str,
+                                               true, // is_rotary_interleaved
+                                               4,    // num_splits
                                                COMMON_ARGS);
     CHECK_SPLITKV_RESULT(result);
 }

@@ -20,6 +20,11 @@
 
 namespace ck_tile {
 
+namespace detail {
+template <typename T>
+using has_max_waves_per_eu = decltype(T::kMaxWavesPerEu);
+} // namespace detail
+
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdSplitKVKernel
 {
@@ -30,6 +35,12 @@ struct FmhaFwdSplitKVKernel
 
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
+    static constexpr ck_tile::index_t kMaxWavesPerEu   = []() {
+        if constexpr(is_detected<detail::has_max_waves_per_eu, FmhaPipeline>::value)
+            return FmhaPipeline::kMaxWavesPerEu;
+        else
+            return 0;
+    }();
 
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
@@ -78,9 +89,20 @@ struct FmhaFwdSplitKVKernel
     static_assert(!kUsesUntransposedVKernelPath || kUsesTdmAffineDramPath,
                   "untransposed V requires the TDM affine DRAM path");
 
+    // see FmhaFwdKernel::kKVCoherence
+#if defined(__gfx125__)
+    static constexpr auto kKVCoherence = detail::uses_kv_nt_ht_hint_v<FmhaPipeline>
+                                             ? amd_buffer_coherence_enum::NT_HT
+                                             : amd_buffer_coherence_enum::coherence_default;
+#else
+    static constexpr auto kKVCoherence = amd_buffer_coherence_enum::coherence_default;
+#endif
+
+    // with a mask or a sink, only the TDM pipelines merge: their merged rows take the mask of
+    // row 0, and the sink logit of their own Q head
     static_assert(!kMergeNumHeadGroupsSeqLenQ ||
                   (kMergeNumHeadGroupsSeqLenQ && BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
-                   !kHasMask));
+                   ((!kHasMask && !kHasSink) || kUsesTdmAffineDramPath)));
 
     // clang-format off
     template <typename T> struct t2s;
@@ -801,7 +823,9 @@ struct FmhaFwdSplitKVKernel
         }();
 
         const auto make_k_dram = [&](const KDataType* data, index_t height) {
-            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global,
+                                                             memory_operation_enum::set,
+                                                             kKVCoherence>(
                 data, // will update this pointer if using paged-kvcache
                 make_tuple(height, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
@@ -836,7 +860,9 @@ struct FmhaFwdSplitKVKernel
         const auto make_v_dram = [&](const VDataType* data, index_t length) {
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global,
+                                                                 memory_operation_enum::set,
+                                                                 kKVCoherence>(
                     data, // will update this pointer if using paged-kvcache
                     make_tuple(length, kargs.hdim_v),
                     make_tuple(kargs.stride_v, 1),
@@ -1104,6 +1130,24 @@ struct FmhaFwdSplitKVKernel
 
         BlockIndices block_indices{i_batch, i_nhead, i_nhead_k};
 
+        // merged rows are (Q head of the group, seqlen_q) pairs, each Q head with its own sink
+        const auto sink_v = [&, i_nhead_ = i_nhead]() {
+            if constexpr(kMergeNumHeadGroupsSeqLenQ && kHasSink)
+                return [sink_ptr    = static_cast<const float*>(kargs.sink_ptr),
+                        i_nhead_q   = i_nhead_ * kargs.nhead_ratio_qk,
+                        nhead_ratio = kargs.nhead_ratio_qk,
+                        seqlen_q    = kargs.seqlen_q,
+                        scale_s     = kargs.scale_s](index_t i_row) {
+                    // padding rows past the last head are never stored
+                    return sink_ptr != nullptr
+                               ? sink_ptr[i_nhead_q + min(i_row / seqlen_q, nhead_ratio - 1)] /
+                                     scale_s
+                               : -numeric<float>::infinity();
+                };
+            else
+                return sink_value;
+        }();
+
         auto o_acc_tile = [&, i_split_ = i_split]() {
             if constexpr(kDoFp8StaticQuant)
             {
@@ -1133,7 +1177,7 @@ struct FmhaFwdSplitKVKernel
                                       block_indices,
                                       kv_l2p_offset,
                                       smem_ptr,
-                                      sink_value);
+                                      sink_v);
             }
             else
             {
@@ -1154,7 +1198,7 @@ struct FmhaFwdSplitKVKernel
                                       block_indices,
                                       kv_l2p_offset,
                                       smem_ptr,
-                                      sink_value);
+                                      sink_v);
             }
         }();
 
