@@ -9,8 +9,9 @@ The coordinator owns the bookkeeping around that ask/tell loop:
 
 - ``BudgetLedger``: per-problem trial attempts, a run-level cap on new builds
   and a deadline that stops admission (running work is drained);
-- ``ArtifactRegistry``: one build per kernel per run, shared by every problem;
-  a failed build is never retried and charges one physical build;
+- ``ArtifactRegistry``: one build per kernel per run, shared by every problem
+  and by every candidate that runs it (``Candidate.build_key``); a failed
+  build is never retried and charges one physical build;
 - ``SearchCoordinator``: synchronous rounds (ask, admit, build the union of
   misses, measure, reconcile, tell), then confirmation of the finalists with
   fresh verified calls; only confirmed winners are exported;
@@ -51,7 +52,8 @@ import time
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence
+from typing import (Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence,
+                    Tuple, Union)
 
 import host_cache  # this directory's: imports no numpy
 
@@ -122,12 +124,22 @@ class ContractError(AdapterError):
 class Candidate:
     """One eligible kernel. ``record`` holds only the scalar config fields the
     search space is built from (no names, dtype or arch strings);
-    ``canonical_key`` equals ``kernel_name`` within one run (one build context)."""
+    ``canonical_key`` equals ``kernel_name`` within one run (one build context).
+    ``build_key`` names the build the candidate runs ("": its own). Candidates
+    that differ only in a launch-time setting (a Stream-K workgroup budget)
+    share one: it is built, charged and failed once for all of them, and
+    trying another of them costs a measurement only."""
 
     canonical_key: str
     kernel_name: str
     record: dict
     original_config: object
+    build_key: str = ""
+
+    @property
+    def artifact_key(self) -> str:
+        """The key of the candidate's build: ``build_key`` or its own key."""
+        return self.build_key or self.canonical_key
 
 
 @dataclass(frozen=True)
@@ -162,7 +174,8 @@ class OperationAdapter(Protocol):
         """problem_key -> eligible candidates, in a stable order."""
 
     def build_missing(self, cands: Sequence[Candidate]) -> Dict[str, BuildResult]:
-        """canonical_key -> BuildResult, one per candidate."""
+        """artifact_key -> BuildResult, one per candidate (``cands`` hold one
+        candidate per artifact key)."""
 
     def measure_pairs(self, requests: Sequence[PairRequest]) -> List[PairOutcome]:
         """Exactly one outcome per request; ``host_memory`` (its diag says
@@ -226,6 +239,23 @@ def _positive(v):
     return v >= 1
 
 
+def _get_cover(data, where):
+    """``warm_start.cover``: a candidate field name, or a list of distinct
+    ones (kept as a tuple)."""
+    v = data.get("cover")
+
+    def is_name(f):
+        return bool(f) and f == f.strip()
+
+    if not isinstance(v, list):
+        return _get(data, where, "cover", str, None, is_name,
+                    "a candidate field name or a list of them")
+    if v and all(isinstance(f, str) and is_name(f) for f in v) and len(set(v)) == len(v):
+        return tuple(v)
+    raise SettingsError(f"{where}.cover={v!r}: expected a candidate field name or "
+                        "a list of distinct ones")
+
+
 def _strict_json(text, where):
     def no_constant(c):
         raise SettingsError(f"{where}: {c} is not valid JSON")
@@ -253,7 +283,8 @@ class WarmStartSettings:
     ranked_csv: Optional[str] = None
     top_k: int = 5
     use_prior: bool = False
-    cover: Optional[str] = None
+    # A candidate field, or a tuple of them covered in turn (see _cover).
+    cover: Optional[Union[str, Tuple[str, ...]]] = None
 
 
 @dataclass(frozen=True)
@@ -333,15 +364,7 @@ class SearchSettings:
                 ranked_csv=_get_file(wd, ww, "ranked_csv", base),
                 top_k=_get(wd, ww, "top_k", int, 5, _positive, ">= 1"),
                 use_prior=_get(wd, ww, "use_prior", bool, False),
-                cover=_get(
-                    wd,
-                    ww,
-                    "cover",
-                    str,
-                    None,
-                    lambda v: bool(v) and v == v.strip(),
-                    "a candidate field name",
-                ),
+                cover=_get_cover(wd, ww),
             )
             if (warm.pairs_file, warm.ranked_csv, warm.cover) == (None, None, None):
                 raise SettingsError(f"{ww}: expected pairs_file, ranked_csv and/or cover")
@@ -407,7 +430,8 @@ class SearchSettings:
             del d["warm_start"]
         else:
             d["warm_start"] = {
-                k: v for k, v in vars(self.warm_start).items() if v is not None
+                k: list(v) if isinstance(v, tuple) else v
+                for k, v in vars(self.warm_start).items() if v is not None
             }
         return d
 
@@ -471,8 +495,9 @@ class BudgetLedger:
 
 
 class ArtifactRegistry:
-    """canonical_key -> BuildResult of this run. Entries are never replaced: a
-    built kernel serves every problem, a failed build is not retried."""
+    """artifact_key -> BuildResult of this run. Entries are never replaced: a
+    built kernel serves every problem and every candidate that shares its
+    build, a failed build is not retried."""
 
     def __init__(self):
         self._results: Dict[str, BuildResult] = {}
@@ -481,11 +506,12 @@ class ArtifactRegistry:
         return self._results.get(key)
 
     def missing(self, cands: Sequence[Candidate]) -> List[Candidate]:
-        """The candidates without a result, deduplicated, in first-seen order."""
+        """The candidates without a result, one per artifact key, in
+        first-seen order."""
         out: Dict[str, Candidate] = {}
         for c in cands:
-            if c.canonical_key not in self._results:
-                out.setdefault(c.canonical_key, c)
+            if c.artifact_key not in self._results:
+                out.setdefault(c.artifact_key, c)
         return list(out.values())
 
     def publish(self, results: Mapping[str, BuildResult]) -> None:
@@ -662,7 +688,8 @@ class _Problem:
         self.strategy_name = ""
         self.seed = 0
         self.warm: List[str] = []
-        self.cover: Dict[str, str] = {}  # warm_start.cover value -> its kernel
+        # warm_start.cover value -> its kernel ({field: {value: kernel}} for a list)
+        self.cover: Dict[str, Any] = {}
         self.prior_entries = 0
         self.requeue: list = []  # trials to re-admit (unattempted once)
         self.retried: set = set()  # uids already re-queued once
@@ -678,6 +705,11 @@ class _Problem:
 
 
 StrategyFactory = Callable[[str, Any, int, Sequence[Mapping], Any], Any]
+
+
+def _cover_fields(cover) -> Tuple[str, ...]:
+    """The fields ``warm_start.cover`` names, in order."""
+    return (cover,) if isinstance(cover, str) else tuple(cover)
 
 
 def _default_factory(name, space, seed, warm_records, prior):
@@ -849,14 +881,22 @@ class SearchCoordinator:
         if not isinstance(eligible, Mapping):
             raise ContractError(f"enumerate_eligible returned {type(eligible).__name__}")
         names: Dict[str, str] = {}
+        artifacts: Dict[str, str] = {}
         for i, (pkey, cands) in enumerate(eligible.items()):
             cands = list(cands)
             for c in cands:
                 if not isinstance(c, Candidate):
                     raise ContractError(f"{pkey}: candidate {c!r} is not a Candidate")
+                if not isinstance(c.build_key, str):
+                    raise ContractError(
+                        f"{pkey}: candidate {c.canonical_key!r} build_key "
+                        f"{c.build_key!r} is not a str")
                 if names.setdefault(c.canonical_key, c.kernel_name) != c.kernel_name:
                     raise ContractError(
                         f"candidate key {c.canonical_key!r} names two kernels")
+                if artifacts.setdefault(c.canonical_key, c.artifact_key) != c.artifact_key:
+                    raise ContractError(
+                        f"candidate key {c.canonical_key!r} maps to two builds")
             p = _Problem(str(pkey), i, cands)
             if len(p.by_key) != len(p.cands):
                 raise ContractError(f"{pkey}: a candidate key repeats")
@@ -872,7 +912,8 @@ class SearchCoordinator:
                 raise ContractError(f"{p.key}: candidate records: {e}") from None
             p.members = p.space.members
             if s.warm_start is not None and s.warm_start.cover is not None:
-                self._check_cover(p, s.warm_start.cover)  # exhaustive ones too
+                for name in _cover_fields(s.warm_start.cover):  # exhaustive ones too
+                    self._check_cover(p, name)
             p.seed = s.problem_seed(i)
             p.strategy_name = s.strategy
             warm, prior = (), None
@@ -921,7 +962,8 @@ class SearchCoordinator:
                 "are searched exhaustively (no warm start, no prior)",
                 f"measurement_policy {s.measurement_policy}: every discovery and "
                 "confirmation call is a full verified measurement",
-                "new builds are capped per run; a failed build is charged once",
+                "new builds are capped per run; a failed build is charged once; "
+                "candidates that share a build (build_key) are built and charged once",
             ],
         }
         self.writer.write_json("run.json", self._run_json)
@@ -938,14 +980,16 @@ class SearchCoordinator:
         if picks:
             picks = picks[: warm.top_k]
         if warm is not None and warm.cover is not None:
-            picks += self._cover(p, warm.cover, picks)
+            covered = self._cover(p, warm.cover, picks)
+            picks += covered
             if len(picks) >= self.settings.trials_per_problem:
+                shown = warm.cover if isinstance(warm.cover, str) else list(warm.cover)
                 raise SettingsError(
                     f"warm_start.cover: {p.key} has {len(picks)} warm picks "
-                    f"({len(p.cover)} from cover {warm.cover!r}) for "
+                    f"({len(covered)} from cover {shown!r}) for "
                     f"trials_per_problem {self.settings.trials_per_problem}: the "
                     "strategy would never run; raise trials_per_problem, or "
-                    "cover a field with fewer values")
+                    "cover fewer fields or a field with fewer values")
         p.warm = [c.kernel_name for c in picks]
         return tuple(dict(c.record) for c in picks)
 
@@ -966,27 +1010,35 @@ class SearchCoordinator:
                     f"warm_start.cover: field {name!r} of {p.key} has the value "
                     f"{v!r}, which cannot be covered (not a single value)") from None
 
-    def _cover(self, p: _Problem, name: str, picks) -> List[Candidate]:
-        """One candidate per value of the record field ``name`` that no pick
-        has, values in candidate order; each value's candidate is drawn with
-        its own seeded RNG, so unrelated groups cannot change shared picks."""
-        groups: Dict[Any, List[Candidate]] = {}
-        values: Dict[Any, Any] = {}
-        for c in p.cands:
-            if name in c.record:
-                v = c.record[name]
-                k = (type(v), v)
-                values.setdefault(k, v)
-                groups.setdefault(k, []).append(c)
-        drawn = {
-            k: random.Random(repr(("cover", p.seed, name, values[k]))).choice(cands)
-            for k, cands in groups.items()
-        }
-        have = {
-            (type(c.record[name]), c.record[name]) for c in picks if name in c.record
-        }
-        out = [c for k, c in drawn.items() if k not in have]
-        p.cover = {str(c.record[name]): c.kernel_name for c in out}
+    def _cover(self, p: _Problem, cover, picks) -> List[Candidate]:
+        """For each field of ``cover`` in turn, one candidate per value of that
+        record field that no pick so far has (the earlier fields' included),
+        values in candidate order; each field/value group has its own seeded
+        RNG, so unrelated groups cannot change shared representatives."""
+        out: List[Candidate] = []
+        by_field: Dict[str, Dict[str, str]] = {}
+        for name in _cover_fields(cover):
+            groups: Dict[Any, List[Candidate]] = {}
+            values: Dict[Any, Any] = {}
+            for c in p.cands:
+                if name in c.record:
+                    v = c.record[name]
+                    k = (type(v), v)
+                    values.setdefault(k, v)
+                    groups.setdefault(k, []).append(c)
+            drawn = {
+                k: random.Random(repr(("cover", p.seed, name, values[k]))).choice(cands)
+                for k, cands in groups.items()
+            }
+            have = {
+                (type(c.record[name]), c.record[name])
+                for c in [*picks, *out]
+                if name in c.record
+            }
+            new = [c for k, c in drawn.items() if k not in have]
+            by_field[name] = {str(c.record[name]): c.kernel_name for c in new}
+            out += new
+        p.cover = by_field[cover] if isinstance(cover, str) else by_field
         return out
 
     def _prior(self, p: _Problem):
@@ -1016,7 +1068,7 @@ class SearchCoordinator:
 
     def _needs_build(self, c: Candidate, planned) -> bool:
         """Admitting ``c`` costs a new build: no result yet, none planned."""
-        return c.canonical_key not in planned and self.registry.get(c.canonical_key) is None
+        return c.artifact_key not in planned and self.registry.get(c.artifact_key) is None
 
     def _build_free_rows(self, p: _Problem, planned=(), inflight=()) -> List[int]:
         """``p``'s candidates (rows) without a result, nor in flight this round,
@@ -1024,8 +1076,8 @@ class SearchCoordinator:
         build. A failed build is not work: proposing it is answered from its
         result."""
         def ready(c):
-            res = self.registry.get(c.canonical_key)
-            return c.canonical_key in planned or (res is not None and res.path is not None)
+            res = self.registry.get(c.artifact_key)
+            return c.artifact_key in planned or (res is not None and res.path is not None)
 
         return [i for k, i in p.members.items()
                 if k not in p.seen and (p.key, k) not in inflight and ready(p.cands[i])]
@@ -1096,7 +1148,7 @@ class SearchCoordinator:
     def _one_round(self, active: List[_Problem]) -> bool:
         """Ask, admit, build, measure, tell. True when a trial got a result."""
         admitted = []  # (problem, trial, space key, candidate)
-        planned = set()  # canonical keys this round needs built
+        planned = set()  # artifact keys this round needs built
         inflight = set()  # (problem, space key) admitted this round
         told: Dict[str, list] = {p.key: [] for p in active}
         batch = self.settings.batch_per_problem
@@ -1126,7 +1178,7 @@ class SearchCoordinator:
                        "refused by the space")
                 return
             c = p.cand(key)
-            res = self.registry.get(c.canonical_key)
+            res = self.registry.get(c.artifact_key)
             if key in p.seen:
                 self.counts["cached"] += 1
                 told[p.key].append(p.seen[key].replace_trial(t, cached=True))
@@ -1147,8 +1199,8 @@ class SearchCoordinator:
                 self.counts["admitted"] += 1
                 inflight.add((p.key, key))
                 admitted.append((p, t, key, c))
-                if self.registry.get(c.canonical_key) is None:
-                    planned.add(c.canonical_key)
+                if self.registry.get(c.artifact_key) is None:
+                    planned.add(c.artifact_key)
                 self._event("trial", kernel=c.kernel_name, admission=kind, **ev)
 
         start = (self._round - 1) % len(active)
@@ -1192,7 +1244,7 @@ class SearchCoordinator:
             self._build(missing, admitted)
         requests, waiting = [], {}
         for p, t, key, c in admitted:
-            res = self.registry.get(c.canonical_key)
+            res = self.registry.get(c.artifact_key)
             if res.path is None:
                 progress |= self._settle(p, t, key, c, told, "compile_error", None,
                                          res.reason or "build failed", None)
@@ -1238,7 +1290,7 @@ class SearchCoordinator:
         self._progress(f"building {len(missing)} kernel(s) "
                        f"({self.ledger.builds}/{self.ledger.new_builds_per_run} builds)")
         results = self._call("build_missing", self.adapter.build_missing, missing)
-        want = {c.canonical_key for c in missing}
+        want = {c.artifact_key for c in missing}
         if not isinstance(results, Mapping) or set(results) != want or not all(
             isinstance(r, BuildResult) for r in results.values()
         ):
@@ -1247,15 +1299,16 @@ class SearchCoordinator:
                 f"{sorted(want)}, got {results!r}"
             )
         self.ledger.charge_builds(len(missing))
-        self.registry.publish({c.canonical_key: results[c.canonical_key] for c in missing})
+        self.registry.publish({c.artifact_key: results[c.artifact_key] for c in missing})
         for c in missing:
-            r = results[c.canonical_key]
+            r = results[c.artifact_key]
             self.counts["built" if r.path is not None else "build_failed"] += 1
             self._event(
-                "build", kernel=c.kernel_name, candidate_key=c.canonical_key,
-                ok=r.path is not None, path=r.path, reason=r.reason, digest=r.digest,
+                "build", kernel=c.build_key or c.kernel_name,
+                candidate_key=c.artifact_key, ok=r.path is not None, path=r.path,
+                reason=r.reason, digest=r.digest,
                 waiting=sorted({p.key for p, _, _, a in admitted
-                                if a.canonical_key == c.canonical_key}),
+                                if a.artifact_key == c.artifact_key}),
             )
 
     def _exchange(self, what: str, fn, requests: List[PairRequest]) -> dict:
@@ -1530,14 +1583,16 @@ class ArtifactStore:
 
 
 def measure_built(store: ArtifactStore, requests: Sequence[PairRequest],
-                  run: Callable[[List[PairRequest]], List[PairOutcome]]
+                  run: Callable[[List[PairRequest]], List[PairOutcome]],
+                  artifact: Callable[[PairRequest], str] = lambda r: r.candidate_key,
                   ) -> List[PairOutcome]:
     """One outcome per request, in order: a request without a usable artifact
+    (``store`` key ``artifact(request)``: the candidate's ``artifact_key``)
     gets its outcome here, ``run`` measures the others (one outcome each, in
     order)."""
     out, rest, bad = {}, [], {}
     for r in requests:
-        key = r.candidate_key
+        key = artifact(r)
         if key not in bad:
             bad[key] = store.unusable(key)
         if bad[key]:
@@ -1952,7 +2007,8 @@ def check_search_options(args, conflicts=(), required=()) -> SearchSettings:
     """The validated ``--search-config`` of a driver run. The op passes its
     driver's options: ``conflicts`` the (option, args attribute[, hint])
     entries a search run does not take, ``required`` the (option, args
-    attribute, value) triples it needs; no other driver option is read. Raises
+    attribute, value or tuple of values) triples it needs; no other driver
+    option is read. Raises
     SettingsError for a missing or conflicting option, another required
     value, invalid settings or an output dir holding an earlier run."""
     if not (args.search_config and args.search_output_dir):
@@ -1963,8 +2019,10 @@ def check_search_options(args, conflicts=(), required=()) -> SearchSettings:
             raise SettingsError(f"--search-config does not take {opt}"
                                 + "".join(f" ({h})" for h in hint))
     for opt, attr, value in required:
-        if getattr(args, attr) != value:
-            raise SettingsError(f"--search-config supports {opt} {value} only, "
+        values = value if isinstance(value, tuple) else (value,)
+        if getattr(args, attr) not in values:
+            wanted = " or ".join(map(str, values))
+            raise SettingsError(f"--search-config supports {opt} {wanted} only, "
                                 f"got {getattr(args, attr)}")
     settings = SearchSettings.from_json(args.search_config)
     RunWriter(args.search_output_dir).check_fresh()

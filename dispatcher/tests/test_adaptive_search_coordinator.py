@@ -49,6 +49,8 @@ NEW_MODULES = (COMMON_DIR / "adaptive_search.py", COMMON_DIR / "host_cache.py",
 EDITED_MODULES = (
     TE_OPS / "gemm" / "gemm_full_benchmark.py",
     TE_OPS / "gemm" / "run_one_gemm_kernel.py",
+    TE_OPS / "gemm" / "run_one_streamk_gemm_kernel.py",
+    TE_OPS / "gemm" / "streamk_gemm_full_benchmark.py",
     DISPATCHER_DIR / "python" / "ctypes_utils.py",
     DISPATCHER_DIR / "python" / "gemm_utils.py",
 )
@@ -301,6 +303,114 @@ def test_partial_and_no_eligible_problem(tmp_path):
     assert s.winners == {"P1": "A"}
     assert s.unresolved["P2"].startswith("no verified discovery measurement")
     assert s.unresolved["P3"] == "no eligible candidates"
+
+
+# ----------------------------------------------- launch variants (build_key)
+
+
+def vrec(name):
+    """A launch variant "A@50" of kernel "A": its record plus the budget."""
+    kernel, _, pct = name.partition("@")
+    return {**rec(kernel), "budget_pct": int(pct or 100)}
+
+
+class VariantAdapter(FakeAdapter):
+    """``FakeAdapter`` whose candidates are launch variants of kernels: "A",
+    "A@50" and "A@25" share A's build (``build_key``)."""
+
+    def enumerate_eligible(self):
+        return {p: [AS.Candidate(n, n, vrec(n), {"cfg": n}, build_key=n.partition("@")[0])
+                    for n in names] for p, names in self.problems.items()}
+
+    def build_missing(self, cands):
+        self.builds.append([c.artifact_key for c in cands])
+        return {c.artifact_key: AS.BuildResult(None, "fake compile error")
+                if c.artifact_key in self.fail_build
+                else AS.BuildResult(f"artifacts/{c.artifact_key}.so", digest="0" * 64)
+                for c in cands}
+
+
+def variant_factory(scripts):
+    """``scripted`` with the steps named by launch variant (``vrec``)."""
+    made = {}
+
+    def factory(name, space, seed, warm_records, prior):
+        steps = [[space.encode(vrec(n)) for n in step] for step in scripts.get(space.name, [])]
+        made[space.name] = Scripted(space, steps)
+        return made[space.name]
+
+    return factory, made
+
+
+VARIANTS = ["A", "A@50", "A@25", "B", "B@50", "E"]
+
+
+def test_launch_variants_share_their_kernels_build(tmp_path):
+    # Three trials of A's variants and one of B in round 1 need two builds;
+    # round 2 needs none. Each build is charged once, and each variant is
+    # measured under its own name.
+    ad = VariantAdapter({"P1": VARIANTS, "P2": VARIANTS})
+    factory, made = variant_factory({"P1": [["A@50", "A"], ["B@50"]],
+                                     "P2": [["A@50", "B"], ["A"]]})
+    s, _, co = run(tmp_path, ad, {}, factory=factory)
+    assert ad.builds == [["A", "B"]] and co.ledger.builds == 2
+    assert sorted(pairs(ad.measured)) == sorted(
+        [("P1", "A"), ("P1", "A@50"), ("P2", "A@50"), ("P2", "B"),
+         ("P1", "B@50"), ("P2", "A")])
+    assert {r.candidate_key for r in ad.measured} == {"A", "A@50", "B", "B@50"}
+    build = events(tmp_path / "out", "build")
+    assert [(b["kernel"], b["candidate_key"], b["waiting"]) for b in build] == [
+        ("A", "A", ["P1", "P2"]), ("B", "B", ["P2"])]
+    assert s.counts["built"] == 2 and s.status == "complete"
+    assert "candidates that share a build (build_key) are built and charged once" in \
+        " ".join(strict(tmp_path / "out" / "run.json")["domain"])
+
+
+def test_failed_build_fails_every_launch_variant_once(tmp_path):
+    # A's build fails: a later proposal of another A variant is told that
+    # compile_error without a trial or a second build.
+    ad = VariantAdapter({"P1": VARIANTS}, fail_build={"A"})
+    factory, made = variant_factory({"P1": [["A"], ["A@50"], ["B"]]})
+    s, _, co = run(tmp_path, ad, {}, factory=factory)
+    assert ad.builds == [["A"], ["B"]] and co.ledger.builds == 2
+    assert s.counts["known_failed"] == 1 and co.ledger.trials["P1"] == 2
+    told = made["P1"].told
+    assert [ob.status for ob in told] == ["compile_error", "compile_error", "ok"]
+    assert [ob.cached for ob in told[:2]] == [False, True]
+
+
+def test_past_the_build_cap_launch_variants_need_no_build(tmp_path):
+    # Round 1 spends the cap (A, B for P1; C, D for P2). In round 2 P1's E
+    # needs a build past it (told invalid) while A@50 needs none, and the
+    # refill takes A@25: the variants of a built kernel stay reachable.
+    ad = VariantAdapter({"P1": ["A", "A@50", "A@25", "B", "E"], "P2": ["C", "D"]})
+    factory, made = variant_factory({"P1": [["A", "B"], ["E", "A@50"]],
+                                     "P2": [["C", "D"]]})
+    s, _, co = run(tmp_path, ad, {}, factory=factory, trials_per_problem=4,
+                   new_builds_per_run=4)
+    assert ad.builds == [["A", "B", "C", "D"]] and co.ledger.builds == 4
+    assert (s.counts["past_build_cap"], s.counts["refilled"]) == (1, 1)
+    assert [r.kernel_name for r in ad.measured if r.problem_key == "P1"][2:] == [
+        "A@50", "A@25"]
+    assert co.ledger.trials["P1"] == 4
+
+
+def test_build_key_contract_checks(tmp_path):
+    class BadTypeAdapter(FakeAdapter):
+        def enumerate_eligible(self):
+            return {"P1": [AS.Candidate("A", "A", rec("A"), None, build_key=50)]}
+
+    class ConflictBuildAdapter(FakeAdapter):
+        def enumerate_eligible(self):
+            return {
+                "P1": [AS.Candidate("A@50", "A@50", vrec("A@50"), None, build_key="A")],
+                "P2": [AS.Candidate("A@50", "A@50", vrec("A@50"), None, build_key="B")],
+            }
+
+    s1, _, _ = run(tmp_path / "bad_type", BadTypeAdapter({"P1": ["A"]}), {})
+    assert s1.exit_code == 1 and "build_key" in s1.error and "not a str" in s1.error
+    s2, _, _ = run(tmp_path / "conflict", ConflictBuildAdapter({"P1": ["A"], "P2": ["A"]}), {})
+    assert s2.exit_code == 1 and "maps to two builds" in s2.error
 
 
 # ------------------------------------------------------------- failures
@@ -1213,7 +1323,12 @@ BASE = {"schema_version": 1, "strategy": "tpe", "trials_per_problem": 4,
     ({"warm_start": {"cover": ""}}, "a candidate field name"),
     ({"warm_start": {"cover": "   "}}, "a candidate field name"),
     ({"warm_start": {"cover": " pipeline "}}, "a candidate field name"),
-    ({"warm_start": {"cover": ["pipeline"]}}, "expected type str"),
+    ({"warm_start": {"cover": 3}}, "expected type str"),
+    ({"warm_start": {"cover": []}}, "a list of distinct ones"),
+    ({"warm_start": {"cover": ["pipeline", "pipeline"]}}, "a list of distinct ones"),
+    ({"warm_start": {"cover": ["pipeline", ""]}}, "a list of distinct ones"),
+    ({"warm_start": {"cover": ["pipeline", " kind "]}}, "a list of distinct ones"),
+    ({"warm_start": {"cover": ["pipeline", 1]}}, "a list of distinct ones"),
     ({"warm_start": {"pairs_file": "missing.json"}}, "no such file"),
     ({"warm_start": {"pairs_file": 7}}, "expected type str"),
     ({"warm_start": None}, "expected a JSON object"),
@@ -1482,6 +1597,88 @@ def test_warm_start_cover_must_leave_trials_to_the_strategy(tmp_path):
                       trials_per_problem=3, warm_start={"cover": "pipeline", **warm})
         assert s.exit_code == 1 and not ad.measured
         assert f"P1 has 3 warm picks ({covered} from cover 'pipeline')" in s.error
+
+
+class PipePersistAdapter(FakeAdapter):
+    """``PipeAdapter`` whose records also hold ``persistent``: kernel i's
+    (i // 3) % 2 == 1."""
+
+    def enumerate_eligible(self):
+        return {p: [AS.Candidate(n, n, {**rec(n), "pipeline": PIPES[KERNELS.index(n) % 3],
+                                        "persistent": (KERNELS.index(n) // 3) % 2 == 1},
+                                 None) for n in names]
+                for p, names in self.problems.items()}
+
+
+def test_warm_start_cover_list_covers_each_field_in_turn(tmp_path):
+    # ["pipeline", "persistent"]: one kernel per pipeline (the same picks as
+    # cover "pipeline" with that seed), then one per persistent value those
+    # picks lack. run.json keys the picks by field.
+    cover = ["pipeline", "persistent"]
+    s = AS.SearchSettings.from_json({**BASE, "warm_start": {"cover": cover}})
+    assert s.warm_start.cover == tuple(cover)
+    assert s.to_json()["warm_start"]["cover"] == cover
+    assert AS.SearchSettings.from_json(s.to_json()) == s
+    names = list(KERNELS[:9])
+    for seed in range(4):
+        got = {}
+        for c in ("pipeline", cover):
+            calls = []
+            out = tmp_path / f"{seed}-{len(c)}"
+            run(out, PipePersistAdapter({"P1": names}), {}, calls=calls,
+                strategy="hill", seed=seed, trials_per_problem=6,
+                warm_start={"cover": c})
+            got[str(c)] = (calls[0]["warm"],
+                           strict(out / "out" / "run.json")["problems"]["P1"])
+        (single, _), (warm, meta) = got["pipeline"], got[str(cover)]
+        assert warm[:3] == single
+        assert {w["pipeline"] for w in warm} == set(PIPES)
+        assert {w["persistent"] for w in warm} == {False, True}
+        assert set(meta["warm_cover"]) == set(cover)
+        assert set(meta["warm_cover"]["pipeline"]) == set(PIPES)
+        picked = [meta["warm_cover"][f][v] for f in cover for v in meta["warm_cover"][f]]
+        assert meta["warm_start"] == picked and len(picked) == len(warm) <= 5
+
+
+def test_warm_start_cover_list_must_leave_trials_to_the_strategy(tmp_path):
+    ad = PipePersistAdapter({"P1": list(KERNELS[:9])})
+    s, _, _ = run(tmp_path, ad, {}, strategy="tpe", trials_per_problem=3,
+                  warm_start={"cover": ["pipeline", "persistent"]})
+    assert s.exit_code == 1 and not ad.measured
+    assert "from cover ['pipeline', 'persistent'])" in s.error
+
+
+def test_warm_start_pairs_cover_values_in_every_field(tmp_path):
+    picks = tmp_path / "picks.json"
+    picks.write_text(json.dumps({"P1": ["D", "E", "F", "A"]}))
+    results = []
+    for cover in (["pipeline", "persistent"], ["persistent", "pipeline"]):
+        calls = []
+        out = tmp_path / cover[0]
+        run(
+            out,
+            PipePersistAdapter({"P1": list(KERNELS[:9])}),
+            {},
+            calls=calls,
+            strategy="tpe",
+            seed=1,
+            pair_loader=json_pairs,
+            trials_per_problem=6,
+            warm_start={"pairs_file": str(picks), "top_k": 3, "cover": cover},
+        )
+        # D/E/F cover all pipelines and persistent=True; only False is missing.
+        # Moving an already-covered field must not perturb its representative.
+        warm = calls[0]["warm"]
+        assert [w["tile_m"] for w in warm[:3]] == [rec(n)["tile_m"] for n in "DEF"]
+        assert len(warm) == 4 and warm[-1]["persistent"] is False
+        meta = strict(out / "out" / "run.json")["problems"]["P1"]
+        assert meta["warm_start"][:3] == ["D", "E", "F"]
+        assert meta["warm_cover"] == {
+            "pipeline": {},
+            "persistent": {"False": meta["warm_start"][-1]},
+        }
+        results.append(meta["warm_start"])
+    assert results[0] == results[1]
 
 
 @pytest.mark.parametrize("name", ["hill", "tpe", "gp", "de", "portfolio"])

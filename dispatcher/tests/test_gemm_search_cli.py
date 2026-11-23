@@ -11,6 +11,8 @@ A run without them is unchanged and never loads the search modules; invalid
 combinations exit 2; a search run measures only verified single-kernel batches
 of the pairs a full run would measure, writes a winners.json the driver's
 --pairs accepts, and exits 0 only when every problem has a confirmed winner.
+The gemm_streamk variant searches Stream-K kernels and their workgroup budgets
+(launch variants that share their kernel's build) through the common GEMM worker.
 Also: get_arch_filter_data no longer grows sys.path on every call.
 
 No GPU or compiler needed: the build and the GPU batch runner are stubbed, the
@@ -195,7 +197,7 @@ def test_run_without_search_is_unchanged_and_loads_no_search_module(
     (["--search-config", "{S}", "--search-output-dir", "{O}", "--build-timeout", "600"],
      "does not take --build-timeout (set build_timeout_s in the search settings)"),
     (["--search-config", "{S}", "--search-output-dir", "{O}", "--variant",
-      "gemm_multi_d"], "gemm_universal only"),
+      "gemm_multi_d"], "gemm_universal or gemm_streamk only"),
     (["--search-config", "{BAD}", "--search-output-dir", "{O}"], "unknown key"),
     (["--search-config", "{S}", "--search-output-dir", "{OLD}"], "already holds a run"),
     (["--search-config", "{S}", "--search-output-dir", "{FILE}"], "not a directory"),
@@ -693,6 +695,289 @@ def test_gfx1250_tdm_search_tries_every_pipeline(
         assert set(run["problems"][key]["warm_cover"]) == want
         tried = {pipe[c["names"][0]] for c in calls if c["prob"] == prob}
         assert tried == want  # every candidate is one of them
+    winners = drv.load_pair_list(out / "winners.json")
+    assert set(winners) == set(KEYS) and all(winners[k][0] in pairs[k] for k in KEYS)
+
+
+# --------------------------------------- Stream-K search, gfx1250 TDM (CPU only)
+
+SK_CONFIG = str(GEMM_TE_DIR / "gemm_streamk" / "configs" / "gfx1250_tdm_config.json")
+SK_SETTINGS = GEMM_TE_DIR / "configs" / "search_settings_gfx1250_streamk.json"
+SK_PIPES = {"comp_tdm", "comp_tdm_v2", "comp_tdm_v3"}
+STREAMK = ("--variant", "gemm_streamk")
+BUDGETS = [100, 75, 66, 50, 33, 25]
+SK_BUDGETS = ("--budget-pct", ",".join(map(str, BUDGETS)))
+SK_BF16 = {**GFX1250, "dtype": "bf16", "layout": "rcr"}
+# N a multiple of 128 but not of 256, and N a multiple of neither.
+SK_MISALIGNED = [{"M": 512, "N": 384, "K": 512}, {"M": 1000, "N": 200, "K": 250}]
+
+
+def _kernel(name):
+    """The kernel (the build) a Stream-K launch variant's name runs."""
+    return name.partition("@budget")[0]
+
+
+def _sk_listing(monkeypatch, capsys, tmp_path, *argv, problems=PROBLEMS, fixed=SK_BF16):
+    """--list-pairs of the gfx1250 TDM Stream-K config: (kernel records,
+    {problem: [names]})."""
+    path = tmp_path / "sk-pairs.json"
+    rc, _, built, _ = _main(monkeypatch, capsys, tmp_path, SK_CONFIG, *STREAMK, *argv,
+                            "--list-pairs", str(path), problems=problems, fixed=fixed)
+    assert rc == 0 and not built
+    data = json.loads(path.read_text())
+    assert data["variant"] == "stream_k"
+    return data["kernels"], data["pairs"]
+
+
+@pytest.mark.parametrize("fixed", [SK_BF16, {**GFX1250, "dtype": "fp16", "layout": "ccr"}])
+def test_streamk_list_pairs_cover_the_tdm_space_and_its_pairing(monkeypatch, capsys,
+                                                                tmp_path, fixed):
+    # Every pipeline, persistent value, reduction strategy and budget reaches
+    # an aligned problem; each budget of a non-persistent kernel is one more
+    # name of one build, a persistent kernel runs at 100 only. A CShuffle
+    # epilogue needs N to be a tile_n multiple, the TDM one does not.
+    kernels, pairs = _sk_listing(monkeypatch, capsys, tmp_path, *SK_BUDGETS,
+                                 problems=PROBLEMS + SK_MISALIGNED, fixed=fixed)
+    builds = {_kernel(n): r["persistent"] for n, r in kernels.items()}
+    assert len(kernels) == sum(1 if p else len(BUDGETS) for p in builds.values())
+    for name, r in kernels.items():
+        assert (name == _kernel(name)) == (r["budget_pct"] == 100)
+        assert r["budget_pct"] == 100 or not r["persistent"]
+        assert name.endswith("" if r["budget_pct"] == 100 else f"@budget{r['budget_pct']}")
+    for key in KEYS:
+        got = [kernels[n] for n in pairs[key]]
+        assert len(got) == len(kernels)
+        for field, want in (("pipeline", SK_PIPES), ("persistent", {False, True}),
+                            ("reduction_strategy", {"atomic", "linear", "tree"}),
+                            ("budget_pct", set(BUDGETS)), ("epilogue", {"cshuffle", "tdm"})):
+            assert {r[field] for r in got} == want, field
+    n384, n200 = ([kernels[n] for n in pairs[drv.problem_key(p)]] for p in SK_MISALIGNED)
+    assert {(r["epilogue"], r["tile_n"]) for r in n384} == {
+        ("cshuffle", 128), ("tdm", 128), ("tdm", 256)}
+    assert {r["epilogue"] for r in n200} == {"tdm"}
+    assert {r["pipeline"] for r in n200} == SK_PIPES
+
+
+def test_streamk_default_configs_and_budget_option(monkeypatch, capsys, tmp_path):
+    # gemm_streamk's default config is the arch's own when it has one; the
+    # budgets default to 100 (the kernel's own name) and are Stream-K only.
+    configs = GEMM_TE_DIR / "gemm_streamk" / "configs"
+    args = drv.argparse.Namespace(configs=[], variant="gemm_streamk", dtype="bf16")
+    assert drv.resolve_configs(args, "gfx1250") == [
+        str(configs / "default_config_gfx1250.json")]
+    assert drv.resolve_configs(args, "gfx950") == [str(configs / "default_config.json")]
+    kernels, _ = _sk_listing(monkeypatch, capsys, tmp_path)
+    assert {r["budget_pct"] for r in kernels.values()} == {100}
+    assert all(n == _kernel(n) for n in kernels)
+    for argv, message in (
+            (["--budget-pct", "50"], "--budget-pct is for --variant gemm_streamk only"),
+            ([*STREAMK, "--budget-pct", ""], "distinct values in 1..100"),
+            ([*STREAMK, "--budget-pct", "0"], "distinct values in 1..100"),
+            ([*STREAMK, "--budget-pct", "50,50"], "distinct values in 1..100"),
+            ([*STREAMK, "--budget-pct", "half"], "distinct values in 1..100")):
+        with pytest.raises(SystemExit) as e:
+            _main(monkeypatch, capsys, tmp_path, *argv, fixed=SK_BF16)
+        assert e.value.code == 2 and message in capsys.readouterr().err
+    # Non-100 --budget-pct still keeps persistent kernels at full budget (100).
+    reduced, _ = _sk_listing(monkeypatch, capsys, tmp_path, "--budget-pct", "50")
+    assert {r["budget_pct"] for r in reduced.values() if r["persistent"]} == {100}
+    assert {r["budget_pct"] for r in reduced.values() if not r["persistent"]} == {50}
+    pick = tmp_path / "missing-pair.json"
+    pick.write_text(json.dumps({KEYS[0]: ["nonexistent_kernel"]}))
+    rc, cap, _, _ = _main(
+        monkeypatch, capsys, tmp_path, SK_CONFIG, *STREAMK,
+        "--budget-pct", "100,50", "--pipelines", "comp_tdm_v3",
+        "--pairs", str(pick), problems=PROBLEMS[:1], fixed=SK_BF16,
+    )
+    assert rc == 1 and "arch, --budget-pct and --pipelines?)" in cap.out
+
+
+def test_streamk_pipeline_filter_preserves_budgets_across_run_modes(
+    monkeypatch, capsys, tmp_path
+):
+    kernels, full = _sk_listing(
+        monkeypatch, capsys, tmp_path, "--budget-pct", "100,50", problems=PROBLEMS[:1]
+    )
+    kernel = next(
+        n
+        for n in full[KEYS[0]]
+        if kernels[n]["pipeline"] == "comp_tdm_v3"
+        and not kernels[n]["persistent"]
+        and kernels[n]["budget_pct"] == 100
+    )
+    expected = [kernel, f"{kernel}@budget50"]
+    argv = [
+        "--budget-pct",
+        "100,50",
+        "--pipelines",
+        "comp_tdm_v3",
+        "--max-kernels",
+        "1",
+    ]
+    selected, pairs = _sk_listing(
+        monkeypatch, capsys, tmp_path, *argv, problems=PROBLEMS[:1]
+    )
+    assert pairs == {KEYS[0]: expected}
+    assert {r["pipeline"] for r in selected.values()} == {"comp_tdm_v3"}
+    assert {r["budget_pct"] for r in selected.values()} == {100, 50}
+    listed_json = _read(tmp_path, "sk-pairs.json")
+    assert listed_json["pipelines"] == ["comp_tdm_v3"]
+    assert listed_json["budget_pct"] == [100, 50]
+    rc, cap, built, calls = _main(
+        monkeypatch,
+        capsys,
+        tmp_path,
+        SK_CONFIG,
+        *STREAMK,
+        *argv,
+        problems=PROBLEMS[:1],
+        fixed=SK_BF16,
+    )
+    assert rc == 0, cap.out
+    assert built == [kernel] and [n for c in calls for n in c["names"]] == expected
+    pick = tmp_path / "pick.json"
+    pick.write_text(json.dumps({KEYS[0]: expected}))
+    rc, cap, built, calls, out = _search(
+        monkeypatch,
+        capsys,
+        tmp_path,
+        SK_CONFIG,
+        *STREAMK,
+        *argv,
+        "--pairs",
+        str(pick),
+        problems=PROBLEMS[:1],
+        fixed=SK_BF16,
+        host_cache={"max_total_gib": 0},
+    )
+    assert rc == 0, cap.out
+    assert built == [kernel] and {n for c in calls for n in c["names"]} == set(expected)
+    context = _read(out, "run.json")["context"]
+    assert context["pipelines"] == ["comp_tdm_v3"] and context["budget_pct"] == [
+        100,
+        50,
+    ]
+    assert _read(out, "summary.json")["budget"]["builds_charged"] == 1
+    _assert_worker(calls)
+
+
+def test_streamk_plain_run_measures_every_budget_of_one_build(monkeypatch, capsys,
+                                                              tmp_path):
+    # Without a search: every kernel is built once and measured once per
+    # budget, by the common GEMM worker; a --pairs file of budget variants
+    # (a search's winners.json) is re-measured with the same --budget-pct.
+    rc, cap, built, calls = _main(monkeypatch, capsys, tmp_path, SK_CONFIG, *STREAMK,
+                                  "--budget-pct", "100,50", "--max-kernels", "2",
+                                  problems=PROBLEMS[:1], fixed=SK_BF16)
+    assert rc == 0, cap.out
+    assert "4 unique kernels (0 duplicates filtered)" in cap.out and "; 2 builds" in cap.out
+    assert len(built) == len(set(built)) == 2 and all(n == _kernel(n) for n in built)
+    names = [n for c in calls for n in c["names"]]
+    assert sorted(names) == sorted(n for k in built for n in (k, f"{k}@budget50"))
+    _assert_worker(calls)
+    with open(tmp_path / "out.csv", newline="") as f:
+        assert sorted(r["kernel"] for r in csv.DictReader(f)) == sorted(names)
+    pick = tmp_path / "pick.json"
+    pick.write_text(json.dumps({KEYS[0]: [f"{built[1]}@budget50"]}))
+    calls.clear()
+    rc, cap, again, calls = _main(monkeypatch, capsys, tmp_path, SK_CONFIG, *STREAMK,
+                                  "--budget-pct", "100,50", "--pairs", str(pick),
+                                  problems=PROBLEMS[:1], fixed=SK_BF16)
+    assert rc == 0, cap.out
+    assert again == [built[1]] and [c["names"] for c in calls] == [[f"{built[1]}@budget50"]]
+    assert "building 1 kernels" in cap.out
+    rc, cap, _, _ = _main(monkeypatch, capsys, tmp_path, SK_CONFIG, *STREAMK, "--pairs",
+                          str(pick), problems=PROBLEMS[:1], fixed=SK_BF16)
+    assert rc == 1 and "and --budget-pct?" in cap.out
+    fails = tmp_path / "fails.csv"
+    def noop_batch(*a, **kw):
+        return [], [], 0, 0
+
+    failed = []
+    rc, cap = run_stub_driver(
+        drv, monkeypatch, capsys, tmp_path, [MISALIGNED], *STREAMK,
+        "--budget-pct", "100,50", "--max-kernels", "1", "--failures-csv", str(fails),
+        build=lambda cfgs, **kw: (
+            failed.extend(c.name for c in cfgs[1:])
+            or [tmp_path / "k0.so"] + [None] * (len(cfgs) - 1)),
+        run_batch=noop_batch, **SK_BF16)
+    assert failed and all("@budget" not in n for n in failed)
+    assert rc == 1 and f"{len(failed)}/{len(failed) + 1} kernel builds failed" in cap.out
+    assert f"{len(failed)} failed to compile, 0 built" in cap.out
+    assert cap.out.count("Build FAILED for fixed vector widths:") == len(failed)
+    with open(fails, newline="") as f:
+        assert [(r["kernel"], r["kind"]) for r in csv.DictReader(f)] == [
+            (n, "build-failed") for n in failed]
+    rc, cap = run_stub_driver(
+        drv, monkeypatch, capsys, tmp_path, PROBLEMS[:1], SK_CONFIG, *STREAMK,
+        "--budget-pct", "100,50", "--max-kernels", "2",
+        build=lambda cfgs, **kw: [tmp_path / "k.so"] * 4, run_batch=noop_batch,
+        **SK_BF16)
+    assert rc == 1 and "Incomplete kernel build results" in cap.out
+
+
+def test_streamk_budgets_of_a_kernel_cost_one_build(monkeypatch, capsys, tmp_path):
+    # One problem restricted to one kernel at six budgets (fewer candidates
+    # than trials: measured exhaustively): one build, six measurements, and
+    # the winner is the fastest budget.
+    kernels, pairs = _sk_listing(monkeypatch, capsys, tmp_path, *SK_BUDGETS)
+    kernel = _kernel(pairs[KEYS[0]][0])
+    variants = [n for n in pairs[KEYS[0]] if _kernel(n) == kernel]
+    assert len(variants) == len(BUDGETS)
+    pick = tmp_path / "pick.json"
+    pick.write_text(json.dumps({KEYS[0]: variants}))
+    rc, cap, built, calls, out = _search(
+        monkeypatch, capsys, tmp_path, SK_CONFIG, *STREAMK, *SK_BUDGETS, "--pairs",
+        str(pick), problems=PROBLEMS[:1], fixed=SK_BF16, trials_per_problem=8)
+    assert rc == 0, cap.out
+    assert built == [kernel]
+    assert sorted(n for c in calls[:len(BUDGETS)] for n in c["names"]) == sorted(variants)
+    summary = _read(out, "summary.json")
+    assert summary["budget"]["builds_charged"] == 1 and summary["counts"]["built"] == 1
+    assert summary["counts"]["measured"] == len(BUDGETS)
+    assert _read(out, "winners.json") == {KEYS[0]: [min(variants, key=_ms)]}
+
+
+def test_streamk_search_tries_every_pipeline_and_persistent_value(monkeypatch, capsys,
+                                                                  tmp_path):
+    # The example settings (fewer trials) on the gfx1250 TDM Stream-K config
+    # with six budgets, end to end with the build and the GPU stubbed: cover
+    # tries every pipeline and both persistent values on every problem first;
+    # only kernels are built, each once; the common GEMM worker measures.
+    import adaptive_search as AS
+
+    example = AS.SearchSettings.from_json(SK_SETTINGS)
+    assert example.warm_start.cover == ("pipeline", "persistent")
+    assert example.build_timeout_s and example.warm_start.pairs_file is None
+    kernels, pairs = _sk_listing(monkeypatch, capsys, tmp_path, *SK_BUDGETS)
+    settings = json.loads(SK_SETTINGS.read_text())
+    settings.update(trials_per_problem=8, new_builds_per_run=40, batch_per_problem=2,
+                    confirm={"finalists": 2, "fresh_calls": 1})
+    kws = []
+    rc, cap, built, calls, out = _search(monkeypatch, capsys, tmp_path, SK_CONFIG,
+                                         *STREAMK, *SK_BUDGETS, build_kw=kws,
+                                         fixed=SK_BF16, **settings)
+    assert rc == 0, cap.out
+    run = _read(out, "run.json")
+    assert run["context"]["variant"] == "stream_k"
+    assert run["context"]["budget_pct"] == BUDGETS
+    assert run["settings"]["warm_start"]["cover"] == ["pipeline", "persistent"]
+    assert kws and all(k["build_timeout"] == 300 for k in kws)
+    _assert_worker(calls)
+    assert all(c["extra"]["arch"] == "gfx1250" and c["batch_size"] == 1 for c in calls)
+    for key, prob in zip(KEYS, PROBLEMS):
+        tried = [kernels[c["names"][0]] for c in calls if c["prob"] == prob]
+        assert {r["pipeline"] for r in tried} == SK_PIPES
+        assert {r["persistent"] for r in tried} == {False, True}
+        cover = run["problems"][key]["warm_cover"]
+        assert set(cover["pipeline"]) == SK_PIPES
+        covered = {kernels[n]["persistent"] for f in cover for n in cover[f].values()}
+        assert covered == {False, True}
+    measured = {n for c in calls for n in c["names"]}
+    assert all(n == _kernel(n) for n in built) and len(built) == len(set(built))
+    assert {_kernel(n) for n in measured} == set(built)
+    summary = _read(out, "summary.json")
+    assert summary["budget"]["builds_charged"] == len(built) <= 40
     winners = drv.load_pair_list(out / "winners.json")
     assert set(winners) == set(KEYS) and all(winners[k][0] in pairs[k] for k in KEYS)
 

@@ -29,6 +29,7 @@ for path in (DISPATCHER_DIR / "python", CK_ROOT / "tile_engine" / "ops" / "gemm"
     sys.path.insert(0, str(path))
 
 import gemm_utils  # noqa: E402
+import run_one_gemm_kernel  # noqa: E402
 import run_one_streamk_gemm_kernel  # noqa: E402
 import streamk_gemm_full_benchmark  # noqa: E402
 from gemm_utils import _SUPPORTED_ARCHES, expand_sweep  # noqa: E402
@@ -263,7 +264,12 @@ class TestGfx1250StreamKExpansion(unittest.TestCase):
 
 class TestGfx1250StreamKDriver(unittest.TestCase):
     driver = streamk_gemm_full_benchmark
-    worker = run_one_streamk_gemm_kernel
+    # The Stream-K worker runs the GEMM worker's main: patch the module that
+    # runs its items.
+    worker = run_one_gemm_kernel
+
+    def test_worker_is_the_gemm_worker(self):
+        self.assertIs(run_one_streamk_gemm_kernel.main, run_one_gemm_kernel.main)
 
     def test_implicit_gfx1250_config_selects_wmma(self):
         args = SimpleNamespace(configs=[], arch="gfx1250")

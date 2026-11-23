@@ -34,6 +34,12 @@ When no config is given the driver uses the chosen variant's
 needs its own warp tiles);
 ``configs/default_config.json`` is the full sweep, and the JSON used by nightly
 tests is intended to drop into the same ``configs/`` directory.
+
+``--variant gemm_streamk`` runs the Stream-K kernels of a ``gemm_streamk/
+configs`` sweep (default: ``default_config_<arch>.json``, else
+``default_config.json``) through the common GEMM worker, once per workgroup
+budget of ``--budget-pct`` (a launch setting: the budgets of a kernel share
+its build, see ``gemm_utils.StreamKBudgetConfig``).
 """
 
 import argparse
@@ -62,7 +68,9 @@ sys.path.insert(0, str(_THIS_DIR))
 from gemm_utils import (  # noqa: E402
     _resolve_arch,
     expand_sweep,
+    parse_streamk_budgets,
     setup_multiple_gemm_dispatchers,
+    with_streamk_budgets,
 )
 from ctypes_utils import get_build_dir, listed_warp_tiles  # noqa: E402
 from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa: E402
@@ -80,6 +88,7 @@ VARIANT_CONFIGS = {
     "gemm_multi_abd": "gemm_multi_abd/configs",
     "gemm_preshuffle": "gemm_preshuffle/configs",
     "grouped_gemm": "grouped_gemm/configs",
+    "gemm_streamk": "gemm_streamk/configs",
 }
 DEFAULT_VARIANT = "gemm_universal"
 
@@ -98,7 +107,10 @@ CI_CONFIG_NAMES = (
 CI_CONFIG_DTYPE_ALIAS = {"bf8": "fp8"}
 # Variant-specific sweep files, tried before the CI names above (the gfx1250
 # preshuffle sweep covers all five preshuffle pipelines).
-VARIANT_CI_CONFIG_NAMES = {"gemm_preshuffle": ("default_config_{arch}.json",)}
+VARIANT_CI_CONFIG_NAMES = {
+    "gemm_preshuffle": ("default_config_{arch}.json",),
+    "gemm_streamk": ("default_config_{arch}.json", "default_config.json"),
+}
 EXAMPLE_PROBLEMS_NAME = "example_problems.json"
 
 # Map the driver's --variant (a configs-dir selector) onto the single codegen/
@@ -110,6 +122,7 @@ CODEGEN_VARIANT = {
     "gemm_multi_abd": "multi_abd",
     "gemm_preshuffle": "preshuffle",
     "grouped_gemm": "grouped",
+    "gemm_streamk": "stream_k",
 }
 
 # Some variants only support a subset of dtypes/layouts. The preshuffle op
@@ -119,11 +132,12 @@ VARIANT_SUPPORTED_DTYPES = {
     "gemm_preshuffle": ("fp16", "bf16", "fp8", "bf8"),
     "gemm_multi_d": ("fp16",),
     "gemm_multi_abd": ("fp16",),
+    "gemm_streamk": ("fp16", "bf16", "fp8", "bf8"),
 }
 VARIANT_SUPPORTED_LAYOUTS = {
     "gemm_preshuffle": ("rcr",),
+    "gemm_streamk": ("rcr", "rrr", "crr", "ccr"),
 }
-
 # Fallback problem set if a variant ships no example_problems.json.
 DEFAULT_PROBLEMS = [
     {"M": 1024, "N": 1024, "K": 1024},
@@ -331,7 +345,13 @@ def _run_batch_on_device(
             )
 
     def _item(cfg, lib):
-        it = {"so_path": str(lib), "problem": prob_dict, "kernel_name": cfg.name}
+        # A launch variant (a Stream-K budget) runs its kernel's library: the
+        # worker gets the kernel's name (its identity check) and the variant's
+        # launch settings; rows keep the variant's name.
+        kernel = getattr(cfg, "kernel_config", cfg)
+        it = {"so_path": str(lib), "problem": prob_dict, "kernel_name": kernel.name}
+        if getattr(cfg, "launch_env", None):
+            it["env"] = cfg.launch_env
         # N2: carry the multi_abd layout + per-group element-wise ops from the
         # config object so the worker's numpy reference uses the real ops/layout
         # instead of parsing (and defaulting) the kernel name.
@@ -542,8 +562,13 @@ def problem_key(prob):
     return f"{int(prob['M'])}x{int(prob['N'])}x{int(prob['K'])}"
 
 
+# Fields a variant's kernels add to KERNEL_RECORD_FIELDS (GemmKernelConfig.variant).
+VARIANT_RECORD_FIELDS = {"stream_k": ("reduction_strategy", "budget_pct")}
+
+
 def _kernel_record(cfg):
-    return {f: getattr(cfg, f) for f in KERNEL_RECORD_FIELDS if hasattr(cfg, f)}
+    names = KERNEL_RECORD_FIELDS + VARIANT_RECORD_FIELDS.get(getattr(cfg, "variant", ""), ())
+    return {f: getattr(cfg, f) for f in names if hasattr(cfg, f)}
 
 
 def load_pair_list(path):
@@ -700,13 +725,29 @@ def run_repeats(plan, count, problems, built_kernels, devices, run_args, extra=N
     return stats["ok"], stats["failed"]
 
 
+def build_kernels(configs, **kwargs):
+    """``setup_multiple_gemm_dispatchers`` on the kernels of ``configs``, each
+    built once: the launch variants of a kernel (its Stream-K budgets, see
+    ``GemmKernelConfig.kernel_config``) share its build. One library path (or
+    None) per config; a build's ``errors`` are keyed by kernel name."""
+    kernels = {}
+    for c in configs:
+        kernels.setdefault(c.kernel_config.name, c.kernel_config)
+    built = setup_multiple_gemm_dispatchers(list(kernels.values()), **kwargs)
+    if len(built) != len(kernels):
+        return []  # the callers' length checks report it
+    libs = dict(zip(kernels, built))
+    return [libs[c.kernel_config.name] for c in configs]
+
+
 def unique_built_kernels(configs, lib_paths):
     """Pair configs with their built .so, dropping failed builds and configs
-    that map to an already-seen .so. Returns (kernels, n_duplicates)."""
+    that map to an already-seen .so with the same launch settings. Returns
+    (kernels, n_duplicates)."""
     built = [(cfg, lib) for cfg, lib in zip(configs, lib_paths) if lib is not None]
     seen, kernels = set(), []
     for cfg, lib in built:
-        key = str(lib.resolve())
+        key = (str(lib.resolve()), tuple(sorted(getattr(cfg, "launch_env", {}).items())))
         if key not in seen:
             seen.add(key)
             kernels.append((cfg, lib))
@@ -714,8 +755,8 @@ def unique_built_kernels(configs, lib_paths):
 
 
 def worker_setup():
-    """The worker script and its environment: the driver's, plus GEMM_PYPATH so
-    the worker finds the dispatcher's python modules."""
+    """The common GEMM worker script and its environment: the driver's,
+    plus GEMM_PYPATH so the worker finds the dispatcher's python modules."""
     base_env = os.environ.copy()
     base_env["GEMM_PYPATH"] = os.pathsep.join(
         [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
@@ -921,6 +962,17 @@ def main():
     )
     add_vector_fallback_arg(parser)
     parser.add_argument(
+        "--budget-pct",
+        default=None,
+        metavar="PCTS",
+        help="gemm_streamk only: comma-list of Stream-K workgroup budgets, in "
+        "percent of the kernel's default (CUs x occupancy); every kernel runs once "
+        "per budget, all budgets of a kernel share its build, and a budget other "
+        "than 100 names its run <kernel>@budget<pct> (default: 100). Persistent "
+        "kernels run at 100 only. A search takes the budget as one more candidate "
+        "field (budget_pct)",
+    )
+    parser.add_argument(
         "--build-timeout",
         type=int,
         default=None,
@@ -981,7 +1033,7 @@ def main():
         help="Adaptive search instead of measuring every pair: a search settings "
         "JSON (see README). Builds and measures only the kernels the search "
         "proposes, re-verifies the best and writes the confirmed winners as a "
-        "--pairs file. Needs --search-output-dir; gemm_universal only",
+        "--pairs file. Needs --search-output-dir; gemm_universal and gemm_streamk",
     )
     parser.add_argument(
         "--search-output-dir",
@@ -1002,6 +1054,16 @@ def main():
         parser.error("--repeat-top must be >= 0 and --repeat-count >= 1")
     if args.pairs and args.list_pairs:
         parser.error("--pairs and --list-pairs are mutually exclusive")
+    budgets = None
+    if args.budget_pct is not None and CODEGEN_VARIANT[args.variant] != "stream_k":
+        parser.error("--budget-pct is for --variant gemm_streamk only")
+    if CODEGEN_VARIANT[args.variant] == "stream_k":
+        try:
+            budgets = parse_streamk_budgets(
+                "100" if args.budget_pct is None else args.budget_pct
+            )
+        except ValueError as e:
+            parser.error(str(e))
     # Every file the run writes, and the pair list it reads, must be distinct:
     # opening one twice corrupts it, and a later one replaces an earlier one.
     files = [
@@ -1138,6 +1200,10 @@ def main():
         all_configs = [cfg for cfg in all_configs if cfg.pipeline in args.pipelines]
         print(f"  Pipeline filter (--pipelines): {', '.join(args.pipelines)}")
     all_configs = vfb.limit_base_kernels(all_configs, args.max_kernels)
+    if budgets:
+        # Launch variants, not new kernels: each budget runs its kernel's build.
+        all_configs = with_streamk_budgets(all_configs, budgets)
+        print(f"  Stream-K workgroup budgets (% of the default): {budgets}")
 
     print(f"  Expanded configs: {len(all_configs)}")
     if not all_configs:
@@ -1174,6 +1240,7 @@ def main():
             "layout": sweep_layout,
             "variant": codegen_variant,
             "configs": config_paths,
+            **({"budget_pct": budgets} if budgets else {}),
             **pipeline_metadata,
             "problems": [
                 {"M": int(p["M"]), "N": int(p["N"]), "K": int(p["K"])} for p in problems
@@ -1203,12 +1270,17 @@ def main():
             {n for v in requested.values() if v != "*" for n in v} - expanded
         )
         if unknown or absent:
+            same = ["configs", "problems", "dtype", "layout", "arch"]
+            if budgets:
+                same.append("--budget-pct")
+            if args.pipelines is not None:
+                same.append("--pipelines")
+            hint = f"same {', '.join(same[:-1])} and {same[-1]}?"
             for what, items in (("problems", unknown), ("kernels", absent)):
                 if items:
                     print(
                         f"  ERROR: --pairs lists {len(items)} {what} this run does not "
-                        f"have (same configs, problems, dtype, layout and arch"
-                        f"{' and --pipelines' if args.pipelines is not None else ''}?): "
+                        f"have ({hint}): "
                         f"{', '.join(items[:3])}{' ...' if len(items) > 3 else ''}"
                     )
             return 1
@@ -1235,7 +1307,7 @@ def main():
                     needed.update(fixed[i].name for i in idx)
         all_configs = [cfg for cfg in all_configs if cfg.name in needed]
         plan = (
-            f"building {len(needed)} kernels"
+            f"building {len({c.kernel_config.name for c in all_configs})} kernels"
             if search_settings is None
             else "the search builds only the kernels it proposes"
         )
@@ -1275,6 +1347,7 @@ def main():
             "layout": sweep_layout,
             "variant": codegen_variant,
             "configs": config_paths,
+            **({"budget_pct": budgets} if budgets else {}),
             **pipeline_metadata,
         }
         return run_gemm_search(
@@ -1294,24 +1367,33 @@ def main():
     build_errors = {} if args.failures_csv else None
     if build_errors is not None:
         build_kwargs["errors"] = build_errors
-    lib_paths = setup_multiple_gemm_dispatchers(
+    lib_paths = build_kernels(
         all_configs, verbose=True, max_workers=args.workers, **build_kwargs
     )
     build_time = time.perf_counter() - t0
 
-    build_failures = sum(lib is None for lib in lib_paths)
     if len(lib_paths) != len(all_configs):
         print("  ERROR: Incomplete kernel build results")
         return 1
+    builds = {
+        cfg.kernel_config.name: (cfg.kernel_config, lib)
+        for cfg, lib in zip(all_configs, lib_paths)
+    }
+    build_failures = sum(lib is None for _, lib in builds.values())
     if build_failures:
-        print(f"  ERROR: {build_failures}/{len(all_configs)} kernel builds failed")
+        print(f"  ERROR: {build_failures}/{len(builds)} kernel builds failed")
 
-    vfb.report_builds(all_configs, lib_paths)
+    vfb.report_builds(
+        [cfg for cfg, _ in builds.values()],
+        [lib for _, lib in builds.values()],
+    )
     built_kernels, duplicate_count = unique_built_kernels(all_configs, lib_paths)
 
     print(
         f"\n  Built {len(all_configs)} configs -> {len(built_kernels)} unique kernels "
         f"({duplicate_count} duplicates filtered) in {build_time:.0f}s"
+        + (f"; {len(builds)} builds, shared by their launch variants"
+           if len(builds) < len(all_configs) else "")
     )
 
     # Failed builds are recorded now, so they are recorded even when nothing built.
@@ -1320,16 +1402,15 @@ def main():
         fail_file = open(args.failures_csv, "w", newline="")
         fail_writer = csv.DictWriter(fail_file, fieldnames=FAILURE_FIELDS)
         fail_writer.writeheader()
-        for name in dict.fromkeys(
-            cfg.name for cfg, lib in zip(all_configs, lib_paths) if lib is None
-        ):
-            fail_writer.writerow(
-                {
-                    "kernel": name,
-                    "kind": "build-failed",
-                    "error": build_failure_summary(build_errors.get(name)),
-                }
-            )
+        for name, (_, lib) in builds.items():
+            if lib is None:
+                fail_writer.writerow(
+                    {
+                        "kernel": name,
+                        "kind": "build-failed",
+                        "error": build_failure_summary(build_errors.get(name)),
+                    }
+                )
         fail_file.flush()
 
     if not built_kernels:

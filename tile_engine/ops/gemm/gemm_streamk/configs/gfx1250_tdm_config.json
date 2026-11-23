@@ -8,7 +8,7 @@
         "every shape; the CShuffle epilogue needs N to be a multiple of tile_n.",
         "The warp tiles cover 16-bit (16x16x32) and 8-bit (16x16x128, 32x32x128) A/B;",
         "each dtype keeps the ones its warp-tile table lists.",
-        "Usage: python streamk_gemm_full_benchmark.py gemm_streamk/configs/gfx1250_tdm_config.json",
+        "Usage: python gemm_full_benchmark.py --variant gemm_streamk gemm_streamk/configs/gfx1250_tdm_config.json",
         "  --arch gfx1250 --dtype bf16 --verify [--budget-pct 100,50]"
     ],
     "tile_config": {

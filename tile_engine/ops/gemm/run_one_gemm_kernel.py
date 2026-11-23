@@ -28,7 +28,10 @@ first measure call) the worker loads no library: it stores the host data of
 ``problem`` for the dtype and layout of ``kernel_name`` in ``host_cache`` and
 prints ``{"ok": true, "stored": <whether the cache holds it now>}``. With
 ``arch`` (the run's --arch) the fp8/bf8 host format (OCP or FNUZ) follows that
-arch instead of the local GPU's detection, which can fail. With ``prepare`` or
+arch instead of the local GPU's detection, which can fail. An item's (or the
+single form's) ``env`` is set while that kernel runs, then restored: launch
+settings its library reads at each launch, such as the Stream-K workgroup
+budget (``GemmKernelConfig.launch_env``). With ``prepare`` or
 ``search_host_data`` the worker asks to be the first process
 the out-of-memory killer ends (``_first_to_go``), and an error starts with its
 exception's type (the search tells a MemoryError from a kernel's failure).
@@ -44,6 +47,7 @@ codegen ``KERNEL_NAME`` that ``GemmKernelConfig.name`` reproduces); a mismatch
 is an error naming both.
 """
 
+import contextlib
 import json
 import os
 import sys
@@ -217,6 +221,22 @@ def _first_to_go():
         pass
 
 
+@contextlib.contextmanager
+def _launch_env(env):
+    """``env`` (an item's launch settings) set in this process's environment,
+    which the kernel library reads at each launch, then restored."""
+    old = {k: os.environ.get(k) for k in env or {}}
+    try:
+        os.environ.update({k: str(v) for k, v in (env or {}).items()})
+        yield
+    finally:
+        for k, v in old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 def _check(out, output, ref, denom, verify_tol, rows=None):
     """Add ``max_rel`` of ``output`` against ``ref`` and ``verified`` to
     ``out``, comparing ``rows`` rows at a time (None: all at once): the same
@@ -382,8 +402,9 @@ def main():
     host_cache = d.get("host_cache")
     search_host_data = bool(d.get("search_host_data", False))
 
-    if "items" in d:
-        for i, item in enumerate(d["items"]):
+    # The single form is one item: the payload itself.
+    for i, item in enumerate(d["items"] if "items" in d else [d]):
+        with _launch_env(item.get("env")):
             _run_one(
                 i,
                 item["so_path"],
@@ -400,23 +421,6 @@ def main():
                 search_host_data=search_host_data,
                 arch=item.get("arch", d.get("arch")),
             )
-    else:
-        _run_one(
-            0,
-            d["so_path"],
-            d["problem"],
-            d.get("kernel_name", "unknown"),
-            verify=verify,
-            verify_tol=verify_tol,
-            layout4=d.get("layout4"),
-            a_op=d.get("a_elementwise_op"),
-            b_op=d.get("b_elementwise_op"),
-            cde_op=d.get("cde_elementwise_op"),
-            check_identity=check_identity,
-            host_cache=host_cache,
-            search_host_data=search_host_data,
-            arch=d.get("arch"),
-        )
 
 
 if __name__ == "__main__":

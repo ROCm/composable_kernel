@@ -36,7 +36,7 @@ import multiprocessing
 import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -582,6 +582,18 @@ class GemmKernelConfig:
         elif self.variant == "grouped":
             name += "_grouped"
         return name
+
+    @property
+    def kernel_config(self) -> "GemmKernelConfig":
+        """The config that is built for this one: itself (a launch variant,
+        e.g. ``StreamKBudgetConfig``, returns its kernel's)."""
+        return self
+
+    @property
+    def launch_env(self) -> Dict[str, str]:
+        """Environment a run of this config sets for its launches: none (see
+        ``StreamKBudgetConfig``)."""
+        return {}
 
     # ------------------------------------------------------------------ #
     # Serialization
@@ -2540,6 +2552,7 @@ def setup_multiple_gemm_dispatchers(
     import sys
 
     n = len(configs)
+    input_configs = list(configs)
     results: List[Optional[Path]] = [None] * n
 
     # Only failures are written below, so a caller that reuses one dict across
@@ -2550,8 +2563,9 @@ def setup_multiple_gemm_dispatchers(
     # permute_n exits too: a call that produced no verdict must not leave an
     # older one standing in for it.
     if errors is not None:
-        for c in configs:
+        for c in input_configs:
             errors.pop(c.name, None)
+            errors.pop(getattr(c, "kernel_config", c).name, None)
 
     if n == 0:
         return results
@@ -2563,7 +2577,7 @@ def setup_multiple_gemm_dispatchers(
     # so this only catches a hand-constructed / misused config before it becomes a
     # .so that could silently produce incorrect output.
     if not BRIDGE_PERMUTE_N:
-        for c in configs:
+        for c in input_configs:
             if getattr(c, "variant", "") == "preshuffle" and getattr(
                 c, "permute_n", False
             ):
@@ -2579,15 +2593,18 @@ def setup_multiple_gemm_dispatchers(
     # expand_sweep already resolves this, but a config built directly (gfx_arch
     # left as None) would otherwise emit a literal "None" arch. Resolve/validate
     # here too, defaulting a None to the rocminfo-detected arch (never gfx942).
+    # Launch variants (e.g. StreamKBudgetConfig) unwrap to kernel_config so a
+    # direct caller compiles each underlying kernel once under its header name.
     _shared_arch: Optional[str] = None
     resolved_configs: List[GemmKernelConfig] = []
-    for c in configs:
-        if c.gfx_arch:
-            resolved_configs.append(replace(c, gfx_arch=_resolve_arch(c.gfx_arch)))
+    for c in input_configs:
+        base = getattr(c, "kernel_config", c)
+        if base.gfx_arch:
+            resolved_configs.append(replace(base, gfx_arch=_resolve_arch(base.gfx_arch)))
         else:
             if _shared_arch is None:
                 _shared_arch = _get_arch()
-            resolved_configs.append(replace(c, gfx_arch=_shared_arch))
+            resolved_configs.append(replace(base, gfx_arch=_shared_arch))
     configs = resolved_configs
 
     max_workers = max_workers or min(multiprocessing.cpu_count(), 8)
@@ -2730,11 +2747,13 @@ def setup_multiple_gemm_dispatchers(
     if errors is not None:
         for i, c in enumerate(configs):
             if results[i] is None:
-                errors[c.name] = (
+                reason = (
                     failures.get(i)
                     or failures.get(first_index[c.name])
                     or "build failed with no reason reported"
                 )
+                errors[c.name] = reason
+                errors[input_configs[i].name] = reason
 
     if verbose:
         ok_count = sum(1 for r in results if r is not None)
@@ -3042,6 +3061,48 @@ def unique_by_name(configs: List[GemmKernelConfig]) -> List[GemmKernelConfig]:
     return list(first.values())
 
 
+STREAMK_FULL_BUDGET = 100
+
+
+@dataclass
+class StreamKBudgetConfig(GemmKernelConfig):
+    """A Stream-K kernel launched with ``budget_pct`` percent of its default
+    workgroup budget. The budget is a launch setting, not a compile-time one:
+    every budget of a kernel runs its one build (``kernel_config``), and only
+    ``name`` and ``launch_env`` differ. The full budget keeps the kernel's own
+    name; another budget appends ``@budget<pct>``."""
+
+    budget_pct: int = STREAMK_FULL_BUDGET
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.budget_pct, bool)
+            or not isinstance(self.budget_pct, int)
+            or not (1 <= self.budget_pct <= STREAMK_FULL_BUDGET)
+        ):
+            raise ValueError(
+                f"budget_pct must be an int in 1..{STREAMK_FULL_BUDGET}, "
+                f"got {self.budget_pct!r}"
+            )
+
+    @property
+    def kernel_config(self) -> GemmKernelConfig:
+        return GemmKernelConfig(
+            **{f.name: getattr(self, f.name) for f in fields(GemmKernelConfig)}
+        )
+
+    @property
+    def name(self) -> str:
+        kernel = super().name
+        if self.budget_pct == STREAMK_FULL_BUDGET:
+            return kernel
+        return f"{kernel}@budget{self.budget_pct}"
+
+    @property
+    def launch_env(self) -> Dict[str, str]:
+        return {STREAMK_BUDGET_ENV: str(self.budget_pct)}
+
+
 def parse_streamk_budgets(text) -> List[int]:
     """A ``--budget-pct`` comma list: distinct percents in 1..100, in order.
     Raises ValueError otherwise."""
@@ -3052,6 +3113,26 @@ def parse_streamk_budgets(text) -> List[int]:
     if not pcts or any(not 0 < p <= 100 for p in pcts) or len(set(pcts)) < len(pcts):
         raise ValueError(f"--budget-pct {text!r}: expected distinct values in 1..100")
     return pcts
+
+
+def with_streamk_budgets(
+    configs: List[GemmKernelConfig], budgets: List[int]
+) -> List[GemmKernelConfig]:
+    """Each Stream-K config of ``configs`` once per budget (percent), kernel
+    by kernel; configs of other variants as they are. A persistent kernel runs
+    at the full budget only: its workgroups also take the data-parallel tiles,
+    so a smaller grid leaves CUs idle. Over the gfx1250 TDM Stream-K space this
+    never changed a problem's best kernel and removes a third of the
+    candidates."""
+    out: List[GemmKernelConfig] = []
+    for c in configs:
+        if c.variant != "stream_k":
+            out.append(c)
+            continue
+        kernel = {f.name: getattr(c, f.name) for f in fields(GemmKernelConfig)}
+        pcts = [STREAMK_FULL_BUDGET] if c.persistent else budgets
+        out.extend(StreamKBudgetConfig(**kernel, budget_pct=b) for b in pcts)
+    return out
 
 
 def expand_sweep(

@@ -187,11 +187,17 @@ def test_reference_follows_the_fp8_format():
 # ------------------------------------------------------------------ workers
 
 
+# The Stream-K worker runs the GEMM worker (test_streamk_worker_is_the_gemm_worker).
 WORKERS = {
     "gemm": (run_one_gemm_kernel, GpuGemmRunner, PROBLEM),
-    "streamk": (run_one_streamk_gemm_kernel, GpuGemmRunner, PROBLEM),
     "batched": (run_one_batched_gemm_kernel, GpuBatchedGemmRunner, BATCHED_PROBLEM),
 }
+
+
+def test_streamk_worker_is_the_gemm_worker():
+    # Same ABI, same payload: the Stream-K worker gets every GEMM worker
+    # option (verify, check_identity, host cache, arch, prepare, item env).
+    assert run_one_streamk_gemm_kernel.main is run_one_gemm_kernel.main
 
 
 @pytest.mark.parametrize("kind", WORKERS)

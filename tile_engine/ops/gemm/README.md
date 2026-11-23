@@ -47,7 +47,7 @@ for regular GEMM:
 
 ```
 gemm/
-├── gemm_full_benchmark.py          # bridge driver: gemm_universal, multi_d, multi_abd, preshuffle
+├── gemm_full_benchmark.py          # bridge driver: gemm_universal, multi_d, multi_abd, preshuffle, streamk
 ├── run_one_gemm_kernel.py          # disposable per-kernel worker for the above
 ├── <op>_full_benchmark.py          # per-op bridge drivers: batched_gemm, batched_contraction,
 ├── run_one_<op>_kernel.py          #   grouped_gemm, gemm_multi_d, mx_gemm, streamk_gemm
@@ -56,7 +56,7 @@ gemm/
 ├── gemm_validation_utils.py        # arch/warp-tile tables (also read by the dispatcher)
 ├── gemm_instance_builder.py        # shared generator for the native (legacy) builds
 ├── gemm_benchmark.{py,hpp}, gemm_common.hpp, gemm_profiler.hpp  # native harness
-├── gemm_universal/  gemm_multi_d/  gemm_multi_abd/  gemm_preshuffle/  grouped_gemm/ ...
+├── gemm_universal/  gemm_multi_d/  gemm_multi_abd/  gemm_preshuffle/  gemm_streamk/  grouped_gemm/ ...
 │                                   # per-variant configs/ + native CMake builds
 └── README.md
 ```
@@ -69,9 +69,10 @@ gemm/
 - `user_provided_config.json` — scratch space for custom sweeps.
 - `example_problems.json` — example M/N/K problem set (used when `--problems`
   is omitted).
-- `search_settings_gfx1250_tdm.json` - example search settings for the gfx1250
-  full default config with `--pipelines`, see
-  [gfx1250 / MI450](#gfx1250--mi450-tdm-pipelines).
+- `search_settings_gfx1250_tdm.json`, `search_settings_gfx1250_streamk.json` -
+  example search settings for gfx1250 TDM universal and Stream-K searches, see
+  [gfx1250 / MI450](#gfx1250--mi450-tdm-pipelines) and
+  [Stream-K](#stream-k---variant-gemm_streamk).
 
 > The JSON used by **nightly** tests is intended to drop into the same
 > `configs/` directory and be selected with a positional config — no driver
@@ -156,6 +157,13 @@ measures and reports exactly as described above.
   all eligible kernels within that space. Explicit selections are recorded
   under `"pipelines"` in `--list-pairs` and in a search's `run.json`; omitting
   the flag keeps every pipeline from the selected configs.
+- `--budget-pct PCTS` - `--variant gemm_streamk` only: comma-list of distinct
+  workgroup budgets in `1..100` (% of the kernel's default `CUs x occupancy`,
+  default `100`). Non-persistent kernels expand to one launch variant per
+  budget (`<kernel>@budget<pct>`, while `100` keeps `<kernel>`) sharing one
+  build; persistent kernels run at `100` only. Recorded under `"budget_pct"` in
+  `--list-pairs` and a search's `run.json`; see
+  [Stream-K](#stream-k---variant-gemm_streamk).
 - `--list-pairs PATH` — dry run: expand and pair as a real run would, write every
   `(problem, kernel)` pair it would measure together with each kernel's
   configuration, and exit without building. Use it to see the size of a sweep
@@ -277,7 +285,7 @@ build their own fixed-width variants, about 80).
 | `build_timeout_s` | `180`, native kernels only | limit for each codegen, compile and link step of a kernel's build in the search; when given, it applies to every kernel. Without it, a round that builds a fixed-vector-width kernel keeps the build function's limits, as a full run does (300 s per step, 1200 s to compile a fixed-width kernel). A kernel whose step times out is a `compile_error`. See "Build timeout" below |
 | `warm_start.pairs_file`, `top_k` | none, `5` | a `--pairs` file (e.g. from `select_kernels.py --out_pairs`): the first `top_k` listed kernels of a problem are tried first |
 | `warm_start.ranked_csv`, `use_prior` | none, `false` | `select_kernels.py --out_ranked` predictions as a prior (`tpe`, `gp`, `portfolio` only); give both or neither |
-| `warm_start.cover` | none | a candidate field, e.g. `"pipeline"`: one kernel per value of that field is tried first, after the `pairs_file` picks and not limited by `top_k` (values a pick already has are skipped; each value's kernel is drawn independently from the problem's seed, field and value, so identical groups share a pick regardless of other groups). Needs no `pairs_file`. The picks are trials like any other: they count toward `trials_per_problem` and `new_builds_per_run`, and a problem whose warm picks would use all of its `trials_per_problem` ends the run with an error before any work, so cover a field with few values (the number of pipelines depends on the config and problem, not just the arch). With `hill` the picks replace its stratified start probe (it starts from the best of them); `tpe` and `gp` count them in their startup trials. Not for `random` or `exhaustive`, which take no warm start (an error); a problem with fewer candidates than `trials_per_problem` is measured exhaustively anyway. `run.json` lists the picks per problem under `warm_cover`; a field that no candidate of a problem has ends the run with an error |
+| `warm_start.cover` | none | a candidate field, e.g. `"pipeline"`, or a list of fields covered in turn, e.g. `["pipeline", "persistent"]` (each field adds the values the picks so far lack): one kernel per value of that field is tried first, after the `pairs_file` picks and not limited by `top_k` (values a pick already has are skipped; each value's kernel is drawn independently from the problem's seed, field and value, so identical groups share a representative regardless of other groups). Needs no `pairs_file`. The picks are trials like any other: they count toward `trials_per_problem` and `new_builds_per_run`, and a problem whose warm picks would use all of its `trials_per_problem` ends the run with an error before any work, so cover a field with few values (the number of pipelines depends on the config and problem, not just the arch). With `hill` the picks replace its stratified start probe (it starts from the best of them); `tpe` and `gp` count them in their startup trials. Not for `random` or `exhaustive`, which take no warm start (an error); a problem with fewer candidates than `trials_per_problem` is measured exhaustively anyway. `run.json` lists the picks per problem under `warm_cover` (`{field: {value: kernel}}` for a list); a field that no candidate of a problem has ends the run with an error |
 | `confirm.finalists`, `confirm.fresh_calls` | `2`, `3` | the winner is the lowest median among the finalists whose fresh calls all verified |
 | `measurement_policy` | `full` | the only value |
 | `host_cache.dir`, `max_entry_gib`, `max_total_gib` | system temp dir, `4`, a quarter of its free space | the run's cache of verification inputs and references, in a new directory under `dir` (keep it on a local filesystem) that is removed when the run ends. An entry larger than `max_entry_gib`, one past `max_total_gib` in all, or one that would leave the filesystem less than 10% free is not stored, and its calls compute as without the cache: on a filesystem already over 90% full nothing is stored, and the run warns. Both limits count the entries still being written, so they hold with any number of workers. `max_total_gib` `0` turns it off. See "Host cache" and "Host cache space" below |
@@ -308,8 +316,9 @@ that `compile_error` again without a trial.
 Option rules:
 
 - `--search-config` and `--search-output-dir` go together, for `gemm_universal`
-  only. `--list-pairs`, `--repeat-top` and `--failures-csv` are rejected; the
-  search writes its own records and `--csv` is not written. `--build-timeout`
+  and `gemm_streamk` (see "Stream-K" below) only. `--list-pairs`,
+  `--repeat-top` and `--failures-csv` are rejected; the search writes its own
+  records and `--csv` is not written. `--build-timeout`
   is rejected too: the search's limit is `build_timeout_s`.
 - Every measurement is verified and runs one kernel per worker, whatever
   `--verify` and `--batch-size` say, so a failure always names one kernel.
@@ -746,12 +755,91 @@ Node caveats:
   may hang or reboot, run one problem per run (its own problems file and
   `--search-output-dir`) and copy each output directory off the node when it
   ends.
-- Not covered: `comp_tdm_v3` (no dispatcher bridge yet; once it has one and
-  the default config lists it, include it in `--pipelines` and the TDM
-  coverage tests),
-  `preshuffle_tdm` (the
-  `gemm_preshuffle` variant; a search takes `gemm_universal` only), and the MX,
-  Stream-K, batched, grouped and quant TDM kernels.
+- The example's pipeline filter omits `comp_tdm_v3`; its bridge is available,
+  so add it to `--pipelines` to include it from the full default config.
+- Not covered: `preshuffle_tdm` (the `gemm_preshuffle` variant; a search takes
+  `gemm_universal` and `gemm_streamk` only), and the MX, batched, grouped and
+  quant TDM kernels. The Stream-K TDM kernels are below.
+
+#### Stream-K (`--variant gemm_streamk`)
+
+`--variant gemm_streamk` runs Stream-K kernels through this driver, so a
+search covers them too. The candidates are `expand_sweep(variant="stream_k")`
+over a `gemm_streamk/configs` file (default: `default_config_<arch>.json`,
+else `default_config.json`; on gfx1250 the TDM space is
+`gemm_streamk/configs/gfx1250_tdm_config.json`: `comp_tdm`, `comp_tdm_v2` and
+`comp_tdm_v3`, tiles, waves, the `cshuffle` and `tdm` epilogues, persistent or
+not, and the `atomic`, `linear` and `tree` reductions), paired with the
+Stream-K rules of `gemm_vector_fallback.py`: a TDM pipeline runs any shape with
+the `tdm` epilogue, but with `cshuffle` N must be a multiple of `tile_n`;
+non-TDM pipelines get fixed-vector-width variants for misaligned problems as in
+`gemm_universal`. The kernels run in the common `run_one_gemm_kernel.py`
+worker (same payload, verification and search options), on the
+Stream-K ctypes library. `--list-pairs`, `--pairs` and plain runs work as for
+`gemm_universal`, including the shared `--pipelines` restriction applied before
+kernel caps and budget expansion.
+
+The reduction strategy and `persistent` are compile-time: each value is its
+own kernel. The workgroup budget (`--budget-pct`, percent of the kernel's
+default of CUs x occupancy, default `100`) is a launch setting: each budget of
+a kernel is one more candidate (record field `budget_pct`, named
+`<kernel>@budget<pct>`; `100` keeps the kernel's own name) that runs the
+kernel's build. A search builds and charges that build once in
+`new_builds_per_run` for all its budgets, a failed build fails them all at
+once, and trying another budget of a built kernel costs one measurement (past
+the build cap the budgets of built kernels stay reachable). The worker sets
+`CK_TILE_STREAMK_BUDGET_PCT` for each measured item and restores it; the
+library reads it at each launch. A persistent kernel runs at `100` only: its
+workgroups also take the data-parallel tiles, so a smaller grid leaves CUs
+idle, and searches that mostly met persistent kernels at small budgets learned
+to avoid persistent kernels where they are the fastest (`streamk_gemm_full_benchmark.py
+--budget-pct` still measures every budget). Candidates per problem with the six
+budgets below, fp16 or bf16 in any layout and fp8 in `rcr`: 1680 (480 kernels:
+`comp_tdm` 240, `comp_tdm_v2` 80, `comp_tdm_v3` 160; half of them persistent)
+when N is a multiple of 256, 1176 when it is a multiple of 128 only, and 672
+(`tdm` epilogue only) otherwise; fp8 in the other layouts has no `comp_tdm_v3`
+kernel (1120, 784 and 448).
+
+```bash
+RUN="gemm_streamk/configs/gfx1250_tdm_config.json --variant gemm_streamk \
+    --pipelines comp_tdm,comp_tdm_v2,comp_tdm_v3 \
+    --arch gfx1250 --dtype bf16 --layout rcr --problems problems.json \
+    --budget-pct 100,75,66,50,33,25"
+python gemm_full_benchmark.py $RUN --list-pairs candidates.json
+python gemm_full_benchmark.py $RUN --devices 0, --workers 16 \
+    --search-config configs/search_settings_gfx1250_streamk.json \
+    --search-output-dir runs/gfx1250-sk-bf16-rcr-001
+# winners.json names budget variants: re-check them with the same --budget-pct
+python gemm_full_benchmark.py $RUN --pairs runs/gfx1250-sk-bf16-rcr-001/winners.json \
+    --verify --devices 0, --csv recheck.csv
+```
+
+`configs/search_settings_gfx1250_streamk.json`: `tpe`, `shared`, 100 trials
+per problem, `warm_start.cover` `["pipeline", "persistent"]` (each pipeline and
+both persistent values are tried on each problem before the strategy's own
+picks), `new_builds_per_run` 480 (every kernel of the gfx1250 TDM Stream-K
+config, so the cap does not bind; lower it to bound the build time of a large
+problem set) and `build_timeout_s` 300, a placeholder to calibrate as in the
+TDM section above. The node caveats above hold here too. Atomic reduction
+rounds every partial update to the output type, so with many splits a bf16 or
+fp16 output can exceed the default `--verify-tol` (2e-2): such a kernel is a
+`numeric_fail`, which the search learns to avoid; pass a larger
+`--verify-tol` only with an application-appropriate accuracy requirement.
+
+For an exhaustive reference, use the same `gemm_full_benchmark.py $RUN` without
+`--search-config`/`--search-output-dir` (and without `--pairs` or a kernel cap).
+This exhausts the shared driver's candidate space, including persistent kernels
+at full budget only.
+The legacy `streamk_gemm_full_benchmark.py` also remains an exhaustive sweep:
+its `--budget-pct` accepts the same list, and its `--reduction-strategy` filter
+is specific to that CLI. Both drivers pass the selected architecture to the
+worker; the legacy driver and shared search also request library identity
+checks. The legacy CSV keeps plain kernel names and a separate `budget_pct`
+column. The shared driver encodes non-100 budgets in `<kernel>@budget<pct>`
+names instead, including in `--list-pairs`/`winners.json` files accepted by
+`--pairs`. These are distinct output contracts, not interchangeable CSVs.
+`run_one_streamk_gemm_kernel.py` remains a compatibility entrypoint to the
+common worker for existing callers.
 
 ### Multi-GPU parallelism
 
@@ -766,7 +854,7 @@ auto-detected (`HIP_VISIBLE_DEVICES`, then `rocm-smi`/`amd-smi`); override with
 
 | Axis | Supported |
 |---|---|
-| dtype | `fp16`, `bf16`, `fp32`, `fp8`, `bf8` (per-arch; `gemm_preshuffle` excludes `fp32`, `gemm_multi_d`/`gemm_multi_abd` are `fp16` only) |
+| dtype | `fp16`, `bf16`, `fp32`, `fp8`, `bf8` (per-arch; `gemm_preshuffle` and `gemm_streamk` exclude `fp32`, `gemm_multi_d`/`gemm_multi_abd` are `fp16` only) |
 | layout | `rcr`, `rrr`, `crr`, `ccr` (row-major C only — ck_tile rejects column-major C at build); `gemm_multi_abd` takes the 4-char `rcrr`; `gemm_preshuffle` is `rcr` only |
 
 ### Variant scope
@@ -781,12 +869,14 @@ variant-aware driver**, not a per-variant copy. `--variant` selects both the
 | `gemm_multi_d` | `gemm_multi_d/configs/` | `multi_d` |
 | `gemm_multi_abd` | `gemm_multi_abd/configs/` | `multi_abd` |
 | `gemm_preshuffle` | `gemm_preshuffle/configs/` | `preshuffle` |
+| `gemm_streamk` | `gemm_streamk/configs/` | `stream_k` |
 
-Grouped GEMM, batched GEMM, batched contraction, mx_gemm, stream-K and
+Grouped GEMM, batched GEMM, batched contraction, mx_gemm and
 gemm_bquant have their own `<op>_full_benchmark.py` drivers (gemm_bquant's lives
-in `block_scale_gemm/gemm_bquant/`). `gemm_multi_d` also has a dedicated
-`gemm_multi_d_full_benchmark.py`. `--variant grouped_gemm` is rejected; use
-`grouped_gemm_full_benchmark.py`.
+in `block_scale_gemm/gemm_bquant/`). `gemm_multi_d` and `gemm_streamk` also
+retain dedicated `gemm_multi_d_full_benchmark.py` and
+`streamk_gemm_full_benchmark.py` drivers. `--variant grouped_gemm` is rejected;
+use `grouped_gemm_full_benchmark.py`.
 
 ### Native (legacy) Tile Engine builds
 

@@ -160,7 +160,13 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
         for _, cfg, lib in batch
     ]
     payload = json.dumps(
-        {"items": items, "verify": args.verify, "verify_tol": args.verify_tol}
+        {
+            "items": items,
+            "verify": args.verify,
+            "verify_tol": args.verify_tol,
+            "arch": args.arch,
+            "check_identity": True,
+        }
     )
 
     env = base_env.copy()
@@ -239,7 +245,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
             for idx in sorted(missing):
                 _, cfg, _ = batch[idx]
                 lines.append(f"  [gpu{device_id}] {cfg.name:<58} MISSING (crash)")
-            n_fail += len(missing)
+            n_fail += len(missing) or int(proc.returncode != 0)
 
     except subprocess.TimeoutExpired:
         lines.append(f"  [gpu{device_id}] batch timeout ({len(batch)} kernels)")

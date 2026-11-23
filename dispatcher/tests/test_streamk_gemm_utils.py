@@ -140,5 +140,69 @@ class TestCtypesSourceRouting(unittest.TestCase):
         )
 
 
+class TestSetupMultipleWithBudgets(unittest.TestCase):
+    """Direct StreamKBudgetConfig inputs unwrap to one underlying header/build."""
+
+    def test_streamk_budget_config_rejects_invalid_budget_pct(self):
+        from gemm_utils import StreamKBudgetConfig
+
+        for bad in (0, -5, 101, True, False, "50"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                StreamKBudgetConfig(variant="stream_k", budget_pct=bad)
+
+    def test_budget_variants_build_once_and_fan_out_errors(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from unittest import mock
+        import gemm_utils as _gu
+        from gemm_utils import setup_multiple_gemm_dispatchers, with_streamk_budgets
+
+        base = GemmKernelConfig(
+            variant="stream_k", persistent=False, gfx_arch="gfx1250"
+        )
+        variants = with_streamk_budgets([base], [50, 100])
+        self.assertEqual([v.name for v in variants], [f"{base.name}@budget50", base.name])
+
+        seen_globs = []
+        errors = {base.name: "stale", variants[0].name: "stale"}
+        with mock.patch.object(_gu, "ProcessPoolExecutor", ThreadPoolExecutor), \
+             mock.patch.object(
+                 _gu._cu,
+                 "_generate_single_kernel_subprocess",
+                 side_effect=lambda a: (
+                     seen_globs.append(a["hpp_glob_pattern"])
+                     or (True, f"/tmp/{base.name}.hpp", "")
+                 ),
+             ), \
+             mock.patch.object(
+                 _gu,
+                 "_build_compile_jobs",
+                 side_effect=lambda c, h: ({"name": c.name}, Path(f"/tmp/lib{c.name}.so")),
+             ), \
+             mock.patch.object(
+                 _gu._cu,
+                 "_run_hipcc_subprocess",
+                 return_value=(True, f"/tmp/lib{base.name}.so", ""),
+             ) as hipcc:
+            libs = setup_multiple_gemm_dispatchers(variants, errors=errors)
+
+        self.assertEqual(seen_globs, [f"{base.name}.hpp"])
+        self.assertEqual(hipcc.call_count, 1)
+        self.assertEqual(libs, [Path(f"/tmp/lib{base.name}.so")] * 2)
+        self.assertEqual(errors, {})
+
+        with mock.patch.object(_gu, "ProcessPoolExecutor", ThreadPoolExecutor), \
+             mock.patch.object(
+                 _gu._cu,
+                 "_generate_single_kernel_subprocess",
+                 return_value=(False, None, "bad header"),
+             ):
+            libs = setup_multiple_gemm_dispatchers(variants, errors=errors)
+
+        self.assertEqual(libs, [None, None])
+        self.assertEqual(
+            errors, {base.name: "bad header", variants[0].name: "bad header"}
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
