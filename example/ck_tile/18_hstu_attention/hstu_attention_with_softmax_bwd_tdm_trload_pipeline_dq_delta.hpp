@@ -408,34 +408,67 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                 // Gemm2: dpacc_tile = dO @ V_sub
                 if constexpr(i_n0 < n0_loops - 1)
                 {
-                    load_tile_tdm(
-                        tdm_config_k, k_lds_windows[i_buf][number<i_n0 + 1>{}], k_dram_window);
-                    move_tile_window(k_dram_window, {kN0Sub, 0});
-                    load_tile_tdm(tdm_config_v, v_lds_windows[i_buf][i_lds_buf_1], v_dram_window);
-                    move_tile_window(v_dram_window, {kN0Sub, 0});
+                    const auto load_k_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_k, k_lds_windows[i_buf][number<i_n0 + 1>{}], k_dram_window);
+                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                    };
+                    gemm_0(sacc_tile, q_tile, k_lds_windows[i_buf][i_n0], load_k_tile);
+
+                    auto s_tmp = cast_tile<CompDataType>(sacc_tile);
+                    set_slice_tile(pcomp_tile,
+                                   s_tmp,
+                                   sequence<0, i_n0 * kN0Sub>{},
+                                   sequence<kM0, (i_n0 + 1) * kN0Sub>{});
+
+                    const auto load_v_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_v, v_lds_windows[i_buf][i_lds_buf_1], v_dram_window);
+                        move_tile_window(v_dram_window, {kN0Sub, 0});
+                    };
+                    gemm_2(dpacc_tile, do_tile, v_lds_windows[i_buf][i_lds_buf_0], load_v_tile);
                 }
                 else
                 {
                     constexpr auto next_buf = number<1 - i_buf>{};
-                    load_tile_tdm(
-                        tdm_config_k, k_lds_windows[next_buf][number<0>{}], k_dram_window);
-                    move_tile_window(k_dram_window, {kN0Sub, 0});
-                    load_tile_tdm(
-                        tdm_config_v, v_lds_windows[next_buf][number<0>{}], v_dram_window);
-                    move_tile_window(v_dram_window, {kN0Sub, 0});
+
+                    const auto load_k_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_k, k_lds_windows[next_buf][number<0>{}], k_dram_window);
+                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                    };
+                    gemm_0(sacc_tile, q_tile, k_lds_windows[i_buf][i_n0], load_k_tile);
+
+                    auto s_tmp = cast_tile<CompDataType>(sacc_tile);
+                    set_slice_tile(pcomp_tile,
+                                   s_tmp,
+                                   sequence<0, i_n0 * kN0Sub>{},
+                                   sequence<kM0, (i_n0 + 1) * kN0Sub>{});
+
+                    const auto load_v_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_v, v_lds_windows[next_buf][number<0>{}], v_dram_window);
+                        move_tile_window(v_dram_window, {kN0Sub, 0});
+
+                        if constexpr(kHasBias)
+                        {
+                            const auto bias_tile = load_tile(bias_dram_window);
+                            tile_elementwise_inout(
+                                [&scale_s](auto& x, const auto& y) {
+                                    x = x * scale_s + type_convert<CompDataType>(y);
+                                },
+                                pcomp_tile,
+                                bias_tile);
+                            move_tile_window(bias_dram_window, {0, kN0});
+                        }
+                        else
+                        {
+                            tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; },
+                                                   pcomp_tile);
+                        }
+                    };
+                    gemm_2(dpacc_tile, do_tile, v_lds_windows[i_buf][i_lds_buf_0], load_v_tile);
                 }
-
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
-                                               LLVMSchedGroupMask::TRANS);
-
-                gemm_0(sacc_tile, q_tile, k_lds_windows[i_buf][i_n0]);
-                gemm_2(dpacc_tile, do_tile, v_lds_windows[i_buf][i_lds_buf_0]);
-
-                auto s_tmp = cast_tile<CompDataType>(sacc_tile);
-                set_slice_tile(pcomp_tile,
-                               s_tmp,
-                               sequence<0, i_n0 * kN0Sub>{},
-                               sequence<kM0, (i_n0 + 1) * kN0Sub>{});
 
                 auto dp_tmp = cast_tile<CompDataType>(dpacc_tile);
                 set_slice_tile(dpcomp_tile,
@@ -444,31 +477,15 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ_D
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
 
-            // === STAGE 3: scale, bias, mask, then compute P = exp(S - LSE) ===
-
-            if constexpr(kHasBias)
-            {
-                const auto bias_tile = load_tile(bias_dram_window);
-                tile_elementwise_inout(
-                    [&scale_s](auto& x, const auto& y) {
-                        x = x * scale_s + type_convert<CompDataType>(y);
-                    },
-                    pcomp_tile,
-                    bias_tile);
-                move_tile_window(bias_dram_window, {0, kN0});
-            }
-            else
-            {
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
-            }
+            const bool need_mask = !mask.IsFullTileInsideMask(
+                q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{});
 
             // Softmax path mask: set masked-out S to -inf.
             // The `col >= seqlen_k_end` guard excludes padded tail K columns of the last tile
             // (seqlen_kv not a multiple of kN0). IsTokenPairInsideMask clamps out-of-range
             // columns and can return true for them, so without this guard those padded columns
             // would get S=0 -> P=exp(-LSE)!=0 and pollute dQ.
-            if(!mask.IsFullTileInsideMask(
-                   q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{}))
+            if(need_mask)
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {

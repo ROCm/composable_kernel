@@ -347,34 +347,71 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                 // Gemm2: dpacc_tile = dO @ V_sub
                 if constexpr(i_n0 < n0_loops - 1)
                 {
-                    load_tile_tdm(
-                        tdm_config_k, k_lds_windows[i_buf][number<i_n0 + 1>{}], k_dram_window);
-                    move_tile_window(k_dram_window, {kN0Sub, 0});
-                    load_tile_tdm(tdm_config_v, v_lds_windows[i_buf][i_lds_buf_1], v_dram_window);
-                    move_tile_window(v_dram_window, {kN0Sub, 0});
+                    const auto load_k_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_k, k_lds_windows[i_buf][number<i_n0 + 1>{}], k_dram_window);
+                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                    };
+
+                    gemm_0(sacc_tile, q_tile, k_lds_windows[i_buf][i_n0], load_k_tile);
+
+                    auto s_tmp = cast_tile<CompDataType>(sacc_tile);
+                    set_slice_tile(pcomp_tile,
+                                   s_tmp,
+                                   sequence<0, i_n0 * kN0Sub>{},
+                                   sequence<kM0, (i_n0 + 1) * kN0Sub>{});
+
+                    const auto load_v_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_v, v_lds_windows[i_buf][i_lds_buf_1], v_dram_window);
+                        move_tile_window(v_dram_window, {kN0Sub, 0});
+                    };
+
+                    gemm_2(dpacc_tile, do_tile, v_lds_windows[i_buf][i_lds_buf_0], load_v_tile);
                 }
                 else
                 {
                     constexpr auto next_buf = number<1 - i_buf>{};
-                    load_tile_tdm(
-                        tdm_config_k, k_lds_windows[next_buf][number<0>{}], k_dram_window);
-                    move_tile_window(k_dram_window, {kN0Sub, 0});
-                    load_tile_tdm(
-                        tdm_config_v, v_lds_windows[next_buf][number<0>{}], v_dram_window);
-                    move_tile_window(v_dram_window, {kN0Sub, 0});
+
+                    const auto load_k_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_k, k_lds_windows[next_buf][number<0>{}], k_dram_window);
+                        move_tile_window(k_dram_window, {kN0Sub, 0});
+                    };
+
+                    gemm_0(sacc_tile, q_tile, k_lds_windows[i_buf][i_n0], load_k_tile);
+
+                    auto s_tmp = cast_tile<CompDataType>(sacc_tile);
+                    set_slice_tile(pcomp_tile,
+                                   s_tmp,
+                                   sequence<0, i_n0 * kN0Sub>{},
+                                   sequence<kM0, (i_n0 + 1) * kN0Sub>{});
+
+                    const auto load_v_tile = [&]() {
+                        load_tile_tdm(
+                            tdm_config_v, v_lds_windows[next_buf][number<0>{}], v_dram_window);
+                        move_tile_window(v_dram_window, {kN0Sub, 0});
+
+                        if constexpr(kHasBias)
+                        {
+                            const auto bias_tile = load_tile(bias_dram_window);
+                            tile_elementwise_inout(
+                                [&scale_s](auto& x, const auto& y) {
+                                    x = x * scale_s + type_convert<CompDataType>(y);
+                                },
+                                pcomp_tile,
+                                bias_tile);
+                            move_tile_window(bias_dram_window, {0, kN0});
+                        }
+                        else
+                        {
+                            tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; },
+                                                   pcomp_tile);
+                        }
+                    };
+
+                    gemm_2(dpacc_tile, do_tile, v_lds_windows[i_buf][i_lds_buf_0], load_v_tile);
                 }
-
-                __builtin_amdgcn_sched_barrier(LLVMSchedGroupMask::VALU | LLVMSchedGroupMask::SALU |
-                                               LLVMSchedGroupMask::TRANS);
-
-                gemm_0(sacc_tile, q_tile, k_lds_windows[i_buf][i_n0]);
-                gemm_2(dpacc_tile, do_tile, v_lds_windows[i_buf][i_lds_buf_0]);
-
-                auto s_tmp = cast_tile<CompDataType>(sacc_tile);
-                set_slice_tile(pcomp_tile,
-                               s_tmp,
-                               sequence<0, i_n0 * kN0Sub>{},
-                               sequence<kM0, (i_n0 + 1) * kN0Sub>{});
 
                 auto dp_tmp = cast_tile<CompDataType>(dpacc_tile);
                 set_slice_tile(dpcomp_tile,
@@ -382,24 +419,6 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                                sequence<0, i_n0 * kN0Sub>{},
                                sequence<kM0, (i_n0 + 1) * kN0Sub>{});
             });
-
-            // === STAGE 3: scale, optional bias, mask, then compute P and dS ===
-
-            if constexpr(kHasBias)
-            {
-                const auto bias_tile = load_tile(bias_dram_window);
-                tile_elementwise_inout(
-                    [&scale_s](auto& x, const auto& y) {
-                        x = x * scale_s + type_convert<CompDataType>(y);
-                    },
-                    pcomp_tile,
-                    bias_tile);
-                move_tile_window(bias_dram_window, {0, kN0});
-            }
-            else
-            {
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
-            }
 
             const bool need_mask = !mask.IsFullTileInsideMask(
                 q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{});
@@ -442,9 +461,8 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
                     constexpr auto ij     = make_tuple(idx0, idx1);
                     const CompDataType s  = pcomp_tile[ij];
                     const CompDataType dp = dpcomp_tile[ij];
-                    CompDataType ds       = dp * type_convert<CompDataType>(scale_p) * f_dsilu(s);
 
-                    dpcomp_tile(ij) = ds;
+                    dpcomp_tile(ij) = dp * f_dsilu(s);
                 });
             });
 
@@ -489,7 +507,8 @@ struct HstuAttentionNoSoftmaxBwdTdmTrLoadPipelineQRKSVS_dQ
             main_loop_func(number<0>{});
 
         // Apply alpha scaling to accumulated dQ
-        tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, dq_acc);
+        tile_elementwise_inout([&scale_s, &scale_p](auto& x) { x = x * (scale_s * scale_p); },
+                               dq_acc);
 
         return dq_acc;
     }
