@@ -331,10 +331,13 @@ struct batched_backward_dispatch
 
         if constexpr(kUseSoftmax)
         {
+            using LSEDeltaDataType =
+                typename HstuAttentionBwdTypeConfig<InOutDataType>::CompDataType;
+
             // lse/delta is only written/read in the softmax path; allocate stream-ordered.
-            const size_t lse_delta_bytes = static_cast<size_t>(param.num_batch) *
-                                           static_cast<size_t>(param.num_head) *
-                                           static_cast<size_t>(lse_delta_seqlen) * sizeof(float);
+            const size_t lse_delta_bytes =
+                static_cast<size_t>(param.num_batch) * static_cast<size_t>(param.num_head) *
+                static_cast<size_t>(lse_delta_seqlen) * sizeof(LSEDeltaDataType);
             HIP_CHECK_ERROR(hipMallocAsync(&ws.lse_ptr, lse_delta_bytes, stream));
             HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, lse_delta_bytes, stream));
         }
