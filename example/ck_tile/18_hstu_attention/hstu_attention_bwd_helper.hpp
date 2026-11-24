@@ -10,4 +10,7 @@ struct BwdWorkspace
     // D[sq] = dO row(.) O per query position; written by kernel 1, consumed by kernel 2.
     // Only meaningful when use_softmax == true; nullptr otherwise.
     void* delta_ptr;
+    // Has completely same layout as delta_ptr, used as the aligned replacement for user-provided
+    // lse space, provide vectorized access by kernel 2; written by kernel 1, consumed by kernel 2
+    void* lse_ptr;
 };

@@ -323,19 +323,20 @@ struct batched_backward_dispatch
     static void
     RunWithKernels(HstuAttentionNoGroupBwdParams& param, BwdWorkspace& ws, hipStream_t stream)
     {
-        // Delta layout: [num_batch, num_head, seqlen_q]
+        // Lse/Delta layout: [num_batch, num_head, seqlen_q]
         // seq_stride=1, nhead_stride=seqlen_q, batch_stride=num_head*seqlen_q
-        const ck_tile::index_t delta_seqlen       = (param.seqlen_q + 255) / 256 * 256;
-        const ck_tile::index_t nhead_stride_delta = delta_seqlen;
-        const ck_tile::index_t batch_stride_delta = param.num_head * delta_seqlen;
+        const ck_tile::index_t lse_delta_seqlen       = (param.seqlen_q + 255) / 256 * 256;
+        const ck_tile::index_t nhead_stride_lse_delta = lse_delta_seqlen;
+        const ck_tile::index_t batch_stride_lse_delta = param.num_head * lse_delta_seqlen;
 
         if constexpr(kUseSoftmax)
         {
-            // delta is only written/read in the softmax path; allocate stream-ordered.
-            const size_t delta_bytes = static_cast<size_t>(param.num_batch) *
-                                       static_cast<size_t>(param.num_head) *
-                                       static_cast<size_t>(delta_seqlen) * sizeof(float);
-            HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, delta_bytes, stream));
+            // lse/delta is only written/read in the softmax path; allocate stream-ordered.
+            const size_t lse_delta_bytes = static_cast<size_t>(param.num_batch) *
+                                           static_cast<size_t>(param.num_head) *
+                                           static_cast<size_t>(lse_delta_seqlen) * sizeof(float);
+            HIP_CHECK_ERROR(hipMallocAsync(&ws.lse_ptr, lse_delta_bytes, stream));
+            HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, lse_delta_bytes, stream));
         }
 
         // ---- Kernel 1: compute dQ (and delta = D[sq] for softmax path) ----
@@ -349,6 +350,7 @@ struct batched_backward_dispatch
                                               param.do_ptr,
                                               param.dq_ptr,
                                               param.lse_ptr,
+                                              ws.lse_ptr,
                                               ws.delta_ptr,
                                               param.seqlen_q,
                                               param.is_cross_attention ? param.seqlen_kv
@@ -373,7 +375,7 @@ struct batched_backward_dispatch
                                               param.nhead_stride_do,
                                               param.nhead_stride_dq,
                                               param.nhead_stride_lse,
-                                              nhead_stride_delta,
+                                              nhead_stride_lse_delta,
                                               param.nhead_stride_bias,
                                               param.batch_stride_q,
                                               param.batch_stride_k,
@@ -382,7 +384,7 @@ struct batched_backward_dispatch
                                               param.batch_stride_do,
                                               param.batch_stride_dq,
                                               param.batch_stride_lse,
-                                              batch_stride_delta,
+                                              batch_stride_lse_delta,
                                               param.batch_stride_bias,
                                               param.num_targets_ptr,
                                               param.contextual_seqlen,
@@ -417,7 +419,7 @@ struct batched_backward_dispatch
                                               param.do_ptr,
                                               param.dk_ptr,
                                               param.dv_ptr,
-                                              param.lse_ptr,
+                                              ws.lse_ptr,
                                               ws.delta_ptr,
                                               param.seqlen_q,
                                               param.is_cross_attention ? param.seqlen_kv
@@ -433,7 +435,6 @@ struct batched_backward_dispatch
                                               param.seq_stride_do,
                                               param.seq_stride_dk,
                                               param.seq_stride_dv,
-                                              param.seq_stride_lse,
                                               param.seq_stride_bias,
                                               param.nhead_stride_q,
                                               param.nhead_stride_k,
@@ -441,8 +442,7 @@ struct batched_backward_dispatch
                                               param.nhead_stride_do,
                                               param.nhead_stride_dk,
                                               param.nhead_stride_dv,
-                                              param.nhead_stride_lse,
-                                              nhead_stride_delta,
+                                              nhead_stride_lse_delta,
                                               param.nhead_stride_bias,
                                               param.batch_stride_q,
                                               param.batch_stride_k,
@@ -450,8 +450,7 @@ struct batched_backward_dispatch
                                               param.batch_stride_do,
                                               param.batch_stride_dk,
                                               param.batch_stride_dv,
-                                              param.batch_stride_lse,
-                                              batch_stride_delta,
+                                              batch_stride_lse_delta,
                                               param.batch_stride_bias,
                                               param.num_targets_ptr,
                                               param.contextual_seqlen,
@@ -476,6 +475,7 @@ struct batched_backward_dispatch
 
         if constexpr(kUseSoftmax)
         {
+            HIP_CHECK_ERROR(hipFreeAsync(ws.lse_ptr, stream));
             HIP_CHECK_ERROR(hipFreeAsync(ws.delta_ptr, stream));
         }
     }

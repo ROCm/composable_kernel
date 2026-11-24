@@ -82,10 +82,9 @@ struct HstuAttentionBwdKernel2
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
         ck_tile::index_t batch_stride_do;
-        ck_tile::index_t batch_stride_dk;    // set to zero in jagged mode
-        ck_tile::index_t batch_stride_dv;    // set to zero in jagged mode
-        ck_tile::index_t batch_stride_lse;   // only meaningful when kUseSoftmax
-        ck_tile::index_t batch_stride_delta; // only meaningful when kUseSoftmax
+        ck_tile::index_t batch_stride_dk;        // set to zero in jagged mode
+        ck_tile::index_t batch_stride_dv;        // set to zero in jagged mode
+        ck_tile::index_t batch_stride_lse_delta; // only meaningful when kUseSoftmax
 
         const int32_t* num_targets_ptr;
 
@@ -104,8 +103,7 @@ struct HstuAttentionBwdKernel2
         ck_tile::index_t nhead_stride_do;
         ck_tile::index_t nhead_stride_dk;
         ck_tile::index_t nhead_stride_dv;
-        ck_tile::index_t nhead_stride_lse;
-        ck_tile::index_t nhead_stride_delta;
+        ck_tile::index_t nhead_stride_lse_delta;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t seqlen_kv;
@@ -118,8 +116,7 @@ struct HstuAttentionBwdKernel2
         ck_tile::index_t seq_stride_do;
         ck_tile::index_t seq_stride_dk;
         ck_tile::index_t seq_stride_dv;
-        ck_tile::index_t seq_stride_lse;
-        ck_tile::index_t seq_stride_delta;
+        ck_tile::index_t seq_stride_lse_delta;
 
         ck_tile::index_t num_head;
         float scale_s; // scaling value exerted on the immediate Q@K result
@@ -144,8 +141,7 @@ struct HstuAttentionBwdKernel2
         ck_tile::index_t seq_stride_do;
         ck_tile::index_t seq_stride_dk;
         ck_tile::index_t seq_stride_dv;
-        ck_tile::index_t seq_stride_lse;
-        ck_tile::index_t seq_stride_delta;
+        ck_tile::index_t seq_stride_lse_delta;
 
         const int32_t* num_targets_ptr;
 
@@ -164,8 +160,7 @@ struct HstuAttentionBwdKernel2
         ck_tile::index_t nhead_stride_do;
         ck_tile::index_t nhead_stride_dk;
         ck_tile::index_t nhead_stride_dv;
-        ck_tile::index_t nhead_stride_lse;
-        ck_tile::index_t nhead_stride_delta;
+        ck_tile::index_t nhead_stride_lse_delta;
 
         ck_tile::index_t hdim_qk;
         ck_tile::index_t hdim_v;
@@ -198,8 +193,7 @@ struct HstuAttentionBwdKernel2
         ck_tile::index_t seq_stride_do;
         ck_tile::index_t seq_stride_dk;
         ck_tile::index_t seq_stride_dv;
-        ck_tile::index_t seq_stride_lse;
-        ck_tile::index_t seq_stride_delta;
+        ck_tile::index_t seq_stride_lse_delta;
 
         const int32_t* num_targets_ptr;
 
@@ -218,8 +212,7 @@ struct HstuAttentionBwdKernel2
         ck_tile::index_t nhead_stride_do;
         ck_tile::index_t nhead_stride_dk;
         ck_tile::index_t nhead_stride_dv;
-        ck_tile::index_t nhead_stride_lse;
-        ck_tile::index_t nhead_stride_delta;
+        ck_tile::index_t nhead_stride_lse_delta;
 
         ck_tile::index_t hdim_qk;
         ck_tile::index_t hdim_v;
@@ -336,7 +329,6 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t seq_stride_do,
               ck_tile::index_t seq_stride_dk,
               ck_tile::index_t seq_stride_dv,
-              ck_tile::index_t seq_stride_lse,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -344,8 +336,7 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t nhead_stride_do,
               ck_tile::index_t nhead_stride_dk,
               ck_tile::index_t nhead_stride_dv,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_delta,
+              ck_tile::index_t nhead_stride_lse_delta,
               ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
@@ -353,8 +344,7 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t batch_stride_do,
               ck_tile::index_t batch_stride_dk,
               ck_tile::index_t batch_stride_dv,
-              ck_tile::index_t batch_stride_lse,
-              ck_tile::index_t batch_stride_delta,
+              ck_tile::index_t batch_stride_lse_delta,
               ck_tile::index_t batch_stride_bias,
               const void* num_targets_ptr,
               ck_tile::index_t contextual_seqlen,
@@ -371,8 +361,7 @@ struct HstuAttentionBwdKernel2
              batch_stride_do,
              batch_stride_dk,
              batch_stride_dv,
-             batch_stride_lse,
-             batch_stride_delta,
+             batch_stride_lse_delta,
              reinterpret_cast<const int32_t*>(num_targets_ptr),
              q_ptr,
              k_ptr,
@@ -388,8 +377,7 @@ struct HstuAttentionBwdKernel2
              nhead_stride_do,
              nhead_stride_dk,
              nhead_stride_dv,
-             nhead_stride_lse,
-             nhead_stride_delta,
+             nhead_stride_lse_delta,
              seqlen_q,
              seqlen_kv,
              hdim_qk,
@@ -400,8 +388,7 @@ struct HstuAttentionBwdKernel2
              seq_stride_do,
              seq_stride_dk,
              seq_stride_dv,
-             seq_stride_lse,
-             1, // seq_stride_delta should always be 1
+             1, // seq_stride_lse_delta should always be 1
              num_head,
              scale_s,
              attn_scale ? attn_scale : 1.0f / static_cast<float>(seqlen_q),
@@ -455,7 +442,6 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t seq_stride_do,
               ck_tile::index_t seq_stride_dk,
               ck_tile::index_t seq_stride_dv,
-              ck_tile::index_t seq_stride_lse,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -463,8 +449,7 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t nhead_stride_do,
               ck_tile::index_t nhead_stride_dk,
               ck_tile::index_t nhead_stride_dv,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_delta,
+              ck_tile::index_t nhead_stride_lse_delta,
               ck_tile::index_t nhead_stride_bias,
               const void* num_targets_ptr,
               ck_tile::index_t contextual_seqlen,
@@ -483,8 +468,7 @@ struct HstuAttentionBwdKernel2
              seq_stride_do,
              seq_stride_dk,
              seq_stride_dv,
-             seq_stride_lse,
-             1, // seq_stride_delta should always be 1
+             1, // seq_stride_lse_delta should always be 1
              reinterpret_cast<const int32_t*>(num_targets_ptr),
              q_ptr,
              k_ptr,
@@ -500,8 +484,7 @@ struct HstuAttentionBwdKernel2
              nhead_stride_do,
              nhead_stride_dk,
              nhead_stride_dv,
-             nhead_stride_lse,
-             nhead_stride_delta,
+             nhead_stride_lse_delta,
              hdim_qk,
              hdim_v,
              -1, // seqlen_q: set at runtime from seq_q_offsets_ptr
@@ -562,7 +545,6 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t seq_stride_do,
               ck_tile::index_t seq_stride_dk,
               ck_tile::index_t seq_stride_dv,
-              ck_tile::index_t seq_stride_lse,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -570,8 +552,7 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t nhead_stride_do,
               ck_tile::index_t nhead_stride_dk,
               ck_tile::index_t nhead_stride_dv,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_delta,
+              ck_tile::index_t nhead_stride_lse_delta,
               ck_tile::index_t nhead_stride_bias,
               const void* num_targets_ptr,
               float p_drop,
@@ -588,8 +569,7 @@ struct HstuAttentionBwdKernel2
              seq_stride_do,
              seq_stride_dk,
              seq_stride_dv,
-             seq_stride_lse,
-             1, // seq_stride_delta should always be 1
+             1, // seq_stride_lse_delta should always be 1
              reinterpret_cast<const int32_t*>(num_targets_ptr),
              q_ptr,
              k_ptr,
@@ -605,8 +585,7 @@ struct HstuAttentionBwdKernel2
              nhead_stride_do,
              nhead_stride_dk,
              nhead_stride_dv,
-             nhead_stride_lse,
-             nhead_stride_delta,
+             nhead_stride_lse_delta,
              hdim_qk,
              hdim_v,
              -1, // seqlen_q: set at runtime
@@ -710,15 +689,14 @@ struct HstuAttentionBwdKernel2
         const auto [i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
         // ---- Batch offsets ----
-        long_index_t batch_offset_q     = 0;
-        long_index_t batch_offset_k     = 0;
-        long_index_t batch_offset_v     = 0;
-        long_index_t batch_offset_do    = 0;
-        long_index_t batch_offset_dk    = 0;
-        long_index_t batch_offset_dv    = 0;
-        long_index_t batch_offset_lse   = 0;
-        long_index_t batch_offset_delta = 0;
-        long_index_t batch_offset_bias  = 0;
+        long_index_t batch_offset_q         = 0;
+        long_index_t batch_offset_k         = 0;
+        long_index_t batch_offset_v         = 0;
+        long_index_t batch_offset_do        = 0;
+        long_index_t batch_offset_dk        = 0;
+        long_index_t batch_offset_dv        = 0;
+        long_index_t batch_offset_lse_delta = 0;
+        long_index_t batch_offset_bias      = 0;
 
         if constexpr(kIsJagged)
         {
@@ -734,8 +712,7 @@ struct HstuAttentionBwdKernel2
 
             if constexpr(kUseSoftmax)
             {
-                batch_offset_lse   = query_start * kargs.seq_stride_lse;
-                batch_offset_delta = query_start * kargs.seq_stride_delta;
+                batch_offset_lse_delta = query_start * kargs.seq_stride_lse_delta;
             }
             if constexpr(kHasBias)
                 batch_offset_bias = query_start * kargs.seq_stride_bias;
@@ -767,8 +744,8 @@ struct HstuAttentionBwdKernel2
             batch_offset_dv = static_cast<long_index_t>(i_batch) * kargs.batch_stride_dv;
             if constexpr(kUseSoftmax)
             {
-                batch_offset_lse   = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
-                batch_offset_delta = static_cast<long_index_t>(i_batch) * kargs.batch_stride_delta;
+                batch_offset_lse_delta =
+                    static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_delta;
             }
             if constexpr(kHasBias)
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
@@ -1084,14 +1061,16 @@ struct HstuAttentionBwdKernel2
                 // Build LSE and delta DRAM windows
                 const CompDataType* lse_ptr =
                     reinterpret_cast<const CompDataType*>(kargs.lse_ptr) +
-                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_lse + batch_offset_lse;
+                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_lse_delta +
+                    batch_offset_lse_delta;
 
                 const auto lse_dram = [&]() {
-                    const auto naive = make_naive_tensor_view<address_space_enum::global>(
+                    const index_t lse_seqlen = (kargs.seqlen_q + 255) / 256 * 256;
+                    const auto naive         = make_naive_tensor_view<address_space_enum::global>(
                         lse_ptr,
-                        make_tuple(kargs.seqlen_q),
-                        make_tuple(kargs.seq_stride_lse),
-                        number<1>{},
+                        make_tuple(lse_seqlen),
+                        make_tuple(kargs.seq_stride_lse_delta),
+                        number<HstuAttentionBwdPipeline::kAlignmentLSE>{},
                         number<1>{});
                     return pad_tensor_view(naive,
                                            make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),
@@ -1103,15 +1082,15 @@ struct HstuAttentionBwdKernel2
 
                 const CompDataType* delta_ptr =
                     reinterpret_cast<const CompDataType*>(kargs.delta_ptr) +
-                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_delta +
-                    batch_offset_delta;
+                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_lse_delta +
+                    batch_offset_lse_delta;
 
                 const auto delta_dram = [&]() {
                     const index_t delta_seqlen = (kargs.seqlen_q + 255) / 256 * 256;
                     const auto naive           = make_naive_tensor_view<address_space_enum::global>(
                         delta_ptr,
                         make_tuple(delta_seqlen),
-                        make_tuple(kargs.seq_stride_delta),
+                        make_tuple(kargs.seq_stride_lse_delta),
                         number<HstuAttentionBwdPipeline::kAlignmentDelta>{},
                         number<1>{});
                     return pad_tensor_view(naive,

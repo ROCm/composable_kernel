@@ -311,17 +311,18 @@ struct jagged_backward_dispatch
     static void
     RunWithKernels(HstuAttentionNoGroupBwdParams& param, BwdWorkspace& ws, hipStream_t stream)
     {
-        // Delta layout in jagged mode: flat over the sequence dimension, strided by head.
+        // Lse/Delta layout in jagged mode: flat over the sequence dimension, strided by head.
         // seq_stride=1, nhead_stride=num_batch*max_seqlen_q -- no batch stride needed.
-        const ck_tile::index_t delta_seqlen       = (param.max_seqlen_q + 255) / 256 * 256;
-        const ck_tile::index_t nhead_stride_delta = param.num_batch * delta_seqlen;
+        const ck_tile::index_t lse_delta_seqlen       = (param.max_seqlen_q + 255) / 256 * 256;
+        const ck_tile::index_t nhead_stride_lse_delta = param.num_batch * lse_delta_seqlen;
 
         if constexpr(kUseSoftmax)
         {
-            const size_t delta_bytes = static_cast<size_t>(param.num_batch) *
-                                       static_cast<size_t>(param.num_head) *
-                                       static_cast<size_t>(delta_seqlen) * sizeof(float);
-            HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, delta_bytes, stream));
+            const size_t lse_delta_bytes = static_cast<size_t>(param.num_batch) *
+                                           static_cast<size_t>(param.num_head) *
+                                           static_cast<size_t>(lse_delta_seqlen) * sizeof(float);
+            HIP_CHECK_ERROR(hipMallocAsync(&ws.lse_ptr, lse_delta_bytes, stream));
+            HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, lse_delta_bytes, stream));
         }
 
         bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
@@ -337,6 +338,7 @@ struct jagged_backward_dispatch
                                               param.do_ptr,
                                               param.dq_ptr,
                                               param.lse_ptr,
+                                              ws.lse_ptr,
                                               ws.delta_ptr,
                                               param.seq_q_offsets_ptr,
                                               param.is_cross_attention ? param.seq_kv_offsets_ptr
@@ -363,7 +365,7 @@ struct jagged_backward_dispatch
                                               param.nhead_stride_do,
                                               param.nhead_stride_dq,
                                               param.nhead_stride_lse,
-                                              nhead_stride_delta,
+                                              nhead_stride_lse_delta,
                                               param.nhead_stride_bias,
                                               param.num_targets_ptr,
                                               param.contextual_seqlen,
@@ -398,7 +400,7 @@ struct jagged_backward_dispatch
                                               param.do_ptr,
                                               param.dk_ptr,
                                               param.dv_ptr,
-                                              param.lse_ptr,
+                                              ws.lse_ptr,
                                               ws.delta_ptr,
                                               param.seq_q_offsets_ptr,
                                               param.is_cross_attention ? param.seq_kv_offsets_ptr
@@ -416,7 +418,6 @@ struct jagged_backward_dispatch
                                               param.seq_stride_do,
                                               param.seq_stride_dk,
                                               param.seq_stride_dv,
-                                              param.seq_stride_lse,
                                               param.seq_stride_bias,
                                               param.nhead_stride_q,
                                               param.nhead_stride_k,
@@ -424,8 +425,7 @@ struct jagged_backward_dispatch
                                               param.nhead_stride_do,
                                               param.nhead_stride_dk,
                                               param.nhead_stride_dv,
-                                              param.nhead_stride_lse,
-                                              nhead_stride_delta,
+                                              nhead_stride_lse_delta,
                                               param.nhead_stride_bias,
                                               param.num_targets_ptr,
                                               param.contextual_seqlen,
@@ -448,6 +448,7 @@ struct jagged_backward_dispatch
 
         if constexpr(kUseSoftmax)
         {
+            HIP_CHECK_ERROR(hipFreeAsync(ws.lse_ptr, stream));
             HIP_CHECK_ERROR(hipFreeAsync(ws.delta_ptr, stream));
         }
     }

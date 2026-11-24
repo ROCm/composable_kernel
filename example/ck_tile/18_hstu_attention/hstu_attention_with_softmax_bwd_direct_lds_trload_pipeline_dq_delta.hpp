@@ -103,7 +103,6 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ_D
     //   seqlen_k_start / seqlen_k_end
     //   mask / scale_s / smem_ptr
     template <typename DODramBlockWindowTmp,
-              typename DeltaDramBlockWindow,
               typename ODramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename QDramBlockWindowTmp,
@@ -111,6 +110,8 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ_D
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename NullRandValDramWindowTmp,
+              typename LSEAlignedDramBlockWindow,
+              typename DeltaDramBlockWindow,
               typename HstuMask>
     CK_TILE_DEVICE auto
     operator()(const DODramBlockWindowTmp& do_dram_block_window_tmp,     // kM0*kVHeaddim
@@ -121,6 +122,7 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ_D
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // kN0*kVHeaddim
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // kM0*kN0
                const NullRandValDramWindowTmp& null_randval_window_tmp,  // M0*N0 tile
+               LSEAlignedDramBlockWindow& lse_aligned_dram_block_window, // kM0  (output)
                DeltaDramBlockWindow& delta_dram_block_window,            // kM0  (output)
                index_t seqlen_k_start,
                index_t seqlen_k_end,
@@ -439,6 +441,9 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineQRKSVS_dQ_D
         // Store D[sq] to device memory (spec: written inside pipeline)
         store_tile(delta_dram_block_window,
                    cast_tile<typename DeltaDramBlockWindow::DataType>(delta_tile));
+
+        store_tile(lse_aligned_dram_block_window,
+                   cast_tile<typename LSEAlignedDramBlockWindow::DataType>(lse_tile));
 
         // ---- K DRAM window (per-iteration tile [kN0Sub, kQKHeaddim]) ----
         auto k_dram_window =

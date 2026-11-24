@@ -118,6 +118,13 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         return min(MaxVectorSize, DeltaEncoding::detail::ys_lengths_[DeltaEncoding::NDimY - 1]);
     }
 
+    // LSE alignment -- based on [kM0] tile
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto GetAlignmentLSE()
+    {
+        return GetAlignmentDelta<Problem>();
+    }
+
     // -------------------------------------------------------------------------
     // DRAM tile distributions
     // -------------------------------------------------------------------------
