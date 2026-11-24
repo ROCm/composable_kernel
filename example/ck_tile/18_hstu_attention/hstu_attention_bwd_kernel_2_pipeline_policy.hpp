@@ -105,6 +105,19 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         return GetAlignmentV<Problem>();
     }
 
+    // Delta alignment -- based on [kM0] tile
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto GetAlignmentDelta()
+    {
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::CompDataType);
+
+        constexpr auto DeltaDistr = MakeDeltaTileDistribution<Problem>();
+
+        using DeltaEncoding = typename decltype(DeltaDistr)::DstrEncode;
+
+        return min(MaxVectorSize, DeltaEncoding::detail::ys_lengths_[DeltaEncoding::NDimY - 1]);
+    }
+
     // -------------------------------------------------------------------------
     // DRAM tile distributions
     // -------------------------------------------------------------------------

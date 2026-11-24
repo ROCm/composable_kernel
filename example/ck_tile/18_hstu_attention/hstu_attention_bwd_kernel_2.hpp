@@ -337,7 +337,6 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t seq_stride_dk,
               ck_tile::index_t seq_stride_dv,
               ck_tile::index_t seq_stride_lse,
-              ck_tile::index_t seq_stride_delta,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -402,7 +401,7 @@ struct HstuAttentionBwdKernel2
              seq_stride_dk,
              seq_stride_dv,
              seq_stride_lse,
-             seq_stride_delta,
+             1, // seq_stride_delta should always be 1
              num_head,
              scale_s,
              attn_scale ? attn_scale : 1.0f / static_cast<float>(seqlen_q),
@@ -457,7 +456,6 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t seq_stride_dk,
               ck_tile::index_t seq_stride_dv,
               ck_tile::index_t seq_stride_lse,
-              ck_tile::index_t seq_stride_delta,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -486,7 +484,7 @@ struct HstuAttentionBwdKernel2
              seq_stride_dk,
              seq_stride_dv,
              seq_stride_lse,
-             seq_stride_delta,
+             1, // seq_stride_delta should always be 1
              reinterpret_cast<const int32_t*>(num_targets_ptr),
              q_ptr,
              k_ptr,
@@ -565,7 +563,6 @@ struct HstuAttentionBwdKernel2
               ck_tile::index_t seq_stride_dk,
               ck_tile::index_t seq_stride_dv,
               ck_tile::index_t seq_stride_lse,
-              ck_tile::index_t seq_stride_delta,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -592,7 +589,7 @@ struct HstuAttentionBwdKernel2
              seq_stride_dk,
              seq_stride_dv,
              seq_stride_lse,
-             seq_stride_delta,
+             1, // seq_stride_delta should always be 1
              reinterpret_cast<const int32_t*>(num_targets_ptr),
              q_ptr,
              k_ptr,
@@ -1110,11 +1107,12 @@ struct HstuAttentionBwdKernel2
                     batch_offset_delta;
 
                 const auto delta_dram = [&]() {
-                    const auto naive = make_naive_tensor_view<address_space_enum::global>(
+                    const index_t delta_seqlen = (kargs.seqlen_q + 255) / 256 * 256;
+                    const auto naive           = make_naive_tensor_view<address_space_enum::global>(
                         delta_ptr,
-                        make_tuple(kargs.seqlen_q),
+                        make_tuple(delta_seqlen),
                         make_tuple(kargs.seq_stride_delta),
-                        number<1>{},
+                        number<HstuAttentionBwdPipeline::kAlignmentDelta>{},
                         number<1>{});
                     return pad_tensor_view(naive,
                                            make_tuple(number<HstuAttentionBwdPipeline::kM0>{}),

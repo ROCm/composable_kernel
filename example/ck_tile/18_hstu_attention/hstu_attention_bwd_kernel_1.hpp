@@ -334,7 +334,6 @@ struct HstuAttentionBwdKernel1
               ck_tile::index_t seq_stride_do,
               ck_tile::index_t seq_stride_dq,
               ck_tile::index_t seq_stride_lse,
-              ck_tile::index_t seq_stride_delta,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -420,7 +419,7 @@ struct HstuAttentionBwdKernel1
 
             kargs.delta_ptr          = delta_ptr;
             kargs.batch_stride_delta = batch_stride_delta;
-            kargs.seq_stride_delta   = seq_stride_delta;
+            kargs.seq_stride_delta   = 1; // seq_stride_delta should always be 1
             kargs.nhead_stride_delta = nhead_stride_delta;
         }
 
@@ -460,7 +459,6 @@ struct HstuAttentionBwdKernel1
               ck_tile::index_t seq_stride_do,
               ck_tile::index_t seq_stride_dq,
               ck_tile::index_t seq_stride_lse,
-              ck_tile::index_t seq_stride_delta,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -530,7 +528,7 @@ struct HstuAttentionBwdKernel1
             kargs.nhead_stride_lse = nhead_stride_lse;
 
             kargs.delta_ptr          = delta_ptr;
-            kargs.seq_stride_delta   = seq_stride_delta;
+            kargs.seq_stride_delta   = 1; // seq_stride_delta should always be 1
             kargs.nhead_stride_delta = nhead_stride_delta;
         }
 
@@ -574,7 +572,6 @@ struct HstuAttentionBwdKernel1
               ck_tile::index_t seq_stride_do,
               ck_tile::index_t seq_stride_dq,
               ck_tile::index_t seq_stride_lse,
-              ck_tile::index_t seq_stride_delta,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
@@ -647,7 +644,7 @@ struct HstuAttentionBwdKernel1
             kargs.nhead_stride_lse = nhead_stride_lse;
 
             kargs.delta_ptr          = delta_ptr;
-            kargs.seq_stride_delta   = seq_stride_delta;
+            kargs.seq_stride_delta   = 1; // seq_stride_delta should always be 1
             kargs.nhead_stride_delta = nhead_stride_delta;
         }
 

@@ -78,6 +78,8 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
         kPadHeadDimQK ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
         kPadHeadDimQK ? 1 : Policy::template GetAlignmentVGrad<Problem>();
+    // Assume Delta access is always aligned since Delta memory is allocated inside HSUT API
+    static constexpr index_t kAlignmentDelta = Policy::template GetAlignmentDelta<Problem>();
 
     static constexpr index_t kGemm3SingleRepN =
         Policy::template GetSGradTQTBlockGemmSingleRepN<Problem>();

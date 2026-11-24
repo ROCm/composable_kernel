@@ -313,14 +313,14 @@ struct group_backward_dispatch
     {
         // Delta layout in group/jagged mode: flat over the sequence dimension, strided by head.
         // seq_stride=1, nhead_stride=num_batch*max_seqlen_q -- no batch stride needed.
-        const ck_tile::index_t seq_stride_delta   = 1;
-        const ck_tile::index_t nhead_stride_delta = param.num_batch * param.max_seqlen_q;
+        const ck_tile::index_t delta_seqlen       = (param.max_seqlen_q + 255) / 256 * 256;
+        const ck_tile::index_t nhead_stride_delta = param.num_batch * delta_seqlen;
 
         if constexpr(kUseSoftmax)
         {
             const size_t delta_bytes = static_cast<size_t>(param.num_batch) *
                                        static_cast<size_t>(param.num_head) *
-                                       static_cast<size_t>(param.max_seqlen_q) * sizeof(float);
+                                       static_cast<size_t>(delta_seqlen) * sizeof(float);
             HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, delta_bytes, stream));
         }
 
@@ -359,7 +359,6 @@ struct group_backward_dispatch
                                               param.seq_stride_do,
                                               param.seq_stride_dq,
                                               param.seq_stride_lse,
-                                              seq_stride_delta,
                                               param.seq_stride_bias,
                                               param.nhead_stride_q,
                                               param.nhead_stride_k,
@@ -420,7 +419,6 @@ struct group_backward_dispatch
                                               param.seq_stride_dk,
                                               param.seq_stride_dv,
                                               param.seq_stride_lse,
-                                              seq_stride_delta,
                                               param.seq_stride_bias,
                                               param.nhead_stride_q,
                                               param.nhead_stride_k,
