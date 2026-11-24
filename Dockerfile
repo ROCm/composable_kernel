@@ -25,7 +25,7 @@ ENV HIP_PLATFORM=amd
 
 # Add rocm repository
 RUN set -xe && \
-    apt-get update && apt-get install -y apt-utils wget gnupg2 curl cmake git vim nano zip
+    apt-get update && apt-get install -y apt-utils wget gnupg2 curl git vim nano zip libssl-dev
 
 RUN if [ "$compiler_version" = "therock" ]; then \
         rm -rf /opt/rocm && mkdir /opt/rocm && \
@@ -80,6 +80,13 @@ RUN set -x && \
     openssh-server \
     clang-format-18 \
     kmod && \
+# Install cmake
+    wget https://github.com/Kitware/CMake/releases/download/v4.5.1/cmake-4.5.1.tar.gz && \
+    tar -xzf cmake-4.5.1.tar.gz && \
+    cd cmake-4.5.1 && \
+    ./bootstrap --prefix=/usr/local && \
+    make && \
+    make install && \
 #Install latest ccache
     git clone https://github.com/ccache/ccache.git && \
     cd ccache && mkdir build && cd build && cmake .. && make install && \
