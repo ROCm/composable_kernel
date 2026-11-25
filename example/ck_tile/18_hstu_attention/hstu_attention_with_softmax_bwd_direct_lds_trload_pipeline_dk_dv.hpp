@@ -595,7 +595,7 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
                         const auto row    = seqlen_q_curr + tile_idx.at(number<0>{});
                         const auto col    = i_n0 + tile_idx.at(number<1>{});
                         constexpr auto ij = make_tuple(idx0, idx1);
-                        if(!mask.IsTokenPairInsideMask(row, col) || row >= seqlen_q_end)
+                        if(!mask.IsTokenPairInsideMask(row, col))
                             pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
                         else
                             pcomp_tile(ij) = f_exp(pcomp_tile[ij] - lse_val);
@@ -611,16 +611,8 @@ struct HstuAttentionWithSoftmaxBwdDirectLdsTrLoadPipelineKRVRQS_dK_dV
                     constexpr auto i_idx       = make_tuple(idx0);
                     const CompDataType lse_val = lse_tile[i_idx];
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            pcomp_tile.get_tile_distribution(),
-                            make_tuple(idx0, idx1),
-                            partition_index);
-                        const auto row    = seqlen_q_curr + tile_idx.at(number<0>{});
                         constexpr auto ij = make_tuple(idx0, idx1);
-                        if(row >= seqlen_q_end)
-                            pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
-                        else
-                            pcomp_tile(ij) = f_exp(pcomp_tile[ij] - lse_val);
+                        pcomp_tile(ij)    = f_exp(pcomp_tile[ij] - lse_val);
                     });
                 });
             }
