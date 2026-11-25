@@ -334,12 +334,20 @@ struct batched_backward_dispatch
             using LSEDeltaDataType =
                 typename HstuAttentionBwdTypeConfig<InOutDataType>::CompDataType;
 
+            static_assert(std::is_same_v<LSEDeltaDataType, float>, "Check failed!");
+
             // lse/delta is only written/read in the softmax path; allocate stream-ordered.
-            const size_t lse_delta_bytes =
-                static_cast<size_t>(param.num_batch) * static_cast<size_t>(param.num_head) *
-                static_cast<size_t>(lse_delta_seqlen) * sizeof(LSEDeltaDataType);
+            const size_t lse_delta_nelems = static_cast<size_t>(param.num_batch) *
+                                            static_cast<size_t>(param.num_head) *
+                                            static_cast<size_t>(lse_delta_seqlen);
+            const size_t lse_delta_bytes = lse_delta_nelems * sizeof(LSEDeltaDataType);
+
             HIP_CHECK_ERROR(hipMallocAsync(&ws.lse_ptr, lse_delta_bytes, stream));
             HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, lse_delta_bytes, stream));
+
+            HIP_CHECK_ERROR(
+                hipMemsetD32Async(ws.lse_ptr, 0x7f800000u, lse_delta_nelems, stream)); // +inf
+            HIP_CHECK_ERROR(hipMemsetAsync(ws.delta_ptr, 0, lse_delta_bytes, stream)); // 0
         }
 
         // ---- Kernel 1: compute dQ (and delta = D[sq] for softmax path) ----

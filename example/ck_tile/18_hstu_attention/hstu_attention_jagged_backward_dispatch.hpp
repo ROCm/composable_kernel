@@ -311,21 +311,30 @@ struct jagged_backward_dispatch
     static void
     RunWithKernels(HstuAttentionNoGroupBwdParams& param, BwdWorkspace& ws, hipStream_t stream)
     {
-        // Lse/Delta layout in jagged mode: flat over the sequence dimension, strided by head.
-        // seq_stride=1, nhead_stride=num_batch*max_seqlen_q -- no batch stride needed.
+        // Lse/Delta workspace layout: [num_batch, num_head, lse_delta_seqlen], seq_stride=1,
+        // nhead_stride=lse_delta_seqlen; the kernels compute batch_stride as num_head*nhead_stride.
+        // Each batch uses a fixed slot (max_seqlen_q aligned to 256) instead of seq_q_offsets, so
+        // every batch owns private padding entries which are pre-filled below.
         const ck_tile::index_t lse_delta_seqlen       = (param.max_seqlen_q + 255) / 256 * 256;
-        const ck_tile::index_t nhead_stride_lse_delta = param.num_batch * lse_delta_seqlen;
+        const ck_tile::index_t nhead_stride_lse_delta = lse_delta_seqlen;
 
         if constexpr(kUseSoftmax)
         {
             using LSEDeltaDataType =
                 typename HstuAttentionBwdTypeConfig<InOutDataType>::CompDataType;
 
-            const size_t lse_delta_bytes =
-                static_cast<size_t>(param.num_batch) * static_cast<size_t>(param.num_head) *
-                static_cast<size_t>(lse_delta_seqlen) * sizeof(LSEDeltaDataType);
+            static_assert(std::is_same_v<LSEDeltaDataType, float>, "Check failed!");
+
+            const size_t lse_delta_nelems = static_cast<size_t>(param.num_batch) *
+                                            static_cast<size_t>(param.num_head) *
+                                            static_cast<size_t>(lse_delta_seqlen);
+            const size_t lse_delta_bytes = lse_delta_nelems * sizeof(LSEDeltaDataType);
             HIP_CHECK_ERROR(hipMallocAsync(&ws.lse_ptr, lse_delta_bytes, stream));
             HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, lse_delta_bytes, stream));
+
+            HIP_CHECK_ERROR(
+                hipMemsetD32Async(ws.lse_ptr, 0x7f800000u, lse_delta_nelems, stream)); // +inf
+            HIP_CHECK_ERROR(hipMemsetAsync(ws.delta_ptr, 0, lse_delta_bytes, stream)); // 0
         }
 
         bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);

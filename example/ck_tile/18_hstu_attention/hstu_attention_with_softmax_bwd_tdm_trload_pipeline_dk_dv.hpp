@@ -446,9 +446,6 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         load_tile_tdm(
                             tdm_config_do, do_lds_windows[next_buf][number<0>{}], do_dram_window);
                         move_tile_window(do_dram_window, {kM0Sub, 0});
-
-                        need_mask = !mask.IsFullTileInsideMask(
-                            seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{});
                     };
                     gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile, load_do_tile);
                 }
@@ -494,11 +491,13 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
             }
 
-            // Softmax path mask: set masked-out S to -inf.
-            // The `row >= seqlen_q_end` guard excludes padded tail Q rows of the last tile
-            // (seqlen_q not a multiple of kM0). Kernel 2 reduces over Q (rows), so a padded row
-            // that slips through the mask (IsTokenPairInsideMask clamps and may return true for
-            // it) would pollute every dK/dV column; forcing S=-inf makes P=0 (hence dS=0) there.
+            need_mask =
+                !mask.IsFullTileInsideMask(seqlen_q_curr, i_n0, number<kN0>{}, number<kM0>{});
+
+            // Softmax path mask: set P=0 for masked-out token pairs.
+            // Padded tail Q rows of the last tile (seqlen_q not a multiple of kM0) need no explicit
+            // check: the dispatch pre-fills the padded lse/delta workspace entries with +inf/0, so
+            // P = exp(S - inf) = 0 and dS = 0 there, keeping them out of the dK/dV reduction.
             if(need_mask)
             {
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
@@ -513,7 +512,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         const auto row    = seqlen_q_curr + tile_idx.at(number<0>{});
                         const auto col    = i_n0 + tile_idx.at(number<1>{});
                         constexpr auto ij = make_tuple(idx0, idx1);
-                        if(!mask.IsTokenPairInsideMask(row, col) || row >= seqlen_q_end)
+                        if(!mask.IsTokenPairInsideMask(row, col))
                             pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
                         else
                             pcomp_tile(ij) = f_exp(pcomp_tile[ij] - lse_val);
@@ -522,23 +521,14 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
             }
             else
             {
-                // Fully inside the mask, but the last tile may still contain padded tail
-                // rows (row >= seqlen_q_end) that must be excluded from the dK/dV reduction.
+                // Fully inside the mask; padded tail rows get P=0 from the +inf pre-filled lse.
                 constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                     constexpr auto i_idx       = make_tuple(idx0);
                     const CompDataType lse_val = lse_tile[i_idx];
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            pcomp_tile.get_tile_distribution(),
-                            make_tuple(idx0, idx1),
-                            partition_index);
-                        const auto row    = seqlen_q_curr + tile_idx.at(number<0>{});
                         constexpr auto ij = make_tuple(idx0, idx1);
-                        if(row >= seqlen_q_end)
-                            pcomp_tile(ij) = type_convert<CompDataType>(0.0f);
-                        else
-                            pcomp_tile(ij) = f_exp(pcomp_tile[ij] - lse_val);
+                        pcomp_tile(ij)    = f_exp(pcomp_tile[ij] - lse_val);
                     });
                 });
             }

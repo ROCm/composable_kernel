@@ -775,8 +775,11 @@ struct HstuAttentionBwdKernel1
 
             if constexpr(kUseSoftmax)
             {
-                batch_offset_lse       = query_start * kargs.seq_stride_lse;
-                batch_offset_lse_delta = query_start * kargs.seq_stride_lse_delta;
+                batch_offset_lse = query_start * kargs.seq_stride_lse;
+                // lse/delta workspace layout is [num_batch, num_head, seqlen_aligned] with a fixed
+                // per-batch slot (not seq_q_offsets), so each batch owns private padding entries
+                batch_offset_lse_delta = static_cast<long_index_t>(i_batch) * kargs.num_head *
+                                         kargs.nhead_stride_lse_delta;
             }
             if constexpr(kHasBias)
                 batch_offset_bias = query_start * kargs.seq_stride_bias;
