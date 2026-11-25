@@ -706,19 +706,10 @@ def get_docker_options(){
     // collide when several jobs share a node. Bridge networking gives each job its own
     // loopback, and everything we talk to (redis/sccache, registries, github) is outbound.
     if ( params.BUILD_INSTANCES_ONLY ){
-        dockerOpts = "--group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        dockerOpts = "--group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --env HIP_PLATFORM=amd "
     }
     else{ //only add kfd and dri paths if you actually going to run somthing on GPUs
         dockerOpts = "--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-    }
-    // Dockerfile.compiler builds /llvm-project only for develop/amd-staging. Every other image,
-    // including TheRock and a COMPILER_COMMIT on another version, keeps the installed ROCm clang.
-    def sourceCompiler = params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-staging"
-    if (sourceCompiler || params.COMPILER_VERSION == "therock" || params.COMPILER_COMMIT != ""){
-        def hipClangPath = sourceCompiler ? "/llvm-project/build/bin" : "/opt/rocm/llvm/bin"
-    // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
-    // newer clang22 compilers and running with older hip runtima libraries
-        dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='${hipClangPath}' --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 --env HIP_PLATFORM=amd "
     }
     // on some machines the group ids for video and render groups may not be the same as in the docker image!
     def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')

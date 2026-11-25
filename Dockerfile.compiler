@@ -17,7 +17,7 @@ RUN if ( [ "$compiler_version" = "amd-staging" ] ) && [ "$compiler_commit" = "" 
         -DLLVM_ENABLE_PROJECTS="clang;lld;clang-tools-extra;flang;mlir" \
         -DLLVM_LIT_ARGS="-vv --show-unsupported --show-xfail -j 32" \
         -DPACKAGE_VENDOR="AMD" \
-        -DCMAKE_INSTALL_PREFIX=/home/$USER/rocm/pure_llvm_1.0 \
+        -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm \
         -DLLVM_ENABLE_ASSERTIONS=ON \
         -DLLVM_BUILD_DOCS=ON \
         -DLLVM_TARGETS_TO_BUILD=all \
@@ -38,8 +38,10 @@ RUN if ( [ "$compiler_version" = "amd-staging" ] ) && [ "$compiler_commit" = "" 
         -DLLVM_ENABLE_ZLIB=ON \
         -DLLVM_LINK_LLVM_DYLIB=OFF \
         -DCLANG_LINK_CLANG_DYLIB=OFF \
+        -DLLVM_EXTERNAL_PROJECTS="device-libs" \
+		-DLLVM_EXTERNAL_DEVICE_LIBS_SOURCE_DIR=/llvm-project/amd/device-libs \
         ../llvm && \
-        ninja -j16 ; \
+        ninja -j32 && ninja -j32 install ; \
     else echo "using the release compiler"; \
     fi
 
@@ -51,7 +53,7 @@ RUN if ( [ "$compiler_version" = "amd-staging" ] ) && [ "$compiler_commit" != ""
         -DLLVM_ENABLE_PROJECTS="clang;lld;clang-tools-extra;flang;mlir" \
         -DLLVM_LIT_ARGS="-vv --show-unsupported --show-xfail -j 32" \
         -DPACKAGE_VENDOR="AMD" \
-        -DCMAKE_INSTALL_PREFIX=/home/$USER/rocm/pure_llvm_1.0 \
+        -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm \
         -DLLVM_ENABLE_ASSERTIONS=ON \
         -DLLVM_BUILD_DOCS=ON \
         -DLLVM_TARGETS_TO_BUILD=all \
@@ -72,7 +74,9 @@ RUN if ( [ "$compiler_version" = "amd-staging" ] ) && [ "$compiler_commit" != ""
         -DLLVM_ENABLE_ZLIB=ON \
         -DLLVM_LINK_LLVM_DYLIB=OFF \
         -DCLANG_LINK_CLANG_DYLIB=OFF \
+        -DLLVM_EXTERNAL_PROJECTS="device-libs" \
+		-DLLVM_EXTERNAL_DEVICE_LIBS_SOURCE_DIR=/llvm-project/amd/device-libs \
         ../llvm && \
-        ninja -j16 ; \
+        ninja -j32 && ninja -j32 install ; \
     else echo "using the release compiler"; \
     fi
