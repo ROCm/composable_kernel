@@ -404,9 +404,6 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
             // Loop 1: Gemm0 (S = Q@K); prefetch Q to LDS
             // Loop 2: Gemm2 (dP = dO@V); prefetch dO to LDS
             // =======================================================================
-            // Ensure the trloading of q in previous itertation completely done by all warps
-            __builtin_amdgcn_s_barrier();
-
             bool need_mask;
 
             static_for<0, m0_loops, 1>{}([&](auto i_m0) {
