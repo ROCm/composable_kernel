@@ -7,7 +7,9 @@
 GPU correctness test for the batched GEMM dispatcher bridge.
 
 Builds one small batched kernel per CASES entry -- every bridge dtype (fp16,
-bf16, fp32, fp8, bf8) and every layout (rcr, rrr, crr, ccr) is covered -- runs
+bf16, fp32, fp8, bf8) and every layout (rcr, rrr, crr, ccr) is covered, plus
+batched Stream-K (every reduction, persistent or not, a reduced workgroup
+budget) and, on gfx1250, the comp_tdm_v3 and comp_tdm_pc batched kernels -- runs
 it on-device via GpuBatchedGemmRunner, and compares the GPU output to a
 per-batch fp32 numpy reference. Each kernel is picked from the bridge's own
 expand_sweep, so the warp tile follows the arch (MFMA on gfx90a/gfx942/gfx950,
@@ -31,6 +33,7 @@ Run:
 """
 
 import argparse
+import os
 import json
 import logging
 import sys
@@ -41,7 +44,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
-from gemm_utils import _codegen_common  # noqa: E402
+from gemm_utils import STREAMK_BUDGET_ENV, _codegen_common  # noqa: E402
 from batched_gemm_utils import (  # noqa: E402
     BATCHED_VERIFY_TOL,
     BatchedGemmKernelConfig,
@@ -104,6 +107,25 @@ CASES = [
     ("bf8", "rcr", 3, 256, 128, 128),
 ]
 
+# Batched Stream-K (StreamKKernel numbers the tiles of all batches in one space)
+# and the gfx1250 TDM batched kernels: (dtype, layout, batch, M, N, K, overrides).
+# Each override replaces one trait_config value, "reduction_strategy" makes the
+# sweep a Stream-K one, "budget_pct" sets the Stream-K workgroup budget for the
+# run and "arch" limits the case to arches starting with it. 37 batches of 2 x 3
+# tiles fit on the device at once, so the full budget splits every tile over
+# workgroups; a quarter budget runs data-parallel tiles first.
+_TDM = {"arch": "gfx1250", "pad_m": False, "pad_n": False, "pad_k": False}
+EXTRA_CASES = [
+    ("bf16", "rcr", 37, 256, 384, 512, {"reduction_strategy": "atomic"}),
+    ("fp16", "crr", 37, 256, 384, 512, {"reduction_strategy": "linear", "persistent": True}),
+    ("bf16", "rrr", 37, 250, 380, 520, {"reduction_strategy": "tree", "budget_pct": 25}),
+    ("bf16", "ccr", 37, 256, 384, 512, {"reduction_strategy": "linear", "budget_pct": 25}),
+    ("bf16", "rcr", 5, 256, 384, 512, {**_TDM, "pipeline": "comp_tdm_v3"}),
+    ("bf16", "crr", 5, 256, 384, 512, {**_TDM, "pipeline": "comp_tdm_pc", "epilogue": "tdm"}),
+    ("bf16", "rcr", 37, 256, 384, 512, {**_TDM, "pipeline": "comp_tdm_v3",
+                                         "reduction_strategy": "linear", "budget_pct": 25}),
+]
+
 
 def _has_gpu() -> bool:
     """True iff a supported GPU is visible to rocminfo (so the .so can run)."""
@@ -136,10 +158,22 @@ def _reference_batched(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     return np.matmul(A.astype(np.float32), B.astype(np.float32))
 
 
+def _sweep(overrides: dict) -> dict:
+    """_SWEEP with the trait and Stream-K overrides of an EXTRA_CASES entry."""
+    sweep = json.loads(json.dumps(_SWEEP))
+    for key, value in overrides.items():
+        if key == "reduction_strategy":
+            sweep["streamk_config"] = {"reduction_strategy": {"values": [value]}}
+        elif key not in ("budget_pct", "arch"):
+            sweep["trait_config"][key] = {"values": [value]}
+    return sweep
+
+
 def _case_config(
-    gfx_arch: str, dtype: str, layout: str, M: int, N: int, K: int
+    gfx_arch: str, dtype: str, layout: str, M: int, N: int, K: int, overrides=None
 ) -> BatchedGemmKernelConfig:
-    """Smallest-tile_k, widest-warp-tile kernel from _SWEEP that runs M/N/K.
+    """Smallest-tile_k, widest-warp-tile kernel from _SWEEP (with ``overrides``)
+    that runs M/N/K.
 
     Native vector widths are preferred; the problem's widest legal widths are
     the fallback, as in the full benchmark.
@@ -150,7 +184,7 @@ def _case_config(
     extents = [dict(m=M, n=N, k=K)[d] for d in cc.gemm_contiguous_dims(layout)]
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "sweep.json"
-        path.write_text(json.dumps(_SWEEP))
+        path.write_text(json.dumps(_sweep(overrides or {})))
         configs = expand_sweep(
             str(path), arch=gfx_arch, dtype=dtype, layout=layout, vector_sizes=[(0, 0, 0), need]
         )
@@ -184,8 +218,16 @@ def check_batched(
     M: int,
     N: int,
     K: int,
+    overrides=None,
 ) -> tuple[str, str]:
-    tag = f"batched/{dtype}/{layout} MNK={M}/{N}/{K}"
+    overrides = overrides or {}
+    kind = "streamk" if cfg.variant == "stream_k" else "batched"
+    tag = f"{kind}/{cfg.pipeline}/{dtype}/{layout} MNK={M}/{N}/{K}"
+    if cfg.variant == "stream_k":
+        tag += (
+            f" {cfg.reduction_strategy} persistent={cfg.persistent}"
+            f" budget={overrides.get('budget_pct', 100)}%"
+        )
     if so_path is None:
         return FAIL, f"{tag}: kernel build failed ({cfg.name})"
 
@@ -196,7 +238,11 @@ def check_batched(
     B = rng.integers(-4, 5, (batch, K, N)).astype(np.float32) / 4
 
     problem = BatchedGemmProblem(batch_count=batch, M=M, N=N, K=K)
-    result = runner.run(A, B, problem, warmup=5, repeat=10)
+    os.environ[STREAMK_BUDGET_ENV] = str(overrides.get("budget_pct", 100))
+    try:
+        result = runner.run(A, B, problem, warmup=5, repeat=10)
+    finally:
+        del os.environ[STREAMK_BUDGET_ENV]
 
     if result.status != 0:
         return FAIL, f"{tag}: run status={result.status} (nonzero)"
@@ -244,7 +290,7 @@ def main() -> int:
 
     results = []
     runnable = []
-    for case in CASES:
+    for case in CASES + [c for c in EXTRA_CASES if gfx.startswith(c[6].get("arch", ""))]:
         if case[0] in ("fp8", "bf8") and gfx in _NO_FP8_ARCHES:
             results.append((SKIP, f"batched/{case[0]}/{case[1]}: no fp8 MFMA on {gfx}"))
             continue

@@ -10,7 +10,9 @@ from ck_tile_fmha import fmha_fp8_func, fmha_func, fmha_varlen_fp8_func, fmha_va
 def fp8_unsupported_reason(qscale, d, return_lse=False, mask="none"):
     arch = torch.cuda.get_device_properties(torch.cuda.current_device()).gcnArchName
     if arch.startswith("gfx1250"):
-        return "gfx1250 FP8 requires head dimension <= 128" if d > 128 else None
+        return "gfx1250 FP8 requires head dimension <= 128 or 256" if 128 < d != 256 else None
+    if d > 128:
+        return "test_fp8_large_head covers gfx9 head dimensions above 128"
     if qscale == "perhead":
         return "FP8 per-head kernels require gfx1250"
     if return_lse and not (
@@ -84,7 +86,7 @@ def check_fp8_numerics(out, ref, magnitude, valid):
 
 
 @pytest.mark.parametrize("qscale", ["no_scale", "pertensor", "perhead", "blockscale"])
-@pytest.mark.parametrize("d", [32, 59, 64, 111, 128])
+@pytest.mark.parametrize("d", [32, 59, 64, 111, 128, 256])
 @pytest.mark.parametrize("mask", ["none", "causal", "local", "local_causal"])
 @pytest.mark.parametrize(
     "sq,sk,h,hk", [(97, 203, 4, 4), (1, 257, 6, 2), (193, 113, 6, 1), (256, 256, 4, 4)]
@@ -153,8 +155,8 @@ def test_fp8_large_head(qscale, d):
     torch.manual_seed(2)
     q, qs, qr = make_fp8_input((2, 97, 4, d), qscale)
     k, ks, kr = make_fp8_input((2, 203, 2, d), qscale)
-    v, vs, vr = make_fp8_input((2, 203, 2, d), qscale)
-    if torch.cuda.get_device_properties(0).gcnArchName.startswith("gfx1250"):
+    v, vs, vr = make_fp8_input((2, 203, 2, d), qscale, is_value=True)
+    if torch.cuda.get_device_properties(0).gcnArchName.startswith("gfx1250") and d != 256:
         with pytest.raises(RuntimeError, match="No FMHA forward kernel"):
             fmha_fp8_func(q, k, v, qs, ks, vs, qscale=qscale)
     else:
@@ -316,7 +318,7 @@ def check_fp8_varlen_output(out, qr, kr, vr, cuq, cuk, lengths_q, lengths_k, sca
 
 
 @pytest.mark.parametrize("qscale", ["no_scale", "pertensor", "perhead"])
-@pytest.mark.parametrize("d", [32, 59, 64, 111, 128])
+@pytest.mark.parametrize("d", [32, 59, 64, 111, 128, 256])
 @pytest.mark.parametrize("mask", ["none", "causal", "local", "local_causal"])
 @pytest.mark.parametrize(
     "lengths_q,lengths_k,h,hk",

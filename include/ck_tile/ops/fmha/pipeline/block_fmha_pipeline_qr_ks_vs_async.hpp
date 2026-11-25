@@ -405,14 +405,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                                                                     // load
         k_dram_window.init_raw();
         constexpr auto k_oob_ck = bool_constant<true>{};
-        constexpr auto k_pre_np = [&]() {
-            if constexpr(kPadSeqLenK &&
-                         (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                          (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)))
-                return bool_constant<true>{};
-            else
-                return bool_constant<false>{};
-        }();
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
@@ -473,7 +465,7 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         // prefetch K tile
         async_load_tile_raw(
-            k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, number<-1>{}, k_oob_ck, k_pre_np);
+            k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, number<-1>{}, k_oob_ck);
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
         buffer_load_fence(k_dram_window.get_num_of_access(), q.get_thread_buffer());
@@ -554,8 +546,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     async_load_tile_raw(k_lds_store(number<LdsSeq.at(number<i_k0 + 1>{})>{}),
                                         k_dram_window,
                                         number<-1>{},
-                                        k_oob_ck,
-                                        k_pre_np);
+                                        k_oob_ck);
                     if constexpr(i_k0 < k0_loops - 1)
                         move_tile_window(k_dram_window, {0, kK0});
 
@@ -575,8 +566,11 @@ struct BlockFmhaPipelineQRKSVSAsync
             async_load_fence();
             __builtin_amdgcn_s_barrier();
 
-            const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            auto v_buf           = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
+            // No per-element OOB branch: padded scores are masked to -inf, padded rows are not
+            // stored, and the buffer range check returns 0 past the end.
+            const auto bias_tile =
+                load_tile(bias_dram_window, number<-1>{}, bool_constant<false>{});
+            auto v_buf = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
             __builtin_amdgcn_sched_barrier(0);
             { // tail
                 run_gemm_0(number<k0_loops - 1>{});
@@ -1128,11 +1122,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-                async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})),
-                                    k_dram_window,
-                                    number<-1>{},
-                                    k_oob_ck,
-                                    k_pre_np);
+                async_load_tile_raw(
+                    k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, number<-1>{}, k_oob_ck);
                 move_tile_window(k_dram_window, {0, kK0});
             }
             // tail

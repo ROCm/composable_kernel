@@ -266,6 +266,21 @@ set_tests_properties(dispatcher_test_batched_bridge PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# Batched Stream-K and the batched comp_tdm_v3 / comp_tdm_pc kernels in the batched
+# bridge: naming, sweep expansion, compile flags, the Stream-K launch and C reset,
+# and the batched benchmark's per-budget work units. CPU-only.
+add_test(
+    NAME dispatcher_test_batched_streamk_bridge
+    COMMAND ${Python3_EXECUTABLE} -m unittest discover -s ${CMAKE_CURRENT_SOURCE_DIR} -p test_batched_streamk_bridge.py -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_batched_streamk_bridge PROPERTIES
+    LABELS "dispatcher;python;gemm;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # Architecture-aware LDS staging budget regression test
 add_test(
     NAME dispatcher_test_lds_capacity_arch_aware
@@ -320,7 +335,7 @@ set_tests_properties(dispatcher_test_gemm_driver_verify PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
-# gfx1250 comp_async / comp_tdm / comp_tdm_v2 pipelines and the tdm epilogue:
+# gfx1250 comp_async / comp_tdm / comp_tdm_v2 pipelines and the tdm / tdmstaged epilogues:
 # ArchFilter, codegen and gemm_utils gates, LDS budget and codegen output.
 # CPU-only.
 add_test(
@@ -344,6 +359,37 @@ add_test(
 )
 
 set_tests_properties(dispatcher_test_gfx1250_gate_equivalence PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# The Tile Engine side of that gate (gemm_validation_utils trait/tile rules and the
+# instance builder) has no CTest of its own; registered here so CI runs it next to
+# the equivalence test. CPU-only.
+set(TE_GEMM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../tile_engine/ops/gemm)
+add_test(
+    NAME dispatcher_test_tile_engine_gfx1250_pipelines
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${TE_GEMM_DIR}/test_gfx1250_pipelines.py
+    WORKING_DIRECTORY ${TE_GEMM_DIR}
+)
+
+set_tests_properties(dispatcher_test_tile_engine_gfx1250_pipelines PROPERTIES
+    LABELS "dispatcher;python;codegen;validation"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${TE_GEMM_DIR}"
+)
+
+# Stream-K on the gfx1250 comp_tdm / comp_tdm_v2 pipelines: the reduction x
+# epilogue x pad x persistent gate, its agreement across codegen, arch_filter
+# and expand_sweep, and the generated kernel header. CPU-only.
+add_test(
+    NAME dispatcher_test_streamk_tdm_gfx1250
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_streamk_tdm_gfx1250.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_streamk_tdm_gfx1250 PROPERTIES
     LABELS "dispatcher;python;codegen;validation"
     TIMEOUT 120
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
@@ -421,9 +467,25 @@ set_tests_properties(dispatcher_test_gemm_driver_pairs PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
-# MX bridge host tests and CMake configuration tests. Report missing host build
+# Adaptive kernel search (--search-config): the vendored ck_search core, the
+# op-agnostic coordinator, the GEMM adapter and the driver options. CPU only:
+# builds, workers and strategies are faked or run in-process.
+foreach(_search_test ck_search_core adaptive_search_coordinator gemm_search_adapter gemm_search_cli)
+    add_test(
+        NAME dispatcher_test_${_search_test}
+        COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_${_search_test}.py
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    set_tests_properties(dispatcher_test_${_search_test} PROPERTIES
+        LABELS "dispatcher;python;gemm;validation"
+        TIMEOUT 120
+        ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+    )
+endforeach()
+
+# MX bridge host tests, CMake configuration tests and comp_tdm_scheduled. Report missing host build
 # tools as a skipped CMake test rather than an all-skipped pass.
-foreach(_mx_test bridge cmake)
+foreach(_mx_test bridge cmake tdm_scheduled)
     add_test(
         NAME dispatcher_test_mx_gemm_${_mx_test}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/run_unittest_77.py test_mx_gemm_${_mx_test}.py
@@ -764,8 +826,8 @@ set_tests_properties(dispatcher_test_streamk_registry PROPERTIES
 # these exits 77 (Skipped, not Passed) when no GPU is present or the detected
 # arch is not the one the operator supports.
 
-# Stream-K: atomic / linear / tree reduction through the ctypes bridge (gfx942).
-# 12 hipcc builds plus a 4096-cubed reference, hence the larger timeout.
+# Stream-K: atomic / linear / tree on gfx942/gfx950/gfx1250. gfx1250 builds
+# 72 bridge kernels plus four 16-wave workspace drivers, hence the larger timeout.
 add_test(
     NAME dispatcher_test_streamk_gpu_correctness
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_streamk_gpu_correctness.py
@@ -953,8 +1015,8 @@ foreach(test_source ${TEST_SOURCES})
     set_tests_properties(${test_name} PROPERTIES LABELS "dispatcher;cpp;unit")
 endforeach()
 
-# Instantiates the GEMM backends, so the ck_tile headers need HIP compilation
-# (no GPU is touched at runtime).
+# Instantiates the GEMM backends, so the ck_tile headers need HIP compilation. No kernel is
+# launched; the gfx125 gate tests only query the current device (no device reads as not gfx125).
 if(hip_FOUND)
     target_link_libraries(test_generated_backend PRIVATE hip::device hip::host)
 endif()

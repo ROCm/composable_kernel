@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/ck.hpp"
+#include "ck/utility/synchronization.hpp"
 
 namespace ck {
 
@@ -129,13 +130,27 @@ __device__ void cluster_load_async(__attribute__((address_space(3))) void* lds_p
             0,
             mask);
     }
+#if CK_HAS_ASYNCMARK
+    asyncmark();
+#endif
 }
 
 //
 // cluster_load_async_wait: Wait for all pending async LDS loads to complete.
 // Must be called before reading from LDS after cluster_load_async.
 //
-__device__ inline void cluster_load_async_wait() { __builtin_amdgcn_s_wait_asynccnt(0); }
+__device__ inline void cluster_load_async_wait()
+{
+#if CK_HAS_ASYNCMARK
+    // Force marked async loads to drain.
+    wait_asyncmark();
+#else
+    __builtin_amdgcn_s_wait_asynccnt(0);
+    // This acquire fence keeps subsequent LDS reads from being hoisted above the s_wait_asynccnt,
+    // which is otherwise invisible to the LLVM memory model.
+    __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "workgroup", "local");
+#endif
+}
 
 #else
 

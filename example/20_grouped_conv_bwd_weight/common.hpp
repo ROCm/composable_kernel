@@ -129,6 +129,12 @@ struct ExecutionConfig final
         3, 4, 1, 128, 256, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, { 1, 1, 1 } \
     }
 
+#define DefaultConvParamFilter1x1Stride1Pad0                                  \
+    ck::utils::conv::ConvParam                                                \
+    {                                                                         \
+        2, 4, 2, 128, 256, {1, 1}, {32, 12}, {1, 1}, {1, 1}, {0, 0}, { 0, 0 } \
+    }
+
 inline void print_help_msg()
 {
     std::cerr << "arg1: verification (0=no, 1=yes)\n"

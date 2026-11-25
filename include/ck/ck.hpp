@@ -145,6 +145,13 @@
 #define CK_USE_AMD_MFMA
 #endif
 
+#if defined(__has_builtin) && __has_builtin(__builtin_amdgcn_asyncmark) && \
+    __has_builtin(__builtin_amdgcn_wait_asyncmark)
+#define CK_HAS_ASYNCMARK 1
+#else
+#define CK_HAS_ASYNCMARK 0
+#endif
+
 #if(defined(__gfx90a__) || defined(__gfx94__))
 #define CK_USE_AMD_MFMA_BF16_1K_OP
 #endif

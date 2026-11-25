@@ -128,6 +128,14 @@ def main():
         help=f"Relative tolerance for --verify (default {gfb.DEFAULT_VERIFY_TOL})",
     )
     parser.add_argument(
+        "--init",
+        choices=("grid", "trig"),
+        default="grid",
+        help="A, B and scale data: grid (exact fp4/fp8 grid values, scales 2^-3..2^2) "
+        "or trig (fp4 only: example 56's -data=trig, E2M1 codes of sin/cos of the "
+        "element index, scales 2^-3..2^3)",
+    )
+    parser.add_argument(
         "--compile-only",
         action="store_true",
         help="Run Phase 1 only (compile all kernels, skip benchmarking)",
@@ -200,7 +208,7 @@ def main():
     print(f"{'=' * 80}")
 
     problems = gfb.load_problems(args.problems, gfb.DEFAULT_VARIANT)
-    print(f"  Problems: {len(problems)}")
+    print(f"  Problems: {len(problems)}  Init: {args.init}")
     print(
         f"  Total measurements: {len(built_kernels)} x {len(problems)} = "
         f"{len(built_kernels) * len(problems)}"
@@ -220,7 +228,7 @@ def main():
         _THIS_DIR / "run_one_mx_gemm_kernel.py",
         base_env,
         csv_path,
-        extra={"dtype": args.dtype, "arch": arch},
+        extra={"dtype": args.dtype, "arch": arch, "init": args.init},
     )
     gfb.print_summary(build_time, stats, devices, csv_path)
     if n_build_fail:

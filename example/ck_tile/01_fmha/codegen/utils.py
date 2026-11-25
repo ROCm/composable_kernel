@@ -30,16 +30,32 @@ def if_(i: int) -> str:
     return "if" if i == 0 else "else if"
 
 
-def check_duplicates_and_paddings(traits, trait):
+def non_padding_key(trait):
+    """A hashable key of the trait's non-padding fields: equal for traits whose non-padding fields
+    compare equal (repr, as some field types are unhashable dataclasses)."""
+    return tuple(
+        repr(getattr(trait, f.name))
+        for f in dataclasses.fields(trait)
+        if "pad" not in f.name
+    )
+
+
+def check_duplicates_and_paddings(traits, trait, by_key=None):
     """Check
     * if the traits list does not contain a trait with the same parameters;
     * if paddings are consitent: the previous kernel can be incorrectly called before the new one,
       for example, f, _t_, f, t cannot be before f, _f_, f, t.
+
+    by_key: optional dict from non_padding_key() to the earlier traits with that key, kept by the
+    caller. Only traits with equal non-padding fields can fail either check, so with it the check
+    compares against those alone (linear rather than quadratic in the number of traits).
     """
 
     fields = [f.name for f in dataclasses.fields(trait)]
     pad_fields = [f for f in fields if "pad" in f]
     non_pad_fields = [f for f in fields if "pad" not in f]
+    if by_key is not None:
+        traits = by_key.get(non_padding_key(trait), ())
     for prev_trait in traits:
         if any(getattr(trait, f) != getattr(prev_trait, f) for f in non_pad_fields):
             continue

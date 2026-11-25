@@ -173,6 +173,20 @@ struct BlockGemmARegBSmemCRegV2
         };
 
         // hot loop:
+#if defined(__gfx117__)
+        if constexpr(UsePartialN && !UsePartialK)
+        {
+            // Group K steps under one N check to allow LDS reads ahead of WMMA,
+            // preserving each output's K accumulation order.
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                if(static_cast<index_t>(nIter.value) < valid_n_iters)
+                {
+                    static_for<0, KIterPerWarp, 1>{}([&](auto kIter) { run_n_iter(kIter, nIter); });
+                }
+            });
+            return;
+        }
+#endif
         if constexpr(UsePartialK || UsePartialN)
         {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {

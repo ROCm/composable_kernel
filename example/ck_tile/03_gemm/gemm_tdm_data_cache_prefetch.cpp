@@ -271,29 +271,67 @@ struct GemmConfigTDMV2Prefetch : public GemmConfigBase
     static constexpr ck_tile::index_t kClusterSizeN = kClusterSizeN_;
 };
 
+// TDM_STAGED_EPILOGUE_ENABLED (tile_example_gemm_tdm_data_cache_prefetch_staged): the same
+// configurations with C written in slabs of one M iteration (TdmEpilogueStagedForPipeline)
+// instead of the whole tile at once (TdmEpilogue).
+template <typename PrecType,
+          ck_tile::DataCachePrefetchKind DataCachePrefetchA_ = ck_tile::DataCachePrefetchKind::L2,
+          ck_tile::DataCachePrefetchKind DataCachePrefetchB_ = DataCachePrefetchA_,
+          ck_tile::index_t kClusterSizeM_                    = 1,
+          ck_tile::index_t kClusterSizeN_                    = 1>
+struct GemmConfigTDMV1PrefetchStaged : public GemmConfigTDMV1Prefetch<PrecType,
+                                                                      DataCachePrefetchA_,
+                                                                      DataCachePrefetchB_,
+                                                                      kClusterSizeM_,
+                                                                      kClusterSizeN_>
+{
+    static constexpr ck_tile::index_t TdmMIterPerStage = 1;
+};
+
+template <typename PrecType,
+          ck_tile::DataCachePrefetchKind DataCachePrefetchA_ = ck_tile::DataCachePrefetchKind::L2,
+          ck_tile::DataCachePrefetchKind DataCachePrefetchB_ = DataCachePrefetchA_,
+          ck_tile::index_t kClusterSizeM_                    = 1,
+          ck_tile::index_t kClusterSizeN_                    = 1>
+struct GemmConfigTDMV2PrefetchStaged : public GemmConfigTDMV2Prefetch<PrecType,
+                                                                      DataCachePrefetchA_,
+                                                                      DataCachePrefetchB_,
+                                                                      kClusterSizeM_,
+                                                                      kClusterSizeN_>
+{
+    static constexpr ck_tile::index_t TdmMIterPerStage = 1;
+};
+
+template <template <typename,
+                    ck_tile::DataCachePrefetchKind,
+                    ck_tile::DataCachePrefetchKind,
+                    ck_tile::index_t,
+                    ck_tile::index_t>
+          class GemmConfig>
+int run_gemm_example_with_cluster(ck_tile::ArgParser& arg_parser)
+{
+    if(arg_parser.get_int("use_cluster_2x2") == 1)
+        return run_gemm_example_with_prefetch<GemmConfig, 2, 2>(arg_parser);
+    return run_gemm_example_with_prefetch<GemmConfig, 1, 1>(arg_parser);
+}
+
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
     const std::string pipeline = arg_parser.get_str("pipeline");
-    const bool use_cluster_2x2 = arg_parser.get_int("use_cluster_2x2") == 1;
     const bool is_v2           = (pipeline == "v2");
 
     if(!is_v2 && pipeline != "v1")
         std::cerr << "Unknown pipeline '" << pipeline << "', defaulting to v1." << std::endl;
 
+#ifdef TDM_STAGED_EPILOGUE_ENABLED
     if(is_v2)
-    {
-        if(use_cluster_2x2)
-            return run_gemm_example_with_prefetch<GemmConfigTDMV2Prefetch, 2, 2>(arg_parser);
-        else
-            return run_gemm_example_with_prefetch<GemmConfigTDMV2Prefetch, 1, 1>(arg_parser);
-    }
-    else
-    {
-        if(use_cluster_2x2)
-            return run_gemm_example_with_prefetch<GemmConfigTDMV1Prefetch, 2, 2>(arg_parser);
-        else
-            return run_gemm_example_with_prefetch<GemmConfigTDMV1Prefetch, 1, 1>(arg_parser);
-    }
+        return run_gemm_example_with_cluster<GemmConfigTDMV2PrefetchStaged>(arg_parser);
+    return run_gemm_example_with_cluster<GemmConfigTDMV1PrefetchStaged>(arg_parser);
+#else
+    if(is_v2)
+        return run_gemm_example_with_cluster<GemmConfigTDMV2Prefetch>(arg_parser);
+    return run_gemm_example_with_cluster<GemmConfigTDMV1Prefetch>(arg_parser);
+#endif
 }
 
 int main(int argc, char* argv[])

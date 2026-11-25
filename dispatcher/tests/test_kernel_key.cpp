@@ -202,11 +202,13 @@ TEST(KernelKeyTest, EncodeIdentifierWithSparsity)
 
 TEST(KernelKeyTest, Gfx1250PipelineIdentity)
 {
-    const std::array<std::pair<const char*, Pipeline>, 6> pipelines = {{
+    const std::array<std::pair<const char*, Pipeline>, 8> pipelines = {{
         {"preshufflev2", Pipeline::PreShuffleV2},
         {"comp_tdm", Pipeline::CompTDMV1},
         {"comp_tdm_v2", Pipeline::CompTDMV2},
         {"comp_tdm_pc", Pipeline::CompTDMPC},
+        {"comp_tdm_v3", Pipeline::CompTDMV3},
+        {"comp_tdm_ra", Pipeline::CompTDMRA},
         {"preshuffle_tdm", Pipeline::PreShuffleTDM},
         {"comp_async", Pipeline::CompAsync},
     }};
@@ -218,7 +220,35 @@ TEST(KernelKeyTest, Gfx1250PipelineIdentity)
     }
     EXPECT_EQ(string_to_epilogue("tdm"), Epilogue::Tdm);
     EXPECT_EQ(to_string(Epilogue::Tdm), "tdm");
+    EXPECT_EQ(string_to_epilogue("tdmstaged"), Epilogue::TdmStaged);
+    EXPECT_EQ(to_string(Epilogue::TdmStaged), "tdmstaged");
     // Existing values form part of the dispatcher ABI; new values are appended.
     EXPECT_EQ(static_cast<unsigned>(Pipeline::Wavelet), 9u);
+    EXPECT_EQ(static_cast<unsigned>(Pipeline::PreShuffleTDM), 14u);
+    EXPECT_EQ(static_cast<unsigned>(Pipeline::CompTDMV3), 15u);
+    EXPECT_EQ(static_cast<unsigned>(Pipeline::CompTDMRA), 16u);
     EXPECT_EQ(static_cast<unsigned>(Epilogue::BiasActivation), 5u);
+    EXPECT_EQ(static_cast<unsigned>(Epilogue::Tdm), 6u);
+    EXPECT_EQ(static_cast<unsigned>(Epilogue::TdmStaged), 7u);
+}
+
+TEST(KernelKeyTest, EncodeIdentifierRunAheadRing)
+{
+    KernelKey key             = make_test_key(256, 256, 64, "gfx1250");
+    key.algorithm.pipeline    = Pipeline::CompTDMRA;
+    const std::string base_id = key.encode_identifier();
+    EXPECT_NE(base_id.find("comp_tdm_ra"), std::string::npos);
+    EXPECT_EQ(base_id.find("_s"), std::string::npos);
+
+    // A RunAhead without NumSlots is the default ring: no suffix, as pipeline_ring_suffix().
+    key.algorithm.run_ahead = 2;
+    EXPECT_EQ(key.encode_identifier(), base_id);
+
+    key.algorithm.num_slots = 3;
+    EXPECT_EQ(key.encode_identifier(), base_id + "_s3r2");
+
+    KernelKey other           = key;
+    other.algorithm.run_ahead = 1;
+    EXPECT_FALSE(key == other);
+    EXPECT_EQ(other.encode_identifier(), base_id + "_s3r1");
 }

@@ -195,7 +195,15 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
             # instead of letting it hold a GPU for the 1500s CTest default.
             set_tests_properties(test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma
                 PROPERTIES TIMEOUT 900)
-            list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma)
+            # The same pipeline with a CShuffleEpilogue: the split-K (k_batch > 1) coverage.
+            add_gtest_executable(test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma
+                test_gemm_pipeline_comp_tdm_producer_consumer_cshuffle_wmma.cpp)
+            target_compile_options(test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma
+                PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+            # Same named_barrier restriction as tdm_producer_consumer_wmma above.
+            ck_tile_restrict_archs(test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma "^gfx125")
+            set_tests_properties(test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma
+                PROPERTIES TIMEOUT 900)
             # comp_tdm_v3 (gfx1250 TDM fp8 pipeline). Labelled after the relabel loop below so they
             # keep SMOKE_TEST (short shapes) and REGRESSION_TEST (K = 65536, listed in
             # REGRESSION_TESTS in test/CMakeLists.txt: minutes under the emulator).
@@ -243,6 +251,27 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
                         PROPERTIES LABELS "SMOKE_TEST;CK_TILE_GEMM_TESTS")
                 endif()
             endforeach()
+            # The run-ahead ring: TDM only, so gfx125 only. It uses no named barriers; a wrong retire
+            # count reads a slot before its fill lands (wrong results, not a hang), but a mismatched
+            # barrier count would hang, hence the cap.
+            add_gtest_executable(test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma
+                test_gemm_pipeline_comp_tdm_run_ahead_wmma.cpp
+                test_gemm_pipeline_comp_tdm_run_ahead_policy_wmma.cpp)
+            target_compile_options(test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma
+                PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+            ck_tile_restrict_archs(test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma "^gfx125")
+            set_tests_properties(test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma
+                PROPERTIES TIMEOUT 900)
+            # A gfx125-only build is only run on gfx1250, so a device that does not report gfx125
+            # is a broken runner: fail instead of letting every case skip as a pass. Mixed-target
+            # builds may run on other GPUs, where the skip is correct.
+            set(_ra_non_gfx125_targets ${GPU_TARGETS})
+            list(FILTER _ra_non_gfx125_targets EXCLUDE REGEX "^gfx125")
+            if(NOT _ra_non_gfx125_targets AND TEST test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma)
+                set_property(TEST test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma
+                    APPEND PROPERTY ENVIRONMENT "CK_TILE_REQUIRE_GFX125=1")
+            endif()
+            # Joined to CK_TILE_GEMM_TEST_TARGETS after the relabel loop below, to keep SMOKE_TEST.
             add_gtest_executable(test_ck_tile_gemm_pipeline_comp_async_wmma test_gemm_pipeline_comp_async_wmma.cpp)
             target_compile_options(test_ck_tile_gemm_pipeline_comp_async_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
             target_compile_options(test_ck_tile_gemm_pipeline_comp_async_wmma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
@@ -274,8 +303,10 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
         endif()
     endforeach()
     # comp_tdm_pc is deliberately absent from the tile engine CI config (it is a shared contract
-    # with the dispatcher bridge), so this gtest is the only CI coverage of
-    # GemmPipelineAgBgCrCompTDMProducerConsumer. It must be joined HERE, after the relabel loop
+    # with the dispatcher bridge), so these gtests (tdm_epilogue and cshuffle/split-K producer/consumer
+    # variants, and the run-ahead ring) are the only CI coverage of the gfx1250 TDM
+    # producer/consumer and run-ahead pipelines. They must be joined HERE,
+    # after the relabel loop
     # above, and never added to CK_TILE_GEMM_TEST_TARGETS before it: that loop uses
     # set_tests_properties(... PROPERTIES LABELS ...), which REPLACES, so going through it would
     # drop the SMOKE_TEST label add_gtest_executable set -- and gfx1250 CI runs only
@@ -285,6 +316,12 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
         set_property(TEST test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma
             APPEND PROPERTY LABELS "CK_TILE_GEMM_TESTS")
         list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_pipeline_tdm_producer_consumer_wmma)
+    endif()
+    if(TEST test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma)
+        set_property(TEST test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma
+            APPEND PROPERTY LABELS "CK_TILE_GEMM_TESTS")
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_gemm_pipeline_tdm_producer_consumer_cshuffle_wmma)
     endif()
     # comp_tdm_v3: same reason as comp_tdm_pc above (keep the SMOKE_TEST / REGRESSION_TEST label).
     foreach(test_target test_ck_tile_gemm_pipeline_comp_tdm_v3_wmma
@@ -297,6 +334,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
             list(APPEND CK_TILE_GEMM_TEST_TARGETS ${test_target})
         endif()
     endforeach()
+    if(TEST test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma)
+        set_property(TEST test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma
+            APPEND PROPERTY LABELS "CK_TILE_GEMM_TESTS")
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS test_ck_tile_gemm_pipeline_tdm_run_ahead_wmma)
+    endif()
 
     # Umbrella target to build and run all ck_tile gemm tests
     # Usage: ninja ck_tile_gemm_tests

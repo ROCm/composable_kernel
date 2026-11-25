@@ -497,12 +497,14 @@ struct BatchedContractionKernel
     }
 
     /// @brief TDM variant of RunGemm.
+    /// @param barriers The token from UniversalGemmKernel::InitBarriers().
     ///
     /// @details TDM pipelines move whole tiles through hardware tensor descriptors derived from
     ///          the (merged) grid descriptors, clip out-of-bounds accesses in hardware and do not
     ///          use padding. The pipeline consumes tuples of A/B windows and the TdmEpilogue
     ///          overwrites E. The host side (MakeKernelArgs) guarantees that every merged
     ///          dimension group is affinely collapsible, which TDM addressing requires.
+    template <typename BarrierToken>
     CK_TILE_DEVICE static void RunGemmTdm(const ADataType* a_ptr,
                                           const BDataType* b_ptr,
                                           const std::array<const void*, NumDTensor>& ds_ptr,
@@ -511,7 +513,8 @@ struct BatchedContractionKernel
                                           const KernelArgs& kargs,
                                           const index_t k_size,
                                           const index_t i_m,
-                                          const index_t i_n)
+                                          const index_t i_n,
+                                          const BarrierToken barriers)
     {
         static_assert(is_tdm_epilogue_v<EpiloguePipeline>,
                       "TDM batched contraction requires TdmEpilogue");
@@ -561,17 +564,20 @@ struct BatchedContractionKernel
         using AElementWise = remove_cvref_t<typename GemmPipeline::AElementWise>;
         using BElementWise = remove_cvref_t<typename GemmPipeline::BElementWise>;
 
-        const auto& c_block_tile = GemmPipeline{}(make_tuple(a_block_window),
-                                                  AElementWise{},
-                                                  make_tuple(b_block_window),
-                                                  BElementWise{},
-                                                  num_loop,
-                                                  smem_ptr);
+        const auto& c_block_tile = RunGemmPipeline<GemmPipeline>(make_tuple(a_block_window),
+                                                                 AElementWise{},
+                                                                 make_tuple(b_block_window),
+                                                                 BElementWise{},
+                                                                 num_loop,
+                                                                 smem_ptr,
+                                                                 barriers);
 
         ignore                      = ds_ptr;
         const auto ds_block_windows = make_tuple();
 
-        EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_windows, smem_ptr);
+        RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
+            EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_windows, smem_ptr);
+        });
     }
 
     /// @brief Host check that a group of dimensions merged into one GEMM dimension can be
@@ -892,7 +898,8 @@ struct BatchedContractionKernel
                        kargs,
                        splitk_batch_offset.splitted_k,
                        i_m,
-                       i_n);
+                       i_n,
+                       UniversalGemmKernel::InitBarriers());
         }
         else
         {

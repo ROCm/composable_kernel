@@ -80,6 +80,71 @@ struct GemmTile2DPartitioner
 };
 
 /**
+ * @brief Class providing 2D WGP index mapping into 2D output C-tile space with N on the grid's X
+ *        dimension: grid x walks the N tiles and grid y the M tiles, so the workgroups of one
+ *        grid row share their A tile.
+ *
+ * @tparam BlockGemmShapeType  A class providing basic GEMM parameters. \link TileGemmShape
+ */
+template <typename BlockGemmShapeType>
+struct GemmTile2DNMajorPartitioner
+{
+    using BlockGemmShape = remove_cvref_t<BlockGemmShapeType>;
+
+    static constexpr index_t MPerBlock = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock = BlockGemmShape::kK;
+    /// GridSize is 2D: UniversalGemmKernel reads the tile from blockIdx.x and blockIdx.y.
+    static constexpr bool kGrid2D = true;
+
+    CK_TILE_HOST_DEVICE GemmTile2DNMajorPartitioner() noexcept = delete;
+    CK_TILE_HOST_DEVICE GemmTile2DNMajorPartitioner([[maybe_unused]] index_t M,
+                                                    [[maybe_unused]] index_t N) noexcept
+    {
+    }
+
+    /**
+     * @brief Calculates GEMM kernel grid size.
+     *
+     * @param M     GEMM's M dimension.
+     * @param N     GEMM's N dimension.
+     * @return dim3 The N tiles in X, the M tiles in Y.
+     */
+    CK_TILE_HOST static auto GridSize(index_t M, index_t N) noexcept -> dim3
+    {
+        const index_t GridDimX = integer_divide_ceil(N, NPerBlock);
+        const index_t GridDimY = integer_divide_ceil(M, MPerBlock);
+        return dim3(GridDimX, GridDimY, 1);
+    }
+
+    /**
+     * @brief Calculate number of loop iterations over GEMM's K dimension.
+     *
+     * @param K         GEMM's K dimension.
+     * @return index_t  The number of loop iterations over K dimension.
+     */
+    CK_TILE_HOST_DEVICE static auto GetLoopNum(index_t K) noexcept -> index_t
+    {
+        return integer_divide_ceil(K, KPerBlock);
+    }
+
+    /**
+     * @brief Calculate workgroup 2D index mapping into 2D output C-tile space.
+     *
+     * @param blockIdx      WGP's X index (the N tile).
+     * @param blockIdy      WGP's Y index (the M tile).
+     * @return const tuple<index_t, index_t>    Tuple containing 2D output C-tile index (M, N).
+     * @note The workgroup ids are wave-uniform already; no amd_wave_read_first_lane, which would
+     *       hide from LLVM that the tile origin is a multiple of the tile.
+     */
+    CK_TILE_DEVICE static auto
+    GetOutputTileIndex(index_t blockIdx, index_t blockIdy) noexcept -> const tuple<index_t, index_t>
+    {
+        return make_tuple(blockIdy, blockIdx);
+    }
+};
+
+/**
  * @brief Class providing 1D WGP index mapping into 2D output C-tile space.
  *
  * @tparam BlockGemmShape_  A class providing basic GEMM parameters. \link TileGemmShape

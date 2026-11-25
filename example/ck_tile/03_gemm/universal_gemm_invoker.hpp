@@ -136,7 +136,9 @@ struct UniversalInvoker
                                              1,                            /*BlockedXDLN_PerWarp_*/
                                              GemmConfig::DoubleSmemBuffer, /*DoubleSmemBuffer*/
                                              AComputeDataType,
-                                             BComputeDataType>>::Epilogue;
+                                             BComputeDataType>,
+            GemmPipeline,
+            GemmConfig::TdmMIterPerStage>::Epilogue;
 
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 

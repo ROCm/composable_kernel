@@ -370,10 +370,18 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
         constexpr BQDramTileWindowStep bq_move_step = {0, GetKStepBQ(bq_copy_dram_window)};
 
         // Instructions Count
-        constexpr index_t VectorSizeB  = Policy::template GetVectorSizeB<Problem>();
-        constexpr index_t B_LOAD_INST  = NPerBlock * KPerBlock / BlockSize / VectorSizeB;
-        constexpr index_t AQ_LOAD_INST = GetInstCountAQ(aq_copy_dram_window);
-        constexpr index_t BQ_LOAD_INST = GetInstCountBQ(bq_copy_dram_window);
+        constexpr index_t VectorSizeB = Policy::template GetVectorSizeB<Problem>();
+        constexpr index_t B_LOAD_INST = NPerBlock * KPerBlock / BlockSize / VectorSizeB;
+        // Loads allowed in flight once the A tile has landed in LDS: everything load_global /
+        // main_body issues after the A DMA. With asyncmark, the wait counts only asyncmark'd
+        // DMAs, so the AQ/BQ scale loads (ordinary VMEM loads) must not be included.
+#if CK_TILE_HAS_ASYNCMARK
+        constexpr index_t A_LANDED_INFLIGHT = B_LOAD_INST;
+#else
+        constexpr index_t AQ_LOAD_INST      = GetInstCountAQ(aq_copy_dram_window);
+        constexpr index_t BQ_LOAD_INST      = GetInstCountBQ(bq_copy_dram_window);
+        constexpr index_t A_LANDED_INFLIGHT = AQ_LOAD_INST + BQ_LOAD_INST + B_LOAD_INST;
+#endif
 
         // -------
         // Lambdas
@@ -452,7 +460,7 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
                            number<WarpGemm::kK>{});
 
             __builtin_amdgcn_sched_barrier(0);
-            SyncLds<AQ_LOAD_INST + BQ_LOAD_INST + B_LOAD_INST>();
+            SyncLds<A_LANDED_INFLIGHT>();
             __builtin_amdgcn_sched_barrier(0);
         };
 
@@ -463,7 +471,7 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
         if(is_pong)
         {
             load_global(1);
-            SyncLds<AQ_LOAD_INST + BQ_LOAD_INST + B_LOAD_INST>();
+            SyncLds<A_LANDED_INFLIGHT>();
             move_global();
         }
         __builtin_amdgcn_sched_barrier(0);
@@ -484,7 +492,7 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
         {
             load_local(1);
         }
-        SyncLds<AQ_LOAD_INST + BQ_LOAD_INST + B_LOAD_INST>();
+        SyncLds<A_LANDED_INFLIGHT>();
         __builtin_amdgcn_sched_barrier(0);
 
         if(is_pong)
@@ -503,7 +511,7 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
         {
             load_global(1);
             load_local(0);
-            SyncLds<AQ_LOAD_INST + BQ_LOAD_INST + B_LOAD_INST>();
+            SyncLds<A_LANDED_INFLIGHT>();
         }
 
         if constexpr(HasHotLoop)
@@ -545,7 +553,7 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
 
             __builtin_amdgcn_sched_barrier(0);
             load_local(toc);
-            SyncLds<AQ_LOAD_INST + BQ_LOAD_INST + B_LOAD_INST>();
+            SyncLds<A_LANDED_INFLIGHT>();
             __builtin_amdgcn_sched_barrier(0);
 
             calc_gemm(toc);

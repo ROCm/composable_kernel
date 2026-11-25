@@ -16,9 +16,13 @@ Run: python3 -m pytest -q tests/test_gemm_driver_measurement.py
 
 import csv
 import json
+import os
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -32,6 +36,7 @@ sys.path.insert(0, str(DISPATCHER_DIR / "codegen"))
 import ctypes_utils as cu  # noqa: E402
 import gemm_full_benchmark as drv  # noqa: E402
 import gemm_utils as gu  # noqa: E402
+from _gemm_driver_stubs import run_stub_driver  # noqa: E402
 
 PROBLEMS = [{"M": 512, "N": 512, "K": 512}, {"M": 1024, "N": 512, "K": 256}]
 
@@ -381,6 +386,108 @@ def test_batch_timeout_records_every_kernel(monkeypatch):
     assert fails[0]["error"] == "batch of 2 exceeded 60 s"
 
 
+@pytest.mark.skipif(not hasattr(signal, "SIGUSR1"), reason="POSIX only")
+def test_interrupt_stops_and_reaps_the_measurement_workers(tmp_path):
+    # SIGTERM during a search's measurement reaches the driver's main thread
+    # as KeyboardInterrupt. Before it propagates, the workers running are
+    # killed and reaped, no queued batch starts, and a batch cut short is not
+    # reported. Two devices, four one-kernel batches, workers that hang.
+    started = tmp_path / "started"
+    started.mkdir()
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "import os, sys, time\n"
+        "sys.stdin.read()\n"
+        f"open(os.path.join({str(started)!r}, str(os.getpid())), 'w').close()\n"
+        "time.sleep(600)\n"
+    )
+
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt
+
+    def fire():  # once both devices run a worker
+        deadline = time.monotonic() + 60
+        while len(os.listdir(started)) < 2 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        os.kill(os.getpid(), signal.SIGUSR1)
+
+    _, prob, batch = _unit(4)
+    args = drv.argparse.Namespace(**{**vars(_batch_args()), "batch_size": 1,
+                                     "kernel_timeout": 600})
+    old = signal.signal(signal.SIGUSR1, interrupt)
+    threads = threading.active_count()
+    t0 = time.monotonic()
+    try:
+        threading.Thread(target=fire, daemon=True).start()
+        with pytest.raises(KeyboardInterrupt):
+            drv.benchmark_on_devices([prob], [[0, 1, 2, 3]],
+                                     [(cfg, lib) for _, cfg, lib in batch],
+                                     ["0", "1"], args, worker, dict(os.environ),
+                                     tmp_path / "rows.csv")
+    finally:
+        signal.signal(signal.SIGUSR1, old)
+    assert time.monotonic() - t0 < 60
+    pids = [int(p) for p in os.listdir(started)]
+    assert len(pids) == 2  # the two queued batches never started
+    for pid in pids:  # killed and reaped: not even a zombie is left
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
+    assert threading.active_count() <= threads  # device threads joined
+    assert (tmp_path / "rows.csv").read_text().splitlines() == [",".join(drv.CSV_FIELDS)]
+
+
+def test_interrupt_while_the_device_threads_start_stops_the_started_ones():
+    # An interrupt between two thread starts: the thread already started has
+    # its worker killed and reaped and is joined, and no worker starts after.
+    workers, procs, started = drv._Workers(), [], threading.Event()
+
+    def device_thread(device_id):
+        proc = workers.start([sys.executable, "-c", "import time; time.sleep(600)"])
+        procs.append(proc)
+        started.set()
+        proc.communicate()
+        workers.done(proc)
+
+    def devices():
+        yield "0"
+        assert started.wait(30)
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        workers.run(devices(), device_thread)
+    assert len(procs) == 1 and procs[0].returncode is not None
+    assert workers.start([sys.executable, "-c", ""]) is None
+
+
+def test_interrupt_inside_a_thread_start_still_stops_that_thread(monkeypatch):
+    # The interrupt arrives inside Thread.start(), after the thread is
+    # running: that thread's worker is killed and reaped, and it has returned
+    # before the interrupt propagates. The second device never runs.
+    workers, procs, started = drv._Workers(), [], threading.Event()
+
+    def device_thread(device_id):
+        proc = workers.start([sys.executable, "-c", "import time; time.sleep(600)"])
+        if proc is None:
+            return
+        procs.append(proc)
+        started.set()
+        proc.communicate()
+        workers.done(proc)
+
+    real = threading.Thread.start
+
+    def start(self):
+        real(self)
+        assert started.wait(30)
+        raise KeyboardInterrupt  # before start() returns
+
+    monkeypatch.setattr(threading.Thread, "start", start)
+    with pytest.raises(KeyboardInterrupt):
+        workers.run(["0", "1"], device_thread)
+    assert len(procs) == 1 and procs[0].returncode is not None
+    assert workers.active == 0 and workers.cancelled
+
+
 # ----------------------------------------------------------------- main()
 
 
@@ -480,7 +587,8 @@ def _csv(path):
 def test_defaults_add_no_files_and_keep_every_call(monkeypatch, capsys, tmp_path):
     rc, out, built, calls = _main(monkeypatch, capsys, tmp_path)
     assert rc == 0 and built == [{"verbose": True, "max_workers": 8}]
-    assert calls and all(kw == {} for *_, kw in calls)
+    # No failure list; only the interrupt handle every measurement gets.
+    assert calls and all(set(kw) == {"workers"} for *_, kw in calls)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["out.csv", "problems.json"]
     assert "Re-timing" not in out and "Failures:" not in out
 
@@ -531,6 +639,57 @@ def test_failures_csv_records_builds_and_runs(monkeypatch, capsys, tmp_path):
         (str(p["M"]), str(p["N"]), str(p["K"])) for p in PROBLEMS
     }
     assert bad_run not in {r["kernel"] for r in _csv(tmp_path / "out.csv")}
+
+
+@pytest.mark.parametrize("arch", ["gfx1250", "gfx942"])
+def test_repeat_top_worker_payload_keeps_the_selected_arch(
+    monkeypatch, capsys, tmp_path, arch
+):
+    payloads = []
+
+    class Proc(_Proc):
+        def __init__(self, *a, **kw):
+            super().__init__(
+                json.dumps(
+                    {
+                        "idx": 0,
+                        "ok": True,
+                        "ms": 1.0,
+                        "tflops": 2.0,
+                        "non_zero": 1,
+                        "verified": True,
+                        "max_rel": 0.0,
+                    }
+                )
+            )
+
+        def communicate(self, input=None, timeout=None):
+            payloads.append(json.loads(input))
+            return super().communicate(input, timeout)
+
+    monkeypatch.setattr(subprocess, "Popen", Proc)
+    rc, _ = run_stub_driver(
+        drv,
+        monkeypatch,
+        capsys,
+        tmp_path,
+        PROBLEMS[:1],
+        "--max-kernels",
+        "1",
+        "--verify",
+        "--repeat-top",
+        "1",
+        "--repeat-count",
+        "2",
+        arch=arch,
+        dtype="fp8",
+        build=lambda cfgs, **kw: [Path(f"/fake/{c.name}.so") for c in cfgs],
+        run_batch=drv._run_batch_on_device,
+    )
+    assert rc == 0
+    assert [p["verify"] for p in payloads] == [True, False, False]
+    assert [p.get("arch") for p in payloads] == [arch] * 3
+    assert all(p["items"] == payloads[0]["items"] for p in payloads)
 
 
 def test_repeat_top_retimes_the_fastest_in_single_launches(

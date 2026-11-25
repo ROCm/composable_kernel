@@ -292,14 +292,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             b_scale_grid_desc,
             make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
-// Local prefill 1
-#if defined(__gfx125__)
+        // Local prefill 1
         block_sync_lds_async_load();
-#else
-        // wait for EXP_CNT[6:4] and LGKM_CNT[11:8] 0b111101110000
-        __builtin_amdgcn_s_waitcnt(3952);
-        block_sync_lds();
-#endif
 
         // Initialize C
         c_thread_buf.Clear();
@@ -519,13 +513,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 b_scale_thread_copy.MoveSrcSliceWindow(
                     b_scale_grid_desc,
                     make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
-#if defined(__gfx125__)
                 block_sync_lds_async_load();
-#else
-                // wait for EXP_CNT[6:4] and LGKM_CNT[11:8] 0b111101110000
-                __builtin_amdgcn_s_waitcnt(3952);
-                block_sync_lds();
-#endif
 
                 i += 1;
             } while(i < (num_loop - 1));

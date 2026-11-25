@@ -51,6 +51,15 @@ if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12|amdgcnspirv")
         endif()
     endif()
 
+    # The producer/consumer TDM pipeline (named barriers, TdmEpilogue) is gfx1250-only.
+    if(GPU_TARGETS MATCHES "gfx125")
+        add_gtest_executable(test_ck_tile_batched_gemm_pc_wmma test_batched_gemm_pc_gfx1250_wmma.cpp)
+        if(TARGET test_ck_tile_batched_gemm_pc_wmma)
+            ck_tile_restrict_archs(test_ck_tile_batched_gemm_pc_wmma "^gfx125")
+            add_dependencies(test_ck_tile_batched_gemm test_ck_tile_batched_gemm_pc_wmma)
+        endif()
+    endif()
+
     # INT8 batched GEMM relies on the int32 MFMA / WMMA paths.
     # On gfx908 / gfx90a there is no native v_mfma_i32_32x32x16_i8 instruction and
     # the warp-gemm impl in include/ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma_impl.hpp

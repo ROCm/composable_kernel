@@ -268,6 +268,11 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
 
     static_assert(DoubleSmemBuffer == true, "pipeline requires double smem buffer");
 
+    // Selects the persistent kernel entry; StreamKKernel requires it to match its tile
+    // partitioner. MX problems keep one block per tile, as in comp_async.
+    static constexpr bool UsePersistentKernel =
+        Problem::Traits::UsePersistentKernel && !is_detected<ProblemAScaleDataType, Problem>{};
+
     static constexpr auto Scheduler = Problem::Scheduler;
 
     static constexpr auto pipeline_tune_params = Policy::template GetPipelineSubTileNum<Problem>();
@@ -1175,27 +1180,8 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                                        void* __restrict__ p_smem,
                                        BlockGemmT block_gemm = {}) const
         {
-            // TODO: tdm config will update with problem and policy; currently use default value
-            TDMConfig tdm_config_a;
-            TDMConfig tdm_config_b;
-            // set tdm's lds padding config
-            constexpr auto LdsPaddingConfigA =
-                Policy::template GetLdsPaddingConfig<Problem, true>();
-            constexpr auto IsAPadding            = LdsPaddingConfigA[I0{}];
-            constexpr auto APaddingAmount        = LdsPaddingConfigA[I1{}];
-            constexpr auto APaddingInterval      = LdsPaddingConfigA[I2{}];
-            tdm_config_a.pad_enable              = IsAPadding;
-            tdm_config_a.pad_config.pad_amount   = APaddingAmount;
-            tdm_config_a.pad_config.pad_interval = APaddingInterval;
-
-            constexpr auto LdsPaddingConfigB =
-                Policy::template GetLdsPaddingConfig<Problem, false>();
-            constexpr auto IsBPadding            = LdsPaddingConfigB[I0{}];
-            constexpr auto BPaddingAmount        = LdsPaddingConfigB[I1{}];
-            constexpr auto BPaddingInterval      = LdsPaddingConfigB[I2{}];
-            tdm_config_b.pad_enable              = IsBPadding;
-            tdm_config_b.pad_config.pad_amount   = BPaddingAmount;
-            tdm_config_b.pad_config.pad_interval = BPaddingInterval;
+            TDMConfig tdm_config_a = Base::template MakeTdmConfig<true>();
+            TDMConfig tdm_config_b = Base::template MakeTdmConfig<false>();
 
             // NOTE: this is used only for data cache prefetch in current implementation when
             // enabled. Maybe move it somewhere else
@@ -1327,27 +1313,8 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                    index_t num_loop,
                    void* __restrict__ p_smem) const
         {
-            // TODO: tdm config will update with problem and policy; currently use default value
-            TDMConfig tdm_config_a;
-            TDMConfig tdm_config_b;
-            // set tdm's lds padding config
-            constexpr auto LdsPaddingConfigA =
-                Policy::template GetLdsPaddingConfig<Problem, true>();
-            constexpr auto IsAPadding            = LdsPaddingConfigA[I0{}];
-            constexpr auto APaddingAmount        = LdsPaddingConfigA[I1{}];
-            constexpr auto APaddingInterval      = LdsPaddingConfigA[I2{}];
-            tdm_config_a.pad_enable              = IsAPadding;
-            tdm_config_a.pad_config.pad_amount   = APaddingAmount;
-            tdm_config_a.pad_config.pad_interval = APaddingInterval;
-
-            constexpr auto LdsPaddingConfigB =
-                Policy::template GetLdsPaddingConfig<Problem, false>();
-            constexpr auto IsBPadding            = LdsPaddingConfigB[I0{}];
-            constexpr auto BPaddingAmount        = LdsPaddingConfigB[I1{}];
-            constexpr auto BPaddingInterval      = LdsPaddingConfigB[I2{}];
-            tdm_config_b.pad_enable              = IsBPadding;
-            tdm_config_b.pad_config.pad_amount   = BPaddingAmount;
-            tdm_config_b.pad_config.pad_interval = BPaddingInterval;
+            TDMConfig tdm_config_a = Base::template MakeTdmConfig<true>();
+            TDMConfig tdm_config_b = Base::template MakeTdmConfig<false>();
 
             // NOTE: this is used only for data cache prefetch in current implementation when
             // enabled. Maybe move it somewhere else
@@ -1555,6 +1522,29 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
             [](const BDataType & b) { return b; },
             num_loop,
             p_smem);
+    }
+
+    // Stream-K call form: one A and one B window, plus the hot-loop flag and tail number that
+    // StreamKKernel derives from num_loop exactly as the tuple form does. It forwards to the
+    // tuple form, so Stream-K runs the universal GEMM entry point.
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const index_t num_loop,
+                                   const bool /*has_hot_loop*/,
+                                   const TailNumber /*tail_number*/,
+                                   void* __restrict__ p_smem) const
+    {
+        return operator()(make_tuple(a_dram_block_window_tmp),
+                          element_wise::PassThrough{},
+                          make_tuple(b_dram_block_window_tmp),
+                          element_wise::PassThrough{},
+                          num_loop,
+                          p_smem);
     }
 
     template <typename ADramBlockWindowTmp,

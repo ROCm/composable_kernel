@@ -45,47 +45,101 @@ To speed up compile time, we instantiate the kernels into separate file. In this
 
 ### Ping-pong TDM forward pipeline
 
-`qr_tdm_pingpong` (gfx125, FP16/BF16 Q/K/V) is the default forward pipeline for
-head dims 32, 64, 96, 128, 160, 192/128, 256 and 512, at any query and key length.
-It stages a whole K tile per trip in two LDS buffers: trip i reads one buffer while
-the TDM fills the other with tile i + 1. On the 128-row tiles V has two buffers as well,
-issued a trip ahead. Two or more resident blocks per CU overlap one block's softmax
-with another's gemms on the same SIMD; `qr_tdm` and `qr_tdm_sched` instead prefetch
-and schedule within a block.
+`qr_tdm_pingpong` (gfx125) is the default forward pipeline for FP16/BF16 and FP8 Q/K/V
+(FP8 P; no scales, per-tensor, per-head or block descales, or MX scales) at head dims 32,
+64, 96, 128, 160, 192/128, 256 and 512, at any query and key length. It stages a whole K
+tile per trip in two LDS buffers: trip i reads one buffer while the TDM fills the other
+with tile i + 1. On the 128-row tiles V has two buffers as well, issued a trip ahead; the
+16-row (decode) tiles keep one K buffer and issue the next K once their short QK gemm has
+read the current one. Two or
+more resident blocks per CU overlap one block's softmax with another's gemms on the same
+SIMD, the waves in their gemms at a raised priority (`s_setprio`, on the tiles that read
+V before the softmax, except unmasked 128-key trips, and on MX's 128-deep PV warp gemms);
+`qr_tdm_sched` instead prefetches and schedules within a block.
 
-It has 16-, 64- and 128-row query tiles (d256/d512 have no 128-row tile); the tile rules
-are `_gfx125_qr_tdm_pingpong_tiles` in `codegen/ops/fmha_fwd.py`. Q/K rows are staged at
-the head dim's own length (d32 is not padded to 64).
+It has 16-, 64- and 128-row query tiles (Q/K rows of 512 bytes or more, d256 at 16 bits and
+d512, have no 128-row tile), the same for every head dim and for FP16/BF16, FP8 and MX; the
+tile rules are `_gfx125_qr_tdm_pingpong_tiles` in `codegen/ops/fmha_fwd.py`. A WMMA's K
+slice is 32 bytes a lane at either width (32 elements at 16 bits, 64 at FP8). Q/K rows are
+staged at the head dim rounded up to whole K slices (d32 is not padded to 64 at 16 bits;
+FP8 d32, d96 and d160 stage 64, 128 and 192). The 16-row tiles that split their keys over
+the warps take the widest WMMA K where it divides the row (32 elements at 16 bits, 128 at
+FP8); FP8 d512's, whose warps share the keys, takes 64 like the other tiles.
+
+A query takes the 16-row tile up to 16 rows, the 128-row tile from 128 rows on, and the
+64-row tile otherwise, and under a sliding window of fewer than 512 keys (left + right + 1),
+where the 64-row tile keeps more blocks resident against the few keys a block visits; d96,
+d160, d192/128 and MX above d64 take the 128-row tile at any window (gfx1250, against the faster tile
+a shape: bf16 -0.4%, fp8 -0.7%, MX -0.7% geomean).
+
+The 16-row (decode) tile splits each trip's keys over its warps (flash decoding within the
+block): `kw` warps on the keys times `4 / kw` on V's columns, each with its own online
+softmax over its keys, merged through LDS after the K loop, so a trip exchanges nothing
+between warps. `kw` is the most warps (4, then 2) whose shortest trip (one PV warp gemm of
+32 keys at 16 bits, 64 at FP8, 128 for MX, per key warp) keeps a warp's O and V operand
+within 192 VGPRs (two blocks a CU) and the trip's K and V within 128 KB of LDS. Long key
+ranges take trips of up to 512 keys (64 KB of K) within the same budgets. d512 (`kw` = 1)
+does not split: its four warps take 32 KB of K a trip on gemm_0's N and exchange S
+through LDS.
+
+MX (mxfp8, mxfp8bf16) takes the same tiles with the scaled WMMA (16x16x128, E8M0 scale
+operands, one per 32 elements); only the gemms' K and the Q/K row differ. QK runs on the
+widest WMMA K dividing the Q/K row (64-deep slices zero padded in registers), rows padded to
+whole 128-deep slices only where that takes fewer WMMAs (d96 to 128, d160 and d192 to 256).
+PV runs on 128-deep warp gemms, so trips take 128 keys or more, but for the prefill tiles of
+d160 and d192 (`GFX125_QR_TDM_PINGPONG_MX_64_KEY_TRIPS`): their 64-key trips, on 64-deep
+warp gemms zero padded in registers, keep two blocks a CU where 128-key trips keep one. d64
+and below run three waves a SIMD, without the read-ahead below. An FP8 P is 256
+times the softmax value (a rebase keeps it below 2^0.75, under e4m3's 448), converted
+eight values at a time.
 
 The LDS read schedule is chosen per head dim (`QrTdmPingPongLdsReadSchedule`,
 `GFX125_QR_TDM_PINGPONG_LDS_READ_SCHEDULE` in `codegen/ops/fmha_fwd.py`): prefetching
 the next K/V slice while the current slice's WMMAs run, and reading V's first slice
 before the softmax, each from the tile size on where its VGPRs leave the occupancy
-unchanged. Instance names carry `_sp<rows>` / `_vbs<rows>` for the parts that take effect
-on their tile.
+unchanged. Instance names carry `_sp<rows>` / `_vbs<rows>` for the configured parts that
+take effect on their tile. Independently of that switch, the plain 128-row tiles (no
+window mask, no bias, no dropout) always prefetch the next slice; their names do not show
+it.
 
 It supports masks, LSE, logits soft cap, elementwise bias and ALiBi, dropout (not on
-the 16-row tile), sink tokens, column-major V, batch and group mode. The one query it
-leaves to `qr_tdm_sched` is d128 with at least 128 query rows and fewer than two
-128-row query blocks per CU (`batch * nhead_q * max_seqlen_q < 256 * num_cus`), where a
-single resident block cannot overlap softmax and gemms. Among its head dims `qr_tdm` is
-generated for d128 only, as the fallback of the calls `qr_tdm_sched` refuses; skip goes
-to the generic `qr` pipeline.
+the 16-row tile; D192/V128 takes neither dropout nor ALiBi), sink tokens, column-major V, batch and group mode, at FP16/BF16 and FP8
+alike, group-mode `skip_min_seqlen_q`, and at FP16/BF16 any head dim up to the bucket's
+(the padded instances store O an element at a time; FP8 and MX take head dims of whole
+8-element rows); FP8 takes no scales, per-tensor,
+per-head or block descales (any q block, k/v blocks of whole 32-key chunks: a PV slice
+spanning blocks of several descales takes a gemm a chunk;
+`_gfx125_qr_tdm_pingpong_block_scales`), or MX scales (scale rows read a word at a time
+where aligned, else bytewise). It takes every forward call of its head dims but d128's small
+grids at FP16/BF16 and FP8 (at least 128 query rows, fewer than two 128-row query blocks per
+CU: `batch * nhead_q * max_seqlen_q < 256 * num_cus`, `GFX125_QR_TDM_SCHED_SMALL_GRID`),
+where a single resident block cannot overlap softmax and gemms and `qr_tdm_sched` /
+`qr_tdm_fp8_sched` run instead; it also takes the small-grid calls those refuse. MX keeps
+pingpong on every grid. The forward inventories hold no `qr_tdm` or generic `qr`.
+
+GQA decode merges the query heads of a K/V head into one tile's rows in the kernel
+(`fmha_fwd_can_merge_head_groups`, batch mode, no mask or one query per head under a
+bottom-right causal mask, no bias; each merged row takes its head's q descale, MX scales
+and sink logit), so each K/V tile is read once per group. These packed instances (`_packgqa`, on the 16- and 64-row tiles) dispatch
+ahead of the unpacked ones; folding up to 16 query rows past the 16-row tile also needs
+`batch * nhead_q >= 2 * num_cus` (the `-pack_gqa` rule below).
 
 ### Basic TDM forward feature coverage
 
-On gfx125, FP16/BF16 `qr_tdm` supports logits soft cap, dropout, group-mode
-`skip_min_seqlen_q`, and padded Q/V head dimensions that are not multiples of eight.
-Dropout preserves the forward/backward Philox mapping and computes LSE from the
+On gfx125 the forward API runs `qr_tdm_pingpong` (and the scheduled pipelines on d128's
+small grids, see above); `qr_tdm` serves the split-KV/paged-KV APIs. Dropout preserves the forward/backward Philox mapping and computes LSE from the
 undropped probability mass. Group skip compares the logical Q length with the
 threshold and leaves skipped outputs untouched. Batch dispatch reuses `skip=false`
 instances because the threshold only applies to group mode. All gfx125 receipts
 accept batch `skip_min_seqlen_q=true`; custom tune `filters.skip` applies only to
 group mode on this architecture.
 
-FP16/BF16 inventories contain only TDM pipelines, with head buckets up to 512.
-The existing D192/V128 bias/dropout and softcap-with-bias exclusions still apply.
-FP8 and the split-KV/paged-KV APIs retain their separate inventories.
+The forward inventories contain only TDM pipelines, with head buckets up to 512.
+D192/V128 generates no dropout or ALiBi; the logits soft cap with a
+bias is generated for the TDM pipelines (`GFX125_TDM_PIPELINES_WITH_SOFT_CAP_BIAS`:
+scale_s, the soft cap, then the bias).
+FP8 and MX forward take `qr_tdm_pingpong` (see above); `qr_tdm_fp8_sched` keeps FP8 d128's
+small grids. The split-KV/paged-KV APIs retain their separate inventories.
 
 ### Scheduled TDM forward pipeline
 
@@ -94,20 +148,19 @@ On gfx125 it is generated for FP16/BF16 D128/V128 with row-major V and serves th
 small-grid d128 queries `qr_tdm_pingpong` leaves to it (see above). It takes masks,
 LSE, logits soft cap, elementwise bias and ALiBi, dropout and sink tokens. Its
 variants without sink tokens require a null runtime `sink_ptr`; a sink logit without
-sink tokens uses the `qr_tdm` fallback. This runtime pointer is independent of the
+sink tokens falls back to `qr_tdm_pingpong`. This runtime pointer is independent of the
 compile-time sink-token flag. The pipeline also implements D64/V64 and D192/V128
 geometries (described below), which are not generated on gfx125 since
 `qr_tdm_pingpong` serves those head dims.
 
-D128 uses a 128-by-128 Q/K sequence tile. Aligned batch K lengths use unpadded
-sequence traits; tails and group mode use padded traits. Generated scheduled sources
-enable expert scheduling mode.
+D128 uses a 128-by-128 Q/K sequence tile with padded sequence traits only (group
+lengths live in device memory, so dispatch could not prove them tile aligned).
+Generated scheduled sources enable expert scheduling mode.
 
 WG indexing follows the existing shared kernel rules. For batch BHSD square
-causal attention with one V tile and no dropout, sched D64/D128 visit the longest
+causal attention with one V tile and no dropout, sched D128 visits the longest
 Q tile across heads within each batch first, subject to the grouped XCD path
-described below. Sched D192 keeps the existing
-head-major remap; group mode does not enter this batch-local branch. The XCC
+described below; group mode does not enter this batch-local branch. The XCC
 mode 5/tm5r experiment remains disabled unless `CK_TILE_FMHA_PAIRED_XCC_ORDER`
 is explicitly defined to a nonzero value. Its eight-XCC mapping assumptions
 must be checked on the target hardware before enabling it.
@@ -128,13 +181,17 @@ and no bias, dropout, LSE, sink, softcap, or quantization scale. Groups contain
 Larger sequences and other cases retain the existing mapping. The opt-in paired-XCC experiment,
 including its fallback order, takes precedence over this grouping.
 
-The non-causal XCD path is unchanged. The BHSD and general-grid XCD fallbacks
+The non-causal XCD path takes group mode too when the caller sets
+`fmha_fwd_args::uniform_seqlens` (the batches' query and key lengths about equal;
+the Python varlen API and the example runner set it when the longest lengths are
+within 1/8 of the means); otherwise group mode keeps the round-robin. The BHSD and general-grid XCD fallbacks
 have the same logical head-major order. They retain separate batch-first and
 tile-first arithmetic forms because merging them measured slower in the early
 gfx1250 standalone experiment.
 Both share the corrected Q/V decoding: masking reverses the Q dimension only.
 Unit tests check the complete mapping; GPU tests exercise `GetTileIndex()`
-thresholds and fallbacks. The launch interface and Kargs are unchanged.
+thresholds and fallbacks. The launch interface is unchanged; `fmha_fwd_args` and the
+group-mode Kargs carry the `uniform_seqlens` hint.
 
 The mapper's coordinate coverage does not expand a pipeline's supported head
 dimensions. In particular, the QR TDM paths still assume a single V tile when
@@ -226,7 +283,8 @@ args:
                 pt or 1, per-tensor scale
                 bs or 2, block scale
                 kvbs or 3, Q per-tensor, K/V per-page block scale, only in batch_prefill
-                mx or 4, microscaling (exclusively for mxfp8/mxfp4)
+                mx or 4, microscaling (mxfp8, mxfp8bf16 and mxfp4;
+                           fp8 and fp8bf16 run as mxfp8 and mxfp8bf16)
                 ph or 5, per-head scale
       -iperm    permute input (default:1)
                 if true, will be b*h*s*d, else b*s*h*d
@@ -234,7 +292,7 @@ args:
        -bias    n or 0, no bias (default:n)
                 e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s
                 a(libi) or 2, alibi with 1*h. a:1, b*h
-       -prec    data type. fp32/fp16/bf16/fp8/fp8bf16/fp8fp32/mxfp8/mxfp4 (default:fp16)
+       -prec    data type. fp32/fp16/bf16/fp8/fp8bf16/mxfp8/mxfp8bf16/mxfp4 (default:fp16)
        -mask    0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b') (default:0)
                 't', top-left causal mask, 'b', bottom-r causal mask
                 't:l,r', top-left sliding window attn(swa) with FA style left right size
@@ -284,10 +342,10 @@ By setting `-h`(nhead for q) and `-h_k`(nhead for k/v) with different number, yo
 
 `-pack_gqa=1` (the default) folds the `h / h_k` query heads that share a K/V head into the
 query length for non-causal batch-mode runs without bias or sink, so each K/V tile is
-loaded once per group. On gfx125 fp16/bf16 with `d_v >= 64` it is skipped (with a note)
-for 2..16 query rows that it would fold into more than 16 rows on a grid under two
-(batch, head) pairs per CU: the query would leave the 16-row decode tile for a tile with
-`h / h_k` times fewer blocks.
+loaded once per group. On gfx125 it is skipped (with a note) for up to
+16 query rows that it would fold into more than 16 rows on a grid under two (batch, head)
+pairs per CU: the query would leave the 16-row decode tile for a tile with `h / h_k`
+times fewer blocks.
 
 ### input/output permute, and `b*s*3*h*d`
 If you look at the kernel argument inside `fmha_fwd_kernel.hpp`, we support providing arbitrary stride for seqlen(stride_q/k/v), nhead, batch of q/k/v matrix, hence it is very flexible to support `b*h*s*d` or `b*s*h*d` input/output permute. The `-iperm=0/1`, `-operm=0/1` is a convenient way to achieve this through the executable. We didn't provide a command-line arg to test `b*s*3*h*d` layout which is by default used by torch/FA, but it's trivial to achieve this if one set the proper `stride_q/k/v` value as `3*h*d`.
@@ -337,13 +395,12 @@ Both approaches optimize memory access patterns while supporting flexible sequen
 If K and V are the same tensor, pass it as both `k_ptr` and `v_ptr` with the same strides. On gfx1250 (fp16/bf16, hdim `128`/`256`, up to 16 query rows) this runs `qr_tdm_kvshared`, which loads each K/V tile once for both gemms. Use `-kv_shared=1` to test it through the executable.
 
 ## FP8 support
-FP8 FMHA kernels are supported on gfx942/gfx950/gfx1250 machines with ROCm 6.0+. Three fp8-based precision modes are available via `-prec`:
+FP8 FMHA kernels are supported on gfx942/gfx950/gfx12/gfx1250 machines with ROCm 6.0+. Two fp8-based precision modes are available via `-prec`; on gfx942/gfx950/gfx12, `fp8` covers head dim 128 only, so use `fp8bf16` for other head dims:
 
 | `-prec` value | Q/K/V input type | Output type | Description |
 |---|---|---|---|
-| `fp8` | fp8 | fp8 | Fully fp8: both inputs and output are in fp8 |
+| `fp8` | fp8 | fp32 | fp8 inputs, fp32 output — highest-precision output, suitable for debugging or further fp32 processing |
 | `fp8bf16` | fp8 | bf16 | Mixed precision: fp8 inputs, bf16 output — useful when the consumer expects a wider-range output format |
-| `fp8fp32` | fp8 | fp32 | Mixed precision: fp8 inputs, fp32 output — highest-precision output, suitable for debugging or further fp32 processing |
 
 The following quantization scale modes are available via `-qscale`:
 
@@ -353,10 +410,12 @@ The following quantization scale modes are available via `-qscale`:
 | `pt` or `1` | Per-tensor quantization scale — a single scale factor is applied to the entire tensor |
 | `bs` or `2` | Per-block quantization scale — a scale factor is applied per block of elements |
 | `kvbs` or `3` | Q per-tensor + K/V per-page block scale (batch_prefill only) |
-| `mx` or `4` | Microscaling (MX format), exclusively for `mxfp8` and `mxfp4` data types |
+| `mx` or `4` | Microscaling (MX format), for `mxfp8`, `mxfp8bf16` and `mxfp4`; `fp8` and `fp8bf16` select `mxfp8` and `mxfp8bf16` |
 | `ph` or `5` | Per-head quantization scale — one scale factor per (batch, head) |
 
 Currently only `-vlayout=r` (`seqlen*hdim` for V matrix) is supported for fp8 data types.
+MX data types take `-vlayout=c`, except `mxfp8`/`mxfp8bf16` on gfx1250, which need `-vlayout=r`;
+`mxfp8bf16` (MXFP8 inputs, bf16 output) exists only on gfx1250.
 
 ### V scale with `bs` on gfx1250
 

@@ -20,7 +20,8 @@ template <typename AccDataType_,
           index_t kMPerBlock_,
           index_t kNPerBlock_,
           bool kPadM_,
-          bool kPadN_>
+          bool kPadN_,
+          index_t kPadNAlignment_ = 8>
 struct LdsShuffle2DEpilogueProblem
 {
     using AccDataType                   = remove_cvref_t<AccDataType_>;
@@ -30,7 +31,9 @@ struct LdsShuffle2DEpilogueProblem
     static constexpr index_t kNPerBlock = kNPerBlock_;
     static constexpr bool kPadM         = kPadM_;
     static constexpr bool kPadN         = kPadN_;
-    static constexpr index_t NumDTensor = 0;
+    // a padded N is a whole number of this many elements
+    static constexpr index_t kPadNAlignment = kPadNAlignment_;
+    static constexpr index_t NumDTensor     = 0;
 };
 
 /**
@@ -42,8 +45,8 @@ struct LdsShuffle2DEpilogueProblem
  *          tile through LDS lets every store instruction cover whole rows. CShuffleEpilogue
  *          does the same for the XDL C layout, which this layout does not fit.
  *
- *          Row widths whose vectors cannot tile a wavefront (e.g. d = 96, 160, 192) keep
- *          the direct store of Default2DEpilogue and need no LDS.
+ *          Row widths whose vectors cannot tile a wavefront (e.g. d = 96, 160, 192 at a
+ *          vector of 8) keep the direct store of Default2DEpilogue and need no LDS.
  */
 template <typename Problem_, typename Policy_ = void>
 struct LdsShuffle2DEpilogue
@@ -65,9 +68,9 @@ struct LdsShuffle2DEpilogue
     static constexpr index_t kVectorMax = 16 / static_cast<index_t>(sizeof(ODataType));
 
     // A vector store carries one out-of-bounds flag, taken from its first element. A padded
-    // N is only guaranteed to be a multiple of kPadNAlignment (the qr_tdm dvcheck in
-    // fmha_fwd.py), so the vector must divide it or the tail spills into the next row.
-    static constexpr index_t kPadNAlignment = 8;
+    // N is only guaranteed to be a multiple of kPadNAlignment, so the vector must divide it or
+    // the tail spills into the next row.
+    static constexpr index_t kPadNAlignment = Problem::kPadNAlignment;
     static constexpr index_t kVector =
         kPadN ? (kVectorMax < kPadNAlignment ? kVectorMax : kPadNAlignment) : kVectorMax;
 

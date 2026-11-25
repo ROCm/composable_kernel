@@ -448,13 +448,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             b_scale_grid_desc,
             make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
-// Local prefetch 1, sync the async load
-#if defined(__gfx125__)
+        // Local prefetch 1, sync the async load
         block_sync_lds_async_load();
-#else
-        __builtin_amdgcn_s_waitcnt(3952); // wait for EXP_CNT, LDS, GDS, Constant and Message
-        block_sync_lds();
-#endif
 
         static_for<0, KRepeat, 1>{}([&](auto k) {
             constexpr auto k_step  = k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
@@ -525,18 +520,12 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             do
             {
                 auto LoopFunc = [&](auto scale_comp_buf, auto scale_mem_buf) {
-#if defined(__gfx125__)
-                    // Drain this wave's own ds_reads before the barrier. The copies below
-                    // overwrite the buffer being read, and block_sync_lds_async_load() only
-                    // waits on ASYNCcnt, so without this the read drain can be sunk past
-                    // the barrier and the buffer is overwritten while still being read.
+#if defined(__gfx125__) && !CK_HAS_ASYNCMARK
+                    // If we aren't using asyncmark, make sure we don't hit the fence-elision bug in
+                    // ROCm 7.2-10.1 by manually flushing LDS.
                     llvm_amdgcn_s_wait_dscnt(0);
-                    block_sync_lds_async_load();
-#else
-                    // wait for EXP_CNT, LDS, GDS, Constant and Message
-                    __builtin_amdgcn_s_waitcnt(3952);
-                    block_sync_lds();
 #endif
+                    block_sync_lds_async_load();
 
                     a_blockwise_copy.Run(
                         a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(scale_comp_buf));
@@ -880,12 +869,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
 
-#if defined(__gfx125__)
             block_sync_lds_async_load();
-#else
-            __builtin_amdgcn_s_waitcnt(3952); // wait for EXP_CNT, LDS, GDS, Constant and Message
-            block_sync_lds();
-#endif
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =

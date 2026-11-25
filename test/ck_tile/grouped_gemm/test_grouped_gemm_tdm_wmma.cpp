@@ -1,7 +1,8 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-// Grouped GEMM with the gfx1250 TDM block pipelines (CompTDMV1 / CompTDMV2) and TdmEpilogue.
+// Grouped GEMM with the gfx1250 TDM block pipelines (CompTDMV1 / CompTDMV2 / producer/consumer)
+// and TdmEpilogue.
 // Non-persistent kernel only, k_batch == 1 only.
 
 #include <tuple>
@@ -19,6 +20,7 @@ using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
 using False = ck_tile::bool_constant<false>;
 using TDMV1 = GroupedGemmPipelineTypeConstant<GroupedGemmPipelineType::CompTDMV1>;
 using TDMV2 = GroupedGemmPipelineTypeConstant<GroupedGemmPipelineType::CompTDMV2>;
+using TDMPC = GroupedGemmPipelineTypeConstant<GroupedGemmPipelineType::CompTDMPC>;
 
 // clang-format off
 using KernelTypes = ::testing::Types<
@@ -32,7 +34,11 @@ using KernelTypes = ::testing::Types<
     std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,      False,    TDMV2>,
     std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,      False,    TDMV2>,
     std::tuple<    Row,     Row,     Row,        F8,        F8,         F32,       F16,      False,    TDMV1>,
-    std::tuple<    Col,     Row,     Row,        F8,        F8,         F32,       F16,      False,    TDMV1>
+    std::tuple<    Col,     Row,     Row,        F8,        F8,         F32,       F16,      False,    TDMV1>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,      False,    TDMPC>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,      False,    TDMPC>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,      False,    TDMPC>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,      False,    TDMPC>
     >;
 // clang-format on
 

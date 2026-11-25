@@ -90,6 +90,40 @@ def test_gdpa_varlen(q_lens, k_lens, mha_type, dtype):
     )
 
 
+# gfx1250 has a second GDPA kernel, with K and V resident in LDS (one workgroup a WGP), which
+# dispatch takes when the batches hold up to 384 keys (max_seqlen_k) and the grid fills the GPU
+# twice over: enough (batch, head) pairs for it, ragged query lengths. max_seqlen_k is a hint to
+# it: a batch longer than it says is staged a chunk of 384 keys at a time.
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+@pytest.mark.parametrize("mha_type", ["mha", "gqa"])
+@pytest.mark.parametrize(
+    "k_len, hint",
+    [
+        (256, 256),  # TCX6-TCX8's keys
+        (384, 384),  # the LDS full
+        (100, 100),  # a partial key tile
+        (1000, 384),  # longer than the hint: three chunks
+    ],
+)
+def test_gdpa_varlen_resident(k_len, hint, mha_type, dtype):
+    torch.random.manual_seed(0)
+    nheads = 6
+    nheads_k = nheads if mha_type == "mha" else 2
+    cus = torch.cuda.get_device_properties(0).multi_processor_count
+    b = -(-2 * cus // nheads) + 3
+    q_lens = torch.randint(1, 400, (b,)).tolist()
+    q_lens[1] = 128 * 96 + 5  # past the workgroup's 96 query tiles
+    k_lens = [k_len] * b
+    q, k, v = jagged(q_lens, k_lens, nheads, nheads_k, dtype)
+    scale = 128**-0.5
+    qo, ko = offsets(q_lens, "cuda"), offsets(k_lens, "cuda")
+    out = gdpa_varlen_func(q, k, v, qo, ko, max(q_lens), hint, scale=scale)
+    ref = gdpa_ref(q, k, v, q_lens, k_lens, scale)
+    assert out.shape == q.shape and out.dtype == dtype
+    assert rel_l2(out, ref) < tolerance(dtype)
+    assert torch.equal(gdpa_infer(q, k, v, qo, ko, max(q_lens), hint, scale=scale), out)
+
+
 @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
 @pytest.mark.parametrize("b, s_q, s_k", [(3, 700, 256), (2, 33, 100), (1, 1024, 512)])
 def test_gdpa_batch(b, s_q, s_k, dtype):

@@ -29,6 +29,8 @@ set(GROUPED_CONV3D_BWD_DATA_NDHWGC
    xdl/device_grouped_conv3d_bwd_data_xdl_v3_ndhwgc_gkzyxc_ndhwgk_bf16_large_tensors_instance.cpp
    xdl/device_grouped_conv3d_bwd_data_xdl_v3_ndhwgc_gkzyxc_ndhwgk_f16_large_tensors_instance.cpp
    xdl/device_grouped_conv3d_bwd_data_xdl_v3_ndhwgc_gkzyxc_ndhwgk_f32_large_tensors_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_wavelet_direct_load_xdl_v3_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_wavelet_direct_load_xdl_v3_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
 )
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)

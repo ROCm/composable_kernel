@@ -741,6 +741,7 @@ using int16x8_t  = NativeVectorT<int16_t, 8>;
 using int16x16_t = NativeVectorT<int16_t, 16>;
 
 // take native __bf16 regardless of whether bfloat16_t is spelled __bf16 or ushort
+using llvm_bf16x4_t  = NativeVectorT<__bf16, 4>;
 using llvm_bf16x8_t  = NativeVectorT<__bf16, 8>;
 using llvm_bf16x16_t = NativeVectorT<__bf16, 16>;
 

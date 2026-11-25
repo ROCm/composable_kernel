@@ -1,0 +1,33 @@
+{
+    "tile_config": {
+        "tile_m": {"values": [256]},
+        "tile_n": {"values": [16]},
+        "tile_k": {"values": [512]},
+        "warp_m": {"values": [4]},
+        "warp_n": {"values": [1]},
+        "warp_k": {"values": [1]},
+        "warp_tile_m": {"values": [16]},
+        "warp_tile_n": {"values": [16]},
+        "warp_tile_k": {"values": [128]}
+    },
+    "trait_config": {
+        "pipeline": {"values": ["comp_tdm_scheduled"]},
+        "scheduler": {"values": ["intrawave"]},
+        "epilogue": {"values": ["tdm"]},
+        "pad_m": {"values": [false]},
+        "pad_n": {"values": [false]},
+        "pad_k": {"values": [false]},
+        "persistent": {"values": [false]}
+    },
+    "tuning_config": {
+        "cluster_dim": {"values": [[1, 4]]},
+        "gl2_prefetch_distance": {"values": [0]},
+        "prefetch_lds_read": {"values": [false]},
+        "split_b_lds_read": {"values": [false]},
+        "interleave_lds_regions": {"values": [true]},
+        "edge": {"values": [false]},
+        "tail_steps": {"values": [0]},
+        "wide": {"values": [false]}
+    },
+    "k_block_per_cu": 1
+}

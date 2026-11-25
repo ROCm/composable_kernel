@@ -42,6 +42,7 @@
 #include "ck_tile/host/reference/reference_layernorm2d_fwd.hpp"
 #include "ck_tile/host/reference/reference_moe_gemm.hpp"
 #include "ck_tile/host/reference/reference_moe_sorting.hpp"
+#include "ck_tile/host/reference/reference_mx_gemm_tdm_scheduled.hpp"
 #include "ck_tile/host/reference/reference_permute.hpp"
 #include "ck_tile/host/reference/reference_pool.hpp"
 #include "ck_tile/host/reference/reference_reduce.hpp"

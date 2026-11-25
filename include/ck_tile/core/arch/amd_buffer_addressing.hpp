@@ -796,13 +796,20 @@ struct buffer_store_if<1>
 };
 #endif
 
+// NOTE: despite the "_fence" name these are SAME-WAVE completion waits, not cross-wave
+// memory-model fences. The "memory" clobber only orders memory ops within this wave; it carries
+// no release/acquire semantics. For cross-wave visibility (publishing data to the workgroup) use
+// block_sync_lds() / block_sync_lds_async_load() (see arch.hpp). This should be used as a
+// performance optimization, not for correctness.
 CK_TILE_DEVICE void buffer_load_fence(index_t cnt = 0)
 {
+    // Ensure that only the `cnt` most recent operations on global memory are outstanding.
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
 CK_TILE_DEVICE void lds_load_fence(index_t cnt = 0)
 {
+    // Ensure only the `cnt` most recent operations on LDS are outstanding.
     asm volatile("s_waitcnt lgkmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
@@ -1040,6 +1047,9 @@ CK_TILE_DEVICE void insert_dummy_dep(Tx& bx, Ty&... by)
 }
 }
 // clang-format on
+// Same-wave completion wait (see note on buffer_load_fence above): drains buffer/global loads
+// to `cnt` outstanding, then pins the loaded VGPRs via insert_dummy_dep so the compiler cannot
+// hoist their uses. Not a cross-wave fence.
 template <typename... T>
 CK_TILE_DEVICE void buffer_load_fence(index_t cnt = 0, T&... o)
 {
@@ -1047,6 +1057,7 @@ CK_TILE_DEVICE void buffer_load_fence(index_t cnt = 0, T&... o)
     impl::insert_dummy_dep(o...);
 }
 
+// Same-wave wait for buffer/global store completion. Not a cross-wave fence.
 CK_TILE_DEVICE void buffer_store_fence(index_t cnt = 0)
 {
 #if defined(__gfx12__)
@@ -1056,6 +1067,9 @@ CK_TILE_DEVICE void buffer_store_fence(index_t cnt = 0)
 #endif
 }
 
+// Same-wave wait for async (global->LDS) load completion on gfx9. Not a cross-wave fence; a
+// consumer reading the LDS cross-wave must additionally go through block_sync_lds()/the barrier.
+// DO NOT USE IN NEW CODE, THIS IS AN UGLY APPROXIMATION.
 CK_TILE_DEVICE auto async_load_fence_raw(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
@@ -1353,48 +1367,8 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t offset,
                                 index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
 
-template <unsigned num_dwords, bool pre_nop = false>
-CK_TILE_DEVICE void async_buffer_load_dwordxn_v(void* smem,
-                                                int32x4_t rsrc,
-                                                index_t voffset,
-                                                index_t /*soffset*/,
-                                                index_t ioffset /*max 0xFFF*/,
-                                                index_t /*flag*/       = 0,
-                                                bool_constant<pre_nop> = {})
-{
-#define CK_TILE_ASYNC_LOAD_WITH_INSTR(instr)                            \
-    if constexpr(pre_nop)                                               \
-        asm volatile("s_nop 4\n" instr " %1, %2, 0 offen offset:%3 lds" \
-                     : "=r"(smem) /*dummy dependency for smem*/         \
-                     : "v"(voffset), "s"(rsrc), "n"(ioffset)            \
-                     : "memory");                                       \
-    else                                                                \
-        asm volatile(instr " %1, %2, 0 offen offset:%3 lds"             \
-                     : "=r"(smem) /*dummy dependency for smem*/         \
-                     : "v"(voffset), "s"(rsrc), "n"(ioffset)            \
-                     : "memory");
-
-    if constexpr(num_dwords == 1)
-    {
-        CK_TILE_ASYNC_LOAD_WITH_INSTR("buffer_load_dword");
-    }
-#if defined(__gfx950__)
-    else if constexpr(num_dwords == 3)
-    {
-        CK_TILE_ASYNC_LOAD_WITH_INSTR("buffer_load_dwordx3");
-    }
-    else if constexpr(num_dwords == 4)
-    {
-        CK_TILE_ASYNC_LOAD_WITH_INSTR("buffer_load_dwordx4");
-    }
-#endif
-    else
-    {
-        static_assert(false, "wrong! not implemented data width");
-    }
-#undef CK_TILE_ASYNC_LOAD_WITH_INSTR
-}
-
+// Same-wave wait for async buffer-load completion. Not a cross-wave fence (see
+// buffer_load_fence). Only works on gfx9, should be avoided.
 CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
@@ -1881,31 +1855,6 @@ CK_TILE_DEVICE void amd_buffer_load_raw_impl(thread_buffer<T, N>& dst,
                                              flag,
                                              bool_constant<pre_nop>{});
     }
-}
-
-template <typename T,
-          index_t N,
-          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
-          bool pre_nop                        = false>
-CK_TILE_DEVICE void amd_async_buffer_load_impl(CK_TILE_LDS_ADDR T* smem,
-                                               int32x4_t src_wave_buffer_resource,
-                                               index_t src_thread_addr_offset,
-                                               index_t src_wave_addr_offset,
-                                               index_t src_immediate_addr_offset = 0,
-                                               bool_constant<pre_nop>            = {})
-{
-    constexpr index_t num_bytes = sizeof(T) * N;
-    constexpr index_t num_words = num_bytes / 4;
-    static_assert(num_bytes % 4 == 0 && (num_words == 1 || num_words == 3 || num_words == 4),
-                  "wrong! only support in dword, dwordx3, dwordx4");
-
-    async_buffer_load_dwordxn_v<num_words>(smem,
-                                           src_wave_buffer_resource,
-                                           src_thread_addr_offset,
-                                           src_wave_addr_offset,
-                                           src_immediate_addr_offset,
-                                           0,
-                                           bool_constant<pre_nop>{});
 }
 
 template <typename T,
@@ -2786,57 +2735,6 @@ CK_TILE_DEVICE void amd_buffer_load_raw(thread_buffer<T, N>& dst,
         bool_constant<pre_nop>{});
 }
 
-// unfortunately async copy can not make sure invalid data is zero inside LDS
-// ... unless people manually write zero to LDS at the proper address.
-// so not support invalid_element check for now.
-// buffer_load OOB still working.
-template <typename T,
-          index_t N,
-          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
-          bool pre_nop                        = false>
-CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
-                                                       const T* p_src_wave,
-                                                       index_t src_thread_element_offset,
-                                                       index_t src_linear_element_offset,
-                                                       index_t src_element_space_size,
-                                                       bool_constant<pre_nop> = {})
-{
-    const int32x4_t src_wave_buffer_resource =
-        make_wave_buffer_resource(p_src_wave, src_element_space_size * sizeof(T));
-
-    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
-    index_t src_linear_addr_offset = src_linear_element_offset * sizeof(T);
-
-    amd_async_buffer_load_impl<T, N, coherence>(smem,
-                                                src_wave_buffer_resource,
-                                                src_thread_addr_offset,
-                                                0,
-                                                src_linear_addr_offset,
-                                                bool_constant<pre_nop>{});
-}
-
-// This version support buffer resource as input arg
-template <typename T,
-          index_t N,
-          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
-          bool pre_nop                        = false>
-CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
-                                                       const int32x4_t src_wave_buffer_resource,
-                                                       index_t src_thread_element_offset,
-                                                       index_t src_linear_element_offset,
-                                                       bool_constant<pre_nop> = {})
-{
-    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
-    index_t src_linear_addr_offset = src_linear_element_offset * sizeof(T);
-
-    amd_async_buffer_load_impl<T, N, coherence>(smem,
-                                                src_wave_buffer_resource,
-                                                src_thread_addr_offset,
-                                                0,
-                                                src_linear_addr_offset,
-                                                bool_constant<pre_nop>{});
-}
-
 // This version support buffer resource as input arg
 template <typename T,
           index_t N,
@@ -3118,10 +3016,10 @@ amd_tdm_load(const TDMDescriptor<DataType, TensorRank, IsGatherMode>& descriptor
 
     auto tdm_desc_grp = descriptor.getResourceDescriptorGroup();
     __builtin_amdgcn_tensor_load_to_lds(bit_cast<uint32x4_t>(tdm_desc_grp.get(I0)),
-                                        tdm_desc_grp.get(I1),
-                                        tdm_desc_grp.get(I2),
-                                        tdm_desc_grp.get(I3),
-                                        tdm_desc_grp.get(I4),
+                                        bit_cast<uint32x8_t>(tdm_desc_grp.get(I1)),
+                                        bit_cast<uint32x4_t>(tdm_desc_grp.get(I2)),
+                                        bit_cast<uint32x4_t>(tdm_desc_grp.get(I3)),
+                                        bit_cast<uint32x8_t>(tdm_desc_grp.get(I4)),
                                         static_cast<index_t>(coherence));
 #else
     ignore = descriptor;
@@ -3144,10 +3042,10 @@ amd_tdm_store(const TDMDescriptor<DataType, TensorRank, IsGatherMode>& descripto
 
     auto tdm_desc_grp = descriptor.getResourceDescriptorGroup();
     __builtin_amdgcn_tensor_store_from_lds(bit_cast<uint32x4_t>(tdm_desc_grp.get(I0)),
-                                           tdm_desc_grp.get(I1),
-                                           tdm_desc_grp.get(I2),
-                                           tdm_desc_grp.get(I3),
-                                           tdm_desc_grp.get(I4),
+                                           bit_cast<uint32x8_t>(tdm_desc_grp.get(I1)),
+                                           bit_cast<uint32x4_t>(tdm_desc_grp.get(I2)),
+                                           bit_cast<uint32x4_t>(tdm_desc_grp.get(I3)),
+                                           bit_cast<uint32x8_t>(tdm_desc_grp.get(I4)),
                                            static_cast<index_t>(coherence));
 #else
     ignore = descriptor;

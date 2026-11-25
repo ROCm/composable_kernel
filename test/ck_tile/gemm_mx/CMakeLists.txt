@@ -59,6 +59,7 @@ if(GPU_TARGETS MATCHES "gfx125")
             ck_tile_restrict_archs(${test_target} "^gfx125")
         endif()
     endforeach()
+    add_subdirectory(tdm_scheduled)
 endif()
 
 if(GPU_TARGETS MATCHES "gfx95|gfx125")

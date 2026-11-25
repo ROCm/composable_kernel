@@ -4,6 +4,7 @@
 #pragma once
 #include "data_type.hpp"
 #include "ck/utility/amd_buffer_coherence.hpp"
+#include "ck/utility/synchronization.hpp"
 #if defined(__gfx125__)
 #include "ck/utility/amd_address_space.hpp"
 #endif
@@ -698,7 +699,8 @@ __device__ void amd_buffer_atomic_max_impl(const typename vector_type<T, N>::typ
 // It is user's responsibility to make sure that is true.
 template <typename T,
           index_t N,
-          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
+          bool UseOobOffsetTrick           = CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK>
 __device__ typename vector_type_maker<T, N>::type::type
 amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
                                             index_t src_thread_element_offset,
@@ -715,17 +717,18 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
-    uint32_t src_addr_shift = src_thread_element_valid ? 0 : 0x80000000;
-    return amd_buffer_load_impl<scalar_t, vector_size, coherence>(
-        src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
-
-#else
-
-    vector_t tmp{amd_buffer_load_impl<scalar_t, vector_size, coherence>(
-        src_wave_buffer_resource, src_thread_addr_offset, 0)};
-    return src_thread_element_valid ? tmp : vector_t(0);
-#endif
+    if constexpr(UseOobOffsetTrick)
+    {
+        uint32_t src_addr_shift = src_thread_element_valid ? 0 : 0x80000000;
+        return amd_buffer_load_impl<scalar_t, vector_size, coherence>(
+            src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
+    }
+    else
+    {
+        vector_t tmp{amd_buffer_load_impl<scalar_t, vector_size, coherence>(
+            src_wave_buffer_resource, src_thread_addr_offset, 0)};
+        return src_thread_element_valid ? tmp : vector_t(0);
+    }
 }
 
 // buffer_load requires:
@@ -889,6 +892,18 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t offset,
                                 index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
 
+// Same as above but takes the new-style buffer resource and a runtime size (the
+// __builtin_amdgcn_raw_ptr_buffer_load_lds requires a compile-time immediate size, which is too
+// restrictive here).
+__device__ void
+llvm_amdgcn_raw_ptr_buffer_load_lds(__amdgpu_buffer_rsrc_t rsrc,
+                                    __attribute__((address_space(3))) uint32_t* lds_ptr,
+                                    index_t size,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t offset,
+                                    index_t aux) __asm("llvm.amdgcn.raw.ptr.buffer.load.lds");
+
 #ifndef __HIPCC_RTC__
 template <typename T, index_t NumElemsPerThread>
 __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
@@ -913,11 +928,26 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
     ignore = bytes_per_thread;
 #endif
 
-    const int32x4_t src_resource =
-        make_wave_buffer_resource(global_base_ptr, src_element_space_size);
+    const __amdgpu_buffer_rsrc_t src_resource =
+        make_wave_buffer_resource_new(global_base_ptr, src_element_space_size);
     const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
 
-#if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
+#if CK_HAS_ASYNCMARK
+    // Use asyncmark so that waits on "normal" global memory don't get interleaved with the waits
+    // needed for async DMAs to complete, since it's hard to get LLVM's alias analysis to do the
+    // right thing without markers.
+    __attribute__((address_space(3))) uint32_t* lds_ptr =
+#ifndef CK_CODE_GEN_RTC
+        reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
+            reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
+#else
+        reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
+            reinterpret_cast<size_t>(lds_base_ptr + lds_offset));
+#endif
+    __builtin_amdgcn_raw_ptr_buffer_load_async_lds(
+        src_resource, lds_ptr, bytes_per_thread, global_offset_bytes, 0, 0, 0);
+    asyncmark();
+#elif CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
     T* lds_ptr = lds_base_ptr + lds_offset;
 #ifndef CK_CODE_GEN_RTC
     auto const lds_ptr_sgpr =
@@ -941,7 +971,7 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
             reinterpret_cast<size_t>(lds_base_ptr + lds_offset));
 #endif
 
-    llvm_amdgcn_raw_buffer_load_lds(
+    llvm_amdgcn_raw_ptr_buffer_load_lds(
         src_resource, lds_ptr, bytes_per_thread, global_offset_bytes, 0, 0, 0);
 #endif
 }
@@ -1242,6 +1272,9 @@ __device__ void amd_async_load_global_to_lds(const T* global_base_ptr,
             reinterpret_cast<DstVecType*>(lds_base_ptr + lds_offset + static_dst_offset);
         *lds_ptr = {};
     }
+#if CK_HAS_ASYNCMARK
+    asyncmark();
+#endif
 }
 
 template <typename T,
@@ -1367,10 +1400,10 @@ __device__ void amd_tensor_load_to_lds(const TdmDesc& tdm_desc)
 {
 #if defined(__gfx125__)
     __builtin_amdgcn_tensor_load_to_lds(bit_cast<uint32x4_t>(tdm_desc.g0),
-                                        tdm_desc.g1,
-                                        tdm_desc.g2,
-                                        tdm_desc.g3,
-                                        tdm_desc.g4,
+                                        bit_cast<uint32x8_t>(tdm_desc.g1),
+                                        bit_cast<uint32x4_t>(tdm_desc.g2),
+                                        bit_cast<uint32x4_t>(tdm_desc.g3),
+                                        bit_cast<uint32x8_t>(tdm_desc.g4),
                                         static_cast<index_t>(coherence));
 #else
     ignore = tdm_desc;

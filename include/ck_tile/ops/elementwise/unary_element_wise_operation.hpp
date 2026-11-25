@@ -948,6 +948,23 @@ struct PassThrough
     }
 };
 
+/// Clamps a float to fp8 e4m3's range before converting: +-inf to NaN, NaN
+/// kept, finite values to +-448 (the conversion itself does not saturate).
+struct SaturateFp8E4M3
+{
+    static constexpr const char* name = "SaturateFp8E4M3";
+    static constexpr float kMax       = 448.0f;
+
+    CK_TILE_HOST_DEVICE static float apply(float x)
+    {
+        // fma(x, 0, x) turns +-inf into NaN, which the NaN-propagating clamp keeps.
+        const float v = __builtin_fmaf(x, 0.0f, x);
+        return __builtin_elementwise_minimum(__builtin_elementwise_maximum(v, -kMax), kMax);
+    }
+
+    CK_TILE_HOST_DEVICE void operator()(float& y, const float& x) const { y = apply(x); }
+};
+
 struct AddScale
 {
     static constexpr const char* name = "AddScale";

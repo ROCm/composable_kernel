@@ -61,7 +61,8 @@
                 "mem",
                 "comp_async",
                 "comp_tdm",
-                "comp_tdm_v2"
+                "comp_tdm_v2",
+                "comp_tdm_pc"
             ]
         },
         "scheduler": {
@@ -74,7 +75,8 @@
             "values": [
                 "cshuffle",
                 "default",
-                "tdm"
+                "tdm",
+                "tdmstaged"
             ]
         },
         "pad_m": {

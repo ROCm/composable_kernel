@@ -45,6 +45,12 @@ struct QrTdmKVSharedLdsArenaLayout
         integer_least_multiple(kNumKVBuffers * kKVStride, kArenaAlignment);
 
     static_assert(kQBytes <= kKVBytes && kArenaBytes <= 128 * 1024);
+
+    // what BlockFmhaPipelineQRKSVSTdmPingPong (the base of the kvshared pipeline) reads of its
+    // layout; the kvshared main loop stages each K/V tile once, in its own buffers
+    static constexpr bool kDoubleV        = false;
+    static constexpr bool kSingleK        = false;
+    static constexpr index_t kArenaBudget = 160 * 1024;
 };
 
 } // namespace detail

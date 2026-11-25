@@ -1,0 +1,40 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_wavelet_xdl_v3_instance.hpp"
+
+namespace ck {
+namespace tensor_operation {
+namespace device {
+namespace instance {
+
+void add_device_grouped_conv3d_bwd_data_wavelet_direct_load_xdl_v3_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances)
+{
+    add_device_operation_instances(
+        instances,
+        device_grouped_conv_bwd_data_wavelet_direct_load_xdl_v3_instances<3,
+                                                                          NDHWGK,
+                                                                          GKZYXC,
+                                                                          Empty_Tuple,
+                                                                          NDHWGC,
+                                                                          F16,
+                                                                          ConvBwdDataDefault>{});
+}
+
+} // namespace instance
+} // namespace device
+} // namespace tensor_operation
+} // namespace ck

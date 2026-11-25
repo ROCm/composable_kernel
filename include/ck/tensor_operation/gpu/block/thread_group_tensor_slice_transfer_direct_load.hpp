@@ -77,6 +77,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
     static constexpr auto thread_steps         = thread_cluster_lengths * thread_single_load_size;
     static constexpr auto thread_slice_lengths = block_slice_lengths / thread_steps;
 
+    static __device__ constexpr bool UseTdmInst() { return false; }
+
     static __device__ constexpr bool AreThreadClusterLengthsValid()
     {
         // Make sure that ThreadClusterLengths are set in a way that allows for contiguous writes to

@@ -15,10 +15,6 @@
 #include "ck_tile/ops/gemm/warp/warp_wmma_gemm_gfx11_utils.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
-#ifndef CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_P_PERMUTE
-#define CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_P_PERMUTE 0
-#endif
-
 namespace ck_tile {
 
 // Load physical pages from page_idx lookup table.
@@ -253,13 +249,33 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    // Clang reports only the first failing static_assert of a class, so the specific
-    // gfx11 checks come before the general UseIndependentVBuffer one.
+    // Clang reports only the first failing static_assert of a class, so the knob check
+    // comes before the shape checks.
 #if !CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V
-    static_assert(!Policy::kUseSyncKLoad,
-                  "batch_prefill_gfx11 has no fallback gemm1; "
-                  "CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V must stay 1");
+    // Turning the knob off would move the M128 instances onto the fallback gemm1, which
+    // is only verified for the M64 shapes. The M64 shapes never use Independent-V, so
+    // they still build. Keyed on the shape, not kBlockSize, which uses get_warp_size()
+    // and differs on the host pass.
+    static_assert(!(Policy::kUseSyncKLoad && BlockFmhaShape::kM0 == 128 &&
+                    BlockFmhaShape::kN1 == 128),
+                  "batch_prefill_gfx11 M128 instances are only verified on the "
+                  "Independent-V gemm1; CK_TILE_FMHA_BATCH_PREFILL_GFX11_INDEPENDENT_V "
+                  "must stay 1 for them");
 #endif
+    // (M0, N1, QK head dim) of the device-verified shapes: M128 on Independent-V and
+    // M64 on the fallback gemm1. Each warp owns 16 rows, requiring M0 / 16 warps. The
+    // dispatcher allowlist GFX11_BATCH_PREFILL_SHAPES lists the same shapes; this also
+    // covers instances built outside the dispatcher.
+    static_assert(!Policy::kUseSyncKLoad ||
+                      (BlockFmhaShape::NumGemm0Warps == BlockFmhaShape::kM0 / 16 &&
+                       ((BlockFmhaShape::kM0 == 128 && BlockFmhaShape::kN1 == 128 &&
+                         BlockFmhaShape::kQKHeaddim == 128) ||
+                        (BlockFmhaShape::kM0 == 64 && BlockFmhaShape::kN1 == 96 &&
+                         BlockFmhaShape::kQKHeaddim == 96) ||
+                        (BlockFmhaShape::kM0 == 64 && BlockFmhaShape::kN1 == 64 &&
+                         BlockFmhaShape::kQKHeaddim == 64))),
+                  "batch_prefill_gfx11 is only verified for (M0, N1, QK head dim) "
+                  "(128, 128, 128), (64, 96, 96) and (64, 64, 64), with M0 / 16 warps");
     // PermuteWarpGemmCToA moves P within a warp only, so both gemms need the same
     // M-only warp layout; the permute and the K LDS layout also assume 16x16x16 WMMA
     // and K0=32.
@@ -274,13 +290,18 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
              std::is_same_v<typename BlockFmhaShape::Gemm1WarpTile, sequence<16, 16, 16>>),
         "batch_prefill_gfx11 requires K0=32, the same M-only block warps for both gemms "
         "and 16x16x16 warp tiles");
-#if defined(__gfx11__)
-    // Device-only: kBlockSize uses get_warp_size(), which is 64 on the host pass.
-    // The gfx11 policy has no fallback gemm1 - ARegBSmem cannot consume a gfx11 WMMA P tile.
-    static_assert(!Policy::kUseSyncKLoad || Policy::template UseIndependentVBuffer<Problem>(),
-                  "batch_prefill_gfx11 requires block size 256, N0=32, K1=32, N1=128, "
-                  "linear KV layout and no dropout");
-#endif
+    // Keyed on kUseSyncKLoad, not on the architecture: no CDNA instance sets it.
+    // These are the K-staging requirements; the gemm1 shape is not among them,
+    // because outside UseIndependentVBuffer the pipeline permutes P into the
+    // fallback gemm1's A distribution instead. None of the terms depend on the
+    // warp size, so unlike UseIndependentVBuffer this also holds on the host pass.
+    static_assert(!Policy::kUseSyncKLoad ||
+                      (Problem::kKVMemoryLayout ==
+                           BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT &&
+                       BlockFmhaShape::kN0 == 32 && BlockFmhaShape::kK1 == 32 &&
+                       !Problem::kHasDropout),
+                  "batch_prefill_gfx11 requires N0=32, K1=32, linear KV layout "
+                  "and no dropout");
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -752,14 +773,6 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         rebase_k_window(k_dram_window, k_physical_pages[number<0>{}]);
 
         constexpr auto k_oob_ck = bool_constant<true>{};
-        constexpr auto k_pre_np = [&]() {
-            if constexpr(kPadSeqLenK &&
-                         (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                          (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)))
-                return bool_constant<true>{};
-            else
-                return bool_constant<false>{};
-        }();
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
@@ -1037,19 +1050,17 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             prefetch_v_physical_pages(k_loop_start);
         };
 
-        auto load_k_tile = [&](auto i_buf, auto& k_dram_window_ref, auto pre_nop) {
+        auto load_k_tile = [&](auto i_buf, auto& k_dram_window_ref) {
             if constexpr(Policy::kUseSyncKLoad)
             {
                 auto k_buf        = load_tile(k_dram_window_ref, number<-1>{}, k_oob_ck);
                 auto k_lds_window = get_slice_tile(
                     k_lds_load, sequence<i_buf * kN0, 0>{}, sequence<(i_buf + 1) * kN0, kK0>{});
                 store_tile(k_lds_window, k_buf);
-                (void)pre_nop;
             }
             else
             {
-                async_load_tile_raw(
-                    k_lds_store(i_buf), k_dram_window_ref, number<-1>{}, k_oob_ck, pre_nop);
+                async_load_tile_raw(k_lds_store(i_buf), k_dram_window_ref, number<-1>{}, k_oob_ck);
             }
         };
         // Sync K loads land in LDS through ds_store, which the vmcnt fences before the
@@ -1060,7 +1071,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         };
 
         // prefetch K tile
-        load_k_tile(LdsSeq.at(number<0>{}), k_dram_window, k_pre_np);
+        load_k_tile(LdsSeq.at(number<0>{}), k_dram_window);
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
@@ -1117,7 +1128,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             if constexpr(k0_loops > 1)
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
-                    load_k_tile(LdsSeq.at(number<i_k0 + 1>{}), k_dram_window, k_pre_np);
+                    load_k_tile(LdsSeq.at(number<i_k0 + 1>{}), k_dram_window);
                     if constexpr(i_k0 < k0_loops - 1)
                         move_tile_window(k_dram_window, {0, kK0});
 
@@ -1168,7 +1179,10 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             }
 
             const auto p = [&]() {
-                const auto bias_tile = load_tile(bias_dram_window); // load bias tile
+                // No per-element OOB branch: padded scores are masked to -inf, padded rows are not
+                // stored, and the buffer range check returns 0 past the end.
+                const auto bias_tile =
+                    load_tile(bias_dram_window, number<-1>{}, bool_constant<false>{});
 
                 // STAGE 2, scale_s, add bias, mask, softmax
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -1533,7 +1547,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     return o_acc;
             }();
 
-#if defined(__gfx11__) && !CK_TILE_FMHA_BATCH_PREFILL_GFX11_DISABLE_P_PERMUTE
+#if defined(__gfx11__)
+            // Both gemm1 paths consume P in the WMMA A distribution, not the C
+            // distribution gemm0 leaves it in.
             auto p_for_gemm1 = [&]() {
                 if constexpr(Policy::template UseIndependentVBuffer<Problem>())
                 {
@@ -1548,12 +1564,6 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             }();
             PermuteWarpGemmCToA(p_for_gemm1, p);
 #else
-#if defined(__gfx11__)
-            // Device-only for the same reason as the kUseSyncKLoad assertion above.
-            static_assert(!Policy::template UseIndependentVBuffer<Problem>(),
-                          "independent-V gemm1 needs the gfx11 C->A permute; "
-                          "do not disable P_PERMUTE while UseIndependentVBuffer holds");
-#endif
             const auto& p_for_gemm1 = p;
 #endif
 
@@ -1759,7 +1769,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-                load_k_tile(LdsSeq.at(number<0>{}), k_dram_window, k_pre_np);
+                load_k_tile(LdsSeq.at(number<0>{}), k_dram_window);
                 move_tile_window(k_dram_window, {0, kK0});
             }
             // tail

@@ -293,35 +293,6 @@ def preselected_fp16_rcr_essential() -> List[KernelConfig]:
 
 
 # ============================================================================
-# Default Fallback
-# ============================================================================
-
-
-def default_kernel() -> KernelConfig:
-    """
-    Default fallback kernel - guaranteed to work
-
-    Known-good configuration tested on gfx942
-    """
-    return KernelConfig(
-        tile=TileConfig(128, 128, 32, 2, 2, 1, 32, 32, 16),
-        trait=TraitConfig(
-            pipeline="compv4",
-            epilogue="cshuffle",
-            scheduler="intrawave",
-            pad_m=True,
-            pad_n=True,
-            pad_k=True,
-            persistent=False,
-        ),
-        variant=GemmVariant.STANDARD,
-        block_size=256,
-        k_block_per_cu=1,
-        num_wave_groups=1,
-    )
-
-
-# ============================================================================
 # BF16 Preselected Sets
 # ============================================================================
 

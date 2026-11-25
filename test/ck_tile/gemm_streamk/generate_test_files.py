@@ -23,6 +23,8 @@ Target selection (--target):
   pipelines_smoke   Kernel types matching 'Pipelines'
                     -> includes test_gemm_streamk_reduction_cases.inc
                        and test_gemm_streamk_atomic_cases.inc
+  batched_smoke     Kernel types matching 'Batched'
+                    -> includes test_gemm_streamk_batched_cases.inc
 
 Variant selection (--variant):
   wmma              Only WMMA kernel types (suffix contains 'Wmma')
@@ -109,6 +111,10 @@ TARGETS = {
         "filter": lambda suffix: suffix == "Regression",
         "inc_files": ["test_gemm_streamk_regression_cases.inc"],
     },
+    "batched_smoke": {
+        "filter": lambda suffix: suffix == "Batched",
+        "inc_files": ["test_gemm_streamk_batched_cases.inc"],
+    },
 }
 
 # --------------------------------------------------------------------------- #
@@ -127,6 +133,7 @@ KNOWN_TOKENS = [
     ("CompV3", "compv3"),
     ("Pipelines", "pipelines"),
     ("Regression", "regression"),
+    ("Batched", "batched"),
     ("Wmma", "wmma"),
 ]
 

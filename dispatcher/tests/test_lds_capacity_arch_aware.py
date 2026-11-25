@@ -68,8 +68,10 @@ GFX942_FROZEN = {
     # comp_async allocates two LDS buffers unconditionally. It previously had no
     # entry and inherited the 64 KB default, which is twice what it can use.
     "comp_async": 32768,
-    # comp_tdm_pc rotates four LDS slots, so it gets a quarter of the capacity.
+    # comp_tdm_pc and comp_tdm_ra rotate four LDS slots, so each gets a quarter
+    # of the capacity.
     "comp_tdm_pc": 16384,
+    "comp_tdm_ra": 16384,
     "wavelet": 65536,
     "default": 65536,
 }
@@ -88,19 +90,23 @@ HALF_CAPACITY_PIPELINES = (
 )
 
 # Pipelines that rotate four LDS slots get a quarter of the capacity.
-QUARTER_CAPACITY_PIPELINES = ("comp_tdm_pc",)
+QUARTER_CAPACITY_PIPELINES = ("comp_tdm_pc", "comp_tdm_ra")
 
 # Every pipeline the validators can encounter must have a deliberate entry.
 # Falling through to "default" is how comp_async got a full-capacity budget.
-EXPECTED_PIPELINES = set(HALF_CAPACITY_PIPELINES) | set(QUARTER_CAPACITY_PIPELINES) | {
-    "mem",
-    "compv1",
-    "compv2",
-    "compv3",
-    "compv5",
-    "wavelet",
-    "default",
-}
+EXPECTED_PIPELINES = (
+    set(HALF_CAPACITY_PIPELINES)
+    | set(QUARTER_CAPACITY_PIPELINES)
+    | {
+        "mem",
+        "compv1",
+        "compv2",
+        "compv3",
+        "compv5",
+        "wavelet",
+        "default",
+    }
+)
 
 
 class TestLdsBudgetIsArchAware(unittest.TestCase):
@@ -193,9 +199,7 @@ class TestLdsBudgetIsSafe(unittest.TestCase):
     def test_total_capacity_matches_hardware(self):
         for arch, capacity_kb in HARDWARE_LDS_KB.items():
             with self.subTest(arch=arch):
-                self.assertEqual(
-                    LDS_TOTAL_CAPACITY_BY_ARCH[arch], capacity_kb * 1024
-                )
+                self.assertEqual(LDS_TOTAL_CAPACITY_BY_ARCH[arch], capacity_kb * 1024)
 
     def test_unknown_arch_gets_the_smallest_budget(self):
         """An unrecognised target must not be handed more LDS than it may have."""
@@ -297,9 +301,7 @@ class TestLdsValidationEndToEnd(unittest.TestCase):
             "single-buffered 96 KB fits gfx950",
         )
         self.assertTrue(
-            self._lds_errors(
-                "gfx950", self._config("compv3", double_smem_buffer=True)
-            ),
+            self._lds_errors("gfx950", self._config("compv3", double_smem_buffer=True)),
             "double-buffered 96 KB needs 192 KB and must be rejected on gfx950.",
         )
 

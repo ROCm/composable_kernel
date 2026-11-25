@@ -35,13 +35,14 @@ if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950|gfx11|gfx12" AND NOT GPU_TARGETS MA
 
     # Define the targets and their corresponding executable names
     # Note that wmma versions are suffixed with _wmma (e.g, test_ck_tile_streamk_linear_smoke_wmma)
-    set(STREAMK_GEN_TARGETS extended atomic_smoke linear_smoke tree_smoke pipelines_smoke regression)
+    set(STREAMK_GEN_TARGETS extended atomic_smoke linear_smoke tree_smoke pipelines_smoke regression batched_smoke)
     set(STREAMK_GEN_EXEC_EXTENDED         test_ck_tile_streamk_extended)
     set(STREAMK_GEN_EXEC_ATOMIC_SMOKE     test_ck_tile_streamk_atomic_smoke)
     set(STREAMK_GEN_EXEC_LINEAR_SMOKE     test_ck_tile_streamk_linear_smoke)
     set(STREAMK_GEN_EXEC_TREE_SMOKE       test_ck_tile_streamk_tree_smoke)
     set(STREAMK_GEN_EXEC_PIPELINES_SMOKE  test_ck_tile_streamk_pipelines_smoke)
     set(STREAMK_GEN_EXEC_REGRESSION       test_ck_tile_streamk_regression)
+    set(STREAMK_GEN_EXEC_BATCHED_SMOKE    test_ck_tile_streamk_batched_smoke)
 
     # Determine which variants to generate based on GPU_TARGETS.
     # add_gtest_executable handles the per-source arch filtering (removing wmma
@@ -163,14 +164,30 @@ if(GPU_TARGETS MATCHES "gfx1250")
     # Both implementations must finish partial stores before publishing the ready flag.
     # The gfx1250 emulator runs one workgroup at a time, so a Linear or Tree tile owner waits
     # forever there for later workgroups. Both full suites are REGRESSION_TESTS; the smoke
-    # suite keeps a subset of the atomic rows in the emulator stage.
+    # suite keeps a subset of the atomic rows in the emulator stage. The TDM pipeline suite
+    # (comp_tdm, comp_tdm_v2, comp_tdm_v3) follows the same split. It is not built with the
+    # legacy buffer addressing, which has no LDS transpose load for the TDM pipelines.
+    # Re-enable, for the comp_tdm_v3 translation unit only, the post-RA machine scheduler that
+    # the top-level CMakeLists turns off (-enable-post-misched=0; the later option wins).
+    set_source_files_properties(test_gemm_streamk_tdm_v3_gfx1250_wmma.cpp
+        PROPERTIES
+        COMPILE_OPTIONS "-mllvm;-enable-post-misched=1"
+    )
+    set(COMP_TDM_V3_STREAMK_TARGETS)
     foreach(variant IN ITEMS builtin legacy smoke)
         set(test_target test_ck_tile_streamk_gfx1250_wmma)
+        set(test_sources test_gemm_streamk_gfx1250_wmma.cpp test_gemm_streamk_util.cpp)
         if(NOT variant STREQUAL "builtin")
             string(APPEND test_target "_${variant}")
         endif()
-        add_gtest_executable(${test_target}
-            test_gemm_streamk_gfx1250_wmma.cpp test_gemm_streamk_util.cpp)
+        if(NOT variant STREQUAL "legacy")
+            list(APPEND test_sources
+                test_gemm_streamk_tdm_gfx1250_wmma.cpp
+                test_gemm_streamk_tdm_v3_gfx1250_wmma.cpp
+            )
+            list(APPEND COMP_TDM_V3_STREAMK_TARGETS ${test_target})
+        endif()
+        add_gtest_executable(${test_target} ${test_sources})
         set_property(TARGET ${test_target}
                      PROPERTY HIP_ARCHITECTURES ${GFX1250_STREAMK_TARGETS})
         target_compile_definitions(${test_target} PRIVATE
@@ -178,6 +195,70 @@ if(GPU_TARGETS MATCHES "gfx1250")
             GFX1250_STREAMK_SMOKE=$<STREQUAL:${variant},smoke>)
         target_compile_options(${test_target} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
         set_property(TEST ${test_target} APPEND PROPERTY LABELS CK_TILE_GEMM_STREAMK_TESTS)
+        list(APPEND CK_TILE_GFX1250_STREAMK_TEST_TARGETS ${test_target})
+    endforeach()
+    # Fails if a compiler change makes the comp_tdm_v3 Stream-K kernels use scratch.
+    get_filename_component(_llvm_bin_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    find_program(CK_LLVM_OBJDUMP llvm-objdump HINTS "${_llvm_bin_dir}" NO_DEFAULT_PATH)
+    find_program(CK_LLVM_READELF llvm-readelf HINTS "${_llvm_bin_dir}" NO_DEFAULT_PATH)
+    if(CK_LLVM_OBJDUMP AND CK_LLVM_READELF)
+        foreach(_sk_target IN LISTS COMP_TDM_V3_STREAMK_TARGETS)
+            set(_sk_check "${_sk_target}_comp_tdm_v3_resources")
+            if("${_sk_target}" IN_LIST REGRESSION_TESTS)
+                set(_sk_stage_label "REGRESSION_TEST")
+            else()
+                set(_sk_stage_label "SMOKE_TEST")
+            endif()
+            add_test(NAME ${_sk_check}
+                COMMAND ${CMAKE_COMMAND}
+                    -DTEST_BINARY=$<TARGET_FILE:${_sk_target}>
+                    -DLLVM_OBJDUMP=${CK_LLVM_OBJDUMP}
+                    -DLLVM_READELF=${CK_LLVM_READELF}
+                    -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/${_sk_target}_comp_tdm_v3_resources
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/../gemm/check_comp_tdm_v3_resources.cmake)
+            set_tests_properties(${_sk_check}
+                PROPERTIES LABELS "${_sk_stage_label};CK_TILE_GEMM_STREAMK_TESTS")
+        endforeach()
+    else()
+        message(WARNING "llvm-objdump or llvm-readelf not found next to ${CMAKE_CXX_COMPILER}: "
+                        "skipping the comp_tdm_v3 Stream-K scratch and spill check")
+    endif()
+
+    # The producer/consumer TDM pipeline inside StreamKKernel. As above, the gfx1250 emulator runs
+    # one workgroup at a time, so a Linear or Tree tile owner waits there for workgroups that never
+    # start: the full suite is a REGRESSION_TEST and the smoke variant, which runs in the emulator
+    # stage, keeps atomic rows only. The timeout only bounds the host process: waves stalled on a
+    # named barrier are removed by queue preemption (CWSR), so a stalled ring can still leave the
+    # device needing a reset. The tests skip their launches when kernel.numa_balancing != 0 for
+    # that reason. The executable exits with SKIP_RETURN_CODE, which ctest reports as Skipped,
+    # only if a test skipped and none failed, so a failing host-only check still fails the entry.
+    # One TU per suite so the 4 atomic and 10 linear/tree kernel instantiations compile in
+    # parallel; both share test_gemm_streamk_pc_gfx1250_fixture.hpp.
+    foreach(variant IN ITEMS full smoke)
+        if(variant STREQUAL "full")
+            set(test_target test_ck_tile_streamk_pc_gfx1250_wmma)
+            add_gtest_executable(${test_target}
+                test_gemm_streamk_pc_gfx1250_wmma.cpp
+                test_gemm_streamk_pc_reduction_gfx1250_wmma.cpp
+                test_gemm_streamk_util.cpp)
+        else()
+            set(test_target test_ck_tile_streamk_pc_gfx1250_wmma_smoke)
+            add_gtest_executable(${test_target}
+                test_gemm_streamk_pc_gfx1250_wmma.cpp
+                test_gemm_streamk_util.cpp)
+        endif()
+        set_property(TARGET ${test_target} PROPERTY HIP_ARCHITECTURES ${GFX1250_STREAMK_TARGETS})
+        # Linear/tree waiters trap (s_trap 2: wave halted, queue put in error state, process
+        # aborts) after 2^22 unanswered polls instead of spinning forever on a workgroup that never
+        # became resident; legitimate waits are one storer's segment. Waves stalled at a named
+        # barrier never poll and are bounded only by TIMEOUT below.
+        target_compile_definitions(${test_target} PRIVATE
+            CK_TILE_STREAMK_WAIT_SPIN_LIMIT=4194304)
+        target_compile_options(${test_target} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+        set_property(TEST ${test_target} APPEND PROPERTY LABELS CK_TILE_GEMM_STREAMK_TESTS)
+        set_tests_properties(${test_target} PROPERTIES
+            TIMEOUT 300
+            SKIP_RETURN_CODE 77)
         list(APPEND CK_TILE_GFX1250_STREAMK_TEST_TARGETS ${test_target})
     endforeach()
     add_custom_target(ck_tile_gemm_streamk_tests

@@ -169,7 +169,7 @@ Quick steps:
 | Issue | Solution |
 |-------|----------|
 | "Arguments not supported" | Check tile config validity |
-| Missing element-wise op | Check `elementwise_ops.hpp` |
+| Missing element-wise op | Check `include/ck_tile/ops/elementwise/unary_element_wise_operation.hpp` |
 | Compilation errors | Verify C++17, include paths |
 
 ---

@@ -19,6 +19,7 @@ from dataclasses import replace
 
 from codegen_common import (
     CommonTypeMappings,
+    TDM_EPILOGUES,
     VECTOR_SIZE_VARIANTS,
     gemm_contiguous_dims,
     gemm_pipeline_skips_launch_checks,
@@ -61,10 +62,17 @@ def _base_key(cfg):
 def _tile_fits(cfg, dims):
     """Mirrors the kernel's check: an unpadded contiguous extent must be a tile multiple.
 
-    Pipelines that skip the kernel's launch checks (TDM) clip instead and fit any shape.
+    Pipelines that skip the kernel's launch checks (TDM) clip their A/B loads and fit any
+    shape. So does C under a TDM epilogue; any other epilogue stores C through a view that
+    does not clip its contiguous dimension, so that extent must still be a tile multiple
+    (UniversalGemmKernel::IsSupportedArgument).
     """
     if gemm_pipeline_skips_launch_checks(cfg.pipeline):
-        return True
+        if cfg.epilogue in TDM_EPILOGUES:
+            return True
+        if cfg.layout[2] == "r":
+            return dims["n"] % cfg.tile_n == 0
+        return dims["m"] % cfg.tile_m == 0
     return gemm_tile_divides_problem(
         m=dims["m"],
         n=dims["n"],

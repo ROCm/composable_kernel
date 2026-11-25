@@ -24,9 +24,12 @@ import json
 import argparse
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional
+
+from codegen_common import CommonTypeMappings
 
 SCRIPT_DIR = Path(__file__).parent
 
@@ -117,6 +120,35 @@ def resolve_pipeline_lds_budget_aliases(specs: Dict[str, Any]) -> Dict[str, str]
     return aliases
 
 
+def resolve_pipeline_extra_warp_configs(
+    specs: Dict[str, Any],
+) -> Dict[str, Dict[str, list]]:
+    """Return {pipeline: {arch: [[wm, wn, wk], ...]}} from pipeline_extra_warp_configs."""
+    raw = specs.get("pipeline_extra_warp_configs", {})
+    archs = specs["architectures"]
+    resolved: Dict[str, Dict[str, list]] = {}
+    for pipeline, per_arch in raw.items():
+        if pipeline.startswith("_"):
+            continue
+        if pipeline not in CommonTypeMappings.PIPELINE_TO_DISPATCHER:
+            raise ValueError(
+                f"pipeline_extra_warp_configs['{pipeline}'] is not in "
+                f"CommonTypeMappings.PIPELINE_TO_DISPATCHER."
+            )
+        arch_map: Dict[str, list] = {}
+        for arch, combos in per_arch.items():
+            if arch.startswith("_"):
+                continue
+            if arch not in archs:
+                raise ValueError(
+                    f"pipeline_extra_warp_configs['{pipeline}'] references "
+                    f"unknown architecture '{arch}'."
+                )
+            arch_map[arch] = [list(c) for c in combos]
+        resolved[pipeline] = arch_map
+    return resolved
+
+
 def generate_python_module(specs: Dict[str, Any], output_path: Path):
     """Generate Python module from arch specs."""
 
@@ -126,6 +158,7 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
     archs = specs["architectures"]
     element_sizes = specs["element_sizes"]
     lds_budgets = resolve_pipeline_lds_budgets(specs)
+    extra_warps = resolve_pipeline_extra_warp_configs(specs)
     unsupported = specs["unsupported_trait_combos"]["combinations"]
 
     # Build warp configs dict
@@ -133,6 +166,14 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
     for arch, data in archs.items():
         warp_configs_str += f'    "{arch}": {data["warp_configs"]},\n'
     warp_configs_str += "}"
+
+    extra_warps_str = "{\n"
+    for pipeline, per_arch in extra_warps.items():
+        extra_warps_str += f'    "{pipeline}": {{\n'
+        for arch, combos in per_arch.items():
+            extra_warps_str += f'        "{arch}": {combos},\n'
+        extra_warps_str += "    },\n"
+    extra_warps_str += "}"
 
     # Build warp tile combos dict
     warp_tile_str = "{\n"
@@ -154,12 +195,16 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
     for combo in unsupported:
         unsupported_str += f'    ("{combo[0]}", "{combo[1]}", "{combo[2]}"),\n'
     unsupported_str += "}"
+    double_buffer_str = "(\n"
+    for pipeline in specs["double_smem_buffer_pipelines"]:
+        double_buffer_str += f'    "{pipeline}",\n'
+    double_buffer_str += ")"
 
     # Pipeline LDS budgets, arch -> pipeline -> bytes
     lds_budgets_str = "{\n"
     for arch, per_pipeline in lds_budgets.items():
         capacity_kb = archs[arch]["lds_capacity_kb"]
-        lds_budgets_str += f'    # {arch}: {capacity_kb} KB of LDS\n'
+        lds_budgets_str += f"    # {arch}: {capacity_kb} KB of LDS\n"
         lds_budgets_str += f'    "{arch}": {{\n'
         for pipeline, budget in per_pipeline.items():
             lds_budgets_str += f'        "{pipeline}": {budget},\n'
@@ -201,7 +246,8 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
     )
     preshuffle_pipelines_str = str(preshuffle_pipelines)
 
-    content = f'''# SPDX-License-Identifier: MIT
+    content = f'''# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
 
 """
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
@@ -231,6 +277,9 @@ ELEMENT_SIZE_MAP: Dict[str, float] = {element_sizes}
 # Supported warp configurations per architecture [warp_m, warp_n, warp_k]
 WARP_SUPPORTED_COMBINATIONS: Dict[str, List[List[int]]] = {warp_configs_str}
 
+# Pipeline-specific extra warp configurations: pipeline -> arch -> [[warp_m, warp_n, warp_k], ...]
+PIPELINE_EXTRA_WARP_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {extra_warps_str}
+
 # Supported warp tile combinations: arch -> dtype_key -> [[warp_tile_m, n, k], ...]
 WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]]] = {warp_tile_str}
 
@@ -257,6 +306,9 @@ _SMALLEST_LDS_CAPACITY: int = min(LDS_TOTAL_CAPACITY_BY_ARCH.values())
 
 # Unsupported trait combinations: (pipeline, epilogue, scheduler)
 TRAIT_UNSUPPORTED_COMBINATIONS: Set[Tuple[str, str, str]] = {unsupported_str}
+
+# Pipelines whose C++ problem requires DoubleSmemBuffer == true.
+DOUBLE_SMEM_BUFFER_PIPELINES: Tuple[str, ...] = {double_buffer_str}
 
 # Valid dtype combinations: (A_dtype, B_dtype) -> acc_dtype and notes
 DTYPE_COMBINATIONS: Dict[str, Dict[str, str]] = {dtype_combos_str}
@@ -348,6 +400,7 @@ def get_valid_dtype_combos() -> List[str]:
 '''
 
     output_path.write_text(content)
+    _ruff_format_in_place(output_path)
     print(f"Generated: {output_path}")
 
 
@@ -360,8 +413,6 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
     archs = specs["architectures"]
     element_sizes = specs["element_sizes"]
     lds_budgets = resolve_pipeline_lds_budgets(specs)
-    specs["unsupported_trait_combos"]["combinations"]
-
     # Build arch enum and string functions
     arch_enums = []
     arch_to_string_cases = []
@@ -387,6 +438,21 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
         warp_config_cases.append(
             f"        case GpuArch::{enum_name}: return {{{configs}}};"
         )
+
+    extra_warp_cases = []
+    for pipeline, per_arch in resolve_pipeline_extra_warp_configs(specs).items():
+        pipe_enum = CommonTypeMappings.PIPELINE_TO_DISPATCHER[pipeline]
+        for arch, combos in per_arch.items():
+            arch_enum = f"GpuArch::{arch.upper().replace('GFX', 'GFX_')}"
+            pushes = "\n        ".join(
+                f"configs.push_back({{{c[0]}, {c[1]}, {c[2]}}});" for c in combos
+            )
+            extra_warp_cases.append(
+                f"    if (pipeline == {pipe_enum} && arch == {arch_enum}) {{\n"
+                f"        {pushes}\n"
+                f"    }}"
+            )
+    extra_warp_body = ("\n" + "\n".join(extra_warp_cases)) if extra_warp_cases else ""
 
     # Build element size switch
     # Include all data types defined in kernel_key.hpp DataType enum
@@ -429,7 +495,9 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
         "comp_tdm": "CompTDMV1",
         "comp_tdm_v2": "CompTDMV2",
         "comp_tdm_pc": "CompTDMPC",
+        "comp_tdm_ra": "CompTDMRA",
         "preshuffle_tdm": "PreShuffleTDM",
+        "comp_tdm_v3": "CompTDMV3",
     }
     lds_budget_aliases = resolve_pipeline_lds_budget_aliases(specs)
 
@@ -464,7 +532,9 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
     smallest_arch = min(lds_budgets, key=lambda a: lds_budgets[a]["default"])
     lds_budget_cases.append("    case GpuArch::UNKNOWN:")
     lds_budget_cases.append("    default:")
-    lds_budget_cases.extend(_lds_pipeline_switch(lds_budgets[smallest_arch], "        "))
+    lds_budget_cases.extend(
+        _lds_pipeline_switch(lds_budgets[smallest_arch], "        ")
+    )
 
     # Total physical LDS per architecture, used to halve the budget for
     # pipelines that stage two buffers by configuration.
@@ -477,6 +547,20 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
     smallest_capacity = min(archs[a]["lds_capacity_kb"] for a in lds_budgets) * 1024
     lds_total_cases.append("    case GpuArch::UNKNOWN:")
     lds_total_cases.append(f"    default: return {smallest_capacity};")
+
+    all_pipeline_enums = {**pipeline_enum_map, **async_pipeline_enum_map}
+    trait_conditions = [
+        f"(pipeline == Pipeline::{all_pipeline_enums[pipeline]} && "
+        f"epilogue == {CommonTypeMappings.EPILOGUE_TO_DISPATCHER[epilogue]} && "
+        f"scheduler == {CommonTypeMappings.SCHEDULER_TO_DISPATCHER[scheduler]})"
+        for pipeline, epilogue, scheduler in specs["unsupported_trait_combos"][
+            "combinations"
+        ]
+    ]
+    double_buffer_conditions = [
+        f"pipeline == Pipeline::{all_pipeline_enums[pipeline]}"
+        for pipeline in specs["double_smem_buffer_pipelines"]
+    ]
 
     content = f"""// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
@@ -553,6 +637,14 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch) {{
     }}
 }}
 
+inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch, [[maybe_unused]] Pipeline pipeline) {{
+    auto configs = get_supported_warp_configs(arch);
+    if (configs.empty()) {{
+        return configs;
+    }}{extra_warp_body}
+    return configs;
+}}
+
 // =============================================================================
 // LDS Capacity Limits (Generated)
 // =============================================================================
@@ -560,8 +652,8 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch) {{
 // LDS staging budget in bytes for the A+B tiles, per architecture and
 // pipeline. The budget depends on the target: a tile that overflows one
 // architecture's LDS may fit comfortably in another's. The gfx1250 TDM
-// pipelines (CompTDMV1/V2) share the double-buffered comp_async budget;
-// CompTDMPC has its own four-slot budget.
+// pipelines (CompTDMV1/V2/V3) share the double-buffered comp_async budget;
+// CompTDMPC and CompTDMRA have their own four-slot budget.
 inline std::size_t get_lds_capacity(GpuArch arch, Pipeline pipeline) {{
     switch(arch)
     {{
@@ -582,16 +674,13 @@ inline std::size_t get_lds_total_capacity(GpuArch arch) {{
 // Unsupported Trait Combinations (Generated)
 // =============================================================================
 
-inline bool is_trait_unsupported(Pipeline pipeline, [[maybe_unused]] Epilogue epilogue, Scheduler scheduler) {{
-    // Generated from unsupported_trait_combos in arch_specs.json
-    if (scheduler == Scheduler::Interwave) {{
-        if (pipeline == Pipeline::CompV3 || pipeline == Pipeline::CompV4 ||
-            pipeline == Pipeline::CompAsync || pipeline == Pipeline::CompTDMV1 ||
-            pipeline == Pipeline::CompTDMV2 || pipeline == Pipeline::CompTDMPC) {{
-            return true;
-        }}
-    }}
-    return false;
+inline bool is_trait_unsupported(Pipeline pipeline, Epilogue epilogue, Scheduler scheduler) {{
+    return {" || ".join(trait_conditions) or "false"};
+}}
+
+// Pipelines whose C++ problem requires DoubleSmemBuffer == true.
+inline constexpr bool requires_double_smem_buffer(Pipeline pipeline) {{
+    return {" || ".join(double_buffer_conditions) or "false"};
 }}
 
 }} // namespace arch_specs
@@ -644,6 +733,45 @@ def _clang_format_in_place(path: Path):
             print(f"Warning: {tool} failed on {path}: {exc.stderr.decode().strip()}")
             return
     print(f"Warning: clang-format not found; {path.name} may need formatting.")
+
+
+def find_ruff() -> Optional[List[str]]:
+    """Return the command that runs ruff, or None if it is not installed."""
+    exe = shutil.which("ruff")
+    if exe is not None:
+        return [exe]
+    probe = subprocess.run(
+        [sys.executable, "-m", "ruff", "--version"], capture_output=True
+    )
+    if probe.returncode == 0:
+        return [sys.executable, "-m", "ruff"]
+    return None
+
+
+def _ruff_format_in_place(path: Path):
+    """Format the generated module so it satisfies the repository's ruff-format hook.
+
+    CK's pre-commit runs ruff-format (v0.14.0) on Python files. Without this
+    step the hook rewrites the committed module and it no longer matches what
+    this generator emits. '--isolated' ignores any configuration file, which
+    matches the hook (CK has no ruff configuration) and keeps the output the
+    same wherever the module is written.
+
+    Best effort: if ruff is unavailable the module is still valid Python, it
+    just needs formatting before it can be committed.
+    """
+    ruff = find_ruff()
+    if ruff is None:
+        print(f"Warning: ruff not found; {path.name} may need formatting.")
+        return
+    try:
+        subprocess.run(
+            [*ruff, "format", "--isolated", "--quiet", str(path)],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"Warning: ruff failed on {path}: {exc.stderr.decode().strip()}")
 
 
 def main():

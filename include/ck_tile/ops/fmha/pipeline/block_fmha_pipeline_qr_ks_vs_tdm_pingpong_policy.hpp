@@ -17,7 +17,19 @@ inline constexpr bool is_qr_tdm_pingpong_qkv_v =
      std::is_same_v<typename Problem::VDataType, bf16_t>) ||
     (std::is_same_v<typename Problem::QDataType, half_t> &&
      std::is_same_v<typename Problem::KDataType, half_t> &&
-     std::is_same_v<typename Problem::VDataType, half_t>);
+     std::is_same_v<typename Problem::VDataType, half_t>) ||
+    (std::is_same_v<typename Problem::QDataType, fp8_t> &&
+     std::is_same_v<typename Problem::KDataType, fp8_t> &&
+     std::is_same_v<typename Problem::VDataType, fp8_t> &&
+     std::is_same_v<typename Problem::PDataType, fp8_t>);
+
+// A K tile of 64 KB or more (MX d512: 128 keys of 512 bytes, its PV slice) leaves room for
+// one K and one V buffer only: two of either would take the arena past two resident blocks.
+template <typename Problem>
+inline constexpr bool is_qr_tdm_pingpong_wide_k_tile_v =
+    Problem::BlockFmhaShape::kN0 * Problem::BlockFmhaShape::kSubQKHeaddim *
+        static_cast<index_t>(sizeof(typename Problem::KDataType)) >=
+    64 * 1024;
 
 // V gets a second LDS buffer (V_{i+1} is issued a whole trip ahead of its PV gemm) where
 // measured on gfx1250 to pay off: the 128-row tiles, whose occupancy is VGPR bound so the
@@ -30,7 +42,8 @@ inline constexpr bool is_qr_tdm_pingpong_double_v_v =
     Problem::BlockFmhaShape::kM0 >= 128 ||
     (Problem::BlockFmhaShape::kM0 >= 64 && Problem::BlockFmhaShape::kSubQKHeaddim <= 64 &&
      Problem::FmhaMask::IsMasking) ||
-    (Problem::BlockFmhaShape::kM0 >= 64 && Problem::BlockFmhaShape::kSubQKHeaddim >= 512);
+    (Problem::BlockFmhaShape::kM0 >= 64 && Problem::BlockFmhaShape::kSubQKHeaddim >= 512 &&
+     !is_qr_tdm_pingpong_wide_k_tile_v<Problem>);
 
 // A power-of-2 row is padded once, at its end: a row stride, with affine reader address
 // math (no merge/unmerge div/mod). Other rows (96, 160, 192 columns) take qr_tdm's
@@ -76,8 +89,9 @@ inline constexpr bool is_qr_tdm_pingpong_padding_enabled_v =
     Problem::BlockFmhaShape::kN1 * sizeof(typename Problem::VDataType) >= 16 &&
     Problem::BlockFmhaShape::kN1 * sizeof(typename Problem::VDataType) <= 1024;
 
-// 16 B per Q and K row (row-strided ds_load_b128), 32 B per V row (transposed ds_load_tr;
-// only a row-major V is padded).
+// 16 B per Q and K row (row-strided ds_load_b128), 16 lanes' banks per V row for the
+// transposed ds_load_tr: 32 B (16-bit tr16_b128) or 16 B (fp8 tr8_b64), as qr_tdm pads
+// it; only a row-major V is padded.
 template <typename Problem, bool Enabled = is_qr_tdm_pingpong_padding_enabled_v<Problem>>
 struct QrTdmPingPongPadding
 {
@@ -103,10 +117,10 @@ struct QrTdmPingPongPadding<Problem, true>
     using K = LdsPaddingConfig<true, kInterval<kKRow>, kQrTdmLdsAccessBytes>;
     // As in qr_tdm, a 160-column V row skips padding: its 64-byte interval bloats LDS more
     // than it saves in bank conflicts.
-    using V =
-        std::conditional_t<Shape::kN1 == 160,
-                           LdsPaddingConfig<false, 0, 0>,
-                           LdsPaddingConfig<true, kInterval<kVRow>, 2 * kQrTdmLdsAccessBytes>>;
+    using V = std::conditional_t<
+        Shape::kN1 == 160,
+        LdsPaddingConfig<false, 0, 0>,
+        LdsPaddingConfig<true, kInterval<kVRow>, 16 * sizeof(typename Problem::VDataType)>>;
 };
 
 // [K buffer 0][K buffer 1][S][V, aliased by Q]. Q is read once before the main loop and
@@ -116,10 +130,10 @@ struct QrTdmPingPongPadding<Problem, true>
 // first write follows the first loop-head barrier. S only takes space with the gemm_0
 // warps on N. d128 fp16/bf16, padded, warps on M: single V, M=64: K0=0, K1=17408,
 // Q/V0=34816, end=53248; double V, M=64: V0=34816, Q/V1=53248, end=71680; double V,
-// M=128: end=88064. The 16-row short-query tile: S=34800, Q/V0=39168, end=57600. Q may be
-// larger than a V buffer (d128's 128-row Q: 34816 B against 18432 B); it then runs past
-// V1's end into the arena's tail, which is sized for it. Only where that tail would push
-// the arena over budget (d512's 64-row Q, 64 KB) does Q start on V0 instead and span
+// M=128: end=88064. The 16-row short-query tiles hold one K buffer (kSingleK):
+// [K][S][V, aliased by Q]. Q may be larger than a V buffer (d128's 128-row Q: 34816 B against 18432
+// B); it then runs past V1's end into the arena's tail, which is sized for it. Only where that tail
+// would push the arena over budget (d512's 64-row Q, 64 KB) does Q start on V0 instead and span
 // [V0][V1] (kQOnBothV).
 template <typename Problem, typename QPadding, typename KPadding, typename VPadding>
 struct QrTdmPingPongLdsArenaLayout
@@ -161,41 +175,65 @@ struct QrTdmPingPongLdsArenaLayout
     // same in both K buffers (an interval is one K row: 1 KB at d512).
     static constexpr index_t kKAlignment =
         KPadding::kEnabled ? max(kRegionAlignment, KPadding::kIntervalBytes) : kRegionAlignment;
+    // The short-query tiles (decode) hold one K buffer: their QK gemm is short, so the next
+    // K goes out once it has read the current one, and the buffer it saves leaves room for
+    // another resident block (see the pipeline's kSingleK); so does a wide K tile.
+    static constexpr bool kSingleK = Shape::kM0 <= 16 || is_qr_tdm_pingpong_wide_k_tile_v<Problem>;
     static constexpr index_t kK0Offset = 0;
-    static constexpr index_t kK1Offset = integer_least_multiple(kK0Offset + kKBytes, kKAlignment);
-    static constexpr index_t kSOffset  = integer_least_multiple(kK1Offset + kKBytes, kSAlignment);
+    static constexpr index_t kK1Offset =
+        kSingleK ? kK0Offset : integer_least_multiple(kK0Offset + kKBytes, kKAlignment);
+    static constexpr index_t kSOffset = integer_least_multiple(kK1Offset + kKBytes, kSAlignment);
     static constexpr index_t kV0Offset =
         integer_least_multiple(kSOffset + kSBytes, kRegionAlignment);
-    static constexpr bool kDoubleV = is_qr_tdm_pingpong_double_v_v<Problem>;
-    static constexpr index_t kV1Offset =
-        kDoubleV ? integer_least_multiple(kV0Offset + kVBytes, kRegionAlignment) : kV0Offset;
-    // Q starts on the last V buffer and may run past its end. d512's Q (64 KB on the
-    // 64-row tile) would push the arena past its budget from there, so it starts on V0
-    // and spans both; V0 is then issued only after Q is read (see the pipeline prologue).
-    static constexpr bool kQOnBothV   = kDoubleV && Shape::kSubQKHeaddim >= 512;
-    static constexpr index_t kQOffset = kQOnBothV ? kV0Offset : kV1Offset;
-    // dropout's randval shuffle (BlockDropout::Run) past the Q/K/S/V regions
-    static constexpr index_t kRandValOffset = max(kQOffset + kQBytes, kV1Offset + kVBytes);
     static constexpr index_t kRandValBytes =
         qr_tdm_randval_lds_bytes<Problem, BlockFmhaPipelineQRKSVSTdmDefaultPolicy>();
-    static constexpr index_t kArenaBytes =
-        integer_least_multiple(kRandValOffset + kRandValBytes, kArenaAlignment);
+    // at least two resident blocks per WGP: the main loop relies on another block's
+    // gemms to cover its softmax
+    static constexpr index_t kArenaBudget = 160 * 1024;
+    // V1 (with a second V buffer), Q, and the arena's end. Q starts on the last V buffer and
+    // may run past its end. d512's Q (64 KB on the 64-row tile) would push the arena past its
+    // budget from there, so it starts on V0 and spans both; V0 is then issued only after Q is
+    // read (see the pipeline prologue). Dropout's randval shuffle (BlockDropout::Run) goes
+    // past the Q/K/S/V regions.
+    static constexpr index_t V1Offset(bool double_v)
+    {
+        return double_v ? integer_least_multiple(kV0Offset + kVBytes, kRegionAlignment) : kV0Offset;
+    }
+    static constexpr bool QOnBothV(bool double_v)
+    {
+        return double_v && Shape::kSubQKHeaddim >= 512;
+    }
+    static constexpr index_t ArenaBytes(bool double_v)
+    {
+        const index_t q_offset = QOnBothV(double_v) ? kV0Offset : V1Offset(double_v);
+        return integer_least_multiple(
+            max(q_offset + kQBytes, V1Offset(double_v) + kVBytes) + kRandValBytes, kArenaAlignment);
+    }
+    // a second V buffer where it pays off (is_qr_tdm_pingpong_double_v_v) and fits the
+    // budget (bf16 d256 128-row: Q 64 KB, two K and two V of 32 KB would not)
+    static constexpr bool kDoubleV =
+        is_qr_tdm_pingpong_double_v_v<Problem> && ArenaBytes(true) <= kArenaBudget;
+    static constexpr index_t kV1Offset      = V1Offset(kDoubleV);
+    static constexpr bool kQOnBothV         = QOnBothV(kDoubleV);
+    static constexpr index_t kQOffset       = kQOnBothV ? kV0Offset : kV1Offset;
+    static constexpr index_t kRandValOffset = max(kQOffset + kQBytes, kV1Offset + kVBytes);
+    static constexpr index_t kArenaBytes    = ArenaBytes(kDoubleV);
 
     static_assert(!KPadding::kEnabled || (kK1Offset - kK0Offset) % KPadding::kIntervalBytes == 0);
     static_assert(!kDoubleV || !VPadding::kEnabled ||
                   (kV1Offset - kV0Offset) % VPadding::kIntervalBytes == 0);
-    // at least two resident blocks per WGP: the main loop relies on another block's
-    // gemms to cover its softmax
-    static_assert(kArenaBytes <= 160 * 1024);
+    static_assert(kArenaBytes <= kArenaBudget);
 };
 
 } // namespace detail
 
-// qr_tdm_pingpong: the qr_tdm policy with whole-tile K staged in two buffers, one or two
-// V buffers (is_qr_tdm_pingpong_double_v_v), and Q aliasing V: from the last V buffer on,
-// or from V0 where kQOnBothV (see QrTdmPingPongLdsArenaLayout).
+// qr_tdm_pingpong: the qr_tdm policy with whole-tile K staged in two buffers (one on the
+// short-query tiles), one or two V buffers (is_qr_tdm_pingpong_double_v_v), and Q aliasing
+// V: from the last V buffer on, or from V0 where kQOnBothV (see QrTdmPingPongLdsArenaLayout).
 struct BlockFmhaPipelineQRKSVSTdmPingPongPolicy : BlockFmhaPipelineQRKSVSTdmDefaultPolicy
 {
+    // an fp8 P takes a fixed scale (kPExp2Offset), no scaled gemm1
+    static constexpr bool kQuantizesPItself = true;
 
     template <typename Problem>
     using LdsPaddingConfigQ = typename detail::QrTdmPingPongPadding<Problem>::Q;
@@ -255,37 +293,34 @@ struct BlockFmhaPipelineQRKSVSTdmPingPongPolicy : BlockFmhaPipelineQRKSVSTdmDefa
         return LdsArenaLayout<Problem>::kArenaBytes;
     }
 
-    // S comes back out of LDS (gemm_0 warps on N) to be softmaxed and fed into gemm_1
-    // as its A operand, so it takes P's distribution. An encoding built from the QK
-    // gemm's warp layout would permute P's columns within a row once the warps sit on
-    // N: the row sums (and LSE) stay right while each key meets the wrong value row.
+    // S comes back out of LDS (gemm_0 warps on N exchanging S) to be softmaxed and fed into
+    // gemm_1 as its A operand, so it takes P's distribution.
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeSRegTileDistribution()
     {
         return MakePRegTileDistribution<Problem>();
     }
 
-    // Row sum of P on the matrix unit: P (M x kN0) times ones (kN0 x one warp tile), with
-    // the PV gemm's types and warp gemm, so the sum lands replicated in o_acc's layout.
+    // Row sum of P on the matrix unit: P (M x kN0) times ones (kN0 x one warp tile per
+    // gemm_1 warp on N), with the PV gemm's types and warp gemm, so every warp holds whole row
+    // sums, replicated across its columns, in o_acc's row layout.
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetRowSumBlockGemm()
     {
         using PVBlockGemm = remove_cvref_t<decltype(GetPVBlockGemm<Problem>())>;
         using WarpGemm    = typename PVBlockGemm::WarpGemm;
+        using Warps       = typename Problem::BlockFmhaShape::Gemm1BlockWarps;
 
-        static_assert(Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{}) == 1,
-                      "one warp tile of columns covers the row sum only with the gemm_1 "
-                      "warps all on M");
-
-        using GemmProblem = BlockGemmProblem<
-            typename Problem::PDataType,
-            typename Problem::VDataType,
-            typename Problem::OaccDataType,
-            Problem::kBlockSize,
-            TileGemmShape<
-                sequence<Problem::BlockFmhaShape::kM0, WarpGemm::kN, Problem::BlockFmhaShape::kK1>,
-                typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::PDataType,
+                             typename Problem::VDataType,
+                             typename Problem::OaccDataType,
+                             Problem::kBlockSize,
+                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                    WarpGemm::kN * Warps::at(number<1>{}),
+                                                    Problem::BlockFmhaShape::kK1>,
+                                           Warps,
+                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV2CustomPolicy<typename Problem::PDataType,

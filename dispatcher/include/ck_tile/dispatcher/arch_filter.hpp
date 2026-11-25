@@ -268,7 +268,7 @@ class ArchFilter
 
     void validate_warp_config(const KernelKey& key, ValidationResult& result) const
     {
-        auto supported = get_supported_warp_configs(arch_);
+        auto supported = get_supported_warp_configs(arch_, key.algorithm.pipeline);
         if(supported.empty())
         {
             if(strict_mode_)
@@ -369,6 +369,12 @@ class ArchFilter
         // lockstep with _validate_lds_capacity in codegen/arch_filter.py; both
         // are generated from arch_specs.json.
         std::size_t max_lds = get_lds_capacity(arch_, alg.pipeline);
+        // A non-default comp_tdm_pc / comp_tdm_ra ring splits the LDS over its own
+        // slots (pipeline_ring_lds_limit in codegen/codegen_common.py).
+        if(alg.num_slots)
+        {
+            max_lds = get_lds_total_capacity(arch_) / alg.num_slots;
+        }
 
         // Ping-pong staging allocates 2 * (A + B). For the pipelines that always
         // double, that is already folded into the per-pipeline budget, so take

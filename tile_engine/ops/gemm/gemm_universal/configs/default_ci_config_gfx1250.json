@@ -63,7 +63,8 @@
         "epilogue": {
             "values": [
                 "cshuffle",
-                "tdm"
+                "tdm",
+                "tdmstaged"
             ]
         },
         "pad_m": {

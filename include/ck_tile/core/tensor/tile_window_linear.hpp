@@ -477,15 +477,12 @@ struct tile_window_linear
         WINDOW_DISPATCH_ISSUE();
     }
 
-    // TODO: currently async load only implemented in inline asm
-    template <typename LdsTileWindow_,
-              index_t i_access           = -1,
-              bool oob_conditional_check = true,
-              bool pre_nop               = false>
+    // Each issue writes LDS at p_data_ + size_per_buf + size_per_wave * warp_id + k *
+    // size_per_issue (k counts the preceding issues of this call).
+    template <typename LdsTileWindow_, index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE auto async_load_raw(LdsTileWindow_&& lds_tile,
                                        number<i_access>                     = {},
-                                       bool_constant<oob_conditional_check> = {},
-                                       bool_constant<pre_nop>               = {}) const
+                                       bool_constant<oob_conditional_check> = {}) const
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         using LdsDataType   = typename LdsTileWindow::DataType;
@@ -516,9 +513,9 @@ struct tile_window_linear
                 sizeof(LdsDataType) -
             size_per_buf;
 
-        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
-        m0_set_with_memory(
-            amd_wave_read_first_lane(m0_init_value)); // This should be wave independent
+        const index_t lds_init_offset = size_per_buf + size_per_wave * get_warp_id();
+        // Byte offset of the current issue's LDS destination; must be wave uniform.
+        index_t lds_offset = amd_wave_read_first_lane(lds_init_offset);
 
         using vector_t = typename Base::Traits::vector_t;
 
@@ -526,26 +523,22 @@ struct tile_window_linear
 
         // loop over thread tensor space [y0, y1, ...]
         auto issue = [&](auto i_access_) {
-            constexpr auto IAccess  = number<i_access_>{};
-            constexpr auto pre_nop_ = [&]() {
-                if constexpr(pre_nop && i_access_ == 0)
-                    return bool_constant<true>{};
-                else
-                    return bool_constant<false>{};
-            }();
+            constexpr auto IAccess = number<i_access_>{};
 
             constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
             auto bottom_tensor_flag         = cached_flags_[IAccess]; // get this flag anyway
 
             // read from bottom tensor
+            auto* smem_issue =
+                reinterpret_cast<LdsDataType*>(reinterpret_cast<char*>(smem) + lds_offset);
             this->get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
-                smem, bottom_tensor_thread_coord, 0, bottom_tensor_flag, pre_nop_);
+                smem_issue, bottom_tensor_thread_coord, 0, bottom_tensor_flag);
 
             // move thread coordinate
             if constexpr(i_access_ != (NumAccess - 1))
             {
-                m0_inc_with_memory(size_per_issue);
+                lds_offset += size_per_issue;
             }
         };
 

@@ -266,9 +266,8 @@ struct FusedMoeGemmPipeline_FlatmmEx
         using a_thread_type = decltype(load_tile(a_sld_win0));
         statically_indexed_array<a_thread_type, 2> as;
 
-        auto gld_a = [&]<typename PreNop = bool_constant<false>>(
-                         auto& a_store_, auto i_access, PreNop = {}) {
-            async_load_tile_raw(a_store_, a_win, i_access, PreNop{});
+        auto gld_a = [&](auto& a_store_, auto i_access) {
+            async_load_tile_raw(a_store_, a_win, i_access);
         };
         auto move_a = [&]() {
             move_tile_window(a_win, {number<0>{}, number<BlockShape::Block_K0>{}});
@@ -607,7 +606,7 @@ struct FusedMoeGemmPipeline_FlatmmEx
 
         // start of pipeline
         // clang-format off
-        gld_a(a_sst_win0, NEG1, True);
+        gld_a(a_sst_win0, NEG1);
         gld_g(gs[I0], NEG1, True);
         move_a();
         move_g();

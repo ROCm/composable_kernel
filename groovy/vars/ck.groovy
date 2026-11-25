@@ -976,8 +976,9 @@ def cmake_build(Map conf=[:]){
             // Note: This else block is when NINJA_BUILD_TRACE=false and BUILD_INSTANCES_ONLY=false
             // So no ninja trace processing needed here
             if (!params.BUILD_INSTANCES_ONLY){
-                if (!runAllUnitTests && !setup_args.contains("gfx1250") ){
+                if (!runAllUnitTests){
                     // Smart Build: Run smart_build_and_test.sh
+                    if( !setup_args.contains("gfx1250") ){
                     sh """
                         export WORKSPACE_ROOT=${env.WORKSPACE}
                         export PARALLEL=32
@@ -987,13 +988,27 @@ def cmake_build(Map conf=[:]){
                         export NINJA_FTIME_TRACE=false
                         bash ../script/dependency-parser/smart_build_and_test.sh
                     """
+                    }
+                    else{ //add extra environment variables for gfx1250
+                    sh """
+                        export HSA_MODEL_LIB=/libhsakmtmodel.so
+                        export HSA_MODEL_TOPOLOGY=/topology/mi450
+                        export WORKSPACE_ROOT=${env.WORKSPACE}
+                        export PARALLEL=32
+                        export NINJA_JOBS=${nt}
+                        export ARCH_NAME=${arch_name}
+                        export PROCESS_NINJA_TRACE=false
+                        export NINJA_FTIME_TRACE=false
+                        bash ../script/dependency-parser/smart_build_and_smoke_test.sh
+                    """
+                    }
                 }
                 else{ //run all tests if runAllUnitTests = true
                     if(!setup_args.contains("gfx1250")){
                         echo "Full test suite requested (RUN_ALL_UNIT_TESTS=true or develop branch)"
                         sh "ninja -j${nt} install check"
                     }
-                    else{ //do not run tests on gfx1250, just build everything
+                    else{ //on gfx1250 ffm run only smoke tests because regression tests will take forever
                         echo "Building for gfx1250"
                         sh """
                             export HSA_MODEL_LIB=/libhsakmtmodel.so
@@ -1004,7 +1019,7 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES || params.BUILD_INSTANCES_ONLY){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.3.0_amd64_${arch_name}.deb"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.4.0_amd64_${arch_name}.deb"
                         stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
@@ -1339,11 +1354,11 @@ def getPytorchTestsCmds() {
         "cd pytorch && USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python3 setup.py develop"
     ]
 }
-def getAiterTestsCmds() {
-    return [
+def getAiterTestsCmds(String arch = "") {
+    def cmds = [
         // Pre-compile FlyDSL MoE AOT cache before the tests.
-        "cd /home/jenkins/workspace/aiter && AITER_AOT_IMPORT=1 HIP_VISIBLE_DEVICES=-1 python3 aiter/aot/flydsl/moe.py",
-        "cd /home/jenkins/workspace/aiter && AITER_AOT_IMPORT=1 HIP_VISIBLE_DEVICES=-1 python3 aiter/aot/flydsl/mxfp4_moe.py",
+        "cd /home/jenkins/workspace/aiter && AITER_AOT_IMPORT=1 HIP_VISIBLE_DEVICES=-1 GPU_ARCHS=${arch} python3 aiter/aot/flydsl/moe.py",
+        "cd /home/jenkins/workspace/aiter && AITER_AOT_IMPORT=1 HIP_VISIBLE_DEVICES=-1 GPU_ARCHS=${arch} python3 aiter/aot/flydsl/mxfp4_moe.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py",
@@ -1354,9 +1369,13 @@ def getAiterTestsCmds() {
         "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_ep.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting.py",
-        "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_tkw1.py"
     ]
+    // test_moe_sorting_mxfp4.py requires gfx950 and must not run on gfx942
+    if (arch != "gfx942") {
+        cmds << "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py"
+    }
+    return cmds
 }
 def getFaTestsCmds() {
     return [
@@ -1716,10 +1735,12 @@ def runDispatcherPerfTests(String compiler, String gpuTarget = "gfx942") {
     def quantDatatype  = "fp8"
     def quantLayout    = "rcr"
     // Stream-K below is tile_engine/ops/gemm_streamk/ (top level), not
-    // tile_engine/ops/gemm/gemm_streamk/. Two paths exist and only the first is
-    // real: it holds the CMakeLists, the instance builder and the benchmark. The
-    // nested one contains a lone configs/default_config.json that nothing in the
-    // tree reads. Edit the top-level tree.
+    // tile_engine/ops/gemm/gemm_streamk/. Two paths exist: the top-level tree is
+    // the native Tile Engine build this lane runs (CMakeLists, instance builder,
+    // benchmark). The nested one holds only configs/default_config.json, which is
+    // the default sweep of the Dispatcher bridge driver
+    // (tile_engine/ops/gemm/streamk_gemm_full_benchmark.py), not of this lane.
+    // Edit the top-level tree to change what this lane builds.
     def execute_cmd = _dispatcherPerfCmd(compiler, gpuTarget, samplingTier, gemmDatatype, gemmLayout, multiLayout, quantDatatype, quantLayout, problemSizes, problemConfigs, multiAbdConfigs, perOpInstances)
     try {
         buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)

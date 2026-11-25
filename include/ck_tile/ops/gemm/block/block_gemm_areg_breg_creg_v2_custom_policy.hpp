@@ -18,7 +18,8 @@ template <typename AType_,
           typename CType_,
           typename BlockWarps_,
           typename WarpGemm_,
-          GemmLoopOrder BlockGemmLoopOrder_ = GemmLoopOrder::KMN>
+          GemmLoopOrder BlockGemmLoopOrder_ = GemmLoopOrder::KMN,
+          bool NWarpMajor_                  = false>
 struct BlockGemmARegBRegCRegV2CustomPolicy
 {
     using AType = remove_cvref_t<AType_>;
@@ -29,7 +30,12 @@ struct BlockGemmARegBRegCRegV2CustomPolicy
 
     static constexpr index_t kMWarps = BlockWarps::at(number<0>{});
     static constexpr index_t kNWarps = BlockWarps::at(number<1>{});
+    // warps on K: each takes its own K range, and C holds every warp's partial sum
+    // (replicated over the warps; the caller reduces them)
     static constexpr index_t kKWarps = BlockWarps::at(number<2>{});
+    // warps on N outermost: warp w takes the contiguous columns [w, w + 1) * N / NWarp,
+    // instead of every NWarp-th warp tile
+    static constexpr bool kNWarpMajor = NWarpMajor_;
 
     using WarpGemm = remove_cvref_t<WarpGemm_>;
 

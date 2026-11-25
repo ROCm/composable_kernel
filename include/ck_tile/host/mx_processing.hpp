@@ -4,7 +4,13 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 namespace ck_tile {
 
@@ -76,6 +82,71 @@ void preShuffleScaleBuffer_gfx1250(const ScaleType* src,
                 dst[outputIndex] = src[k * MN + mn];
         }
     }
+}
+
+namespace mx_tdm_scheduled {
+
+/// K values of one K-major scale pack (a K step) and of one E8M0 scale.
+inline constexpr index_t kScaleStepK  = 128;
+inline constexpr index_t kScaleGroupK = 32;
+
+} // namespace mx_tdm_scheduled
+
+/// The K-major E8M0 scale layout of MxGemmPipelineAgBgCrCompTDMScheduled: one byte per 32 K
+/// values of each A or B row. [rows][ceil(K / 32)] (row r at natural + r * row_stride) becomes
+/// [ceil(K / 128)][rows][4]: K step s of row r is the int32 at (s * rows + r) * 4, its byte g the
+/// scale of K values s * 128 + g * 32 .. + 31, and the groups of a partial last K step are
+/// zero-padded. This is preShuffleScaleBuffer_gfx1250 with MThreadPerXdl = rows, after a copy
+/// that drops the row stride.
+CK_TILE_HOST std::vector<uint8_t>
+mx_scale_to_kmajor(const uint8_t* natural, index_t rows, long_index_t K, long_index_t row_stride)
+{
+    const long_index_t groups = integer_divide_ceil(K, mx_tdm_scheduled::kScaleGroupK);
+    const long_index_t padded = integer_divide_ceil(K, mx_tdm_scheduled::kScaleStepK) * 4;
+    if(row_stride < groups)
+        throw std::invalid_argument("mx_scale_to_kmajor: row_stride " + std::to_string(row_stride) +
+                                    " < " + std::to_string(groups) + " scale groups");
+    std::vector<uint8_t> out(static_cast<std::size_t>(padded) * rows, 0);
+    if(rows == 0)
+        return out;
+    std::vector<uint8_t> dense(out.size(), 0);
+    for(index_t r = 0; r < rows; ++r)
+        std::copy_n(natural + r * row_stride, groups, dense.begin() + r * padded);
+    preShuffleScaleBuffer_gfx1250<uint8_t, mx_tdm_scheduled::kScaleGroupK, true>(
+        dense.data(), out.data(), rows, static_cast<index_t>(padded), rows);
+    return out;
+}
+
+/// True when Kernel declares `static constexpr bool KMajorScales = true`.
+template <typename Kernel, typename = void>
+struct uses_kmajor_mx_scales : std::false_type
+{
+};
+
+template <typename Kernel>
+struct uses_kmajor_mx_scales<Kernel, std::void_t<decltype(Kernel::KMajorScales)>>
+    : std::bool_constant<Kernel::KMajorScales>
+{
+};
+
+template <typename Kernel>
+inline constexpr bool uses_kmajor_mx_scales_v = uses_kmajor_mx_scales<Kernel>::value;
+
+/// mx_scale_to_kmajor of a [rows][K / 32] host tensor of one-byte scales, as a 1-D host tensor.
+template <typename ScaleTensor>
+CK_TILE_HOST ScaleTensor mx_scale_tensor_to_kmajor(const ScaleTensor& natural,
+                                                   index_t rows,
+                                                   long_index_t K)
+{
+    static_assert(sizeof(*natural.data()) == 1, "mx_scale_tensor_to_kmajor: one-byte scales");
+    const auto bytes =
+        mx_scale_to_kmajor(reinterpret_cast<const uint8_t*>(natural.data()),
+                           rows,
+                           K,
+                           static_cast<long_index_t>(natural.mDesc.get_strides()[0]));
+    ScaleTensor out({bytes.size()});
+    std::memcpy(out.data(), bytes.data(), bytes.size());
+    return out;
 }
 
 // Pack [MN, K/32] e8m0_t scales into [MN/MNPack, K/32/KPack] int32_t

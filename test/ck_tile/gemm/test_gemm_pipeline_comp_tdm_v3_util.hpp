@@ -48,6 +48,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <random>
 #include <string>
 #include <thread>
@@ -57,6 +58,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/device_memory.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
@@ -120,7 +122,8 @@ template <ck_tile::index_t TileM_,
           typename BLayout_           = ColumnMajor,
           bool PadMN_                 = false,
           ck_tile::index_t VectorC_   = 0,
-          bool TdmEpilogue_           = false>
+          bool TdmEpilogue_           = false,
+          ck_tile::index_t Cluster_   = 1>
 struct V3Config
 {
     using ADataType                             = ADataType_;
@@ -145,6 +148,10 @@ struct V3Config
     // store, which clips to the real M x N in hardware.
     static constexpr bool TdmEpilogue = TdmEpilogue_;
     using Policy                      = Policy_;
+    // Cluster x Cluster workgroup clusters (ClusterTileGemmShape, GemmClusterTilePartitioner,
+    // cluster launch): each A and B tile is loaded once by TDM and multicast to the two
+    // workgroups that share it. 1: no cluster.
+    static constexpr ck_tile::index_t Cluster = Cluster_;
 };
 
 // bf16 instance: warp tile 16x16x32 and the given K tile and A/B layouts.
@@ -179,13 +186,23 @@ using V3Bf16Config = V3Config<TileM,
 template <typename Config>
 struct V3KernelOf
 {
-    using ADataType = typename Config::ADataType;
-    using BDataType = typename Config::BDataType;
-    using TileShape = ck_tile::TileGemmShape<
-        ck_tile::sequence<Config::TileM, Config::TileN, Config::TileK>,
-        ck_tile::sequence<Config::WarpsM, Config::WarpsN, 1>,
-        ck_tile::sequence<Config::WarpTileM, Config::WarpTileN, Config::WarpTileK>>;
-    using Partitioner = ck_tile::GemmTile1DPartitioner<TileShape>;
+    using ADataType                = typename Config::ADataType;
+    using BDataType                = typename Config::BDataType;
+    static constexpr bool kCluster = Config::Cluster > 1;
+    using TileShape                = std::conditional_t<
+                       kCluster,
+                       ck_tile::ClusterTileGemmShape<
+                           ck_tile::sequence<Config::Cluster, Config::Cluster, 1>,
+                           ck_tile::sequence<Config::TileM, Config::TileN, Config::TileK>,
+                           ck_tile::sequence<Config::WarpsM, Config::WarpsN, 1>,
+                           ck_tile::sequence<Config::WarpTileM, Config::WarpTileN, Config::WarpTileK>>,
+                       ck_tile::TileGemmShape<
+                           ck_tile::sequence<Config::TileM, Config::TileN, Config::TileK>,
+                           ck_tile::sequence<Config::WarpsM, Config::WarpsN, 1>,
+                           ck_tile::sequence<Config::WarpTileM, Config::WarpTileN, Config::WarpTileK>>>;
+    using Partitioner = std::conditional_t<kCluster,
+                                           ck_tile::GemmClusterTilePartitioner<TileShape>,
+                                           ck_tile::GemmTile1DPartitioner<TileShape>>;
     using Traits      = ck_tile::TileGemmUniversalTraits<Config::PadMN,
                                                          Config::PadMN,
                                                          false,
@@ -227,21 +244,54 @@ struct V3KernelOf
                                         ck_tile::TdmEpilogue<EpilogueProblem>,
                                         ck_tile::CShuffleEpilogue<EpilogueProblem>>;
     using type     = ck_tile::GemmKernel<Partitioner, Pipeline, Epilogue>;
+    using batched  = ck_tile::BatchedGemmKernel<Partitioner, Pipeline, Epilogue>;
 };
 template <typename Config>
 using V3Kernel = typename V3KernelOf<Config>::type;
 
-template <typename Config>
-float run_v3_gemm(const ck_tile::GemmHostArgs& args)
+// One launch of the plain GEMM kernel or, Batched, of the batched GEMM kernel over batch_count
+// GEMMs stored back to back.
+template <typename Config, bool Batched>
+float run_v3_gemm(const ck_tile::GemmHostArgs& args, ck_tile::index_t batch_count)
 {
-    using Kernel = V3Kernel<Config>;
-
-    auto kargs = Kernel::MakeKernelArgs(args);
-    EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
-    const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
-    const dim3 blocks = Kernel::BlockSize();
-    return ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false},
-                                  ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
+    const auto launch = [](auto kernel, const auto& host_args, const dim3 grids) {
+        using Kernel = decltype(kernel);
+        auto kargs   = Kernel::MakeKernelArgs(host_args);
+        EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
+        const dim3 blocks = Kernel::BlockSize();
+        if constexpr(Config::Cluster > 1)
+            return ck_tile::launch_kernel(
+                ck_tile::stream_config{nullptr, false},
+                ck_tile::make_kernel<1>(kernel, Kernel::ClusterSize(), grids, blocks, 0, kargs));
+        else
+            return ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false},
+                                          ck_tile::make_kernel<1>(kernel, grids, blocks, 0, kargs));
+    };
+    if constexpr(Batched)
+    {
+        using Kernel = typename V3KernelOf<Config>::batched;
+        const ck_tile::BatchedGemmHostArgs batched_args{args.a_ptr,
+                                                        args.b_ptr,
+                                                        args.e_ptr,
+                                                        args.k_batch,
+                                                        args.M,
+                                                        args.N,
+                                                        args.K,
+                                                        args.stride_A,
+                                                        args.stride_B,
+                                                        args.stride_E,
+                                                        args.M * args.K,
+                                                        args.K * args.N,
+                                                        args.M * args.N,
+                                                        batch_count};
+        return launch(
+            Kernel{}, batched_args, Kernel::GridSize(args.M, args.N, args.k_batch, batch_count));
+    }
+    else
+    {
+        using Kernel = V3Kernel<Config>;
+        return launch(Kernel{}, args, Kernel::GridSize(args.M, args.N, args.k_batch));
+    }
 }
 
 uint16_t bf16_rne(float f)
@@ -261,11 +311,54 @@ template <typename Config>
 class TestCkTileGemmPipelineCompTDMV3 : public ::testing::Test
 {
     protected:
+    // comp_tdm_v3 is gfx1250-only: this binary carries no other target's code object, and
+    // UniversalGemmKernel::IsSupportedArgument rejects every TDM pipeline elsewhere before any
+    // argument check, so off gfx1250 the negative checks would pass for the wrong reason. The
+    // runs and ExpectSupported's host-side checks, positive and negative, therefore all skip.
+    void SetUp() override
+    {
+        if(!ck_tile::is_gfx125_supported())
+        {
+            // CTest reports a skip as PASS. Set CK_TILE_REQUIRE_GFX125=1 on runners that are
+            // meant to be gfx1250 to make it a failure instead.
+            const char* required = std::getenv("CK_TILE_REQUIRE_GFX125");
+            if(required != nullptr && required[0] == '1')
+            {
+                FAIL() << "CK_TILE_REQUIRE_GFX125=1 but the device reports '"
+                       << ck_tile::get_device_name() << "'";
+            }
+            GTEST_SKIP() << "TDM requires gfx1250; device reports '" << ck_tile::get_device_name()
+                         << "'";
+        }
+    }
+
     void Run(ck_tile::index_t M,
              ck_tile::index_t N,
              ck_tile::index_t K,
              Init init,
              ck_tile::index_t k_batch = 1)
+    {
+        RunImpl<false>(M, N, K, init, k_batch, 1);
+    }
+
+    // batch_count GEMMs with their own A, B and C, stored back to back, in one BatchedGemmKernel
+    // launch; the checks are those of Run, per batch.
+    void RunBatched(ck_tile::index_t M,
+                    ck_tile::index_t N,
+                    ck_tile::index_t K,
+                    Init init,
+                    ck_tile::index_t batch_count)
+    {
+        RunImpl<true>(M, N, K, init, 1, batch_count);
+    }
+
+    template <bool Batched>
+    void RunImpl(ck_tile::index_t M,
+                 ck_tile::index_t N,
+                 ck_tile::index_t K,
+                 Init init,
+                 ck_tile::index_t k_batch,
+                 ck_tile::index_t batch_count)
     {
         using ADataType            = typename Config::ADataType;
         using BDataType            = typename Config::BDataType;
@@ -275,8 +368,11 @@ class TestCkTileGemmPipelineCompTDMV3 : public ::testing::Test
         // values are drawn in that order, then packed into a and b in A's and B's layouts.
         std::mt19937 gen(0xC0FFEE + M + N + K + static_cast<int>(init) + 7 * k_batch);
         const double density = std::min(1.0, std::sqrt(64.0 / static_cast<double>(K)));
-        std::vector<ADataType> a(static_cast<size_t>(M) * K);
-        std::vector<BDataType> b(static_cast<size_t>(N) * K);
+        // Batches are stored back to back; rows counts the M (N) rows of A (B) over all batches.
+        const ck_tile::index_t rows_A = batch_count * M;
+        const ck_tile::index_t rows_B = batch_count * N;
+        std::vector<ADataType> a(static_cast<size_t>(rows_A) * K);
+        std::vector<BDataType> b(static_cast<size_t>(rows_B) * K);
         std::vector<float> af(a.size()), bf(b.size()); // the A/B values, decoded
         auto fill = [&](auto& v, std::vector<float>& vf, ck_tile::index_t rows, bool packed_rows) {
             std::uniform_int_distribution<int> di(-5, 5);
@@ -293,9 +389,12 @@ class TestCkTileGemmPipelineCompTDMV3 : public ::testing::Test
                                     : dr(gen);
                 const T e     = ck_tile::type_convert<T>(x);
                 vf[i]         = ck_tile::type_convert<float>(e);
-                // row r = i / K, k = i % K; the transposed layout stores it at k * rows + r
-                const size_t r = i / static_cast<size_t>(K), k = i % static_cast<size_t>(K);
-                v[packed_rows ? i : k * static_cast<size_t>(rows) + r] = e;
+                // batch s, row r and k of element i; the transposed layout stores a batch's
+                // (r, k) at k * rows + r
+                const size_t slab = static_cast<size_t>(rows) * K;
+                const size_t s = i / slab, j = i % slab;
+                const size_t r = j / static_cast<size_t>(K), k = j % static_cast<size_t>(K);
+                v[s * slab + (packed_rows ? j : k * static_cast<size_t>(rows) + r)] = e;
             }
         };
         fill(a, af, M, a_row_major);
@@ -303,7 +402,7 @@ class TestCkTileGemmPipelineCompTDMV3 : public ::testing::Test
 
         ck_tile::DeviceMem a_dev(a.size() * sizeof(ADataType));
         ck_tile::DeviceMem b_dev(b.size() * sizeof(BDataType));
-        ck_tile::DeviceMem c_dev(static_cast<size_t>(M) * N * sizeof(CDataType));
+        ck_tile::DeviceMem c_dev(static_cast<size_t>(rows_A) * N * sizeof(CDataType));
         a_dev.ToDevice(a.data());
         b_dev.ToDevice(b.data());
         c_dev.SetZero();
@@ -318,21 +417,21 @@ class TestCkTileGemmPipelineCompTDMV3 : public ::testing::Test
                                    a_row_major ? K : M, // stride A
                                    b_col_major ? K : N, // stride B
                                    N);                  // stride C
-        run_v3_gemm<Config>(args);
+        run_v3_gemm<Config, Batched>(args, batch_count);
 
-        std::vector<CDataType> c(static_cast<size_t>(M) * N);
+        std::vector<CDataType> c(static_cast<size_t>(rows_A) * N);
         c_dev.FromDevice(c.data());
 
         // The reference splits rows across threads, so a 4096^3 check takes seconds.
-        std::vector<size_t> bad_rows(static_cast<size_t>(M), 0);
-        std::vector<std::string> first_bad(static_cast<size_t>(M));
+        std::vector<size_t> bad_rows(static_cast<size_t>(rows_A), 0);
+        std::vector<std::string> first_bad(static_cast<size_t>(rows_A));
         auto check_rows = [&](ck_tile::index_t m0, ck_tile::index_t m1) {
             for(ck_tile::index_t m = m0; m < m1; ++m)
             {
                 for(ck_tile::index_t n = 0; n < N; ++n)
                 {
                     const float* pa = &af[static_cast<size_t>(m) * K];
-                    const float* pb = &bf[static_cast<size_t>(n) * K];
+                    const float* pb = &bf[static_cast<size_t>(m / M * N + n) * K];
                     double sum = 0, sum_abs = 0;
                     for(ck_tile::index_t k = 0; k < K; ++k)
                     {
@@ -375,15 +474,15 @@ class TestCkTileGemmPipelineCompTDMV3 : public ::testing::Test
         };
         const ck_tile::index_t workers = static_cast<ck_tile::index_t>(
             std::max(1u, std::min(std::thread::hardware_concurrency(), 64u)));
-        const ck_tile::index_t rows_per = (M + workers - 1) / workers;
+        const ck_tile::index_t rows_per = (rows_A + workers - 1) / workers;
         std::vector<std::thread> pool;
-        for(ck_tile::index_t m0 = 0; m0 < M; m0 += rows_per)
-            pool.emplace_back(check_rows, m0, std::min(M, m0 + rows_per));
+        for(ck_tile::index_t m0 = 0; m0 < rows_A; m0 += rows_per)
+            pool.emplace_back(check_rows, m0, std::min(rows_A, m0 + rows_per));
         for(auto& t : pool)
             t.join();
 
         size_t bad = 0, shown = 0;
-        for(ck_tile::index_t m = 0; m < M; ++m)
+        for(ck_tile::index_t m = 0; m < rows_A; ++m)
         {
             bad += bad_rows[static_cast<size_t>(m)];
             if(bad_rows[static_cast<size_t>(m)] != 0 && shown++ < 5)
@@ -393,7 +492,7 @@ class TestCkTileGemmPipelineCompTDMV3 : public ::testing::Test
             }
         }
         EXPECT_EQ(bad, 0u) << "mismatches at M=" << M << " N=" << N << " K=" << K
-                           << " k_batch=" << k_batch;
+                           << " batches=" << batch_count << " k_batch=" << k_batch;
     }
 
     // Host check only, no launch: whether the kernel accepts M x N x K, which must match the C
@@ -469,7 +568,26 @@ using V3Configs =
                      V3Config<256, 256, 4, 4, DefaultPolicy, ck_tile::bf8_t, ck_tile::bf8_t>,
                      V3Config<128, 128, 2, 2, DefaultPolicy, ck_tile::bf8_t, ck_tile::bf8_t>,
                      V3Config<256, 256, 4, 4, DefaultPolicy, ck_tile::fp8_t, ck_tile::bf8_t>,
-                     V3Config<256, 256, 4, 4, DefaultPolicy, ck_tile::bf8_t, ck_tile::fp8_t>>;
+                     V3Config<256, 256, 4, 4, DefaultPolicy, ck_tile::bf8_t, ck_tile::fp8_t>,
+                     // 2x2 cluster launch (TDM multicast); 256x256 is a cluster with one
+                     // workgroup in range, 512x512 a full one.
+                     V3Config<256,
+                              256,
+                              4,
+                              4,
+                              DefaultPolicy,
+                              ck_tile::fp8_t,
+                              ck_tile::fp8_t,
+                              256,
+                              32,
+                              32,
+                              128,
+                              RowMajor,
+                              ColumnMajor,
+                              false,
+                              0,
+                              false,
+                              2>>;
 
 // The long-K set: the fp8 instances and 16-wave bf8 x bf8.
 using V3LongKConfigs =
@@ -561,6 +679,15 @@ using V3Fp8UnalignedConfigs = ::testing::Types<V3Config<256, 256, 4, 4, DefaultP
                                                         false,
                                                         0,
                                                         true>>;
+
+// Batched GEMM (BatchedGemmKernel): bf16 in every A/B layout at 128x128x64, RCR at 256x256x64 on
+// 16 waves, and fp8 RCR at 128x128x256.
+using V3BatchedConfigs = ::testing::Types<V3Bf16Config<128, 128, 64, 2, 2, RM, CM>,
+                                          V3Bf16Config<256, 256, 64, 4, 4, RM, CM>,
+                                          V3Bf16Config<128, 128, 64, 2, 2, RM, RM>,
+                                          V3Bf16Config<128, 128, 64, 2, 2, CM, RM>,
+                                          V3Bf16Config<128, 128, 64, 2, 2, CM, CM>,
+                                          V3Config<128, 128, 2, 2, DefaultPolicy>>;
 
 // The 4096^3 set: the three RCR tiles that matter for large shapes, and 256x256x64 in each other
 // layout.

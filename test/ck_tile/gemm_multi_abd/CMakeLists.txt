@@ -13,3 +13,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx11|gfx12")
     target_compile_definitions(test_ck_tile_gemm_multi_abd_cshuffle PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
     target_compile_definitions(test_ck_tile_gemm_multi_abd_default2d PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 endif()
+
+# The producer/consumer TDM pipeline (named barriers) is gfx1250-only; it takes one A and one B.
+if(GPU_TARGETS MATCHES "gfx125")
+    add_gtest_executable(test_ck_tile_gemm_multi_abd_pc_wmma test_gemm_multi_abd_pc_gfx1250_wmma.cpp)
+    if(TARGET test_ck_tile_gemm_multi_abd_pc_wmma)
+        ck_tile_restrict_archs(test_ck_tile_gemm_multi_abd_pc_wmma "^gfx125")
+    endif()
+endif()

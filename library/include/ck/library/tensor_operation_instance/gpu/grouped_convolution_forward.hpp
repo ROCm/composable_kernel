@@ -258,6 +258,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_wavelet_xdl_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_wavelet_direct_load_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
                     op_ptrs);
+                add_device_grouped_conv2d_fwd_wavelet_xdl_nhwgc_gkyxc_nhwgk_f16_instances_part1(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_nongroup_ported_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
@@ -289,6 +291,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             {
                 add_device_grouped_conv2d_fwd_wavelet_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_wavelet_direct_load_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wavelet_xdl_nhwgc_gkyxc_nhwgk_bf16_instances_part1(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_nongroup_ported_instances(
                     op_ptrs);
@@ -835,6 +839,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_wave_transfer_nhwgc_gkyxc_nhwgk_f16_instances(
                     op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances_part5(
+                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_BF16
@@ -857,6 +863,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_cshufflev3_wave_transfer_nhwgc_gkyxc_nhwgk_bf16_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances_part5(
                     op_ptrs);
             }
 #endif

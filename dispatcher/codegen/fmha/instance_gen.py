@@ -49,8 +49,8 @@ from validation import (  # noqa: E402
     DT_FP16_BF16,
     DT_FP32,
     DT_FP8,
-    DT_FP8FP32,
     ELEMENT_SIZES,
+    GFX11_BATCH_PREFILL_M0,
     K0_MAX_SUBMAX_MAP,
     LDS_LIMITS,
     MASKS,
@@ -719,7 +719,7 @@ def _fwd_specs_gfx950_extra(hdim: int, hdim_v: int) -> List[PipelineSpec]:
 
 
 def _fwd_specs_fp8(hdim: int, hdim_v: int) -> List[PipelineSpec]:
-    """Pipeline specs for fp8bf16/fp8fp32.
+    """Pipeline specs for fp8/fp8bf16.
 
     Source: fmha_fwd.py KernelComponentFactoryGfx9._DT_FP8 pipelines —
     hdim=64 uses 'qr' (non-async), others use 'qr_async'.
@@ -858,7 +858,7 @@ def get_pipelines_for_config(
         specs = _fwd_specs_fp16bf16(hdim, hdim_v, receipt)
         if arch == "gfx950":
             specs.extend(_fwd_specs_gfx950_extra(hdim, hdim_v))
-    elif dtype in DT_FP8 or dtype in DT_FP8FP32:
+    elif dtype in DT_FP8:
         specs = _fwd_specs_fp8(hdim, hdim_v)
     else:
         return []
@@ -942,7 +942,7 @@ def get_splitkv_pipelines(
                     dvpad="t",
                 )
             )
-    elif dtype in ("fp8", "bf8"):
+    elif dtype == "bf8":
         for logits, mask, bias in itertools.product(BOOLS, SPLITKV_MASKS, BIASES):
             if not check_logits_bias(logits, bias):
                 continue
@@ -1013,12 +1013,12 @@ def get_splitkv_combine_pipelines(
 ) -> List[SplitKVCombineSpec]:
     """Split-KV combine kernel pipelines."""
     specs: List[SplitKVCombineSpec] = []
-    squant = "t" if dtype in ("fp8", "bf8") else "f"
+    squant = "t" if dtype == "bf8" else "f"
 
     if dtype in DT_FP16_BF16:
         for spad, dvpad, lse in itertools.product(BOOLS, BOOLS, BOOLS):
             specs.append(SplitKVCombineSpec(spad, dvpad, lse, squant))
-    elif dtype in ("fp8", "bf8"):
+    elif dtype == "bf8":
         for spad, dvpad in itertools.product(BOOLS, BOOLS):
             specs.append(SplitKVCombineSpec(spad, dvpad, "f", squant))
     return specs
@@ -1069,7 +1069,7 @@ def get_pagedkv_pipelines(
                     dvpad="f",
                 )
             )
-    elif dtype in ("fp8", "bf8"):
+    elif dtype == "bf8":
         for logits, mask, bias in itertools.product(BOOLS, MASKS, BIASES):
             if not check_logits_bias(logits, bias):
                 continue
@@ -2236,7 +2236,7 @@ def _expand_splitkv(
             SPLITKV_COMBINE_HDIMS_FP16
             if dtype in ("fp16", "bf16")
             else SPLITKV_COMBINE_HDIMS_FP8
-            if dtype in ("fp8", "bf8")
+            if dtype == "bf8"
             else []
         )
         for hv in hdims:
@@ -2391,21 +2391,23 @@ def _expand_batch_prefill(
 
     for dtype in dtypes:
         hdims = SUPPORTED_HDIMS.get(dtype, [])
+        if arch == "gfx1100":
+            # (96, 96) is not a global supported_hdims pair; it is emitted only
+            # here, for this arch and family. Gfx11Policy is verified only for
+            # fp16/bf16, so other dtypes get no gfx1100 batch_prefill instances.
+            hdims = list(GFX11_BATCH_PREFILL_M0) if dtype in DT_FP16_BF16 else []
         if restrict_hdims is not None:
             hdims = [hv for hv in hdims if hv in restrict_hdims]
         for hq, hv in hdims:
-            # gfx1100 must stay inside Gfx11Policy::UseIndependentVBuffer; the
-            # fallback gemm1 does not compile against gfx11 WMMA.
-            if arch == "gfx1100" and (hq, hv) != (128, 128):
-                continue
             tiles = generate_splitkv_tiles(arch, dtype, hq, hv)
             bp_specs = get_batch_prefill_pipelines(dtype, hq, receipt)
             for tc in tiles:
                 bk1 = _bp_bk1(tc.bm0, tc.bn0, tc.bk0, hq)
                 if arch == "gfx1100" and (
-                    tc.rm0 * GFX11_WARP_SIZE != 256
+                    tc.bm0 != GFX11_BATCH_PREFILL_M0[(hq, hv)]
+                    or tc.rm0 * GFX11_WARP_SIZE != tc.bm0 * 2
                     or tc.bn0 != 32
-                    or tc.bn1 != 128
+                    or tc.bn1 != hv
                     or bk1 != 32
                 ):
                     continue
@@ -2416,8 +2418,13 @@ def _expand_batch_prefill(
                     continue
 
                 for spec in bp_specs:
+                    # gfx1100 compiles with CK_TILE_FMHA_FWD_FAST_EXP2=0
+                    # (fmha_utils.fmha_compile_flags), and the pipeline asserts
+                    # soft cap requires fast-exp2, so these cannot be built.
                     if arch == "gfx1100" and (
-                        spec.kv_memory_layout != "linear" or spec.dropout == "t"
+                        spec.kv_memory_layout != "linear"
+                        or spec.dropout == "t"
+                        or spec.logits == "t"
                     ):
                         continue
                     mm = _MASK_MAP.get(spec.mask, spec.mask)
@@ -2446,7 +2453,10 @@ def _expand_batch_prefill(
                                 tile_k0=tc.bk0,
                                 tile_n1=tc.bn1,
                                 tile_k1=bk1,
-                                tile_k0max=tc.bk0max,
+                                # gemm0 loops over the head dim itself rather than
+                                # ceil_to_qualified_tile_length (4 -> 3 K0 steps for
+                                # hdim 96); Q is still loaded padded to kSubQKHeaddim.
+                                tile_k0max=hq if arch == "gfx1100" else tc.bk0max,
                                 wave_m0=tc.rm0,
                                 wave_n0=1,
                                 wave_k0=1,

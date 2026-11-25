@@ -34,6 +34,12 @@ When no config is given the driver uses the chosen variant's
 needs its own warp tiles);
 ``configs/default_config.json`` is the full sweep, and the JSON used by nightly
 tests is intended to drop into the same ``configs/`` directory.
+
+``--variant gemm_streamk`` runs the Stream-K kernels of a ``gemm_streamk/
+configs`` sweep (default: ``default_config_<arch>.json``, else
+``default_config.json``) through the common GEMM worker, once per workgroup
+budget of ``--budget-pct`` (a launch setting: the budgets of a kernel share
+its build, see ``gemm_utils.StreamKBudgetConfig``).
 """
 
 import argparse
@@ -62,9 +68,11 @@ sys.path.insert(0, str(_THIS_DIR))
 from gemm_utils import (  # noqa: E402
     _resolve_arch,
     expand_sweep,
+    parse_streamk_budgets,
     setup_multiple_gemm_dispatchers,
+    with_streamk_budgets,
 )
-from ctypes_utils import listed_warp_tiles  # noqa: E402
+from ctypes_utils import get_build_dir, listed_warp_tiles  # noqa: E402
 from gemm_vector_fallback import VectorFallback, add_vector_fallback_arg  # noqa: E402
 from smi_utils import detect_gpu_ids  # noqa: E402
 
@@ -80,6 +88,7 @@ VARIANT_CONFIGS = {
     "gemm_multi_abd": "gemm_multi_abd/configs",
     "gemm_preshuffle": "gemm_preshuffle/configs",
     "grouped_gemm": "grouped_gemm/configs",
+    "gemm_streamk": "gemm_streamk/configs",
 }
 DEFAULT_VARIANT = "gemm_universal"
 
@@ -98,7 +107,10 @@ CI_CONFIG_NAMES = (
 CI_CONFIG_DTYPE_ALIAS = {"bf8": "fp8"}
 # Variant-specific sweep files, tried before the CI names above (the gfx1250
 # preshuffle sweep covers all five preshuffle pipelines).
-VARIANT_CI_CONFIG_NAMES = {"gemm_preshuffle": ("default_config_{arch}.json",)}
+VARIANT_CI_CONFIG_NAMES = {
+    "gemm_preshuffle": ("default_config_{arch}.json",),
+    "gemm_streamk": ("default_config_{arch}.json", "default_config.json"),
+}
 EXAMPLE_PROBLEMS_NAME = "example_problems.json"
 
 # Map the driver's --variant (a configs-dir selector) onto the single codegen/
@@ -110,6 +122,7 @@ CODEGEN_VARIANT = {
     "gemm_multi_abd": "multi_abd",
     "gemm_preshuffle": "preshuffle",
     "grouped_gemm": "grouped",
+    "gemm_streamk": "stream_k",
 }
 
 # Some variants only support a subset of dtypes/layouts. The preshuffle op
@@ -119,11 +132,12 @@ VARIANT_SUPPORTED_DTYPES = {
     "gemm_preshuffle": ("fp16", "bf16", "fp8", "bf8"),
     "gemm_multi_d": ("fp16",),
     "gemm_multi_abd": ("fp16",),
+    "gemm_streamk": ("fp16", "bf16", "fp8", "bf8"),
 }
 VARIANT_SUPPORTED_LAYOUTS = {
     "gemm_preshuffle": ("rcr",),
+    "gemm_streamk": ("rcr", "rrr", "crr", "ccr"),
 }
-
 # Fallback problem set if a variant ships no example_problems.json.
 DEFAULT_PROBLEMS = [
     {"M": 1024, "N": 1024, "K": 1024},
@@ -200,6 +214,25 @@ def resolve_configs(args, arch):
                      cfg_dir / names[-1]))]
 
 
+def parse_pipelines(value):
+    """Parse a restriction to bridged pipeline names, not a config override."""
+    from codegen_common import CommonTypeMappings
+
+    names = tuple(part.strip() for part in value.split(","))
+    if not all(names):
+        raise argparse.ArgumentTypeError(
+            "expected non-empty comma-separated pipeline names"
+        )
+    if len(set(names)) != len(names):
+        raise argparse.ArgumentTypeError("duplicate pipeline names")
+    unknown = sorted(set(names) - CommonTypeMappings.PIPELINE_TO_CK.keys())
+    if unknown:
+        raise argparse.ArgumentTypeError(
+            f"unknown pipeline name(s): {', '.join(unknown)}"
+        )
+    return names
+
+
 def load_problems(path, variant):
     if path:
         with open(path) as f:
@@ -213,8 +246,74 @@ def load_problems(path, variant):
     return DEFAULT_PROBLEMS
 
 
+class _Workers:
+    """The measurement subprocesses of one call of ``benchmark_on_devices`` or
+    ``run_repeats``. An interrupt of the main thread (Ctrl-C, or SIGTERM that
+    the adaptive search raises as KeyboardInterrupt) stops the whole
+    measurement before it propagates: no further batch starts, running workers
+    are killed and reaped, the device threads are joined, and a batch cut
+    short is not reported."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.idle = threading.Condition(self.lock)  # no device thread active
+        self.procs = set()
+        self.active = 0  # device threads running device_thread
+        self.cancelled = False
+
+    def start(self, *args, **kwargs):
+        """``subprocess.Popen(*args, **kwargs)``, or None once cancelled."""
+        with self.lock:
+            if self.cancelled:
+                return None
+            proc = subprocess.Popen(*args, **kwargs)
+            self.procs.add(proc)
+            return proc
+
+    def done(self, proc):
+        with self.lock:
+            self.procs.discard(proc)
+
+    def run(self, devices, device_thread):
+        """Run ``device_thread(device_id)`` per device and wait for them. On
+        an interrupt, also one while the threads start, every device thread
+        that got going has returned before it propagates; one whose start the
+        interrupt cut short, or that never started, runs nothing."""
+
+        def guarded(device_id):
+            with self.lock:
+                if self.cancelled:
+                    return
+                self.active += 1
+            try:
+                device_thread(device_id)
+            finally:
+                with self.lock:
+                    self.active -= 1
+                    self.idle.notify_all()
+
+        threads = []
+        try:
+            for d in devices:
+                threads.append(threading.Thread(target=guarded, args=(d,), daemon=True))
+                threads[-1].start()
+            for t in threads:
+                t.join()
+        except BaseException:
+            with self.lock:
+                self.cancelled = True
+                for proc in self.procs:
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                self.idle.wait_for(lambda: self.active == 0)
+            raise
+
+
 def _run_batch_on_device(
-    device_id, unit, args, worker_path, base_env, extra=None, failures=None
+    device_id, unit, args, worker_path, base_env, extra=None, failures=None,
+    workers=None,
 ):
     """Run one (problem, kernel-batch) unit in a device-pinned subprocess.
 
@@ -224,6 +323,8 @@ def _run_batch_on_device(
     counts kernels the worker reported as unsupported for the problem. When
     ``failures`` is a list, one FAILURE_FIELDS dict is appended to it per failed
     kernel, and per kernel reported as unsupported (kind ``unsupported``).
+    ``workers``, if given, is the ``_Workers`` that starts the subprocess; once
+    it is cancelled the unit is not run and the result is empty.
     """
     prob_idx, prob_dict, batch = unit
     M, N, K = prob_dict["M"], prob_dict["N"], prob_dict["K"]
@@ -244,7 +345,13 @@ def _run_batch_on_device(
             )
 
     def _item(cfg, lib):
-        it = {"so_path": str(lib), "problem": prob_dict, "kernel_name": cfg.name}
+        # A launch variant (a Stream-K budget) runs its kernel's library: the
+        # worker gets the kernel's name (its identity check) and the variant's
+        # launch settings; rows keep the variant's name.
+        kernel = getattr(cfg, "kernel_config", cfg)
+        it = {"so_path": str(lib), "problem": prob_dict, "kernel_name": kernel.name}
+        if getattr(cfg, "launch_env", None):
+            it["env"] = cfg.launch_env
         # N2: carry the multi_abd layout + per-group element-wise ops from the
         # config object so the worker's numpy reference uses the real ops/layout
         # instead of parsing (and defaulting) the kernel name.
@@ -271,13 +378,15 @@ def _run_batch_on_device(
     rows, lines, n_fail, n_skip = [], [], 0, 0
     proc = None
     try:
-        proc = subprocess.Popen(
+        proc = (subprocess.Popen if workers is None else workers.start)(
             [sys.executable, str(worker_path)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             env=env,
         )
+        if proc is None:
+            return rows, lines, n_fail, n_skip
         stdout_bytes, _ = proc.communicate(
             input=payload.encode("utf-8"),
             timeout=args.kernel_timeout * len(batch),
@@ -381,6 +490,9 @@ def _run_batch_on_device(
         n_fail += len(batch)
         for _, cfg, _ in batch:
             _fail(cfg.name, "batch-error", e)
+    finally:
+        if workers is not None and proc is not None:
+            workers.done(proc)
 
     return rows, lines, n_fail, n_skip
 
@@ -450,8 +562,13 @@ def problem_key(prob):
     return f"{int(prob['M'])}x{int(prob['N'])}x{int(prob['K'])}"
 
 
+# Fields a variant's kernels add to KERNEL_RECORD_FIELDS (GemmKernelConfig.variant).
+VARIANT_RECORD_FIELDS = {"stream_k": ("reduction_strategy", "budget_pct")}
+
+
 def _kernel_record(cfg):
-    return {f: getattr(cfg, f) for f in KERNEL_RECORD_FIELDS if hasattr(cfg, f)}
+    names = KERNEL_RECORD_FIELDS + VARIANT_RECORD_FIELDS.get(getattr(cfg, "variant", ""), ())
+    return {f: getattr(cfg, f) for f in names if hasattr(cfg, f)}
 
 
 def load_pair_list(path):
@@ -535,7 +652,7 @@ def repeat_plan(measured, top_k):
     return plan
 
 
-def run_repeats(plan, count, problems, built_kernels, devices, run_args):
+def run_repeats(plan, count, problems, built_kernels, devices, run_args, extra=None):
     """Re-time each planned (problem, kernel) ``count`` times, one subprocess per
     launch, rep-major so repeats of one kernel are spread over the run.
 
@@ -556,17 +673,27 @@ def run_repeats(plan, count, problems, built_kernels, devices, run_args):
             i = index[name]
             work.put((rep, (p, prob_dict, [(i, *built_kernels[i])])))
     stats = {"ok": 0, "failed": 0}
+    workers = _Workers()
 
     def device_thread(device_id):
-        while True:
+        while not workers.cancelled:
             try:
                 rep, unit = work.get_nowait()
             except queue.Empty:
                 return
             fails = []
             rows, _, n_fail, n_skip = _run_batch_on_device(
-                device_id, unit, rargs, worker_path, base_env, failures=fails
+                device_id,
+                unit,
+                rargs,
+                worker_path,
+                base_env,
+                extra,
+                failures=fails,
+                workers=workers,
             )
+            if workers.cancelled:
+                return
             with io_lock:
                 for r in rows:
                     writer.writerow(
@@ -594,32 +721,52 @@ def run_repeats(plan, count, problems, built_kernels, devices, run_args):
                 stats["ok"] += len(rows)
                 stats["failed"] += n_fail + n_skip
 
-    threads = [
-        threading.Thread(target=device_thread, args=(d,), daemon=True) for d in devices
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    workers.run(devices, device_thread)
     return stats["ok"], stats["failed"]
+
+
+def build_kernels(configs, **kwargs):
+    """``setup_multiple_gemm_dispatchers`` on the kernels of ``configs``, each
+    built once: the launch variants of a kernel (its Stream-K budgets, see
+    ``GemmKernelConfig.kernel_config``) share its build. One library path (or
+    None) per config; a build's ``errors`` are keyed by kernel name."""
+    kernels = {}
+    for c in configs:
+        kernels.setdefault(c.kernel_config.name, c.kernel_config)
+    built = setup_multiple_gemm_dispatchers(list(kernels.values()), **kwargs)
+    if len(built) != len(kernels):
+        return []  # the callers' length checks report it
+    libs = dict(zip(kernels, built))
+    return [libs[c.kernel_config.name] for c in configs]
 
 
 def unique_built_kernels(configs, lib_paths):
     """Pair configs with their built .so, dropping failed builds and configs
-    that map to an already-seen .so. Returns (kernels, n_duplicates)."""
+    that map to an already-seen .so with the same launch settings. Returns
+    (kernels, n_duplicates)."""
     built = [(cfg, lib) for cfg, lib in zip(configs, lib_paths) if lib is not None]
     seen, kernels = set(), []
     for cfg, lib in built:
-        key = str(lib.resolve())
+        key = (str(lib.resolve()), tuple(sorted(getattr(cfg, "launch_env", {}).items())))
         if key not in seen:
             seen.add(key)
             kernels.append((cfg, lib))
     return kernels, len(built) - len(kernels)
 
 
+def worker_setup():
+    """The common GEMM worker script and its environment: the driver's,
+    plus GEMM_PYPATH so the worker finds the dispatcher's python modules."""
+    base_env = os.environ.copy()
+    base_env["GEMM_PYPATH"] = os.pathsep.join(
+        [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
+    )
+    return _THIS_DIR / "run_one_gemm_kernel.py", base_env
+
+
 def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_path,
                          base_env, csv_path, extra=None, *, record_failures=None,
-                         measured=None):
+                         measured=None, device_of=None, title=None):
     """Phase 3: fan (problem, kernel-batch) units out over device-pinned workers.
 
     ``pairs[i]`` lists the indices into ``built_kernels`` to run on
@@ -628,34 +775,43 @@ def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_p
 
     ``record_failures``, if given, is called with each batch's FAILURE_FIELDS
     dicts (under the output lock); ``measured``, if given, is a list every CSV
-    row is also appended to.
+    row is also appended to. ``device_of``, if given, names the device that
+    runs every unit of ``problems[i]`` (the devices still run in parallel).
+    ``title``, if given, is printed as one line instead of the Phase 3 banner.
     """
-    print(f"\n{'=' * 80}")
-    print("Phase 3: Benchmark (multi-GPU, subprocess isolation, batched)")
-    print(f"{'=' * 80}")
-    print(f"  Devices: {len(devices)} -> {', '.join(devices)}")
-    print(f"  Batch size: {args.batch_size} kernels per subprocess")
-    print(f"  Timeout: {args.kernel_timeout}s per kernel\n")
+    if title is None:
+        print(f"\n{'=' * 80}")
+        print("Phase 3: Benchmark (multi-GPU, subprocess isolation, batched)")
+        print(f"{'=' * 80}")
+        print(f"  Devices: {len(devices)} -> {', '.join(devices)}")
+        print(f"  Batch size: {args.batch_size} kernels per subprocess")
+        print(f"  Timeout: {args.kernel_timeout}s per kernel\n")
+    else:
+        print(f"  {title} (timeout {args.kernel_timeout}s per kernel)", flush=True)
 
     csv_file = open(csv_path, "w", newline="")
     writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
     writer.writeheader()
 
     work_q = queue.Queue()
+    pinned = None if device_of is None else {d: queue.Queue() for d in devices}
     for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
         prob_dict = {"M": int(prob["M"]), "N": int(prob["N"]), "K": int(prob["K"])}
+        q = work_q if pinned is None else pinned[device_of[prob_idx]]
         for start in range(0, len(idx), args.batch_size):
             batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
-            work_q.put((prob_idx, prob_dict, batch))
+            q.put((prob_idx, prob_dict, batch))
 
     io_lock = threading.Lock()
     stats = {"measurements": 0, "failures": 0, "skipped": 0}
     t0 = time.perf_counter()
+    workers = _Workers()
 
     def device_thread(device_id):
-        while True:
+        q = work_q if pinned is None else pinned[device_id]
+        while not workers.cancelled:
             try:
-                unit = work_q.get_nowait()
+                unit = q.get_nowait()
             except queue.Empty:
                 return
             # The failure list is passed only when recording, so the call is
@@ -663,8 +819,11 @@ def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_p
             fails = [] if record_failures else None
             kw = {} if fails is None else {"failures": fails}
             rows, lines, n_fail, n_skip = _run_batch_on_device(
-                device_id, unit, args, worker_path, base_env, extra, **kw
+                device_id, unit, args, worker_path, base_env, extra, **kw,
+                workers=workers,
             )
+            if workers.cancelled:
+                return
             with io_lock:
                 for ln in lines:
                     print(ln)
@@ -678,17 +837,12 @@ def benchmark_on_devices(problems, pairs, built_kernels, devices, args, worker_p
                 stats["measurements"] += len(rows)
                 stats["failures"] += n_fail
                 stats["skipped"] += n_skip
-            work_q.task_done()
+            q.task_done()
 
-    threads = [
-        threading.Thread(target=device_thread, args=(d,), daemon=True) for d in devices
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    csv_file.close()
+    try:
+        workers.run(devices, device_thread)
+    finally:
+        csv_file.close()
     stats["seconds"] = time.perf_counter() - t0
     return stats
 
@@ -784,6 +938,15 @@ def main():
         help="Limit to first N kernels plus their vector-width variants (0=all)",
     )
     parser.add_argument(
+        "--pipelines",
+        type=parse_pipelines,
+        default=None,
+        metavar="NAME[,NAME...]",
+        help="Keep only these bridged pipelines from the selected configs, before "
+        "--max-kernels and --pairs; applies to plain runs, --list-pairs and search. "
+        "Does not change which config files are selected",
+    )
+    parser.add_argument(
         "--verify",
         action="store_true",
         help="Check each kernel's output against an fp32 numpy reference "
@@ -798,6 +961,17 @@ def main():
         "256k, raise it for larger K",
     )
     add_vector_fallback_arg(parser)
+    parser.add_argument(
+        "--budget-pct",
+        default=None,
+        metavar="PCTS",
+        help="gemm_streamk only: comma-list of Stream-K workgroup budgets, in "
+        "percent of the kernel's default (CUs x occupancy); every kernel runs once "
+        "per budget, all budgets of a kernel share its build, and a budget other "
+        "than 100 names its run <kernel>@budget<pct> (default: 100). Persistent "
+        "kernels run at 100 only. A search takes the budget as one more candidate "
+        "field (budget_pct)",
+    )
     parser.add_argument(
         "--build-timeout",
         type=int,
@@ -852,7 +1026,26 @@ def main():
         'names, or "*" for every kernel paired with that problem (a --list-pairs '
         "file is accepted). Only the listed kernels are built",
     )
+    parser.add_argument(
+        "--search-config",
+        default=None,
+        metavar="PATH",
+        help="Adaptive search instead of measuring every pair: a search settings "
+        "JSON (see README). Builds and measures only the kernels the search "
+        "proposes, re-verifies the best and writes the confirmed winners as a "
+        "--pairs file. Needs --search-output-dir; gemm_universal and gemm_streamk",
+    )
+    parser.add_argument(
+        "--search-output-dir",
+        default=None,
+        metavar="DIR",
+        help="Output of --search-config (winners.json, run.json, trials.jsonl, "
+        "summary.json, rounds/, artifacts/); must not hold an earlier run",
+    )
     args = parser.parse_args()
+    pipeline_metadata = (
+        {"pipelines": list(args.pipelines)} if args.pipelines is not None else {}
+    )
     if args.verify_tol is None:
         args.verify_tol = VERIFY_TOL.get(args.dtype, DEFAULT_VERIFY_TOL)
     if args.build_timeout is not None and args.build_timeout <= 0:
@@ -861,6 +1054,16 @@ def main():
         parser.error("--repeat-top must be >= 0 and --repeat-count >= 1")
     if args.pairs and args.list_pairs:
         parser.error("--pairs and --list-pairs are mutually exclusive")
+    budgets = None
+    if args.budget_pct is not None and CODEGEN_VARIANT[args.variant] != "stream_k":
+        parser.error("--budget-pct is for --variant gemm_streamk only")
+    if CODEGEN_VARIANT[args.variant] == "stream_k":
+        try:
+            budgets = parse_streamk_budgets(
+                "100" if args.budget_pct is None else args.budget_pct
+            )
+        except ValueError as e:
+            parser.error(str(e))
     # Every file the run writes, and the pair list it reads, must be distinct:
     # opening one twice corrupts it, and a later one replaces an earlier one.
     files = [
@@ -883,6 +1086,15 @@ def main():
                 parser.error(f"{seen[key]} and {opt} name the same file: {path}")
             seen[key] = opt
 
+    search_settings = None
+    if args.search_config is not None or args.search_output_dir is not None:
+        # Imported only in search mode, so a run without it loads nothing new.
+        from gemm_search import SettingsError, check_search_options
+
+        try:
+            search_settings = check_search_options(args)
+        except SettingsError as e:
+            parser.error(str(e))
 
     arch = _resolve_arch(args.arch)
     config_paths = resolve_configs(args, arch)
@@ -900,7 +1112,7 @@ def main():
     if args.variant == "grouped_gemm":
         print(
             "  ERROR: grouped_gemm is not supported by this driver; "
-            "use tile_engine/ops/gemm/grouped_gemm/grouped_gemm_benchmark.py"
+            "use tile_engine/ops/gemm/grouped_gemm_full_benchmark.py"
         )
         return 1
     codegen_variant = CODEGEN_VARIANT[args.variant]
@@ -983,10 +1195,26 @@ def main():
         )
     vfb.report_rejects()
 
+    expanded_pipelines = list(dict.fromkeys(cfg.pipeline for cfg in all_configs))
+    if args.pipelines is not None:
+        all_configs = [cfg for cfg in all_configs if cfg.pipeline in args.pipelines]
+        print(f"  Pipeline filter (--pipelines): {', '.join(args.pipelines)}")
     all_configs = vfb.limit_base_kernels(all_configs, args.max_kernels)
+    if budgets:
+        # Launch variants, not new kernels: each budget runs its kernel's build.
+        all_configs = with_streamk_budgets(all_configs, budgets)
+        print(f"  Stream-K workgroup budgets (% of the default): {budgets}")
 
     print(f"  Expanded configs: {len(all_configs)}")
     if not all_configs:
+        if args.pipelines is not None and expanded_pipelines:
+            print(
+                f"  ERROR: 0 configs left after --pipelines {', '.join(args.pipelines)} "
+                f"for dtype {args.dtype} on {arch} (layout {sweep_layout}); "
+                f"{', '.join(config_paths)} expanded only: "
+                f"{', '.join(expanded_pipelines)}"
+            )
+            return 1
         print(
             f"  ERROR: 0 configs expanded for dtype {args.dtype} on {arch} "
             f"(layout {sweep_layout}); no config in {', '.join(config_paths)} "
@@ -1012,6 +1240,8 @@ def main():
             "layout": sweep_layout,
             "variant": codegen_variant,
             "configs": config_paths,
+            **({"budget_pct": budgets} if budgets else {}),
+            **pipeline_metadata,
             "problems": [
                 {"M": int(p["M"]), "N": int(p["N"]), "K": int(p["K"])} for p in problems
             ],
@@ -1040,11 +1270,17 @@ def main():
             {n for v in requested.values() if v != "*" for n in v} - expanded
         )
         if unknown or absent:
+            same = ["configs", "problems", "dtype", "layout", "arch"]
+            if budgets:
+                same.append("--budget-pct")
+            if args.pipelines is not None:
+                same.append("--pipelines")
+            hint = f"same {', '.join(same[:-1])} and {same[-1]}?"
             for what, items in (("problems", unknown), ("kernels", absent)):
                 if items:
                     print(
                         f"  ERROR: --pairs lists {len(items)} {what} this run does not "
-                        f"have (same configs, problems, dtype, layout and arch?): "
+                        f"have ({hint}): "
                         f"{', '.join(items[:3])}{' ...' if len(items) > 3 else ''}"
                     )
             return 1
@@ -1070,9 +1306,54 @@ def main():
                 if problem_key(prob) in star:
                     needed.update(fixed[i].name for i in idx)
         all_configs = [cfg for cfg in all_configs if cfg.name in needed]
+        plan = (
+            f"building {len({c.kernel_config.name for c in all_configs})} kernels"
+            if search_settings is None
+            else "the search builds only the kernels it proposes"
+        )
         print(
             f"  Pair list: {sum(map(len, wanted.values()))} pairs over "
-            f"{len(wanted)} problems; building {len(needed)} kernels ({args.pairs})"
+            f"{len(wanted)} problems; {plan} ({args.pairs})"
+        )
+    if search_settings is not None:
+        # Search mode replaces the build and the full measurement. A problem's
+        # candidates are the kernels a full run would measure with it (with
+        # --pairs: only the listed problems, and the listed kernels among
+        # those); only proposed ones are built.
+        from gemm_search import DriverHooks, run_gemm_search
+
+        if wanted is None:
+            eligible = [
+                [all_configs[i].name for i in idx]
+                for idx in candidate_pairs(vfb, problems, all_configs)
+            ]
+        else:
+            problems = [p for p in problems if problem_key(p) in wanted]
+            eligible = [
+                [n for n in wanted[k] if n in paired[k]]
+                for k in map(problem_key, problems)
+            ]
+        hooks = DriverHooks(
+            build=setup_multiple_gemm_dispatchers,
+            measure=benchmark_on_devices,
+            record=_kernel_record,
+            problem_key=problem_key,
+            load_pairs=load_pair_list,
+            build_reason=build_failure_summary,
+            build_dir=get_build_dir(),
+        )
+        context = {
+            "arch": arch,
+            "layout": sweep_layout,
+            "variant": codegen_variant,
+            "configs": config_paths,
+            **({"budget_pct": budgets} if budgets else {}),
+            **pipeline_metadata,
+        }
+        return run_gemm_search(
+            args, search_settings, hooks, problems=problems, configs=all_configs,
+            eligible=eligible, devices=devices, worker=worker_setup(),
+            context=context,
         )
     print(f"  Build workers: {args.workers}")
     if args.build_timeout:
@@ -1086,24 +1367,33 @@ def main():
     build_errors = {} if args.failures_csv else None
     if build_errors is not None:
         build_kwargs["errors"] = build_errors
-    lib_paths = setup_multiple_gemm_dispatchers(
+    lib_paths = build_kernels(
         all_configs, verbose=True, max_workers=args.workers, **build_kwargs
     )
     build_time = time.perf_counter() - t0
 
-    build_failures = sum(lib is None for lib in lib_paths)
     if len(lib_paths) != len(all_configs):
         print("  ERROR: Incomplete kernel build results")
         return 1
+    builds = {
+        cfg.kernel_config.name: (cfg.kernel_config, lib)
+        for cfg, lib in zip(all_configs, lib_paths)
+    }
+    build_failures = sum(lib is None for _, lib in builds.values())
     if build_failures:
-        print(f"  ERROR: {build_failures}/{len(all_configs)} kernel builds failed")
+        print(f"  ERROR: {build_failures}/{len(builds)} kernel builds failed")
 
-    vfb.report_builds(all_configs, lib_paths)
+    vfb.report_builds(
+        [cfg for cfg, _ in builds.values()],
+        [lib for _, lib in builds.values()],
+    )
     built_kernels, duplicate_count = unique_built_kernels(all_configs, lib_paths)
 
     print(
         f"\n  Built {len(all_configs)} configs -> {len(built_kernels)} unique kernels "
         f"({duplicate_count} duplicates filtered) in {build_time:.0f}s"
+        + (f"; {len(builds)} builds, shared by their launch variants"
+           if len(builds) < len(all_configs) else "")
     )
 
     # Failed builds are recorded now, so they are recorded even when nothing built.
@@ -1112,16 +1402,15 @@ def main():
         fail_file = open(args.failures_csv, "w", newline="")
         fail_writer = csv.DictWriter(fail_file, fieldnames=FAILURE_FIELDS)
         fail_writer.writeheader()
-        for name in dict.fromkeys(
-            cfg.name for cfg, lib in zip(all_configs, lib_paths) if lib is None
-        ):
-            fail_writer.writerow(
-                {
-                    "kernel": name,
-                    "kind": "build-failed",
-                    "error": build_failure_summary(build_errors.get(name)),
-                }
-            )
+        for name, (_, lib) in builds.items():
+            if lib is None:
+                fail_writer.writerow(
+                    {
+                        "kernel": name,
+                        "kind": "build-failed",
+                        "error": build_failure_summary(build_errors.get(name)),
+                    }
+                )
         fail_file.flush()
 
     if not built_kernels:
@@ -1178,11 +1467,7 @@ def main():
         fail_writer.writerows(fails)
         fail_file.flush()
 
-    worker_path = _THIS_DIR / "run_one_gemm_kernel.py"
-    base_env = os.environ.copy()
-    base_env["GEMM_PYPATH"] = os.pathsep.join(
-        [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
-    )
+    worker_path, base_env = worker_setup()
     csv_path = Path(args.csv)
     # The hooks are passed only when asked for, so the call is unchanged otherwise.
     hooks = {}
@@ -1191,6 +1476,9 @@ def main():
     measured = [] if args.repeat_top else None
     if measured is not None:
         hooks["measured"] = measured
+    # The workers' fp8/bf8 host format (OCP or FNUZ) follows the arch the
+    # kernels were built for, not the local GPU's detection, which can fail.
+    worker_extra = {"arch": arch}
     stats = benchmark_on_devices(
         problems,
         pairs,
@@ -1200,6 +1488,7 @@ def main():
         worker_path,
         base_env,
         csv_path,
+        worker_extra,
         **hooks,
     )
 
@@ -1219,7 +1508,13 @@ def main():
             rwriter.writeheader()
             run_args = (args, worker_path, base_env, rwriter, rfh, threading.Lock())
             repeat_result = run_repeats(
-                plan, args.repeat_count, problems, built_kernels, devices, run_args
+                plan,
+                args.repeat_count,
+                problems,
+                built_kernels,
+                devices,
+                run_args,
+                worker_extra,
             )
         stats["failures"] += repeat_result[1]
     if fail_file:

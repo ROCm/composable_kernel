@@ -3,8 +3,10 @@
 
 /// Unit tests for Registry using Google Test
 
+#include "ck_tile/dispatcher/arch_filter.hpp"
 #include "ck_tile/dispatcher/registry.hpp"
 #include "test_mock_kernel.hpp"
+#include <algorithm>
 #include <gtest/gtest.h>
 
 using namespace ck_tile::dispatcher;
@@ -163,4 +165,57 @@ TEST(RegistryTest, Singleton)
 
     // Should be the same instance
     EXPECT_EQ(&reg1, &reg2);
+}
+
+TEST(RegistryTest, FilterByArchAcceptsGfx1250CompTdmV3FourByFourWaves)
+{
+    const auto shared = get_supported_warp_configs(GpuArch::GFX_1250);
+    EXPECT_EQ(std::find(shared.begin(), shared.end(), WarpConfig{4, 4, 1}), shared.end());
+
+    auto make_gfx1250_4x4 = [](std::uint16_t tile_k, Pipeline pipeline, Epilogue epilogue) {
+        KernelKey key                 = make_test_key(256, 256, tile_k, "gfx1250");
+        key.signature.dtype_a         = DataType::BF16;
+        key.signature.dtype_b         = DataType::BF16;
+        key.signature.dtype_c         = DataType::BF16;
+        key.signature.dtype_acc       = DataType::FP32;
+        key.algorithm.wave_shape      = {4, 4, 1};
+        key.algorithm.warp_tile_shape = {16, 16, 32};
+        key.algorithm.pipeline        = pipeline;
+        key.algorithm.epilogue        = epilogue;
+        key.algorithm.scheduler       = Scheduler::Intrawave;
+        key.algorithm.block_size      = 512;
+        key.algorithm.double_buffer   = arch_specs::requires_double_smem_buffer(pipeline);
+        key.algorithm.pad_m           = false;
+        key.algorithm.pad_n           = false;
+        key.algorithm.pad_k           = false;
+        return key;
+    };
+
+    // Both instances in gfx1250_bf16_comp_tdm_v3.json (tile_k = 64 and 128).
+    const auto v3_k64     = make_gfx1250_4x4(64, Pipeline::CompTDMV3, Epilogue::CShuffle);
+    const auto v3_k128    = make_gfx1250_4x4(128, Pipeline::CompTDMV3, Epilogue::CShuffle);
+    const auto tdm_v1_4x4 = make_gfx1250_4x4(64, Pipeline::CompTDMV1, Epilogue::Tdm);
+    const auto compv3_4x4 = make_gfx1250_4x4(64, Pipeline::CompV3, Epilogue::CShuffle);
+
+    const ArchFilter gfx1250_filter("gfx1250");
+    EXPECT_TRUE(gfx1250_filter.is_valid(v3_k64));
+    EXPECT_TRUE(gfx1250_filter.is_valid(v3_k128));
+    EXPECT_FALSE(gfx1250_filter.is_valid(tdm_v1_4x4));
+    EXPECT_FALSE(gfx1250_filter.is_valid(compv3_4x4));
+    EXPECT_FALSE(ArchFilter("gfx942").is_valid(v3_k64));
+
+    Registry reg;
+    ASSERT_TRUE(reg.register_kernel(std::make_shared<MockKernelInstance>(v3_k64, "v3_k64")));
+    ASSERT_TRUE(reg.register_kernel(std::make_shared<MockKernelInstance>(v3_k128, "v3_k128")));
+    ASSERT_TRUE(
+        reg.register_kernel(std::make_shared<MockKernelInstance>(tdm_v1_4x4, "tdm_v1_4x4")));
+    ASSERT_TRUE(
+        reg.register_kernel(std::make_shared<MockKernelInstance>(compv3_4x4, "compv3_4x4")));
+
+    EXPECT_EQ(reg.filter_by_arch("gfx1250"), 2u);
+    EXPECT_EQ(reg.size(), 2u);
+    EXPECT_NE(reg.lookup(v3_k64), nullptr);
+    EXPECT_NE(reg.lookup(v3_k128), nullptr);
+    EXPECT_EQ(reg.lookup(tdm_v1_4x4), nullptr);
+    EXPECT_EQ(reg.lookup(compv3_4x4), nullptr);
 }

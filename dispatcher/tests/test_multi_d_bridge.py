@@ -37,14 +37,7 @@ from gemm_utils import (  # noqa: E402
     _dtype_from_kernel_name,
 )
 
-_CONFIG_DIR = (
-    REPO_ROOT
-    / "tile_engine"
-    / "ops"
-    / "gemm"
-    / "gemm_multi_d"
-    / "configs"
-)
+_CONFIG_DIR = REPO_ROOT / "tile_engine" / "ops" / "gemm" / "gemm_multi_d" / "configs"
 
 
 def _make_config(**overrides):
@@ -70,9 +63,7 @@ class TestMultiDName(unittest.TestCase):
 
     def test_name_carries_multid_suffix(self):
         cfg = _make_config()
-        self.assertTrue(
-            cfg.name.endswith("_multid_MultiDAdd_d1"), cfg.name
-        )
+        self.assertTrue(cfg.name.endswith("_multid_MultiDAdd_d1"), cfg.name)
 
     def test_name_uses_four_char_layout(self):
         # multi_d appends the D layout char after the 3-char A,B,C code.
@@ -82,19 +73,37 @@ class TestMultiDName(unittest.TestCase):
             ("col", "col", "row", "row"),
         ):
             cfg = _make_config(
-                layout_a=la, layout_b=lb, layout_c=lc, d_layout=ld,
+                layout_a=la,
+                layout_b=lb,
+                layout_c=lc,
+                d_layout=ld,
             )
             four = cfg.layout + ("r" if ld == "row" else "c")
             self.assertIn(f"_{four}_", cfg.name)
+            # The bridge hands this layout to the codegen, which takes D's layout
+            # from the 4th char (C's layout without it).
+            self.assertEqual(cfg.codegen_layout, four)
 
     def test_full_stem_is_stable(self):
         cfg = _make_config(
-            tile_m=128, tile_n=128, tile_k=32,
-            wave_m=2, wave_n=2, wave_k=1,
-            warp_tile_m=32, warp_tile_n=32, warp_tile_k=16,
-            pipeline="compv4", scheduler="intrawave", epilogue="cshuffle",
-            pad_m=True, pad_n=True, pad_k=True, persistent=False,
-            elementwise_op="MultiDAdd", num_d_tensors=2,
+            tile_m=128,
+            tile_n=128,
+            tile_k=32,
+            wave_m=2,
+            wave_n=2,
+            wave_k=1,
+            warp_tile_m=32,
+            warp_tile_n=32,
+            warp_tile_k=16,
+            pipeline="compv4",
+            scheduler="intrawave",
+            epilogue="cshuffle",
+            pad_m=True,
+            pad_n=True,
+            pad_k=True,
+            persistent=False,
+            elementwise_op="MultiDAdd",
+            num_d_tensors=2,
         )
         expected = (
             "gemm_fp16_rcrr_compv4_cshuffle_intrawave"
@@ -120,7 +129,9 @@ class TestMultiDName(unittest.TestCase):
     def test_dtype_recovers_from_name(self):
         for dtype in ("fp16", "bf16"):
             cfg = _make_config(
-                dtype_a=dtype, dtype_b=dtype, dtype_c=_output_dtype(dtype),
+                dtype_a=dtype,
+                dtype_b=dtype,
+                dtype_c=_output_dtype(dtype),
             )
             self.assertEqual(_dtype_from_kernel_name(cfg.name), dtype)
 
@@ -161,9 +172,15 @@ class TestMultiDShippedConfigs(unittest.TestCase):
                 self.assertIn("trait_config", data)
                 tc = data["tile_config"]
                 for key in (
-                    "tile_m", "tile_n", "tile_k",
-                    "warp_m", "warp_n", "warp_k",
-                    "warp_tile_m", "warp_tile_n", "warp_tile_k",
+                    "tile_m",
+                    "tile_n",
+                    "tile_k",
+                    "warp_m",
+                    "warp_n",
+                    "warp_k",
+                    "warp_tile_m",
+                    "warp_tile_n",
+                    "warp_tile_k",
                 ):
                     self.assertIn(key, tc, f"{path.name} missing {key}")
                 tr = data["trait_config"]

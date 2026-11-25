@@ -192,8 +192,8 @@ struct BlockFmhaBwdDQDKDVPipelineTdmKRKTR
                 constexpr auto i_lo = number<i_pair * 2 * kMPerLane + i_e>{};
                 constexpr auto i_hi = number<i_pair * 2 * kMPerLane + kMPerLane + i_e>{};
 
-                const int32x2_t s = __builtin_amdgcn_permlane16_swap(
-                    bit_cast<int32_t>(src[i_lo]), bit_cast<int32_t>(src[i_hi]), false, false);
+                const int32x2_t s = bit_cast<int32x2_t>(__builtin_amdgcn_permlane16_swap(
+                    bit_cast<int32_t>(src[i_lo]), bit_cast<int32_t>(src[i_hi]), false, false));
 
                 dst(i_lo) = bit_cast<AccDataType>(s[0]);
                 dst(i_hi) = bit_cast<AccDataType>(s[1]);

@@ -53,6 +53,8 @@ struct ThreadGroupTensorSliceTransfer_TDM
                   "destination data types must be the same.");
     using Index = MultiIndex<nDim>;
 
+    static __device__ constexpr bool UseTdmInst() { return true; }
+
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
     using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
 

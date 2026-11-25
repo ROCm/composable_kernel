@@ -70,6 +70,20 @@ void add_device_grouped_conv2d_bwd_data_xdl_v3_nhwgk_gkyxc_nhwgc_f16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 
+void add_device_grouped_conv2d_bwd_data_wavelet_direct_load_xdl_v3_nhwgk_gkyxc_nhwgc_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
 void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
@@ -260,6 +274,21 @@ void add_device_grouped_conv2d_bwd_data_xdl_v3_nhwgk_gkyxc_nhwgc_bf16_instances(
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_wavelet_direct_load_xdl_v3_nhwgk_gkyxc_nhwgc_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
 void add_device_grouped_conv2d_bwd_data_xdl_v3_nhwgk_gkyxc_nhwgc_bf16_gfx1250_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
@@ -753,9 +782,37 @@ void add_device_grouped_conv3d_bwd_data_xdl_v3_ndhwgk_gkzyxc_ndhwgc_f16_large_te
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_wavelet_direct_load_xdl_v3_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
 void add_device_grouped_conv3d_bwd_data_xdl_v3_ndhwgk_gkzyxc_ndhwgc_bf16_large_tensors_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_wavelet_direct_load_xdl_v3_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -957,6 +1014,40 @@ void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_bf16_vec_transp
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv2d_bwd_data_wavelet_xdl_v3_nhwgk_gkyxc_nhwgc_f16_instances_part1(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+#endif
+
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv2d_bwd_data_wavelet_xdl_v3_nhwgk_gkyxc_nhwgc_bf16_instances_part1(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
 #endif
 
 } // namespace instance

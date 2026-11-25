@@ -649,7 +649,8 @@ struct GroupedConvolutionBackwardWeightKernel
                 TilePartitioner(kernel_args.GemmM * kernel_args.GemmBatch,
                                 kernel_args.GemmN,
                                 kernel_args.GemmK,
-                                grid);
+                                grid,
+                                num_cu);
         }
         else
         {
@@ -1239,6 +1240,9 @@ struct GroupedConvolutionBackwardWeightKernel
                                        WeiDataType* c_ptr_base,
                                        char* smem_ptr) const
     {
+        static_assert(!is_wavelet_pipeline<GemmPipeline>,
+                      "the Stream-K conv bwd-weight path runs EpiloguePipeline on every wave; a "
+                      "wavelet GemmPipeline needs RunWaveletAwareEpilogue there first");
         const StreamKOps sk_ops{};
 
         index_t iter_start, iter_end;
@@ -1315,12 +1319,7 @@ struct GroupedConvolutionBackwardWeightKernel
                         while(accum_iters < iter_per_tile)
                         {
                             sk_ops.WaitStorePartialDone(kargs, next_cta);
-
-                            using BlockType = remove_cvref_t<decltype(c_block_tile)>;
-                            sk_ops.AddBlockTile(
-                                accum_block_tile,
-                                sk_ops.template LoadPartial<typename BlockType::DataType>(
-                                    kargs, next_cta, c_block_tile.get_tile_distribution()));
+                            sk_ops.AccumulatePartial(kargs, next_cta, accum_block_tile);
 
                             accum_iters += iter_per_cta + (next_cta < extra_iters);
                             ++next_cta;
@@ -1373,11 +1372,7 @@ struct GroupedConvolutionBackwardWeightKernel
                         if(partner_in_tile)
                         {
                             sk_ops.WaitStorePartialDone(kargs, partner_cta_idx);
-                            using BlockType = remove_cvref_t<decltype(c_block_tile)>;
-                            sk_ops.AddBlockTile(
-                                accum_block_tile,
-                                sk_ops.template LoadPartial<typename BlockType::DataType>(
-                                    kargs, partner_cta_idx, c_block_tile.get_tile_distribution()));
+                            sk_ops.AccumulatePartial(kargs, partner_cta_idx, accum_block_tile);
                         }
                     }
                     // This CTA's turn to write its partial and exit.

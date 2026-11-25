@@ -4,6 +4,9 @@
 #include "test_streamk_tile_partitioner_common.hpp"
 #include "ck_tile/host/device_prop.hpp"
 
+#include <limits>
+#include <utility>
+
 TEST(StreamKTilePartitionerBaseConstructor, SKOnly)
 {
     using Config = StreamKTilePartitionerBaseConfigSKOnly;
@@ -62,6 +65,72 @@ TEST(StreamKTilePartitionerBaseConstructor, RemainderAlongK)
     StreamKTilePartitionerBaseExpected expected_values{
         1, 0, 2, 3, 1, 3, 1, 0, 1, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 1};
     validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitionerBaseConstructor, DPWhenTilesMultipleOfNumCu)
+{
+    using Config = StreamKTilePartitionerBaseConfigTilesMultipleOfNumCu;
+    ASSERT_EQ(Config::MAX_ACTIVE_WGS % Config::NUM_CU, 0);
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::NUM_CU};
+
+    // 8 tiles: 8 % 6 != 0 but 8 % 2 == 0, so all 8 tiles stay data-parallel.
+    StreamKTilePartitionerBaseExpected expected_values{
+        0, 8, 0, 0, 0, 2, 0, 16, 8, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 0};
+    validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitionerBaseConstructor, FourArgSplitsTilesMultipleOfNumCu)
+{
+    // Same shape as DPWhenTilesMultipleOfNumCu: treating each of the 6 slots as a CU, 8 % 6 != 0
+    // sends all 8 tiles to Stream-K. Pins the old behaviour the four-argument constructor keeps.
+    using Config = StreamKTilePartitionerBaseConfigTilesMultipleOfNumCu;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
+
+    StreamKTilePartitionerBaseExpected expected_values{
+        8, 0, 6, 16, 2, 2, 4, 0, 8, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 0};
+    validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitionerBaseConstructor, SKWhenTilesFewerThanNumCu)
+{
+    using Config = StreamKTilePartitionerBaseConfigTilesFewerThanNumCu;
+    ASSERT_EQ(Config::MAX_ACTIVE_WGS % Config::NUM_CU, 0);
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::NUM_CU};
+
+    // 4 tiles on 6 CUs: 4 % 6 != 0, so all 4 tiles (12 iterations) go to the 12 workgroups.
+    StreamKTilePartitionerBaseExpected expected_values{
+        4, 0, 12, 12, 1, 3, 0, 0, 4, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 0};
+    validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitionerBaseConstructor, FourArgMatchesNumCuEqualToMaxActiveWgs)
+{
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigSKOnly>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigDPOnly>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigDP2TileSK>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigEdgeCase>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigRemainderAlongK>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigSKOnlyLargeK>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigLargerCTensor>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan256Bytes>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigTilesMultipleOfNumCu>();
+    test_four_arg_ctor_matches_num_cu_equal_to_max_active_wgs<
+        StreamKTilePartitionerBaseConfigTilesFewerThanNumCu>();
 }
 
 TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsLessThan256Bytes)
@@ -731,7 +800,87 @@ TEST(StreamKTilePartitioner_GridSize_Persistent, EdgeCase)
     EXPECT_EQ(g.x, 1);
 }
 
+TEST(StreamKTilePartitioner_PersistentConstructor, DPWhenTilesMultipleOfNumCu)
+{
+    using Config = StreamKTilePartitionerBaseConfigTilesMultipleOfNumCu;
+
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::NUM_CU};
+
+    // 8 DP tiles over 6 workgroups: one each, and 2 workgroups take a second.
+    StreamKTilePartitionerV2PersistentExpected expected_values{1, 2, 6};
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_GridSize_Persistent, DPMoreTilesThanWgsCappedAtMaxActiveWgs)
+{
+    // DP-only with dp_tiles % max_active_wgs != 0. StreamKDispatch strides the DP tiles by
+    // max_active_wgs, so a grid of num_tiles (8) would compute tiles 6 and 7 twice.
+    using Config = StreamKTilePartitionerBaseConfigTilesMultipleOfNumCu;
+
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::NUM_CU};
+
+    ASSERT_EQ(tile_partitioner.get_sk_ctas(), 0);
+    ASSERT_GT(tile_partitioner.get_extra_dp_tiles(), 0);
+    EXPECT_EQ(tile_partitioner.grid_size().x, Config::MAX_ACTIVE_WGS);
+}
+
+TEST(StreamKTilePartitioner_GridSize_Persistent, SKFewerTilesThanNumCuUsesEveryWgs)
+{
+    using Config = StreamKTilePartitionerBaseConfigTilesFewerThanNumCu;
+
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::NUM_CU};
+
+    ASSERT_EQ(tile_partitioner.get_sk_ctas(), Config::MAX_ACTIVE_WGS);
+    EXPECT_EQ(tile_partitioner.grid_size().x, Config::MAX_ACTIVE_WGS);
+}
+
+TEST(StreamKTilePartitioner_GridSize_Persistent, EachDPTileComputedOnce)
+{
+    using Shape = StreamKTilePartitionerBaseConfigTilesMultipleOfNumCu::GemmShape;
+    using TilePartitioner =
+        ck_tile::StreamKTilePartitioner<Shape, ck_tile::StreamKReductionStrategy::Atomic, true>;
+
+    // M x 4 x 16 with 4x4x8 tiles: M / 4 tiles of 2 iterations each.
+    for(const ck_tile::index_t num_tiles : {1, 5, 6, 7, 8, 12, 13, 24, 25})
+    {
+        for(const auto [wgs, num_cu] :
+            {std::pair<ck_tile::index_t, ck_tile::index_t>{6, 2}, {6, 3}, {6, 6}, {8, 4}, {4, 1}})
+        {
+            SCOPED_TRACE(::testing::Message()
+                         << "tiles=" << num_tiles << " wgs=" << wgs << " num_cu=" << num_cu);
+            const TilePartitioner five{4 * num_tiles, 4, 16, wgs, num_cu};
+            ASSERT_EQ(five.get_num_tiles(), num_tiles);
+            expect_persistent_schedule_covers_each_tile_once<Shape>(five);
+            const TilePartitioner four{4 * num_tiles, 4, 16, wgs};
+            expect_persistent_schedule_covers_each_tile_once<Shape>(four);
+        }
+    }
+}
+
 // Non-Persistent Tests
+TEST(StreamKTilePartitioner_NonPersistentConstructor, DPWhenTilesMultipleOfNumCu)
+{
+    using Config = StreamKTilePartitionerBaseConfigTilesMultipleOfNumCu;
+
+    ck_tile::StreamKTilePartitioner<typename Config::GemmShape,
+                                    ck_tile::StreamKReductionStrategy::Atomic,
+                                    false>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS, Config::NUM_CU};
+
+    StreamKTilePartitionerV2NonPersistentExpected expected_values{8, 0, 8, 6};
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    EXPECT_EQ(tile_partitioner.grid_size().x, 8);
+}
+
 TEST(StreamKTilePartitioner_NonPersistentConstructor, SKOnly)
 {
     using Config = StreamKTilePartitionerBaseConfigSKOnly;
@@ -794,4 +943,54 @@ TEST(StreamKTilePartitioner_GridSize_NonPersistent, DP2TileSK)
 
     const auto g = tile_partitioner.grid_size();
     EXPECT_EQ(g.x, 6);
+}
+
+TEST(StreamKTilePartitionerBaseConstructor, PreValidationOverflowLeavesPartitionerInvalid)
+{
+    using Shape = StreamKTilePartitionerBaseConfigDP2TileSK::GemmShape; // 4 x 4 x 8
+    using Base =
+        ck_tile::StreamKTilePartitionerBase<Shape, ck_tile::StreamKReductionStrategy::Linear>;
+    using Persistent =
+        ck_tile::StreamKTilePartitioner<Shape, ck_tile::StreamKReductionStrategy::Linear, true>;
+    using NonPersistent =
+        ck_tile::StreamKTilePartitioner<Shape, ck_tile::StreamKReductionStrategy::Linear, false>;
+
+    auto expect_invalid = [](ck_tile::index_t m,
+                             ck_tile::index_t n,
+                             ck_tile::index_t k,
+                             ck_tile::index_t wgs,
+                             ck_tile::index_t batch_count) {
+        const Base base{m, n, k, wgs, wgs, batch_count};
+        EXPECT_FALSE(base.is_valid());
+        EXPECT_EQ(base.get_tiles_per_batch(), 0);
+        EXPECT_EQ(base.get_num_tiles(), 0);
+        EXPECT_EQ(base.get_dp_tiles(), 0);
+        EXPECT_EQ(base.get_sk_tiles(), 0);
+        EXPECT_EQ(base.get_sk_ctas(), 0);
+        EXPECT_EQ(base.get_total_sk_iters(), 0);
+        EXPECT_EQ(base.get_total_dp_iters(), 0);
+        EXPECT_EQ(base.get_workspace_size(sizeof(float)), 0);
+
+        const Persistent persistent{m, n, k, wgs, wgs, batch_count};
+        EXPECT_FALSE(persistent.is_valid());
+        EXPECT_EQ(persistent.get_dp_tiles_per_cta(), 0);
+        EXPECT_EQ(persistent.get_extra_dp_tiles(), 0);
+        EXPECT_EQ(persistent.grid_size().x, 0u);
+
+        const NonPersistent nonpersistent{m, n, k, wgs, wgs, batch_count};
+        EXPECT_FALSE(nonpersistent.is_valid());
+        EXPECT_EQ(nonpersistent.get_dp_ctas(), 0);
+        EXPECT_EQ(nonpersistent.grid_size().x, 0u);
+    };
+
+    // tiles_per_batch > INT32_MAX: (262144 / 4) * (262144 / 4) = 65536^2 = 2^32.
+    expect_invalid(262144, 262144, 8, 8, 1);
+    // tiles_per_batch * batch_count > INT32_MAX: 65536 * 65536 = 2^32.
+    expect_invalid(1024, 1024, 8, 8, 65536);
+    // num_tiles * iters_per_tile > INT32_MAX: num_tiles = 65536 fits, * 65536 K-tiles = 2^32.
+    expect_invalid(1024, 1024, 65536 * 8, 8, 1);
+    // Non-positive dimensions or workgroup budget.
+    expect_invalid(0, 16, 16, 8, 1);
+    expect_invalid(16, 16, 16, 0, 1);
+    expect_invalid(16, 16, 16, 8, 0);
 }

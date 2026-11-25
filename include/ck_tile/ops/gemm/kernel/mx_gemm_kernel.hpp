@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
 
 namespace ck_tile {
@@ -285,6 +286,52 @@ struct MxGemmKernel
     using MxGemmPipeline   = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
+    template <typename T>
+    using has_k_major_scales = decltype(T::kKMajorScales);
+    template <typename T>
+    using has_grid_x_walks_n = decltype(T::kGridXWalksN);
+    template <typename T>
+    using has_lds_capacity = decltype(T::kLdsCapacityBytes);
+    template <typename T>
+    using has_unsupported_reason =
+        decltype(T::GetUnsupportedReason(index_t{}, index_t{}, index_t{}));
+
+    /// The pipeline reads K-major scales, [ceil(K / 128)][MN] int32 packs (comp_tdm_scheduled): the
+    /// scale windows view that layout, and the A pointers are not shifted to the M tile.
+    static constexpr bool kKMajorScales = []() {
+        if constexpr(is_detected<has_k_major_scales, MxGemmPipeline>{})
+            return MxGemmPipeline::kKMajorScales;
+        else
+            return false;
+    }();
+    /// The pipeline checks a problem itself (GetUnsupportedReason(M, N, K), comp_tdm_scheduled):
+    /// IsSupportedArgument runs that check, with packed operands and E at k_batch == 1, instead of
+    /// the generic MX TDM checks.
+    static constexpr bool kPipelineChecks = is_detected<has_unsupported_reason, MxGemmPipeline>{};
+
+    // comp_tdm_scheduled's partitioner and LDS budget.
+    static constexpr bool CheckPipelineConfig()
+    {
+        if constexpr(is_detected<has_grid_x_walks_n, MxGemmPipeline>{})
+        {
+            static_assert(
+                !MxGemmPipeline::kGridXWalksN ||
+                    std::is_same_v<
+                        TilePartitioner,
+                        GemmTile2DNMajorPartitioner<typename MxGemmPipeline::BlockGemmShape>>,
+                "MX GEMM: the pipeline walks N tiles along grid x and M tiles along grid y, with "
+                "its cluster over both, as GemmTile2DNMajorPartitioner of its shape");
+        }
+        if constexpr(is_detected<has_lds_capacity, MxGemmPipeline>{})
+        {
+            static_assert(max(MxGemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize()) <=
+                              MxGemmPipeline::kLdsCapacityBytes,
+                          "MX GEMM: the pipeline's and the epilogue's LDS exceed the capacity");
+        }
+        return true;
+    }
+    static_assert(CheckPipelineConfig());
+
     /// Whether this TDM pipeline runs MX split-K correctly with a split-K-capable epilogue: only
     /// a pipeline that declares kSupportsTdmSplitK (comp_tdm_v3). The others keep the TDM
     /// split-K rejection whatever the epilogue.
@@ -378,6 +425,11 @@ struct MxGemmKernel
     static constexpr index_t NXdlPackEff = MxGemmPipeline::NXdlPackEff;
     static constexpr index_t KXdlPackEff = MxGemmPipeline::KXdlPackEff;
 
+    // MxGroupedGemmKernel derives from this kernel, so this covers it too.
+    static_assert(!BaseKernel::kIsGemmKernelOnlyPipeline,
+                  "MX GEMM does not support this pipeline (validated with the plain GEMM kernel "
+                  "only)");
+
     // Protects the K loop of the TDM pipelines' block GEMM (BlockGemmARegBRegCRegV1): it runs
     // KPerBlock / (WarpTile K) warp GEMMs per K tile (KIterPerWarp) and drops any remainder, so a
     // K tile that is not a whole number of warp tiles would skip K values in every K tile.
@@ -390,6 +442,7 @@ struct MxGemmKernel
     // A / E / A-scale base pointers by the M tile and clamps kargs.M, so those descriptors span
     // at most one M tile however large M is.
     static constexpr bool kOffsetPtrsByTileCoords =
+        !kKMajorScales &&
         std::is_same_v<tensor_layout::gemm::RowMajor,
                        remove_cvref_t<std::tuple_element_t<0, AsLayout>>> &&
         std::is_same_v<tensor_layout::gemm::RowMajor, CLayout> && !BaseKernel::ClusterLaunch;
@@ -451,6 +504,20 @@ struct MxGemmKernel
                            hostArgs.async_input_scheduler},
                           hostArgs.as_scale_ptr,
                           hostArgs.bs_scale_ptr};
+    }
+
+    /// For a pipeline that checks problems itself (kPipelineChecks): nullptr if this instance runs
+    /// `kargs`, else why not. Its operands and E are packed and it runs at k_batch == 1.
+    CK_TILE_HOST static const char* GetUnsupportedReason(const KernelArgs& kargs)
+    {
+        static_assert(kPipelineChecks, "MX GEMM: the pipeline does not check problems itself");
+        if(kargs.k_batch != 1)
+            return "k_batch must be 1";
+        if(kargs.stride_As[0] != kargs.K || kargs.stride_Bs[0] != kargs.K)
+            return "A and B must be packed: their strides must be K";
+        if(kargs.stride_E != kargs.N)
+            return "E must be packed: its stride must be N";
+        return MxGemmPipeline::GetUnsupportedReason(kargs.M, kargs.N, kargs.K);
     }
 
     CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
@@ -536,6 +603,9 @@ struct MxGemmKernel
             {
                 return false;
             }
+            // The pipeline's own check covers the A, B, D and E sizes too (its Wide traits).
+            if constexpr(kPipelineChecks)
+                return true;
         }
 
         // Delegate the remaining shape/vector-size checks to the universal kernel.
@@ -543,14 +613,18 @@ struct MxGemmKernel
     }
 
     /**
-     * @brief Runs the shape checks of IsSupportedArgument: IsMxTdmShapeSupported and
-     *        IsScaleViewSizeSupported.
+     * @brief Runs the shape checks of IsSupportedArgument: the pipeline's own check
+     *        (GetUnsupportedReason) for a pipeline that checks problems itself (kPipelineChecks),
+     *        else IsMxTdmShapeSupported and IsScaleViewSizeSupported.
      * @details Skips the split-K, pointer-alignment and device checks and the A, B, D and E size
-     *          checks of UniversalGemmKernel::IsSupportedArgument.
+     *          checks of UniversalGemmKernel::IsSupportedArgument. The pipeline's check covers its
+     *          K-major scales, its K tail and its 2^31 offsets; the generic MX TDM checks assume
+     *          MN-major scale views.
      * @tparam AllowKTail Passed to IsMxTdmShapeSupported. The default, true, gives the checks of
      *                    IsSupportedArgument; false keeps the K checks for every configuration, as
-     *                    MxGroupedGemmKernel::IsSupportedArgument requires.
-     * @param kargs Kernel arguments; M, N, K and the A and B strides are read.
+     *                    MxGroupedGemmKernel::IsSupportedArgument requires (with kPipelineChecks:
+     *                    K must be a multiple of KPerBlock).
+     * @param kargs Kernel arguments; M, N, K, k_batch and the A, B and E strides are read.
      * @return true if the shape in kargs passes these checks.
      */
     template <bool AllowKTail = true>
@@ -560,6 +634,15 @@ struct MxGemmKernel
                       "MX GEMM: IsTdmShapeSupported applies to the TDM pipelines only.");
         static_assert(NumATensor == 1 && NumBTensor == 1,
                       "MX GEMM: the TDM pipelines take a single A and a single B tensor.");
+        if constexpr(kPipelineChecks)
+        {
+            const char* why = GetUnsupportedReason(kargs);
+            if(!why && !AllowKTail && kargs.K % TilePartitioner::KPerBlock)
+                why = "K must be a multiple of KPerBlock";
+            if(why && EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                CK_TILE_ERROR(BaseKernel::GetName(), ": ", why);
+            return !why;
+        }
         using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
         using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
         // IsMxTdmShapeSupported goes first, so a shape it rejects is logged with its own reason.
@@ -795,6 +878,30 @@ struct MxGemmKernel
             number<NumBTensor>{});
     }
 
+    /// K-major scales, [ceil(K / 128)][MN] int32 packs, as the (packs, MN) view of the tile at
+    /// block_idx: one pack holds the four E8M0 scales of 128 K. MN is the contiguous dimension,
+    /// last, as the TDM loads the view.
+    template <index_t TileMN, std::size_t NumTensor>
+    CK_TILE_DEVICE static auto
+    MakeKMajorScaleBlockWindow(const std::array<ScalePtrType, NumTensor>& scale_ptr,
+                               const index_t mn,
+                               const index_t K,
+                               const index_t block_idx)
+    {
+        const auto desc =
+            make_naive_tensor_descriptor(make_tuple(GetScalePacksK(K), mn), make_tuple(mn, 1));
+        return generate_tuple(
+            [&](auto i) {
+                return make_tile_window(
+                    make_tensor_view<address_space_enum::global>(scale_ptr[i], desc),
+                    make_tuple(
+                        number<TilePartitioner::KPerBlock / (BlockScaleSize * KXdlPackEff)>{},
+                        number<TileMN>{}),
+                    {0, block_idx});
+            },
+            number<static_cast<index_t>(NumTensor)>{});
+    }
+
     template <memory_operation_enum DstInMemOp>
     CK_TILE_DEVICE static void RunGemm(const std::array<const ADataType*, NumATensor>& as_ptr,
                                        const std::array<const BDataType*, NumBTensor>& bs_ptr,
@@ -841,8 +948,9 @@ struct MxGemmKernel
             bs_scale_ptr[i] = reinterpret_cast<ScalePtrType>(kargs.bs_scale_ptr[i]);
         });
 
-        // cluster launch pads grid to cluster boundaries; skip out-of-bound blocks
-        if constexpr(BaseKernel::ClusterLaunch)
+        // cluster launch pads grid to cluster boundaries; skip out-of-bound blocks. The 2D
+        // partitioner's grid is exact (its pipeline rejects a grid the cluster does not divide).
+        if constexpr(BaseKernel::ClusterLaunch && !BaseKernel::kPartitionerGrid2D)
         {
             if(block_idx_m_ >= kargs.M || block_idx_n >= kargs.N)
                 return;
@@ -884,10 +992,20 @@ struct MxGemmKernel
 
         // Create scale block windows. For split-K (k_batch > 1), k_elem_offset advances the
         // scale origin into the correct packed-K slice for this k_id; otherwise it is zero.
-        const auto& scale_a_block_window =
-            MakeScaleABlockWindow(as_scale_ptr, kargs, block_idx_m_, k_elem_offset);
-        const auto& scale_b_block_window =
-            MakeScaleBBlockWindow(bs_scale_ptr, kargs, block_idx_n, k_elem_offset);
+        const auto& scale_a_block_window = [&]() {
+            if constexpr(kKMajorScales)
+                return MakeKMajorScaleBlockWindow<TilePartitioner::MPerBlock>(
+                    as_scale_ptr, kargs.M, kargs.K, block_idx_m_);
+            else
+                return MakeScaleABlockWindow(as_scale_ptr, kargs, block_idx_m_, k_elem_offset);
+        }();
+        const auto& scale_b_block_window = [&]() {
+            if constexpr(kKMajorScales)
+                return MakeKMajorScaleBlockWindow<TilePartitioner::NPerBlock>(
+                    bs_scale_ptr, kargs.N, kargs.K, block_idx_n);
+            else
+                return MakeScaleBBlockWindow(bs_scale_ptr, kargs, block_idx_n, k_elem_offset);
+        }();
 
         const index_t num_loop =
             amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
@@ -921,7 +1039,7 @@ struct MxGemmKernel
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
     {
-        if(kargs.k_batch == 1)
+        if(!BaseKernel::kPipelineSupportsSplitK || kargs.k_batch == 1)
         {
             RunGemm<memory_operation_enum::set>(as_ptr,
                                                 bs_ptr,

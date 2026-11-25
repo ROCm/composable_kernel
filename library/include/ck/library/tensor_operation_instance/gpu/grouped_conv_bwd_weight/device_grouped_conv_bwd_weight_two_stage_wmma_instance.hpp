@@ -63,6 +63,20 @@ using device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_instances = 
     // clang-format on
     >;
 
+template <index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename ELayout,
+          typename DataType,
+          ConvolutionBackwardWeightSpecialization ConvSpec>
+using device_grouped_conv_bwd_weight_two_stage_nhwgc_wmma_c_shuffle_instances_part1 = std::tuple<
+    // clang-format off
+    DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout, ELayout, DataType, DataType, DataType, F32, PassThrough, PassThrough, PassThrough, ConvSpec, 128,  64, 16, 128, 8, 16, 16, 1, 1, S<16,  8, 1>, S<2, 0, 1>, S<2, 0, 1>, 1, 8, 8, 1, S<16,  8, 1>, S<2, 0, 1>, S<2, 0, 1>, 1, 1, 8, 1, 1, 1, S<1,  8, 1, 16>, 1, BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1>,
+    DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout, ELayout, DataType, DataType, DataType, F32, PassThrough, PassThrough, PassThrough, ConvSpec, 128, 128, 16,  64, 8, 16, 16, 2, 1, S< 8, 16, 1>, S<2, 0, 1>, S<2, 0, 1>, 1, 8, 8, 1, S< 8, 16, 1>, S<2, 0, 1>, S<2, 0, 1>, 1, 1, 8, 1, 1, 1, S<1,  8, 1, 16>, 1, BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1>,
+    DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout, ELayout, DataType, DataType, DataType, F32, PassThrough, PassThrough, PassThrough, ConvSpec, 256, 128, 16, 512, 8, 16, 16, 1, 1, S<64,  4, 1>, S<2, 0, 1>, S<2, 0, 1>, 1, 8, 8, 1, S<64,  4, 1>, S<2, 0, 1>, S<2, 0, 1>, 1, 1, 8, 1, 1, 1, S<1, 16, 1, 16>, 1, BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1>
+    // clang-format on
+    >;
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

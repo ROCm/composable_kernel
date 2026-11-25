@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-set(_composable_kernel_supported_components device_other_operations device_gemm_operations device_conv_operations device_mha_operations device_contraction_operations device_reduction_operations utility)
+set(_composable_kernel_supported_components device_other_operations device_gemm_operations device_conv_operations device_mha_operations device_contraction_operations device_reduction_operations utility headers)
 
 # Per-target convolution libraries (device_conv_operations_<target>) are components only
 # when their export file is installed next to this file, so an install assembled from

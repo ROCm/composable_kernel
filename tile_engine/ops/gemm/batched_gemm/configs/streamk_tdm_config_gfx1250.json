@@ -1,0 +1,113 @@
+{
+    "_comment": [
+        "Batched Stream-K on the gfx1250 TDM pipelines (comp_tdm, comp_tdm_v2, comp_tdm_v3),",
+        "persistent and not, every reduction strategy (atomic: cshuffle epilogue; linear and tree:",
+        "cshuffle or tdm). TDM kernels are unpadded: the TDM loads and the TDM epilogue clip every",
+        "shape; the CShuffle epilogue needs N to be a multiple of tile_n. comp_tdm_pc has no",
+        "Stream-K kernel (see tdm_config_gfx1250.json for its batched kernels).",
+        "Usage: python batched_gemm_full_benchmark.py batched_gemm/configs/streamk_tdm_config_gfx1250.json",
+        "  --arch gfx1250 --dtype bf16 --layout rcr --verify [--budget-pct 100,50]"
+    ],
+    "tile_config": {
+        "tile_m": {
+            "values": [
+                64,
+                128,
+                256
+            ]
+        },
+        "tile_n": {
+            "values": [
+                64,
+                128,
+                256
+            ]
+        },
+        "tile_k": {
+            "values": [
+                64
+            ]
+        },
+        "warp_m": {
+            "values": [
+                2
+            ]
+        },
+        "warp_n": {
+            "values": [
+                2
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                16
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                32
+            ]
+        }
+    },
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "comp_tdm",
+                "comp_tdm_v2",
+                "comp_tdm_v3"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "cshuffle",
+                "tdm"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                false
+            ]
+        },
+        "pad_n": {
+            "values": [
+                false
+            ]
+        },
+        "pad_k": {
+            "values": [
+                false
+            ]
+        },
+        "persistent": {
+            "values": [
+                false,
+                true
+            ]
+        }
+    },
+    "streamk_config": {
+        "reduction_strategy": {
+            "values": [
+                "atomic",
+                "linear",
+                "tree"
+            ]
+        }
+    },
+    "k_block_per_cu": 1
+}

@@ -101,6 +101,18 @@ using device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_instances = std::tup
     //clang-format on
     >;
 
+template <index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename ELayout,
+          typename DataType,
+          ConvolutionBackwardWeightSpecialization ConvSpec>
+using device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_instances_part1 = std::tuple<
+    // clang-format off
+    DeviceGroupedConvBwdWeight_Wmma_CShuffleV3<NDimSpatial, ALayout, BLayout, ELayout, DataType, DataType, DataType, F32, PassThrough, PassThrough, PassThrough, ConvSpec, 256, 32, 64, 512, 8, 16, 16, 1, 1, S<64, 4, 1>, S<2, 0, 1>, S<2, 0, 1>, 1, 8, 8, 1, S<64, 4, 1>, S<2, 0, 1>, S<2, 0, 1>, 1, 8, 8, 1, 1, 1, S<1, 32, 1, 8>, 8, BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, DataType, DataType, 1, 1, false, false>
+    // clang-format on
+    >;
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

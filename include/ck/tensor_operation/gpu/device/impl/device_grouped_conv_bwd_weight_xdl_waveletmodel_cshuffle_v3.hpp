@@ -129,6 +129,116 @@ __launch_bounds__(GridwiseGemm::LaunchBlockSize, MinimumOccupancy)
 #endif
 }
 
+template <typename GridwiseGemm,
+          typename AGridDesc_AK0_M_K1,
+          typename BGridDesc_BK0_N_K1,
+          typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename ComputePtrOffsetOfBatch,
+          bool HasMainKBlockLoop,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+          index_t MinimumOccupancy = 1,
+          TailNumber TailNum       = TailNumber::Full>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+__launch_bounds__(GridwiseGemm::LaunchBlockSize, MinimumOccupancy)
+#endif
+    kernel_grouped_conv_bwd_weight_xdl_waveletmodel_cshuffle_v3_2lds(
+        typename GridwiseGemm::Argument karg,
+        const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+        const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+        const index_t num_k_per_block,
+        const long_index_t split_k_stride_a,
+        const long_index_t split_k_stride_b,
+        bool split_k_offset_hack)
+{
+#if defined(__gfx950__) || defined(__gfx125__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
+        const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
+
+        const long_index_t split_k_offset_a = split_k_offset_hack ? k_idx * split_k_stride_a : 0;
+        const long_index_t split_k_offset_b = split_k_offset_hack ? k_idx * split_k_stride_b : 0;
+
+        const long_index_t a_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+        const long_index_t b_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+        const long_index_t e_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+
+        constexpr index_t LDS_size = GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch());
+        __shared__ char p_shared0[LDS_size];
+        __shared__ char p_shared1[LDS_size];
+
+        // Dispatch SplitKOffsetHack as a template parameter
+        const auto a_grid_desc_transform =
+            GridwiseGemm::template TransformGridA<decltype(a_grid_desc_ak0_m_ak1),
+                                                  GridwiseGemm::AK0Number,
+                                                  GridwiseGemm::AK1Number>(a_grid_desc_ak0_m_ak1,
+                                                                           get_device_arch());
+        const auto b_grid_desc_transform =
+            GridwiseGemm::template TransformGridB<decltype(b_grid_desc_bk0_n_bk1),
+                                                  GridwiseGemm::BK0Number,
+                                                  GridwiseGemm::BK1Number>(b_grid_desc_bk0_n_bk1,
+                                                                           get_device_arch());
+        if(split_k_offset_hack)
+        {
+            GridwiseGemm::template Run<HasMainKBlockLoop,
+                                       CGlobalMemoryDataOperation,
+                                       TailNum,
+                                       decltype(a_grid_desc_transform),
+                                       decltype(b_grid_desc_transform),
+                                       decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
+                                       true>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                             karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                             karg.p_c_grid + e_batch_offset,
+                                             p_shared0,
+                                             p_shared1,
+                                             karg,
+                                             a_grid_desc_transform,
+                                             b_grid_desc_transform,
+                                             c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                             k_idx * num_k_per_block,
+                                             gridDim.y);
+        }
+        else
+        {
+            GridwiseGemm::template Run<HasMainKBlockLoop,
+                                       CGlobalMemoryDataOperation,
+                                       TailNum,
+                                       decltype(a_grid_desc_transform),
+                                       decltype(b_grid_desc_transform),
+                                       decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
+                                       false>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                              karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                              karg.p_c_grid + e_batch_offset,
+                                              p_shared0,
+                                              p_shared1,
+                                              karg,
+                                              a_grid_desc_transform,
+                                              b_grid_desc_transform,
+                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              k_idx * num_k_per_block,
+                                              gridDim.y);
+        }
+    }
+#else
+    ignore = karg;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = compute_ptr_offset_of_batch;
+    ignore = num_k_per_block;
+    ignore = split_k_stride_a;
+    ignore = split_k_stride_b;
+    ignore = split_k_offset_hack;
+#endif
+}
+
 // Device operation for wave-specialized conv backward weight
 template <ck::index_t NDimSpatial,
           typename InLayout,
@@ -173,7 +283,10 @@ template <ck::index_t NDimSpatial,
           index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
           typename ComputeTypeA    = InDataType,
           typename ComputeTypeB    = ComputeTypeA,
-          index_t NumGroupsToMerge = 1>
+          index_t NumGroupsToMerge = 1,
+          bool DirectLoad          = false,
+          bool UseTdm              = false,
+          bool UseNamedBarrier     = false>
 struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
     : public DeviceGroupedConvBwdWeight<NDimSpatial,
                                         InLayout,
@@ -191,6 +304,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
     static_assert(is_same_v<InElementwiseOperation, element_wise::PassThrough>);
     static_assert(is_same_v<WeiElementwiseOperation, element_wise::PassThrough>);
     static_assert(is_same_v<OutElementwiseOperation, element_wise::PassThrough>);
+
+    static_assert(!(UseTdm && NumGroupsToMerge > 1), "NumGroupsToMerge must be 1 when using TDM");
 
     // AK0PerBlock = K0PerBlock / K1. Transfer cluster K0 dim must not exceed it,
     // otherwise thread_slice_k0 = AK0PerBlock / K0_cluster truncates to 0.
@@ -252,7 +367,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
                                        K1Number,
                                        K0PerBlock / K1Number,
                                        NumGroupsToMerge,
-                                       ConvBackwardWeightSpecialization>{};
+                                       ConvBackwardWeightSpecialization,
+                                       index_t,
+                                       UseTdm>{};
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
     static auto GetABCGridDesc()
@@ -335,10 +452,13 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
+    // In case of double buffer direct load pipeline we always use LDS transpose for bwd weight
+    static constexpr bool UseLdsTranspose = DirectLoad;
+
     template <index_t NXdlPerWave_>
     using GridwiseGemmBase = GridwiseGemm_xdl_waveletmodel_cshuffle_conv_v3<
-        tensor_layout::gemm::RowMajor,
         tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor,
         tensor_layout::gemm::RowMajor,
         ADataType,
         BDataType,
@@ -381,7 +501,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
         ComputeTypeA,
-        ComputeTypeB>;
+        ComputeTypeB,
+        DirectLoad,
+        UseTdm,          // UseTdmA
+        false,           // UseTdmB
+        UseNamedBarrier, // UseNamedBarrier
+        UseLdsTranspose>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
@@ -565,7 +690,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
 
             // Calculate stride using GetElementSpaceSize for accurate stride
             split_k_stride_a_ = a_grid_desc_k0_m_k1_.GetElementSpaceSize();
-            if(split_k_offset_hack_)
+            if(split_k_offset_hack_ && !UseTdm)
                 split_k_stride_a_ /= this->k_batch_;
 
             split_k_stride_b_ = b_grid_desc_k0_n_k1_.GetElementSpaceSize();
@@ -623,17 +748,37 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
 
     // Dispatch helper: selects the kernel instantiation for a given
     // {HasMainLoop, MemOp} combination, keeping common template args in one place.
-    template <typename GridwiseGemm_, bool HasMainLoop, InMemoryDataOperationEnum MemOp>
+    template <typename GridwiseGemm_,
+              bool HasMainLoop,
+              InMemoryDataOperationEnum MemOp,
+              TailNumber TailNum = TailNumber::Even>
     static auto SelectKernel()
     {
-        return kernel_grouped_conv_bwd_weight_xdl_waveletmodel_cshuffle_v3<
-            GridwiseGemm_,
-            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-            remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-            HasMainLoop,
-            MemOp>;
+        if constexpr(!DirectLoad)
+        {
+            return kernel_grouped_conv_bwd_weight_xdl_waveletmodel_cshuffle_v3<
+                GridwiseGemm_,
+                remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                HasMainLoop,
+                MemOp>;
+        }
+        else
+        {
+            constexpr index_t minimum_occupancy = 1;
+            return kernel_grouped_conv_bwd_weight_xdl_waveletmodel_cshuffle_v3_2lds<
+                GridwiseGemm_,
+                remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                HasMainLoop,
+                MemOp,
+                minimum_occupancy,
+                TailNum>;
+        }
     }
 
     // Invoker
@@ -660,10 +805,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
         template <typename GridwiseGemm>
         float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const index_t GemmM = arg.a_grid_desc_k0_m_k1_.GetLength(I1);
+            const index_t GemmM = UseTdm ? arg.a_grid_desc_k0_m_k1_.GetLength(I0)
+                                         : arg.a_grid_desc_k0_m_k1_.GetLength(I1);
             const index_t GemmN = arg.b_grid_desc_k0_n_k1_.GetLength(I1);
             const index_t GemmK =
-                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
+                arg.b_grid_desc_k0_n_k1_.GetLength(I0) * arg.b_grid_desc_k0_n_k1_.GetLength(I2);
 
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
@@ -681,7 +827,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
             const auto num_k_per_block =
-                arg.a_grid_desc_k0_m_k1_.GetLength(Number<0>{}) / gemm_arg.KBatch;
+                arg.b_grid_desc_k0_n_k1_.GetLength(Number<0>{}) / gemm_arg.KBatch;
 
             const auto clear_workspace = [&]() {
                 if(arg.k_batch_ > 1)
@@ -746,27 +892,91 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
             };
 
             const bool split_k_active = arg.k_batch_ > 1;
-            if(has_main_k_block_loop)
+            if constexpr(!DirectLoad)
             {
-                if(split_k_active)
-                    Run(DeviceOp::SelectKernel<GridwiseGemm,
-                                               true,
-                                               InMemoryDataOperationEnum::AtomicAdd>());
+                if(has_main_k_block_loop)
+                {
+                    if(split_k_active)
+                        Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                   true,
+                                                   InMemoryDataOperationEnum::AtomicAdd>());
+                    else
+                        Run(DeviceOp::
+                                SelectKernel<GridwiseGemm, true, InMemoryDataOperationEnum::Set>());
+                }
                 else
-                    Run(DeviceOp::
-                            SelectKernel<GridwiseGemm, true, InMemoryDataOperationEnum::Set>());
+                {
+                    if(split_k_active)
+                        Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                   false,
+                                                   InMemoryDataOperationEnum::AtomicAdd>());
+                    else
+                        Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                   false,
+                                                   InMemoryDataOperationEnum::Set>());
+                }
             }
             else
             {
-                if(split_k_active)
-                    Run(DeviceOp::SelectKernel<GridwiseGemm,
-                                               false,
-                                               InMemoryDataOperationEnum::AtomicAdd>());
+                if(has_main_k_block_loop)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        if(split_k_active)
+                            Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                       true,
+                                                       InMemoryDataOperationEnum::AtomicAdd,
+                                                       TailNumber::Odd>());
+                        else
+                            Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                       true,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Odd>());
+                    }
+                    else
+                    {
+                        if(split_k_active)
+                            Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                       true,
+                                                       InMemoryDataOperationEnum::AtomicAdd,
+                                                       TailNumber::Even>());
+                        else
+                            Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                       true,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Even>());
+                    }
+                }
                 else
-                    Run(DeviceOp::
-                            SelectKernel<GridwiseGemm, false, InMemoryDataOperationEnum::Set>());
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        if(split_k_active)
+                            Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                       false,
+                                                       InMemoryDataOperationEnum::AtomicAdd,
+                                                       TailNumber::Odd>());
+                        else
+                            Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                       false,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Odd>());
+                    }
+                    else
+                    {
+                        if(split_k_active)
+                            Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                       false,
+                                                       InMemoryDataOperationEnum::AtomicAdd,
+                                                       TailNumber::Even>());
+                        else
+                            Run(DeviceOp::SelectKernel<GridwiseGemm,
+                                                       false,
+                                                       InMemoryDataOperationEnum::Set,
+                                                       TailNumber::Even>());
+                    }
+                }
             }
-
             return ave_time;
         }
 
@@ -791,6 +1001,51 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
                           << ", in function: " << __func__ << std::endl;
             }
             return false;
+        }
+
+        constexpr index_t ldsBufferCount = DirectLoad ? 2 : 1;
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                if(GridwiseGemm64::GetSharedMemoryNumberOfByteOnHost() * ldsBufferCount >
+                   get_lds_size())
+                {
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                if(GridwiseGemm32::GetSharedMemoryNumberOfByteOnHost() * ldsBufferCount >
+                   get_lds_size())
+                {
+                    return false;
+                }
+            }
+        }
+
+        if constexpr(DirectLoad)
+        {
+            if(!(is_gfx125_supported() || ck::get_device_name() == "gfx950"))
+            {
+                return false;
+            }
+        }
+
+        if constexpr(UseNamedBarrier || UseTdm)
+        {
+            if(!is_gfx125_supported())
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! arch doesn't support named barrier or TDM"
+                              << std::endl;
+                }
+                return false;
+            }
         }
 
         // Both thread groups must be a whole number of hardware waves.
@@ -1122,9 +1377,21 @@ struct DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3"
-            << "<";
-        str << TileLoadThreadGroupSize << "l+" << TileMathThreadGroupSize << "m, "
+        str << "DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3";
+        
+        if constexpr(DirectLoad)
+        {
+            str << "_DirectLoad";
+        }
+        if constexpr(UseTdm)
+        {
+            str << "_Tdm";
+        }
+        if constexpr(UseNamedBarrier)
+        {
+            str << "_PingPong";
+        }
+        str << "<" << TileLoadThreadGroupSize << "l+" << TileMathThreadGroupSize << "m, "
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock << ", "

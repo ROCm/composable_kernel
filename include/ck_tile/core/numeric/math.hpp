@@ -456,6 +456,34 @@ CK_TILE_HOST_DEVICE constexpr bool is_power_of_two_integer(int32_t x)
     return x == (1 << integer_log2_floor(x));
 }
 
+/// x / D for a non-negative x. A power-of-two D is a logical shift: a signed division by it
+/// rounds toward zero and so costs a sign fixup that a non-negative x never needs.
+template <index_t D>
+CK_TILE_HOST_DEVICE constexpr index_t integer_divide_nonnegative(index_t x)
+{
+    static_assert(D > 0, "the divisor must be positive");
+    if constexpr(is_power_of_two_integer(D))
+    {
+        // constexpr: the shift must reach LLVM as a literal. As a call that it folds only later,
+        // loop bounds divided by D lose their unsigned compares.
+        constexpr int32_t shift = integer_log2_floor(D);
+        return static_cast<index_t>(static_cast<uint32_t>(x) >> shift);
+    }
+    else
+        return x / D;
+}
+
+/// x % D for a non-negative x; a power-of-two D is a mask (see integer_divide_nonnegative).
+template <index_t D>
+CK_TILE_HOST_DEVICE constexpr index_t integer_modulo_nonnegative(index_t x)
+{
+    static_assert(D > 0, "the divisor must be positive");
+    if constexpr(is_power_of_two_integer(D))
+        return x & (D - 1);
+    else
+        return x % D;
+}
+
 #ifndef C_LOG2E
 #define C_LOG2E 1.44269504088896340736 // log2(e)
 #endif

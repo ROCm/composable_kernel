@@ -46,11 +46,11 @@ struct FmhaFwdFp8Bf16
 {
 };
 
-struct FmhaFwdFp8Fp32
+struct FmhaFwdMxFp8
 {
 };
 
-struct FmhaFwdMxFp8
+struct FmhaFwdMxFp8Bf16
 {
 };
 
@@ -122,7 +122,7 @@ struct FmhaFwdTypeConfig<FmhaFwdFp8>
     using SMPLComputeDataType   = float; // data type for reduction, softmax
     using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
     using OaccDataType          = float;          // data type for second gemm accumulation
-    using ODataType             = ck_tile::fp8_t;
+    using ODataType             = float;
 };
 
 template <>
@@ -158,22 +158,6 @@ struct FmhaFwdTypeConfig<FmhaFwdFp8Bf16>
 };
 
 template <>
-struct FmhaFwdTypeConfig<FmhaFwdFp8Fp32>
-{
-    using QDataType             = ck_tile::fp8_t;
-    using KDataType             = ck_tile::fp8_t;
-    using VDataType             = ck_tile::fp8_t;
-    using BiasDataType          = float;
-    using RandValOutputDataType = uint8_t;
-    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType          = float; // data type for first gemm accumulation
-    using SMPLComputeDataType   = float; // data type for reduction, softmax
-    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
-    using OaccDataType          = float;          // data type for second gemm accumulation
-    using ODataType             = float;
-};
-
-template <>
 struct FmhaFwdTypeConfig<FmhaFwdMxFp8>
 {
     using QDataType             = ck_tile::fp8_t;
@@ -195,6 +179,13 @@ struct FmhaFwdTypeConfig<FmhaFwdMxFp8>
 
     static constexpr ck_tile::index_t kQKScaleGranularity = 32;
     static constexpr ck_tile::index_t kVScaleGranularity  = 32;
+};
+
+// MXFP8 inputs with a BF16 output (gfx125x qr_tdm_fp8_sched only).
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdMxFp8Bf16> : FmhaFwdTypeConfig<FmhaFwdMxFp8>
+{
+    using ODataType = ck_tile::bf16_t;
 };
 
 template <>
@@ -314,7 +305,7 @@ struct fmha_fwd_args
     ck_tile::index_t num_head_q_total = 0;
     ck_tile::index_t head_start       = 0;
 
-    float scale_s;
+    float scale_s; // Must be > 0; the example runner maps 0 to 1/sqrt(hdim_q) before calling.
     float logits_soft_cap;
 
     ck_tile::index_t stride_q;
@@ -377,6 +368,10 @@ struct fmha_fwd_args
     // segments would leave the XCDs unbalanced. Performance only: any value gives the same
     // results.
     bool uniform_seqlens = false;
+    // Group mode: the longest batch's keys, or 0 if not known: a hint for dispatch (the GDPA
+    // kernel with K and V resident is the fast one for batches of up to its LDS's keys; a longer
+    // batch it stages a chunk at a time, so a wrong hint costs time only).
+    ck_tile::index_t max_seqlen_k = 0;
 };
 
 struct fmha_fwd_pagedkv_args
@@ -474,7 +469,9 @@ struct fmha_fwd_splitkv_args
 
     void* block_table_ptr;
     ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
-    ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
+    // only used if 'block_table_ptr' is not nullptr. Must be a multiple of the
+    // kernel's kN0; the kernel does not check it, a violation gives wrong results.
+    ck_tile::index_t page_block_size;
     bool is_gappy; // differentiate seqstart_k_ptr usage. only used if 'block_table_ptr' is not
                    // nullptr.
 
@@ -550,6 +547,25 @@ struct fmha_fwd_splitkv_args
     ck_tile::index_t window_size_right;
     ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
+
+    // quantization descales, as in fmha_fwd_args (gfx1250 qr_tdm_pingpong's split-KV)
+    const void* q_descale_ptr               = nullptr;
+    const void* k_descale_ptr               = nullptr;
+    const void* v_descale_ptr               = nullptr;
+    const void* block_scale_seqstart_q_ptr  = nullptr;
+    const void* block_scale_seqstart_k_ptr  = nullptr;
+    const void* seqstart_v_scale_ptr        = nullptr;
+    ck_tile::index_t stride_q_descale       = 0;
+    ck_tile::index_t stride_k_descale       = 0;
+    ck_tile::index_t stride_v_descale       = 0;
+    ck_tile::index_t nhead_stride_q_descale = 0;
+    ck_tile::index_t nhead_stride_k_descale = 0;
+    ck_tile::index_t nhead_stride_v_descale = 0;
+    ck_tile::index_t batch_stride_q_descale = 0;
+    ck_tile::index_t batch_stride_k_descale = 0;
+    ck_tile::index_t batch_stride_v_descale = 0;
+    ck_tile::index_t block_scale_size_q     = 0;
+    ck_tile::index_t block_scale_size_kv    = 0;
 };
 
 struct fmha_fwd_appendkv_args
@@ -910,12 +926,59 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
             args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr);
         return ck_tile::make_tuple(kargs, grids);
     }
+    else if constexpr(FmhaKernel::kMergeNumHeadGroupsSeqLenQ)
+    {
+        // One workgroup row per KV head; its query heads become nhead_q / nhead_k row groups.
+        dim3 grids = FmhaKernel::GridSize(args.batch,
+                                          args.nhead_k,
+                                          args.max_seqlen_q * (args.nhead_q / args.nhead_k),
+                                          args.hdim_v,
+                                          false);
+        return ck_tile::make_tuple(kargs, grids);
+    }
     else
     {
         dim3 grids =
             FmhaKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, false);
         return ck_tile::make_tuple(kargs, grids);
     }
+}
+
+// Whether folding the query heads of a KV head into one tile costs more parallelism than
+// the shared K/V loads save: a short query (up to 16 rows per head) folded past
+// qr_tdm_pingpong's 16-row tile runs nhead_ratio times fewer blocks, which loses on a grid
+// the unfolded heads fill less than twice over (d128, 32 heads, 8:1 GQA: up to -45%).
+inline bool fmha_fwd_pack_gqa_costs_parallelism(ck_tile::index_t batch,
+                                                ck_tile::index_t nhead_q,
+                                                ck_tile::index_t nhead_ratio,
+                                                ck_tile::index_t seqlen_q,
+                                                unsigned num_cus)
+{
+    return seqlen_q >= 1 && seqlen_q <= 16 && nhead_ratio * seqlen_q > 16 &&
+           1LL * batch * nhead_q < 2LL * num_cus;
+}
+
+// Batch-mode decode GQA whose query heads fold into one tile of query rows per KV head.
+inline bool fmha_fwd_can_merge_head_groups(const fmha_fwd_args& a,
+                                           ck_tile::index_t max_rows,
+                                           bool has_lse,
+                                           bool has_mx_scale,
+                                           bool allow_one_group = false)
+{
+    if(a.nhead_k <= 0 || a.nhead_q < a.nhead_k || a.nhead_q % a.nhead_k != 0)
+        return false;
+    if(!allow_one_group && a.nhead_q == a.nhead_k)
+        return false;
+    if(a.cu_seqlen_q_ptr != nullptr || a.cu_seqlen_k_ptr != nullptr)
+        return false;
+    const ck_tile::index_t s = a.seqlen_q;
+    if(s != a.max_seqlen_q || s * (a.nhead_q / a.nhead_k) > max_rows)
+        return false;
+    if(s == 1)
+        return true;
+    return a.nhead_stride_q == s * a.stride_q && a.nhead_stride_o == s * a.stride_o &&
+           (!has_lse || a.nhead_stride_lse == s) &&
+           (!has_mx_scale || a.nhead_stride_q_descale == s * a.stride_q_descale);
 }
 
 template <typename FmhaKernel>
@@ -1240,6 +1303,85 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
     return ck_tile::make_tuple(kargs, grids);
 }
 
+// qr_tdm_pingpong's split-KV main kernel (FmhaFwdKernel<..., kSplitKV>): the forward kernel's
+// arguments with O and LSE on the split accumulators, and one workgroup per split of each head
+// (the head dimension of the grid runs nhead * num_splits).
+template <typename Kernel>
+auto fmha_fwd_splitkv_pingpong_create_kargs_and_grids(fmha_fwd_splitkv_args args)
+{
+    static_assert(Kernel::kSplitKV);
+    fmha_fwd_args f{};
+    // group mode: physical starts, and the logical K lengths where K is padded
+    if constexpr(Kernel::kIsGroupMode)
+    {
+        f.seqstart_q_ptr = args.seqstart_q_ptr;
+        f.seqstart_k_ptr = args.seqstart_k_ptr;
+        f.seqlen_k_ptr   = args.seqlen_k_ptr;
+    }
+    f.q_ptr                      = args.q_ptr;
+    f.k_ptr                      = args.k_ptr;
+    f.v_ptr                      = args.v_ptr;
+    f.bias_ptr                   = args.bias_ptr;
+    f.lse_ptr                    = args.lse_acc_ptr;
+    f.o_ptr                      = args.o_acc_ptr;
+    f.sink_ptr                   = args.sink_ptr;
+    f.seqlen_q                   = args.seqlen_q;
+    f.seqlen_k                   = args.seqlen_k;
+    f.batch                      = args.batch;
+    f.max_seqlen_q               = args.max_seqlen_q;
+    f.hdim_q                     = args.hdim_q;
+    f.hdim_v                     = args.hdim_v;
+    f.nhead_q                    = args.nhead_q;
+    f.nhead_k                    = args.nhead_k;
+    f.scale_s                    = args.scale_s;
+    f.logits_soft_cap            = args.logits_soft_cap;
+    f.stride_q                   = args.stride_q;
+    f.stride_k                   = args.stride_k;
+    f.stride_v                   = args.stride_v;
+    f.stride_bias                = args.stride_bias;
+    f.stride_o                   = args.stride_o_acc;
+    f.nhead_stride_q             = args.nhead_stride_q;
+    f.nhead_stride_k             = args.nhead_stride_k;
+    f.nhead_stride_v             = args.nhead_stride_v;
+    f.nhead_stride_bias          = args.nhead_stride_bias;
+    f.nhead_stride_lse           = args.nhead_stride_lse_acc;
+    f.nhead_stride_o             = args.nhead_stride_o_acc;
+    f.batch_stride_q             = args.batch_stride_q;
+    f.batch_stride_k             = args.batch_stride_k;
+    f.batch_stride_v             = args.batch_stride_v;
+    f.batch_stride_bias          = args.batch_stride_bias;
+    f.batch_stride_lse           = args.batch_stride_lse_acc;
+    f.batch_stride_o             = args.batch_stride_o_acc;
+    f.window_size_left           = args.window_size_left;
+    f.window_size_right          = args.window_size_right;
+    f.sink_size                  = args.sink_size;
+    f.mask_type                  = args.mask_type;
+    f.drop_seed_offset           = std::make_pair(uint64_t{0}, uint64_t{0});
+    f.q_descale_ptr              = args.q_descale_ptr;
+    f.k_descale_ptr              = args.k_descale_ptr;
+    f.v_descale_ptr              = args.v_descale_ptr;
+    f.block_scale_seqstart_q_ptr = args.block_scale_seqstart_q_ptr;
+    f.block_scale_seqstart_k_ptr = args.block_scale_seqstart_k_ptr;
+    f.seqstart_v_scale_ptr       = args.seqstart_v_scale_ptr;
+    f.stride_q_descale           = args.stride_q_descale;
+    f.stride_k_descale           = args.stride_k_descale;
+    f.stride_v_descale           = args.stride_v_descale;
+    f.nhead_stride_q_descale     = args.nhead_stride_q_descale;
+    f.nhead_stride_k_descale     = args.nhead_stride_k_descale;
+    f.nhead_stride_v_descale     = args.nhead_stride_v_descale;
+    f.batch_stride_q_descale     = args.batch_stride_q_descale;
+    f.batch_stride_k_descale     = args.batch_stride_k_descale;
+    f.batch_stride_v_descale     = args.batch_stride_v_descale;
+    f.block_scale_size_q         = args.block_scale_size_q;
+    f.block_scale_size_kv        = args.block_scale_size_kv;
+    auto [kargs, grids]          = fmha_fwd_create_kargs_and_grids<Kernel>(f);
+    kargs.num_splits             = args.num_splits;
+    kargs.split_stride_o         = args.split_stride_o_acc;
+    kargs.split_stride_lse       = args.split_stride_lse_acc;
+    grids.x *= args.num_splits;
+    return ck_tile::make_tuple(kargs, grids);
+}
+
 template <typename Kernel>
 auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_splitkv_args args)
 {
@@ -1502,7 +1644,8 @@ template <ck_tile::index_t HDim_,
           bool kHasSink_        = false,
           int kOccupancy_       = -1,
           ck_tile::BlockAttentionActivationEnum Activation_ =
-              ck_tile::BlockAttentionActivationEnum::SOFTMAX>
+              ck_tile::BlockAttentionActivationEnum::SOFTMAX,
+          bool kPackGqa_ = false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1536,6 +1679,8 @@ struct fmha_fwd_traits_
     // multiple such tiles are linked into a single shared object.
     static constexpr int kOccupancy  = kOccupancy_;
     static constexpr auto Activation = Activation_;
+    // Query heads sharing a KV head are packed into the tile's query rows.
+    static constexpr bool kPackGqa = kPackGqa_;
 };
 
 template <ck_tile::index_t HDim_,
@@ -1688,7 +1833,9 @@ template <ck_tile::index_t HDim_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
-          int kOccupancy_ = -1>
+          int kOccupancy_ = -1,
+          ck_tile::BlockAttentionQuantScaleEnum QScaleEnum_ =
+              ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE>
 struct fmha_fwd_splitkv_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -1723,6 +1870,10 @@ void fmha_fwd_splitkv_oneshot_(const ck_tile::stream_config&, fmha_fwd_splitkv_a
 
 template <typename Traits_, typename Arch = void>
 std::string fmha_fwd_splitkv_get_name_();
+
+// qr_tdm_pingpong's split-KV instances: whether their kernel (the forward one) takes the call
+template <typename Traits_, typename Arch = void>
+bool fmha_fwd_splitkv_supported_(const fmha_fwd_splitkv_args&);
 
 template <ck_tile::index_t HDim_,
           typename DataType_,
@@ -1818,6 +1969,10 @@ ck_tile::index_t fmha_fwd_block_scale_size_kv(const std::string& data_type,
                                               ck_tile::index_t hdim_q,
                                               ck_tile::index_t hdim_v);
 
+// Generated: whether dispatch's head-dim case for these traits holds a qr_tdm_pingpong
+// 16-row (short-query) tile serving them.
+bool fmha_fwd_has_short_query_tile(fmha_fwd_traits traits);
+
 struct fmha_fwd_pagedkv_traits
 {
     int hdim_q;
@@ -1854,6 +2009,8 @@ struct fmha_fwd_splitkv_traits
     bool do_fp8_static_quant = false;
     bool has_sink            = false;
     // TODO: padding check is inside this api
+    // gfx1250 qr_tdm_pingpong's split-KV: the forward kernel's quantization descales
+    quant_scale_enum qscale_type = quant_scale_enum::no_scale;
 };
 float fmha_fwd_splitkv(fmha_fwd_splitkv_traits,
                        fmha_fwd_splitkv_args,

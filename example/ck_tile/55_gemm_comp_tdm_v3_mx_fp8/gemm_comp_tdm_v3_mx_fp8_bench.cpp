@@ -6,10 +6,15 @@
 //
 // fp8 (e4m3) A row-major and B column-major, one E8M0 scale per 32 K elements of every A row and
 // every B column, fp32 accumulate, C row-major in fp16 (-c_dtype=fp16) or bf16 (-c_dtype=bf16).
-// Warp tile 16x16x128, the scaled WMMA. Instances, chosen at run time:
+// The scaled WMMA. Instances, chosen at run time:
 //   -tile     32x256x256 | 32x128x256 | 32x64x256 | 64x256x256    4 waves (warps 2x2x1)
 //             16x512x256 | 16x256x256 | 16x128x256 | 16x64x256    4 waves (warps 1x4x1)
 //             256x256x256                             16 waves (warps 4x4x1)
+//             Warp tile 16x16x128, except 256x256x256: 32x32x128, which keeps its 16 waves
+//             within the 256-VGPR budget (16x16x128 spills there).
+//   -cluster  1x1 | 2x2         256x256x256 only: launch 2x2 workgroup clusters, each A and B
+//                               tile loaded once by TDM and multicast to the two workgroups that
+//                               share it.
 //   -epilogue tdm | cshuffle   TdmEpilogue writes C with one TDM store clipped to M x N.
 //                              CShuffle is padded (kPadM, kPadN) and also runs split-K.
 //   -k_batch  N                split K into N ranges added into C atomically (CShuffle only; C is
@@ -75,20 +80,22 @@ using BLayout        = ColumnMajor;
 using CLayout        = RowMajor;
 constexpr int kScale = 32; // K elements per scale
 
-constexpr ck_tile::index_t kWarpM = 16;
-constexpr ck_tile::index_t kWarpN = 16;
 constexpr ck_tile::index_t kWarpK = 128;
 
-// One compiled kernel per (tile, epilogue, C type). The configuration follows the gfx1250 MX
-// gtests (test_mx_gemm_pipeline_util.hpp): transposed C for row-major C and a square warp tile,
-// and an unpacked C tile for the CShuffle epilogue (comp_tdm_v3's block GEMM does not pack).
+// One compiled kernel per (tile, epilogue, C type, cluster). The configuration follows the
+// gfx1250 MX gtests (test_mx_gemm_pipeline_util.hpp): transposed C for row-major C and a square
+// warp tile, and an unpacked C tile for the CShuffle epilogue (comp_tdm_v3's block GEMM does not
+// pack). With Cluster > 1 the workgroups launch in Cluster x Cluster clusters
+// (ClusterTileGemmShape, GemmClusterTilePartitioner), as in the MX gtests' cluster rows.
 template <ck_tile::index_t TileM,
           ck_tile::index_t TileN,
           ck_tile::index_t TileK,
           ck_tile::index_t WarpsM,
           ck_tile::index_t WarpsN,
           bool TdmEpi,
-          typename CDataType_>
+          typename CDataType_,
+          ck_tile::index_t WarpTile = 16,
+          ck_tile::index_t Cluster  = 1>
 struct Instance
 {
     using CDataType                          = CDataType_;
@@ -96,10 +103,22 @@ struct Instance
     static constexpr bool kTransC            = true;
     static constexpr ck_tile::index_t kTileM = TileM;
     static constexpr ck_tile::index_t kTileN = TileN;
-    using TileShape       = ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
-                                                   ck_tile::sequence<WarpsM, WarpsN, 1>,
-                                                   ck_tile::sequence<kWarpM, kWarpN, kWarpK>>;
-    using Partitioner     = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
+    static constexpr ck_tile::index_t kWarpM = WarpTile;
+    static constexpr ck_tile::index_t kWarpN = WarpTile;
+    static constexpr bool kCluster           = Cluster > 1;
+    using TileShape =
+        std::conditional_t<kCluster,
+                           ck_tile::ClusterTileGemmShape<ck_tile::sequence<Cluster, Cluster, 1>,
+                                                         ck_tile::sequence<TileM, TileN, TileK>,
+                                                         ck_tile::sequence<WarpsM, WarpsN, 1>,
+                                                         ck_tile::sequence<kWarpM, kWarpN, kWarpK>>,
+                           ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
+                                                  ck_tile::sequence<WarpsM, WarpsN, 1>,
+                                                  ck_tile::sequence<kWarpM, kWarpN, kWarpK>>>;
+    using Partitioner =
+        std::conditional_t<kCluster,
+                           ck_tile::GemmClusterTilePartitioner<TileShape>,
+                           ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>>;
     using Traits          = ck_tile::TileGemmUniversalTraits<kPad,
                                                              kPad,
                                                              false, // kPadK (MX GEMM forbids it)
@@ -349,9 +368,9 @@ int run(const ck_tile::ArgParser& arg, const std::string& bench_name)
     const HostOperand b = make_operand(p.N, pad_n, p.K, sparse, sigma, seed, 1);
     std::vector<ScaleDataType> sa_dev(a.raw.size()), sb_dev(b.raw.size());
     ck_tile::preShuffleScaleBuffer_gfx1250<ScaleDataType, kScale, true>(
-        a.raw.data(), sa_dev.data(), pad_m, ks, kWarpM);
+        a.raw.data(), sa_dev.data(), pad_m, ks, Inst::kWarpM);
     ck_tile::preShuffleScaleBuffer_gfx1250<ScaleDataType, kScale, true>(
-        b.raw.data(), sb_dev.data(), pad_n, ks, kWarpN);
+        b.raw.data(), sb_dev.data(), pad_n, ks, Inst::kWarpN);
     std::printf("host fill (%s, seed %llu): %.1f s\n",
                 sparse ? "sparse" : "rand",
                 static_cast<unsigned long long>(seed),
@@ -403,8 +422,13 @@ int run(const ck_tile::ArgParser& arg, const std::string& bench_name)
     auto launch        = [&] {
         if(k_batch > 1)
             BENCH_HIP_CHECK(hipMemsetAsync(d.c, 0, c_elems * sizeof(CDataType), stream));
-        ck_tile::launch_kernel(ck_tile::stream_config{stream, false},
-                               ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
+        if constexpr(Inst::kCluster)
+            ck_tile::launch_kernel(
+                ck_tile::stream_config{stream, false},
+                ck_tile::make_kernel<1>(Kernel{}, Kernel::ClusterSize(), grids, blocks, 0, kargs));
+        else
+            ck_tile::launch_kernel(ck_tile::stream_config{stream, false},
+                                   ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
     };
 
     if(is_verify)
@@ -607,7 +631,17 @@ int run(const ck_tile::ArgParser& arg, const std::string& bench_name)
 template <bool TdmEpi, typename CDataType>
 int dispatch_tile(const ck_tile::ArgParser& arg, const std::string& name)
 {
-    const std::string tile = arg.get_str("tile");
+    const std::string tile    = arg.get_str("tile");
+    const std::string cluster = arg.get_str("cluster");
+    if(tile == "256x256x256" && cluster == "2x2")
+        return run<Instance<256, 256, 256, 4, 4, TdmEpi, CDataType, 32, 2>>(arg, name);
+    if(cluster != "1x1")
+    {
+        std::printf("unsupported -cluster=%s for -tile=%s (2x2 is for 256x256x256 only)\n",
+                    cluster.c_str(),
+                    tile.c_str());
+        return 2;
+    }
     if(tile == "32x256x256")
         return run<Instance<32, 256, 256, 2, 2, TdmEpi, CDataType>>(arg, name);
     if(tile == "32x128x256")
@@ -615,7 +649,7 @@ int dispatch_tile(const ck_tile::ArgParser& arg, const std::string& name)
     if(tile == "64x256x256")
         return run<Instance<64, 256, 256, 2, 2, TdmEpi, CDataType>>(arg, name);
     if(tile == "256x256x256")
-        return run<Instance<256, 256, 256, 4, 4, TdmEpi, CDataType>>(arg, name);
+        return run<Instance<256, 256, 256, 4, 4, TdmEpi, CDataType, 32>>(arg, name);
     // 16-row tiles: one warp tile in M, the four waves along N (warps 1x4x1)
     if(tile == "16x512x256")
         return run<Instance<16, 512, 256, 1, 4, TdmEpi, CDataType>>(arg, name);
@@ -648,8 +682,11 @@ int dispatch_epilogue(const ck_tile::ArgParser& arg, const std::string& name)
 int dispatch(const ck_tile::ArgParser& arg)
 {
     const std::string c    = arg.get_str("c_dtype");
-    const std::string name = "ck_comp_tdm_v3_mxfp8_e8m0x32_rcr_c" + c + "_" + arg.get_str("tile") +
-                             "_wt16x16x128_" + arg.get_str("epilogue") +
+    const std::string tile = arg.get_str("tile");
+    const std::string wt   = tile == "256x256x256" ? "32x32x128" : "16x16x128";
+    const std::string name = "ck_comp_tdm_v3_mxfp8_e8m0x32_rcr_c" + c + "_" + tile + "_wt" + wt +
+                             "_" + arg.get_str("epilogue") +
+                             (arg.get_str("cluster") == "2x2" ? "_cl2x2" : "") +
                              (arg.get_int("k_batch") > 1 ? "_kb" + arg.get_str("k_batch") : "");
     if(c == "fp16")
         return dispatch_epilogue<ck_tile::half_t>(arg, name);
@@ -673,6 +710,8 @@ int main(int argc, char* argv[])
                 "32x256x256",
                 "32x256x256 | 32x128x256 | 32x64x256 | 64x256x256 | 256x256x256 | 16x512x256 | "
                 "16x256x256 | 16x128x256 | 16x64x256")
+        .insert(
+            "cluster", "1x1", "1x1 | 2x2 (256x256x256 only): workgroup cluster with TDM multicast")
         .insert("k_batch", "1", "split K into this many atomically added ranges (CShuffle only)")
         .insert("mode", "verify-sparse", "verify-sparse | verify-rand | peak | sustained")
         .insert("data", "rand", "input data for peak/sustained: rand | sparse")

@@ -10,7 +10,7 @@ namespace ck_tile {
 template <index_t NumSu>
 struct FmhaTdmSchedScoreFragmentMappingFor
 {
-    static_assert(NumSu == 2 || NumSu == 4);
+    static_assert(NumSu == 2 || NumSu == 4 || NumSu == 8);
     using Pair = ext_vector_t<float, 2>;
 
     struct Coordinate

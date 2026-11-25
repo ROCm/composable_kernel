@@ -63,8 +63,9 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                        std::is_same_v<typename Base::BLayout, tensor_layout::gemm::ColumnMajor>),
                   "comp_tdm_v3 with 8-bit A/B supports A row-major, B column-major only");
 
-    // Only tested in the plain GEMM kernel; the multi-D, grouped and batched-contraction kernels
-    // reject a pipeline that sets this (UniversalGemmKernel::kIsPlainGemmOnlyPipeline).
+    // Only tested in the plain, batched, Stream-K and MX GEMM kernels; the multi-D, grouped,
+    // multi-ABD and batched-contraction kernels reject a pipeline that sets this
+    // (UniversalGemmKernel::kIsPlainGemmOnlyPipeline).
     static constexpr bool kPlainGemmOnly = true;
 
 #if defined(__gfx125__)
@@ -96,7 +97,10 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
     /// Split-K with a split-K-capable epilogue (CShuffle): each split's TDM loads are clipped to
     /// its K range (and with MX scales, its scale loads too), and the split-K path is tested, so
     /// UniversalGemmKernel and MxGemmKernel let this pipeline run k_batch > 1 (see their
-    /// IsSupportedArgument). TDM pipelines without this member reject k_batch > 1.
+    /// IsSupportedArgument). TDM pipelines without this member reject k_batch > 1, except the
+    /// producer/consumer pipeline in UniversalGemmKernel (whole-K-tile splits only). Declaring it
+    /// also exempts the pipeline from UniversalGemmKernel's whole-tile C and split checks;
+    /// IsCTensorSupported still applies.
     static constexpr bool kSupportsTdmSplitK = true;
 
     template <GemmPipelineScheduler Scheduler>
@@ -378,26 +382,9 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
             TDMConfig tdm_config_a[2];
             TDMConfig tdm_config_b[2];
 
-            // set tdm's lds padding config
-            constexpr auto LdsPaddingConfigA =
-                Policy::template GetLdsPaddingConfig<Problem, true>();
-            constexpr auto APaddingEnabled  = LdsPaddingConfigA[I0{}];
-            constexpr auto APaddingAmount   = LdsPaddingConfigA[I1{}];
-            constexpr auto APaddingInterval = LdsPaddingConfigA[I2{}];
-
-            constexpr auto LdsPaddingConfigB =
-                Policy::template GetLdsPaddingConfig<Problem, false>();
-            constexpr auto BPaddingEnabled  = LdsPaddingConfigB[I0{}];
-            constexpr auto BPaddingAmount   = LdsPaddingConfigB[I1{}];
-            constexpr auto BPaddingInterval = LdsPaddingConfigB[I2{}];
             static_for<0, 2, 1>{}([&](auto i) {
-                tdm_config_a[i].pad_enable              = APaddingEnabled;
-                tdm_config_a[i].pad_config.pad_amount   = APaddingAmount;
-                tdm_config_a[i].pad_config.pad_interval = APaddingInterval;
-
-                tdm_config_b[i].pad_enable              = BPaddingEnabled;
-                tdm_config_b[i].pad_config.pad_amount   = BPaddingAmount;
-                tdm_config_b[i].pad_config.pad_interval = BPaddingInterval;
+                tdm_config_a[i] = Base::template MakeTdmConfig<true>();
+                tdm_config_b[i] = Base::template MakeTdmConfig<false>();
             });
 
             if constexpr(UseClusterLaunch)
@@ -1231,6 +1218,28 @@ struct GemmPipelineAgBgCrCompTDMV3 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 p_smem);
         };
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    // Stream-K call form (see GemmPipelineAgBgCrCompTDMV1). V3's operator() overloads hide V1's,
+    // so V3 restates it to bind its own PipelineImpl.
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const index_t num_loop,
+                                   const bool /*has_hot_loop*/,
+                                   const TailNumber /*tail_number*/,
+                                   void* __restrict__ p_smem) const
+    {
+        return operator()(make_tuple(a_dram_block_window_tmp),
+                          element_wise::PassThrough{},
+                          make_tuple(b_dram_block_window_tmp),
+                          element_wise::PassThrough{},
+                          num_loop,
+                          p_smem);
     }
 
     // MX (MxGemmKernel): A, B and their scale block windows.

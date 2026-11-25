@@ -224,18 +224,14 @@ load_tile_tdm_full_tile(const TDMConfig_& tdm_config,
 template <typename LdsTileWindow_,
           typename TileWindow_,
           index_t i_access           = -1,
-          bool oob_conditional_check = true,
-          bool pre_nop               = false>
+          bool oob_conditional_check = true>
 CK_TILE_DEVICE void async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                         const TileWindow_& tile_window,
                                         number<i_access>                     = {},
-                                        bool_constant<oob_conditional_check> = {},
-                                        bool_constant<pre_nop>               = {})
+                                        bool_constant<oob_conditional_check> = {})
 {
-    tile_window.async_load_raw(lds_tile,
-                               number<i_access>{},
-                               bool_constant<oob_conditional_check>{},
-                               bool_constant<pre_nop>{});
+    tile_window.async_load_raw(
+        lds_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 CK_TILE_DEVICE void async_load_fence(index_t cnt = 0)
@@ -243,8 +239,10 @@ CK_TILE_DEVICE void async_load_fence(index_t cnt = 0)
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
-template <typename WindowLengths>
-CK_TILE_DEVICE auto load_tile(const null_tile_window<WindowLengths>&)
+template <typename WindowLengths, index_t i_access = -1, bool oob_conditional_check = true>
+CK_TILE_DEVICE auto load_tile(const null_tile_window<WindowLengths>&,
+                              number<i_access>                     = {},
+                              bool_constant<oob_conditional_check> = {})
 {
     return null_tensor{};
 }

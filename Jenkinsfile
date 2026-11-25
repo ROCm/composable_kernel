@@ -136,8 +136,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION',
-            defaultValue: '10.1',
-            description: 'Specify which ROCM version to use: 10.1 (default).')
+            defaultValue: '10.2',
+            description: 'Specify which ROCM version to use: 10.2 (default).')
         string(
             name: 'COMPILER_VERSION',
             defaultValue: '',
@@ -444,7 +444,7 @@ pipeline {
                         script {
                             loadCk()
                             ck.runOnHealthyNode(rocmnode("gfx942")) {
-                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds())
+                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds("gfx942"))
                                 cleanWs()
                             }
                         }
@@ -461,7 +461,7 @@ pipeline {
                         script {
                             loadCk()
                             ck.runOnHealthyNode(rocmnode("gfx950")) {
-                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds())
+                                ck.run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: ck.getAiterTestsCmds("gfx950"))
                                 cleanWs()
                             }
                         }
@@ -812,7 +812,7 @@ pipeline {
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                                             -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
-                                            -DGPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic;gfx1250;gfx1250-strict" \
+                                            -DGPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx11-7-generic;gfx12-generic;gfx1250;gfx1250-strict" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -DHIPTENSOR_REQ_LIBS_ONLY=ON \
                                             -DMIOPEN_REQ_LIBS_ONLY=ON .. && ninja -j64 """

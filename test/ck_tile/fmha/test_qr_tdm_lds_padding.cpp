@@ -801,7 +801,8 @@ constexpr bool validate_short_query_pingpong_layout()
     static_assert(Layout::kSOffset == 34800);
     static_assert(Layout::kV0Offset == 39168 && Layout::kQOffset == Layout::kV0Offset);
     static_assert(Layout::kArenaBytes == 57600);
-    static_assert(!Pipeline::kRowSumOnMatrixUnit);
+    // the short-query tile spends its gemm_1 warps on N, so it keeps the per-tile row max
+    static_assert(!Pipeline::kGemm1WarpsOnM && !Pipeline::kRowMaxBySum);
     static_assert(Pipeline::GetSmemSize() == Layout::kArenaBytes);
     return true;
 }

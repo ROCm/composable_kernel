@@ -34,7 +34,7 @@ __device__ auto amd_global_load_transpose_to_vgpr(const T* in_ptr)
 }
 #endif
 
-#if defined(__gfx125__)
+#if defined(__gfx125__) || defined(__gfx950__)
 template <typename T>
 __device__ auto amd_lds_load_transpose_to_vgpr(const T* __restrict__ in_ptr)
 {
@@ -49,17 +49,31 @@ __device__ auto amd_lds_load_transpose_to_vgpr(const T* __restrict__ in_ptr)
 #pragma clang diagnostic pop
 #endif
 
-    using vector_t = typename vector_type<T, 8>::type;
     if constexpr(is_same<T, half_t>::value)
     {
+#if defined(__gfx125__)
+        using vector_t      = typename vector_type<T, 8>::type;
         using llvm_fp16x8_t = NativeVectorT<llvm_half_t, 8>;
         auto lds_ptr        = reinterpret_cast<CK_LDS_ADDR llvm_fp16x8_t*>(in_ptr_);
         return bit_cast<vector_t>(__builtin_amdgcn_ds_load_tr16_b128_v8f16(lds_ptr));
+#elif defined(__gfx950__)
+        using vector_t      = typename vector_type<T, 4>::type;
+        using llvm_fp16x4_t = NativeVectorT<llvm_half_t, 4>;
+        auto lds_ptr        = reinterpret_cast<CK_LDS_ADDR llvm_fp16x4_t*>(in_ptr_);
+        return bit_cast<vector_t>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
+#endif
     }
     else if constexpr(is_same<T, bhalf_t>::value)
     {
-        auto lds_ptr = reinterpret_cast<CK_LDS_ADDR llvm_bf16x8_t*>(in_ptr_);
+#if defined(__gfx125__)
+        using vector_t = typename vector_type<T, 8>::type;
+        auto lds_ptr   = reinterpret_cast<CK_LDS_ADDR llvm_bf16x8_t*>(in_ptr_);
         return bit_cast<vector_t>(__builtin_amdgcn_ds_load_tr16_b128_v8bf16(lds_ptr));
+#elif defined(__gfx950__)
+        using vector_t = typename vector_type<T, 4>::type;
+        auto lds_ptr   = reinterpret_cast<CK_LDS_ADDR llvm_bf16x4_t*>(in_ptr_);
+        return bit_cast<vector_t>(__builtin_amdgcn_ds_read_tr16_b64_v4bf16(lds_ptr));
+#endif
     }
     else
     {

@@ -25,6 +25,7 @@ from dataclasses import dataclass, asdict, replace
 from enum import Enum
 import concurrent.futures
 
+from arch_specs_generated import DOUBLE_SMEM_BUFFER_PIPELINES
 from codegen_common import (
     TileConfig,
     TraitConfigBase,
@@ -33,9 +34,16 @@ from codegen_common import (
     GFX1250_COMP_ASYNC_8BIT_WARP_TILE_K_REJECT_REASON,  # noqa: F401 (re-exported)
     GFX1250_COMP_ASYNC_LAYOUT_REJECT_REASON,  # noqa: F401 (re-exported)
     GFX1250_ARCH,  # noqa: F401 (re-exported)
+    GEMM_TDM_CSHUFFLE_PIPELINES,
     GFX1250_ONLY_PIPELINES,
+    TDM_EPILOGUES,
     TDM_PAD_REJECT_REASON,  # noqa: F401 (re-exported)
     TDM_PIPELINES,
+    COMP_TDM_V3,
+    tdm_pipeline_epilogue,
+    TDM_STAGED_EPILOGUE,
+    TDM_STAGED_LAYOUT_REJECT_REASON,  # noqa: F401 (re-exported)
+    tdm_staged_layout_reject_reason,
     gfx1250_comp_async_8bit_warp_tile_k_rejected,  # noqa: F401 (re-exported)
     gfx1250_fp32_tile_reject_reason,
     gfx1250_pipeline_reject_reason,
@@ -44,11 +52,16 @@ from codegen_common import (
     preshuffle_pipeline_reject_reason,
     packed_b_pipeline_reject_reason,
     is_true,
+    streamk_trait_reject_reason,
     gemm_lockstep_vector_bytes,
     gemm_default_epilogue_vector_size,
     gemm_vector_size_suffix,
+    pipeline_ring_fields,
+    pipeline_ring_param,
+    pipeline_ring_suffix,
     resolve_gemm_vector_sizes,
     streamk_c_reject_reason,
+    split_pipeline_ring,
     normalize_gfx_arch,
     is_preshuffle_config_valid,  # noqa: F401 (re-exported)
     warp_size_for_arch,
@@ -81,24 +94,9 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
 
-# Pipelines whose C++ class requires DoubleSmemBuffer == true.
-DOUBLE_SMEM_BUFFER_PIPELINES = (
-    "compv4",
-    "preshufflev2",
-    "comp_async",
-    "comp_tdm",
-    "comp_tdm_v2",
-    "comp_tdm_pc",
-    "preshuffle_tdm",
-)
-
 # The gfx1250 pipeline constants (TDM_PIPELINES, GFX1250_ONLY_PIPELINES, the
 # reject reasons) live in codegen_common next to gfx1250_pipeline_reject_reason
 # so the codegen, arch_filter and python/gemm_utils share one rule set.
-
-
-def _is_power_of_two(x: int) -> bool:
-    return x > 0 and (x & (x - 1)) == 0
 
 
 # ============================================================================
@@ -145,10 +143,26 @@ class TraitConfig(TraitConfigBase):
     vector_size_a: int = 0
     vector_size_b: int = 0
     vector_size_c: int = 0
+    # comp_tdm_pc / comp_tdm_ra ring (codegen_common.split_pipeline_ring):
+    # num_slots=0 is the policy default (<4, 0> / <4, 3>); the ring parameter is
+    # publish_lag for comp_tdm_pc and run_ahead for comp_tdm_ra.
+    num_slots: int = 0
+    publish_lag: int = 0
+    run_ahead: int = 0
 
     @property
     def vector_sizes(self) -> Tuple[int, int, int]:
         return (self.vector_size_a, self.vector_size_b, self.vector_size_c)
+
+    @property
+    def ring_param(self) -> int:
+        """The ring parameter of the pipeline's policy (PublishLag / RunAhead)."""
+        return pipeline_ring_param(self.pipeline, self.publish_lag, self.run_ahead)
+
+    @property
+    def ring_suffix(self) -> str:
+        """Kernel-name suffix of a non-default ring, "" for the default."""
+        return pipeline_ring_suffix(self.pipeline, self.num_slots, self.ring_param)
 
 
 @dataclass
@@ -215,6 +229,8 @@ class KernelConfig:
         )
         if any(self.trait.vector_sizes):
             parts.append("vec{}_{}_{}".format(*self.trait.vector_sizes))
+        if self.trait.num_slots:
+            parts.append(self.trait.ring_suffix[1:])
 
         # Traits
         parts.append(f"pipe_{self.trait.pipeline}")
@@ -315,6 +331,7 @@ class KernelNaming:
         name += f"_{t.warp_m}x{t.warp_n}x{t.warp_k}"
         name += f"_{t.warp_tile_m}x{t.warp_tile_n}x{t.warp_tile_k}"
         name += gemm_vector_size_suffix(tr.vector_sizes)
+        name += tr.ring_suffix
 
         # Add variant suffix
         if config.variant == GemmVariant.PRESHUFFLE:
@@ -676,9 +693,9 @@ using ADataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.datatype]};
 using BDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.datatype]};
 using CDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[output_dtype]};
 using AccDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[acc_dtype]};
-// Layout aliases in the global namespace so single-kernel consumers (the
-// ctypes lib's fallback key derivation and the preshuffle B-shuffle) can query
-// this kernel's operand layouts by type.
+// Layout aliases in the global namespace so single-kernel consumers (e.g. the
+// ctypes lib's preshuffle B-shuffle) can query this kernel's operand layouts by
+// type.
 {self._multi_abd_global_exports(config, ns_name)}
 using ALayout = {ns_name}::ALayout;
 using BLayout = {ns_name}::BLayout;
@@ -724,6 +741,9 @@ using CLayout = {ns_name}::CLayout;
 #define GEMM_KEY_VECTOR_SIZE_A {tr.vector_size_a}
 #define GEMM_KEY_VECTOR_SIZE_B {tr.vector_size_b}
 #define GEMM_KEY_VECTOR_SIZE_C {tr.vector_size_c}
+#define GEMM_KEY_NUM_SLOTS {tr.num_slots}
+#define GEMM_KEY_PUBLISH_LAG {tr.publish_lag}
+#define GEMM_KEY_RUN_AHEAD {tr.run_ahead}
 {self._multi_d_single_include(config)}#endif // CK_TILE_SINGLE_KERNEL_INCLUDE
 """
 
@@ -737,7 +757,7 @@ using CLayout = {ns_name}::CLayout;
         sequence<WarpTileM, WarpTileN, WarpTileK>,
         false, false>;
     
-    using TilePartitioner = GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
+    using TilePartitioner = {self._tile_partitioner(config)};
     using Traits = TileGemmTraits<kPadM, kPadN, kPadK, {ns_name}::ALayout, {ns_name}::BLayout, {ns_name}::CLayout, NumWaveGroups>;
     using GemmPipelineProblem = GemmPipelineProblem<ADataType, BDataType, AccDataType, TileShape, Traits>;
     using BaseGemmPipeline = """
@@ -745,13 +765,27 @@ using CLayout = {ns_name}::CLayout;
             + """<GemmPipelineProblem>;"""
         )
 
+    @staticmethod
+    def _tile_partitioner(config: KernelConfig) -> str:
+        """comp_tdm_v3 walks the output tiles in plain row-major order, as the Tile
+        Engine gemm_universal builder does for it; the others use the spatially
+        local raster."""
+        if config.trait.pipeline == COMP_TDM_V3:
+            return "GemmTile1DPartitioner<TileShape>"
+        return "GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>"
+
     def _tdm_k_batch_guard(self, config: KernelConfig, indent: str) -> str:
         """Host-side split-K guard for the TDM pipelines (empty otherwise).
 
-        TdmEpilogue ignores the memory operation, so k_batch > 1 would leave a
-        partial C without any error.
+        The TDM epilogues ignore the memory operation, so k_batch > 1 would leave a
+        partial C without any error. GEMM_TDM_CSHUFFLE_PIPELINES on cshuffle can
+        split K, and GemmKernel::IsSupportedArgument checks it, as in the Tile
+        Engine instance builder.
         """
-        if config.trait.pipeline not in TDM_PIPELINES:
+        if config.trait.pipeline not in TDM_PIPELINES or (
+            config.trait.epilogue == "cshuffle"
+            and config.trait.pipeline in GEMM_TDM_CSHUFFLE_PIPELINES
+        ):
             return ""
         return (
             f"\n\n{indent}if(args.k_batch != 1) {{"
@@ -764,9 +798,11 @@ using CLayout = {ns_name}::CLayout;
             # The gfx1250 legacy dispatcher selects MFMA in the host pass,
             # where GetVectorSizeC() differs from the device for column C.
             # Emit the target distribution's width for registry support checks.
-            return str(gemm_default_epilogue_vector_size(
-                self.datatype, self.layout, self.gpu_target
-            ))
+            return str(
+                gemm_default_epilogue_vector_size(
+                    self.datatype, self.layout, self.gpu_target
+                )
+            )
         return "GemmEpilogue::GetVectorSizeC()"
 
     def _launch_function(self, config: KernelConfig) -> str:
@@ -799,7 +835,7 @@ using CLayout = {ns_name}::CLayout;
                                         NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>,
         scheduler{self._vector_size_tails(config)[0]}>;
 
-    using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+    using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
     {self._epilogue_code(config)}
 
     using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -864,7 +900,7 @@ using CLayout = {ns_name}::CLayout;
             GemmUniversalTraits,
             scheduler{self._vector_size_tails(config)[0]}>;
 
-        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
         {self._epilogue_code(config)}
 
         using GemmKernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -951,7 +987,7 @@ using CLayout = {ns_name}::CLayout;
                                     NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>,
             scheduler{self._vector_size_tails(config)[0]}>;
 
-        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
         {self._epilogue_code(config)}
 
         using GemmKernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -985,7 +1021,10 @@ using CLayout = {ns_name}::CLayout;
     @staticmethod
     def _requires_full_nk_tiles(config: KernelConfig) -> bool:
         """Preshuffle compute TDM launchers reject partial N/K tiles and k_batch != 1."""
-        return config.variant == GemmVariant.PRESHUFFLE and config.trait.pipeline in TDM_PIPELINES
+        return (
+            config.variant == GemmVariant.PRESHUFFLE
+            and config.trait.pipeline in TDM_PIPELINES
+        )
 
     def _launch_function_preshuffle(self, config: KernelConfig) -> str:
         """Launch the selected native pipeline; its Preshuffle trait controls B packing."""
@@ -1009,7 +1048,7 @@ using CLayout = {ns_name}::CLayout;
                                         NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>,
         scheduler{self._vector_size_tails(config)[0]}>;
 
-    using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+    using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
     {self._epilogue_code(config)}
 
     using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -1053,7 +1092,7 @@ using CLayout = {ns_name}::CLayout;
                                             NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>,
             scheduler{self._vector_size_tails(config)[0]}>;
         
-        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
         {self._epilogue_code(config)}
         
         // Use GemmKernelMultiD for Multi-D variant
@@ -1132,7 +1171,7 @@ using CLayout = {ns_name}::CLayout;
             AsDataType, BsDataType, AccDataType, TileShape, Traits, scheduler,
             AElementWiseFn, BElementWiseFn{mabd_tails[0]}>;
 
-        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        using GemmPipeline = {self._pipeline_type(config, "UniversalGemmProblem")};
         {self._epilogue_code(config)}
 
         using GemmKernel = ck_tile::GemmKernelMultiABD<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -1157,15 +1196,17 @@ using CLayout = {ns_name}::CLayout;
         """Generate launch function for Stream-K GEMM (the dispatcher way).
 
         Stream-K is a single GEMM that splits the K dimension across CUs and
-        reduces partial results through a device workspace. Unlike Tile Engine
-        (which takes an external workspace pointer), the dispatcher allocates the
-        workspace INTERNALLY via DeviceMem inside launch(args, stream).
+        reduces partial results through a device workspace. The internal-workspace
+        launch overload allocates DeviceMem and delegates to the external-workspace
+        overload; both use the same timed reset and launch path.
 
         The reduction strategy is taken from the config (atomic/linear/tree).
         Atomic: partial tiles atomic-add into C, so C is zeroed before every
         kernel invocation. Linear/Tree: partials accumulate through the device
-        workspace, which is zeroed instead. Both are handled by the preprocess
-        callback passed to launch_kernel_time_mask.
+        workspace, where only the reduction flags are zeroed (partials are
+        overwritten before use). The preprocess callback passed to
+        launch_kernel_time_mask includes these resets in the measured time:
+        full C for Atomic, flags only for Linear/Tree.
         """
         reduction_ck = {
             "atomic": "Atomic",
@@ -1175,8 +1216,8 @@ using CLayout = {ns_name}::CLayout;
         # The Atomic strategy zeroes C with a row-major hipMemset2D (pitch =
         # stride_E rows of N elems). A column-major C would be zeroed incorrectly
         # and atomic accumulation would then corrupt results, so fail loudly at
-        # compile time rather than silently. Linear/Tree zero the workspace, not C,
-        # so they carry no such requirement.
+        # compile time rather than silently. Linear/Tree zero the workspace flags,
+        # not C, so their reset imposes no such requirement (the pipeline may).
         c_rowmajor_assert = (
             """
     static_assert(
@@ -1201,66 +1242,54 @@ using CLayout = {ns_name}::CLayout;
                                         NumWaveGroups, Preshuffle{self._vector_size_tails(config)[1]}>;
     using SkUniversalGemmProblem = UniversalGemmPipelineProblem<
         ADataType, BDataType, AccDataType, TileShape, SkGemmUniversalTraits, SkScheduler{self._vector_size_tails(config)[0]}>;
-    using SkGemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<SkUniversalGemmProblem>;
+    using SkGemmPipeline = {self._pipeline_type(config, "SkUniversalGemmProblem")};
     {self._epilogue_code(config)}
     using SkStreamKTilePartitioner =
         ck_tile::StreamKTilePartitioner<TileShape, SkReductionStrategy, UsePersistentKernel>;
     using StreamKGemmKernel =
         ck_tile::StreamKKernel<SkStreamKTilePartitioner, SkGemmPipeline, GemmEpilogue>;
 
+    // Kernel arguments for `args` with the Stream-K workgroup budget at `budget_pct`
+    // percent of the default (CUs x occupancy, budget_pct 100). A smaller budget leaves
+    // more of the GPU to the data-parallel tiles while keeping physical `num_cu` intact
+    // for CU-balanced Full-DP checks. Never above the default: linear and tree reduction
+    // would wait on workgroups that cannot be resident.
+    using SkKernelArgs = decltype(StreamKGemmKernel::MakeKernelArgs(
+        std::declval<const ck_tile::StreamKHostArgs&>()));
+    static SkKernelArgs MakeKargs(const ck_tile::StreamKHostArgs& args, int budget_pct = 100) {{
+        if (budget_pct < 1 || budget_pct > 100) {{
+            throw std::invalid_argument("Stream-K budget_pct must be in [1, 100]");
+        }}
+        auto kargs = StreamKGemmKernel::MakeKernelArgs(args);
+        if (budget_pct == 100) {{
+            return kargs;
+        }}
+        const auto full = kargs.tile_partitioner.get_max_active_wgs();
+        const auto budget_wgs = std::max<ck_tile::index_t>(1, full * budget_pct / 100);
+        const auto num_cu = static_cast<ck_tile::index_t>(
+            ck_tile::get_available_compute_units(ck_tile::stream_config{{}}));
+        return SkKernelArgs(args, budget_wgs, kargs.num_xccs, num_cu);
+    }}
+
     // Device workspace (bytes) this kernel needs for `args`. 0 for Atomic;
     // >0 for Linear/Tree. The Dispatcher uses this to size the buffer it owns.
-    static std::size_t GetWorkSpaceSize(const ck_tile::StreamKHostArgs& args) {{
-        auto kargs = StreamKGemmKernel::MakeKernelArgs(args);
-        return StreamKGemmKernel::GetWorkSpaceSize(kargs);
+    static std::size_t GetWorkSpaceSize(const ck_tile::StreamKHostArgs& args, int budget_pct = 100) {{
+        return StreamKGemmKernel::GetWorkSpaceSize(MakeKargs(args, budget_pct));
     }}
 
     // Whether the kernel can actually partition this problem (enough tiles across
     // CUs). Lets the dispatcher's supports() reject too-small problems and fall
     // back to a non-Stream-K kernel instead of throwing at launch.
-    static bool IsSupported(const ck_tile::StreamKHostArgs& args) {{
-        return StreamKGemmKernel::IsSupportedArgument(StreamKGemmKernel::MakeKernelArgs(args));
+    static bool IsSupported(const ck_tile::StreamKHostArgs& args, int budget_pct = 100) {{
+        return StreamKGemmKernel::IsSupportedArgument(MakeKargs(args, budget_pct));
     }}
 
-    // Internal-workspace launch: allocates a fresh DeviceMem on every call.
-    // Kept unchanged for the bridge ctypes lib and the standalone 03 driver.
-    static float launch(const ck_tile::StreamKHostArgs& args, const stream_config& stream) {{
-        auto kargs = StreamKGemmKernel::MakeKernelArgs(args);
-        const auto ws_size = StreamKGemmKernel::GetWorkSpaceSize(kargs);
-        ck_tile::DeviceMem workspace_dev(ws_size);
-        workspace_dev.SetZero();
-        StreamKGemmKernel::SetWorkSpacePointer(kargs, workspace_dev.GetDeviceBuffer());
-
-        if (!StreamKGemmKernel::IsSupportedArgument(kargs)) {{
-            throw std::runtime_error("Arguments not supported for stream-k kernel!");
-        }}
-
-        const dim3 grids = StreamKGemmKernel::GridSize(kargs.tile_partitioner);
-        const dim3 blocks = StreamKGemmKernel::BlockSize();
-
-        // Atomic reduction accumulates into C, so reset buffers before each run.
-        auto reset_data_buffers = [&]() {{
-            if constexpr (SkReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic) {{
-                // Stride-aware: CLayout is row-major with stride_E elems/row, so a
-                // padded C is zeroed correctly (not just the contiguous M*N case).
-                if(hipMemset2DAsync(args.e_ptr,
-                    args.stride_E * sizeof(CDataType),
-                    0,
-                    args.N * sizeof(CDataType),
-                    args.M,
-                    stream.stream_id_) != hipSuccess) {{
-                    throw std::runtime_error(
-                        "stream-k: hipMemset2DAsync failed to reset C between iterations");
-                }}
-            }} else {{
-                workspace_dev.SetZero();
-            }}
-        }};
-        std::function<void()> preprocess = reset_data_buffers;
-
-        float ave_time = launch_kernel_time_mask(stream, preprocess,
-            make_kernel<SkBlockPerCu>(StreamKGemmKernel{{}}, grids, blocks, 0, kargs));
-        return ave_time;
+    // Internal-workspace launch: allocates the workspace on every call (the bridge
+    // ctypes lib and the standalone 03 driver).
+    static float launch(const ck_tile::StreamKHostArgs& args, const stream_config& stream,
+                        int budget_pct = 100) {{
+        ck_tile::DeviceMem workspace_dev(GetWorkSpaceSize(args, budget_pct));
+        return launch(args, stream, workspace_dev.GetDeviceBuffer(), budget_pct);
     }}
 
     // External-workspace launch (PR-D): the Dispatcher owns and reuses the
@@ -1268,11 +1297,13 @@ using CLayout = {ns_name}::CLayout;
     // (size 0). The per-iteration reset stays here because it needs CDataType
     // and the reduction strategy, which the dtype-erased Dispatcher lacks.
     static float launch(const ck_tile::StreamKHostArgs& args, const stream_config& stream,
-                        void* workspace) {{
-        auto kargs = StreamKGemmKernel::MakeKernelArgs(args);
-        const auto ws_size = StreamKGemmKernel::GetWorkSpaceSize(kargs);
+                        void* workspace, int budget_pct = 100) {{
+        auto kargs = MakeKargs(args, budget_pct);
         if (workspace != nullptr) {{
             StreamKGemmKernel::SetWorkSpacePointer(kargs, workspace);
+        }} else if (StreamKGemmKernel::GetWorkSpaceSize(kargs) > 0) {{
+            throw std::invalid_argument(
+                "stream-k: workspace pointer must not be null when GetWorkSpaceSize > 0");
         }}
 
         if (!StreamKGemmKernel::IsSupportedArgument(kargs)) {{
@@ -1282,23 +1313,39 @@ using CLayout = {ns_name}::CLayout;
         const dim3 grids = StreamKGemmKernel::GridSize(kargs.tile_partitioner);
         const dim3 blocks = StreamKGemmKernel::BlockSize();
 
+        // Reset before every run: Atomic adds the partial tiles into C; Linear and Tree
+        // wait on the per-workgroup flags at the start of the workspace when Stream-K
+        // CTAs are active (flags_bytes == 0 on Full-DP fallback). Their partial tiles
+        // are always written before they are read, so only the flags are reset.
+        const auto flags_bytes = kargs.tile_partitioner.get_flags_buffer_size();
         auto reset_data_buffers = [&]() {{
             if constexpr (SkReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic) {{
                 // Stride-aware: CLayout is row-major with stride_E elems/row, so a
                 // padded C is zeroed correctly (not just the contiguous M*N case).
-                if(hipMemset2DAsync(args.e_ptr,
-                    args.stride_E * sizeof(CDataType),
-                    0,
-                    args.N * sizeof(CDataType),
-                    args.M,
-                    stream.stream_id_) != hipSuccess) {{
-                    throw std::runtime_error(
-                        "stream-k: hipMemset2DAsync failed to reset C between iterations");
+                // Batches stored back to back (batch_stride_E == M * stride_E) are one
+                // matrix of M * batch_count rows; other batch strides are reset batch by
+                // batch, leaving the gaps between batches untouched.
+                const bool packed_batches =
+                    args.batch_stride_E == static_cast<ck_tile::long_index_t>(args.M) * args.stride_E;
+                const ck_tile::index_t resets = packed_batches ? 1 : args.batch_count;
+                const std::size_t rows =
+                    static_cast<std::size_t>(args.M) * (packed_batches ? args.batch_count : 1);
+                for(ck_tile::index_t b = 0; b < resets; ++b) {{
+                    if(hipMemset2DAsync(static_cast<CDataType*>(args.e_ptr) + b * args.batch_stride_E,
+                        args.stride_E * sizeof(CDataType),
+                        0,
+                        args.N * sizeof(CDataType),
+                        rows,
+                        stream.stream_id_) != hipSuccess) {{
+                        throw std::runtime_error(
+                            "stream-k: hipMemset2DAsync failed to reset C between iterations");
+                    }}
                 }}
-            }} else {{
-                if(hipMemsetAsync(workspace, 0, ws_size, stream.stream_id_) != hipSuccess) {{
+            }} else if (flags_bytes > 0) {{
+                if(hipMemsetAsync(kargs.workspace_ptr, 0, flags_bytes, stream.stream_id_) !=
+                   hipSuccess) {{
                     throw std::runtime_error(
-                        "stream-k: hipMemsetAsync failed to reset reduction workspace");
+                        "stream-k: hipMemsetAsync failed to reset the reduction flags");
                 }}
             }}
         }};
@@ -1308,6 +1355,18 @@ using CLayout = {ns_name}::CLayout;
             make_kernel<SkBlockPerCu>(StreamKGemmKernel{{}}, grids, blocks, 0, kargs));
         return ave_time;
     }}"""
+
+    def _pipeline_type(self, config: KernelConfig, problem: str) -> str:
+        """The GemmPipeline type for ``problem``, with a non-default comp_tdm_pc /
+        comp_tdm_ra ring."""
+        tr = config.trait
+        pipeline = f"{self.tm.PIPELINE_TO_CK[tr.pipeline]}<{problem}"
+        if tr.num_slots:
+            pipeline += (
+                f", {self.tm.PIPELINE_TO_RING_POLICY[tr.pipeline]}"
+                f"<{tr.num_slots}, {tr.ring_param}>"
+            )
+        return pipeline + ">"
 
     def _vector_size_tails(
         self,
@@ -1333,9 +1392,17 @@ using CLayout = {ns_name}::CLayout;
         if not vc:
             return "", "", "false, 1"
         ew_tail = ", element_wise::PassThrough, element_wise::PassThrough" if ew else ""
-        traits_tail = ", UseStructuredSparsity, UsePersistentKernel, NumWaveGroups, Preshuffle" if short_traits else ""
+        traits_tail = (
+            ", UseStructuredSparsity, UsePersistentKernel, NumWaveGroups, Preshuffle"
+            if short_traits
+            else ""
+        )
         lds_bytes = gemm_lockstep_vector_bytes(
-            config.trait.vector_sizes, self.datatype, self.datatype, self.layout, self.gpu_target
+            config.trait.vector_sizes,
+            self.datatype,
+            self.datatype,
+            self.layout,
+            self.gpu_target,
         )
         return (
             f"{ew_tail}, {problem_types}, true, {va}, {vb}",
@@ -1345,7 +1412,7 @@ using CLayout = {ns_name}::CLayout;
 
     def _epilogue_code(self, config: KernelConfig) -> str:
         """Generate epilogue code"""
-        if config.trait.epilogue == "tdm":
+        if config.trait.epilogue in TDM_EPILOGUES:
             return self._tdm_epilogue_code(config)
         if config.variant == GemmVariant.BATCHED:
             # Respect the requested epilogue: the batched sweep space includes
@@ -1387,7 +1454,11 @@ using CLayout = {ns_name}::CLayout;
             # Multi-ABD epilogue: tuple A/B/D dtypes and D layouts, EDataType as
             # output, and the CDE element-wise function. Matches the TE builder's
             # CShuffleEpilogueProblem for gemm_multi_abd.
-            vec_c = self._vector_size_tails(config)[2] if any(config.trait.vector_sizes) else ""
+            vec_c = (
+                self._vector_size_tails(config)[2]
+                if any(config.trait.vector_sizes)
+                else ""
+            )
             return f"""
         using EpilogueProblem = CShuffleEpilogueProblem<
             AsDataType, BsDataType, DsDataType, AccDataType, EDataType,
@@ -1424,26 +1495,46 @@ using CLayout = {ns_name}::CLayout;
         using GemmEpilogue = DefaultGemm2DEpilogue<EpilogueProblem>;"""
 
     def _tdm_epilogue_code(self, config: KernelConfig) -> str:
-        """TdmEpilogue over the CShuffle problem (gfx1250 TDM pipelines only).
+        """TDM epilogue over the CShuffle problem (gfx1250 TDM pipelines only).
 
-        Only the plain, preshuffle and batched GEMM variants can host it:
-        TdmEpilogue has no D tensors and ignores the split-K memory operation.
+        "tdm" emits TdmEpilogue; "tdmstaged" emits
+        TdmEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>, so every
+        launcher must define GemmPipeline before the epilogue. Only the plain,
+        preshuffle and batched GEMM variants can host both; Stream-K hosts tdm only
+        (its launcher names the pipeline SkGemmPipeline, and it pairs tdm with
+        linear/tree reduction only, see streamk_trait_reject_reason). The TDM
+        epilogues have no D tensors and ignore the split-K memory operation.
         """
+        epilogue = config.trait.epilogue
         if config.trait.pipeline not in TDM_PIPELINES:
             raise ValueError(
-                f"epilogue=tdm requires a TDM pipeline {TDM_PIPELINES}, "
+                f"epilogue={epilogue} requires a TDM pipeline {TDM_PIPELINES}, "
                 f"got {config.trait.pipeline}"
             )
+        staged_reason = tdm_staged_layout_reject_reason(epilogue, self.layout)
+        if staged_reason:
+            raise ValueError(staged_reason)
+        if epilogue == TDM_STAGED_EPILOGUE and config.variant == GemmVariant.STREAM_K:
+            raise ValueError(f"epilogue={epilogue} is not supported for stream_k")
         if config.variant == GemmVariant.BATCHED:
             transpose_c = "UniversalGemmProblem::TransposeC"
             num_wave_groups = "1"
-        elif config.variant in (GemmVariant.STANDARD, GemmVariant.PRESHUFFLE):
+        elif config.variant in (
+            GemmVariant.STANDARD,
+            GemmVariant.PRESHUFFLE,
+            GemmVariant.STREAM_K,
+        ):
             transpose_c = "TransposeC"
             num_wave_groups = "NumWaveGroups"
         else:
             raise ValueError(
-                f"epilogue=tdm is not supported for GEMM variant {config.variant.value}"
+                f"epilogue={epilogue} is not supported for GEMM variant {config.variant.value}"
             )
+        gemm_epilogue = (
+            "TdmEpilogueStagedForPipeline<EpilogueProblem, 1, GemmPipeline>"
+            if epilogue == TDM_STAGED_EPILOGUE
+            else "TdmEpilogue<EpilogueProblem>"
+        )
         return f"""
         using EpilogueProblem = CShuffleEpilogueProblem<
             ADataType, BDataType, tuple<>, AccDataType, CDataType,
@@ -1451,7 +1542,7 @@ using CLayout = {ns_name}::CLayout;
             TilePartitioner::MPerBlock, TilePartitioner::NPerBlock,
             WarpPerBlock_M, WarpPerBlock_N, WarpTileM, WarpTileN, WarpTileK,
             {transpose_c}, {num_wave_groups}, false, 1, 1, DoubleSmemBuffer>;
-        using GemmEpilogue = TdmEpilogue<EpilogueProblem>;"""
+        using GemmEpilogue = {gemm_epilogue};"""
 
 
 # ============================================================================
@@ -1572,7 +1663,10 @@ inline KernelInstancePtr make_{kernel_name}(const std::string& gfx_arch = "gfx94
     key.algorithm.num_wave_groups = {config.num_wave_groups};
     key.algorithm.vector_size_a = {config.trait.vector_size_a};
     key.algorithm.vector_size_b = {config.trait.vector_size_b};
-    key.algorithm.vector_size_c = {config.trait.vector_size_c};{sk_fields}
+    key.algorithm.vector_size_c = {config.trait.vector_size_c};
+    key.algorithm.num_slots = {config.trait.num_slots};
+    key.algorithm.publish_lag = {config.trait.publish_lag};
+    key.algorithm.run_ahead = {config.trait.run_ahead};{sk_fields}
 
     key.gfx_arch = gfx_arch;
 
@@ -1655,8 +1749,8 @@ class UnifiedGemmCodegen:
 
         # Match tile_engine default configs for GEMM/Preshuffle/Multi-D
         # See: tile_engine/ops/gemm/configs/default_config.json
-        #      tile_engine/ops/gemm_preshuffle/configs/default_config.json
-        #      tile_engine/ops/gemm_multi_d/configs/default_config.json
+        #      tile_engine/ops/gemm/gemm_preshuffle/configs/default_config.json
+        #      tile_engine/ops/gemm/gemm_multi_d/configs/default_config.json
         return {
             "tile_config": {
                 # tile_m/n/k: 64-256 step 64 = [64, 128, 192, 256]
@@ -1803,8 +1897,7 @@ class UnifiedGemmCodegen:
         m_repeat = tile.tile_m // (tile.warp_m * tile.warp_tile_m)
         n_repeat = tile.tile_n // (tile.warp_n * tile.warp_tile_n)
         return not (
-            _dim_bad(m_repeat, tile.warp_tile_m)
-            or _dim_bad(n_repeat, tile.warp_tile_n)
+            _dim_bad(m_repeat, tile.warp_tile_m) or _dim_bad(n_repeat, tile.warp_tile_n)
         )
 
     def _get_configs_for_variant(self, variant: GemmVariant) -> List[KernelConfig]:
@@ -1830,7 +1923,8 @@ class UnifiedGemmCodegen:
                 if t.pipeline in PRESHUFFLE_PIPELINE_CHOICES
                 else replace(t, pipeline="preshufflev2", scheduler="default")
                 for t in trait_configs
-                if (t.pipeline, t.scheduler) in (("compv3", "intrawave"), ("preshufflev2", "default"))
+                if (t.pipeline, t.scheduler)
+                in (("compv3", "intrawave"), ("preshufflev2", "default"))
                 or t.pipeline in PRESHUFFLE_GFX1250_PIPELINES
             ]
 
@@ -1838,16 +1932,18 @@ class UnifiedGemmCodegen:
         for tile, trait in itertools.product(tile_configs, trait_configs):
             # gfx1250 pipelines (non-MX comp_async / comp_tdm*) and the TDM
             # epilogue: exact-arch, variant and trait gate.
-            reason = packed_b_pipeline_reject_reason(
-                trait.pipeline, variant == GemmVariant.PRESHUFFLE
-            ) or self._gfx1250_pipeline_reject_reason(
-                tile, trait, variant
-            ) or gfx1250_fp32_tile_reject_reason(
-                self.gpu_target,
-                self.datatype,
-                tile.tile_m,
-                tile.tile_n,
-                tile.warp_m * tile.warp_n * tile.warp_k,
+            reason = (
+                packed_b_pipeline_reject_reason(
+                    trait.pipeline, variant == GemmVariant.PRESHUFFLE
+                )
+                or self._gfx1250_pipeline_reject_reason(tile, trait, variant)
+                or gfx1250_fp32_tile_reject_reason(
+                    self.gpu_target,
+                    self.datatype,
+                    tile.tile_m,
+                    tile.tile_n,
+                    tile.warp_m * tile.warp_n * tile.warp_k,
+                )
             )
             if reason:
                 log.debug(f"Rejected {variant.value} {trait.pipeline}: {reason}")
@@ -1868,6 +1964,8 @@ class UnifiedGemmCodegen:
                     pipeline=trait.pipeline,
                     scheduler=trait.scheduler,
                     epilogue=trait.epilogue,
+                    num_slots=trait.num_slots,
+                    ring_param=trait.ring_param,
                 ):
                     continue
 
@@ -1882,32 +1980,41 @@ class UnifiedGemmCodegen:
                 configs.append(KernelConfig(tile=tile, trait=trait, variant=variant))
 
             elif variant == GemmVariant.STREAM_K:
-                # Stream-K reuses the standard trait space but requires the cshuffle
-                # epilogue (the only epilogue the stream-K kernel supports). Each
-                # reduction strategy (atomic/linear/tree) is a distinct compiled
-                # kernel, so we expand one config per requested strategy.
-                if trait.epilogue == "cshuffle":
-                    streamk_cfg = self.config.get("streamk_config", {})
-                    strategies = streamk_cfg.get("reduction_strategy", ["atomic"])
-                    for reduction_strategy in strategies:
-                        reason = streamk_c_reject_reason(
-                            reduction_strategy,
-                            trait.vector_size_c,
-                            TypeMappings.get_output_dtype(self.datatype),
-                            self.layout[2],
+                # Stream-K reuses the standard trait space. Each reduction strategy
+                # (atomic/linear/tree) is a distinct compiled kernel, so we expand one
+                # config per requested strategy the trait supports (the epilogue
+                # rules depend on it, see streamk_trait_reject_reason), then apply the
+                # C-store rules (row-major C, atomic C width; streamk_c_reject_reason).
+                streamk_cfg = self.config.get("streamk_config", {})
+                strategies = streamk_cfg.get("reduction_strategy", ["atomic"])
+                for reduction_strategy in strategies:
+                    reason = streamk_trait_reject_reason(
+                        trait.pipeline,
+                        trait.epilogue,
+                        reduction_strategy,
+                        pads=(bool(trait.pad_m), bool(trait.pad_n), bool(trait.pad_k)),
+                    )
+                    if reason:
+                        log.debug(f"Rejected stream_k {trait.pipeline}: {reason}")
+                        continue
+                    reason = streamk_c_reject_reason(
+                        reduction_strategy,
+                        trait.vector_size_c,
+                        TypeMappings.get_output_dtype(self.datatype),
+                        self.layout[2],
+                    )
+                    if reason:
+                        key = self._vector_reject(tile, trait.vector_sizes, reason)
+                        vector_rejects[key] = vector_rejects.get(key, 0) + 1
+                        continue
+                    configs.append(
+                        KernelConfig(
+                            tile=tile,
+                            trait=trait,
+                            variant=variant,
+                            reduction_strategy=reduction_strategy,
                         )
-                        if reason:
-                            key = self._vector_reject(tile, trait.vector_sizes, reason)
-                            vector_rejects[key] = vector_rejects.get(key, 0) + 1
-                            continue
-                        configs.append(
-                            KernelConfig(
-                                tile=tile,
-                                trait=trait,
-                                variant=variant,
-                                reduction_strategy=reduction_strategy,
-                            )
-                        )
+                    )
 
             elif variant == GemmVariant.PRESHUFFLE:
                 # Only preshufflev2/preshuffle_tdm read packed B; the gfx1250
@@ -1941,7 +2048,10 @@ class UnifiedGemmCodegen:
                         trait=trait,
                         variant=variant,
                         preshuffle=trait.pipeline in PACKED_B_PIPELINES,
-                        block_size=tile.warp_m * tile.warp_n * tile.warp_k * warp_size_for_arch(self.gpu_target),
+                        block_size=tile.warp_m
+                        * tile.warp_n
+                        * tile.warp_k
+                        * warp_size_for_arch(self.gpu_target),
                         permute_n=bool(self.config.get("permute_n", False)),
                     )
                 )
@@ -2029,7 +2139,11 @@ class UnifiedGemmCodegen:
         # Fixed widths only serve misaligned extents, which always need padding.
         pads = dict(pad_m=True, pad_n=True, pad_k=True) if any(vec) else {}
         trait = replace(
-            trait, vector_size_a=vec[0], vector_size_b=vec[1], vector_size_c=vec[2], **pads
+            trait,
+            vector_size_a=vec[0],
+            vector_size_b=vec[1],
+            vector_size_c=vec[2],
+            **pads,
         )
         if reason:
             reason = self._vector_reject(tile, vec, reason)
@@ -2084,7 +2198,9 @@ class UnifiedGemmCodegen:
                 if not any(
                     self._is_tile_arch_valid(
                         tile,
-                        variant=GemmVariant.PRESHUFFLE if pl in PACKED_B_PIPELINES else None,
+                        variant=GemmVariant.PRESHUFFLE
+                        if pl in PACKED_B_PIPELINES
+                        else None,
                         pipeline=pl,
                         scheduler=sc,
                     )
@@ -2104,7 +2220,7 @@ class UnifiedGemmCodegen:
     def _gfx1250_pipeline_reject_reason(
         self, tile: TileConfig, trait: TraitConfig, variant: GemmVariant
     ) -> str:
-        """Why a comp_async / comp_tdm* / tdm-epilogue config is rejected.
+        """Why a comp_async / comp_tdm* / TDM-epilogue config is rejected.
 
         Returns an empty string when the config is accepted. Delegates to
         codegen_common.gfx1250_pipeline_reject_reason, the rule set shared with
@@ -2123,13 +2239,22 @@ class UnifiedGemmCodegen:
             dtype_b=self.datatype,
             layout=self.layout,
             variant_supported=variant
-            in (GemmVariant.STANDARD, GemmVariant.BATCHED, GemmVariant.PRESHUFFLE),
+            in (
+                GemmVariant.STANDARD,
+                GemmVariant.BATCHED,
+                GemmVariant.PRESHUFFLE,
+                GemmVariant.STREAM_K,
+            ),
             variant_name=variant.value,
             persistent=bool(trait.persistent),
             pads=(bool(trait.pad_m), bool(trait.pad_n), bool(trait.pad_k)),
             batched=variant == GemmVariant.BATCHED,
             tile_mn=(tile.tile_m, tile.tile_n),
             warp_k=tile.warp_k,
+            streamk=variant == GemmVariant.STREAM_K,
+            waves=(tile.warp_m, tile.warp_n, tile.warp_k),
+            tile_k=tile.tile_k,
+            ring=(trait.num_slots, trait.ring_param),
         )
 
     def _is_tile_arch_valid(
@@ -2139,6 +2264,8 @@ class UnifiedGemmCodegen:
         pipeline: str = None,
         scheduler: str = None,
         epilogue: str = None,
+        num_slots: int = 0,
+        ring_param: int = 0,
     ) -> bool:
         """Check if tile configuration is valid for target architecture
 
@@ -2152,7 +2279,11 @@ class UnifiedGemmCodegen:
             scheduler: Trait scheduler to validate against (defaults to
                 ``intrawave`` for the same reason).
             epilogue: Trait epilogue to validate against (defaults to ``tdm``
-                for the TDM pipelines, which require it, else ``cshuffle``).
+                for the TDM pipelines, which require a TDM epilogue, else
+                ``cshuffle``).
+            num_slots: comp_tdm_pc / comp_tdm_ra ring slots (0 = default), for
+                the LDS budget.
+            ring_param: ring PublishLag / RunAhead, for the ring rule.
         """
         if not self.arch_filter or not HAS_ARCH_FILTER:
             return True
@@ -2169,7 +2300,9 @@ class UnifiedGemmCodegen:
         if scheduler is None:
             scheduler = "intrawave"  # Default
         if epilogue is None:
-            epilogue = "tdm" if pipeline in TDM_PIPELINES else "cshuffle"
+            epilogue = (
+                tdm_pipeline_epilogue(pipeline) if pipeline in TDM_PIPELINES else "cshuffle"
+            )
 
         if OperatorType is not None and variant is not None:
             variant_to_operator = {
@@ -2203,6 +2336,8 @@ class UnifiedGemmCodegen:
             scheduler=scheduler,
             layout=self.layout,
             operator=operator,
+            num_slots=num_slots,
+            ring_param=ring_param,
         )
 
     def _warp_tiles_unlisted(self, variant: Optional["GemmVariant"]) -> bool:
@@ -2248,7 +2383,15 @@ class UnifiedGemmCodegen:
         ):
             # JSON configs may spell the boolean traits as strings ("false").
             pads_persistent = tuple(is_true(v) for v in params[3:7])
-            trait = TraitConfig(*params[:3], *pads_persistent, *params[7:])
+            # "comp_tdm_pc_s{S}l{L}" / "comp_tdm_ra_s{S}r{R}" name a non-default ring.
+            pipeline, num_slots, ring_param = split_pipeline_ring(params[0])
+            trait = TraitConfig(
+                pipeline,
+                *params[1:3],
+                *pads_persistent,
+                *params[7:],
+                **pipeline_ring_fields(pipeline, num_slots, ring_param),
+            )
 
             # Basic trait validation (unsupported combinations)
             if not trait.is_valid():
@@ -2396,7 +2539,7 @@ def _show_arch_info(gpu_target: str, datatype: str):
             budgets = min(
                 LDS_CAPACITY_LIMITS_BY_ARCH.values(), key=lambda b: b["default"]
             )
-            print(f"\nLDS staging budget (unknown target, smallest shipped):")
+            print("\nLDS staging budget (unknown target, smallest shipped):")
         else:
             print(f"\nLDS staging budget on {gpu_target}:")
         for pipeline, limit in budgets.items():

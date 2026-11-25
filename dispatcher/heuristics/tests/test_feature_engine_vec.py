@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 """Tests for GemmUniversalVecFeatureEngine."""
 
 import sys
@@ -300,6 +303,15 @@ class TestWidthEncoding:
         de = fe.extract(p, {**_kernel((0, 0, 0)), "epilogue": "default"})[-6:]
         np.testing.assert_allclose(cs[3:5], de[3:5])
         assert cs[5] != de[5]
+
+    def test_the_tdm_epilogues_share_the_native_widths(self):
+        fe = GemmUniversalVecFeatureEngine()
+        p = _problem(m=1792, n=1536, k=7168)
+        k = {**_kernel((0, 0, 0)), "pipeline": "comp_tdm"}
+        tdm = fe.extract(p, {**k, "epilogue": "tdm"})[-6:]
+        staged = fe.extract(p, {**k, "epilogue": "tdmstaged"})[-6:]
+        np.testing.assert_allclose(tdm, staged)
+        assert tdm[5] == pytest.approx(0.125), "TDM stores C at width 1 of 8"
 
     def test_a_fixed_width_ignores_the_epilogue(self):
         fe = GemmUniversalVecFeatureEngine()

@@ -54,11 +54,6 @@ def get_generated_kernels_dir() -> Path:
     return get_build_dir() / "generated_kernels"
 
 
-def get_codegen_dir() -> Path:
-    """Get the codegen scripts directory."""
-    return get_dispatcher_root() / "codegen"
-
-
 # ============================================================================
 # HIP runtime loading
 # ============================================================================

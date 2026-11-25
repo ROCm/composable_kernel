@@ -9,7 +9,9 @@
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
+#include "ck_tile/ops/fmha/detail/fmha_fwd_kernel_path_markers.hpp"
 #include "ck_tile/ops/fmha/detail/fmha_tdm_sched_output.hpp"
+#include "ck_tile/ops/fmha/pipeline/tile_fmha_traits.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_workgroup_mapping.hpp"
 
 #include <string>
@@ -38,20 +40,6 @@ namespace ck_tile {
 
 namespace detail {
 
-template <typename Pipeline, typename = void>
-struct uses_qr_tdm_lds_arena : std::false_type
-{
-};
-
-template <typename Pipeline>
-struct uses_qr_tdm_lds_arena<Pipeline, std::void_t<decltype(Pipeline::kUsesLdsArena)>>
-    : std::bool_constant<Pipeline::kUsesLdsArena>
-{
-};
-
-template <typename Pipeline>
-inline constexpr bool uses_qr_tdm_lds_arena_v = uses_qr_tdm_lds_arena<Pipeline>::value;
-
 // Pipelines that take several query tiles per workgroup (RunQTiles, kQTilesPerBlock)
 template <typename Pipeline>
 inline constexpr bool is_q_tile_loop_v = [] {
@@ -60,16 +48,6 @@ inline constexpr bool is_q_tile_loop_v = [] {
     else
         return false;
 }();
-
-// Whether the K/V views take the NT_HT cache hint on gfx1250 (see
-// FmhaFwdKernel::kKVCoherence): TDM pipelines that stage K/V in their LDS arena,
-// fp16/bf16, head dims below 256, tiles of at most 64 rows.
-template <typename Pipeline>
-inline constexpr bool uses_kv_nt_ht_hint_v =
-    uses_qr_tdm_lds_arena_v<Pipeline> && Pipeline::kM0 <= 64 &&
-    Pipeline::BlockFmhaShape::kQKHeaddim < 256 &&
-    (std::is_same_v<typename Pipeline::KDataType, half_t> ||
-     std::is_same_v<typename Pipeline::KDataType, bf16_t>);
 
 // A helper struct for detecting n0loop
 template <typename T, typename = void>
@@ -155,35 +133,41 @@ template <typename T>
 static inline constexpr bool is_using_trload_v = has_use_trload_flag<T>::value;
 
 template <typename T>
-using has_untransposed_v_kernel_path = decltype(T::kUsesUntransposedVKernelPath);
-
-template <typename T>
-using has_tdm_affine_dram_path = decltype(T::kUsesTdmAffineDramPath);
-
-template <typename T>
 using has_fixed_segmented_lds_arena = decltype(T::kUsesFixedSegmentedLdsArena);
 
-// qr_tdm used these kernel paths before opt-in markers were introduced.
+// Kernel-path marker fallback: qr_tdm used these paths before opt-in markers
+// were introduced.
 template <typename T>
-static inline constexpr bool uses_untransposed_v_kernel_path_v = []() {
-    if constexpr(is_detected<has_untransposed_v_kernel_path, T>::value)
-        return static_cast<bool>(T::kUsesUntransposedVKernelPath);
-    else
-        return std::string_view{T::name} == "qr_tdm";
-}();
+struct is_named_qr_tdm : std::bool_constant<std::string_view{T::name} == "qr_tdm">
+{
+};
 
 template <typename T>
-static inline constexpr bool uses_tdm_affine_dram_path_v = []() {
-    if constexpr(is_detected<has_tdm_affine_dram_path, T>::value)
-        return static_cast<bool>(T::kUsesTdmAffineDramPath);
+using has_tdm_output_store = decltype(T::kStoresOutputViaTdm);
+
+template <typename T>
+static inline constexpr bool stores_output_via_tdm_v = []() {
+    if constexpr(is_detected<has_tdm_output_store, T>::value)
+        return static_cast<bool>(T::kStoresOutputViaTdm);
     else
-        return std::string_view{T::name} == "qr_tdm";
+        return false;
 }();
 
 template <typename T>
 static inline constexpr bool uses_fixed_segmented_lds_arena_v = []() {
     if constexpr(is_detected<has_fixed_segmented_lds_arena, T>::value)
         return static_cast<bool>(T::kUsesFixedSegmentedLdsArena);
+    else
+        return false;
+}();
+
+template <typename T>
+using has_global_causal_order = decltype(T::kUsesGlobalCausalOrder);
+
+template <typename T>
+static inline constexpr bool uses_global_causal_order_v = []() {
+    if constexpr(is_detected<has_global_causal_order, T>::value)
+        return static_cast<bool>(T::kUsesGlobalCausalOrder);
     else
         return false;
 }();
@@ -208,11 +192,16 @@ inline constexpr bool epilogue_uses_smem_v = epilogue_uses_smem<Epilogue>::value
 
 } // namespace detail
 
-template <typename FmhaPipeline_, typename EpiloguePipeline_>
+// kSplitKV_: the split-KV main kernel of qr_tdm_pingpong. The grid's head dimension runs
+// nhead * num_splits workgroups (split fastest); split i takes its share of the key tiles and
+// writes its own normalized O and LSE at split i of o_ptr / lse_ptr (fp32 accumulators), which
+// the split-KV combine kernel merges.
+template <typename FmhaPipeline_, typename EpiloguePipeline_, bool kSplitKV_ = false>
 struct FmhaFwdKernel
 {
     using FmhaPipeline                           = ck_tile::remove_cvref_t<FmhaPipeline_>;
     using EpiloguePipeline                       = ck_tile::remove_cvref_t<EpiloguePipeline_>;
+    static constexpr bool kSplitKV               = kSplitKV_;
     static constexpr ck_tile::index_t kBlockSize = FmhaPipeline::kBlockSize;
 
     template <typename T>
@@ -221,6 +210,9 @@ struct FmhaFwdKernel
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
+    // Query heads of one KV head folded into the query rows (row = g * seqlen_q + s).
+    static constexpr bool kMergeNumHeadGroupsSeqLenQ =
+        FmhaPipeline::Problem::kMergeNumHeadGroupsSeqLenQ;
 
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
@@ -252,9 +244,9 @@ struct FmhaFwdKernel
                           BlockAttentionActivationEnum::SOFTMAX,
                   "this FMHA pipeline has no GDPA mode: softmax only");
     static constexpr bool kUsesUntransposedVKernelPath =
-        detail::uses_untransposed_v_kernel_path_v<FmhaPipeline>;
+        detail::uses_untransposed_v_kernel_path_v<FmhaPipeline, detail::is_named_qr_tdm>;
     static constexpr bool kUsesTdmAffineDramPath =
-        detail::uses_tdm_affine_dram_path_v<FmhaPipeline>;
+        detail::uses_tdm_affine_dram_path_v<FmhaPipeline, detail::is_named_qr_tdm>;
     static constexpr bool kUsesFixedSegmentedLdsArena =
         detail::uses_fixed_segmented_lds_arena_v<FmhaPipeline>;
 
@@ -264,8 +256,26 @@ struct FmhaFwdKernel
         kPipelineName == "qr_tdm" || kPipelineName == "qr_tdm_pingpong" ||
         kPipelineName == "qr_tdm_sched" || kPipelineName == "qr_tdm_kvshared";
 
-    static_assert(kPipelineName == "qr_tdm" || QScaleEnum != BlockAttentionQuantScaleEnum::PERHEAD,
-                  "perhead scale is only supported on qr_tdm");
+    // Pipelines that take the descale arguments; GetSoftmaxScale folds them as for qr_tdm.
+    static constexpr bool kTakesTdmDescales = kPipelineName == "qr_tdm" ||
+                                              kPipelineName == "qr_tdm_fp8_sched" ||
+                                              kPipelineName == "qr_tdm_pingpong";
+
+    static_assert(
+        kTakesTdmDescales || QScaleEnum != BlockAttentionQuantScaleEnum::PERHEAD,
+        "perhead scale is only supported on qr_tdm, qr_tdm_fp8_sched and qr_tdm_pingpong");
+    // qr_tdm_fp8_sched reads per-head data (sink logits, per-head and MX descales) of merged
+    // rows itself (MergedHeads); qr_tdm_pingpong takes the merged rows' q descales, MX scales
+    // and sink logits by their heads (BlockFmhaQuantScales), the kernel's Q/O views carrying
+    // the rest.
+    // Split-KV runs qr_tdm_pingpong, with the LSE every split must store (sink tokens: split 0
+    // takes the sink tiles, the splits share the window's); merged heads keep their rows'
+    // strides on each split.
+    static_assert(!kSplitKV || (kPipelineName == "qr_tdm_pingpong" && kStoreLSE),
+                  "split-KV is implemented for qr_tdm_pingpong with LSE");
+    static_assert(!kMergeNumHeadGroupsSeqLenQ || kPipelineName == "qr_tdm_fp8_sched" ||
+                      kPipelineName == "qr_tdm_pingpong",
+                  "merged query heads are implemented for qr_tdm_fp8_sched and qr_tdm_pingpong");
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -296,12 +306,11 @@ struct FmhaFwdKernel
     static constexpr index_t kAsyncOStoreBytes          = 16;
     static constexpr index_t kAsyncOStoreVec            = kAsyncOStoreBytes / sizeof(ODataType);
     static constexpr uint64_t kAsyncOTileSpanLimitBytes = uint64_t{1} << 32;
-    // Match qr_tdm plus the validated sched D64/D128 variants. Sched D192 keeps
-    // the existing head-major remap. GetTileIndex additionally requires batch
-    // BHSD, square causal attention, one V tile, and no dropout for this order.
+    // Match qr_tdm plus the validated sched D128 variant (the only one generated).
+    // GetTileIndex additionally requires batch BHSD, square causal attention, one V
+    // tile, and no dropout for this order.
     static constexpr bool kUseBatchLocalCausalOrder =
-        detail::uses_qr_tdm_lds_arena_v<FmhaPipeline> || kIsTdmSchedD128 ||
-        (kPipelineName == "qr_tdm_sched" && FmhaPipeline::BlockFmhaShape::kQKHeaddim == 64);
+        detail::uses_qr_tdm_lds_arena_v<FmhaPipeline> || kIsTdmSchedD128;
 
     // This family was measured without LSE output. Keep LSE-writing variants
     // on their existing mapping until their performance is validated separately.
@@ -544,6 +553,14 @@ struct FmhaFwdKernel
         ck_tile::index_t min_seqlen_q = 0;
     };
 
+    // Split-KV: the split count and the split strides of the O and LSE accumulators.
+    struct FmhaFwdSplitKVKargs
+    {
+        ck_tile::index_t num_splits       = 1;
+        ck_tile::index_t split_stride_o   = 0;
+        ck_tile::index_t split_stride_lse = 0;
+    };
+
     struct FmhaFwdBatchModeKargs
         : FmhaFwdCommonKargs,
           std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS,
@@ -566,7 +583,8 @@ struct FmhaFwdKernel
                                          FmhaFwdCommonPerHeadKargs,
                                          FmhaFwdEmptyKargs<3>>>>>,
           std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>,
-          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
+          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
+          std::conditional_t<kSplitKV, FmhaFwdSplitKVKargs, FmhaFwdEmptyKargs<7>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
@@ -602,7 +620,8 @@ struct FmhaFwdKernel
                                          FmhaFwdEmptyKargs<3>>>>>,
           std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
-          std::conditional_t<kSkipMinSeqlenQ, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>
+          std::conditional_t<kSkipMinSeqlenQ, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>,
+          std::conditional_t<kSplitKV, FmhaFwdSplitKVKargs, FmhaFwdEmptyKargs<7>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -726,6 +745,7 @@ struct FmhaFwdKernel
                     {},               // placeholder for qscale
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
+                    {},               // placeholder for split-kv
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -1199,6 +1219,7 @@ struct FmhaFwdKernel
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
                     {},               // placeholder for min_seqlen_q
+                    {},               // placeholder for split-kv
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_q_ptr),
@@ -1680,7 +1701,8 @@ struct FmhaFwdKernel
                 if(kargs.sink_ptr != nullptr)
                     return false;
             }
-            // The codegen constraint repeats these checks so the dispatcher falls back to qr_tdm.
+            // The codegen constraint repeats these checks so the dispatcher falls back to
+            // qr_tdm_pingpong.
             if constexpr(kUseAsyncLdsOStore)
             {
                 if(!IsAsyncOStoreLayout(kargs))
@@ -1694,11 +1716,102 @@ struct FmhaFwdKernel
                 return false;
         }
 
+        if constexpr(kMergeNumHeadGroupsSeqLenQ)
+        {
+            const auto reject = [&](const char* reason) {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    CK_TILE_ERROR("FMHA fwd ", kPipelineName, ": ", reason);
+                return false;
+            };
+            // Merged heads must form one row stride: a single query, or seqlen_q-row heads.
+            const auto s  = kargs.seqlen_q;
+            bool foldable = s == 1 || (kargs.nhead_stride_q == s * kargs.stride_q &&
+                                       kargs.nhead_stride_o == s * kargs.stride_o);
+            if constexpr(kStoreLSE)
+                foldable = foldable && (s == 1 || kargs.nhead_stride_lse == s);
+            // (qr_tdm_pingpong addresses its merged rows' MX scales by head)
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::MX &&
+                         kPipelineName != "qr_tdm_pingpong")
+                foldable = foldable &&
+                           (s == 1 || kargs.nhead_stride_q_descale == s * kargs.stride_q_descale);
+            if(!foldable)
+                return reject("merged query heads need foldable Q/O/LSE/scale strides.");
+            if(s * kargs.nhead_ratio_qk > FmhaPipeline::kM0)
+                return reject("merged query heads must fit one tile of query rows.");
+            if(kargs.cu_seqlen_q_ptr != nullptr || kargs.cu_seqlen_k_ptr != nullptr)
+                return reject("merged query heads do not support cu_seqlen_q/k_ptr.");
+            if constexpr(kPipelineName == "qr_tdm_pingpong")
+            {
+                // its merged rows under a mask are the heads' single query, each taking that
+                // query's key range (any window; see the kernel's FmhaMask)
+                if constexpr(kHasMask)
+                {
+                    if(s != 1)
+                        return reject("merged query heads take a mask on a single query only.");
+                }
+            }
+        }
+
+        if constexpr(kPipelineName == "qr_tdm_fp8_sched")
+        {
+            const bool log    = ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING));
+            const auto reject = [&](const char* reason) {
+                if(log)
+                    CK_TILE_ERROR("FMHA fwd qr_tdm_fp8_sched: ", reason);
+                return false;
+            };
+            // No head-dim padding: Q/K/V TDM tiles and WMMAs cover exactly the tile head dims.
+            if(kargs.hdim_q != FmhaPipeline::kQKHeaddim || kargs.hdim_v != FmhaPipeline::kN1)
+                return reject("hdim_q and hdim_v must equal the tile head dims.");
+            if constexpr(!FmhaPipeline::kEnableVirtualSink)
+            {
+                if(kargs.sink_ptr != nullptr)
+                    return reject("sink_ptr is not supported.");
+            }
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+            {
+                if(kargs.block_scale_size_q <= 0 || kargs.block_scale_size_kv <= 0)
+                    return reject("block_scale_size_q and block_scale_size_kv must be positive.");
+            }
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::MX)
+            {
+                // Q/K E8M0 rows are read per lane as int32s (D128/D256) or an int16 (D64).
+                const auto bits  = [](auto v) { return static_cast<uint64_t>(v); };
+                uint64_t offsets = bits(reinterpret_cast<uintptr_t>(kargs.q_descale_ptr)) |
+                                   bits(reinterpret_cast<uintptr_t>(kargs.k_descale_ptr)) |
+                                   bits(kargs.stride_q_descale) | bits(kargs.stride_k_descale) |
+                                   bits(kargs.nhead_stride_q_descale) |
+                                   bits(kargs.nhead_stride_k_descale);
+                if constexpr(!kIsGroupMode)
+                    offsets |=
+                        bits(kargs.batch_stride_q_descale) | bits(kargs.batch_stride_k_descale);
+                if(offsets % FmhaPipeline::kMxQkScaleAlign != 0)
+                    return reject("MX Q/K descale pointers and strides must align to a scale row.");
+                if constexpr(kIsGroupMode)
+                {
+                    if(kargs.seqstart_v_scale_ptr == nullptr)
+                        return reject("group mode MX needs seqstart_v_scale_ptr.");
+                }
+            }
+        }
+
         if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
         {
             const bool log = ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING));
 
-            if(kargs.block_scale_size_q % FmhaPipeline::kM0 != 0)
+            if constexpr(kTakesTdmDescales)
+            {
+                if(kargs.block_scale_size_q <= 0 || kargs.block_scale_size_kv <= 0)
+                {
+                    if(log)
+                        CK_TILE_ERROR("FMHA fwd BLOCKSCALE: block sizes must be positive.");
+                    return false;
+                }
+            }
+
+            // (qr_tdm_pingpong takes each row's q block descale: any q block)
+            if(kPipelineName != "qr_tdm_pingpong" &&
+               kargs.block_scale_size_q % FmhaPipeline::kM0 != 0)
             {
                 if(log)
                     CK_TILE_ERROR("FMHA fwd BLOCKSCALE: block_scale_size_q (",
@@ -1709,7 +1822,7 @@ struct FmhaFwdKernel
                 return false;
             }
 
-            if constexpr(kPipelineName == "qr_tdm")
+            if constexpr(kTakesTdmDescales)
             {
                 if(kargs.block_scale_size_kv % FmhaPipeline::kKVScaleAlign != 0)
                 {
@@ -1779,18 +1892,22 @@ struct FmhaFwdKernel
     // Uniform sequence lengths allow locality-oriented XCD partitioning. Causal
     // tiles within one sequence still have different amounts of work. Group mode
     // has per-batch lengths, so whole-batch XCD segments could leave the XCDs
-    // unbalanced, except with about equal lengths (uniform_seqlens, from the
-    // caller) or a broadcast Q block, which every batch shares: there the
-    // round-robin spreads the m-tiles of a (batch, head) over the XCDs, and each
-    // XCD's L2 fetches their K/V again (gfx1250, TCX: a 512-row broadcast Q over
-    // 768 x 12288 keys fetched 2.1x the K/V from HBM; 128 queries over 1152 x 772
-    // keys on 64-row tiles: -19% with the partitioning). Checking the lengths in
-    // the kernel (seqstart against max_seqlen_q/k) cost every block two scalar
-    // loads ahead of its tile index: +2% on those 15-60 us kernels.
+    // unbalanced; it takes the partitioning only for a broadcast Q block, which
+    // every batch shares, or when the caller vouches for about equal lengths
+    // (uniform_seqlens). There the round-robin would spread
+    // the m-tiles of a (batch, head) over the XCDs, and each XCD's L2 would fetch
+    // their K/V again (gfx1250, 2 heads x 1152 batches of 128 queries over ~772
+    // keys, d64 on 64-row tiles: -19% with the partitioning). The caller decides,
+    // not the kernel: checking the lengths here (seqstart against the longest)
+    // cost every workgroup two scalar loads ahead of its tile index, +2% on such
+    // 15-60 us kernels.
     CK_TILE_DEVICE static bool HasUniformSequenceLengths([[maybe_unused]] const Kargs& kargs)
     {
         if constexpr(kIsGroupMode)
-            return kargs.uniform_seqlens || kargs.broadcast_q;
+            return kargs.broadcast_q ||
+                   (kargs.uniform_seqlens && kargs.seqlen_q_ptr == nullptr &&
+                    kargs.seqlen_k_ptr == nullptr && kargs.cu_seqlen_q_ptr == nullptr &&
+                    kargs.cu_seqlen_k_ptr == nullptr);
         else
             return kargs.cu_seqlen_q_ptr == nullptr && kargs.cu_seqlen_k_ptr == nullptr;
     }
@@ -1867,6 +1984,25 @@ struct FmhaFwdKernel
             features.square_causal = kargs.seqlen_q == kargs.seqlen_k &&
                                      kargs.window_size_left < 0 && kargs.window_size_right == 0;
 
+        if constexpr(kEnableHeadMajor && kHasMask && !kIsGroupMode && !kHasDropout &&
+                     detail::uses_global_causal_order_v<FmhaPipeline>)
+        {
+            // Square causal: visit the longest tiles across all batches and heads first.
+            if(features.is_bhsd && features.square_causal && grid.num_v_tiles == 1)
+            {
+                const index_t num_bh    = grid.num_heads * grid.num_batches;
+                const index_t linear_id = FmhaFwdLinearWorkgroupId(grid, block);
+                const index_t rank      = linear_id / num_bh;
+                const index_t bh        = linear_id - rank * num_bh;
+                const index_t i_batch   = bh / grid.num_heads;
+                // The divisions are lowered to VALU; keep the indices in SGPRs.
+                return ck_tile::make_tuple(amd_wave_read_first_lane(grid.num_qv_tiles - 1 - rank),
+                                           index_t{0},
+                                           amd_wave_read_first_lane(bh - i_batch * grid.num_heads),
+                                           amd_wave_read_first_lane(i_batch));
+            }
+        }
+
 #if defined(CK_TILE_FMHA_PAIRED_XCC_ORDER) && CK_TILE_FMHA_PAIRED_XCC_ORDER && defined(__gfx1250__)
         constexpr bool kEnablePaired = kHasMask && !kIsGroupMode && kIsTdmSchedD128 &&
                                        std::is_same_v<QDataType, ck_tile::bf16_t> &&
@@ -1904,6 +2040,7 @@ struct FmhaFwdKernel
         }
     }
 
+    // Arena bytes only; qr_tdm_fp8_sched adds static LDS for O staging, MX and merged row scales.
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         if constexpr(detail::uses_qr_tdm_lds_arena_v<FmhaPipeline>)
@@ -1920,12 +2057,12 @@ struct FmhaFwdKernel
     }
 
     // PERTENSOR folds q_descale*k_descale into scale_s for every pipeline (its offset is always
-    // 0 - one scale for the whole tensor). qr_tdm additionally folds PERHEAD's q_descale*k_descale
-    // (per-head) and BLOCKSCALE's q_descale (per-M-block, via i_m0) into scale_s - other pipelines
-    // never instantiate PERHEAD, and leave BLOCKSCALE's q_descale/k_descale to be applied
-    // elsewhere, so scale_s stays unfolded there. descale_offset_q/k are the caller's
-    // already-computed nhead/batch (and, in group mode, block-scale-seqstart) offsets - 0 wherever
-    // the caller's pipeline never indexes them.
+    // 0 - one scale for the whole tensor). kTakesTdmDescales pipelines additionally fold PERHEAD's
+    // q_descale*k_descale (per-head) and BLOCKSCALE's q_descale (per-M-block, via i_m0) into
+    // scale_s - other pipelines never instantiate PERHEAD, and leave BLOCKSCALE's
+    // q_descale/k_descale to be applied elsewhere, so scale_s stays unfolded there.
+    // descale_offset_q/k are the caller's already-computed nhead/batch (and, in group mode,
+    // block-scale-seqstart) offsets - 0 wherever the caller's pipeline never indexes them.
     CK_TILE_DEVICE static constexpr float GetSoftmaxScale(const Kargs& kargs,
                                                           long_index_t descale_offset_q,
                                                           long_index_t descale_offset_k,
@@ -1938,8 +2075,7 @@ struct FmhaFwdKernel
 
             return kargs.scale_s * q_descale * k_descale;
         }
-        else if constexpr(kPipelineName == "qr_tdm" &&
-                          QScaleEnum == BlockAttentionQuantScaleEnum::PERHEAD)
+        else if constexpr(kTakesTdmDescales && QScaleEnum == BlockAttentionQuantScaleEnum::PERHEAD)
         {
             const float* q_descale_ptr = reinterpret_cast<const float*>(kargs.q_descale_ptr);
             const float* k_descale_ptr = reinterpret_cast<const float*>(kargs.k_descale_ptr);
@@ -1947,7 +2083,7 @@ struct FmhaFwdKernel
             return kargs.scale_s * q_descale_ptr[descale_offset_q] *
                    k_descale_ptr[descale_offset_k];
         }
-        else if constexpr(kPipelineName == "qr_tdm" &&
+        else if constexpr(kTakesTdmDescales &&
                           QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
         {
             const float* q_descale_ptr = reinterpret_cast<const float*>(kargs.q_descale_ptr);
@@ -2765,10 +2901,25 @@ struct FmhaFwdKernel
             // cache
             constexpr bool PrefillCase =
                 FmhaPipeline::kM0 > 64 && FmhaPipeline::BlockFmhaShape::kQKHeaddim < 256;
+            // qr_tdm_fp8_sched takes the fixed LDS arena path, one-wavefront decode tiles included.
+            constexpr bool kPrefillLdsPath = PrefillCase || kPipelineName == "qr_tdm_fp8_sched";
             // divide problem
-            const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
-            const index_t i_m0                                = i_tile_m * kGridM0;
-            const index_t i_n1                                = i_tile_n * FmhaPipeline::kN1;
+            const auto [i_tile_m, i_tile_n, i_nhead_split, i_batch] = GetTileIndex(kargs);
+            // Split-KV: the head index runs nhead * num_splits, split fastest.
+            const index_t i_split = [&]() -> index_t {
+                if constexpr(kSplitKV)
+                    return i_nhead_split % kargs.num_splits;
+                else
+                    return 0;
+            }();
+            const index_t i_nhead = [&]() -> index_t {
+                if constexpr(kSplitKV)
+                    return i_nhead_split / kargs.num_splits;
+                else
+                    return i_nhead_split;
+            }();
+            const index_t i_m0 = i_tile_m * kGridM0;
+            const index_t i_n1 = i_tile_n * FmhaPipeline::kN1;
 
             long_index_t batch_offset_q                        = 0;
             long_index_t batch_offset_k                        = 0; // unused for paged-kvcache
@@ -2901,11 +3052,21 @@ struct FmhaFwdKernel
             }
 
             // for simplicity, batch stride we just modify the pointer
-            const index_t i_nhead_k = i_nhead / kargs.nhead_ratio_qk;
+            const index_t i_nhead_k =
+                kMergeNumHeadGroupsSeqLenQ ? i_nhead : i_nhead / kargs.nhead_ratio_qk;
+            // Merged: the workgroup owns query heads [i_nhead_q, +nhead_ratio_qk) as its rows.
+            const index_t i_nhead_q =
+                kMergeNumHeadGroupsSeqLenQ ? i_nhead * kargs.nhead_ratio_qk : i_nhead;
+            const index_t num_rows_q =
+                kMergeNumHeadGroupsSeqLenQ ? kargs.seqlen_q * kargs.nhead_ratio_qk : kargs.seqlen_q;
+            // With one query per head the rows step by head; otherwise heads are seqlen_q rows.
+            const bool rows_by_head    = kMergeNumHeadGroupsSeqLenQ && kargs.seqlen_q == 1;
+            const index_t row_stride_q = rows_by_head ? kargs.nhead_stride_q : kargs.stride_q;
+            const index_t row_stride_o = rows_by_head ? kargs.nhead_stride_o : kargs.stride_o;
 
             const QDataType* q_ptr =
                 reinterpret_cast<const QDataType*>(kargs.q_ptr) +
-                (static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q + batch_offset_q) /
+                (static_cast<long_index_t>(i_nhead_q) * kargs.nhead_stride_q + batch_offset_q) /
                     numeric_traits<QDataType>::PackedSize;
             const KDataType* k_ptr =
                 reinterpret_cast<const KDataType*>(kargs.k_ptr) +
@@ -2916,9 +3077,16 @@ struct FmhaFwdKernel
                 (static_cast<long_index_t>(i_nhead_k) * kargs.nhead_stride_v + batch_offset_v) /
                     numeric_traits<VDataType>::PackedSize;
 
+            long_index_t split_offset_o   = 0;
+            long_index_t split_offset_lse = 0;
+            if constexpr(kSplitKV)
+            {
+                split_offset_o   = static_cast<long_index_t>(i_split) * kargs.split_stride_o;
+                split_offset_lse = static_cast<long_index_t>(i_split) * kargs.split_stride_lse;
+            }
             ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
-                               static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
-                               batch_offset_o;
+                               static_cast<long_index_t>(i_nhead_q) * kargs.nhead_stride_o +
+                               batch_offset_o + split_offset_o;
 
             // Q/K/V DRAM and DRAM window
             const auto q_dram = [&] {
@@ -2928,8 +3096,8 @@ struct FmhaFwdKernel
                                                       memory_operation_enum::set,
                                                       amd_buffer_coherence_enum::SYSTEM_NT1>(
                             q_ptr,
-                            make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                            make_tuple(kargs.stride_q, 1),
+                            make_tuple(num_rows_q, kargs.hdim_q),
+                            make_tuple(row_stride_q, 1),
                             number<FmhaPipeline::kAlignmentQ>{},
                             number<1>{});
                     }
@@ -3429,22 +3597,22 @@ struct FmhaFwdKernel
             }();
 
             // lse acc
-            auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
+            auto lse_dram_window = [&, i_nhead_ = i_nhead_q]() {
                 constexpr auto lse_dram_window_lengths = make_tuple(number<FmhaPipeline::kM0>{});
                 if constexpr(kStoreLSE)
                 {
                     LSEDataType* lse_ptr =
                         reinterpret_cast<LSEDataType*>(kargs.lse_ptr) +
                         static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_lse +
-                        batch_offset_lse;
+                        batch_offset_lse + split_offset_lse;
 
                     const auto lse_dram = [&] {
                         const auto lse_dram_naive = [&] {
                             {
                                 return make_naive_tensor_view<address_space_enum::global>(
                                     lse_ptr,
-                                    make_tuple(kargs.seqlen_q),
-                                    make_tuple(1),
+                                    make_tuple(num_rows_q),
+                                    make_tuple(rows_by_head ? kargs.nhead_stride_lse : 1),
                                     number<1>{},
                                     number<1>{});
                             }
@@ -3462,6 +3630,11 @@ struct FmhaFwdKernel
             }();
 
             FmhaMask mask = [&]() {
+                // qr_tdm_pingpong's merged rows under a mask are the heads' single queries
+                // (seqlen_q 1): the mask has that one query row, which the pipeline applies to
+                // every merged row (any window). Unmasked, the mask spans the merged rows.
+                constexpr bool kRowsAreHeads =
+                    kMergeNumHeadGroupsSeqLenQ && kPipelineName == "qr_tdm_pingpong";
                 if constexpr(kHasMask)
                     return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                         kargs.window_size_left,
@@ -3471,7 +3644,7 @@ struct FmhaFwdKernel
                         kargs.seqlen_k,
                         kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
                 else
-                    return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
+                    return FmhaMask{kRowsAreHeads ? num_rows_q : kargs.seqlen_q, kargs.seqlen_k};
             }();
 
             // WA i_batch capture structure binding before c++20
@@ -3513,13 +3686,18 @@ struct FmhaFwdKernel
 
             constexpr bool kPerHeadQScale = QScaleEnum == BlockAttentionQuantScaleEnum::PERHEAD;
             constexpr bool kBlockQScale   = QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE;
+            // MX descales: E8M0 per 32 elements, consumed as WMMA scale operands.
+            constexpr bool kMxTdmSched = kPipelineName == "qr_tdm_fp8_sched" &&
+                                         QScaleEnum == BlockAttentionQuantScaleEnum::MX;
             [[maybe_unused]] long_index_t descale_offset_q = 0;
             [[maybe_unused]] long_index_t descale_offset_k = 0;
             [[maybe_unused]] long_index_t descale_offset_v = 0;
-            if constexpr(kPerHeadQScale || kBlockQScale)
+            // MX descales: qr_tdm_fp8_sched's and qr_tdm_pingpong's
+            constexpr bool kMxScales = QScaleEnum == BlockAttentionQuantScaleEnum::MX;
+            if constexpr(kPerHeadQScale || kBlockQScale || kMxScales)
             {
                 descale_offset_q =
-                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q_descale;
+                    static_cast<long_index_t>(i_nhead_q) * kargs.nhead_stride_q_descale;
                 descale_offset_k =
                     static_cast<long_index_t>(i_nhead_k) * kargs.nhead_stride_k_descale;
                 descale_offset_v =
@@ -3533,6 +3711,15 @@ struct FmhaFwdKernel
                     descale_offset_v +=
                         static_cast<long_index_t>(i_batch) * kargs.batch_stride_v_descale;
                 }
+                else if constexpr(kMxScales)
+                {
+                    // Group MX: Q/K scale rows follow the physical token starts, V its own.
+                    descale_offset_q += static_cast<long_index_t>(kargs.seqstart_q_ptr[i_batch]) *
+                                        kargs.stride_q_descale;
+                    descale_offset_k += static_cast<long_index_t>(kargs.seqstart_k_ptr[i_batch]) *
+                                        kargs.stride_k_descale;
+                    descale_offset_v += kargs.seqstart_v_scale_ptr[i_batch];
+                }
                 else
                 {
                     descale_offset_q += kargs.block_scale_seqstart_q_ptr[i_batch];
@@ -3541,9 +3728,10 @@ struct FmhaFwdKernel
                 }
             }
 
-            static_assert(kPipelineName == "qr_tdm" ||
-                              QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE,
-                          "only qr_tdm implements quantization descales in this branch");
+            static_assert(
+                kTakesTdmDescales || QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE,
+                "only qr_tdm, qr_tdm_fp8_sched and qr_tdm_pingpong implement quantization "
+                "descales in this branch");
 
             constexpr bool kFoldedQScale =
                 QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR || kPerHeadQScale;
@@ -3557,10 +3745,28 @@ struct FmhaFwdKernel
             // Same scale_s the pipeline receives, so the sink recovers its logit in the same
             // units it was seeded in. Dividing by the folded scale_s the pipeline re-applies is
             // what makes the descales cancel.
-            const float scale_s = GetSoftmaxScale(kargs, descale_offset_q, descale_offset_k, i_m0);
+            // qr_tdm_pingpong's merged rows take their own q descales on the scores
+            // (BlockFmhaQuantScales), so scale_s then folds none
+            // (and every row its block's at block scales)
+            constexpr bool kMergedRowQScale =
+                kPipelineName == "qr_tdm_pingpong" &&
+                (kBlockQScale || (kMergeNumHeadGroupsSeqLenQ && kPerHeadQScale));
+            const float scale_s = [&]() {
+                if constexpr(kMergedRowQScale && kPerHeadQScale)
+                    return kargs.scale_s *
+                           reinterpret_cast<const float*>(kargs.k_descale_ptr)[descale_offset_k];
+                else if constexpr(kMergedRowQScale)
+                    return kargs.scale_s;
+                else
+                    return GetSoftmaxScale(kargs, descale_offset_q, descale_offset_k, i_m0);
+            }();
+            // Merged rows read their sinks per head in the pipeline; a finite value marks one.
+            // Split-KV: the sink logit joins the softmax of split 0 only.
             const float sink_value =
-                kargs.sink_ptr != nullptr
-                    ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / scale_s
+                kargs.sink_ptr != nullptr && i_split == 0
+                    ? (kMergeNumHeadGroupsSeqLenQ
+                           ? 0.0f
+                           : (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / scale_s)
                     : -numeric<float>::infinity();
 
             // kargs.lse_log2: the pipeline stores the LSE in base 2
@@ -3570,7 +3776,21 @@ struct FmhaFwdKernel
                 else
                     return false;
             }();
-            auto tdm_dropout = MakeBlockDropout(kargs, i_batch, i_nhead);
+            // qr_tdm_pingpong's fp8 P takes dropout's keep mask unscaled, the 1/(1 - p_drop)
+            // on O (v_descale below): scaled, the kept p could pass e4m3's largest value
+            constexpr bool kDropoutScaleOnO =
+                kPipelineName == "qr_tdm_pingpong" && kHasDropout &&
+                std::is_same_v<typename FmhaPipeline::PDataType, fp8_t>;
+            auto tdm_dropout = [&]() {
+                if constexpr(kDropoutScaleOnO)
+                {
+                    auto unscaled      = kargs;
+                    unscaled.rp_undrop = 1.f;
+                    return MakeBlockDropout(unscaled, i_batch, i_nhead);
+                }
+                else
+                    return MakeBlockDropout(kargs, i_batch, i_nhead);
+            }();
             // a buffer store checks only its first element, so a vector would spill past
             // seqlen_k; the TDM pipelines take unpadded variants for any length (the TDM bounds
             // the K/V reads), so the randval stores are always bounded
@@ -3589,27 +3809,179 @@ struct FmhaFwdKernel
                     return 0.f;
             }();
 
+            // the pipelines whose operator() takes (soft_cap, soft_cap_rcp[, randval window,
+            // dropout]) after the common arguments; any other one on this path has neither
+            constexpr bool kTakesTdmSoftCapDropout = kPipelineName == "qr_tdm" ||
+                                                     kPipelineName == "qr_tdm_pingpong" ||
+                                                     kPipelineName == "qr_tdm_sched";
+            static_assert(kTakesTdmSoftCapDropout || !(kHasLogitsSoftCap || kHasDropout),
+                          "this pipeline takes no logits soft cap or dropout arguments");
             auto invoke_fmha_pipeline = [&](auto&&... args) -> decltype(auto) {
-                if constexpr(kPipelineName == "qr_tdm" && kBlockQScale)
+                if constexpr(kMergeNumHeadGroupsSeqLenQ && kPipelineName == "qr_tdm_fp8_sched")
+                {
+                    typename FmhaPipeline::MxDescales mx;
+                    if constexpr(kMxTdmSched)
+                    {
+                        mx.q_ptr =
+                            reinterpret_cast<const e8m0_t*>(kargs.q_descale_ptr) + descale_offset_q;
+                        mx.k_ptr =
+                            reinterpret_cast<const e8m0_t*>(kargs.k_descale_ptr) + descale_offset_k;
+                        mx.v_ptr =
+                            reinterpret_cast<const e8m0_t*>(kargs.v_descale_ptr) + descale_offset_v;
+                        mx.stride_q =
+                            rows_by_head ? kargs.nhead_stride_q_descale : kargs.stride_q_descale;
+                        mx.stride_k = kargs.stride_k_descale;
+                        mx.stride_v = kargs.stride_v_descale;
+                        mx.seqlen_q = num_rows_q;
+                    }
+                    typename FmhaPipeline::MergedHeads merged;
+                    merged.seqlen_q             = kargs.seqlen_q;
+                    merged.num_groups           = kargs.nhead_ratio_qk;
+                    merged.sink_ptr             = kargs.sink_ptr != nullptr
+                                                      ? static_cast<const float*>(kargs.sink_ptr) + i_nhead_q
+                                                      : nullptr;
+                    const float* k_descale_ptr  = nullptr;
+                    const float* v_descale_ptr  = nullptr;
+                    index_t block_scale_size_kv = 1;
+                    if constexpr(kPerHeadQScale || kBlockQScale)
+                    {
+                        merged.q_descale_ptr =
+                            reinterpret_cast<const float*>(kargs.q_descale_ptr) + descale_offset_q;
+                        merged.q_descale_head_stride = kargs.nhead_stride_q_descale;
+                        merged.scale_s               = kargs.scale_s;
+                    }
+                    if constexpr(kPerHeadQScale)
+                        merged.k_descale =
+                            reinterpret_cast<const float*>(kargs.k_descale_ptr)[descale_offset_k];
+                    if constexpr(kBlockQScale)
+                    {
+                        k_descale_ptr =
+                            reinterpret_cast<const float*>(kargs.k_descale_ptr) + descale_offset_k;
+                        v_descale_ptr =
+                            reinterpret_cast<const float*>(kargs.v_descale_ptr) + descale_offset_v;
+                        block_scale_size_kv = kargs.block_scale_size_kv;
+                    }
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                          k_descale_ptr,
+                                          v_descale_ptr,
+                                          block_scale_size_kv,
+                                          v_descale,
+                                          mx,
+                                          merged);
+                }
+                else if constexpr(kPipelineName == "qr_tdm_pingpong")
+                {
+                    // one entry at every width: the soft cap, dropout and the quantization
+                    // scales (BlockFmhaQuantScales::Args; q*k's per-tensor/per-head in scale_s)
+                    typename FmhaPipeline::QuantScaleArgs quant;
+                    quant.rows_per_head = kargs.seqlen_q;
+                    quant.rows          = num_rows_q;
+                    if constexpr(kMergeNumHeadGroupsSeqLenQ)
+                    {
+                        if(kargs.sink_ptr != nullptr)
+                            quant.sink = static_cast<const float*>(kargs.sink_ptr) + i_nhead_q;
+                    }
+                    quant.o = v_descale;
+                    if constexpr(kDropoutScaleOnO)
+                        quant.o *= kargs.rp_undrop;
+                    if constexpr(kMergedRowQScale || kMxScales)
+                    {
+                        quant.q = static_cast<const char*>(kargs.q_descale_ptr) +
+                                  descale_offset_q * (kMxScales ? 1 : sizeof(float));
+                        if constexpr(kMergeNumHeadGroupsSeqLenQ)
+                            quant.q_head_stride = kargs.nhead_stride_q_descale;
+                        // block q descales per block_scale_size_q queries, a merged row's
+                        // per-head one for all its head's
+                        if constexpr(kBlockQScale)
+                            quant.q_block = kargs.block_scale_size_q;
+                        else
+                            quant.q_block = kargs.seqlen_q;
+                    }
+                    if constexpr(kBlockQScale || kMxScales)
+                    {
+                        constexpr index_t kBytes = kMxScales ? 1 : sizeof(float);
+                        quant.k                  = static_cast<const char*>(kargs.k_descale_ptr) +
+                                  descale_offset_k * kBytes;
+                        quant.v = static_cast<const char*>(kargs.v_descale_ptr) +
+                                  descale_offset_v * kBytes;
+                        quant.keys = kargs.seqlen_k;
+                        if constexpr(kBlockQScale)
+                            quant.kv_block = kargs.block_scale_size_kv;
+                    }
+                    if constexpr(kMxScales)
+                    {
+                        quant.stride_q = kargs.stride_q_descale;
+                        quant.stride_k = kargs.stride_k_descale;
+                        quant.stride_v = kargs.stride_v_descale;
+                        quant.qk_bytes = integer_divide_ceil(kargs.hdim_q, 32);
+                        quant.cols_v   = kargs.hdim_v;
+                    }
+                    return FmhaPipeline{}(
+                        static_cast<decltype(args)&&>(args)...,
+                        lse_log2,
+                        tdm_soft_cap,
+                        tdm_soft_cap_rcp,
+                        tdm_randval_dram_window,
+                        tdm_dropout,
+                        quant,
+                        [&]() -> index_t {
+                            if constexpr(kSplitKV)
+                                return kargs.num_splits;
+                            else
+                                return 1;
+                        }(),
+                        i_split);
+                }
+                else if constexpr(kTakesTdmDescales && kBlockQScale)
                 {
                     const float* k_descale_ptr =
                         reinterpret_cast<const float*>(kargs.k_descale_ptr) + descale_offset_k;
                     const float* v_descale_ptr =
                         reinterpret_cast<const float*>(kargs.v_descale_ptr) + descale_offset_v;
-                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
-                                          k_descale_ptr,
-                                          v_descale_ptr,
-                                          kargs.block_scale_size_kv,
-                                          v_descale,
-                                          lse_log2);
+                    if constexpr(kStoresLseLog2)
+                        return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                              k_descale_ptr,
+                                              v_descale_ptr,
+                                              kargs.block_scale_size_kv,
+                                              v_descale,
+                                              lse_log2);
+                    else
+                        return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                              k_descale_ptr,
+                                              v_descale_ptr,
+                                              kargs.block_scale_size_kv,
+                                              v_descale);
                 }
-                else if constexpr(kPipelineName == "qr_tdm" && kFoldedQScale)
-                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
-                                          nullptr,
-                                          nullptr,
-                                          1,
-                                          v_descale,
-                                          lse_log2);
+                else if constexpr(kMxTdmSched)
+                {
+                    typename FmhaPipeline::MxDescales mx;
+                    mx.q_ptr =
+                        reinterpret_cast<const e8m0_t*>(kargs.q_descale_ptr) + descale_offset_q;
+                    mx.k_ptr =
+                        reinterpret_cast<const e8m0_t*>(kargs.k_descale_ptr) + descale_offset_k;
+                    mx.v_ptr =
+                        reinterpret_cast<const e8m0_t*>(kargs.v_descale_ptr) + descale_offset_v;
+                    mx.stride_q = kargs.stride_q_descale;
+                    mx.stride_k = kargs.stride_k_descale;
+                    mx.stride_v = kargs.stride_v_descale;
+                    mx.seqlen_q = kargs.seqlen_q;
+                    return FmhaPipeline{}(
+                        static_cast<decltype(args)&&>(args)..., nullptr, nullptr, 1, 1.0f, mx);
+                }
+                else if constexpr(kTakesTdmDescales && kFoldedQScale)
+                {
+                    // the qr_tdm family takes lse_log2 after the descales
+                    if constexpr(kStoresLseLog2)
+                        return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                              nullptr,
+                                              nullptr,
+                                              1,
+                                              v_descale,
+                                              lse_log2);
+                    else
+                        return FmhaPipeline{}(
+                            static_cast<decltype(args)&&>(args)..., nullptr, nullptr, 1, v_descale);
+                }
                 // the qr_tdm family takes lse_log2 ahead of the soft cap and dropout
                 else if constexpr(kStoresLseLog2 && kHasDropout)
                     return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
@@ -3625,13 +3997,13 @@ struct FmhaFwdKernel
                                           tdm_soft_cap_rcp);
                 else if constexpr(kStoresLseLog2)
                     return FmhaPipeline{}(static_cast<decltype(args)&&>(args)..., lse_log2);
-                else if constexpr(kHasDropout)
+                else if constexpr(kTakesTdmSoftCapDropout && kHasDropout)
                     return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
                                           tdm_soft_cap,
                                           tdm_soft_cap_rcp,
                                           tdm_randval_dram_window,
                                           tdm_dropout);
-                else if constexpr(kHasLogitsSoftCap)
+                else if constexpr(kTakesTdmSoftCapDropout && kHasLogitsSoftCap)
                     return FmhaPipeline{}(
                         static_cast<decltype(args)&&>(args)..., tdm_soft_cap, tdm_soft_cap_rcp);
                 else
@@ -3642,7 +4014,7 @@ struct FmhaFwdKernel
             // non-arena prefill pipelines and the fixed segmented arena declare
             // their own arrays.
             constexpr bool kPipelineDeclaresLds =
-                PrefillCase &&
+                kPrefillLdsPath &&
                 (kUsesFixedSegmentedLdsArena || !detail::uses_qr_tdm_lds_arena_v<FmhaPipeline>);
             char* smem_ptr = nullptr;
             if constexpr(!kPipelineDeclaresLds)
@@ -3688,7 +4060,7 @@ struct FmhaFwdKernel
             }
 
             auto o_acc_tile = [&]() {
-                if constexpr(PrefillCase)
+                if constexpr(kPrefillLdsPath)
                 {
                     if constexpr(kUsesFixedSegmentedLdsArena)
                     {
@@ -3771,70 +4143,86 @@ struct FmhaFwdKernel
                 }
             }();
 
-            auto store_output = [&](auto alignment) {
-                // Oacc DRAM and Oacc DRAM window
-                auto o_dram = [&] {
-                    const auto o_dram_naive = [&] {
-                        {
-                            return make_naive_tensor_view<address_space_enum::global>(
-                                o_ptr,
-                                make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                                make_tuple(kargs.stride_o, 1),
-                                alignment,
-                                number<1>{});
-                        }
-                    }();
-
-                    return pad_tensor_view(
-                        o_dram_naive,
-                        make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                        sequence<kPadSeqLenQ, kPadHeadDimV>{});
-                }();
-
-                auto o_dram_window = make_tile_window(
-                    o_dram,
-                    make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                    {i_m0, i_n1});
-
-                // Same logical output as the current Default2DEpilogue (cast to ODataType,
-                // overwrite valid rows, no scale or atomic); bounds come from clamping/skipping.
-                // Mirror epilogue changes here.
-                if constexpr(kUseAsyncLdsOStore && PrefillCase)
-                {
-                    fmha_tdm_sched_store_o_tile_async_from_lds<FmhaPipeline, kAsyncOStoreBytes>(
-                        o_lds_staging,
-                        o_ptr + static_cast<long_index_t>(i_m0) * kargs.stride_o + i_n1,
-                        kargs.stride_o,
-                        kargs.seqlen_q - i_m0,
-                        o_acc_tile);
-                }
-                else if constexpr(detail::epilogue_uses_smem_v<EpiloguePipeline>)
-                {
-                    // The pipeline is done with its LDS; pipelines that declare
-                    // their own arrays leave none to the epilogue (direct store).
-                    if constexpr(kPipelineDeclaresLds)
-                        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, nullptr);
-                    else
-                        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, smem_ptr);
-                }
-                else
-                {
-                    EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
-                }
-            };
-            if constexpr(kPipelineName == "qr_tdm" && kPadHeadDimV)
+            if constexpr(detail::stores_output_via_tdm_v<FmhaPipeline>)
             {
-                // Keep vector stores for aligned heads, and predicate individual
-                // elements for arbitrary tails and row strides.
-                constexpr index_t alignment = FmhaPipeline::kAlignmentOacc;
-                if(kargs.hdim_v % alignment == 0 && kargs.stride_o % alignment == 0 &&
-                   reinterpret_cast<uintptr_t>(o_ptr) % (alignment * sizeof(ODataType)) == 0)
-                    store_output(number<alignment>{});
-                else
-                    store_output(number<1>{});
+                // o_ptr already holds the group's physical query start; rows stop at seqlen_q.
+                alignas(16) __shared__ char smem_o[FmhaPipeline::kOLdsBytes];
+                FmhaPipeline::StoreOutput(o_acc_tile,
+                                          o_ptr + static_cast<long_index_t>(i_m0) * row_stride_o +
+                                              i_n1,
+                                          num_rows_q - i_m0,
+                                          kargs.hdim_v - i_n1,
+                                          row_stride_o,
+                                          smem_o);
             }
             else
-                store_output(number<FmhaPipeline::kAlignmentOacc>{});
+            {
+                auto store_output = [&](auto alignment) {
+                    // Oacc DRAM and Oacc DRAM window
+                    auto o_dram = [&] {
+                        const auto o_dram_naive = [&] {
+                            {
+                                // merged query heads: their rows (num_rows_q, row_stride_o)
+                                return make_naive_tensor_view<address_space_enum::global>(
+                                    o_ptr,
+                                    make_tuple(num_rows_q, kargs.hdim_v),
+                                    make_tuple(row_stride_o, 1),
+                                    alignment,
+                                    number<1>{});
+                            }
+                        }();
+
+                        return pad_tensor_view(
+                            o_dram_naive,
+                            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                            sequence<kPadSeqLenQ, kPadHeadDimV>{});
+                    }();
+
+                    auto o_dram_window = make_tile_window(
+                        o_dram,
+                        make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                        {i_m0, i_n1});
+
+                    // Same logical output as the current Default2DEpilogue (cast to ODataType,
+                    // overwrite valid rows, no scale or atomic); bounds come from
+                    // clamping/skipping. Mirror epilogue changes here.
+                    if constexpr(kUseAsyncLdsOStore && PrefillCase)
+                    {
+                        fmha_tdm_sched_store_o_tile_async_from_lds<FmhaPipeline, kAsyncOStoreBytes>(
+                            o_lds_staging,
+                            o_ptr + static_cast<long_index_t>(i_m0) * row_stride_o + i_n1,
+                            row_stride_o,
+                            num_rows_q - i_m0,
+                            o_acc_tile);
+                    }
+                    else if constexpr(detail::epilogue_uses_smem_v<EpiloguePipeline>)
+                    {
+                        // The pipeline is done with its LDS; pipelines that declare
+                        // their own arrays leave none to the epilogue (direct store).
+                        if constexpr(kPipelineDeclaresLds)
+                            EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, nullptr);
+                        else
+                            EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr, smem_ptr);
+                    }
+                    else
+                    {
+                        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
+                    }
+                };
+                if constexpr(kPipelineName == "qr_tdm" && kPadHeadDimV)
+                {
+                    // Keep vector stores for aligned heads, and predicate individual
+                    // elements for arbitrary tails and row strides.
+                    constexpr index_t alignment = FmhaPipeline::kAlignmentOacc;
+                    if(kargs.hdim_v % alignment == 0 && kargs.stride_o % alignment == 0 &&
+                       reinterpret_cast<uintptr_t>(o_ptr) % (alignment * sizeof(ODataType)) == 0)
+                        store_output(number<alignment>{});
+                    else
+                        store_output(number<1>{});
+                }
+                else
+                    store_output(number<FmhaPipeline::kAlignmentOacc>{});
+            }
         }
     }
 };

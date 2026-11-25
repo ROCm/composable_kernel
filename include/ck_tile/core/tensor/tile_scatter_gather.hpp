@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/utility.hpp"
 #include "ck_tile/core/algorithm/space_filling_curve.hpp"
 #include "ck_tile/core/config.hpp"
@@ -682,15 +683,14 @@ struct tile_scatter_gather
         });
     }
 
-    // TODO: currently async load only implemented in inline asm
+    // Each issue writes LDS at p_data_ + size_per_buf + size_per_wave * warp_id + k *
+    // size_per_issue (k counts the preceding issues that advanced the destination).
     template <typename LdsTileWindow_,
               index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true,
-              bool pre_nop                = false>
+              bool oob_conditional_check  = true>
     CK_TILE_DEVICE auto async_load_raw(LdsTileWindow_&& lds_tile,
                                        number<i_access_unsupport_>          = {},
-                                       bool_constant<oob_conditional_check> = {},
-                                       bool_constant<pre_nop>               = {}) const
+                                       bool_constant<oob_conditional_check> = {}) const
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         // using LdsTensorView = typename LdsTileWindow::BottomTensorView;
@@ -717,9 +717,9 @@ struct tile_scatter_gather
                 sizeof(LdsDataType) -
             size_per_buf;
 
-        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
-        m0_set_with_memory(
-            amd_wave_read_first_lane(m0_init_value)); // This should be wave independent
+        const index_t lds_init_offset = size_per_buf + size_per_wave * get_warp_id();
+        // Byte offset of the current issue's LDS destination; must be wave uniform.
+        index_t lds_offset = amd_wave_read_first_lane(lds_init_offset);
 
         using Traits = load_store_traits;
 
@@ -736,17 +736,13 @@ struct tile_scatter_gather
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
             static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
-                constexpr auto pre_nop_ = [&]() {
-                    if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
-                        return bool_constant<true>{};
-                    else
-                        return bool_constant<false>{};
-                }();
+                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
                 constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
+                auto* smem_issue =
+                    reinterpret_cast<LdsDataType*>(reinterpret_cast<char*>(smem) + lds_offset);
 
                 // read from bottom tensor
                 if constexpr(kUseGlobalLoad_)
@@ -763,22 +759,24 @@ struct tile_scatter_gather
                     const auto* addr = base_ptr + total_offset;
                     // global_load_lds takes a byte address; addr (const DataType*)
                     // converts implicitly to const void*, no explicit cast needed.
-                    async_global_load_lds_dwordxn<vector_size>(smem, addr, pre_nop_);
+                    async_global_load_lds_dwordxn<vector_size>(smem_issue, addr);
+#if CK_TILE_HAS_ASYNCMARK
+                    asyncmark();
+#endif
                 }
                 else if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
                 {
                     get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
-                        smem, bottom_tensor_thread_coord, page_offset, 0, pre_nop_);
+                        smem_issue, bottom_tensor_thread_coord, page_offset, 0);
                 }
                 else
                 {
                     get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
-                        smem,
+                        smem_issue,
                         bottom_tensor_thread_coord,
                         page_offset,
                         valids_[idx_gather],
-                        0,
-                        pre_nop_);
+                        0);
                 }
 
                 // move thread coordinate
@@ -797,7 +795,7 @@ struct tile_scatter_gather
                     move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
-                    m0_inc_with_memory(size_per_issue);
+                    lds_offset += size_per_issue;
                 }
             });
         });

@@ -7,11 +7,13 @@ A trait combo is serialized as
 ``<pipeline>_<epilogue>_<scheduler>_<pad_m>_<pad_n>_<pad_k>[_<persistent>]``.
 Most pipeline names contain no underscore, so the historical parser simply
 split on ``_``. Multi-token pipeline names (``comp_async``, ``comp_tdm``,
-``comp_tdm_v2``, ``comp_tdm_pc``, ``comp_tdm_v3``, ``comp_async_eight_waves``,
-``weight_preshuffle``, ``preshuffle_tdm``) break that split, so they are matched
-first against a known-prefix list (longest first);
+``comp_tdm_v2``, ``comp_tdm_pc``, ``comp_tdm_v3``, ``comp_tdm_ra``,
+``comp_async_eight_waves``, ``weight_preshuffle``, ``preshuffle_tdm``) break that
+split, so they are matched first against a known-prefix list (longest first);
 anything else falls back to the legacy split, keeping existing names parsed
-exactly as before.
+exactly as before. A producer/consumer ring variant ``comp_tdm_pc_s{S}l{L}``
+(NumSlots, PublishLag) and a run-ahead ring variant ``comp_tdm_ra_s{S}r{R}``
+(NumSlots, RunAhead) are one pipeline field too.
 
 The CMake mirror of this helper is ``gemm_trait_parse.cmake``.
 """
@@ -19,22 +21,28 @@ The CMake mirror of this helper is ``gemm_trait_parse.cmake``.
 import re
 from typing import List, NamedTuple
 
-# Longest names first so ``comp_tdm_v2``, ``comp_tdm_pc`` and ``comp_tdm_v3`` are
-# never matched as ``comp_tdm`` (which would leave ``v2`` / ``pc`` / ``v3`` parsed as
-# the epilogue).
+# Longest names first so ``comp_tdm_v2``, ``comp_tdm_pc``, ``comp_tdm_v3`` and
+# ``comp_tdm_ra`` are never matched as ``comp_tdm`` (which would leave ``v2`` / ``pc``
+# / ``v3`` / ``ra`` parsed as the epilogue).
 MULTI_TOKEN_PIPELINES = (
     "comp_async_eight_waves",
     "comp_tdm_v2",
     "comp_tdm_pc",
     "comp_tdm_v3",
+    "comp_tdm_ra",
     "comp_async",
     "comp_tdm",
     "weight_preshuffle",
     "preshuffle_tdm",
 )
 
+# Tried before the plain names so the ring is not left behind as the epilogue.
+RING_PIPELINE_PATTERN = r"comp_tdm_pc_s\d+l\d+|comp_tdm_ra_s\d+r\d+"
+
 _MULTI_TOKEN_RE = re.compile(
-    r"^(" + "|".join(re.escape(p) for p in MULTI_TOKEN_PIPELINES) + r")_"
+    r"^("
+    + "|".join([RING_PIPELINE_PATTERN] + [re.escape(p) for p in MULTI_TOKEN_PIPELINES])
+    + r")_"
 )
 
 

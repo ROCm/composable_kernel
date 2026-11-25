@@ -34,7 +34,10 @@
  * v1 scope: k_batch == 1 (no split-K).
  *
  * The scale pre-shuffle mirrors mx_gemm_profiler.hpp exactly: pack params are
- * derived from SelectedKernel tile dims at compile time (not hardcoded).
+ * derived from SelectedKernel tile dims at compile time (not hardcoded). A
+ * SelectedKernel with KMajorScales (comp_tdm_scheduled) skips that pre-shuffle and
+ * takes K-major scales, [ceil(K/128)][MN][4], which only this library builds (the
+ * profiler has no K-major path), and checks K itself.
  */
 
 #include <hip/hip_runtime.h>
@@ -240,7 +243,11 @@ int dispatcher_run_mx_gemm(const void* A,
         if(n % n_per_xdl != 0 || k % k_per_xdl != 0)
             return -2;
     }
-    if constexpr(is_gfx1250)
+    if constexpr(ck_tile::uses_kmajor_mx_scales_v<SelectedKernel>)
+    {
+        // The kernel checks its own K tails in GetUnsupportedReason.
+    }
+    else if constexpr(is_gfx1250)
     {
         if(k % 128 != 0 || k % SelectedKernel::TileK != 0)
             return -2;
@@ -277,7 +284,11 @@ int dispatcher_run_mx_gemm(const void* A,
         constexpr auto tile_mn = IsA ? SelectedKernel::TileM : SelectedKernel::TileN;
         constexpr auto mn_pack = IsA ? m_xdl_pack : n_xdl_pack;
         const auto mn          = IsA ? m : n;
-        if constexpr(is_gfx1250)
+        if constexpr(ck_tile::uses_kmajor_mx_scales_v<SelectedKernel>)
+        {
+            return ck_tile::mx_scale_tensor_to_kmajor(input, mn, k);
+        }
+        else if constexpr(is_gfx1250)
         {
             const auto padded_mn = ck_tile::integer_divide_ceil(mn, tile_mn) * tile_mn;
             ck_tile::HostTensor<ScaleType> padded(

@@ -113,17 +113,37 @@ class TestMxGemmGpu(unittest.TestCase):
             # Exceeds the old 64 KiB LDS fallback with both FP4 and FP8.
             configs += [
                 MxGemmKernelConfig(
-                    datatype=dtype, gpu_target=self.ARCH, pipeline=pipeline,
-                    tile_m=256, tile_n=256, tile_k=256,
+                    datatype=dtype,
+                    gpu_target=self.ARCH,
+                    pipeline=pipeline,
+                    tile_m=256,
+                    tile_n=256,
+                    tile_k=256,
                 )
                 for pipeline in ("comp_tdm", "comp_tdm_v2")
             ]
             configs += [
                 MxGemmKernelConfig(
-                    datatype=dtype, gpu_target=self.ARCH, pipeline=pipeline,
-                    warp_tile_m=32, warp_tile_n=32,
+                    datatype=dtype,
+                    gpu_target=self.ARCH,
+                    pipeline=pipeline,
+                    warp_tile_m=32,
+                    warp_tile_n=32,
                 )
                 for pipeline in ("comp_tdm", "comp_tdm_v2")
+            ]
+            # comp_tdm_scheduled (K-major scales); a 1x1 cluster runs any grid.
+            configs += [
+                MxGemmKernelConfig(
+                    datatype=dtype,
+                    gpu_target=self.ARCH,
+                    pipeline="comp_tdm_scheduled",
+                    tile_m=m,
+                    tile_n=n,
+                    tile_k=256,
+                    tuning={"cluster_dim": [1, 1]},
+                )
+                for m, n in ((128, 128), (256, 256))
             ]
         so_paths = setup_multiple_mx_gemm_dispatchers(
             configs,
@@ -149,7 +169,9 @@ class TestMxGemmGpu(unittest.TestCase):
                     shapes += [(1, 17, bk), (bm - 1, bn + 1, 2 * bk)]
                 shapes += [(bm, bn, 5 * bk), (bm, bn, 8 * bk)]
                 if config.pipeline in (
-                    "comp_async", "comp_async_eight_waves", "weight_preshuffle"
+                    "comp_async",
+                    "comp_async_eight_waves",
+                    "weight_preshuffle",
                 ):
                     # FP8 inputs occupy a full 1 MiB allocation here. Smaller
                     # allocations can hide a prefetch past the physical buffer.

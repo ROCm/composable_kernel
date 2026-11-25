@@ -96,6 +96,11 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                 constexpr std::array occupancy{2, 2, 2, 2, 2, 1};
                 return occupancy[detail::log2<kMaxSplits>::value - 2];
             }
+            else // d512 (qr_tdm_pingpong's split-KV)
+            {
+                constexpr std::array occupancy{1, 1, 1, 1, 1, 1};
+                return occupancy[detail::log2<kMaxSplits>::value - 2];
+            }
         }
     }();
 
@@ -290,14 +295,28 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         __builtin_amdgcn_sched_barrier(0);
         block_sync_lds();
-        // each warp handles a [KM0, kN1] tile
-        for(index_t split_start = 0; split_start < padded_num_splits; split_start += kNumWarps)
+        // each warp handles a [KM0, kN1] tile; kUnroll groups of kNumWarps splits are read
+        // before any is accumulated (one read in flight a warp left the loop latency bound:
+        // gfx1250 decode, 48 splits, 9.7 us for 0.8 MB)
+        constexpr index_t kUnroll = min(index_t{4}, max(index_t{1}, kMaxSplits / kNumWarps));
+        using OTile               = decltype(load_tile(o_acc_dram_window));
+        for(index_t split_start = 0; split_start < padded_num_splits;
+            split_start += kUnroll * kNumWarps)
         {
-            auto o_tile             = load_tile(o_acc_dram_window);
-            const index_t i_split   = split_start + get_warp_id();
+            statically_indexed_array<OTile, kUnroll> o_tiles;
+            static_for<0, kUnroll, 1>{}([&](auto u) {
+                // only the groups left (those past them are never accumulated)
+                if(split_start + u * kNumWarps < padded_num_splits)
+                    o_tiles(u) = load_tile(o_acc_dram_window);
+                move_tile_window(o_acc_dram_window, {kNumWarps * kM0, 0});
+            });
             const index_t row_start = kM0 * get_warp_id();
-            {
-                constexpr auto spans = decltype(o_acc)::get_distributed_spans();
+            static_for<0, kUnroll, 1>{}([&](auto u) {
+                const index_t i_group = split_start + u * kNumWarps;
+                if(i_group >= padded_num_splits)
+                    return;
+                const index_t i_split = i_group + get_warp_id();
+                constexpr auto spans  = decltype(o_acc)::get_distributed_spans();
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -307,12 +326,10 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                         const auto row = x_indices.at(number<0>{});
 
                         const LSEDataType lse_scale = lse_acc_lds(row - row_start, i_split);
-                        o_acc(i_j_idx) += lse_scale * o_tile(i_j_idx);
+                        o_acc(i_j_idx) += lse_scale * o_tiles[u](i_j_idx);
                     });
                 });
-            }
-
-            move_tile_window(o_acc_dram_window, {kNumWarps * kM0, 0});
+            });
         }
 
         // Then each warps combines partial o_acc results into one

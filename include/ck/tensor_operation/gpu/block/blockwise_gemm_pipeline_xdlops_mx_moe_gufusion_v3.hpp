@@ -483,14 +483,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
             make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
         // Local prefetch 1, sync the async load
-#if defined(__gfx125__)
         block_sync_lds_async_load();
-#else
-        __builtin_amdgcn_s_waitcnt(3952);
-
-        // Local prefetch 1
-        block_sync_lds();
-#endif
         static_for<0, KRepeat, 1>{}([&](auto k) {
             constexpr auto k_step  = k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
             constexpr auto bk_step = k * xdlops_gemm.KPerXdlops * BKPack / xdlops_gemm.K1PerXdlops;
@@ -586,12 +579,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
             do
             {
                 auto LoopFunc = [&](auto scale_comp_buf, auto scale_mem_buf) {
-#if defined(__gfx125__)
                     block_sync_lds_async_load();
-#else
-                    __builtin_amdgcn_s_waitcnt(3952);
-                    block_sync_lds();
-#endif
                     a_blockwise_copy.Run(
                         a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(scale_comp_buf));
                     b_blockwise_copy.Run(
@@ -1041,12 +1029,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                 c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
-#if defined(__gfx125__)
             block_sync_lds_async_load();
-#else
-            __builtin_amdgcn_s_waitcnt(3952);
-            block_sync_lds();
-#endif
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =
                     k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;

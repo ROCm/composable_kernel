@@ -28,10 +28,15 @@ Data types (verified against ck_tile headers / example/ck_tile/42_mx_gemm):
   scale: ck_tile::e8m0_t (biased exponent, byte e decodes to 2^(e-127); 127 == 1.0)
 """
 
-from dispatcher_common import arch_feature_defines, normalize_arch, unified_framework_flags
+from dispatcher_common import (
+    arch_feature_defines,
+    normalize_arch,
+    unified_framework_flags,
+)
 import concurrent.futures
 import ctypes
 import functools
+import hashlib
 import importlib.util
 import json
 import logging
@@ -41,7 +46,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -274,6 +279,10 @@ class MxGemmKernelConfig:
 
     k_block_per_cu: int = 1
 
+    # comp_tdm_scheduled only: the tuning knobs and the instance's shape traits (keys of
+    # mx_tdm_scheduled.TUNING_DEFAULTS / SHAPE_DEFAULTS; missing keys take the defaults).
+    tuning: Optional[Dict[str, Any]] = None
+
     # cached name so we do not re-shell the codegen repeatedly.
     _name_cache: Optional[str] = field(default=None, repr=False, compare=False)
 
@@ -281,9 +290,24 @@ class MxGemmKernelConfig:
         arch = normalize_arch(self.gpu_target or _get_arch())
         pipeline = self.pipeline or ("comp_tdm" if arch == "gfx1250" else "comp_async")
         epilogue = self.epilogue or (
-            "tdm" if pipeline in ("comp_tdm", "comp_tdm_v2") else "cshuffle"
+            "tdm"
+            if pipeline in ("comp_tdm", "comp_tdm_v2", "comp_tdm_scheduled")
+            else "cshuffle"
+        )
+        # Normalized here: the codegen picks only the keys it knows, so a misspelled key
+        # would otherwise build the default tuning under the requested name.
+        tuning = (
+            {
+                k: list(v) if isinstance(v, tuple) else v
+                for k, v in _mx_codegen()
+                .mx_tdm_scheduled.normalize_tuning(self.tuning)
+                .items()
+            }
+            if self.tuning
+            else {}
         )
         return {
+            **tuning,
             "datatype": self.datatype,
             "layout": self.layout,
             "gpu_target": arch,
@@ -313,8 +337,8 @@ class MxGemmKernelConfig:
         """Byte-exact kernel name from the codegen CLI (--list-name).
 
         The codegen owns the canonical name format; we never reconstruct it here
-        to avoid drift. Falls back to a locally computed name only if the codegen
-        script is not yet present (so utils stays import/unit testable before the
+        to avoid drift. Falls back to a locally computed name if the codegen script
+        is absent, fails or times out (so utils stays import/unit testable before the
         codegen component lands).
         """
         if self._name_cache is not None:
@@ -355,23 +379,21 @@ class MxGemmKernelConfig:
           mx_gemm_{dtype}_{layout}_comp_async_cshuffle_intrawave_
           {PadM}_{PadN}_{PadK}[_{Persistent}]_
           {tileM}x{tileN}x{tileK}_{warpM}x{warpN}x{warpK}_{wtM}x{wtN}x{wtK}
-        Only used when the codegen script is absent (never at real build time).
+          [comp_tdm_scheduled: the tuning suffix]
+        Used when the codegen script is absent, fails or times out. The name keys the
+        .so cache and the dedup, so different tunings must never share one.
         """
         arch = normalize_arch(self.gpu_target)
+        pipeline = self.pipeline or ("comp_tdm" if arch == "gfx1250" else "comp_async")
         parts = [
             "mx_gemm",
             self.datatype,
             self.layout,
-            self.pipeline
-            or ("comp_tdm" if arch == "gfx1250" else "comp_async"),
+            pipeline,
             self.epilogue
             or (
                 "tdm"
-                if (
-                    self.pipeline
-                    or ("comp_tdm" if arch == "gfx1250" else "comp_async")
-                )
-                in ("comp_tdm", "comp_tdm_v2")
+                if pipeline in ("comp_tdm", "comp_tdm_v2", "comp_tdm_scheduled")
                 else "cshuffle"
             ),
             self.scheduler,
@@ -384,7 +406,40 @@ class MxGemmKernelConfig:
         parts.append(f"{self.tile_m}x{self.tile_n}x{self.tile_k}")
         parts.append(f"{self.warp_m}x{self.warp_n}x{self.warp_k}")
         parts.append(f"{self.warp_tile_m}x{self.warp_tile_n}x{self.warp_tile_k}")
-        return "_".join(parts)
+        name = "_".join(parts)
+        if pipeline == "comp_tdm_scheduled":
+            name += self._fallback_tuning_suffix()
+        return name
+
+    def _fallback_tuning_suffix(self) -> str:
+        """The codegen's comp_tdm_scheduled tuning suffix, else a hash of the tuning."""
+        try:
+            sched = _mx_codegen().mx_tdm_scheduled
+            tile = {
+                k: getattr(self, k)
+                for k in (
+                    "tile_m",
+                    "tile_n",
+                    "tile_k",
+                    "warp_m",
+                    "warp_n",
+                    "warp_k",
+                    "warp_tile_m",
+                    "warp_tile_n",
+                    "warp_tile_k",
+                )
+            }
+            spec = sched.spec_from_tile(
+                tile,
+                self.tuning,
+                self.datatype,
+                self.datatype,
+                sched.TE_OUT_DTYPES["fp16"],
+            )
+            return sched.instance_name_suffix(spec, self.tuning)
+        except Exception:  # noqa: BLE001
+            key = json.dumps(self.tuning or {}, sort_keys=True, default=list)
+            return "_t" + hashlib.sha1(key.encode()).hexdigest()[:8]
 
     def is_valid(self) -> bool:
         # Unbound configs can be checked without detecting or selecting a device.
@@ -797,6 +852,15 @@ _MX_CODEGEN_FLAGS = (
 # know -amdgpu-coerce-illegal-types). Mirror that probe so the bridge matches
 # Old-TE wherever the compiler accepts it and stays buildable where it does not.
 _MX_PROBED_CODEGEN_FLAGS = (("-mllvm", "-amdgpu-coerce-illegal-types=1"),)
+# comp_tdm_scheduled only, as its CMake targets (example 56, tests, tile_engine)
+_MX_TDM_SCHEDULED_FLAGS = (
+    "-mllvm",
+    "-amdgpu-expert-scheduling-mode",
+    "-mllvm",
+    "-enable-post-misched=false",
+    "-mllvm",
+    "-greedy-regclass-priority-trumps-globalness",
+)
 
 
 @functools.lru_cache(maxsize=None)
@@ -828,7 +892,7 @@ def _mx_codegen_flags() -> Tuple[str, ...]:
     return tuple(flags)
 
 
-def _compile_kernel(hpp: Path, so: Path, arch: str) -> bool:
+def _compile_kernel(hpp: Path, so: Path, arch: str, pipeline: str = "") -> bool:
     inc = [
         f"-I{_CK_ROOT}/include",
         f"-I{_CK_ROOT}",
@@ -846,6 +910,7 @@ def _compile_kernel(hpp: Path, so: Path, arch: str) -> bool:
         "-O3",
         "-std=c++20",
         *_mx_codegen_flags(),
+        *(_MX_TDM_SCHEDULED_FLAGS if pipeline == "comp_tdm_scheduled" else ()),
         *inc,
         "-DCK_TILE_SINGLE_KERNEL_INCLUDE",
         f"-include{hpp}",
@@ -915,7 +980,7 @@ def setup_multiple_mx_gemm_dispatchers(
         hpp = _generate_kernel(cfg, headers)
         if hpp is None:
             return idx, None
-        return idx, (so if _compile_kernel(hpp, so, arch) else None)
+        return idx, (so if _compile_kernel(hpp, so, arch, cfg.pipeline) else None)
 
     if parallel and len(deduped) > 1:
         workers = max_workers or min(len(deduped), os.cpu_count() or 4)
@@ -988,6 +1053,7 @@ def expand_mx_sweep(
             pad_k=pad_k,
             persistent=persistent,
             k_block_per_cu=k_block_per_cu,
+            tuning=kernel.get("tuning"),
             **kernel["tile_config"],
         )
         if cfg.is_valid():

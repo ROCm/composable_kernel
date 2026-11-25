@@ -116,6 +116,10 @@ struct GemmPipelineAgBgCrCompTDMProducerConsumer
     static constexpr index_t NumWaveGroups    = Problem::NumWaveGroups;
     static constexpr index_t Preshuffle       = Problem::Preshuffle;
     static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
+    // Read by the kernels that host the TDM pipelines. The NumSlots ring always multi-buffers
+    // LDS (Problem::DoubleSmemBuffer is not consulted), and cluster launch is rejected below.
+    static constexpr bool DoubleSmemBuffer = true;
+    static constexpr bool UseClusterLaunch = false;
 
     // TDM vectorises internally and handles ragged extents, so launch checks do not apply.
     static constexpr bool skipCheckValidLaunchParams = true;
@@ -169,11 +173,8 @@ struct GemmPipelineAgBgCrCompTDMProducerConsumer
     {
         // The ring triple ends in NumProducerWaves because only BlockWarps[0] and [1] are
         // emitted below, so consumers-plus-producers cannot be recovered from the rest of the
-        // name. Forward protection, not a live collision: tile_engine has no NumSlots/PublishLag
-        // config axis today, so every generated comp_tdm_pc instance ships one ring shape. If
-        // that changes, the ring triple belongs in _format_trait_combo_string -- the one string
-        // that reaches both the CMake target name and the generated header path -- and not in
-        // _format_kernel_name, which neither of those two derives from.
+        // name. tile_engine and the dispatcher name a non-default ring themselves (the
+        // comp_tdm_pc_s{NumSlots}l{PublishLag} pipeline variant and the _s{S}l{L} suffix).
         // clang-format off
         return concat('_', "pipeline_AgBgCrCompTDMProducerConsumer",
                       concat('x', MPerBlock, NPerBlock, KPerBlock), LaunchBlockSize,
@@ -297,19 +298,6 @@ struct GemmPipelineAgBgCrCompTDMProducerConsumer
     }
 
     private:
-    template <bool IsA>
-    CK_TILE_DEVICE static TDMConfig MakeTdmConfig()
-    {
-        constexpr auto padding = Policy::template GetLdsPaddingConfig<Problem, IsA>();
-
-        TDMConfig config;
-        config.pad_enable              = padding[number<0>{}];
-        config.pad_config.pad_amount   = padding[number<1>{}];
-        config.pad_config.pad_interval = padding[number<2>{}];
-        // workgroup_mask stays 0: a non-zero mask makes the transfer wait for cluster peers.
-        return config;
-    }
-
     // One producer wave: streams operand Operand (0 = A, 1 = B) into the ring, one TDM per step.
     // Producer is the ring ROLE this wave plays; Operand is which matrix it streams. The two
     // coincide while NumProducerWaves == 2, but they are distinct concepts -- see "Producer<P>
@@ -350,7 +338,7 @@ struct GemmPipelineAgBgCrCompTDMProducerConsumer
         constexpr DramStep k_step =
             k_is_outer ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
-        const TDMConfig tdm_config = MakeTdmConfig<IsA>();
+        const TDMConfig tdm_config = Policy::template MakeTdmConfig<Problem, IsA>();
 
         using Ring = typename BarrierPipeline::template ring<0>;
         Ring::template producer<Producer>::template run<PublishLag>(

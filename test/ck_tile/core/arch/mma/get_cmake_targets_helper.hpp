@@ -58,8 +58,8 @@ static CK_TILE_HOST bool dispatchCompilerTarget(ck_tile::core::arch::amdgcn_targ
     case amdgcn_target_id::GFX1170:        func(make_amdgcn_gfx12_target<amdgcn_target_id::GFX1170>());          return true;
     case amdgcn_target_id::GFX1171:        func(make_amdgcn_gfx12_target<amdgcn_target_id::GFX1171>());          return true;
     case amdgcn_target_id::GFX11_7_GENERIC:  func(make_amdgcn_gfx12_target<amdgcn_target_id::GFX11_7_GENERIC>());    return true;
-    case amdgcn_target_id::GFX1250:        func(make_amdgcn_gfx12_target<amdgcn_target_id::GFX1250>());          return true;
-    case amdgcn_target_id::GFX1251:        func(make_amdgcn_gfx12_target<amdgcn_target_id::GFX1251>());          return true;
+    case amdgcn_target_id::GFX1250:        func(make_amdgcn_gfx1250_target<amdgcn_target_id::GFX1250>());        return true;
+    case amdgcn_target_id::GFX1251:        func(make_amdgcn_gfx1251_target<amdgcn_target_id::GFX1251>());        return true;
     case amdgcn_target_id::AMDGCN_SPIRV:   return false;
     case amdgcn_target_id::HOST:           return false;
     }

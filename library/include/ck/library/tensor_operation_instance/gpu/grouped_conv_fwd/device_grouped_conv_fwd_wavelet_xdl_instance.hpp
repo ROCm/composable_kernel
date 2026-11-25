@@ -143,6 +143,24 @@ using device_grouped_conv_fwd_wavelet_xdl_c_shuffle_f32_instances = std::tuple<
     // clang-format on
     >;
 
+template <index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename DataType,
+          ConvolutionForwardSpecialization ConvSpec>
+using device_grouped_conv_fwd_wavelet_xdl_c_shuffle_instances_part1 = std::tuple<
+    // clang-format off
+    DeviceGroupedConvFwdMultipleABD_WaveletModel_Xdl_CShuffle_V3<NDimSpatial, ALayout, BLayout, DsLayout, ELayout, DataType, DataType, F32, DataType, Empty_Tuple, DataType, PassThrough, PassThrough, PassThrough, ConvSpec, 256, 256, 256, 64, 64, 8, 16, 16, 4, 4, S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, 1, 2, S<1, 64, 1, 4>, 8, DataType, DataType, 1, true, true, false>,
+    DeviceGroupedConvFwdMultipleABD_WaveletModel_Xdl_CShuffle_V3<NDimSpatial, ALayout, BLayout, DsLayout, ELayout, DataType, DataType, F32, DataType, Empty_Tuple, DataType, PassThrough, PassThrough, PassThrough, ConvSpec, 256, 256, 64, 64, 128, 8, 16, 16, 2, 2, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, 2, 1, S<1, 64, 1, 4>, 8, DataType, DataType, 1, true, true, false>,
+    DeviceGroupedConvFwdMultipleABD_WaveletModel_Xdl_CShuffle_V3<NDimSpatial, ALayout, BLayout, DsLayout, ELayout, DataType, DataType, F32, DataType, Empty_Tuple, DataType, PassThrough, PassThrough, PassThrough, ConvSpec, 256, 256, 64, 128, 128, 8, 16, 16, 2, 4, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, 1, 2, S<1, 32, 1, 8>, 8, DataType, DataType, 1, true, true, true>,
+    DeviceGroupedConvFwdMultipleABD_WaveletModel_Xdl_CShuffle_V3<NDimSpatial, ALayout, BLayout, DsLayout, ELayout, DataType, DataType, F32, DataType, Empty_Tuple, DataType, PassThrough, PassThrough, PassThrough, ConvSpec, 256, 256, 128, 128, 128, 8, 16, 16, 4, 4, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, 1, 2, S<1, 32, 1, 8>, 8, DataType, DataType, 1, true, true, false>,
+    DeviceGroupedConvFwdMultipleABD_WaveletModel_Xdl_CShuffle_V3<NDimSpatial, ALayout, BLayout, DsLayout, ELayout, DataType, DataType, F32, DataType, Empty_Tuple, DataType, PassThrough, PassThrough, PassThrough, ConvSpec, 256, 256, 128, 64, 128, 8, 16, 16, 2, 4, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, 1, 2, S<1, 64, 1, 4>, 8, DataType, DataType, 1, true, true, false>,
+    DeviceGroupedConvFwdMultipleABD_WaveletModel_Xdl_CShuffle_V3<NDimSpatial, ALayout, BLayout, DsLayout, ELayout, DataType, DataType, F32, DataType, Empty_Tuple, DataType, PassThrough, PassThrough, PassThrough, ConvSpec, 256, 256, 128, 128, 128, 8, 16, 16, 4, 4, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, 1, 2, S<1, 32, 1, 8>, 8, DataType, DataType, 1, true, true, true>
+    // clang-format on
+    >;
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

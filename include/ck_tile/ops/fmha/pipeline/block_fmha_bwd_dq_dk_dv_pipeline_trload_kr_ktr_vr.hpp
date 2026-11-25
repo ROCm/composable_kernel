@@ -277,8 +277,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         // KT, HBM -> LDS --trload-->Reg
         async_load_tile(k_lds_write_window, k_dram_window);
         async_load_tile(v_lds_write_window, v_dram_window);
-        __builtin_amdgcn_s_waitcnt(3952);
-        block_sync_lds();
+        block_sync_lds_async_load();
 
         //------------------------------------------------------------------
         // Pre-Load KV into Registers
@@ -308,8 +307,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                              Policy::template MakeVRegBlockDescriptor<Problem>());
         auto v_reg_tensor = load_tile(v_lds_read_window);
 
-        __builtin_amdgcn_s_waitcnt(3952);
-        block_sync_lds();
+        block_sync_lds_async_load();
         //---------------------------- Loop Load in ----------------------------//
         // Q: HBM -->LDS
         auto q_dram_window =
@@ -675,8 +673,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                         }
                     }();
                     store_tile(bias_lds_write_window, dbias);
-                    __builtin_amdgcn_s_waitcnt(3952);
-                    block_sync_lds();
+                    block_sync_lds_async_load();
                     auto shuffled_dbias_tile = load_tile(dbias_lds_read_window);
                     auto dbias_tile          = make_static_distributed_tensor<BiasGradDataType>(
                         Policy::template MakeBiasTileDistribution<Problem>());

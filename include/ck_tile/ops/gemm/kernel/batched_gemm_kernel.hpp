@@ -95,6 +95,10 @@ struct BatchedGemmKernel
                       !is_detected<is_tuple, CDataType>::value,
                   "C/CLayout and C/EDataType must be scalars.");
 
+    static_assert(!UniversalGemmKernel::kIsGemmKernelOnlyPipeline,
+                  "Batched GEMM does not support this pipeline (validated with the plain GEMM "
+                  "kernel only)");
+
     struct BatchedGemmKernelArgs : ck_tile::UniversalGemmKernelArgs<>
     {
         index_t batch_stride_A;
@@ -229,8 +233,16 @@ struct BatchedGemmKernel
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
-        UniversalGemmKernel::RunGemm(
-            {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        UniversalGemmKernel::RunGemm({a_ptr},
+                                     {b_ptr},
+                                     {/*ds_ptr*/},
+                                     c_ptr,
+                                     smem_ptr,
+                                     kargs,
+                                     splitk_batch_offset,
+                                     i_m,
+                                     i_n,
+                                     UniversalGemmKernel::InitBarriers());
     }
 };
 

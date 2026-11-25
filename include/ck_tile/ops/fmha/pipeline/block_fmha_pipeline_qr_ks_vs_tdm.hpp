@@ -9,6 +9,7 @@
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_fmha_lse.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
+#include "ck_tile/ops/fmha/block/block_masking.hpp"
 #include "ck_tile/ops/fmha/block/cast_tile_mx.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_tdm_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
@@ -325,20 +326,41 @@ struct BlockFmhaPipelineQRKSVSTdm
                   "CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT must be "
                   "CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH");
 
+    // gemm_1's warps on K (the key split) leave partial sums in each warp's o_acc, which only
+    // a pipeline merging them (qr_tdm_pingpong) takes
+    static_assert(!Policy::template IsKeySplitOverWarps<Problem>() ||
+                      detail::qr_tdm_policy_quantizes_p_itself<Policy>::value,
+                  "qr_tdm pipeline: no warps on gemm_1's K");
+
+    // (a pipeline that quantizes P itself, qr_tdm_pingpong, also takes MX)
     static_assert(QScaleEnum == BlockAttentionQuantScaleEnum::NO_SCALE ||
                       QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR ||
                       QScaleEnum == BlockAttentionQuantScaleEnum::PERHEAD ||
-                      QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE,
+                      QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE ||
+                      (QScaleEnum == BlockAttentionQuantScaleEnum::MX &&
+                       detail::qr_tdm_policy_quantizes_p_itself<Policy>::value),
                   "qr_tdm pipeline: unsupported quantization granularity");
 
-    static_assert(!kBlockScale || kHwGemm1Scale,
+    // (a pipeline that quantizes P itself, qr_tdm_pingpong, applies v's block descale on O)
+    static_assert(!kBlockScale || kHwGemm1Scale ||
+                      detail::qr_tdm_policy_quantizes_p_itself<Policy>::value,
                   "qr_tdm pipeline: BLOCKSCALE requires the scaled MMA in gemm1");
 
-    // Only the scaled MMA applies the dynamic P exponent; without it O is off by 2^k.
-    static_assert(!kQuantized || kHwGemm1Scale,
+    // Only the scaled MMA applies the dynamic P exponent; without it O is off by 2^k (unless
+    // the pipeline quantizes P itself).
+    static_assert(!kQuantized || kHwGemm1Scale ||
+                      detail::qr_tdm_policy_quantizes_p_itself<Policy>::value,
                   "qr_tdm pipeline: a quantized run needs the scaled MMA in gemm1");
 
-    static_assert(!kHwGemm1Scale || kK1 == BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+    // the quantized entry points take no soft cap or dropout arguments (a pipeline that
+    // quantizes P itself, qr_tdm_pingpong, has one entry taking all of them)
+    static_assert(!kQuantized || (!kHasLogitsSoftCap && !kHasDropout) ||
+                      detail::qr_tdm_policy_quantizes_p_itself<Policy>::value,
+                  "qr_tdm pipeline: softcap/dropout require nonquantized Q/K/V");
+
+    // (a pipeline that quantizes P itself runs its own gemm1, see qr_tdm_pingpong)
+    static_assert(!kHwGemm1Scale || detail::qr_tdm_policy_quantizes_p_itself<Policy>::value ||
+                      kK1 == BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
                   "qr_tdm pipeline: the scaled gemm1 assumes kK1 is one warp-GEMM K step");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
@@ -476,6 +498,21 @@ struct BlockFmhaPipelineQRKSVSTdm
         __builtin_amdgcn_sched_barrier(kProgressiveDsLoadSchedMask);
     }
 
+    // see IsEdgeTileForValidRows: the O and LSE stores must stay bounded by seqlen_q
+    CK_TILE_DEVICE static bool
+    NeedPerPixelMask(const FmhaMask& mask, index_t i_tile_top, index_t i_tile_left)
+    {
+        if constexpr(std::is_same_v<FmhaMask, SimplifiedGenericAttentionMask<true>>)
+        {
+            return mask.IsEdgeTileForValidRows(
+                i_tile_top, i_tile_left, number<kM0>{}, number<kN0>{});
+        }
+        else
+        {
+            return mask.IsEdgeTile(i_tile_top, i_tile_left, number<kM0>{}, number<kN0>{});
+        }
+    }
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         using Layout = typename Policy::template LdsArenaLayout<Problem>;
@@ -537,9 +574,30 @@ struct BlockFmhaPipelineQRKSVSTdm
         }
     }
 
-    // Re-pack gemm_0 C into gemm_1 A: C is M-outer (MIter,KIter), A is K-outer.
-    // Lanes already align (NWarp==1), so this is an in-thread block reorder;
-    // identity when MIterPerWarp==1.
+    // Re-pack P (gemm_0's C layout, already in PDataType) into gemm_1's A: C is M-outer
+    // (MIter,KIter), A is K-outer. Lanes already align (NWarp==1), so this is an in-thread
+    // block reorder; identity when MIterPerWarp==1.
+    template <typename Gemm1, typename PSrcTensor>
+    CK_TILE_DEVICE static auto RepackPForGemm1(const PSrcTensor& p_src)
+    {
+        constexpr index_t kPMI = Gemm1::MIterPerWarp;
+        constexpr index_t kPKI = kN0 / Gemm1::WarpGemm::kK;
+
+        auto p_tile = make_static_distributed_tensor<PDataType>(
+            Policy::template MakePRegTileDistribution<Problem>());
+        constexpr index_t kPSub = PSrcTensor::get_thread_buffer_size() / (kPMI * kPKI);
+        using p_bulk_t          = array<PDataType, kPSub>;
+        static_for<0, kPMI, 1>{}([&](auto mi) {
+            static_for<0, kPKI, 1>{}([&](auto ki) {
+                p_tile.get_thread_buffer().template set_as<p_bulk_t>(
+                    number<ki * kPMI + mi>{},
+                    p_src.get_thread_buffer().template get_as<p_bulk_t>(number<mi * kPKI + ki>{}));
+            });
+        });
+        return p_tile;
+    }
+
+    // P for gemm_1's A operand (see RepackPForGemm1); a quantized P takes its dynamic scale.
     template <typename Gemm1, typename PComputeTensor>
     CK_TILE_DEVICE static auto MakePForGemm1(PComputeTensor& p_compute, int32_t& p_scale)
     {
@@ -564,24 +622,14 @@ struct BlockFmhaPipelineQRKSVSTdm
         }
         else
         {
-            const auto p_src        = cast_tile<PDataType>(p_compute);
-            constexpr index_t kPBuf = decltype(p_src)::get_thread_buffer_size();
-            constexpr index_t kPSub = kPBuf / (kPMI * kPKI);
-            using p_bulk_t          = array<PDataType, kPSub>;
-            static_for<0, kPMI, 1>{}([&](auto mi) {
-                static_for<0, kPKI, 1>{}([&](auto ki) {
-                    p_tile.get_thread_buffer().template set_as<p_bulk_t>(
-                        number<ki * kPMI + mi>{},
-                        p_src.get_thread_buffer().template get_as<p_bulk_t>(
-                            number<mi * kPKI + ki>{}));
-                });
-            });
+            p_tile  = RepackPForGemm1<Gemm1>(cast_tile<PDataType>(p_compute));
             p_scale = e8m0_one();
         }
         return p_tile;
     }
 
-    // Single V, double K LDS buffer path.
+    // Single V, double K LDS buffer path. BlockFmhaFwdSplitKVPipelineQRKSVSTdm
+    // copies this mainloop; its header lists what must stay in sync.
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -1090,7 +1138,10 @@ struct BlockFmhaPipelineQRKSVSTdm
                 // Pre-scale s_acc by scale_s before adding bias
                 if constexpr(!kHasLogitsSoftCap)
                     tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-                const auto bias_tile = load_tile(bias_dram_window);
+                // No per-element OOB branch: padded scores are masked to -inf, padded rows are not
+                // stored, and the buffer range check returns 0 past the end.
+                const auto bias_tile =
+                    load_tile(bias_dram_window, number<-1>{}, bool_constant<false>{});
                 tile_elementwise_inout(
                     [](auto& x, const auto& y) {
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
@@ -1140,8 +1191,7 @@ struct BlockFmhaPipelineQRKSVSTdm
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
-                bool need_perpixel_check =
-                    mask.IsEdgeTile(q_origin.at(I0), k_origin.at(I0), number<kM0>{}, number<kN0>{});
+                bool need_perpixel_check = NeedPerPixelMask(mask, q_origin.at(I0), k_origin.at(I0));
                 if(need_perpixel_check)
                 {
                     set_tile_if(
@@ -2021,7 +2071,10 @@ struct BlockFmhaPipelineQRKSVSTdm
             {
                 if constexpr(!kHasLogitsSoftCap)
                     tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-                const auto bias_tile = load_tile(bias_dram_window);
+                // No per-element OOB branch: padded scores are masked to -inf, padded rows are not
+                // stored, and the buffer range check returns 0 past the end.
+                const auto bias_tile =
+                    load_tile(bias_dram_window, number<-1>{}, bool_constant<false>{});
                 tile_elementwise_inout(
                     [](auto& x, const auto& y) {
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
@@ -2083,8 +2136,7 @@ struct BlockFmhaPipelineQRKSVSTdm
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
-                bool need_perpixel_check =
-                    mask.IsEdgeTile(q_origin.at(I0), k_origin.at(I0), number<kM0>{}, number<kN0>{});
+                bool need_perpixel_check = NeedPerPixelMask(mask, q_origin.at(I0), k_origin.at(I0));
                 if(need_perpixel_check)
                 {
                     set_tile_if(

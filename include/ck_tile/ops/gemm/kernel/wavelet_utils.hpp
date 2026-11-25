@@ -7,15 +7,17 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
 namespace ck_tile {
 
-// Kernel-side support for wavelet GEMM pipelines, shared by every kernel that can run one. A
-// wavelet pipeline launches load waves beyond the math waves its BlockGemm maps onto the C tile
-// (LaunchBlockSize > BlockSize). Only the math waves hold an accumulator and run the epilogue;
-// the load waves run a matching barrier sequence instead. Other pipelines expose none of these
-// members, and the helpers below detect that via SFINAE so each kernel dispatches without
-// duplicating the machinery.
+// Kernel-side support for wavelet and named-barrier GEMM pipelines, shared by every kernel that
+// can run one. A wavelet pipeline launches load waves beyond the math waves its BlockGemm maps
+// onto the C tile (LaunchBlockSize > BlockSize). Only the math waves hold an accumulator and run
+// the epilogue; the load waves run a matching barrier sequence instead. A named-barrier pipeline
+// takes a token its kernel minted once per launch (RunGemmPipeline forwards it). Other pipelines
+// expose none of these members, and the helpers below detect that via SFINAE so each kernel
+// dispatches without duplicating the machinery.
 namespace impl {
 template <typename T, typename = void>
 struct has_launch_block_size : std::false_type
@@ -66,11 +68,85 @@ inline constexpr bool is_wavelet_pipeline = []() {
         return false;
 }();
 
-// The named barrier pipeline a GEMM pipeline synchronises over, or void when it uses none. The
-// hardware allows one named barrier array per kernel, so the kernel running such a pipeline
-// declares it as its own `barrier_pipeline` and arms it with init().
+// The named barrier pipeline a GEMM pipeline synchronises over, or void when it uses none. A
+// kernel may use only one named barrier pipeline, so the kernel running such a pipeline declares
+// it as its own `barrier_pipeline` and arms it with init().
 template <typename Pipeline>
 using barrier_pipeline_of_t = typename impl::pipeline_barrier_pipeline<Pipeline>::type;
+
+namespace impl {
+template <typename T, typename = void>
+struct pipeline_skips_launch_checks : std::false_type
+{
+};
+template <typename T>
+struct pipeline_skips_launch_checks<T, std::void_t<decltype(T::skipCheckValidLaunchParams)>>
+    : std::bool_constant<T::skipCheckValidLaunchParams>
+{
+};
+} // namespace impl
+
+// True for the gfx125 TDM pipelines: they declare skipCheckValidLaunchParams, because TDM clips
+// every box to the tensor's real extent and no dimension has to be a tile multiple.
+template <typename Pipeline>
+inline constexpr bool pipeline_is_tdm_v = impl::pipeline_skips_launch_checks<Pipeline>::value;
+
+// True for a pipeline that only runs on gfx125: a TDM pipeline, or one that synchronises over
+// named barriers. On every other target it compiles an inert fallback that returns zeros, so it
+// must be rejected at run time on any other device. UniversalGemmKernel::IsSupportedArgument and
+// the dispatcher's kernel selection both read this one trait.
+template <typename Pipeline>
+inline constexpr bool pipeline_requires_gfx125_v =
+    pipeline_is_tdm_v<Pipeline> || !std::is_void_v<barrier_pipeline_of_t<Pipeline>>;
+
+// Run GemmPipeline over one C tile. A pipeline with named barriers takes the token its kernel
+// minted with BarrierPipeline::init(); every other pipeline takes none, and @p barriers is a
+// placeholder the kernel passes uniformly. This overload resolves the hot loop and tail from
+// @p num_loop at run time, so callers whose K-loop count varies per tile (split-K, Stream-K) need
+// not dispatch on them.
+template <typename GemmPipeline,
+          typename AsBlockWindow,
+          typename AElementWise,
+          typename BsBlockWindow,
+          typename BElementWise,
+          typename BarrierToken>
+CK_TILE_DEVICE auto RunGemmPipeline(const AsBlockWindow& as_block_window,
+                                    const AElementWise& a_element_func,
+                                    const BsBlockWindow& bs_block_window,
+                                    const BElementWise& b_element_func,
+                                    index_t num_loop,
+                                    void* smem_ptr,
+                                    const BarrierToken& barriers)
+{
+    if constexpr(std::is_void_v<barrier_pipeline_of_t<GemmPipeline>>)
+    {
+        ignore = barriers;
+        return GemmPipeline{}(
+            as_block_window, a_element_func, bs_block_window, b_element_func, num_loop, smem_ptr);
+    }
+    else
+    {
+        return GemmPipeline{}(as_block_window,
+                              a_element_func,
+                              bs_block_window,
+                              b_element_func,
+                              num_loop,
+                              smem_ptr,
+                              barriers);
+    }
+}
+
+// True on the waves that hold the C accumulator: the math waves of a wavelet pipeline, every
+// wave of any other pipeline. Wave-uniform, so it may guard code that issues barriers only when
+// both sides of the branch issue the same ones.
+template <typename GemmPipeline>
+CK_TILE_DEVICE bool IsMathWave()
+{
+    if constexpr(is_wavelet_pipeline<GemmPipeline>)
+        return GemmPipeline::IsMathWave();
+    else
+        return true;
+}
 
 // Run the epilogue with wavelet load/math wave dispatch. For wavelet pipelines only the math
 // waves run @p epilogue_body (which writes the C tile); load waves run a matching barrier

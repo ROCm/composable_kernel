@@ -141,4 +141,60 @@ CK_TILE_DEVICE void attention_activation_x2(const SBuf& s, PBuf& p, float scale)
 #endif
 }
 
+// attention_activation_x2 on prescaled scores, one packed operation less per pair. With
+// w = attention_activation_prescale(scale) * x (the caller scales one gemm operand by it, once),
+// FAST_GELU's u = sqrt(2/pi) (y + 0.044715 y^3), y = scale x, is w (kM + w^2), and
+// act(scale x) = attention_activation_prescaled_out_factor() * w (1 + tanh(u)): this computes
+// p = w (1 + tanh(u)), the caller takes the factor (on the other operand, or on the gemm's
+// output). The operand's scaling rounds it once more.
+template <BlockAttentionActivationEnum Activation>
+CK_TILE_DEVICE float attention_activation_prescale(float scale)
+{
+    static_assert(Activation == BlockAttentionActivationEnum::FAST_GELU,
+                  "attention_activation_prescale: an activation without an implementation");
+    // cbrt(sqrt(2/pi) * 0.044715)
+    return 0.32920349f * scale;
+}
+template <BlockAttentionActivationEnum Activation>
+CK_TILE_DEVICE constexpr float attention_activation_prescaled_out_factor()
+{
+    static_assert(Activation == BlockAttentionActivationEnum::FAST_GELU,
+                  "attention_activation_prescaled_out_factor: an activation without an "
+                  "implementation");
+    // 0.5 / cbrt(sqrt(2/pi) * 0.044715)
+    return 1.51881743f;
+}
+template <BlockAttentionActivationEnum Activation, typename SBuf, typename PBuf>
+CK_TILE_DEVICE void attention_activation_prescaled_x2(const SBuf& s, PBuf& p)
+{
+    static_assert(Activation == BlockAttentionActivationEnum::FAST_GELU,
+                  "attention_activation_prescaled_x2: an activation without an implementation");
+    constexpr index_t kN = SBuf::size();
+    static_assert(kN % 2 == 0 && PBuf::size() == kN);
+    // sqrt(2/pi) / cbrt(sqrt(2/pi) * 0.044715)
+    constexpr float kM = 2.42368195f;
+#if defined(__gfx125__)
+    const fp32x2_t m = {kM, kM};
+    static_for<0, kN / 2, 1>{}([&](auto i) {
+        const fp32x2_t w       = {s[number<2 * i>{}], s[number<2 * i + 1>{}]};
+        const fp32x2_t u       = w * (w * w + m);
+        p(number<2 * i>{})     = u[0];
+        p(number<2 * i + 1>{}) = u[1];
+    });
+    static_for<0, kN, 1>{}([&](auto i) { p(i) = __builtin_amdgcn_tanhf(p[i]); });
+    static_for<0, kN / 2, 1>{}([&](auto i) {
+        const fp32x2_t w       = {s[number<2 * i>{}], s[number<2 * i + 1>{}]};
+        const fp32x2_t t       = {p[number<2 * i>{}], p[number<2 * i + 1>{}]};
+        const fp32x2_t y       = w * t + w;
+        p(number<2 * i>{})     = y[0];
+        p(number<2 * i + 1>{}) = y[1];
+    });
+#else
+    static_for<0, kN, 1>{}([&](auto i) {
+        const float w = s[i];
+        p(i)          = w * (1.f + tanhf(w * (w * w + kM)));
+    });
+#endif
+}
+
 } // namespace ck_tile

@@ -29,13 +29,20 @@ template <index_t NDimSpatial,
           index_t K0PerBlock,
           index_t NumGroupsToMerge,
           device::ConvolutionBackwardWeightSpecialization ConvBackwardWeightSpecialization,
-          typename IndexType = index_t>
+          typename IndexType = index_t,
+          bool UseTdm        = false>
 struct TransformConvBwdWeightToGemmV2
 {
     // Compile-time contract: divisor GemmK1Number * K0PerBlock * GemmKBatch in
     // integer_divide_ceil(GemmKTotal, ...) must stay non-zero (GemmKBatch clamped at runtime).
     static_assert(GemmK1Number > 0, "GemmK1Number must be positive");
     static_assert(K0PerBlock > 0, "K0PerBlock must be positive");
+
+    // When UseTdm is enabled, we create 2D tensor descriptors consistent with the TDM transfer
+    //  - N(DH)W is considered packed
+    //  - there is no padding because OOB checks are handled by the instructions
+    //  - GemmK dimension is reduced in case of splitk hack because the pointer is shifted and
+    //    the GemmK descriptor must be changed accordingly to have correct OOB checks
 
     template <index_t N>
     using NumberType =
@@ -371,24 +378,42 @@ struct TransformConvBwdWeightToGemmV2
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Wi, C, input_strides);
         const auto wei_grid_desc = make_wei_grid_desc<NDim>(K, X, C, weights_strides);
 
+        const auto splitk_tdm = split_k_offset_hack ? GemmKBatch : 1;
+
         if constexpr(ConvBackwardWeightSpecialization ==
                      device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
         {
             // A: output tensor
-            const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-                out_grid_desc,
-                make_tuple(
-                    make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                    make_merge_transform(make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            const auto get_a_desc = [&]() {
+                if constexpr(!UseTdm)
+                {
+                    const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
+                        out_grid_desc,
+                        make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
+                                   make_merge_transform(
+                                       make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
+                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
-                           make_right_pad_transform(GemmM, PadGemmM)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                    return transform_tensor_descriptor(
+                        out_gemmkpad_gemmm_grid_desc,
+                        make_tuple(
+                            make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
+                            make_right_pad_transform(GemmM, PadGemmM)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                }
+                else
+                {
+                    const auto WoStride = output_strides[3];
+                    const auto KStride  = NumberType<1>{};
+                    return make_naive_tensor_descriptor(
+                        make_tuple(K, N * Wo / splitk_tdm), // GemmM, GemmK
+                        make_tuple(KStride, WoStride));
+                }
+            };
+
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = get_a_desc();
 
             // B: input tensor
             const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
@@ -421,20 +446,35 @@ struct TransformConvBwdWeightToGemmV2
         else
         {
             // A: output tensor
-            const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-                out_grid_desc,
-                make_tuple(
-                    make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                    make_merge_transform(make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            const auto get_a_desc = [&]() {
+                if constexpr(!UseTdm)
+                {
+                    const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
+                        out_grid_desc,
+                        make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
+                                   make_merge_transform(
+                                       make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
+                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
-                           make_right_pad_transform(GemmM, PadGemmM)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                    return transform_tensor_descriptor(
+                        out_gemmkpad_gemmm_grid_desc,
+                        make_tuple(
+                            make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
+                            make_right_pad_transform(GemmM, PadGemmM)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                }
+                else
+                {
+                    const auto WoStride = output_strides[3];
+                    const auto KStride  = NumberType<1>{};
+                    return make_naive_tensor_descriptor(
+                        make_tuple(K, N * Wo / splitk_tdm), // GemmM, GemmK
+                        make_tuple(KStride, WoStride));
+                }
+            };
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = get_a_desc();
 
             // B: input tensor
             const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -554,24 +594,42 @@ struct TransformConvBwdWeightToGemmV2
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Hi, Wi, C, input_strides);
         const auto wei_grid_desc = make_wei_grid_desc<NDim>(K, Y, X, C, weights_strides);
 
+        const auto splitk_tdm = split_k_offset_hack ? GemmKBatch : 1;
+
         if constexpr(ConvBackwardWeightSpecialization ==
                      device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
         {
             // A: output tensor
-            const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-                out_grid_desc,
-                make_tuple(
-                    make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                    make_merge_transform(make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            const auto get_a_desc = [&]() {
+                if constexpr(!UseTdm)
+                {
+                    const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
+                        out_grid_desc,
+                        make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
+                                   make_merge_transform(
+                                       make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
+                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
-                           make_right_pad_transform(GemmM, PadGemmM)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                    return transform_tensor_descriptor(
+                        out_gemmkpad_gemmm_grid_desc,
+                        make_tuple(
+                            make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
+                            make_right_pad_transform(GemmM, PadGemmM)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                }
+                else
+                {
+                    const auto WoStride = output_strides[4];
+                    const auto KStride  = NumberType<1>{};
+                    return make_naive_tensor_descriptor(
+                        make_tuple(K, (N * Ho * Wo / splitk_tdm)), // GemmM, GemmK
+                        make_tuple(KStride, WoStride));
+                }
+            };
+
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = get_a_desc();
 
             // B: input tensor
             const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
@@ -604,20 +662,36 @@ struct TransformConvBwdWeightToGemmV2
         else
         {
             // A: output tensor
-            const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-                out_grid_desc,
-                make_tuple(
-                    make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                    make_merge_transform(make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            const auto get_a_desc = [&]() {
+                if constexpr(!UseTdm)
+                {
+                    const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
+                        out_grid_desc,
+                        make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
+                                   make_merge_transform(
+                                       make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
+                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
-                           make_right_pad_transform(GemmM, PadGemmM)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                    return transform_tensor_descriptor(
+                        out_gemmkpad_gemmm_grid_desc,
+                        make_tuple(
+                            make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
+                            make_right_pad_transform(GemmM, PadGemmM)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                }
+                else
+                {
+                    const auto WoStride = output_strides[4];
+                    const auto KStride  = NumberType<1>{};
+                    return make_naive_tensor_descriptor(
+                        make_tuple(K, (N * Ho * Wo / splitk_tdm)), // GemmM, GemmK
+                        make_tuple(KStride, WoStride));
+                }
+            };
+
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = get_a_desc();
 
             // B: input tensor
             const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -752,24 +826,42 @@ struct TransformConvBwdWeightToGemmV2
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Di, Hi, Wi, C, input_strides);
         const auto wei_grid_desc = make_wei_grid_desc<NDim>(K, Z, Y, X, C, weights_strides);
 
+        const auto splitk_tdm = split_k_offset_hack ? GemmKBatch : 1;
+
         if constexpr(ConvBackwardWeightSpecialization ==
                      device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
         {
             // A: output tensor
-            const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-                out_grid_desc,
-                make_tuple(
-                    make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                    make_merge_transform(make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            const auto get_a_desc = [&]() {
+                if constexpr(!UseTdm)
+                {
+                    const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
+                        out_grid_desc,
+                        make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
+                                   make_merge_transform(
+                                       make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
+                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
-                           make_right_pad_transform(GemmM, PadGemmM)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                    return transform_tensor_descriptor(
+                        out_gemmkpad_gemmm_grid_desc,
+                        make_tuple(
+                            make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
+                            make_right_pad_transform(GemmM, PadGemmM)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                }
+                else
+                {
+                    const auto WoStride = output_strides[5];
+                    const auto KStride  = NumberType<1>{};
+                    return make_naive_tensor_descriptor(
+                        make_tuple(K, N * Do * Ho * Wo / splitk_tdm), // GemmM, GemmK
+                        make_tuple(KStride, WoStride));
+                }
+            };
+
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = get_a_desc();
 
             // B: input tensor
             const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
@@ -802,20 +894,36 @@ struct TransformConvBwdWeightToGemmV2
         else
         {
             // A: output tensor
-            const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-                out_grid_desc,
-                make_tuple(
-                    make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                    make_merge_transform(make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            const auto get_a_desc = [&]() {
+                if constexpr(!UseTdm)
+                {
+                    const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
+                        out_grid_desc,
+                        make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
+                                   make_merge_transform(
+                                       make_tuple(NumGroupsToMerge, GemmM / NumGroupsToMerge))),
+                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_gemmkpad_gemmm_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
-                           make_right_pad_transform(GemmM, PadGemmM)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                    return transform_tensor_descriptor(
+                        out_gemmkpad_gemmm_grid_desc,
+                        make_tuple(
+                            make_unmerge_transform(make_tuple(KBatchDim * GemmK0, GemmK1Number)),
+                            make_right_pad_transform(GemmM, PadGemmM)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                }
+                else
+                {
+                    const auto WoStride = output_strides[5];
+                    const auto KStride  = NumberType<1>{};
+                    return make_naive_tensor_descriptor(
+                        make_tuple(K, N * Do * Ho * Wo / splitk_tdm), // GemmM, GemmK
+                        make_tuple(KStride, WoStride));
+                }
+            };
+
+            const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = get_a_desc();
 
             // B: input tensor
             const auto in_n_dip_hip_wip_c_grid_desc = transform_tensor_descriptor(

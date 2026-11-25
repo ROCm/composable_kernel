@@ -231,7 +231,6 @@
         "bf16_bf16_fp32": [[16, 16, 32]],
         "fp8_fp8_fp32": [[16, 16, 64], [16, 16, 128], [32, 32, 128]],
         "bf8_bf8_fp32": [[16, 16, 64], [16, 16, 128], [32, 32, 128]],
-        "fp32_fp32_fp32": [[16, 16, 4]],
         "int8_int8_int32": [[16, 16, 64]]
       }
     }
@@ -344,7 +343,7 @@
         "GemmPipelineAgBgCrCompAsync::GetSmemSize() returns",
         "num_lds_buffers * smem_size with num_lds_buffers = 2.",
         "Emitted to C++ as Pipeline::CompAsync. The gfx1250 TDM pipelines",
-        "(comp_tdm, comp_tdm_v2) share this budget through",
+        "(comp_tdm, comp_tdm_v2, comp_tdm_v3) share this budget through",
         "pipeline_lds_budget_aliases."
       ]
     },
@@ -352,11 +351,27 @@
       "basis": "fraction",
       "value": 0.25,
       "_reason": [
-        "Ring of NumSlots LDS buffers, no configuration choice:",
+        "Ring of NumSlots LDS buffers:",
         "GemmPipelineAgBgCrCompTDMProducerConsumer::GetSmemSize() returns",
-        "NumSlots * Policy::GetSmemSize() with the policy default NumSlots_ = 4.",
-        "Emitted to C++ as Pipeline::CompTDMPC. Matches the Tile Engine",
-        "PIPELINE_SMEM_SLOTS entry; raise both if NumSlots_ changes."
+        "NumSlots * Policy::GetSmemSize(). This entry is the policy default",
+        "NumSlots_ = 4; a comp_tdm_pc_s{S}l{L} variant splits the capacity over",
+        "its S slots instead (codegen_common.pipeline_ring_lds_limit). Emitted to",
+        "C++ as Pipeline::CompTDMPC. Matches the Tile Engine PIPELINE_SMEM_SLOTS",
+        "entry; raise both if NumSlots_ changes."
+      ]
+    },
+    "comp_tdm_ra": {
+      "basis": "fraction",
+      "value": 0.25,
+      "_reason": [
+        "Ring of NumSlots LDS buffers, filled RunAhead steps ahead:",
+        "GemmPipelineAgBgCrCompTDMRunAhead::GetSmemSize() returns",
+        "NumSlots * Policy::GetSmemSize(). This entry is the policy default",
+        "NumSlots_ = 4 (GemmPipelineAgBgCrCompTDMRunAheadPolicy<4, 3>); a",
+        "comp_tdm_ra_s{S}r{R} variant splits the capacity over its S slots",
+        "instead (codegen_common.pipeline_ring_lds_limit). Emitted to C++ as",
+        "Pipeline::CompTDMRA. Matches the Tile Engine PIPELINE_SMEM_SLOTS entry;",
+        "raise both if NumSlots_ changes."
       ]
     },
     "wavelet": {
@@ -400,11 +415,35 @@
       "buffers, as comp_async does."
     ],
     "comp_tdm": "comp_async",
-    "comp_tdm_v2": "comp_async"
+    "comp_tdm_v2": "comp_async",
+    "comp_tdm_v3": "comp_async"
+  },
+
+  "pipeline_extra_warp_configs": {
+    "_comment": [
+      "Pipeline-specific wave maps allowed in addition to an architecture's",
+      "shared warp_configs table. Keeps [4, 4, 1] scoped to comp_tdm_v3 on",
+      "gfx1250 without widening the shared gfx1250 wave table."
+    ],
+    "comp_tdm_v3": {
+      "gfx1250": [[4, 4, 1]]
+    }
   },
   
+  "double_smem_buffer_pipelines": [
+    "compv4",
+    "preshufflev2",
+    "comp_async",
+    "comp_tdm",
+    "comp_tdm_v2",
+    "comp_tdm_pc",
+    "comp_tdm_v3",
+    "comp_tdm_ra",
+    "preshuffle_tdm"
+  ],
+
   "unsupported_trait_combos": {
-    "_comment": "Only 'mem' pipeline supports interwave scheduler. All compute pipelines only support intrawave.",
+    "_comment": "Unsupported (pipeline, epilogue, scheduler) triples, shared by Python and C++ validation.",
     "combinations": [
       ["compv3", "cshuffle", "interwave"],
       ["compv3", "default", "interwave"],
@@ -419,12 +458,23 @@
       ["comp_tdm", "cshuffle", "interwave"],
       ["comp_tdm", "default", "interwave"],
       ["comp_tdm", "tdm", "interwave"],
+      ["comp_tdm", "tdmstaged", "interwave"],
       ["comp_tdm_v2", "cshuffle", "interwave"],
       ["comp_tdm_v2", "default", "interwave"],
       ["comp_tdm_v2", "tdm", "interwave"],
+      ["comp_tdm_v2", "tdmstaged", "interwave"],
       ["comp_tdm_pc", "cshuffle", "interwave"],
       ["comp_tdm_pc", "default", "interwave"],
-      ["comp_tdm_pc", "tdm", "interwave"]
+      ["comp_tdm_pc", "tdm", "interwave"],
+      ["comp_tdm_pc", "tdmstaged", "interwave"],
+      ["comp_tdm_v3", "cshuffle", "interwave"],
+      ["comp_tdm_v3", "default", "interwave"],
+      ["comp_tdm_v3", "tdm", "interwave"],
+      ["comp_tdm_v3", "tdmstaged", "interwave"],
+      ["comp_tdm_ra", "cshuffle", "interwave"],
+      ["comp_tdm_ra", "default", "interwave"],
+      ["comp_tdm_ra", "tdm", "interwave"],
+      ["comp_tdm_ra", "tdmstaged", "interwave"]
     ]
   },
   

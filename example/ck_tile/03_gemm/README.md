@@ -51,6 +51,11 @@ make tile_example_gemm_universal -j`nproc`
 make tile_example_gemm_weight_preshuffle -j`nproc`
 # gfx125 only: weight preshuffle TDM pipeline with data cache prefetch controls
 make tile_example_gemm_weight_preshuffle_tdm_data_cache_prefetch -j`nproc`
+# gfx125 only: TDM pipelines with data cache prefetch controls (TdmEpilogue)
+make tile_example_gemm_tdm_data_cache_prefetch -j`nproc`
+# gfx125 only: the same, with C written through LDS one M iteration at a time
+# (TdmEpilogueStagedForPipeline) instead of the whole tile
+make tile_example_gemm_tdm_data_cache_prefetch_staged -j`nproc`
 ```
 This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
 

@@ -5,12 +5,14 @@
 
 #include <cstddef>
 
+#include "ck_tile/core/arch/amd_buffer_coherence.hpp"
 #include "ck_tile/core/arch/amd_wave_read_first_lane.hpp"
 #include "ck_tile/core/container/sequence.hpp"
 #include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
 
 namespace ck_tile {
 
@@ -25,6 +27,18 @@ struct TDMLdsPaddingConfig
     uint32_t pad_interval{0};
     uint32_t pad_amount{0};
 };
+
+/// The TDMLdsPaddingConfig of pad_bytes of LDS padding after every period_bytes. Both fields are
+/// biased by one: pad_interval is log2 of the period in dwords, minus 1 (a power of two of at
+/// least 2 dwords), and pad_amount the pad in dwords, minus 1.
+CK_TILE_HOST_DEVICE constexpr TDMLdsPaddingConfig make_tdm_lds_padding_config(index_t period_bytes,
+                                                                              index_t pad_bytes)
+{
+    uint32_t log2 = 0;
+    for(index_t dwords = period_bytes / 4; dwords > 1; dwords >>= 1)
+        ++log2;
+    return {log2 - 1, static_cast<uint32_t>(pad_bytes / 4 - 1)};
+}
 
 struct TDMIterationConfig
 {
@@ -52,6 +66,8 @@ struct TDMConfig
 
 union TDM_GROUP0
 {
+    CK_TILE_DEVICE constexpr TDM_GROUP0() : bitfield{0, 0, 0, 0} {}
+
     CK_TILE_DEVICE TDM_GROUP0(uintptr_t lds_addr_in,
                               uintptr_t global_addr_in,
                               uint32_t gather_idx_size_in,
@@ -70,6 +86,12 @@ union TDM_GROUP0
     {
         global_addr_lo = value & 0xFFFFFFFF;
         global_addr_hi = (value >> 32);
+    }
+
+    /// The 57-bit global address that globalAddr() stored.
+    CK_TILE_DEVICE uint64_t getGlobalAddr() const
+    {
+        return (static_cast<uint64_t>(global_addr_hi) << 32) | global_addr_lo;
     }
 
     struct
@@ -268,20 +290,19 @@ union TDM_GROUP2_MODE0
             uint32_t global_addr_increment_lo;
         };
 
+        // Each 16-bit pair is one struct: a bitfield alone in a union takes the whole uint32_t,
+        // which would move the upper field out of sgpr3.
         union
         {
             struct
             {
-                union
-                {
-                    uint32_t tensor_dim2_stride_hi : 16;
-                    uint32_t global_addr_increment_hi : 16;
-                };
-                union
-                {
-                    uint32_t tile_dim3 : 16;
-                    uint32_t iterate_count : 16;
-                };
+                uint32_t tensor_dim2_stride_hi : 16;
+                uint32_t tile_dim3 : 16;
+            };
+            struct
+            {
+                uint32_t global_addr_increment_hi : 16;
+                uint32_t iterate_count : 16;
             };
             uint32_t sgpr3;
         };
@@ -338,6 +359,54 @@ union TDM_GROUP2
     };
     int32x4_t bitfield;
 };
+
+static_assert(sizeof(TDM_GROUP2_MODE0) == 16, "group 2 fields must fit its four SGPRs");
+static_assert(sizeof(TDM_GROUP2) == 16, "group 2 fields must fit its four SGPRs");
+
+/// The groups of a load of rank 2 or less (groups 3 and 4 zero), for a caller that builds them
+/// once and keeps them in registers. Group 1 comes first: its int32x8_t is 32-byte aligned, and
+/// after group 0 it would add 16 bytes of padding that amd_wave_read_first_lane reads as well.
+struct TDMGroups
+{
+    TDM_GROUP1 g1;
+    TDM_GROUP0 g0;
+    TDM_GROUP2 g2;
+};
+static_assert(sizeof(TDMGroups) == 64, "TDMGroups must hold its 16 SGPRs without padding");
+
+/// TENSOR_LOAD_TO_LDS of a load of rank 2 or less (groups 3 and 4 zero) from groups the caller
+/// built, for a caller that keeps them in registers across loads and updates only the fields
+/// that change. amd_tdm_load(const TDMDescriptor&) instead builds every group on each call.
+template <amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
+CK_TILE_DEVICE void amd_tdm_load([[maybe_unused]] const TDM_GROUP0& group0,
+                                 [[maybe_unused]] const TDM_GROUP1& group1,
+                                 [[maybe_unused]] const TDM_GROUP2& group2)
+{
+#if CK_TILE_ENABLE_TDM_FEATURE
+    __builtin_amdgcn_tensor_load_to_lds(bit_cast<uint32x4_t>(group0.bitfield),
+                                        group1.bitfield,
+                                        group2.bitfield,
+                                        int32x4_t{0, 0, 0, 0},
+                                        int32x8_t{},
+                                        static_cast<index_t>(coherence));
+#endif
+}
+
+/// amd_tdm_load of groups built once, with group 0's LDS and global addresses and the extent of
+/// dimension Dim replaced: the fields that change from one load of a tile to the next.
+template <index_t Dim,
+          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
+CK_TILE_DEVICE void
+amd_tdm_load(TDMGroups groups, uint32_t lds_addr, uint64_t global_addr, uint32_t extent)
+{
+    static_assert(Dim == 0 || Dim == 1, "TDM: groups hold the extents of dimensions 0 and 1");
+    groups.g0 = TDM_GROUP0{lds_addr, global_addr, 0, 0};
+    if constexpr(Dim == 0)
+        groups.g1.tensorDim0(extent);
+    else
+        groups.g1.tensorDim1(extent);
+    amd_tdm_load<coherence>(groups.g0, groups.g1, groups.g2);
+}
 
 union TDM_GROUP3_MODE0
 {
@@ -549,6 +618,22 @@ class TDMDescriptor
                               amd_wave_read_first_lane(group3.bitfield),
                               v8i_zeros);
         }
+    }
+
+    /// Groups 0 to 2 of a load of rank 2 or less, unlike getResourceDescriptorGroup with group 2
+    /// set (iterate mode) and not read-first-lane'd: for amd_tdm_load(g0, g1, g2) by a caller
+    /// that keeps them in registers and updates only the fields that change.
+    CK_TILE_DEVICE TDMGroups getGroups() const
+    {
+        static_assert(TensorRank <= 2 && !IsGatherMode, "TDM: getGroups is for rank <= 2 loads");
+        TDMGroups groups;
+        groups.g0 = TDM_GROUP0{reinterpret_cast<uintptr_t>(m_localAddress),
+                               reinterpret_cast<uintptr_t>(m_globalAddress),
+                               static_cast<uint32_t>(m_rowIdxSize),
+                               0u};
+        configureGroup1(groups.g1);
+        configureGroup2(groups.g2);
+        return groups;
     }
 
     private:

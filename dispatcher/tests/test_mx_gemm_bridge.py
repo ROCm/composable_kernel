@@ -12,6 +12,7 @@ Tile Engine configuration validation. No GPU or hipcc is required.
 """
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -977,7 +978,6 @@ class TestMxBuildEntryPoints(unittest.TestCase):
                 self.assertIn(f'-DGFX_ARCH="{arch}"', command)
 
 
-
 _MX_TE = _CK / "tile_engine" / "ops" / "gemm"
 _MX_CONFIGS = _MX_TE / "mx_gemm" / "configs"
 
@@ -1050,7 +1050,7 @@ class TestSweepWorker(unittest.TestCase):
 
         cls.worker = run_one_mx_gemm_kernel
 
-    def _run(self, run_impl):
+    def _run(self, run_impl, dtype="fp4", init="grid"):
         class FakeRunner(mx.GpuMxGemmRunner):
             def __init__(self, so_path, dtype="fp8", arch=None):
                 self.dtype, self.arch = dtype, arch
@@ -1064,11 +1064,55 @@ class TestSweepWorker(unittest.TestCase):
             "kernel_name": "k",
             "problem": {"M": 64, "N": 32, "K": 128},
         }
-        with patch.object(self.worker, "GpuMxGemmRunner", FakeRunner), patch(
-            "builtins.print"
-        ) as out:
-            self.worker._run_one(0, item, "fp4", "gfx950", True, 2e-2)
+        with (
+            patch.object(self.worker, "GpuMxGemmRunner", FakeRunner),
+            patch("builtins.print") as out,
+        ):
+            self.worker._run_one(0, item, dtype, "gfx950", True, 2e-2, init)
         return json.loads(out.call_args[0][0])
+
+    def test_trig_codes_match_example_56(self):
+        # Example 56's e2m1_rne, line for line.
+        mid = (0.25, 0.75, 1.25, 1.75, 2.5, 3.5, 5.0)
+
+        def e2m1_rne(x):
+            a, code = abs(x), 7
+            for c, m in enumerate(mid):
+                if a < m:
+                    code = c
+                    break
+                if not a > m:
+                    code = c if c % 2 == 0 else c + 1
+                    break
+            return (8 if math.copysign(1.0, x) < 0 else 0) | code
+
+        K = 256
+        for use_cos, f in ((False, math.sin), (True, math.cos)):
+            data, scales = self.worker._trig_fp4(
+                np.random.default_rng(0), 3, K, use_cos
+            )
+            self.assertEqual(data.shape, (3, K // 2))
+            self.assertTrue(((scales >= 124) & (scales <= 130)).all())
+            for r in range(3):
+                for k in range(K):
+                    x = float(np.float32(f(float(r * K + k))))
+                    got = (int(data[r, k // 2]) >> (4 * (k % 2))) & 15
+                    self.assertEqual(got, e2m1_rne(x), (use_cos, r, k))
+
+    def test_trig_exact_kernel_verifies(self):
+        def run(self, prob, a, b, sa, sb):
+            a_deq = mx.dequantize_fp4_packed(a, prob.K)
+            b_deq = mx.dequantize_fp4_packed(b, prob.K).T
+            c = mx_gemm_reference(a_deq, b_deq, sa, sb, prob)
+            return mx.MxGemmResult(C=c, time_ms=0.5, kernel_name="fake")
+
+        res = self._run(run, init="trig")
+        self.assertTrue(res["ok"] and res["verified"], res)
+
+    def test_trig_rejects_fp8(self):
+        res = self._run(lambda *a: None, dtype="fp8", init="trig")
+        self.assertFalse(res["ok"])
+        self.assertIn("fp4 only", res["error"])
 
     def test_exact_kernel_verifies_with_random_scales(self):
         cache = self.worker._inputs
@@ -1099,6 +1143,7 @@ class TestSweepWorker(unittest.TestCase):
         res = self._run(run)
         self.assertTrue(res["skipped"])
         self.assertFalse(res["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

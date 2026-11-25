@@ -970,6 +970,151 @@ struct TransformConvBwdDataToGemm_v1
                                      is_same_v<BLayout_, tensor_layout::convolution::GKCYX> ||
                                      is_same_v<BLayout_, tensor_layout::convolution::GKCZYX>),
                                 bool>::type = false>
+    __host__ __device__ auto MakeBDescriptor_N_K_TDM() const
+    {
+        if constexpr(ConvBwdDataSpecialization ==
+                     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
+                         Filter1x1Stride1Pad0)
+        {
+            return make_naive_tensor_descriptor(make_tuple(C_, K_), make_tuple(Number<1>{}, C_));
+        }
+        else
+        {
+            // assume packed
+            // k_y_x_c for 2d or k_z_y_x_c for 3d
+            static_assert(is_same_v<BLayout_, tensor_layout::convolution::GKYXC> ||
+                          is_same_v<BLayout_, tensor_layout::convolution::GKZYXC>);
+            const auto wei_grid_desc = MakeWeiGridDesc();
+
+            // GemmK is different for each GEMM
+            const auto ZDotSlice =
+                static_cast<IndexType>(math::integer_divide_ceil(Z_ - IdxZTilde_, ZTilde_));
+            const auto YDotSlice =
+                static_cast<IndexType>(math::integer_divide_ceil(Y_ - IdxYTilde_, YTilde_));
+            const auto XDotSlice =
+                static_cast<IndexType>(math::integer_divide_ceil(X_ - IdxXTilde_, XTilde_));
+
+            // B weight tensor
+            if constexpr(NDimSpatial == 2)
+            {
+                const auto wei_k_ydot_ytilde_xdot_xtilde_c_grid_desc = transform_tensor_descriptor(
+                    wei_grid_desc,
+                    make_tuple(
+                        make_pass_through_transform(K_),
+                        make_embed_transform(make_tuple(YDot_, YTilde_),
+                                             make_tuple(ConvStrideH_ / GcdStrideDilationH_, I1)),
+                        make_embed_transform(make_tuple(XDot_, XTilde_),
+                                             make_tuple(ConvStrideW_ / GcdStrideDilationW_, I1)),
+                        make_pass_through_transform(C_)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
+
+                const auto wei_k_ydotslice_xdotslice_c_grid_desc = transform_tensor_descriptor(
+                    wei_k_ydot_ytilde_xdot_xtilde_c_grid_desc,
+                    make_tuple(make_pass_through_transform(K_),
+                               make_slice_transform(YDot_, I0, YDotSlice),
+                               make_slice_transform(XDot_, I0, XDotSlice),
+                               make_freeze_transform(IdxYTilde_),
+                               make_freeze_transform(IdxXTilde_),
+                               make_pass_through_transform(C_)),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<3>{},
+                               Sequence<2>{},
+                               Sequence<4>{},
+                               Sequence<5>{}),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<>{},
+                               Sequence<>{},
+                               Sequence<3>{}));
+
+                return transform_tensor_descriptor(
+                    wei_k_ydotslice_xdotslice_c_grid_desc,
+                    make_tuple(make_merge_transform(make_tuple(YDotSlice, XDotSlice, K_)), // GemmK
+                               make_pass_through_transform(C_)),                           // GemmN
+                    make_tuple(Sequence<1, 2, 0>{}, Sequence<3>{}),
+                    make_tuple(Sequence<1>{}, Sequence<0>{}));
+            }
+            else if constexpr(NDimSpatial == 3)
+            {
+                const auto wei_k_zdot_ztilde_ydot_ytilde_xdot_xtilde_c_grid_desc =
+                    transform_tensor_descriptor(
+                        wei_grid_desc,
+                        make_tuple(make_pass_through_transform(K_),
+                                   make_embed_transform(
+                                       make_tuple(ZDot_, ZTilde_),
+                                       make_tuple(ConvStrideD_ / GcdStrideDilationD_, I1)),
+                                   make_embed_transform(
+                                       make_tuple(YDot_, YTilde_),
+                                       make_tuple(ConvStrideH_ / GcdStrideDilationH_, I1)),
+                                   make_embed_transform(
+                                       make_tuple(XDot_, XTilde_),
+                                       make_tuple(ConvStrideW_ / GcdStrideDilationW_, I1)),
+                                   make_pass_through_transform(C_)),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<3>{},
+                                   Sequence<4>{}),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1, 2>{},
+                                   Sequence<3, 4>{},
+                                   Sequence<5, 6>{},
+                                   Sequence<7>{}));
+
+                const auto wei_gemmk_zdotslice_ydotslice_xdotslice_c_grid_desc =
+                    transform_tensor_descriptor(
+                        wei_k_zdot_ztilde_ydot_ytilde_xdot_xtilde_c_grid_desc,
+                        make_tuple(make_pass_through_transform(K_),
+                                   make_slice_transform(ZDot_, I0, ZDotSlice),
+                                   make_slice_transform(YDot_, I0, YDotSlice),
+                                   make_slice_transform(XDot_, I0, XDotSlice),
+                                   make_freeze_transform(IdxZTilde_),
+                                   make_freeze_transform(IdxYTilde_),
+                                   make_freeze_transform(IdxXTilde_),
+                                   make_pass_through_transform(C_)),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<3>{},
+                                   Sequence<5>{},
+                                   Sequence<2>{},
+                                   Sequence<4>{},
+                                   Sequence<6>{},
+                                   Sequence<7>{}),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<3>{},
+                                   Sequence<>{},
+                                   Sequence<>{},
+                                   Sequence<>{},
+                                   Sequence<4>{}));
+
+                return transform_tensor_descriptor(
+                    wei_gemmk_zdotslice_ydotslice_xdotslice_c_grid_desc,
+                    make_tuple(
+                        make_merge_transform(make_tuple(ZDotSlice, YDotSlice, XDotSlice, K_)),
+                        make_pass_through_transform(C_)),
+                    make_tuple(Sequence<1, 2, 3, 0>{}, Sequence<4>{}),
+                    make_tuple(Sequence<1>{}, Sequence<0>{}));
+            }
+            else
+            {
+                throw std::runtime_error("wrong! only implemented for 2D and 3D now");
+            }
+        }
+    }
+
+    template <
+        typename BLayout_                   = BLayout,
+        typename std::enable_if<(NDimSpatial == 2 || NDimSpatial == 3) &&
+                                    (is_same_v<BLayout_, tensor_layout::convolution::GKYXC> ||
+                                     is_same_v<BLayout_, tensor_layout::convolution::GKZYXC> ||
+                                     is_same_v<BLayout_, tensor_layout::convolution::GKCYX> ||
+                                     is_same_v<BLayout_, tensor_layout::convolution::GKCZYX>),
+                                bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_BK0_N_BK1() const
     {
 

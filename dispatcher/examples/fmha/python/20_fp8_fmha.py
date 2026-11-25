@@ -6,10 +6,10 @@
 """
 Example 20: FP8 FMHA Forward
 
-Demonstrates FP8 data types (fp8bf16, fp8fp32) for FMHA forward
+Demonstrates FP8 data types (fp8, fp8bf16) for FMHA forward
 with quantization scale (pertensor, blockscale).
 
-Note: FP8 requires a kernel compiled with fp8bf16/fp8fp32 dtype.
+Note: FP8 requires a kernel compiled with fp8/fp8bf16 dtype.
 The prebuilt library has fp16 only, so this example shows the
 API pattern and CPU reference.
 
@@ -34,8 +34,8 @@ from fmha_utils import (
 
 
 FP8_CONFIGS = [
+    ("fp8", "pertensor", "FP8 with FP32 output, per-tensor scale"),
     ("fp8bf16", "pertensor", "FP8 with BF16 output, per-tensor scale"),
-    ("fp8fp32", "pertensor", "FP8 with FP32 output, per-tensor scale"),
     ("fp8bf16", "blockscale", "FP8 with BF16 output, block scale"),
 ]
 
@@ -82,9 +82,8 @@ def main():
 
     # Show FP8 tolerance expectations
     print("\n--- FP8 Tolerance Reference ---")
+    print("  fp8:     rtol=1e-2, atol=1.8e-1")
     print("  fp8bf16: rtol=1e-2, atol=1.8e-1")
-    print("  fp8fp32: rtol=1e-2, atol=1.8e-1")
-    print("  fp8 raw: rtol=0, atol=16 (or 32 for >240 range)")
 
     # Run basic fp16 for comparison if prebuilt available
     print("\n--- FP16 Baseline (prebuilt) ---")
@@ -110,7 +109,7 @@ def main():
 
     print(f"\n{'=' * 70}")
     print(f"  FP8 kernel configs demonstrated: {len(FP8_CONFIGS)}")
-    print("  Note: Build fp8bf16/fp8fp32 kernels for GPU execution")
+    print("  Note: Build fp8/fp8bf16 kernels for GPU execution")
     print("  Status: PASS")
     print(f"{'=' * 70}")
     return 0

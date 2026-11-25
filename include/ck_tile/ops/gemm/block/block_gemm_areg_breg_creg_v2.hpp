@@ -8,6 +8,29 @@
 
 namespace ck_tile {
 
+namespace detail {
+// optional policy layouts of BlockGemmARegBRegCRegV2 (BlockGemmARegBRegCRegV2CustomPolicy)
+template <typename Policy, typename = void>
+struct block_gemm_v2_k_warps
+{
+    static constexpr index_t value = 1;
+};
+template <typename Policy>
+struct block_gemm_v2_k_warps<Policy, std::void_t<decltype(Policy::kKWarps)>>
+{
+    static constexpr index_t value = Policy::kKWarps;
+};
+template <typename Policy, typename = void>
+struct block_gemm_v2_n_warp_major : bool_constant<false>
+{
+};
+template <typename Policy>
+struct block_gemm_v2_n_warp_major<Policy, std::void_t<decltype(Policy::kNWarpMajor)>>
+    : bool_constant<Policy::kNWarpMajor>
+{
+};
+} // namespace detail
+
 // This BlockGemm enhanced the control over inst issue order
 // A is block distributed tensor
 // B is block distributed tensor
@@ -37,9 +60,15 @@ struct BlockGemmARegBRegCRegV2
 
         static constexpr index_t MWarp        = config.template at<1>();
         static constexpr index_t NWarp        = config.template at<2>();
+        static constexpr index_t KWarp        = detail::block_gemm_v2_k_warps<Policy>::value;
+        static constexpr bool kNWarpMajor     = detail::block_gemm_v2_n_warp_major<Policy>::value;
         static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
         static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
-        static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
+        static constexpr index_t KIterPerWarp = KPerBlock / (KWarp * WarpGemm::kK);
+        // the block's warps past MWarp * NWarp * KWarp repeat the gemm (replicas, outermost)
+        static constexpr index_t RWarp = kBlockSize / get_warp_size() / (MWarp * NWarp * KWarp);
+        static_assert(RWarp * MWarp * NWarp * KWarp * get_warp_size() == kBlockSize,
+                      "the block's warps are whole replicas of the gemm's");
 
         static constexpr auto BlockGemmLoopOrder = Policy::BlockGemmLoopOrder;
 
@@ -65,9 +94,66 @@ struct BlockGemmARegBRegCRegV2
     static constexpr index_t MIterPerWarp = Traits::MIterPerWarp;
     static constexpr index_t NIterPerWarp = Traits::NIterPerWarp;
 
-    static constexpr index_t MWarp            = Traits::MWarp;
-    static constexpr index_t NWarp            = Traits::NWarp;
+    static constexpr index_t MWarp    = Traits::MWarp;
+    static constexpr index_t NWarp    = Traits::NWarp;
+    static constexpr index_t KWarp    = Traits::KWarp;
+    static constexpr bool kNWarpMajor = Traits::kNWarpMajor;
+    static constexpr index_t RWarp    = Traits::RWarp;
+    // warps on K, replicas or N-major warps take the general layouts below; the others keep
+    // the plain ones (other pipelines build those encodings themselves)
+    static constexpr bool kGeneralWarps = KWarp > 1 || RWarp > 1 || kNWarpMajor;
+    static constexpr bool kKMN          = Traits::BlockGemmLoopOrder == GemmLoopOrder::KMN;
+
+    // The general layouts: a warp's id is (replica, m, n, k), outermost first. A repeats over
+    // the warps on N (and replicas), B over the warps on M, C over the warps on K (each its
+    // own K range's partial sum) and replicas.
+    CK_TILE_DEVICE static constexpr auto MakeGeneralAEncode()
+    {
+        constexpr auto outer = tile_distribution_encoding<
+            sequence<RWarp, NWarp>,
+            tuple<sequence<MIterPerWarp, MWarp>, sequence<KWarp, KIterPerWarp>>,
+            tuple<sequence<0, 1, 0, 2>>,
+            tuple<sequence<0, 1, 1, 0>>,
+            std::conditional_t<kKMN, sequence<2, 1>, sequence<1, 2>>,
+            std::conditional_t<kKMN, sequence<1, 0>, sequence<0, 1>>>{};
+        return detail::make_embed_tile_distribution_encoding(
+            outer, typename WarpGemm::AWarpDstrEncoding{});
+    }
+    CK_TILE_DEVICE static constexpr auto MakeGeneralBEncode()
+    {
+        constexpr index_t n_iter = kNWarpMajor ? 1 : 0;
+        using NDims              = std::conditional_t<kNWarpMajor,
+                                                      sequence<NWarp, NIterPerWarp>,
+                                                      sequence<NIterPerWarp, NWarp>>;
+        constexpr auto outer     = tile_distribution_encoding<
+                sequence<RWarp, MWarp>,
+                tuple<NDims, sequence<KWarp, KIterPerWarp>>,
+                tuple<sequence<0, 0, 1, 2>>,
+                tuple<sequence<0, 1, 1 - n_iter, 0>>,
+                std::conditional_t<kKMN, sequence<2, 1>, sequence<1, 2>>,
+                std::conditional_t<kKMN, sequence<1, n_iter>, sequence<n_iter, 1>>>{};
+        return detail::make_embed_tile_distribution_encoding(
+            outer, typename WarpGemm::BWarpDstrEncoding{});
+    }
+    CK_TILE_DEVICE static constexpr auto MakeGeneralCEncode()
+    {
+        constexpr index_t n_iter = kNWarpMajor ? 1 : 0;
+        using NDims              = std::conditional_t<kNWarpMajor,
+                                                      sequence<NWarp, NIterPerWarp>,
+                                                      sequence<NIterPerWarp, NWarp>>;
+        constexpr auto outer =
+            tile_distribution_encoding<sequence<RWarp, KWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, NDims>,
+                                       tuple<sequence<0, 1, 2, 0>>,
+                                       tuple<sequence<0, 1, 1 - n_iter, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<0, n_iter>>{};
+        return detail::make_embed_tile_distribution_encoding(
+            outer, typename WarpGemm::CWarpDstrEncoding{});
+    }
     static constexpr bool UseDefaultScheduler = (Problem::NumWaveGroups != 1);
+    static_assert(!UseDefaultScheduler || !kGeneralWarps,
+                  "the default scheduler's layouts take no warps on K, replicas or N-major warps");
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
@@ -86,6 +172,8 @@ struct BlockGemmARegBRegCRegV2
 
             return a_block_dstr_encode;
         }
+        else if constexpr(kGeneralWarps)
+            return MakeGeneralAEncode();
         else
         {
             if constexpr(BlockGemmLoopOrder == GemmLoopOrder::KMN)
@@ -137,6 +225,8 @@ struct BlockGemmARegBRegCRegV2
 
             return b_block_dstr_encode;
         }
+        else if constexpr(kGeneralWarps)
+            return MakeGeneralBEncode();
         else
         {
             if constexpr(BlockGemmLoopOrder == GemmLoopOrder::KMN)
@@ -185,6 +275,8 @@ struct BlockGemmARegBRegCRegV2
 
             return c_block_dstr_encode;
         }
+        else if constexpr(kGeneralWarps)
+            return MakeGeneralCEncode();
         else
         {
             constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
@@ -467,18 +559,9 @@ struct BlockGemmARegBRegCRegV2
         }
         else
         {
-            constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-                tuple<sequence<1, 2>>,
-                tuple<sequence<1, 1>>,
-                sequence<1, 2>,
-                sequence<0, 0>>{};
-
-            constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-            constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-            auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
+            constexpr auto c_block_dstr =
+                make_static_tile_distribution(MakeCBlockDistributionEncode());
+            auto c_block_tensor = make_static_distributed_tensor<CDataType>(c_block_dstr);
             return c_block_tensor;
         }
     }

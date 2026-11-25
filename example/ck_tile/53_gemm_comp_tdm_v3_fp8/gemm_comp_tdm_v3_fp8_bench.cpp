@@ -15,6 +15,9 @@
 //                              TDM store clipped to M x N.
 //   -k_batch  N                split K into N ranges added into C atomically (CShuffle only; C is
 //                              zeroed before every launch, inside the timed loop).
+//   -cluster  1x1 | 2x2         256x256x256 only: launch 2x2 workgroup clusters, each A and B
+//                               tile loaded once by TDM and multicast to the two workgroups that
+//                               share it (ClusterTileGemmShape, GemmClusterTilePartitioner).
 // TDM clips every A/B box to the real extent, so M and N need not be multiples of the tile;
 // Kernel::IsSupportedArgument decides which M, N, K and k_batch an instance takes.
 //
@@ -71,8 +74,9 @@ using ALayout     = ck_tile::tensor_layout::gemm::RowMajor;
 using BLayout     = ck_tile::tensor_layout::gemm::ColumnMajor;
 using CLayout     = ck_tile::tensor_layout::gemm::RowMajor;
 
-// One compiled kernel per (tile, epilogue). The CShuffle epilogue needs kPadM/kPadN for a partial
-// C tile; TDM clips the A/B boxes and the C store, so its instances are unpadded.
+// One compiled kernel per (tile, epilogue, cluster). The CShuffle epilogue needs kPadM/kPadN for a
+// partial C tile; TDM clips the A/B boxes and the C store, so its instances are unpadded. With
+// Cluster > 1 the workgroups launch in Cluster x Cluster clusters.
 template <ck_tile::index_t TileM,
           ck_tile::index_t TileN,
           ck_tile::index_t TileK,
@@ -81,21 +85,31 @@ template <ck_tile::index_t TileM,
           ck_tile::index_t WarpM,
           ck_tile::index_t WarpN,
           ck_tile::index_t WarpK,
-          bool TdmEpi>
+          bool TdmEpi,
+          ck_tile::index_t Cluster = 1>
 struct Instance
 {
-    static constexpr bool kPad = !TdmEpi;
-    using TileShape            = ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
-                                                        ck_tile::sequence<WarpsM, WarpsN, 1>,
-                                                        ck_tile::sequence<WarpM, WarpN, WarpK>>;
-    using Partitioner          = ck_tile::GemmTile1DPartitioner<TileShape>;
-    using Traits               = ck_tile::TileGemmUniversalTraits<kPad,
-                                                                  kPad,
-                                                                  false, // kPadK
-                                                                  true,  // DoubleSmemBuffer
-                                                                  ALayout,
-                                                                  BLayout,
-                                                                  CLayout>;
+    static constexpr bool kPad     = !TdmEpi;
+    static constexpr bool kCluster = Cluster > 1;
+    using TileShape =
+        std::conditional_t<kCluster,
+                           ck_tile::ClusterTileGemmShape<ck_tile::sequence<Cluster, Cluster, 1>,
+                                                         ck_tile::sequence<TileM, TileN, TileK>,
+                                                         ck_tile::sequence<WarpsM, WarpsN, 1>,
+                                                         ck_tile::sequence<WarpM, WarpN, WarpK>>,
+                           ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
+                                                  ck_tile::sequence<WarpsM, WarpsN, 1>,
+                                                  ck_tile::sequence<WarpM, WarpN, WarpK>>>;
+    using Partitioner = std::conditional_t<kCluster,
+                                           ck_tile::GemmClusterTilePartitioner<TileShape>,
+                                           ck_tile::GemmTile1DPartitioner<TileShape>>;
+    using Traits      = ck_tile::TileGemmUniversalTraits<kPad,
+                                                         kPad,
+                                                         false, // kPadK
+                                                         true,  // DoubleSmemBuffer
+                                                         ALayout,
+                                                         BLayout,
+                                                         CLayout>;
     using Problem =
         ck_tile::UniversalGemmPipelineProblem<ADataType,
                                               BDataType,
@@ -445,8 +459,13 @@ int run(const ck_tile::ArgParser& arg, const std::string& bench_name)
         // The splits add into C, so it starts from zero every launch.
         if(k_batch > 1)
             BENCH_HIP_CHECK(hipMemsetAsync(d.c, 0, c_elems * sizeof(CDataType), stream));
-        ck_tile::launch_kernel(ck_tile::stream_config{stream, false},
-                               ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
+        if constexpr(Inst::kCluster)
+            ck_tile::launch_kernel(
+                ck_tile::stream_config{stream, false},
+                ck_tile::make_kernel<1>(Kernel{}, Kernel::ClusterSize(), grids, blocks, 0, kargs));
+        else
+            ck_tile::launch_kernel(ck_tile::stream_config{stream, false},
+                                   ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
     };
 
     if(is_verify)
@@ -631,7 +650,17 @@ int run(const ck_tile::ArgParser& arg, const std::string& bench_name)
 template <bool TdmEpi>
 int dispatch_tile(const ck_tile::ArgParser& arg, const std::string& name)
 {
-    const std::string tile = arg.get_str("tile");
+    const std::string tile    = arg.get_str("tile");
+    const std::string cluster = arg.get_str("cluster");
+    if(tile == "256x256x256" && cluster == "2x2")
+        return run<Instance<256, 256, 256, 4, 4, 32, 32, 128, TdmEpi, 2>>(arg, name);
+    if(cluster != "1x1")
+    {
+        std::printf("unsupported -cluster=%s for -tile=%s (2x2 is for 256x256x256 only)\n",
+                    cluster.c_str(),
+                    tile.c_str());
+        return 2;
+    }
     if(tile == "256x256x256")
         return run<Instance<256, 256, 256, 4, 4, 32, 32, 128, TdmEpi>>(arg, name);
     if(tile == "64x256x256")
@@ -667,7 +696,7 @@ int dispatch(const ck_tile::ArgParser& arg)
         (tile == "256x256x256"
              ? "_w4x4x1_wt32x32x128"
              : (tile.rfind("16x", 0) == 0 ? "_w1x4x1_wt16x16x128" : "_w2x2x1_wt16x16x128")) +
-        (epi == "tdm" ? "_tdm" : "") +
+        (epi == "tdm" ? "_tdm" : "") + (arg.get_str("cluster") == "2x2" ? "_cl2x2" : "") +
         (arg.get_int("k_batch") > 1 ? "_kb" + arg.get_str("k_batch") : "");
     if(epi == "cshuffle")
         return dispatch_tile<false>(arg, name);
@@ -690,6 +719,8 @@ int main(int argc, char* argv[])
                 "256x256x256 (16 waves) | 64x256x256 | 32x256x256 | 32x128x256 | 32x64x256 | "
                 "16x512x256 | 16x256x256 | 16x128x256 | 16x64x256 (4 waves)")
         .insert("epilogue", "cshuffle", "cshuffle (padded; split-K) | tdm")
+        .insert(
+            "cluster", "1x1", "1x1 | 2x2 (256x256x256 only): workgroup cluster with TDM multicast")
         .insert("k_batch", "1", "split K into this many atomically added ranges (CShuffle only)")
         .insert("mode", "peak", "verify-int | verify-rand | peak | sustained")
         .insert("data", "rand", "input data for peak/sustained: rand | int")

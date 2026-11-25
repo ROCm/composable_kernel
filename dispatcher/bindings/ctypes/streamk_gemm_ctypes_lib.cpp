@@ -38,6 +38,8 @@
 #include <string>
 #include <type_traits>
 
+#include "streamk_budget_env.hpp"
+
 // Kernel header included via -include compiler flag (with CK_TILE_SINGLE_KERNEL_INCLUDE).
 // Defines: ADataType, BDataType, CDataType, AccDataType, SelectedKernel, KERNEL_NAME
 // and transitively brings in ck_tile::StreamKHostArgs and ck_tile::stream_config.
@@ -216,10 +218,19 @@ int dispatcher_run_gemm(
     stream_cfg.flush_cache_    = env_bool("CK_TILE_BENCH_FLUSH", false);
     stream_cfg.rotating_count_ = env_int("CK_TILE_BENCH_ROTATING", 1);
 
+    // Stream-K workgroup budget, in percent of the kernel's default (CUs x
+    // occupancy); 100 keeps the default. The Tile Engine benchmark sweeps it.
+    int budget_pct = 100;
+    if(!parse_streamk_budget_pct(budget_pct))
+    {
+        cleanup_gpu_mem();
+        return -1;
+    }
+
     float exec_time = 0.0f;
     try
     {
-        exec_time = SelectedKernel::launch(args, stream_cfg);
+        exec_time = SelectedKernel::launch(args, stream_cfg, budget_pct);
     }
     catch(const std::exception& e)
     {

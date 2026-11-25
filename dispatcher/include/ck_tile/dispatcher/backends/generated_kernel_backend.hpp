@@ -14,7 +14,9 @@
 
 #pragma once
 
+#include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
 #include "ck_tile/dispatcher/kernel_instance.hpp"
+#include "ck_tile/dispatcher/backends/gfx125_gate.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include <hip/hip_runtime.h>
@@ -52,35 +54,8 @@ class GeneratedKernelInstance : public KernelInstance
 
     bool supports(const Problem& problem) const override
     {
-        // Check dimension divisibility based on padding flags
-        constexpr bool pad_m = SelectedKernel::kPadM;
-        constexpr bool pad_n = SelectedKernel::kPadN;
-        constexpr bool pad_k = SelectedKernel::kPadK;
-
-        // Check divisibility for dimensions without padding
-        constexpr int tile_m = SelectedKernel::TileM;
-        constexpr int tile_n = SelectedKernel::TileN;
-        constexpr int tile_k = SelectedKernel::TileK;
-
-        if(!pad_m && problem.M % tile_m != 0)
-            return false;
-        if(!pad_n && problem.N % tile_n != 0)
-            return false;
-        if(!pad_k && problem.K % tile_k != 0)
-            return false;
-
-        // Padding does not relax the global vector widths; gate on them so the
-        // registry falls through to a narrower kernel instead of failing at launch.
-        using Pipeline = typename SelectedKernel::GemmPipeline;
-        // Select the host-side A/B distribution for this kernel's target.
-        // This avoids a HIP device query for every candidate in the registry.
-        const bool wave32  = key_.gfx_arch.rfind("gfx9", 0) != 0;
-        const auto width_a = wave32 ? Pipeline::template GetVectorSizeA<true>()
-                                    : Pipeline::template GetVectorSizeA<false>();
-        const auto width_b = wave32 ? Pipeline::template GetVectorSizeB<true>()
-                                    : Pipeline::template GetVectorSizeB<false>();
-        return vector_widths_divide(
-            key_, problem.M, problem.N, problem.K, width_a, width_b, SelectedKernel::VectorSizeC);
+        return device_supports_pipeline<typename SelectedKernel::GemmPipeline>() &&
+               generated_gemm_supports<SelectedKernel>(key_, problem);
     }
 
     std::string get_name() const override { return name_; }
@@ -94,18 +69,8 @@ class GeneratedKernelInstance : public KernelInstance
     {
         (void)d_ptrs; // Not used in basic GEMM
 
-        // Create arguments using constructor
-        ck_tile::GemmHostArgs args(a_ptr,           // a_ptr
-                                   b_ptr,           // b_ptr
-                                   c_ptr,           // e_ptr/c_ptr
-                                   problem.k_batch, // k_batch
-                                   problem.M,       // M
-                                   problem.N,       // N
-                                   problem.K,       // K
-                                   problem.K,       // stride_A (row-major A: stride = K)
-                                   problem.K,       // stride_B (column-major B: stride = K)
-                                   problem.N        // stride_E/C (row-major C: stride = N)
-        );
+        ck_tile::GemmHostArgs args =
+            make_generated_gemm_host_args(key_, problem, a_ptr, b_ptr, c_ptr);
 
         const bool bench = this->benchmarking_;
         ck_tile::stream_config stream_cfg;

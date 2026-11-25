@@ -40,21 +40,23 @@ enum class LayoutTag : std::uint8_t
 /// Matches tile_engine PIPELINE_MAP for full compatibility
 enum class Pipeline : std::uint8_t
 {
-    Mem,          // Memory-bound pipeline
-    CompV1,       // Compute pipeline v1
-    CompV2,       // Compute pipeline v2
-    CompV3,       // Compute pipeline v3
-    CompV4,       // Compute pipeline v4 (double buffering)
-    CompV5,       // Compute pipeline v5
-    CompV6,       // Compute pipeline v6
-    PreShuffleV1, // Weight preshuffle pipeline v1
-    PreShuffleV2, // Weight preshuffle pipeline v2 (optimized)
-    Wavelet,      // Wavelet pipeline (specialized math + load waves)
-    CompAsync,    // Async global->LDS compute pipeline (always double-buffered)
-    CompTDMV1,    // Tensor Data Mover compute pipeline v1 (gfx1250 only)
-    CompTDMV2,    // Tensor Data Mover compute pipeline v2 (gfx1250 only, 4 waves)
-    CompTDMPC,    // Tensor Data Mover producer/consumer pipeline (gfx1250 only)
-    PreShuffleTDM // Weight preshuffle pipeline, Tensor Data Mover (gfx1250 only)
+    Mem,           // Memory-bound pipeline
+    CompV1,        // Compute pipeline v1
+    CompV2,        // Compute pipeline v2
+    CompV3,        // Compute pipeline v3
+    CompV4,        // Compute pipeline v4 (double buffering)
+    CompV5,        // Compute pipeline v5
+    CompV6,        // Compute pipeline v6
+    PreShuffleV1,  // Weight preshuffle pipeline v1
+    PreShuffleV2,  // Weight preshuffle pipeline v2 (optimized)
+    Wavelet,       // Wavelet pipeline (specialized math + load waves)
+    CompAsync,     // Async global->LDS compute pipeline (always double-buffered)
+    CompTDMV1,     // Tensor Data Mover compute pipeline v1 (gfx1250 only)
+    CompTDMV2,     // Tensor Data Mover compute pipeline v2 (gfx1250 only, 4 waves)
+    CompTDMPC,     // Tensor Data Mover producer/consumer pipeline (gfx1250 only)
+    PreShuffleTDM, // Weight preshuffle pipeline, Tensor Data Mover (gfx1250 only)
+    CompTDMV3,     // Tensor Data Mover compute pipeline v3 (gfx1250 only, 4 or 16 waves)
+    CompTDMRA      // Tensor Data Mover run-ahead pipeline (gfx1250 only)
 };
 
 /// Epilogue strategies for output processing
@@ -67,7 +69,8 @@ enum class Epilogue : std::uint8_t
     Bias,           // Bias addition
     Activation,     // Fused activation
     BiasActivation, // Fused bias + activation
-    Tdm             // TdmEpilogue (Tensor Data Mover store, gfx1250 only)
+    Tdm,            // TdmEpilogue (Tensor Data Mover store, gfx1250 only)
+    TdmStaged       // TdmEpilogueStagedForPipeline (TDM store in M slabs, gfx1250 only)
 };
 
 /// Scheduler types for wave coordination
@@ -179,6 +182,12 @@ struct KernelKey
         std::uint8_t vector_size_a = 0;
         std::uint8_t vector_size_b = 0;
         std::uint8_t vector_size_c = 0;
+        // comp_tdm_pc ring (GemmPipelineAgBgCrCompTDMProducerConsumerPolicy<NumSlots,
+        // PublishLag>) or comp_tdm_ra ring (GemmPipelineAgBgCrCompTDMRunAheadPolicy<NumSlots,
+        // RunAhead>); num_slots = 0 is the policy default (<4, 0> / <4, 3>)
+        std::uint8_t num_slots   = 0;
+        std::uint8_t publish_lag = 0;
+        std::uint8_t run_ahead   = 0;
 
         // Padding support flags (kPadM, kPadN, kPadK in generated kernels)
         bool pad_m = true; // Support arbitrary M dimensions via padding
@@ -243,7 +252,10 @@ struct KernelKey
                         algorithm.workspace,
                         algorithm.vector_size_a,
                         algorithm.vector_size_b,
-                        algorithm.vector_size_c);
+                        algorithm.vector_size_c,
+                        algorithm.num_slots,
+                        algorithm.publish_lag,
+                        algorithm.run_ahead);
     }
 
     /// Equality comparison
@@ -346,6 +358,8 @@ inline std::string to_string(Pipeline pipeline)
     case Pipeline::CompTDMV2: return "comp_tdm_v2";
     case Pipeline::CompTDMPC: return "comp_tdm_pc";
     case Pipeline::PreShuffleTDM: return "preshuffle_tdm";
+    case Pipeline::CompTDMV3: return "comp_tdm_v3";
+    case Pipeline::CompTDMRA: return "comp_tdm_ra";
     default: return "unknown";
     }
 }
@@ -381,8 +395,12 @@ inline Pipeline string_to_pipeline(const std::string& str)
         return Pipeline::CompTDMV2;
     if(str == "comp_tdm_pc")
         return Pipeline::CompTDMPC;
+    if(str == "comp_tdm_v3")
+        return Pipeline::CompTDMV3;
     if(str == "preshuffle_tdm")
         return Pipeline::PreShuffleTDM;
+    if(str == "comp_tdm_ra")
+        return Pipeline::CompTDMRA;
     return Pipeline::Mem; // Default
 }
 
@@ -398,6 +416,7 @@ inline std::string to_string(Epilogue epilogue)
     case Epilogue::Activation: return "activation";
     case Epilogue::BiasActivation: return "bias_activation";
     case Epilogue::Tdm: return "tdm";
+    case Epilogue::TdmStaged: return "tdmstaged";
     default: return "unknown";
     }
 }
@@ -419,6 +438,8 @@ inline Epilogue string_to_epilogue(const std::string& str)
         return Epilogue::BiasActivation;
     if(str == "tdm")
         return Epilogue::Tdm;
+    if(str == "tdmstaged")
+        return Epilogue::TdmStaged;
     return Epilogue::Default; // Default
 }
 
@@ -504,6 +525,15 @@ inline std::string KernelKey::encode_identifier() const
     if(algorithm.vector_size_a || algorithm.vector_size_b || algorithm.vector_size_c)
         oss << "_vec" << unsigned(algorithm.vector_size_a) << "_"
             << unsigned(algorithm.vector_size_b) << "_" << unsigned(algorithm.vector_size_c);
+
+    // Must match pipeline_ring_suffix() in codegen_common.py: the pipeline picks the
+    // ring parameter, exactly as it picks the emitted ring policy.
+    if(algorithm.num_slots)
+    {
+        const bool is_run_ahead = algorithm.pipeline == Pipeline::CompTDMRA;
+        oss << "_s" << unsigned(algorithm.num_slots) << (is_run_ahead ? 'r' : 'l')
+            << unsigned(is_run_ahead ? algorithm.run_ahead : algorithm.publish_lag);
+    }
 
     if(signature.split_k > 1)
         oss << "_splitk" << unsigned(signature.split_k);

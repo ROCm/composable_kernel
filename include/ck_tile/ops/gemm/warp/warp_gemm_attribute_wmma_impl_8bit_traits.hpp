@@ -245,6 +245,51 @@ struct WmmaTraits<gfx125_t, fp8_t, fp8_t, float, 16, 16, 64>
         return CVecType{0};
 #endif
     }
+    // MX: with E8M0 scale operands. There is no K64 scaled WMMA: the K64 operands are the low
+    // eight dwords of K128 ones (the K128 lane order keeps K64's there) whose upper half is
+    // zero, and each scale's upper two bytes meet those zeros: they must be finite (not the
+    // E8M0 NaN 0xFF), as 0 * NaN is NaN.
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int32_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int32_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        using P        = WarpGemmParamsParser<Params...>;
+        using int32x16 = int32_t __attribute__((ext_vector_type(16)));
+        const auto a8  = bit_cast<int32x8_t>(a_vec);
+        const auto b8  = bit_cast<int32x8_t>(b_vec);
+        int32x16 a     = {};
+        int32x16 b     = {};
+        static_for<0, 8, 1>{}([&](auto i) {
+            a[i.value] = a8[i.value];
+            b[i.value] = b8[i.value];
+        });
+        return __builtin_amdgcn_wmma_scale_f32_16x16x128_f8f6f4(0,
+                                                                a,
+                                                                0,
+                                                                b,
+                                                                0,
+                                                                bit_cast<fp32x8_t>(c_vec),
+                                                                P::op_sel_a,
+                                                                0,
+                                                                a_scale,
+                                                                P::op_sel_b,
+                                                                0,
+                                                                b_scale,
+                                                                0,
+                                                                0);
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = a_scale;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = b_scale;
+        ck_tile::ignore = c_vec;
+        return CVecType{0};
+#endif
+    }
 };
 
 template <>
@@ -511,11 +556,54 @@ struct MXDataTypeTrait<pk_fp6x16_t>
     }
 };
 
+/// The E8M0-scaled 16x16x128 f8f6f4 WMMA of an AType x BType fragment; P is the
+/// WarpGemmParamsParser of the call's Params.
+template <typename AType, typename BType, typename P, typename AVec, typename BVec, typename CVec>
+CK_TILE_DEVICE CVec wmma_scale_f32_16x16x128_f8f6f4([[maybe_unused]] const AVec& a_vec,
+                                                    [[maybe_unused]] int32_t a_scale,
+                                                    [[maybe_unused]] const BVec& b_vec,
+                                                    [[maybe_unused]] int32_t b_scale,
+                                                    [[maybe_unused]] const CVec& c_vec)
+{
+#ifdef __gfx125__
+    using ATraits = MXDataTypeTrait<AType>;
+    using BTraits = MXDataTypeTrait<BType>;
+    return __builtin_amdgcn_wmma_scale_f32_16x16x128_f8f6f4(
+        ATraits::OpDataType,
+        ATraits::to_wmma_vec(bit_cast<typename ATraits::VecType>(a_vec)),
+        BTraits::OpDataType,
+        BTraits::to_wmma_vec(bit_cast<typename BTraits::VecType>(b_vec)),
+        0,
+        c_vec,
+        P::op_sel_a, // OPSEL[0]
+        0,           // OPSEL_HI[0]
+        a_scale,
+        P::op_sel_b, // OPSEL[1]
+        0,           // OPSEL_HI[1]
+        b_scale,
+        0,  // NEG
+        0); // NEG_HI
+#else
+    return CVec{0};
+#endif
+}
+
 template <>
 struct WmmaTraits<gfx125_t, bf8_t, bf8_t, float, 16, 16, 128>
     : WmmaTraitsBase<gfx12_t, bf8_t, bf8_t, float, 128>
 {
     using ArchType = gfx125_t;
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int32_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int32_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+        return wmma_scale_f32_16x16x128_f8f6f4<bf8_t, bf8_t, WarpGemmParamsParser<Params...>>(
+            a_vec, a_scale, b_vec, b_scale, c_vec);
+    }
 
     template <typename... Params>
     CK_TILE_DEVICE static CVecType
@@ -545,6 +633,17 @@ struct WmmaTraits<gfx125_t, fp8_t, bf8_t, float, 16, 16, 128>
     using ArchType = gfx125_t;
 
     template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int32_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int32_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+        return wmma_scale_f32_16x16x128_f8f6f4<fp8_t, bf8_t, WarpGemmParamsParser<Params...>>(
+            a_vec, a_scale, b_vec, b_scale, c_vec);
+    }
+
+    template <typename... Params>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
     {
@@ -570,6 +669,17 @@ struct WmmaTraits<gfx125_t, bf8_t, fp8_t, float, 16, 16, 128>
     : WmmaTraitsBase<gfx12_t, bf8_t, fp8_t, float, 128>
 {
     using ArchType = gfx125_t;
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int32_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int32_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+        return wmma_scale_f32_16x16x128_f8f6f4<bf8_t, fp8_t, WarpGemmParamsParser<Params...>>(
+            a_vec, a_scale, b_vec, b_scale, c_vec);
+    }
 
     template <typename... Params>
     CK_TILE_DEVICE static CVecType
@@ -836,6 +946,38 @@ struct WmmaTraits<gfx125_t, pk_fp4_t, pk_fp4_t, float, 32, 16, 128>
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
+        ck_tile::ignore = c_vec;
+        return CVecType{0};
+#endif
+    }
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int32_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int32_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        using P = WarpGemmParamsParser<Params...>;
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_wmma_scale_f32_32x16x128_f4(bit_cast<int32x16_t>(a_vec),
+                                                         bit_cast<int32x8_t>(b_vec),
+                                                         0,
+                                                         bit_cast<fp32x16_t>(c_vec),
+                                                         1,          // OPSEL[0] - fixed to 1 for F4
+                                                         P::scale_a, // OPSEL_HI[0]
+                                                         a_scale,
+                                                         P::op_sel_b, // OPSEL[1]
+                                                         P::scale_b,  // OPSEL_HI[1]
+                                                         b_scale,
+                                                         0,   // NEG
+                                                         0)); // NEG_HI
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = a_scale;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = b_scale;
         ck_tile::ignore = c_vec;
         return CVecType{0};
 #endif

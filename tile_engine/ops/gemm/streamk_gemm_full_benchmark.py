@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 """Full Stream-K GEMM benchmark sweep driven through the Dispatcher bridge.
 
 Same 3-phase architecture as ``gemm_full_benchmark.py`` -- Stream-K is a
@@ -25,6 +29,11 @@ Examples:
     # Explicit config on 4 GPUs with correctness checking:
     python streamk_gemm_full_benchmark.py gemm_streamk/configs/default_config.json \
         --devices 4 --verify --csv streamk_gemm_results.csv
+
+    # gfx1250 TDM pipelines (comp_tdm, comp_tdm_v2, comp_tdm_v3), persistent and
+    # not, at the default Stream-K workgroup budget and at half of it:
+    python streamk_gemm_full_benchmark.py gemm_streamk/configs/gfx1250_tdm_config.json \
+        --arch gfx1250 --dtype bf16 --verify --budget-pct 100,50
 """
 
 import argparse
@@ -47,10 +56,13 @@ sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
 from gemm_utils import (  # noqa: E402
-    STREAMK_REDUCTION_STRATEGIES,
+    STREAMK_BUDGET_ENV,
     _resolve_arch,
+    add_streamk_args,
     expand_sweep,
     setup_multiple_gemm_dispatchers,
+    streamk_budgets_arg,
+    streamk_work_units,
     unique_by_name,
 )
 from smi_utils import detect_gpu_ids  # noqa: E402
@@ -140,7 +152,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
     Returns (rows, lines, n_fail) where rows are dicts ready for the CSV writer,
     lines are formatted strings to print, and n_fail counts failures.
     """
-    prob_idx, prob_dict, batch = unit
+    prob_idx, prob_dict, batch, budget_pct = unit
     M, N, K = prob_dict["M"], prob_dict["N"], prob_dict["K"]
 
     items = [
@@ -148,11 +160,18 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
         for _, cfg, lib in batch
     ]
     payload = json.dumps(
-        {"items": items, "verify": args.verify, "verify_tol": args.verify_tol}
+        {
+            "items": items,
+            "verify": args.verify,
+            "verify_tol": args.verify_tol,
+            "arch": args.arch,
+            "check_identity": True,
+        }
     )
 
     env = base_env.copy()
     env["HIP_VISIBLE_DEVICES"] = str(device_id)
+    env[STREAMK_BUDGET_ENV] = str(budget_pct)
 
     rows, lines, n_fail = [], [], 0
     proc = None
@@ -193,8 +212,8 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                         mismatch = True
                 extra = f" rel={result['max_rel']:.2e}" if "max_rel" in result else ""
                 lines.append(
-                    f"  [gpu{device_id}] {cfg.name:<58} {result['ms']:>10.3f} "
-                    f"{result['tflops']:>10.2f} {status:>8}{extra}"
+                    f"  [gpu{device_id}] {cfg.name:<58} {budget_pct:>4}% "
+                    f"{result['ms']:>10.3f} {result['tflops']:>10.2f} {status:>8}{extra}"
                 )
                 rows.append(
                     {
@@ -204,6 +223,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                         "N": N,
                         "K": K,
                         "device": device_id,
+                        "budget_pct": budget_pct,
                         "latency_ms": result["ms"],
                         "tflops": result["tflops"],
                         "non_zero": result.get("non_zero", 0),
@@ -225,7 +245,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
             for idx in sorted(missing):
                 _, cfg, _ = batch[idx]
                 lines.append(f"  [gpu{device_id}] {cfg.name:<58} MISSING (crash)")
-            n_fail += len(missing)
+            n_fail += len(missing) or int(proc.returncode != 0)
 
     except subprocess.TimeoutExpired:
         lines.append(f"  [gpu{device_id}] batch timeout ({len(batch)} kernels)")
@@ -260,13 +280,7 @@ def main():
     parser.add_argument(
         "--arch", default=None, help="GPU architecture (default: detect device)"
     )
-    parser.add_argument(
-        "--reduction-strategy",
-        choices=STREAMK_REDUCTION_STRATEGIES,
-        default=None,
-        help="Override the config's reduction strategy; linear/tree reduce "
-        "partials in FP32",
-    )
+    add_streamk_args(parser)
     parser.add_argument(
         "--dtype",
         default="fp16",
@@ -319,6 +333,7 @@ def main():
     )
     add_vector_fallback_arg(parser)
     args = parser.parse_args()
+    budget_pcts = streamk_budgets_arg(parser, args)
     args.arch = _resolve_arch(args.arch)
 
     config_paths = resolve_configs(args)
@@ -424,6 +439,7 @@ def main():
         "N",
         "K",
         "device",
+        "budget_pct",
         "latency_ms",
         "tflops",
         "non_zero",
@@ -440,14 +456,13 @@ def main():
         [str(_DISPATCHER_ROOT / "python"), str(_THIS_DIR)]
     )
 
-    # Build a single work queue of (prob_idx, prob_dict, kernel-batch) units and
-    # fan them out across device-pinned worker threads.
+    # Build a single work queue of (prob_idx, prob_dict, kernel-batch, budget)
+    # units and fan them out across device-pinned worker threads.
     work_q = queue.Queue()
-    for prob_idx, (prob, idx) in enumerate(zip(problems, pairs)):
-        prob_dict = {"M": int(prob["M"]), "N": int(prob["N"]), "K": int(prob["K"])}
-        for start in range(0, len(idx), args.batch_size):
-            batch = [(i, *built_kernels[i]) for i in idx[start : start + args.batch_size]]
-            work_q.put((prob_idx, prob_dict, batch))
+    for unit in streamk_work_units(
+        problems, pairs, built_kernels, args.batch_size, budget_pcts, ("M", "N", "K")
+    ):
+        work_q.put(unit)
 
     io_lock = threading.Lock()
     stats = {"measurements": 0, "failures": 0}

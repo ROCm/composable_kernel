@@ -180,14 +180,14 @@ __launch_bounds__(GridwiseGemm::LaunchBlockSize, MinimumOccupancy)
             p_shared_0,
             p_shared_1,
             karg,
-            GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
-                                                 GridwiseGemm::AK0Number,
-                                                 GridwiseGemm::AK1Number>(a_grid_desc_ak0_m_ak1,
-                                                                          get_device_arch()),
-            GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
-                                                 GridwiseGemm::BK0Number,
-                                                 GridwiseGemm::BK1Number>(b_grid_desc_bk0_n_bk1,
-                                                                          get_device_arch()),
+            GridwiseGemm::template TransformGridA<decltype(a_grid_desc_ak0_m_ak1),
+                                                  GridwiseGemm::AK0Number,
+                                                  GridwiseGemm::AK1Number>(a_grid_desc_ak0_m_ak1,
+                                                                           get_device_arch()),
+            GridwiseGemm::template TransformGridB<decltype(b_grid_desc_bk0_n_bk1),
+                                                  GridwiseGemm::BK0Number,
+                                                  GridwiseGemm::BK1Number>(b_grid_desc_bk0_n_bk1,
+                                                                           get_device_arch()),
             c_grid_desc_m_n);
     }
 #else
@@ -565,6 +565,7 @@ struct DeviceGroupedConvFwdMultipleABD_WaveletModel_Xdl_CShuffle_V3
         AComputeDataType,
         BComputeDataType,
         DirectLoad,
+        false, // UseTdmA
         UseTdm,
         UseNamedBarrier>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;

@@ -23,11 +23,12 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_wavelet_d
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_wavelet_xdl_c_shuffle_f16_instances<3,
-                                                                           NDHWGC,
-                                                                           GKZYXC,
-                                                                           NDHWGK,
-                                                                           ConvBwdWeightDefault>{});
+        device_grouped_conv_bwd_weight_wavelet_xdl_c_shuffle_instances<3,
+                                                                       NDHWGC,
+                                                                       GKZYXC,
+                                                                       NDHWGK,
+                                                                       F16,
+                                                                       ConvBwdWeightDefault>{});
 }
 
 } // namespace instance

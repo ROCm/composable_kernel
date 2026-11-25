@@ -29,3 +29,11 @@ add_example_dependencies(example_grouped_conv_bwd_weight example_grouped_conv_bw
 add_example_executable(example_grouped_conv_bwd_weight_wavelet_xdl_fp16 grouped_conv_bwd_weight_wavelet_xdl_fp16.cpp)
 add_example_dependencies(example_grouped_conv_bwd_weight example_grouped_conv_bwd_weight_wavelet_xdl_fp16)
 
+list(APPEND gpu_list_wavelet gfx1250)
+set(target_wavelet 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+    if(gpu IN_LIST gpu_list_wavelet AND target_wavelet EQUAL 0)
+        add_example_executable(example_grouped_conv_bwd_weight_wavelet_direct_load_1x1_xdl_fp16 grouped_conv_bwd_weight_wavelet_direct_load_1x1_xdl_fp16.cpp)
+        set(target_wavelet 1)
+    endif()
+endforeach()

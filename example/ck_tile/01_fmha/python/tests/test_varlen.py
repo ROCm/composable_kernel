@@ -750,3 +750,49 @@ def test_varlen_window_bounds_with_different_lengths(window, extra_max):
         torch.autograd.grad(out, (q, k, v), dout), torch.autograd.grad(ref, (q, k, v), dout)
     ):
         torch.testing.assert_close(grad, ref_grad, atol=4e-3, rtol=4e-3)
+
+
+@pytest.mark.parametrize("d", [64, 128])
+@pytest.mark.parametrize(
+    "lengths",
+    ["equal", "near_equal", "uneven", "uneven_queries"],
+)
+def test_fmha_varlen_lengths_for_xcd_locality(lengths, d):
+    """Batches of (about) equal lengths take the XCD-local workgroup order
+    (fmha_fwd_args::uniform_seqlens), uneven ones the round-robin: the same results
+    either way."""
+    device, dtype = "cuda", torch.bfloat16
+    torch.random.manual_seed(0)
+    batch, nheads = 96, 2
+    gen = torch.Generator().manual_seed(1)
+
+    def rand_lens(lo, hi):
+        return torch.randint(lo, hi, (batch,), generator=gen).tolist()
+
+    q_lens, k_lens = {
+        "equal": ([128] * batch, [772] * batch),
+        "near_equal": ([128] * batch, [192 + (i % 2) for i in range(batch)]),
+        "uneven": ([128] * batch, rand_lens(1, 2000)),
+        "uneven_queries": (rand_lens(1, 300), rand_lens(1, 900)),
+    }[lengths]
+
+    def starts(lens):
+        return torch.tensor(
+            [0] + torch.tensor(lens).cumsum(0).tolist(), dtype=torch.int32, device=device
+        )
+
+    cu_q, cu_k = starts(q_lens), starts(k_lens)
+    q = torch.randn(sum(q_lens), nheads, d, device=device, dtype=dtype)
+    k = torch.randn(sum(k_lens), nheads, d, device=device, dtype=dtype)
+    v = torch.randn_like(k)
+    out = fmha_varlen_func(q, k, v, cu_q, cu_k, max(q_lens), max(k_lens))
+    out = out[0] if isinstance(out, tuple) else out
+
+    for b in range(batch):
+        qb = q[cu_q[b] : cu_q[b + 1]].float()
+        kb = k[cu_k[b] : cu_k[b + 1]].float()
+        vb = v[cu_k[b] : cu_k[b + 1]].float()
+        s = torch.einsum("qhd,khd->hqk", qb, kb) * d**-0.5
+        ref = torch.einsum("hqk,khd->qhd", s.softmax(-1), vb)
+        got = out[cu_q[b] : cu_q[b + 1]].float()
+        assert (got - ref).norm() <= 1e-2 * ref.norm(), f"batch {b}"

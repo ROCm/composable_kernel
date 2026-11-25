@@ -488,6 +488,9 @@ struct buffer_view<address_space_enum::global,
             is_valid_element,
             bool_constant<oob_conditional_check>{});
 #endif
+#if CK_TILE_HAS_ASYNCMARK
+        asyncmark();
+#endif
     }
 
     // i is offset of T, not X. i should be aligned to X.
@@ -519,6 +522,9 @@ struct buffer_view<address_space_enum::global,
         auto* lds_ptr = to_lds(reinterpret_cast<remove_cvref_t<X>*>(smem));
 
         cluster_multicast_load_async_to_lds<remove_cvref_t<X>, inst_offset>(g_src, lds_ptr, mask);
+#if CK_TILE_HAS_ASYNCMARK
+        asyncmark();
+#endif
 #else
         (void)smem;
         (void)i;
@@ -529,17 +535,19 @@ struct buffer_view<address_space_enum::global,
     }
 
     // i is offset of T, not X. i should be aligned to X
+    // `smem` is this issue's wave-uniform LDS destination. Invalid elements are not masked:
+    // out-of-range accesses are only caught by the buffer resource's range check.
+    // `linear_offset` shifts both the global source and the LDS destination, like the
+    // instruction's immediate offset.
     template <typename X,
-              bool pre_nop = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto async_get_raw(remove_cvref_t<T>* smem,
+    CK_TILE_DEVICE constexpr auto async_get_raw(CK_TILE_LDS_ADDR remove_cvref_t<T>* smem,
                                                 index_t i,
                                                 index_t linear_offset,
-                                                bool /*is_valid_element*/,
-                                                bool_constant<pre_nop> = {}) const
+                                                bool /*is_valid_element*/) const
     {
         // X is vector of T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -550,8 +558,16 @@ struct buffer_view<address_space_enum::global,
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-        amd_async_buffer_load_with_oob_raw<remove_cvref_t<T>, t_per_x, Coherence>(
-            smem, cached_buf_res_, i, linear_offset, bool_constant<pre_nop>{});
+        const auto rsrc = make_builtin_buffer_resource(p_data_, buffer_size_ * sizeof(type));
+
+        amd_async_buffer_load<remove_cvref_t<T>,
+                              t_per_x,
+                              Coherence,
+                              /*oob_conditional_check*/ false>(
+            smem + linear_offset, rsrc, (i + linear_offset) * static_cast<index_t>(sizeof(type)));
+#if CK_TILE_HAS_ASYNCMARK
+        asyncmark();
+#endif
     }
 
     template <amd_buffer_coherence_enum Coherence_ = Coherence>

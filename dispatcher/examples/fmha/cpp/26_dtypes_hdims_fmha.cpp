@@ -7,7 +7,7 @@
 //   1. Declare bf16 hdim=128, fp16 hdim=64, and fp16 hdim=128 kernels
 //   2. Run each variant on GPU with appropriate buffer types
 //   3. Validate with different tolerances: fp16 (rtol=1e-3), bf16 (rtol=1e-2)
-//   4. Mention fp32, fp8bf16, fp8fp32, hdim 256, asymmetric hdim as planning
+//   4. Mention fp32, fp8, fp8bf16, hdim 256, asymmetric hdim as planning
 //
 // Mirrors 01_basic_fmha.cpp for FMHA.
 
@@ -511,8 +511,8 @@ int main(int argc, char* argv[])
     std::cout << "  bf16 validation: rtol=1e-2, atol=1e-2 (wider tolerance for bfloat16)\n";
     std::cout << "\n  Additional dtype/hdim combinations (planning-level declarations):\n";
     std::cout << "    fp32:           .dtype(\"fp32\") - full single precision\n";
+    std::cout << "    fp8:            .dtype(\"fp8\") - fp8 compute, fp32 output\n";
     std::cout << "    fp8bf16:        .dtype(\"fp8bf16\") - fp8 compute, bf16 output\n";
-    std::cout << "    fp8fp32:        .dtype(\"fp8fp32\") - fp8 compute, fp32 output\n";
     std::cout << "    hdim 256:       .hdim(256), tile(128,128,32,256,32,256)\n";
     std::cout << "    asymmetric:     .hdim_q(128), .hdim_v(64) - different Q/V dims\n";
 

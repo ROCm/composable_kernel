@@ -23,11 +23,12 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_wavelet_4w2_
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_wavelet_4w2_xdl_c_shuffle_f16_instances<
+        device_grouped_conv_bwd_weight_wavelet_4w2_xdl_c_shuffle_instances<
             2,
             NHWGC,
             GKYXC,
             NHWGK,
+            F16,
             ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 

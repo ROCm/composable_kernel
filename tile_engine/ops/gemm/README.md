@@ -33,6 +33,7 @@ Tile Engine does — it only swaps the harness.
 |---|---|
 | `gemm_full_benchmark.py` | Driver: compile (Phase 1) → load problems (Phase 2) → benchmark across all visible GPUs (Phase 3). |
 | `run_one_gemm_kernel.py` | Disposable worker: loads one `.so` in an isolated subprocess and times it. A GPU fault kills only the worker. |
+| `gemm_search.py` | Adaptive search mode of the driver (`--search-config`), see [Adaptive kernel search](#adaptive-kernel-search---search-config). |
 
 To measure only the kernels a trained model picks, and to score the picks
 against a full sweep, see
@@ -40,18 +41,23 @@ against a full sweep, see
 
 ### Folder layout
 
-The bridged regular-GEMM path follows the same op-root convention as the merged
-`fmha/` and `grouped_conv/` bridges — driver + worker + a flat `configs/` at the
-op root:
+The bridged GEMM paths follow the same op-root convention as the `fmha/` and
+`grouped_conv/` bridges — driver + worker at the op root, and a flat `configs/`
+for regular GEMM:
 
 ```
 gemm/
-├── gemm_full_benchmark.py     # bridge driver (op root)
-├── run_one_gemm_kernel.py     # disposable per-kernel worker (op root)
-├── configs/                   # bridged gemm_universal sweep configs (flat)
-├── gemm_instance_builder.py   # shared generator for the non-bridged variants
-├── gemm_benchmark.{py,hpp}, gemm_common.hpp, gemm_profiler.hpp  # shared harness
-├── gemm_multi_d/   gemm_preshuffle/   grouped_gemm/             # legacy variants
+├── gemm_full_benchmark.py          # bridge driver: gemm_universal, multi_d, multi_abd, preshuffle, streamk
+├── run_one_gemm_kernel.py          # disposable per-kernel worker for the above
+├── <op>_full_benchmark.py          # per-op bridge drivers: batched_gemm, batched_contraction,
+├── run_one_<op>_kernel.py          #   grouped_gemm, gemm_multi_d, mx_gemm, streamk_gemm
+├── configs/                        # gemm_universal sweep configs (flat)
+├── gemm_vector_fallback.py         # vector-width fallback shared by the bridge drivers
+├── gemm_validation_utils.py        # arch/warp-tile tables (also read by the dispatcher)
+├── gemm_instance_builder.py        # shared generator for the native (legacy) builds
+├── gemm_benchmark.{py,hpp}, gemm_common.hpp, gemm_profiler.hpp  # native harness
+├── gemm_universal/  gemm_multi_d/  gemm_multi_abd/  gemm_preshuffle/  gemm_streamk/  grouped_gemm/ ...
+│                                   # per-variant configs/ + native CMake builds
 └── README.md
 ```
 
@@ -63,6 +69,10 @@ gemm/
 - `user_provided_config.json` — scratch space for custom sweeps.
 - `example_problems.json` — example M/N/K problem set (used when `--problems`
   is omitted).
+- `search_settings_gfx1250_tdm.json`, `search_settings_gfx1250_streamk.json` -
+  example search settings for gfx1250 TDM universal and Stream-K searches, see
+  [gfx1250 / MI450](#gfx1250--mi450-tdm-pipelines) and
+  [Stream-K](#stream-k---variant-gemm_streamk).
 
 > The JSON used by **nightly** tests is intended to drop into the same
 > `configs/` directory and be selected with a positional config — no driver
@@ -135,6 +145,25 @@ measures and reports exactly as described above.
   many single timings is biased towards a lucky timing; selecting and reporting
   on the median of the repeats removes that bias. Kernels that failed `--verify`
   or wrote no non-zero output are not re-timed.
+- `--pipelines NAME[,NAME...]` - restrict the selected configs to these bridged
+  pipelines, before `--max-kernels` and `--pairs`, in plain runs, `--list-pairs`
+  and search. Config selection is unchanged: omitted positional configs still
+  use the variant's usual default (typically the small CI config). Pass a full
+  config explicitly when the CI config lacks the pipelines you need. Names
+  are case-sensitive; surrounding whitespace is ignored. Empty, duplicate or
+  unknown names are errors. Known pipelines can be absent for a particular
+  arch, dtype, layout or problem; no surviving configs is an error. Explicit
+  `--pairs` names outside the filtered space are rejected, while `"*"` means
+  all eligible kernels within that space. Explicit selections are recorded
+  under `"pipelines"` in `--list-pairs` and in a search's `run.json`; omitting
+  the flag keeps every pipeline from the selected configs.
+- `--budget-pct PCTS` - `--variant gemm_streamk` only: comma-list of distinct
+  workgroup budgets in `1..100` (% of the kernel's default `CUs x occupancy`,
+  default `100`). Non-persistent kernels expand to one launch variant per
+  budget (`<kernel>@budget<pct>`, while `100` keeps `<kernel>`) sharing one
+  build; persistent kernels run at `100` only. Recorded under `"budget_pct"` in
+  `--list-pairs` and a search's `run.json`; see
+  [Stream-K](#stream-k---variant-gemm_streamk).
 - `--list-pairs PATH` — dry run: expand and pair as a real run would, write every
   `(problem, kernel)` pair it would measure together with each kernel's
   configuration, and exit without building. Use it to see the size of a sweep
@@ -156,6 +185,662 @@ The files a run writes (`--csv`, `--failures-csv`, `--repeat-csv`) and the
 `--pairs` file must all be different files; the driver refuses to start
 otherwise.
 
+### Adaptive kernel search (`--search-config`)
+
+Instead of building and measuring every eligible `(problem, kernel)` pair, a
+search run lets one strategy per problem propose the next kernel to try, builds
+only the proposed kernels (each at most once per run, shared by all problems),
+measures them with `--verify` and learns from each verified result. At the end
+it re-measures the best kernels of each problem with fresh verified calls and
+exports only the confirmed winners. The coordinator is
+`tile_engine/ops/common/adaptive_search.py`; the strategies are a vendored copy
+of the ROCKE search core in `dispatcher/python/ck_search` (see its `VENDOR.md`).
+
+Recommended starting point: `tpe` with `seed_policy` `shared`, warm-started
+from the heuristic's top 5 kernels per problem (`select_kernels.py
+--out_pairs`, `top_k` 5):
+
+```bash
+H=../../../dispatcher/heuristics
+RUN="configs/default_config.json --variant gemm_universal --arch gfx950 \
+    --dtype fp16 --layout rcr --problems problems.json"
+# the candidates, then the heuristic model's top 5 per problem (a --pairs file)
+python gemm_full_benchmark.py $RUN --list-pairs candidates.json
+python $H/select_kernels.py --candidates candidates.json \
+    --model_dir $H/models/gemm_universal_fp16_gfx950 --top_k 5 --out_pairs picks.json
+cat > search.json <<'EOF'
+{"schema_version": 1, "strategy": "tpe", "seed": 0, "seed_policy": "shared",
+ "trials_per_problem": 100, "batch_per_problem": 8, "new_builds_per_run": 1200,
+ "warm_start": {"pairs_file": "picks.json", "top_k": 5}}
+EOF
+python gemm_full_benchmark.py $RUN --devices 0, \
+    --search-config search.json --search-output-dir runs/search-001
+
+# winners.json is a --pairs file: re-check the winners with a plain run
+python gemm_full_benchmark.py $RUN --pairs runs/search-001/winners.json \
+    --verify --devices 0, --csv recheck.csv
+```
+
+The warm start needs a heuristic model trained for the run's dtype and arch
+(`select_kernels.py` refuses another; `dispatcher/heuristics/models` has
+gfx950 `gemm_universal` fp16 and fp8 models). Any `--pairs` file of good kernels
+per problem, such as an earlier run's `winners.json`, can serve instead.
+Without a warm start the result depends on the seed.
+
+Evidence: an oracle replay of this coordinator (the real driver, adapter,
+coordinator and strategies; builds and GPU calls answered from an exhaustive
+sweep), fp16 `rcr`, 8 problems with 5520 candidates each, the settings above.
+The sweep ran on CPX compute partitions of an MI350X (gfx950), each an eighth
+of the GPU, and kernel rankings there differ from the full GPU's: "best" below
+means a partition's best. The replay and the GPU check below used the search
+code from before the deterministic TPE patch (`VENDOR.md` patch 5), with which
+a seed can take another path. The figure is the geometric mean over the
+problems of the confirmed winner's speed relative to the best kernel's.
+Near-ties make it depend on the timing noise, so each range covers two noise
+models: one calibrated on the GPU's own search runs (a persistent offset per
+problem and kernel plus the GPU's run-to-run spread; 100 seeds) and
+heavy-tailed Student-t noise (60 seeds).
+
+| Setting | Mean | p10 | Min | Runs >= 99% | Builds (8 problems) |
+|---|---|---|---|---|---|
+| `tpe`, `shared`, no warm start | 88% | 68% | 59-62% | 14-17% | 341-358 |
+| `tpe`, `shared`, warm start top 5 | 98.9-99.2% | 97.5-98.2% | 95% | 62-72% | 356-357 |
+
+Runs >= 99% depends most on the noise model: a third GPU calibration, which
+drew the offsets of kernels the GPU never measured regardless of how close
+they are to the best, gave 38% with the warm start (mean 98.6%). Its drop came
+mostly from one problem, whose 91%-of-best kernel drew a large speed-up and
+won half the runs, and was judged an artifact of that model.
+
+On one CPX partition, re-measured against the best kernel known for each
+problem, the seeds that missed without the warm start (seed 0: 85%, seed 1:
+72%) reached 100% with it at seed 1, `shared` (every problem got its
+best-known kernel), and 98.9% at seed 0, `per_problem` (worst problem 92%).
+
+With the warm start, the best kernel among each problem's first 50, 75 and
+100 trials reached about 94%, 98.5% and 99.5% on average in both noise models
+(81%, 86% and 89% without it); the confirmed winner is a little lower because
+noise can swap near-ties. The heuristic's own top 5 never held the best kernel
+(best of 5: 79%): the warm start moves the search into good regions rather
+than handing it the answer. In the replay's original, lighter noise model,
+`per_problem` seeds without a warm start did not help (88%, at 616 builds),
+a cap of 150 builds for the 8 problems took the warm-started `per_problem`
+search from 99.4% to 91%, and the deterministic TPE patch left the `shared`
+means unchanged (88.9% without and 99.6% with the warm start). The runs used
+about 356 of the 1200 builds allowed: keep `new_builds_per_run` from binding
+by scaling it with the number of problems (the warm-started runs built about
+45 kernels per problem; the bf16 ccr GPU group, whose misaligned problems
+build their own fixed-width variants, about 80).
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `schema_version` | required | `1` |
+| `strategy` | required | `random`, `exhaustive`, `de`, `hill`, `tpe`, `gp` or `portfolio` |
+| `trials_per_problem` | required | measured trials per problem, failures and warm starts included |
+| `new_builds_per_run` | required | distinct kernels the run may build (failed builds count); at least `trials_per_problem` |
+| `seed`, `seed_policy` | `0`, `shared` | `per_problem` gives problem `i` the seed `seed + i` |
+| `deadline_s` | none | seconds after which no trial is admitted; the round in flight and the confirmation still finish, so the run can end past the deadline by their time, the round's preparations included (each up to its limit, see below). Without it the trial and build budgets bound the run |
+| `batch_per_problem` | `4` | trials a problem may propose per round |
+| `max_stall_rounds` | `8` | rounds in a row without a new result before the run stops |
+| `build_timeout_s` | `180`, native kernels only | limit for each codegen, compile and link step of a kernel's build in the search; when given, it applies to every kernel. Without it, a round that builds a fixed-vector-width kernel keeps the build function's limits, as a full run does (300 s per step, 1200 s to compile a fixed-width kernel). A kernel whose step times out is a `compile_error`. See "Build timeout" below |
+| `warm_start.pairs_file`, `top_k` | none, `5` | a `--pairs` file (e.g. from `select_kernels.py --out_pairs`): the first `top_k` listed kernels of a problem are tried first |
+| `warm_start.ranked_csv`, `use_prior` | none, `false` | `select_kernels.py --out_ranked` predictions as a prior (`tpe`, `gp`, `portfolio` only); give both or neither |
+| `warm_start.cover` | none | a candidate field, e.g. `"pipeline"`, or a list of fields covered in turn, e.g. `["pipeline", "persistent"]` (each field adds the values the picks so far lack): one kernel per value of that field is tried first, after the `pairs_file` picks and not limited by `top_k` (values a pick already has are skipped; each value's kernel is drawn independently from the problem's seed, field and value, so identical groups share a representative regardless of other groups). Needs no `pairs_file`. The picks are trials like any other: they count toward `trials_per_problem` and `new_builds_per_run`, and a problem whose warm picks would use all of its `trials_per_problem` ends the run with an error before any work, so cover a field with few values (the number of pipelines depends on the config and problem, not just the arch). With `hill` the picks replace its stratified start probe (it starts from the best of them); `tpe` and `gp` count them in their startup trials. Not for `random` or `exhaustive`, which take no warm start (an error); a problem with fewer candidates than `trials_per_problem` is measured exhaustively anyway. `run.json` lists the picks per problem under `warm_cover` (`{field: {value: kernel}}` for a list); a field that no candidate of a problem has ends the run with an error |
+| `confirm.finalists`, `confirm.fresh_calls` | `2`, `3` | the winner is the lowest median among the finalists whose fresh calls all verified |
+| `measurement_policy` | `full` | the only value |
+| `host_cache.dir`, `max_entry_gib`, `max_total_gib` | system temp dir, `4`, a quarter of its free space | the run's cache of verification inputs and references, in a new directory under `dir` (keep it on a local filesystem) that is removed when the run ends. An entry larger than `max_entry_gib`, one past `max_total_gib` in all, or one that would leave the filesystem less than 10% free is not stored, and its calls compute as without the cache: on a filesystem already over 90% full nothing is stored, and the run warns. Both limits count the entries still being written, so they hold with any number of workers. `max_total_gib` `0` turns it off. See "Host cache" and "Host cache space" below |
+
+Unknown keys are an error; relative warm-start and `host_cache.dir` paths are
+read from the settings file's directory.
+
+Budget: each round, every active problem in turn proposes up to
+`batch_per_problem` trials (re-queued ones first), capped by its trials left
+and by the build capacity left once the distinct new kernels the round already
+needs are subtracted. A kernel that is already built, or planned this round,
+costs no further build, so problems that share kernels leave room for others,
+and such reuse goes on after the cap is spent. A proposal that would need a
+build past the cap is told `invalid` at once, without a trial (it cannot be
+built in this run), so a round never plans more builds than
+`new_builds_per_run` allows and the strategy moves on to other kernels. Past
+the cap a strategy reaches a built kernel only by proposing it, and most of its
+proposals then need a build, so the slot of each one told `invalid` goes to
+the problem's best untried kernel that needs no build (`refilled` in the round
+line): the one closest to the best on another problem that measured it, in
+latency relative to that best. Its result is told to the strategy like any
+other. A cap-bound run therefore spends its trial budgets on the kernels it
+built, and stops at the cap once no problem has an untried candidate that is
+built; without the refill the stall guard would end it first.
+A proposal of a kernel whose build already failed, for any problem, is told
+that `compile_error` again without a trial.
+
+Option rules:
+
+- `--search-config` and `--search-output-dir` go together, for `gemm_universal`
+  and `gemm_streamk` (see "Stream-K" below) only. `--list-pairs`,
+  `--repeat-top` and `--failures-csv` are rejected; the search writes its own
+  records and `--csv` is not written. `--build-timeout`
+  is rejected too: the search's limit is `build_timeout_s`.
+- Every measurement is verified and runs one kernel per worker, whatever
+  `--verify` and `--batch-size` say, so a failure always names one kernel.
+  The host side of verification (random inputs, an fp32 numpy reference
+  GEMM) comes from the run's host cache (see below). Its fp8/bf8 format (OCP
+  or FNUZ) follows the run's `--arch`, as in a plain run, not the local GPU's
+  detection (`rocminfo` / `amd-smi`), which falls back to FNUZ when it fails.
+  A search makes these
+  inputs its own way, with other values than a plain run's (see "Host
+  verification memory"). Before a problem's
+  first measure call the search prepares it: a worker that loads no kernel
+  stores the problem's host data in the cache, outside every call's timeout,
+  with at most one preparation per device at a time, within the host's
+  memory and never during a round's builds. A host slower than the
+  rates below then makes that round longer instead of timing a kernel out. A
+  preparation runs once per problem and is stopped only after 10 times the
+  problem's host allowance plus 60 s; the call's JSON file under `rounds/`
+  records it (`prepared`). A call's timeout is `--kernel-timeout` plus the
+  largest host allowance `ceil(2*M*N*K / 5e10 + (M+N)*K * r)` s among the
+  problems measured in the same round (or the same confirmation pass): the
+  reference at 50 GFLOP/s, and the inputs at a rate `r` per element that
+  depends on the dtype, 75 ns for fp16, bf16 and fp32 and 400 ns for fp8 and
+  bf8, whose encoding costs about 4x more on the host (`HOST_S_PER_INPUT` in
+  `gemm_search.py`; a dtype without a rate gets the slowest). `run.json`
+  records the run's formula. A problem without an entry pays the host side in
+  full inside every call. When the cache is on but did not store the entry
+  (over its caps), its preparation measured that cost on this host, and its
+  calls get at least twice that times the number of devices, whose calls may
+  then share the CPUs the preparation had alone (so a problem over
+  `max_entry_gib` is still prepared once). When the cache is off (or the
+  preparation failed), they get the allowance alone. Its rates leave about 2x
+  headroom over the host they were measured on for fp8 and bf8 (177-213 ns per
+  element measured, 400 ns allowed) and 1.3-2.3x for the others (33-60 ns,
+  75 ns): on an MI350X (gfx950) host about 2x slower per element, the host
+  side of a first fp8 256x768x874159 call used 339 s of its 395 s timeout. On
+  a slower host, keep the cache on (the preparation then runs outside the
+  call timeout) or raise `--kernel-timeout`.
+  These host times assume the workers get the node's CPUs. Inside a CPU
+  allocation smaller than the node, set `OPENBLAS_NUM_THREADS` (or
+  `OMP_NUM_THREADS`) to about the CPUs per device, or raise
+  `--kernel-timeout`.
+  `--verify-tol`, `--kernel-timeout`, `--workers` and `--devices` apply as
+  usual. Discovery measurements spread over the devices; each problem's
+  confirmation calls run on one device (problem `i` on device `i mod n`), so
+  its finalists are compared on the same GPU.
+- The candidates of a problem are exactly the kernels a full run measures with
+  it when every kernel builds (its `--list-pairs` pairs). `--pipelines`,
+  `--pairs` and `--max-kernels` narrow them (recorded in `run.json`); `--pairs`
+  also limits the search to the problems it lists, and is not a warm start. A listed
+  problem none of whose listed kernels pair with it stays unresolved. A
+  problem with fewer candidates than `trials_per_problem` is measured
+  exhaustively. Fixed-vector-width kernels are candidates where a full run
+  pairs them: they are the only candidates of a problem whose extents the
+  native widths do not divide, and with `--tune-c-vector-width` the narrower C
+  widths join every problem's list. Not a candidate: a fixed-width kernel that
+  a full run measures on a problem only because its native kernel failed to
+  build.
+
+Build timeout: a round measures its kernels once all its builds have ended,
+so one kernel that never builds holds the whole round for the full limit.
+Per-kernel compile times of the 5520 gfx950 fp16 `rcr` native kernels of
+`default_config.json`, measured with 64 compiling at once (an upper bound for
+a search round, which builds fewer at a time): the median was 30 s, and every
+kernel outside warp tile `4x64x16` built in at most 111 s. That one class holds
+every slower build and all 118 kernels (2.1%) that did not build in 300 s. The
+search's default of 180 s per step keeps 1.6x headroom over 111 s and shortens
+each wait for a kernel that never builds by 120 s; the price is the 2.2% of
+kernels (all `4x64x16`) that build in 180-300 s, which become
+`compile_error`. The default applies to a round of native kernels only. A
+round that builds a fixed-vector-width kernel keeps the build function's
+limits, as a full run does: 300 s per step and 1200 s to compile a fixed-width
+kernel. Fixed-width compile times were not measured, and one build call has
+one limit, so such a round keeps 300 s for its native kernels too; a shorter
+native limit would shorten it only when a native kernel never builds and
+every fixed-width one ends sooner. Such rounds are the rule in a run with a
+problem the native widths do not fit (its padded fixed-width kernels also pair
+with other problems where a native tile does not divide) or with
+`--tune-c-vector-width`, so those runs mostly keep a full run's limits. A
+`build_timeout_s` in the settings applies to every kernel of every round.
+Raise it when the slow native kernels matter, or on a host that compiles much
+slower. A timed-out step leaves its compiler running until it ends (the build
+function stops only `hipcc`), so a run with many timeouts loads the host for a
+while longer.
+
+Outputs, in a directory that must not hold an earlier run (a path that is, or
+lies under, an existing file, or whose nearest existing directory is not
+writable, is refused up front with exit status `2`):
+
+| File | Content |
+|---|---|
+| `winners.json` | `{"MxNxK": [kernel]}` for the confirmed winners only (a `--pairs` file) |
+| `summary.json` | status (`complete`, `partial`, `no_winner`), stop reason, each winner's confirmed median, each unresolved problem with its reason, each problem's best (unconfirmed) discovery result, counts and budget |
+| `run.json` | settings, build context, sources (commit, sha256 of the config and problem files), per-problem candidates, strategy and seed |
+| `trials.jsonl` | one event per trial, build, result, confirmation call, re-queue, cancel and error (with its traceback) |
+| `rounds/NNNN-measure.csv`, `rounds/NNNN-confirm.csv` | the usual results CSV of each measure call; the `.json` next to it maps `problem_idx` to the request and holds the call's failure records |
+| `rounds/NNNN-build.json` | the kernels of each build call, its limit per step (`null`: the build function's own) and the full error of each that failed (`trials.jsonl` keeps its first line) |
+| `artifacts/<kernel>.so` | the run's copy of each built kernel; only these copies are loaded, and one that changed since its build is refused |
+
+Exit status: `0` when every problem has a confirmed winner, `1` when any has
+none or the run stopped on an error, `2` for invalid options, settings or
+output directory. An error (a build or worker pool that dies, a strategy
+failure) ends the search, but the finalists measured before it are still
+confirmed and exported; the status is then at best `partial` and
+`summary.json` holds the error. When the
+adapter breaks its contract (a lost or repeated outcome), nothing is confirmed.
+When a write to the output directory fails (a full disk, say), the search
+ends with that error and exit status `1`, also when it is one of the last
+writes: nothing more is confirmed or logged to `trials.jsonl`, but
+`winners.json` and `summary.json` are still tried, and `summary.json` (when it
+can be written) holds the error. `130`: the run was interrupted (Ctrl-C, or
+SIGTERM such as a batch system's time limit); nothing is confirmed and
+`winners.json` is empty, but `summary.json` is written, with each problem's
+best discovery result. A build worker that gets SIGTERM too (a batch system
+signals the whole process group) stops at once, so the summary does not wait
+for queued builds. Ctrl-C stops a forked build worker the same way (Linux's
+default up to Python 3.13); a worker started by forkserver (the default from
+Python 3.14) or spawn turns Ctrl-C into one build's error and goes on with the
+queued builds, so the summary waits for the round's builds. So does a SIGTERM
+sent only to the driver's pid (`kill <pid>`).
+
+Only a verified row of the requested kernel and problem with a finite positive
+latency counts as a result. A verification failure is `numeric_fail`; a blank
+`verified`, a bad latency or unreadable worker output is `invalid_measurement`;
+a worker error, crash or wrong kernel identity is `run_error`; a failed build is
+`compile_error` for every problem that asked for the kernel in the round that
+built it (one build charged, a trial each) and for any later proposal of it
+(no trial); a kernel the worker never reached is retried once. Nothing falls back to an
+unconfirmed result. A search run asks the worker to check each library's
+identity (`check_identity`): a library whose own name
+(`GpuGemmRunner.kernel_name`, the codegen `KERNEL_NAME` that
+`GemmKernelConfig.name` reproduces) is not the requested kernel is refused
+with an error naming both. Without `check_identity`, `search_host_data` and
+`host_cache` (every run without `--search-config`) the worker's input and
+output are unchanged.
+
+Host cache: without it, every verified call regenerates the problem's random
+inputs, encodes them for the kernel and recomputes the fp32 reference in its
+own worker; on a 16-core host that took 15 s per call at bf16 `rcr`
+8192x8192x8192 and 4.7 s at 2048x256x49152 (7.8 s in `crr`), with the
+inputs a search made before "Host verification memory". In a search,
+a problem's preparation computes them as a worker would and stores the encoded
+A and B, the reference and its maximum as `.npy` files: one entry per key (the
+problem, dtype, layout, fp8 format and input seed), written under a temp name
+and renamed into place, so concurrent workers on any device read a complete
+entry or none. Its calls only load them and compare: 0.37 s and 0.06 s for
+the two shapes above. Measured end to end on a full MI350X (gfx950), with
+`dir` on `/dev/shm` (a tmpfs) and `max_total_gib` 12, a search's measurement
+or confirmation call (worker start, host side and kernel) took 0.34 s instead
+of 0.62 s on the replay's 8 fp16 `rcr` shapes (1.8x) and 5.75 s instead of
+17.2 s on 4 large bf16 `crr` shapes (3.0x), with the same verify outcomes and
+latencies. Both are averages over all calls of the run, each problem's first
+(uncached) call included: 8 of 110 calls (62 measurements, 48 confirmation
+calls) for the fp16 shapes, 4 of 32 (8 and 24) for the large ones; those runs
+predate the preparation step, so each problem's first call computed and stored
+its entry. The default `dir` was not measured: on that host its filesystem was
+too full to store anything (see "Host cache space" below). A key has one
+writer: a worker that misses it while another writes it computes its own copy
+and does not store it, and each writer reserves its entry's size under a lock
+before writing, so the caps and the 10%-free guard hold however many workers
+miss at once. A worker killed while it writes (a preparation at its limit, or
+a call that timed out) keeps its reservation, and that problem computes on
+every call for the rest of the run. An entry holds what each worker would compute itself,
+so verification results are the same with or without it. The directory goes
+when the run ends (the run prints its entries and size), also on an error,
+Ctrl-C or SIGTERM; a run killed with SIGKILL leaves its
+`ck_search_host_cache-*` directory behind. Storing needs POSIX file locks
+(`fcntl`); without them every call computes. Keep `dir` on a local filesystem
+(a tmpfs or a local disk): on NFS a worker that waits for the lock waits out
+the client's lock retry backoff, inside its call's timeout (in one test, the
+last of 8 workers that missed at once waited 15 s, and the last of 16, 62 s),
+so a run whose cache is on NFS starts with a `Host cache: NOTE` line.
+
+Host cache space: an entry is the fp32 reference (4*M*N bytes) plus the
+encoded A and B ((M+N)*K elements), so a large-K problem needs GiB per entry:
+in bf16, 1.7 GiB for 256x768x874159 and 3.7 GiB for 98304x9600x1024, close to
+the 4 GiB `max_entry_gib` default. A write must also leave 10% of the whole
+filesystem of `dir` free, counting the entries still being written. On a large
+disk that is already over 90% full, that guard never passes (a 1.8 TB disk at
+93% has 134 GB free and would need 180 GB): nothing is stored, every call pays
+the full host cost, and the run starts with a `Host cache: WARNING: stores
+nothing` line (its closing `Host cache:` line then counts 0 entries). Point
+`host_cache.dir` at a tmpfs such as `/dev/shm` or at another local filesystem
+with room, and size `max_total_gib` and `max_entry_gib` to the run's problems;
+an entry past either cap is not stored, and its problem computes on every call.
+A tmpfs is faster but holds the entries in RAM, so keep `max_total_gib` within
+the memory the build workers leave free.
+
+Host verification memory: a search makes each problem's inputs in the kernel's
+memory order (a column-major operand is never transposed), as float32 normals
+of numpy's seeded PCG64 generator, and encodes, decodes and compares them a
+block of 2^20 elements at a time (`_search_host_data` in
+`run_one_gemm_kernel.py`); a worker that reads a cache entry maps it instead
+of copying it. A worker that computes a problem's host data (its preparation,
+or a call without an entry) then holds the encoded A and B, their fp32 values
+and the fp32 reference at most. Peak RSS per input element, measured through
+the real worker (`256x768xK`, `rcr`, K = 16384 to 874159, the same at `rrr`,
+`crr` and `ccr`; a plain run's worker is unchanged). A worker now needs a set
+number of bytes per input element plus a fixed part, so its bytes per element
+fall as K grows: for fp8, 10.0 B at K = 16384, 5.6 B at 131072 and 5.1 B at
+874159.
+
+| dtype | search, before | search, now | per element, now |
+|---|---|---|---|
+| fp8, bf8 | 58 B | 5.0 B plus about 0.08 GB | its byte and its fp32 value |
+| bf16 | 16.5 B | 6.0 B plus about 0.02 GB | 2 bytes and its fp32 value |
+| fp16 | 11.5 B | 6.0 B plus about 0.02 GB | 2 bytes and its fp32 value |
+
+Before, float64 normals took 10 B per element alone, and the fp8 and bf8
+encoder held about 48 B more per element in whole-array temporaries (and ran
+twice: once for the kernel's buffers, once for the reference). On a 16-core
+host with numpy's pip wheels (an optimized BLAS, as in the GPU container) a
+search's host data now also takes about half the time: 74-79 ns per fp8 or bf8
+input element and 15 ns per fp16 or bf16 one, against 145-156 and 29-31 ns.
+With a reference BLAS (a distribution's own numpy), where a product with a
+transposed operand is slower, it is slower than before in `rcr` and `crr`,
+whose reference reads one operand transposed: bf16 at 134M input elements took
+22.8 s in `rcr` and 16.0 s in `crr` against 12.3 s, and 10.2-10.6 s in `rrr`
+and `ccr`. Output-heavy problems spend their time in the reference instead:
+bf16 `ccr` 16384x16384x64 takes 0.8 s with the pip wheels and 7.8 s with a
+reference BLAS (`rcr`: 0.4 and 13.5 s), and 16384x32768x64 2.1 and 17.2 s
+(`ccr` makes its reference a block of rows at a time). The preparation runs
+outside the call timeout, so with the cache on this only lengthens a round.
+Per output element a worker needs at most 16 B more: the fp32 reference, C and
+its comparison. So an fp8 256x768x874159 problem (895M input elements), whose
+preparation was killed at 47.6 GB of RSS on a 62 GB host, now needs about
+4.6 GB (the guard below plans 5.6 GB, plus its 0.9 GB entry when the cache is
+on a tmpfs). A call that reads an entry adds little memory of its own; its RSS
+still shows the entry's pages it maps (about 1 B per fp8 input element, 2 B
+per bf16 one), which are shared, not copies.
+
+The host memory guard: before a problem's first call, the search estimates the
+bytes a worker needs for its host data, `(M+N)*K*(e+4) + 16*M*N + 1 GiB` to
+compute it (`e` the encoded element size: 1 for fp8 and bf8, 2 for fp16 and
+bf16, 4 otherwise; `host_compute_bytes` in `gemm_search.py`), plus the entry
+itself when the cache is on a tmpfs and has room for it (within
+`max_entry_gib`), and `12*M*N + 1 GiB` to read an entry
+(`host_read_bytes`). The 1 GiB covers the interpreter, one block's temporaries
+and the GPU runtime: a measure worker on an MI350X (gfx950) held about 0.9 GB
+besides its host data. It compares that with the memory available:
+`MemAvailable` from `/proc/meminfo` (or the room left under a memory limit of
+the run's cgroup and its parents, when that is less: `memory.max` or
+`memory.high` in cgroup v2, `memory.limit_in_bytes` in v1), less 10% of the
+total. The problem's preparation must fit, and then one call per device at
+once, reading its entry or, when none was stored (the cache off or over its
+caps), computing it all. With the cache on a tmpfs, the calls check also keeps
+room for the entries still to come (those of the run's problems neither
+stored nor skipped, each within the cache's caps, up to its free room), which
+will hold RAM while later rounds' calls of this problem run. A problem that
+does not fit is never measured (nor prepared, when its preparation is what
+does not fit; when only its calls do not, the entry its preparation stored is
+removed), and one whose preparation was killed from outside (exit code -9, the
+out-of-memory killer) or ran out of memory (`MemoryError`, or numpy or its
+BLAS refusing memory as it starts) is not measured either: its calls would
+compute the same data. A preparation stopped at its time limit is not a
+memory failure: its calls compute their own data. A skipped problem's
+requests get the status `host_memory`, which is not a kernel failure, so no
+strategy is told anything; the problem stops, the console prints one line
+(`<problem>: skipped, host_memory: needs X GiB, Y GiB available`), the run
+goes on with the other problems and ends `partial` (or `no_winner` when no
+problem has a winner), exit status 1, with the reason under `unresolved` in
+`summary.json` and `host_memory` in its counts. The decision is taken once per
+problem, when it is first measured and after that round's builds: memory freed
+later does not bring it back, so one run never retries a problem that may
+exhaust the host's memory; re-run its problems on a host with more memory,
+with fewer devices, or with a cache that has room for the entry. Should the
+host still run out of memory, a search's workers have asked to go first: each
+sets its `oom_score_adj` to 1000 (a plain run's worker does not). A measure
+call whose worker is then killed from outside (exit code -9: the driver kills
+one only at its timeout, which it reports as `timeout`) or raises
+`MemoryError` gets `host_memory` too, with the reason (`its call's worker was
+killed ...`): no kernel is blamed and its problem stops, but the problem is
+not skipped, so its best kernels so far are still confirmed and it can still
+get a winner. Preparations run under a lock in the temp directory
+(`ck_search_host.lock`): a round's builds hold it shared and its preparations
+exclusive, so no preparation runs while any search run sharing that directory
+(the runs of one host, or of one container) builds or prepares; a run whose
+builds or preparation wait for another run prints one `waiting for` line. A
+run that cannot open the lock file prints one `NOTE: cannot open the host
+lock` line and goes on without it. Within one run the preparations running at
+once must fit together, with the tmpfs entries of those that ended. Not
+counted: the measure calls of other runs until they show in `MemAvailable`,
+and other runs' builds (tens of GB with many build workers), which can start
+while this run's calls compute their host data: calls take no lock.
+
+Sizing: a preparation never runs during builds, so it shares the memory only
+with the system, other processes and a tmpfs cache's entries. On a tmpfs with
+room for its entry a preparation also needs that entry, so it needs `2e+4`
+bytes per input element (6 for fp8 and bf8, 8 for fp16 and bf16) plus the
+fixed 1 GiB, and the largest problem the guard admits has about
+`(MemAvailable - 10% of MemTotal - 1 GiB) / (2e+4)` input elements, where
+`MemAvailable` already lacks the tmpfs entries (for large-K shapes, whose M*N
+terms are small). On the 62 GB MI350X (gfx950) host of the field failure, with
+47-51 GB available when idle and 16 GiB of entries already on the tmpfs, the
+guard's budget is about 24-28 GB: a preparation of about 3.7-4.4G fp8 input
+elements or 2.8-3.3G bf16 ones when the cache still has room for its entry.
+When it has none, a preparation needs `e+4` bytes per element (5 for fp8, 6
+for bf16): about 4.5-5.3G fp8 or 3.7-4.4G bf16 input elements there. With the
+cache on a disk, a preparation needs `e+4` bytes per element and no tmpfs
+entries take RAM. Keep `max_total_gib` plus the build workers' memory within
+RAM, as above; a disk cache costs no RAM beyond the page cache.
+
+Console: builds print as in a full run; the search prints a line per build and
+per round (`[search] round N: ...`: proposals, admissions, builds against the
+cap, measurements, active problems, elapsed time and deadline) and one title
+line per measure call, named like its `rounds/` file, after two lines for the
+preparation of the call's new problems (how many, their limit, then how many
+were stored and the time taken), and one more per problem not stored
+(`<problem>: not stored (<why>); its calls compute their own`, ending with the
+tail of the worker's stderr when the preparation failed) or skipped
+(`<problem>: skipped, host_memory: ...`, see "Host verification memory"). A
+build or preparation that waits for another search run on the host prints
+`[search] waiting for ...` first, and a run that cannot open the host lock
+prints one `[search] NOTE: cannot open the host lock ...` line. Search runs
+of one checkout also build one at a time: the build writes each kernel's
+header, `.o` and `.so` to paths from its name alone (no arch), so a run holds
+the build lock (`ck_search_build.lock` in the dispatcher's `build/`) from a
+round's build until its libraries are copied into the run's `artifacts/`
+(`[search] NOTE: cannot open the build lock ...` when it cannot). A plain
+driver run does not take it: do not run one in the same checkout as a search.
+A host cache whose filesystem is already under 10% free (see "Host cache
+space") prints a `Host cache: WARNING` line before the first round, and one
+on NFS a `Host cache: NOTE` line; a `host_cache.dir` the run cannot create
+its cache in prints `Host cache: WARNING: cannot create it ...` and the run
+goes on without the cache.
+
+Troubleshooting: for `no_winner` or `partial`, read `unresolved` in
+`summary.json` and the failing calls in `trials.jsonl`; a problem stopped by
+`host_memory` was never measured, or stopped when a call ran out of host
+memory (see "Host verification memory"). If nearly every candidate gets
+built, the problems are choosing different kernels: lower `new_builds_per_run`
+or keep the default `shared` seed policy.
+
+#### gfx1250 / MI450: TDM pipelines
+
+Use gemm_universal's gfx1250 default config
+(`gemm_universal/configs/default_config_gfx1250.json`) with `--pipelines`
+restricting it to the bridged TDM/async pipelines: `comp_async` (`rcr` only, fully
+padded, persistent or not), `comp_tdm`, `comp_tdm_v2` and `comp_tdm_pc` (`tdm`
+epilogue, unpadded), tile_k 64 to 256, warp tile 16x16; the bridge drops what
+it does not support. In the default config these pipelines are 2.7-3.2% of the
+`rcr` space, so a search there rarely tries them. Kernels per layout, each
+paired with every problem of `example_problems.json` (5 aligned problems):
+
+| Pipeline selection | dtype | `rcr` | `rrr` | `crr` | `ccr` |
+|---|---|---|---|---|---|
+| TDM/async (all four above) | fp16, bf16 | 1207 | 595 | 583 | 595 |
+| | fp8, bf8 | 1618 | 1234 | 1234 | 1234 |
+| TDM/async without `comp_tdm_pc` | fp16, bf16 | 1071 | 459 | 459 | 459 |
+| | fp8, bf8 | 1248 | 864 | 864 | 864 |
+
+By pipeline, fp16 `rcr`: `comp_async` 612, `comp_tdm` 306, `comp_tdm_v2` 153,
+`comp_tdm_pc` 136; fp8 `rcr`: 384, 576, 288, 370. The candidates of a problem
+depend on its shape: fp16 `rcr` 245760x352x3595 (odd K) pairs with 595 kernels,
+no `comp_async`, and a misaligned problem pairs with fixed-vector-width
+variants of its own, so a mixed problem set has more distinct kernels than
+any one problem (fp16 `rcr` over 4 mixed problems: 1819 against 1207 per
+problem). Check your problems with `--list-pairs`.
+
+```bash
+RUN="gemm_universal/configs/default_config_gfx1250.json \
+    --pipelines comp_async,comp_tdm,comp_tdm_v2,comp_tdm_pc --variant gemm_universal \
+    --arch gfx1250 --dtype bf16 --layout rcr --problems problems.json"
+python gemm_full_benchmark.py $RUN --devices 0, --workers 16 \
+    --search-config configs/search_settings_gfx1250_tdm.json \
+    --search-output-dir runs/gfx1250-bf16-rcr-001
+```
+
+`configs/search_settings_gfx1250_tdm.json`: `tpe`, `shared`, 100 trials per
+problem, `warm_start.cover` `"pipeline"` (each pipeline is tried on each
+problem before the strategy's own picks), `new_builds_per_run` 1200 (sized
+for about 8 problems, as in the gfx950 example, whose runs built about 356;
+scale it with your problem count) and `build_timeout_s` 300. The 300 s is a
+placeholder: gfx1250 TDM compile times are not measured yet. Calibrate it
+before ranking runs: build about 20 kernels per pipeline in a plain run with
+`--build-timeout 1200`, then set `build_timeout_s` to 1.6x the slowest one that
+built, the rule used for gfx950 above. `build_timeout_s` applies to every
+kernel, the fixed-vector-width variants of misaligned problems too: if your
+problems include misaligned ones, include one in the calibration run so that
+it builds those variants, or leave `build_timeout_s` out (the build
+function's own limits then apply to them). There is no heuristic warm start on
+gfx1250 (the models are gfx950 only); an earlier run's `winners.json` can be
+the `pairs_file` next to `cover`.
+
+To sample at most 20 kernels **per pipeline and problem**, use the pipeline
+metadata in `--list-pairs`, then pass the sampled pairs to a plain run.
+`--max-kernels 20` alone is a global limit, not a per-pipeline sample:
+
+```bash
+python gemm_full_benchmark.py $RUN --list-pairs calibration-candidates.json
+python - <<'PY'
+import json
+import random
+from collections import defaultdict
+from pathlib import Path
+
+data = json.loads(Path("calibration-candidates.json").read_text())
+rng = random.Random(0)
+picks = {}
+for problem, names in data["pairs"].items():
+    groups = defaultdict(list)
+    for name in names:
+        groups[data["kernels"][name]["pipeline"]].append(name)
+    picks[problem] = [
+        name for group in groups.values()
+        for name in rng.sample(group, min(20, len(group)))
+    ]
+Path("calibration-pairs.json").write_text(json.dumps(picks, indent=2) + "\n")
+PY
+python gemm_full_benchmark.py $RUN --pairs calibration-pairs.json \
+    --devices 0, --workers 16 --verify --build-timeout 1200
+```
+
+`trials_per_problem` 100 is not exhaustive (the TDM selections have 459 to 1618
+candidates per problem). The exhaustive reference for a search is a plain run
+of the same config, `--pipelines` and problems with `--verify`, or `--pairs` with a
+`--list-pairs` file to split it into one problem per run; it builds and
+measures every pair.
+
+Node caveats:
+
+- Pass `--arch gfx1250` and `--devices N,`: without them the driver detects
+  the arch with `rocminfo` and the devices with `amd-smi` or `rocm-smi`, and
+  when `rocminfo` fails the driver stops. The fp8/bf8 host format of the
+  workers (OCP on gfx1250) follows `--arch` in a search and in a plain run.
+- Rank kernels only on production-representative hardware. A run under
+  emulation or binary translation can report false timeouts and wrong
+  results, which a search records as `timeout` or `numeric_fail` and learns
+  from.
+- With the ROCm 10.2 compiler, `comp_tdm_pc` kernels can hang in their named
+  barriers, and each such trial costs a full `--kernel-timeout`. On that
+  toolchain use `--pipelines comp_async,comp_tdm,comp_tdm_v2` for the search
+  and for the reference run; other toolchains can include `comp_tdm_pc`.
+- A run cannot be resumed: an interrupted run confirms nothing. On a host that
+  may hang or reboot, run one problem per run (its own problems file and
+  `--search-output-dir`) and copy each output directory off the node when it
+  ends.
+- The example's pipeline filter omits `comp_tdm_v3`; its bridge is available,
+  so add it to `--pipelines` to include it from the full default config.
+- Not covered: `preshuffle_tdm` (the `gemm_preshuffle` variant; a search takes
+  `gemm_universal` and `gemm_streamk` only), and the MX, batched, grouped and
+  quant TDM kernels. The Stream-K TDM kernels are below.
+
+#### Stream-K (`--variant gemm_streamk`)
+
+`--variant gemm_streamk` runs Stream-K kernels through this driver, so a
+search covers them too. The candidates are `expand_sweep(variant="stream_k")`
+over a `gemm_streamk/configs` file (default: `default_config_<arch>.json`,
+else `default_config.json`; on gfx1250 the TDM space is
+`gemm_streamk/configs/gfx1250_tdm_config.json`: `comp_tdm`, `comp_tdm_v2` and
+`comp_tdm_v3`, tiles, waves, the `cshuffle` and `tdm` epilogues, persistent or
+not, and the `atomic`, `linear` and `tree` reductions), paired with the
+Stream-K rules of `gemm_vector_fallback.py`: a TDM pipeline runs any shape with
+the `tdm` epilogue, but with `cshuffle` N must be a multiple of `tile_n`;
+non-TDM pipelines get fixed-vector-width variants for misaligned problems as in
+`gemm_universal`. The kernels run in the common `run_one_gemm_kernel.py`
+worker (same payload, verification and search options), on the
+Stream-K ctypes library. `--list-pairs`, `--pairs` and plain runs work as for
+`gemm_universal`, including the shared `--pipelines` restriction applied before
+kernel caps and budget expansion.
+
+The reduction strategy and `persistent` are compile-time: each value is its
+own kernel. The workgroup budget (`--budget-pct`, percent of the kernel's
+default of CUs x occupancy, default `100`) is a launch setting: each budget of
+a kernel is one more candidate (record field `budget_pct`, named
+`<kernel>@budget<pct>`; `100` keeps the kernel's own name) that runs the
+kernel's build. A search builds and charges that build once in
+`new_builds_per_run` for all its budgets, a failed build fails them all at
+once, and trying another budget of a built kernel costs one measurement (past
+the build cap the budgets of built kernels stay reachable). The worker sets
+`CK_TILE_STREAMK_BUDGET_PCT` for each measured item and restores it; the
+library reads it at each launch. A persistent kernel runs at `100` only: its
+workgroups also take the data-parallel tiles, so a smaller grid leaves CUs
+idle, and searches that mostly met persistent kernels at small budgets learned
+to avoid persistent kernels where they are the fastest (`streamk_gemm_full_benchmark.py
+--budget-pct` still measures every budget). Candidates per problem with the six
+budgets below, fp16 or bf16 in any layout and fp8 in `rcr`: 1680 (480 kernels:
+`comp_tdm` 240, `comp_tdm_v2` 80, `comp_tdm_v3` 160; half of them persistent)
+when N is a multiple of 256, 1176 when it is a multiple of 128 only, and 672
+(`tdm` epilogue only) otherwise; fp8 in the other layouts has no `comp_tdm_v3`
+kernel (1120, 784 and 448).
+
+```bash
+RUN="gemm_streamk/configs/gfx1250_tdm_config.json --variant gemm_streamk \
+    --pipelines comp_tdm,comp_tdm_v2,comp_tdm_v3 \
+    --arch gfx1250 --dtype bf16 --layout rcr --problems problems.json \
+    --budget-pct 100,75,66,50,33,25"
+python gemm_full_benchmark.py $RUN --list-pairs candidates.json
+python gemm_full_benchmark.py $RUN --devices 0, --workers 16 \
+    --search-config configs/search_settings_gfx1250_streamk.json \
+    --search-output-dir runs/gfx1250-sk-bf16-rcr-001
+# winners.json names budget variants: re-check them with the same --budget-pct
+python gemm_full_benchmark.py $RUN --pairs runs/gfx1250-sk-bf16-rcr-001/winners.json \
+    --verify --devices 0, --csv recheck.csv
+```
+
+`configs/search_settings_gfx1250_streamk.json`: `tpe`, `shared`, 100 trials
+per problem, `warm_start.cover` `["pipeline", "persistent"]` (each pipeline and
+both persistent values are tried on each problem before the strategy's own
+picks), `new_builds_per_run` 480 (every kernel of the gfx1250 TDM Stream-K
+config, so the cap does not bind; lower it to bound the build time of a large
+problem set) and `build_timeout_s` 300, a placeholder to calibrate as in the
+TDM section above. The node caveats above hold here too. Atomic reduction
+rounds every partial update to the output type, so with many splits a bf16 or
+fp16 output can exceed the default `--verify-tol` (2e-2): such a kernel is a
+`numeric_fail`, which the search learns to avoid; pass a larger
+`--verify-tol` only with an application-appropriate accuracy requirement.
+
+For an exhaustive reference, use the same `gemm_full_benchmark.py $RUN` without
+`--search-config`/`--search-output-dir` (and without `--pairs` or a kernel cap).
+This exhausts the shared driver's candidate space, including persistent kernels
+at full budget only.
+The legacy `streamk_gemm_full_benchmark.py` also remains an exhaustive sweep:
+its `--budget-pct` accepts the same list, and its `--reduction-strategy` filter
+is specific to that CLI. Both drivers pass the selected architecture to the
+worker; the legacy driver and shared search also request library identity
+checks. The legacy CSV keeps plain kernel names and a separate `budget_pct`
+column. The shared driver encodes non-100 budgets in `<kernel>@budget<pct>`
+names instead, including in `--list-pairs`/`winners.json` files accepted by
+`--pairs`. These are distinct output contracts, not interchangeable CSVs.
+`run_one_streamk_gemm_kernel.py` remains a compatibility entrypoint to the
+common worker for existing callers.
+
 ### Multi-GPU parallelism
 
 Phase 3 fans the `(kernel × problem)` work out across **every visible GPU** in
@@ -169,46 +854,39 @@ auto-detected (`HIP_VISIBLE_DEVICES`, then `rocm-smi`/`amd-smi`); override with
 
 | Axis | Supported |
 |---|---|
-| dtype | `fp16`, `bf16` |
-| layout | `rcr`, `rrr`, `crr`, `ccr` (row-major C only — ck_tile rejects column-major C at build) |
+| dtype | `fp16`, `bf16`, `fp32`, `fp8`, `bf8` (per-arch; `gemm_preshuffle` and `gemm_streamk` exclude `fp32`, `gemm_multi_d`/`gemm_multi_abd` are `fp16` only) |
+| layout | `rcr`, `rrr`, `crr`, `ccr` (row-major C only — ck_tile rejects column-major C at build); `gemm_multi_abd` takes the 4-char `rcrr`; `gemm_preshuffle` is `rcr` only |
 
 ### Variant scope
 
-The bridge is **one shared, variant-aware driver** (`gemm_full_benchmark.py` +
-`run_one_gemm_kernel.py`), not a per-variant copy of the driver. The bridged
-regular-GEMM path (`gemm_universal`) uses the op-root `configs/`; `--variant`
-selects a not-yet-bridged variant's own `configs/` subdirectory.
+`gemm_full_benchmark.py` + `run_one_gemm_kernel.py` form **one shared,
+variant-aware driver**, not a per-variant copy. `--variant` selects both the
+`configs/` directory and the codegen variant:
 
-What that means for this PR:
+| `--variant` | Configs | Codegen variant |
+|---|---|---|
+| `gemm_universal` (default) | `configs/` | `standard` |
+| `gemm_multi_d` | `gemm_multi_d/configs/` | `multi_d` |
+| `gemm_multi_abd` | `gemm_multi_abd/configs/` | `multi_abd` |
+| `gemm_preshuffle` | `gemm_preshuffle/configs/` | `preshuffle` |
+| `gemm_streamk` | `gemm_streamk/configs/` | `stream_k` |
 
-- **Only `gemm_universal` is wired and validated through the bridge here.** It is
-  the foundation variant; the dispatcher codegen path is exercised and parity-
-  checked for it alone.
-- The `gemm_multi_d/`, `gemm_preshuffle/`, and `grouped_gemm/` `configs/`
-  directories are **scaffolding** that follows the per-variant convention so the
-  layout is ready. `--variant` will select them, but the bridge does **not** yet
-  produce correct kernels for those variants on this PR — do not treat their
-  presence as working support.
-- Grouped GEMM and stream-K go through **separate bridge efforts** (stream-K in
-  #8136, grouped GEMM on its own branch), not this PR.
+Grouped GEMM, batched GEMM, batched contraction, mx_gemm and
+gemm_bquant have their own `<op>_full_benchmark.py` drivers (gemm_bquant's lives
+in `block_scale_gemm/gemm_bquant/`). `gemm_multi_d` and `gemm_streamk` also
+retain dedicated `gemm_multi_d_full_benchmark.py` and
+`streamk_gemm_full_benchmark.py` drivers. `--variant grouped_gemm` is rejected;
+use `grouped_gemm_full_benchmark.py`.
 
-### Removal note
+### Native (legacy) Tile Engine builds
 
-The legacy regular-GEMM standalone build path has been **removed**, and the
-`gemm_universal/` folder is gone entirely. The per-config benchmark generator and
-driver (`gemm_universal_instance_builder.py`, `gemm_universal_benchmark.py`,
-`gemm_universal_benchmark*.{cpp,hpp}`, and `gemm_universal/CMakeLists.txt`) no
-longer exist; its sweep configs were promoted to the op-root `configs/` directory
-(matching the `fmha/` and `grouped_conv/` bridge convention) and are consumed by
-the bridge. Regular GEMM now runs exclusively through the Dispatcher bridge
-workflow above (`gemm_full_benchmark.py` / `run_one_gemm_kernel.py`). The other
-variants (`gemm_multi_d/`, `gemm_preshuffle/`, `grouped_gemm/`) still use the
-shared `gemm_instance_builder.py` generator.
-
-The build-system, build-instruction, and benchmark-execution sections below
-describe that removed standalone path and are retained only as historical
-reference for the non-bridged variants; the `benchmark_gemm_universal_*` targets
-they mention are no longer produced.
+The per-variant native builds — `CMakeLists.txt` + `*_instance_builder.py` +
+`*_benchmark*.{py,cpp,hpp}` producing `benchmark_<op>_*` executables — are
+**still present and still used**: the nightly `DISPATCHER_PERF` CI lane
+(`groovy/vars/ck.groovy`) builds `benchmark_<op>_all` with
+`-DBUILD_CK_TILE_ENGINE=ON` and runs each op's `*_benchmark.py`. This includes
+`gemm_universal/`. They will be removed once that lane runs on the bridge
+drivers. The sections below document that native path.
 
 ## Build System Architecture
 
@@ -222,12 +900,12 @@ The new tile engine benchmark system compiles each kernel configuration into a s
 
 Each benchmark executable follows the naming pattern:
 ```
-benchmark_gemm_<dtype>_<layout>_<config>_<tile_sizes>
+benchmark_gemm_universal_<dtype>_<layout>_<config>_<tile_sizes>
 ```
 
 ### Monolithic Build (Legacy Approach)
 
-The original system compiles all kernels into a single executable (`benchmark_gemm_[Datatype]_[Layout]`), which can then be filtered at runtime using command-line arguments.
+The original system compiles all kernels into a single executable (`benchmark_gemm_universal_[Datatype]_[Layout]`), which can then be filtered at runtime using command-line arguments.
 
 ## Build Instructions
 
@@ -246,10 +924,10 @@ mkdir build && cd build
 # Replace [Arch] with your GPU architecture (e.g., gfx90a, gfx942)
 # Replace [Datatype1;Datatype2;...] with datatypes (fp8, bf8, int8, fp16, bf16, fp32, fp64)
 # Replace [Layout1;Layout2;...] with layouts (rcr, rrr, crr, ccr)
-../script/cmake-ck-dev.sh ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" -DGEMM_LAYOUT="[Layout1;Layout2]"
+../script/cmake-ck-dev.sh ../ [Arch] -DBUILD_CK_TILE_ENGINE=ON -DGEMM_UNIVERSAL_DATATYPE="[Datatype1;Datatype2]" -DGEMM_UNIVERSAL_LAYOUT="[Layout1;Layout2]"
 
 # Build specific benchmarks
-make benchmark_gemm_[Datatype1]_[Layout1] -j
+make benchmark_gemm_universal_[Datatype1]_[Layout1] -j
 ```
 
 ### Configuration Options
@@ -259,16 +937,16 @@ The build system supports several configuration options:
 #### Using Custom Config Files
 ```bash
 # Method 1: CMake variable (config file must be in configs/ directory)
-cmake -DGEMM_CONFIG_FILE=my_custom_config.json ...
+cmake -DGEMM_UNIVERSAL_CONFIG_FILE=my_custom_config.json ...
 
 # Method 2: Environment variable (takes precedence over CMake variable)
-export GEMM_CONFIG_FILE=my_custom_config.json
+export GEMM_UNIVERSAL_CONFIG_FILE=my_custom_config.json
 cmake ...
 ```
 
 #### Config File Priority Order
-1. **Environment variable** `GEMM_CONFIG_FILE` (highest priority)
-2. **CMake variable** `GEMM_CONFIG_FILE`
+1. **Environment variable** `GEMM_UNIVERSAL_CONFIG_FILE` (highest priority)
+2. **CMake variable** `GEMM_UNIVERSAL_CONFIG_FILE`
 3. **Default config** (default_config.json for all layouts)
 
 **Note**: All custom config files must be placed in the `tile_engine/ops/gemm/configs/` directory.
@@ -278,7 +956,7 @@ cmake ...
 ```bash
 # Build for gfx942 with fp8 and fp16 datatypes, rcr layout
 mkdir build && cd build
-../script/cmake-ck-dev.sh ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" -DGEMM_LAYOUT="rcr;ccr;rrr;crr"
+../script/cmake-ck-dev.sh ../ gfx942 -DBUILD_CK_TILE_ENGINE=ON -DGEMM_UNIVERSAL_DATATYPE="fp8;fp16" -DGEMM_UNIVERSAL_LAYOUT="rcr;ccr;rrr;crr"
 make benchmark_gemm_universal_fp8_rcr -j
 make benchmark_gemm_universal_fp16_rcr -j
 ```
@@ -290,7 +968,7 @@ make benchmark_gemm_universal_fp16_rcr -j
 make benchmark_gemm_universal_fp8_rcr_compv4_default_intrawave_False_False_False_False_256x256x32_1x4x1_32x32x32
 
 # Build all fp16 benchmarks in parallel
-make -j$(nproc) $(make help | grep benchmark_gemm_fp16 | awk '{print $2}')
+make -j$(nproc) $(make help | grep benchmark_gemm_universal_fp16 | awk '{print $2}')
 ```
 
 ### Rebuilding After Configuration Changes
@@ -315,14 +993,6 @@ cd /path/to/build/directory
 ```bash
 # Run specific pipeline/scheduler/epilogue combination
 ./bin/benchmark_gemm_universal_[Datatype]_[Layout] -pipeline=compv3 -scheduler=intrawave -epilogue=default
-```
-
-### Automated Testing
-
-Use the provided test script to run multiple benchmarks:
-```bash
-cd /path/to/composable_kernel/tile_engine/ops/gemm
-./test_benchmark.sh [build_directory]
 ```
 
 ## Configuration System
@@ -379,20 +1049,13 @@ implementations based on configuration files.
 - Validates tile configurations for correctness
 - Creates CMake integration files
 
-#### gemm_instance_builder_parallel.py
-**Purpose**: Parallel version of the instance builder for faster generation of multiple kernel configurations.
-
-**Features**:
-- Multi-threaded kernel generation
-- Improved performance for large configuration spaces
-
-#### validation_utils.py
+#### gemm_validation_utils.py
 **Purpose**: Provides comprehensive validation functions for kernel configurations.
 
 **Key Functions**:
 - `is_tile_config_valid()` - Validates tile dimensions and alignments
 - `is_trait_combination_valid()` - Checks if pipeline/epilogue/scheduler combinations are supported
-- `validate_warp_tile_combination()` - GPU-specific warp tile validation
+- `validate_gemm_warp_tile_combination()` - GPU-specific warp tile validation
 - `validate_lds_capacity()` - Ensures configurations fit in LDS memory
 
 **Validation Checks**:
@@ -400,63 +1063,6 @@ implementations based on configuration files.
 - LDS capacity constraints
 - GPU-specific warp tile support
 - Unsupported trait combinations
-
-#### test_validation.py
-**Purpose**: Test suite for the validation logic to ensure correctness.
-
-**Usage**:
-```bash
-python test_validation.py
-```
-
-**Tests**:
-- Warp tile combination validation
-- Trait combination validation
-- Full tile configuration validation
-
-#### json_config.py
-**Purpose**: Configuration file parsing and management.
-
-**Features**:
-- JSON configuration loading
-- Default configuration handling
-- Configuration validation
-
-#### codegen_utils.py
-**Purpose**: Utility functions for code generation.
-
-**Features**:
-- Template processing
-- Code formatting utilities
-- File generation helpers
-
-### Shell Scripts
-
-#### test_benchmark.sh
-**Purpose**: Automated benchmark testing script that finds and runs all built benchmark executables.
-
-**Features**:
-- Automatic build directory detection
-- Batch execution of multiple benchmarks
-- CSV result collection
-- Colored output for easy reading
-- Example command generation
-
-**Usage**:
-```bash
-# Auto-detect build directory
-./test_benchmark.sh
-
-# Specify build directory
-./test_benchmark.sh /path/to/build/directory
-```
-
-**What it does**:
-1. Finds all benchmark executables in the build directory
-2. Runs each with multiple problem sizes (512, 1024, 2048)
-3. Performs GPU verification
-4. Saves results to timestamped CSV file
-5. Provides summary statistics
 
 ## Command Line Options
 
@@ -567,11 +1173,6 @@ Enable verbose logging:
 ./bin/benchmark_gemm_... -log=true -verify=1
 ```
 
-Test validation logic:
-```bash
-python test_validation.py
-```
-
 ## Performance Tips
 
 1. **Optimal Problem Sizes**: Use sizes that are multiples of tile dimensions
@@ -615,9 +1216,8 @@ done
 ## Contributing
 
 When adding new features or configurations:
-1. Update validation logic in `validation_utils.py`
-2. Add tests to `test_validation.py`
-3. Update configuration examples
-4. Document new command-line options
+1. Update validation logic in `gemm_validation_utils.py`
+2. Update configuration examples
+3. Document new command-line options
 
 For more information about the Composable Kernel project, visit the main repository documentation.
