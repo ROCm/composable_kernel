@@ -391,15 +391,25 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
         LSETileType lse_tile;
         DeltaTileType delta_tile;
 
+        // Raw (un-cast) LSE/delta tiles. They are loaded inside gemm_0's prologue hook (first
+        // m0 sub-iteration) so the buffer_loads fill the gap behind the gemm's prologue ds_loads,
+        // and cast to CompDataType only after the m0 loop, so no wait on the loads lands inside
+        // the gemm.
+        using LSERawTileType   = decltype(load_tile(lse_dram_window));
+        using DeltaRawTileType = decltype(load_tile(delta_dram_window));
+        LSERawTileType lse_raw_tile;
+        DeltaRawTileType delta_raw_tile;
+
+        const auto load_lse_delta = [&]() {
+            lse_raw_tile   = load_tile(lse_dram_window);
+            delta_raw_tile = load_tile(delta_dram_window);
+            move_tile_window(lse_dram_window, {kM0});
+            move_tile_window(delta_dram_window, {kM0});
+        };
+
         auto seqlen_q_curr = seqlen_q_start;
 
         auto main_loop_func = [&](auto i_buf) {
-            // Load LSE and delta for the full kM0 tile
-            lse_tile   = cast_tile<CompDataType>(load_tile(lse_dram_window));
-            delta_tile = cast_tile<CompDataType>(load_tile(delta_dram_window));
-            move_tile_window(lse_dram_window, {kM0});
-            move_tile_window(delta_dram_window, {kM0});
-
             // =======================================================================
             // Loop 1: Gemm0 (S = Q@K); prefetch Q to LDS
             // Loop 2: Gemm2 (dP = dO@V); prefetch dO to LDS
@@ -420,6 +430,9 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         load_tile_tdm(
                             tdm_config_q, q_lds_windows[i_buf][number<i_m0 + 1>{}], q_dram_window);
                         move_tile_window(q_dram_window, {kM0Sub, 0});
+                        // LSE and delta for the full kM0 tile, once per outer iteration
+                        if constexpr(i_m0 == 0)
+                            load_lse_delta();
                     };
                     gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile, load_q_tile);
 
@@ -439,6 +452,9 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         load_tile_tdm(
                             tdm_config_q, q_lds_windows[next_buf][number<0>{}], q_dram_window);
                         move_tile_window(q_dram_window, {kM0Sub, 0});
+                        // m0_loops == 1: this is also the first m0 sub-iteration
+                        if constexpr(i_m0 == 0)
+                            load_lse_delta();
                     };
                     gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile, load_q_tile);
 
@@ -473,6 +489,9 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         dp_tmp.get_thread_buffer()(number<j>{});
                 });
             });
+
+            lse_tile   = cast_tile<CompDataType>(lse_raw_tile);
+            delta_tile = cast_tile<CompDataType>(delta_raw_tile);
 
             // ---- Scale, optional bias, mask ----
             if constexpr(kHasBias)
