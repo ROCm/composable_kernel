@@ -426,7 +426,7 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                 // Gemm2: dpacc_tile = dO_sub @ V
                 if constexpr(i_m0 < m0_loops - 1)
                 {
-                    const auto load_q_tile = [&]() {
+                    const auto gemm_0_hook = [&]() {
                         load_tile_tdm(
                             tdm_config_q, q_lds_windows[i_buf][number<i_m0 + 1>{}], q_dram_window);
                         move_tile_window(q_dram_window, {kM0Sub, 0});
@@ -434,21 +434,21 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         if constexpr(i_m0 == 0)
                             load_lse_delta();
                     };
-                    gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile, load_q_tile);
+                    gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile, gemm_0_hook);
 
-                    const auto load_do_tile = [&]() {
+                    const auto gemm_2_hook = [&]() {
                         load_tile_tdm(tdm_config_do,
                                       do_lds_windows[i_buf][number<i_m0 + 1>{}],
                                       do_dram_window);
                         move_tile_window(do_dram_window, {kM0Sub, 0});
                     };
-                    gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile, load_do_tile);
+                    gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile, gemm_2_hook);
                 }
                 else
                 {
                     constexpr auto next_buf = number<1 - i_buf>{};
 
-                    const auto load_q_tile = [&]() {
+                    const auto gemm_0_hook = [&]() {
                         load_tile_tdm(
                             tdm_config_q, q_lds_windows[next_buf][number<0>{}], q_dram_window);
                         move_tile_window(q_dram_window, {kM0Sub, 0});
@@ -456,14 +456,14 @@ struct HstuAttentionWithSoftmaxBwdTdmTrLoadPipelineKRVRQS_dK_dV
                         if constexpr(i_m0 == 0)
                             load_lse_delta();
                     };
-                    gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile, load_q_tile);
+                    gemm_0(sacc_tile, q_lds_windows[i_buf][i_m0], k_tile, gemm_0_hook);
 
-                    const auto load_do_tile = [&]() {
+                    const auto gemm_2_hook = [&]() {
                         load_tile_tdm(
                             tdm_config_do, do_lds_windows[next_buf][number<0>{}], do_dram_window);
                         move_tile_window(do_dram_window, {kM0Sub, 0});
                     };
-                    gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile, load_do_tile);
+                    gemm_2(dpacc_tile, do_lds_windows[i_buf][i_m0], v_tile, gemm_2_hook);
                 }
 
                 auto s_tmp = cast_tile<CompDataType>(sacc_tile);
