@@ -1087,7 +1087,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             Problem::HstuAttentionTileSetting::kM0Sub / decltype(warp_gemm)::kM;
         constexpr index_t KIterPerWarp =
             Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kK;
-        constexpr index_t kTdmGemmPrefetchDepth = MIterPerWarp * KIterPerWarp / 2;
+        constexpr index_t kTdmGemmPrefetchDepth = (MIterPerWarp * KIterPerWarp > 4)
+                                                      ? MIterPerWarp * KIterPerWarp / 4
+                                                      : MIterPerWarp * KIterPerWarp / 2;
         constexpr index_t kTdmGemmStepsPerGroup = MIterPerWarp;
 
         return BlockGemmASmemBRegCRegTdmGroupPrefetchFullGemmKSliceGemmMWithPrologueHook<
@@ -1234,7 +1236,9 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             Problem::HstuAttentionTileSetting::kM0Sub / decltype(warp_gemm)::kM;
         constexpr index_t KIterPerWarp =
             Problem::HstuAttentionTileSetting::kQKHeaddim / decltype(warp_gemm)::kK;
-        constexpr index_t kTdmGemmPrefetchDepth = MIterPerWarp * KIterPerWarp / 2;
+        constexpr index_t kTdmGemmPrefetchDepth = (MIterPerWarp * KIterPerWarp > 4)
+                                                      ? MIterPerWarp * KIterPerWarp / 4
+                                                      : MIterPerWarp * KIterPerWarp / 2;
         constexpr index_t kTdmGemmStepsPerGroup = MIterPerWarp;
 
         return BlockGemmASmemBRegCRegTdmGroupPrefetchFullGemmKSliceGemmMWithPrologueHook<
