@@ -695,12 +695,15 @@ message(\"options:${{options}}\")
                 candidates = [k for k in family if _has_base_features(k)]
 
                 self.assertTrue(candidates)
-                # The kernel filter leaves the sink tokens as the only extra feature:
-                # every base instance has a sink twin.
+                # The kernel filter leaves the sink tokens as the only extra feature: every
+                # base instance on the decode and general tiles has a sink twin, the 64-row
+                # tile's none (qr_tdm_pingpong_tile_takes).
+                with_sink = [k for k in candidates if k.F_tile.F_bm0 != 64]
+                self.assertTrue(with_sink)
                 self.assertEqual(
-                    Counter(k.F_pipeline.F_sink for k in family)["t"], len(candidates)
+                    Counter(k.F_pipeline.F_sink for k in family)["t"], len(with_sink)
                 )
-                self.assertEqual(len(family), 2 * len(candidates))
+                self.assertEqual(len(family), len(candidates) + len(with_sink))
                 for kernel in family:
                     self.assertEqual(kernel.F_arch.name, "gfx125")
                     self.assertEqual(kernel.F_dtype, "bf16")
@@ -731,10 +734,19 @@ message(\"options:${{options}}\")
                     {k.F_mode for k in candidates},
                     {100: {"batch"}, 200: {"group"}, 600: {"batch", "group"}}[receipt],
                 )
-                # Each mode has its 16-, 64- and 128-row tile.
-                self.assertEqual(
-                    Counter(k.F_tile.F_bm0 for k in candidates),
-                    Counter({bm0: len(candidates) // 3 for bm0 in (16, 64, 128)}),
+                # Each mode has its 16-, 64- and 128-row tile; the 64-row one has no
+                # head-dim-padded instances (the general 128-row and the decode tile take
+                # those: qr_tdm_pingpong_tile_takes).
+                by_tile = Counter(k.F_tile.F_bm0 for k in candidates)
+                self.assertEqual(set(by_tile), {16, 64, 128})
+                self.assertEqual(by_tile[16], by_tile[128])
+                self.assertGreater(by_tile[128], by_tile[64])
+                self.assertFalse(
+                    [
+                        k
+                        for k in candidates
+                        if k.F_tile.F_bm0 == 64 and k.F_pipeline.F_dpad == "t"
+                    ]
                 )
 
     def test_tdm_unpadded_v_checks_the_v_row(self):
@@ -1100,7 +1112,8 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
             bm0=bm0,
             mask=mask,
             lse=lse,
-            spad="t" if mode == "group" else "f",
+            # (a padded head dim takes the fully padded instance: qr_tdm_pingpong_tile_takes)
+            spad="t" if mode == "group" or dpad == "t" else "f",
             dpad=dpad,
             sink=sink,
         )
@@ -1114,7 +1127,7 @@ class TestCompiledGfx125D192Dispatch(unittest.TestCase):
             bm0=64,
             mask="s_no",
             lse="f",
-            spad="t" if mode == "group" else "f",
+            spad="t" if mode == "group" or dpad == "t" else "f",
             dpad=dpad,
             sink="f",
         )
@@ -2270,7 +2283,8 @@ int main() {
         # d64 fp8 takes qr_tdm_pingpong's tiles at any query length, as fp16/bf16 do: 16
         # rows (decode, 256-key trips under 512 keys), 64 rows below 128, the 128-row tile
         # from 128 dense rows on; the smaller head dims of whole 8-element vectors on its
-        # padded instances; block scales of any q block and whole 32-key k/v blocks.
+        # general tile's fully padded instances; block scales of any q block and whole
+        # 32-key k/v blocks on its general and decode tiles (qr_tdm_pingpong_tile_takes).
         for (
             hdim_q,
             hdim_v,
@@ -2289,7 +2303,7 @@ int main() {
             (64, 64, pertensor, 0, False, 1, dict(bm0=16, bn0=256)),
             (64, 64, blockscale, 64, False, 128, dict(bm0=128)),
             (64, 64, blockscale, 128, False, 128, dict(bm0=128)),
-            (64, 64, blockscale, 96, False, 64, dict(bm0=64)),
+            (64, 64, blockscale, 96, False, 64, dict(bm0=128)),
         ):
             with self.subTest(
                 hdim_q=hdim_q,
@@ -2306,7 +2320,7 @@ int main() {
                     qscale="pertensor" if qscale == pertensor else "blockscale",
                     dpad="t" if padded else "f",
                     dvpad="t" if padded else "f",
-                    spad="f",
+                    spad="t" if padded else "f",
                 )
                 features.update(tile)
                 self.assertEqual(
@@ -2954,19 +2968,26 @@ int main() {
             [kernel(64)],
         )
         # The unpadded instance serves any seqlen_k, except with an elementwise bias,
-        # which still needs a tile multiple.
+        # which still needs a tile multiple. Bias, ALiBi and sink tokens run on the
+        # general 128-row tile (64-key trips: qr_tdm_pingpong_tile_takes).
         self.assertEqual(
-            run(**square, **big, bias=1), [kernel(128, skpad="t", bias="bias")]
+            run(**square, **big, bias=1), [kernel(128, skpad="t", bias="bias", bn0=64)]
         )
         self.assertEqual(
-            run(seqlen_q=532, seqlen_k=512, bias=1, **big), [kernel(128, bias="bias")]
+            run(seqlen_q=532, seqlen_k=512, bias=1, **big),
+            [kernel(128, bias="bias", bn0=64)],
         )
-        self.assertEqual(run(**square, **big, bias=2), [kernel(128, bias="alibi")])
+        self.assertEqual(
+            run(**square, **big, bias=2), [kernel(128, bias="alibi", bn0=64)]
+        )
         # sink tokens (their instances also take a sink pointer), and a sink pointer alone
         for grid in ({}, big):
-            self.assertEqual(run(**square, sink=1, **grid), [kernel(128, sink="t")])
             self.assertEqual(
-                run(**square, sink=1, has_sink_ptr=1, **grid), [kernel(128, sink="t")]
+                run(**square, sink=1, **grid), [kernel(128, sink="t", bn0=64)]
+            )
+            self.assertEqual(
+                run(**square, sink=1, has_sink_ptr=1, **grid),
+                [kernel(128, sink="t", bn0=64)],
             )
             self.assertEqual(run(**square, has_sink_ptr=1, **grid), [kernel(128)])
             self.assertEqual(
@@ -3147,10 +3168,12 @@ int main() {
                             mode="batch",
                             pipeline="qr_tdm_pingpong",
                             bm0=128,
-                            # fp16/bf16 d128: 128-key trips
-                            bn0=128 if dtype == "bf16" else 64,
+                            # fp16/bf16 d128: 128-key trips; a padded head dim takes the
+                            # general tile's fully padded instance
+                            # (qr_tdm_pingpong_tile_takes)
+                            bn0=128 if dtype == "bf16" and not padded else 64,
                             qscale="pertensor" if qscale else "no",
-                            spad="f",
+                            spad="t" if padded else "f",
                             dpad="t" if padded else "f",
                             dvpad="t" if padded else "f",
                         )
@@ -3172,8 +3195,9 @@ int main() {
 
     def test_fp8_block_scale_sizes(self):
         # fp8 pingpong block scales: any q block, k/v blocks of whole 32-key chunks, on
-        # every tile (no per-tile clause). On d128's small grids qr_tdm_fp8_sched takes
-        # q blocks of whole 128-row tiles first; pingpong the ones it refuses.
+        # its general and decode tiles (no per-tile clause; qr_tdm_pingpong_tile_takes).
+        # On d128's small grids qr_tdm_fp8_sched takes q blocks of whole 128-row tiles
+        # first; pingpong the ones it refuses.
         pool, kernels = get_fwd_blobs(
             ["gfx1250"],
             "fmha_fwd_d128_fp8_batch_*_nlogits_nbias_nmask_nlse_ndropout_nskip_"
@@ -3201,7 +3225,7 @@ int main() {
         for q_block, kv_block, seqlen_q, batch, expected in (
             (128, 96, 1024, big, 128),
             (48, 96, 1024, big, 128),
-            (16, 32, 100, big, 64),
+            (16, 32, 100, big, 128),
             (128, 96, 16, big, 16),
             (128, 48, 1024, big, None),
             (128, 48, 100, big, None),

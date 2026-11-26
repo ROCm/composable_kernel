@@ -1181,11 +1181,19 @@ def qr_tdm_pingpong_pipelines(
     ]
 
 
-def qr_tdm_pingpong_feature_pipelines(hdim_pair, mask_impl, qscales):
+def qr_tdm_pingpong_feature_pipelines(
+    hdim_pair,
+    mask_impl,
+    qscales,
+    biases=tuple(BIAS_MAP.keys()),
+    dropouts=("f", "t"),
+    vlayouts=("row", "col"),
+):
     """qr_tdm_pingpong's unpacked pipelines, the same features at either input width: logits
     soft cap, every mask (with the simplified masks, a causal band-mask kernel ahead of the
-    general one: no bias, sink tokens or dropout, and no finite window), bias and ALiBi,
-    LSE, sink tokens, dropout, row- and column-major V, at the given qscales."""
+    general one: no bias, sink tokens or dropout, and no finite window), the given biases,
+    LSE, sink tokens, the given dropouts and V layouts, at the given qscales. Which tiles
+    take the rarer combinations: qr_tdm_pingpong_tile_takes."""
     masks = list(get_mask_map(mask_impl))
     if mask_impl == "simplified":
         masks.insert(0, "causal")
@@ -1193,11 +1201,11 @@ def qr_tdm_pingpong_feature_pipelines(hdim_pair, mask_impl, qscales):
     for logits, mask, bias, lse, sink, dropout, vlayout, qscale in itertools.product(
         ["f", "t"],
         masks,
-        BIAS_MAP.keys(),
+        biases,
         ["t", "f"],
         ["t", "f"],
-        ["f", "t"],
-        ["row", "col"],
+        dropouts,
+        vlayouts,
         qscales,
     ):
         constraint = CppConstraint()
@@ -1222,6 +1230,36 @@ def qr_tdm_pingpong_feature_pipelines(hdim_pair, mask_impl, qscales):
             constraint,
         )
     return pipelines
+
+
+def qr_tdm_pingpong_tile_takes(tile, pipeline, dtype, hdim) -> bool:
+    """Whether a qr_tdm_pingpong tile takes an (unpacked) pipeline. The performance-tuned
+    tiles (the 16-row decode tiles, the 64-row tile, d128's 128-key-trip tile) take the
+    common calls; the rarer ones run on a dispatch's last, unguarded tile (its general
+    128- or 64-row tile, every call's fallback), so their instances do not multiply by the
+    tiles:
+    - bias or ALiBi, dropout and head-dim padding (where the tile's head dim is the call's)
+      also take the general decode tile (the 16-row one without a key-count guard);
+    - sink tokens and FP8's descales but per-tensor (none, per-head, block scale) also take
+      every decode tile;
+    - head-dim padding without sequence padding is generated only where the tile pads the
+      head dim itself (MX's staged head dims); elsewhere the fully padded instance serves it."""
+    fallback = str(tile.F_constraint) == "true"
+    decode = tile.F_bm0 == 16
+    general_decode = decode and "seqlen_k" not in str(tile.F_constraint)
+    p = pipeline
+    head_pad_only = p.F_dpad == "t" and p.F_spad == "f"
+    exact_head = tile.F_bk0max == hdim
+    if head_pad_only and exact_head:
+        return False
+    rare = p.F_bias != "no" or p.F_dropout == "t" or (p.F_dpad == "t" and exact_head)
+    if rare and not (fallback or general_decode):
+        return False
+    rare_decode = p.F_sink == "t" or (
+        dtype in KernelComponentFactoryGfx125._DT_FP8_FP8BF16
+        and p.F_qscale != "pertensor"
+    )
+    return not rare_decode or fallback or decode
 
 
 def qr_tdm_pingpong_packgqa_pipelines(hdim_pair, mask_impl, qscales):
@@ -2923,6 +2961,26 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                     and kernel_ctx.pipeline.F_dpad == "f"
                 ):
                     return False
+                # Packed GQA's head-dim padding only where the tile pads the head dim
+                # itself (as qr_tdm_pingpong_tile_takes)
+                if (
+                    kernel_ctx.pipeline.F_packgqa == "t"
+                    and kernel_ctx.pipeline.F_dpad == "t"
+                    and kernel_ctx.tile.F_bk0max == problem_ctx.hdim
+                ):
+                    return False
+                if (
+                    owner == "qr_tdm_pingpong"
+                    and kernel_ctx.pipeline.tag == owner
+                    and kernel_ctx.pipeline.F_packgqa != "t"
+                    and not qr_tdm_pingpong_tile_takes(
+                        kernel_ctx.tile,
+                        kernel_ctx.pipeline,
+                        problem_ctx.dtype,
+                        problem_ctx.hdim,
+                    )
+                ):
+                    return False
                 return kernel_ctx.pipeline.tag == owner
             return kernel_ctx.pipeline.tag not in cls._PIPELINES_WITH_OWN_TILES
 
@@ -3091,9 +3149,21 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             pipelines += qr_tdm_pingpong_packgqa_pipelines(
                 (hdim, hdim_v), mask_impl, qscales
             )
-            pipelines += qr_tdm_pingpong_feature_pipelines(
-                (hdim, hdim_v), mask_impl, qscales
-            )
+            # Row-major V as develop's qr_tdm (MX also column-major, its usual layout); FP8
+            # and MX also as develop: no ALiBi or dropout
+            if dtype in cls._DT_FP16_BF16:
+                pipelines += qr_tdm_pingpong_feature_pipelines(
+                    (hdim, hdim_v), mask_impl, qscales, vlayouts=("row",)
+                )
+            else:
+                pipelines += qr_tdm_pingpong_feature_pipelines(
+                    (hdim, hdim_v),
+                    mask_impl,
+                    qscales,
+                    biases=("no", "bias"),
+                    dropouts=("f",),
+                    vlayouts=("row", "col") if dtype in cls._DT_MXFP8 else ("row",),
+                )
         if dtype in cls._DT_FP16_BF16:
             pipelines += cls._kvshared_and_gdpa_pipelines(hdim, hdim_v, mask_impl)
         if dtype in cls._DT_MXFP8 and (hdim, hdim_v) in cls._QR_TDM_SCHED_MX_TILES:

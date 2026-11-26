@@ -593,7 +593,8 @@ TEST_P(QrTdmShortQuery, DataTypeConfig)
                                                    &selected_kernel);
         ASSERT_EQ(result, fwd_result::success);
         EXPECT_NE(selected_kernel.find("_qr_tdm_pingpong_"), std::string::npos) << selected_kernel;
-        EXPECT_NE(selected_kernel.find("_b16x64"), std::string::npos) << selected_kernel;
+        // the 16-row tile (128 or 256 keys a trip)
+        EXPECT_NE(selected_kernel.find("_b16x"), std::string::npos) << selected_kernel;
     }
 }
 
@@ -763,7 +764,11 @@ TEST_P(QrTdmPingPong, DataTypeConfig)
                                                    std::nullopt,
                                                    &selected_kernel);
         ASSERT_EQ(result, fwd_result::success);
-        EXPECT_NE(selected_kernel.find("_b64x"), std::string::npos) << selected_kernel;
+        // the 64-row tile; bias and ALiBi run on the general 128-row tile (codegen's
+        // qr_tdm_pingpong_tile_takes)
+        EXPECT_NE(selected_kernel.find(std::string(bias_str) == "n" ? "_b64x" : "_b128x"),
+                  std::string::npos)
+            << selected_kernel;
         EXPECT_NE(selected_kernel.find("_qr_tdm_pingpong_"), std::string::npos) << selected_kernel;
         EXPECT_NE(selected_kernel.find(tag), std::string::npos) << selected_kernel;
     }
@@ -781,7 +786,9 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                          // hdim_q, hdim_v, mask, bias, init_sink, name part
                          Values(std::tuple{128, 128, "0", "n", 1, "_sink"},
                                 std::tuple{128, 128, "t:50,64", "n", 1, "_sink"},
-                                std::tuple{120, 120, "2", "n", 0, "_pddv_"},
+                                // a padded head dim: the fully padded instance
+                                // (codegen's qr_tdm_pingpong_tile_takes)
+                                std::tuple{120, 120, "2", "n", 0, "_psskddv_"},
                                 std::tuple{128, 120, "0", "e", 0, "_psskddv_"}));
 
 TEST_P(QrTdmPingPongEdges, DataTypeConfig)
