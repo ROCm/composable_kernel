@@ -2028,7 +2028,17 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 move_tile_window(v_lds_read_window, VSeqOffset(-kK1 * (k1_loops - 1)));
             }
 
-            gemm_1_slice(number<k1_loops - 1>{}, v_tile);
+            // The persistent option's last tile: a slice wholly past seqlen_k (its P 0, V the
+            // transfer's fill) is skipped, its WMMAs a quarter of the trip's (d64, 193 and 386
+            // keys a batch: -2%). Skipping the QK warp gemms of such key blocks too split the
+            // trip's schedule at every block (+3%).
+            if constexpr(kPersistent && k1_loops > 1)
+            {
+                if(kv_tile_start + (k1_loops - 1) * kK1 < physical_seqlen_k_end)
+                    gemm_1_slice(number<k1_loops - 1>{}, v_tile);
+            }
+            else
+                gemm_1_slice(number<k1_loops - 1>{}, v_tile);
 
             // V reads run ahead as for K above.
             static_assert(Gemm1T::WarpGemm::kK * Gemm1T::KIterPerWarp * Gemm1T::KWarp == kK1,
