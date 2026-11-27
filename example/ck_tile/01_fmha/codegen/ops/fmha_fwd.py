@@ -2865,23 +2865,31 @@ def _gfx125_qr_tdm_pingpong_tiles(hdim_pair, fp8=False, mx=False):
 # loop, the next one's Q, K and V issued under the current one and its O stored without
 # waiting. For group mode's one-tile batches (max_seqlen_q <= 128), unmasked softmax at d64:
 # gfx1250, TCX's jagged attention (1152 batches x 2 heads of 128 queries, bf16): 1 key
-# 25 -> 21 us, 53 keys 29 -> 24, 193 keys 54 -> 48, 0..300 keys 28 -> 27; TCX3/4/5's jagged
-# attention -14% / -6% / -5%. Up to 512 keys (fmha_fwd_args::max_seqlen_k, 0 when unknown):
-# past them the plain tile's whole grid keeps up (772..1860 keys +2..6%).
+# 25 -> 21 us, 53 keys 29 -> 24, 193 keys 54 -> 48, 0..300 keys 28 -> 27. Up to 512 keys a
+# batch on average: past them the plain tile's whole grid keeps up (772..1860 keys +2..6%).
 # Its own occupancy (the trait's) keeps it apart from the plain 128-row tile.
 GFX125_QR_TDM_PINGPONG_PERSISTENT_HDIMS = ((64, 64),)
 GFX125_QR_TDM_PINGPONG_PERSISTENT_OCCUPANCY = 4
 GFX125_QR_TDM_PINGPONG_PERSISTENT_MAX_KEYS = 512
-GFX125_QR_TDM_PINGPONG_PERSISTENT = (
-    "a.max_seqlen_q <= 128 && a.max_seqlen_k > 0 && "
-    f"a.max_seqlen_k <= {GFX125_QR_TDM_PINGPONG_PERSISTENT_MAX_KEYS}"
+def _gfx125_persistent_keys(max_keys):
+    """Group mode's one-tile batches of at most max_keys keys on average: the total packed K
+    over the batches (fmha_fwd_args::max_seqlen_k is a caller's bound: TCX passes a bucket's,
+    200 for batches of 1 key), without logical length pointers."""
+    return (
+        "a.max_seqlen_q <= 128 && a.seqlen_k > 0 && "
+        f"a.seqlen_k <= {max_keys}LL * a.batch"
+        " && a.seqlen_k_ptr == nullptr && a.cu_seqlen_k_ptr == nullptr"
+    )
+
+
+GFX125_QR_TDM_PINGPONG_PERSISTENT = _gfx125_persistent_keys(
+    GFX125_QR_TDM_PINGPONG_PERSISTENT_MAX_KEYS
 )
 # Up to 32 keys it trips over 32 keys instead of 64: half the QK / PV WMMAs and softmax a
 # query tile (gfx1250, 1152 batches x 2 heads x 128 queries, 1..32 keys: 20 -> 16 us).
 GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW_KEYS = 32
-GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW = (
-    "a.max_seqlen_q <= 128 && a.max_seqlen_k > 0 && "
-    f"a.max_seqlen_k <= {GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW_KEYS}"
+GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW = _gfx125_persistent_keys(
+    GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW_KEYS
 )
 
 
