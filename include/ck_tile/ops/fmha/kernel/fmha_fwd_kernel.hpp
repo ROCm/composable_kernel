@@ -2180,6 +2180,13 @@ struct FmhaFwdKernel
     // (max_seqlen_q <= kM0), row-major V, the TDM's affine views.
     CK_TILE_DEVICE void run_persistent_(const Kargs& kargs) const
     {
+        // K and V without the near-cache allocation (see kKVCoherence): an item reads its K and
+        // V once, nothing reuses them (gfx1250, 99..386 keys a batch -3..6%)
+#if defined(__gfx125__)
+        constexpr auto kPersistentKVCoherence = amd_buffer_coherence_enum::NT_HT;
+#else
+        constexpr auto kPersistentKVCoherence = kKVCoherence;
+#endif
         if constexpr(detail::is_persistent_v<FmhaPipeline>)
         {
             static_assert(kIsGroupMode && kUsesTdmAffineDramPath &&
@@ -2255,7 +2262,7 @@ struct FmhaFwdKernel
                     number<1>{});
                 const auto k_dram = make_naive_tensor_view<address_space_enum::global,
                                                            memory_operation_enum::set,
-                                                           kKVCoherence>(
+                                                           kPersistentKVCoherence>(
                     k_ptr,
                     make_tuple(seqlen_k, ka.hdim_q),
                     make_tuple(ka.stride_k, 1),
@@ -2263,7 +2270,7 @@ struct FmhaFwdKernel
                     number<1>{});
                 const auto v_dram = make_naive_tensor_view<address_space_enum::global,
                                                            memory_operation_enum::set,
-                                                           kKVCoherence>(
+                                                           kPersistentKVCoherence>(
                     v_ptr,
                     make_tuple(seqlen_k, ka.hdim_v),
                     make_tuple(ka.stride_v, 1),
