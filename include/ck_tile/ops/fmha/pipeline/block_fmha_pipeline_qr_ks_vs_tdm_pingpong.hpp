@@ -843,8 +843,10 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                         });
                     return;
                 }
-                // no mask: the keys past seqlen_k of the tile that crosses it, by column only
-                if constexpr(!FmhaMask::IsMasking && !kHasSink)
+                // no mask, the persistent option (short key ranges, a masked tile an item): the keys
+                // past seqlen_k of the tile that crosses it, by column block (the plain tiles keep
+                // the per-score mask: their one masked trip in many does not pay the 14 VGPRs)
+                if constexpr(!FmhaMask::IsMasking && !kHasSink && kPersistent)
                 {
                     MaskColumns(s_acc, mask.GetXTotal() - k0);
                     return;
