@@ -1321,9 +1321,9 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 kM0);
             const index_t n =
                 min(kQTileCluster, num_tiles - i_tile / kQTileCluster * kQTileCluster);
-            const auto mask             = static_cast<uint16_t>(n > 1 ? (1u << n) - 1 : 0u);
-            tdm_config_k.workgroup_mask = mask;
-            tdm_config_v.workgroup_mask = mask;
+            const auto wg_mask          = static_cast<uint16_t>(n > 1 ? (1u << n) - 1 : 0u);
+            tdm_config_k.workgroup_mask = wg_mask;
+            tdm_config_v.workgroup_mask = wg_mask;
         }
 
         // Q tile in LDS
