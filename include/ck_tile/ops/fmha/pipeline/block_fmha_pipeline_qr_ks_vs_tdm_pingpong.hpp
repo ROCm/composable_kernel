@@ -843,6 +843,12 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                         });
                     return;
                 }
+                // no mask: the keys past seqlen_k of the tile that crosses it, by column only
+                if constexpr(!FmhaMask::IsMasking && !kHasSink)
+                {
+                    MaskColumns(s_acc, mask.GetXTotal() - k0);
+                    return;
+                }
                 const index_t q0 = OpaqueIndex(q_origin.at(I0));
                 if constexpr(detail::qr_tdm_band_mask<FmhaMask>::value && !kHasSink)
                 {
@@ -920,6 +926,63 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 if(out)
                     s_acc(idx) = -numeric<SMPLComputeDataType>::infinity();
             });
+        });
+    }
+
+    // -inf on the scores of the tile's columns c >= col_end (the keys past seqlen_k), as
+    // MaskBand takes the diagonal: a column is a lane part, taken once, opaque, plus a constant
+    // per register; the scores of a column (a lane's M iterations) share its compare.
+    template <typename SaccTile>
+    CK_TILE_DEVICE static void MaskColumns(SaccTile& s_acc, index_t col_end)
+    {
+        using Dstr           = remove_cvref_t<decltype(s_acc.get_tile_distribution())>;
+        constexpr auto spans = SaccTile::get_distributed_spans();
+        const auto partition = get_partition_index(Dstr{});
+        using Partition      = remove_cvref_t<decltype(partition)>;
+        constexpr Partition origin{};
+        index_t lane_part = 0;
+        sweep_tile_span(spans[I0], [&](auto idx0) {
+            sweep_tile_span(spans[I1], [&](auto idx1) {
+                constexpr auto idx = make_tuple(idx0, idx1);
+                constexpr index_t c =
+                    get_x_indices_from_distributed_indices(Dstr{}, idx, origin).at(I1);
+                lane_part =
+                    get_x_indices_from_distributed_indices(Dstr{}, idx, partition).at(I1) - c;
+            });
+        });
+        // a score is masked when lane_part + c >= col_end, i.e. c >= lim
+        index_t lim = col_end - lane_part;
+        asm volatile("" : "+v"(lim));
+        // The tile's columns in blocks of kMaskBlock: a block all at or past col_end is masked
+        // and a block all before it kept on one wave-uniform (scalar) test, and only the block
+        // col_end cuts takes a per-lane compare a score (d64 128-row tile at 53 keys: a quarter
+        // of the scores, where every score took a compare and a select). A score's block is
+        // its column's constant part (the lane part is below kMaskBlock).
+        constexpr index_t kMaskBlock = 16;
+        constexpr index_t kBlocks    = kN0 / kMaskBlock;
+        static_for<0, kBlocks, 1>{}([&](auto b) {
+            constexpr index_t lo = b * kMaskBlock;
+            const auto for_block = [&](auto f) {
+                // (a score's lane part stays within its block)
+                sweep_tile_span(spans[I0], [&](auto idx0) {
+                    sweep_tile_span(spans[I1], [&](auto idx1) {
+                        constexpr auto idx = make_tuple(idx0, idx1);
+                        constexpr index_t c =
+                            get_x_indices_from_distributed_indices(Dstr{}, idx, origin).at(I1);
+                        if constexpr(c >= lo && c < lo + kMaskBlock)
+                            f(idx, number<c>{});
+                    });
+                });
+            };
+            if(col_end <= lo)
+                for_block([&](auto idx, auto) {
+                    s_acc(idx) = -numeric<SMPLComputeDataType>::infinity();
+                });
+            else if(col_end < lo + kMaskBlock)
+                for_block([&](auto idx, auto c) {
+                    if(lim <= c.value)
+                        s_acc(idx) = -numeric<SMPLComputeDataType>::infinity();
+                });
         });
     }
 
@@ -1097,10 +1160,12 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                              FmhaMask::IsMasking)
                 {
-                    return l[i_idx] == 0.f ? 0.f : v_descale / l[i_idx];
+                    return l[i_idx] == 0.f ? 0.f : v_descale * __builtin_amdgcn_rcpf(l[i_idx]);
                 }
                 else
-                    return v_descale / l[i_idx];
+                    // the hardware reciprocal (1 ulp; O is rounded to 16 bits): the division
+                    // took the f32 divide sequence per row
+                    return v_descale * __builtin_amdgcn_rcpf(l[i_idx]);
             }();
             sweep_tile_span(o_spans[I1], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);

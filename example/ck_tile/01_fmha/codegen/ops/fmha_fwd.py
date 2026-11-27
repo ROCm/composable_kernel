@@ -2850,7 +2850,13 @@ def _gfx125_qr_tdm_pingpong_tiles(hdim_pair, fp8=False, mx=False):
             F_occupancy=GFX125_QR_TDM_PINGPONG_PERSISTENT_OCCUPANCY,
             F_persistent=True,
         )
-        tiles = tiles[:1] + (persistent,) + tiles[1:]
+        narrow = dataclasses.replace(
+            tile(128, GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW_KEYS,
+                 GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW),
+            F_occupancy=GFX125_QR_TDM_PINGPONG_PERSISTENT_OCCUPANCY,
+            F_persistent=True,
+        )
+        tiles = tiles[:1] + (narrow, persistent) + tiles[1:]
     return short_tiles + tiles
 
 
@@ -2869,6 +2875,13 @@ GFX125_QR_TDM_PINGPONG_PERSISTENT_MAX_KEYS = 512
 GFX125_QR_TDM_PINGPONG_PERSISTENT = (
     "a.max_seqlen_q <= 128 && a.max_seqlen_k > 0 && "
     f"a.max_seqlen_k <= {GFX125_QR_TDM_PINGPONG_PERSISTENT_MAX_KEYS}"
+)
+# Up to 32 keys it trips over 32 keys instead of 64: half the QK / PV WMMAs and softmax a
+# query tile (gfx1250, 1152 batches x 2 heads x 128 queries, 1..32 keys: 20 -> 16 us).
+GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW_KEYS = 32
+GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW = (
+    "a.max_seqlen_q <= 128 && a.max_seqlen_k > 0 && "
+    f"a.max_seqlen_k <= {GFX125_QR_TDM_PINGPONG_PERSISTENT_NARROW_KEYS}"
 )
 
 
