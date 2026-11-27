@@ -7,6 +7,7 @@ import itertools
 import json
 import os
 from collections import OrderedDict
+import dataclasses
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, ClassVar, Dict, Iterable, List, Optional, Tuple
@@ -1079,6 +1080,9 @@ class FmhaFwdTileSize:
     # The pipeline tag that owns this tile: an owned tile pairs with that pipeline
     # only (see check_tile_owner). None: any pipeline without tiles of its own.
     F_pipeline_tag: Optional[str] = None
+    # qr_tdm_pingpong's persistent option (BlockFmhaPipelineQRKSVSTdmPingPongPersistentPolicy,
+    # see GFX125_QR_TDM_PINGPONG_PERSISTENT)
+    F_persistent: bool = False
 
     @property
     def name(self) -> str:
@@ -1087,6 +1091,7 @@ class FmhaFwdTileSize:
             + f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}_r{self.F_rm1}x{self.F_rn1}x{self.F_rk1}"
             + f"_w{self.F_wm0}x{self.F_wn0}x{self.F_wk0}_w{self.F_wm1}x{self.F_wn1}x{self.F_wk1}"
             + ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
+            + ("_ps" if self.F_persistent else "")
         )
 
 
@@ -1522,6 +1527,8 @@ class FmhaFwdKernel:
                         if self._gdpa_q_loop()
                         else ", ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongClusterPolicy, "
                         if self._bq_cluster()
+                        else ", ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPersistentPolicy, "
+                        if self.F_tile.F_persistent
                         else ", ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPolicy, "
                     )
                     + "ck_tile::QrTdmPingPongLdsReadSchedule<"
@@ -2835,7 +2842,34 @@ def _gfx125_qr_tdm_pingpong_tiles(hdim_pair, fp8=False, mx=False):
                 hdim_pair, 128, 128, wide_slice, long_trips, k_row=k_row
             ),
         ) + tiles[1:]  # fmt: skip
+    if not fp8 and not mx and hdim_pair in GFX125_QR_TDM_PINGPONG_PERSISTENT_HDIMS:
+        # the persistent option of the 128-row tile, ahead of the 128-row tiles (behind the
+        # 64-row one, which takes the shorter queries)
+        persistent = dataclasses.replace(
+            tile(128, bn0, GFX125_QR_TDM_PINGPONG_PERSISTENT),
+            F_occupancy=GFX125_QR_TDM_PINGPONG_PERSISTENT_OCCUPANCY,
+            F_persistent=True,
+        )
+        tiles = tiles[:1] + (persistent,) + tiles[1:]
     return short_tiles + tiles
+
+
+# qr_tdm_pingpong's persistent option (BlockFmhaPipelineQRKSVSTdmPingPongPersistentPolicy):
+# a workgroup runs a few (batch, head) query tiles one after another, each through the main
+# loop, the next one's Q, K and V issued under the current one and its O stored without
+# waiting. For group mode's one-tile batches (max_seqlen_q <= 128), unmasked softmax at d64:
+# gfx1250, TCX's jagged attention (1152 batches x 2 heads of 128 queries, bf16): 1 key
+# 25 -> 21 us, 53 keys 29 -> 24, 193 keys 54 -> 48, 0..300 keys 28 -> 27; TCX3/4/5's jagged
+# attention -14% / -6% / -5%. Up to 512 keys (fmha_fwd_args::max_seqlen_k, 0 when unknown):
+# past them the plain tile's whole grid keeps up (772..1860 keys +2..6%).
+# Its own occupancy (the trait's) keeps it apart from the plain 128-row tile.
+GFX125_QR_TDM_PINGPONG_PERSISTENT_HDIMS = ((64, 64),)
+GFX125_QR_TDM_PINGPONG_PERSISTENT_OCCUPANCY = 4
+GFX125_QR_TDM_PINGPONG_PERSISTENT_MAX_KEYS = 512
+GFX125_QR_TDM_PINGPONG_PERSISTENT = (
+    "a.max_seqlen_q <= 128 && a.max_seqlen_k > 0 && "
+    f"a.max_seqlen_k <= {GFX125_QR_TDM_PINGPONG_PERSISTENT_MAX_KEYS}"
+)
 
 
 def _validate_gfx125_tile_dispatch_order(tile_dict):
@@ -3054,7 +3088,30 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             one_per_cu = p.F_bias == "bias" or problem_ctx.hdim == 256
             return kernel_ctx.tile.F_occupancy == (1 if one_per_cu else 2)
 
-        rules.extend([check_tile_owner, check_sched_tiles])
+        def check_persistent_tile(
+            problem_ctx: ProblemContext, kernel_ctx: KernelContext
+        ) -> bool:
+            # the persistent option: group mode's unmasked softmax, row-major V, nothing more
+            if not kernel_ctx.tile.F_persistent:
+                return True
+            p = kernel_ctx.pipeline
+            return (
+                problem_ctx.mode == "group"
+                and p.tag == "qr_tdm_pingpong"
+                and p.F_activation == "softmax"
+                and p.F_mask in ("no", "s_no")
+                and p.F_bias == "no"
+                and p.F_dropout == "f"
+                and p.F_logits == "f"
+                and p.F_sink == "f"
+                and p.F_skip == "f"
+                and p.F_qscale == "no"
+                and p.F_vlayout == "row"
+                and p.F_packgqa != "t"
+                and p.F_trload != "t"
+            )
+
+        rules.extend([check_tile_owner, check_sched_tiles, check_persistent_tile])
         return rules
 
     @staticmethod

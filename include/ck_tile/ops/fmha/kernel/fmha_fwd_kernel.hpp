@@ -58,6 +58,16 @@ inline constexpr index_t q_tile_cluster_v = [] {
         return index_t{0};
 }();
 
+// Persistent pipelines: a grid of a few workgroups a CU, each running RunItems over the
+// (batch, head) items first, first + grid size, ...
+template <typename Pipeline>
+inline constexpr bool is_persistent_v = [] {
+    if constexpr(requires { Pipeline::kPersistent; })
+        return Pipeline::kPersistent;
+    else
+        return false;
+}();
+
 // A helper struct for detecting n0loop
 template <typename T, typename = void>
 struct has_n0loop_flag : std::false_type
@@ -646,6 +656,8 @@ struct FmhaFwdKernel
         bool broadcast_q = false;
         // the batches' query and key lengths are about equal (see HasUniformSequenceLengths)
         bool uniform_seqlens = false;
+        // the batches (a persistent pipeline's items are num_batch x num_head_q)
+        ck_tile::index_t num_batch = 0;
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
@@ -1885,14 +1897,34 @@ struct FmhaFwdKernel
             return FmhaPipeline::kM0;
     }();
 
+    // the device's CUs, asked once
+    CK_TILE_HOST static ck_tile::index_t NumCus()
+    {
+        static const ck_tile::index_t num_cus = static_cast<ck_tile::index_t>(get_num_cus());
+        return num_cus;
+    }
+
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
                                                 ck_tile::index_t hdim_v_,
                                                 bool has_padded_seqlen_k = false)
     {
+        if constexpr(detail::is_persistent_v<FmhaPipeline>)
+        {
+            // kRounds workgroups a slot (kBlockPerCu a CU), the items split evenly between them
+            // (see run_persistent_): whole rounds, a slot of the last one never idle while
+            // another runs, and a few rounds to balance jagged batches
+            ignore = seqlen_q_;
+            ignore = hdim_v_;
+            ignore = has_padded_seqlen_k;
+            // (a multiple of the heads: workgroups w and w + 1 take the same batches' heads)
+            const ck_tile::index_t slots =
+                NumCus() * FmhaPipeline::kBlockPerCu * FmhaPipeline::kRounds;
+            return dim3(nhead_ * ck_tile::min(batch_size_, ck_tile::max(slots / nhead_, 1)));
+        }
         // has_padded_seqlen_k is determined by checking (seqlen_k_ptr != nullptr)
-        if(has_padded_seqlen_k)
+        else if(has_padded_seqlen_k)
         {
             // TODO: this may need tuning
             return dim3(nhead_,
@@ -2144,8 +2176,167 @@ struct FmhaFwdKernel
         }
     }
 
+    // A persistent pipeline (kPersistent): group mode, each item one (batch, head) query tile
+    // (max_seqlen_q <= kM0), row-major V, the TDM's affine views.
+    CK_TILE_DEVICE void run_persistent_(const Kargs& kargs) const
+    {
+        if constexpr(detail::is_persistent_v<FmhaPipeline>)
+        {
+            static_assert(kIsGroupMode && kUsesTdmAffineDramPath &&
+                              std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>,
+                          "the persistent pipeline: group mode, row-major V");
+            alignas(256) __shared__ char smem[GetSmemSize()];
+            // Workgroup w takes head w % num_head of a run of consecutive batches, the
+            // w / num_head-th (GridSize: kRounds workgroups a slot, the runs about equal). The
+            // workgroups of a run's heads start together and walk its batches in step, so the
+            // K and V rows they read (a key's heads side by side) come from HBM once, where a
+            // workgroup taking a batch's heads one after another read each row twice (d64, two
+            // heads: 25% longer trips at 930 keys). The hardware hands the workgroups out as
+            // others finish, which balances jagged batches.
+            const index_t num_head = kargs.num_head_q;
+            const index_t num_runs = static_cast<index_t>(gridDim.x) / num_head;
+            const index_t run      = static_cast<index_t>(blockIdx.x) / num_head;
+            const index_t i_nhead  = static_cast<index_t>(blockIdx.x) - run * num_head;
+            const index_t per_run  = integer_divide_ceil(kargs.num_batch, num_runs);
+            const index_t run_end  = min(kargs.num_batch, (run + 1) * per_run);
+            const bool lse_log2    = [&] {
+                if constexpr(kStoreLSE)
+                    return kargs.lse_log2;
+                else
+                    return false;
+            }();
+            // A part of the run, up to a wave's lanes less one of batches: lane l holds the
+            // query and key starts of batch part + l (and the last lane the end of the part's
+            // last batch), loaded at once. Loaded in the loop, past the items' stores, they would
+            // be vector loads (the compiler cannot tell the stores leave them alone), one a
+            // transfer to wait for.
+            constexpr index_t kPart = get_warp_size() - 1;
+            const index_t lane      = static_cast<index_t>(get_lane_id());
+            index_t part            = run * per_run;
+            index_t lane_q = 0, lane_k = 0;
+            // An item's views read the arguments again from the kernel's argument segment (its
+            // one argument), the pointer opaque to the compiler: kargs held in SGPRs across the
+            // items' main loops took 55 of them to spill there.
+            const auto item_views = [&](index_t j) {
+                using ConstantKargs = const __attribute__((address_space(4))) Kargs;
+                ConstantKargs* kp =
+                    __builtin_bit_cast(ConstantKargs*, __builtin_amdgcn_kernarg_segment_ptr());
+                asm volatile("" : "+s"(kp));
+                const Kargs ka = *kp;
+
+                const index_t q_start   = __builtin_amdgcn_readlane(lane_q, j);
+                const index_t k_start   = __builtin_amdgcn_readlane(lane_k, j);
+                const index_t seqlen_q  = __builtin_amdgcn_readlane(lane_q, j + 1) - q_start;
+                const index_t seqlen_k  = __builtin_amdgcn_readlane(lane_k, j + 1) - k_start;
+                const index_t i_nhead_k = i_nhead / ka.nhead_ratio_qk;
+                const QDataType* q_ptr =
+                    reinterpret_cast<const QDataType*>(ka.q_ptr) +
+                    static_cast<long_index_t>(i_nhead) * ka.nhead_stride_q +
+                    static_cast<long_index_t>(q_start) * ka.stride_q;
+                const KDataType* k_ptr =
+                    reinterpret_cast<const KDataType*>(ka.k_ptr) +
+                    static_cast<long_index_t>(i_nhead_k) * ka.nhead_stride_k +
+                    static_cast<long_index_t>(k_start) * ka.stride_k;
+                const VDataType* v_ptr =
+                    reinterpret_cast<const VDataType*>(ka.v_ptr) +
+                    static_cast<long_index_t>(i_nhead_k) * ka.nhead_stride_v +
+                    static_cast<long_index_t>(k_start) * ka.stride_v;
+                ODataType* o_ptr = reinterpret_cast<ODataType*>(ka.o_ptr) +
+                                   static_cast<long_index_t>(i_nhead) * ka.nhead_stride_o +
+                                   static_cast<long_index_t>(q_start) * ka.stride_o;
+
+                const auto q_dram = make_naive_tensor_view<address_space_enum::global,
+                                                           memory_operation_enum::set,
+                                                           amd_buffer_coherence_enum::SYSTEM_NT1>(
+                    q_ptr,
+                    make_tuple(seqlen_q, ka.hdim_q),
+                    make_tuple(ka.stride_q, 1),
+                    number<FmhaPipeline::kAlignmentQ>{},
+                    number<1>{});
+                const auto k_dram = make_naive_tensor_view<address_space_enum::global,
+                                                           memory_operation_enum::set,
+                                                           kKVCoherence>(
+                    k_ptr,
+                    make_tuple(seqlen_k, ka.hdim_q),
+                    make_tuple(ka.stride_k, 1),
+                    number<FmhaPipeline::kAlignmentK>{},
+                    number<1>{});
+                const auto v_dram = make_naive_tensor_view<address_space_enum::global,
+                                                           memory_operation_enum::set,
+                                                           kKVCoherence>(
+                    v_ptr,
+                    make_tuple(seqlen_k, ka.hdim_v),
+                    make_tuple(ka.stride_v, 1),
+                    number<FmhaPipeline::kAlignmentV>{},
+                    number<1>{});
+                const auto o_dram = make_naive_tensor_view<address_space_enum::global>(
+                    o_ptr,
+                    make_tuple(seqlen_q, ka.hdim_v),
+                    make_tuple(ka.stride_o, 1),
+                    number<FmhaPipeline::kAlignmentOacc>{},
+                    number<1>{});
+                auto lse_window = [&]() {
+                    constexpr auto lse_lengths = make_tuple(number<FmhaPipeline::kM0>{});
+                    if constexpr(kStoreLSE)
+                    {
+                        LSEDataType* lse_ptr =
+                            reinterpret_cast<LSEDataType*>(ka.lse_ptr) +
+                            static_cast<long_index_t>(i_nhead) * ka.nhead_stride_lse + q_start;
+                        const auto lse_dram = pad_tensor_view(
+                            make_naive_tensor_view<address_space_enum::global>(
+                                lse_ptr, make_tuple(seqlen_q), make_tuple(1), number<1>{}, number<1>{}),
+                            lse_lengths,
+                            sequence<true>{});
+                        return make_tile_window(lse_dram, lse_lengths, {0});
+                    }
+                    else
+                        return make_null_tile_window(lse_lengths);
+                }();
+                return ck_tile::make_tuple(
+                    seqlen_q,
+                    seqlen_k,
+                    make_tile_window(q_dram,
+                                     make_tuple(number<FmhaPipeline::kM0>{},
+                                                number<FmhaPipeline::kSubQKHeaddim>{}),
+                                     {0, 0}),
+                    make_tile_window(
+                        k_dram,
+                        make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                        {0, 0}),
+                    make_tile_window(
+                        v_dram,
+                        make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
+                        {0, 0}),
+                    make_tile_window(
+                        o_dram,
+                        make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
+                        {0, 0}),
+                    lse_window);
+            };
+            for(; part < run_end; part += kPart)
+            {
+                const index_t num_local = min(run_end - part, kPart);
+                if(lane <= num_local)
+                {
+                    lane_q = kargs.seqstart_q_ptr[part + lane];
+                    lane_k = kargs.seqstart_k_ptr[part + lane];
+                }
+                FmhaPipeline{}.RunItems(num_local, item_views, kargs.scale_s, lse_log2, smem);
+                // every wave done with the arena before the next part's transfers
+                block_sync_lds();
+            }
+        }
+        else
+            ignore = kargs;
+    }
+
     CK_TILE_DEVICE void run_(Kargs kargs) const
     {
+        if constexpr(detail::is_persistent_v<FmhaPipeline>)
+        {
+            run_persistent_(kargs);
+            return;
+        }
         // Pipelines with native row-major V consume (seqlen, hdim_v) windows
         // without the explicit DRAM transpose used by the generic path.
         if constexpr(!kUsesUntransposedVKernelPath)

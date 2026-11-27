@@ -920,6 +920,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
     {
         kargs.broadcast_q     = args.broadcast_q;
         kargs.uniform_seqlens = args.uniform_seqlens;
+        kargs.num_batch       = args.batch;
         if(args.broadcast_q)
             kargs.seqlen_q = args.max_seqlen_q; // the Q block's rows
         dim3 grids = FmhaKernel::GridSize(

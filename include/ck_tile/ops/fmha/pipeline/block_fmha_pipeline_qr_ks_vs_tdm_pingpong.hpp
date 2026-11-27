@@ -83,6 +83,18 @@ template <typename Problem_,
           typename LdsReadSchedule_ = QrTdmPingPongLdsReadSchedule<>>
 struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_, Policy_>
 {
+    // A query tile's transfers carried over from the tile before it, in a loop over tiles
+    // (the persistent option, RunItems). The default runs the tile on its own.
+    // With kEnabled the tile's Q (in an LDS region of its own, Layout::kQOffset), first K tile
+    // (K buffer parity()) and first V tile (V buffer parity()) are in flight when it starts; it
+    // issues the next tile's Q once every wave read its own (issue_next_q), and in its last trip
+    // the next tile's first K and V into the buffers it frees (issue_next_k / issue_next_v).
+    struct NoCarry
+    {
+        static constexpr bool kEnabled = false;
+        CK_TILE_DEVICE static constexpr index_t parity() { return 0; }
+    };
+
     using Base            = BlockFmhaPipelineQRKSVSTdm<Problem_, Policy_>;
     using LdsReadSchedule = remove_cvref_t<LdsReadSchedule_>;
 
@@ -315,7 +327,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
     // (kThreeWavesNoReadAhead), two to d128.
     // The decode tile's registers are budgeted for two blocks a CU (see the codegen's decode
     // tile), qr_tdm's three to d64.
-    static constexpr index_t kBlockPerCu = []() {
+    static constexpr index_t kBlockPerCuTile = []() {
         if constexpr(BlockFmhaShape::kM0 <= 16)
             return max(index_t{2}, Base::kBlockPerCu);
         else if constexpr(kMxWidePv && kQKHeaddim <= 128)
@@ -336,6 +348,31 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         else
             return Base::kBlockPerCu;
     }();
+    // (the persistent option's arena takes Q and O apart: as many as fit a WGP's LDS)
+    static constexpr index_t kBlockPerCu = [] {
+        if constexpr(requires { Policy::kPersistent; })
+            return min(kBlockPerCuTile, index_t{320 * 1024 / Layout::kArenaBytes});
+        else
+            return kBlockPerCuTile;
+    }();
+
+    // The persistent option (BlockFmhaPipelineQRKSVSTdmPingPongPersistentPolicy): FmhaFwdKernel
+    // runs RunItems over a workgroup's items.
+    static constexpr bool kPersistent = [] {
+        if constexpr(requires { Policy::kPersistent; })
+            return Policy::kPersistent;
+        else
+            return false;
+    }();
+    static constexpr index_t kRounds = [] {
+        if constexpr(requires { Policy::kRounds; })
+            return Policy::kRounds;
+        else
+            return index_t{1};
+    }();
+    static_assert(!kPersistent || (Base::kIsSoftmax && !FmhaMask::IsMasking && kDoubleV &&
+                                   kUsesUntransposedVKernelPath),
+                  "qr_tdm_pingpong: the persistent option takes the unmasked double-V tile");
 
     // A row's thread-buffer offsets (where the tile distribution puts its elements), in
     // ascending order.
@@ -1079,7 +1116,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding,
               typename RandValDramBlockWindowTmp = std::nullptr_t,
-              typename Dropout                   = NullBlockDropout>
+              typename Dropout                   = NullBlockDropout,
+              typename Carry                     = NoCarry>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
                const KDramBlockWindowTmp& k_dram_block_window_tmp,
@@ -1098,8 +1136,12 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                Dropout dropout                                         = {},
                QuantScaleArgs quant_scale_args                         = {},
                index_t num_splits                                      = 1,
-               index_t i_split                                         = 0) const
+               index_t i_split                                         = 0,
+               Carry carry                                             = {}) const
     {
+        static_assert(!Carry::kEnabled || (kDoubleV && !kSingleK && !Layout::kQOnBothV &&
+                                           !kHasSink && !QuantScales::kStagesTrips),
+                      "qr_tdm_pingpong: carried transfers take the double-V tile, Q apart");
         static_assert(Base::kIsSoftmax,
                       "qr_tdm_pingpong: softmax only (GDPA runs on qr_tdm_gdpa_qloop)");
 
@@ -1239,7 +1281,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                              {0, 0},
                              Policy::template MakeQRegTileDistribution<Problem>());
 
-        load_tile_tdm(tdm_config_q, q_lds_store_window, q_dram_window);
+        if constexpr(!Carry::kEnabled)
+            load_tile_tdm(tdm_config_q, q_lds_store_window, q_dram_window);
 
         // K tile in LDS
         // For sink: kv_load_start is 0 when there are sink tokens (we start
@@ -1286,7 +1329,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                              Policy::template MakeKRegTileDistribution<Problem>());
 
         // issued while Q is still in flight
-        load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
+        if constexpr(!Carry::kEnabled)
+            load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
 
         // S tile in LDS, only used where gemm_0's warps on N exchange S (kExchangeS)
         auto s_lds = make_tensor_view<address_space_enum::lds>(
@@ -1327,9 +1371,18 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         if constexpr(kDoubleV && !Layout::kQOnBothV)
         {
             // V0 does not overlap Q, which sits on V1
-            load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
-            move_tile_window(v_dram_window, VSeqOffset(kN0));
-            s_wait_tensorcnt_barrier<2>();
+            if constexpr(Carry::kEnabled)
+            {
+                // the carried Q, K_0 and V_0 landed
+                move_tile_window(v_dram_window, VSeqOffset(kN0));
+                s_wait_tensorcnt_barrier<0>();
+            }
+            else
+            {
+                load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
+                move_tile_window(v_dram_window, VSeqOffset(kN0));
+                s_wait_tensorcnt_barrier<2>();
+            }
         }
         else
             s_wait_tensorcnt_barrier<1>();
@@ -1382,7 +1435,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
         const auto run_trip = [&](auto edge_trip) {
             constexpr bool kEdgeTrip = decltype(edge_trip)::value;
             // trip i reads K buffer (i & 1) and stages trip i+1 into the other
-            const bool k_buf_is_even     = ((i_total_loops & 1) == 0);
+            const bool k_buf_is_even     = (((i_total_loops + carry.parity()) & 1) == 0);
             KDataType* const k_read_ptr  = k_buf_is_even ? k_smem_buf0 : k_smem_buf1;
             KDataType* const k_write_ptr = k_buf_is_even ? k_smem_buf1 : k_smem_buf0;
             const bool has_next_tile     = i_total_loops + 1 < num_total_loop;
@@ -1398,6 +1451,12 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             // (and this trip's staged scales, which the barrier makes visible)
             QuantScales::WaitTrip(i_total_loops + 1 >= num_total_loop);
             s_wait_tensorcnt_barrier<0, 0>();
+            // every wave holds its Q: the region takes the next tile's
+            if constexpr(Carry::kEnabled)
+            {
+                if(i_total_loops == 0)
+                    carry.issue_next_q();
+            }
             quant_scales.ReadTrip(i_total_loops, trip_start(i_total_loops));
 
             // K is whole in LDS; the kK0 slices are walked by the read window. With
@@ -1426,6 +1485,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                     load_tile_tdm(tdm_config_v, v_lds_write_window, v_dram_window);
                     move_tile_window(v_dram_window, VSeqOffset(kN0));
                 }
+                else if constexpr(Carry::kEnabled)
+                    carry.issue_next_v(k_buf_is_even ? v_smem_buf1 : v_smem_buf0);
                 v_lds_read_window.set_bottom_tensor_view_data_ptr(k_buf_is_even ? v_smem_buf0
                                                                                 : v_smem_buf1);
             }
@@ -1452,6 +1513,8 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                     k_lds_write_window.set_bottom_tensor_view_data_ptr(k_write_ptr);
                     load_tile_tdm(tdm_config_k, k_lds_write_window, k_dram_window);
                 }
+                else if constexpr(Carry::kEnabled)
+                    carry.issue_next_k(k_write_ptr);
             };
             if constexpr(!kSingleK)
                 issue_next_k();
@@ -2024,6 +2087,241 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
 
         NormalizeO(o_acc, l, quant_scales.O());
         return o_acc;
+    }
+
+    // 16-byte vectors along an O row, each wave the rows it holds in the O tile (OAccTile)
+    template <typename OAccTile>
+    CK_TILE_DEVICE static constexpr auto MakeOCopyDistribution()
+    {
+        using OEncoding           = typename OAccTile::StaticTileDistribution::DstrEncode;
+        constexpr index_t kMIter  = OEncoding::hs_lengthss_[number<0>{}][number<0>{}];
+        constexpr index_t kMWarp  = OEncoding::hs_lengthss_[number<0>{}][number<1>{}];
+        constexpr index_t kWarpM  = kM0 / (kMIter * kMWarp);
+        constexpr index_t kVec    = Layout::kOVec;
+        constexpr index_t kLanesN = kN1 / kVec;
+        constexpr index_t kLanesM = get_warp_size() / kLanesN;
+        static_assert(OEncoding::ps_to_rhss_major_[number<0>{}][number<0>{}] == 1 &&
+                          OEncoding::ps_to_rhss_minor_[number<0>{}][number<0>{}] == 1,
+                      "the wave index selects the M warp of the O tile");
+        static_assert(kN1 % kVec == 0 && get_warp_size() % kLanesN == 0 && kWarpM % kLanesM == 0);
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<kMIter, kMWarp, kWarpM / kLanesM, kLanesM>,
+                                             sequence<kLanesN, kVec>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<3, 0>>,
+                                       sequence<1, 1, 2>,
+                                       sequence<0, 2, 1>>{});
+    }
+
+    // An item without keys: O is 0, stored from registers (nothing to wait for)
+    template <typename OAccTile, typename ODramWindow>
+    CK_TILE_DEVICE static void StoreZeroOTile(ODramWindow& o_dram_window)
+    {
+        using ODataType = remove_cvref_t<typename ODramWindow::DataType>;
+        auto window     = make_tile_window(o_dram_window, MakeOCopyDistribution<OAccTile>());
+        auto zero = make_static_distributed_tensor<ODataType>(MakeOCopyDistribution<OAccTile>());
+        clear_tile(zero);
+        store_tile(window, zero);
+    }
+
+    // An item's O: staged in LDS (o_lds) and copied out with async_store_tile_from_lds, each
+    // wave its own rows (so a wave waits on its own LDS writes only). The copy is in flight on
+    // return (ASYNCcnt).
+    template <typename ODramWindow, typename OAccTile>
+    CK_TILE_DEVICE static void
+    StoreOTile(ODramWindow& o_dram_window, const OAccTile& o_acc_tile, void* o_lds)
+    {
+        using ODataType = remove_cvref_t<typename ODramWindow::DataType>;
+        auto o_lds_view = make_tensor_view<address_space_enum::lds>(
+            static_cast<ODataType*>(o_lds),
+            make_naive_tensor_descriptor(make_tuple(number<kM0>{}, number<kN1>{}),
+                                         make_tuple(number<Layout::kORowStride>{}, number<1>{}),
+                                         number<Layout::kOVec>{},
+                                         number<1>{}));
+        auto o_lds_write_window = make_tile_window(o_lds_view,
+                                                   make_tuple(number<kM0>{}, number<kN1>{}),
+                                                   {0, 0},
+                                                   o_acc_tile.get_tile_distribution());
+        auto o_lds_copy_window  = make_tile_window(o_lds_view,
+                                                  make_tuple(number<kM0>{}, number<kN1>{}),
+                                                  {0, 0},
+                                                  MakeOCopyDistribution<OAccTile>());
+        store_tile(o_lds_write_window, cast_tile<ODataType>(o_acc_tile));
+        s_wait_dscnt<0>();
+        const auto o_lengths =
+            o_dram_window.get_bottom_tensor_view().get_tensor_descriptor().get_lengths();
+        if(kM0 <= o_lengths[number<0>{}] && kN1 <= o_lengths[number<1>{}])
+            async_store_tile_from_lds(o_dram_window, o_lds_copy_window, bool_constant<false>{});
+        else
+            async_store_tile_from_lds(o_dram_window, o_lds_copy_window);
+    }
+
+    // RunItems' Carry (see operator()): the next item's transfers (issue_q / issue_k / issue_v)
+    template <typename IssueQ, typename IssueK, typename IssueV>
+    struct ItemCarry
+    {
+        static constexpr bool kEnabled = true;
+        index_t parity_;
+        const IssueQ& issue_q;
+        const IssueK& issue_k;
+        const IssueV& issue_v;
+        CK_TILE_DEVICE index_t parity() const { return parity_; }
+        CK_TILE_DEVICE void issue_next_q() const { issue_q(); }
+        CK_TILE_DEVICE void issue_next_k(KDataType* buf) const { issue_k(buf); }
+        CK_TILE_DEVICE void issue_next_v(VDataType* buf) const { issue_v(buf); }
+    };
+
+    // The workgroup's items are 0 .. num_items - 1 (FmhaFwdKernel maps them to its (batch,
+    // head) pairs; their lengths and offsets are in registers). item_views(item) gives an item's
+    // (seqlen_q, seqlen_k, Q, K, V, O, LSE) windows: Q (kM0, kSubQKHeaddim), K (kN0, kK0), V
+    // (kN1, kK1), O (kM0, kN1) and LSE (kM0), at the item's first row and key, over its
+    // seqlen_q rows and seqlen_k keys.
+    template <typename ItemViews>
+    CK_TILE_DEVICE void RunItems(index_t num_items,
+                                 const ItemViews& item_views,
+                                 float scale_s,
+                                 bool lse_log2,
+                                 void* smem_arena) const
+    {
+        using OAccTile = decltype(Policy::template GetPVBlockGemm<Problem>().MakeCBlockTile());
+        static_assert(kPersistent, "qr_tdm_pingpong: RunItems takes the persistent policy");
+        using RowTile  = decltype(block_tile_reduce<SMPLComputeDataType>(
+            OAccTile{}, sequence<1>{}, [](auto a, auto b) { return max(a, b); },
+            SMPLComputeDataType{0}));
+        char* const arena = static_cast<char*>(smem_arena);
+        void* const o_lds = arena + Layout::kOOffset;
+
+        const auto seqlen_k_of = [&](index_t item) { return item_views(item).at(number<1>{}); };
+
+        // items without keys: O 0, LSE -inf (log of an empty sum)
+        bool any_keys = false;
+        for(index_t item = 0; item < num_items; ++item)
+        {
+            if(seqlen_k_of(item) > 0)
+            {
+                any_keys = true;
+                continue;
+            }
+            auto views = item_views(item);
+            StoreZeroOTile<OAccTile>(views.at(number<5>{}));
+            if constexpr(kStoreLSE)
+            {
+                auto m = RowTile{};
+                auto l = RowTile{};
+                set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+                clear_tile(l);
+                StoreLse(views.at(number<6>{}), m, l, scale_s, lse_log2);
+            }
+        }
+        if(!any_keys)
+            return;
+        // the next item with keys after `item`, num_items past the last
+        const auto next_item = [&](index_t item) {
+            do
+            {
+                ++item;
+            } while(item < num_items && seqlen_k_of(item) <= 0);
+            return min(item, num_items);
+        };
+
+        // the transfers of an item's Q and first K and V tiles, into Q's region and the given
+        // K and V buffers (as qr_tdm_pingpong's prologue issues them)
+        const TDMConfig tdm_config_q =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigQ<Problem>>();
+        const TDMConfig tdm_config_k =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigK<Problem>>();
+        const TDMConfig tdm_config_v =
+            detail::make_tdm_config<typename Policy::template LdsPaddingConfigV<Problem>>();
+        auto q_lds_window = make_tile_window(
+            make_tensor_view<address_space_enum::lds>(
+                reinterpret_cast<QDataType*>(arena + Layout::kQOffset),
+                Policy::template MakeQLdsBlockDescriptor<Problem>()),
+            Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+            {0, 0});
+        auto k_lds_window = make_tile_window(
+            make_tensor_view<address_space_enum::lds>(
+                reinterpret_cast<KDataType*>(arena + Layout::kK0Offset),
+                Policy::template MakeKLdsBlockDescriptor<Problem>()),
+            Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(),
+            {0, 0});
+        auto v_lds_window = make_tile_window(
+            make_tensor_view<address_space_enum::lds>(
+                reinterpret_cast<VDataType*>(arena + Layout::kV0Offset),
+                Policy::template MakeVLdsBlockDescriptor<Problem>()),
+            Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(),
+            {0, 0});
+        index_t next = num_items; // the item the carried transfers are for
+        const auto issue_q = [&]() {
+            if(next < num_items)
+            {
+                auto window = make_tile_window(item_views(next).at(number<2>{}),
+                                               Policy::template MakeQDramTileDistribution<Problem>());
+                load_tile_tdm(tdm_config_q, q_lds_window, window);
+            }
+        };
+        const auto issue_k = [&](KDataType* buf) {
+            if(next < num_items)
+            {
+                auto window =
+                    make_tile_window(item_views(next).at(number<3>{}),
+                                     {0, 0},
+                                     Policy::template MakeKDramTileDistribution<Problem, true>());
+                k_lds_window.set_bottom_tensor_view_data_ptr(buf);
+                load_tile_tdm(tdm_config_k, k_lds_window, window);
+            }
+        };
+        const auto issue_v = [&](VDataType* buf) {
+            if(next < num_items)
+            {
+                auto window = make_tile_window(item_views(next).at(number<4>{}),
+                                               VSeqOffset(0),
+                                               Policy::template MakeVDramTileDistribution<Problem>());
+                v_lds_window.set_bottom_tensor_view_data_ptr(buf);
+                load_tile_tdm(tdm_config_v, v_lds_window, window);
+            }
+        };
+
+        // the first item's transfers, into K and V buffer 0
+        index_t item = seqlen_k_of(0) > 0 ? 0 : next_item(0);
+        next         = item;
+        issue_q();
+        issue_k(reinterpret_cast<KDataType*>(arena + Layout::kK0Offset));
+        issue_v(reinterpret_cast<VDataType*>(arena + Layout::kV0Offset));
+        index_t parity = 0;
+        do
+        {
+            next       = next_item(item);
+            auto views = item_views(item);
+            auto lse   = views.at(number<6>{});
+            const ItemCarry<decltype(issue_q), decltype(issue_k), decltype(issue_v)> carry{
+                parity, issue_q, issue_k, issue_v};
+            auto o_acc = (*this)(
+                views.at(number<2>{}),
+                views.at(number<3>{}),
+                views.at(number<4>{}),
+                make_null_tile_window(make_tuple(number<kM0>{}, number<kN0>{})),
+                lse,
+                FmhaMask{views.at(number<0>{}), views.at(number<1>{})},
+                EmptyPositionEncoding<SaccDataType>{},
+                scale_s,
+                smem_arena,
+                -numeric<float>::infinity(),
+                lse_log2,
+                0.f,
+                0.f,
+                nullptr,
+                NullBlockDropout{},
+                QuantScaleArgs{},
+                1,
+                0,
+                carry);
+            s_wait_asynccnt<0>(); // the last item's O copy out of the region
+            StoreOTile(views.at(number<5>{}), o_acc, o_lds);
+            parity = (parity + integer_divide_ceil(views.at(number<1>{}), kN0)) & 1;
+            item   = next;
+        } while(item < num_items);
+        s_wait_asynccnt<0>();
     }
 
     // The kernel's other LDS argument order (see FmhaFwdKernel).

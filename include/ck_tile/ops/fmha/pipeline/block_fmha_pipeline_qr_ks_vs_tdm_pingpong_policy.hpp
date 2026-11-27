@@ -225,6 +225,35 @@ struct QrTdmPingPongLdsArenaLayout
     static_assert(kArenaBytes <= kArenaBudget);
 };
 
+// The persistent option's arena (BlockFmhaPipelineQRKSVSTdmPingPongPersistentPolicy):
+// qr_tdm_pingpong's (K0, K1, S, V0, V1) with Q in a region of its own instead of on V1, and a
+// region for O behind it: the next item's Q is issued as soon as every wave holds the
+// current one, and a finished item's O is copied out of its region under the next item.
+template <typename Problem, typename QPadding, typename KPadding, typename VPadding>
+struct QrTdmPingPongPersistentLdsArenaLayout
+    : QrTdmPingPongLdsArenaLayout<Problem, QPadding, KPadding, VPadding>
+{
+    using PingPong = QrTdmPingPongLdsArenaLayout<Problem, QPadding, KPadding, VPadding>;
+    using Shape    = typename Problem::BlockFmhaShape;
+    using ODataType = typename Problem::ODataType;
+
+    static constexpr bool kQOnBothV   = false;
+    static constexpr index_t kQOffset = integer_least_multiple(
+        PingPong::kV1Offset + PingPong::kVBytes, PingPong::kRegionAlignment);
+    // O: kM0 rows of kN1 values, a row's bytes padded to 32 past a multiple of 128 (the O
+    // tile's 16-byte LDS writes then spread over the banks), as the GDPA q-loop stages it
+    static constexpr index_t kOVec      = 16 / static_cast<index_t>(sizeof(ODataType));
+    static constexpr index_t kORowBytes = Shape::kN1 * static_cast<index_t>(sizeof(ODataType));
+    static constexpr index_t kORowStride =
+        (kORowBytes + ((32 - kORowBytes) % 128 + 128) % 128) /
+        static_cast<index_t>(sizeof(ODataType));
+    static constexpr index_t kOBytes =
+        Shape::kM0 * kORowStride * static_cast<index_t>(sizeof(ODataType));
+    static constexpr index_t kOOffset =
+        integer_least_multiple(kQOffset + PingPong::kQBytes, PingPong::kRegionAlignment);
+    static constexpr index_t kArenaBytes = integer_least_multiple(kOOffset + kOBytes, 1024);
+};
+
 } // namespace detail
 
 // qr_tdm_pingpong: the qr_tdm policy with whole-tile K staged in two buffers (one on the
@@ -340,6 +369,32 @@ struct BlockFmhaPipelineQRKSVSTdmPingPongPolicy : BlockFmhaPipelineQRKSVSTdmDefa
 struct BlockFmhaPipelineQRKSVSTdmPingPongClusterPolicy : BlockFmhaPipelineQRKSVSTdmPingPongPolicy
 {
     static constexpr index_t kQTileCluster = 4;
+};
+
+// qr_tdm_pingpong, persistent: FmhaFwdKernel runs a workgroup's items (a batch's query tile of up
+// to kM0 rows, one head) one after another through qr_tdm_pingpong's main loop
+// (BlockFmhaPipelineQRKSVSTdmPingPong::RunItems), the transfers carried across the items: the
+// next item's Q goes out once every wave holds the current one, the current item's last trip
+// issues the next item's first K and V, and an item's O leaves through LDS, not waited for.
+// With few keys an item (TCX's jagged attention: 128 queries over 1 .. 2000 keys) a workgroup per
+// item spent most of its time starting (the kernel arguments, the first transfers) and finishing
+// (waiting for its O store) rather than in its gemms. Unmasked softmax, group mode, an item's
+// query rows one tile (max_seqlen_q <= kM0).
+struct BlockFmhaPipelineQRKSVSTdmPingPongPersistentPolicy : BlockFmhaPipelineQRKSVSTdmPingPongPolicy
+{
+    static constexpr bool kPersistent = true;
+    // rounds of workgroups a slot (FmhaFwdKernel::GridSize): whole rounds, and a few of them to
+    // balance jagged batches
+    // (gfx1250, TCX's jagged attention: one round to four within 2%; two the best on jagged
+    // batches)
+    static constexpr index_t kRounds = 2;
+
+    template <typename Problem,
+              typename QPadding = LdsPaddingConfigQ<Problem>,
+              typename KPadding = LdsPaddingConfigK<Problem>,
+              typename VPadding = LdsPaddingConfigV<Problem>>
+    using LdsArenaLayout =
+        detail::QrTdmPingPongPersistentLdsArenaLayout<Problem, QPadding, KPadding, VPadding>;
 };
 
 } // namespace ck_tile
