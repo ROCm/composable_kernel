@@ -924,7 +924,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
         if(args.broadcast_q)
             kargs.seqlen_q = args.max_seqlen_q; // the Q block's rows
         dim3 grids = FmhaKernel::GridSize(
-            args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr);
+            args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.seqlen_k_ptr != nullptr,
+            args.seqlen_k / ck_tile::max(args.batch, 1));
         return ck_tile::make_tuple(kargs, grids);
     }
     else if constexpr(FmhaKernel::kMergeNumHeadGroupsSeqLenQ)

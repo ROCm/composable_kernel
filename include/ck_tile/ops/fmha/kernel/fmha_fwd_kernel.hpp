@@ -1908,7 +1908,8 @@ struct FmhaFwdKernel
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
                                                 ck_tile::index_t hdim_v_,
-                                                bool has_padded_seqlen_k = false)
+                                                bool has_padded_seqlen_k         = false,
+                                                ck_tile::index_t keys_per_batch_ = 0)
     {
         if constexpr(detail::is_persistent_v<FmhaPipeline>)
         {
@@ -1919,8 +1920,12 @@ struct FmhaFwdKernel
             ignore = hdim_v_;
             ignore = has_padded_seqlen_k;
             // (a multiple of the heads: workgroups w and w + 1 take the same batches' heads)
-            const ck_tile::index_t slots =
-                NumCus() * FmhaPipeline::kBlockPerCu * FmhaPipeline::kRounds;
+            // Past 128 keys a batch (keys_per_batch_, the average) a round more balances the
+            // slots better (d64, lengths uniform in 1..400 and 1..800: -1.3%, -3.2%); shorter
+            // items keep two (one more round's starts cost what it balances).
+            const ck_tile::index_t rounds =
+                FmhaPipeline::kRounds + (keys_per_batch_ > 128 ? 1 : 0);
+            const ck_tile::index_t slots = NumCus() * FmhaPipeline::kBlockPerCu * rounds;
             return dim3(nhead_ * ck_tile::min(batch_size_, ck_tile::max(slots / nhead_, 1)));
         }
         // has_padded_seqlen_k is determined by checking (seqlen_k_ptr != nullptr)
