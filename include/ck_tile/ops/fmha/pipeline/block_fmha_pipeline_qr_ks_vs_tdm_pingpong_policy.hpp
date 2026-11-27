@@ -334,4 +334,12 @@ struct BlockFmhaPipelineQRKSVSTdmPingPongPolicy : BlockFmhaPipelineQRKSVSTdmDefa
     }
 };
 
+// A broadcast Q block's query tiles of a (batch, head) launched as one cluster (grid y), up to
+// kQTileCluster: each K / V transfer goes to all of them at once (TDM workgroup_mask), so the keys
+// are read once for the cluster. Without a mask (every tile walks the same key tiles).
+struct BlockFmhaPipelineQRKSVSTdmPingPongClusterPolicy : BlockFmhaPipelineQRKSVSTdmPingPongPolicy
+{
+    static constexpr index_t kQTileCluster = 4;
+};
+
 } // namespace ck_tile

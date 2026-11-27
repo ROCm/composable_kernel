@@ -175,6 +175,16 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
 
     using Layout                   = typename Policy::template LdsArenaLayout<Problem>;
     static constexpr bool kDoubleV = Layout::kDoubleV;
+    // a broadcast Q block's query tiles in clusters of this many, multicasting K / V (0: none;
+    // BlockFmhaPipelineQRKSVSTdmPingPongClusterPolicy)
+    static constexpr index_t kQTileCluster = [] {
+        if constexpr(requires { Policy::kQTileCluster; })
+            return Policy::kQTileCluster;
+        else
+            return index_t{0};
+    }();
+    static_assert(kQTileCluster == 0 || !FmhaMask::IsMasking,
+                  "a cluster's tiles walk the same key tiles");
     // one K buffer (Layout::kSingleK): K_{i+1} is issued past trip i's QK gemm
     static constexpr bool kSingleK = Layout::kSingleK;
     static_assert(!kSingleK || !kDoubleV, "one K buffer takes the single-V trip schedule");
@@ -654,7 +664,7 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
                                                    lse_acc.get_tile_distribution(), i_idx)
                                                    .at(I0),
                                         args.rows - 1);
-                lse_acc(i_idx) = fmha_lse_from_natural(
+                lse_acc(i_idx)       = fmha_lse_from_natural(
                     args.sink != nullptr ? args.sink[row / args.rows_per_head] : sink_v * scale_s,
                     lse_log2);
             });
@@ -1190,6 +1200,22 @@ struct BlockFmhaPipelineQRKSVSTdmPingPong : BlockFmhaPipelineQRKSVSTdm<Problem_,
             detail::make_tdm_config<typename Policy::template LdsPaddingConfigK<Problem>>();
         TDMConfig tdm_config_v =
             detail::make_tdm_config<typename Policy::template LdsPaddingConfigV<Problem>>();
+        if constexpr(kQTileCluster > 0)
+        {
+            // the cluster's tiles with query rows (cluster-local id: the tile's place in its
+            // group of kQTileCluster) take each K / V transfer at once
+            const index_t i_tile =
+                q_dram_block_window_tmp.get_window_origin().at(number<0>{}) / kM0;
+            const index_t num_tiles = integer_divide_ceil(
+                q_dram_block_window_tmp.get_bottom_tensor_view().get_tensor_descriptor().get_length(
+                    number<0>{}),
+                kM0);
+            const index_t n =
+                min(kQTileCluster, num_tiles - i_tile / kQTileCluster * kQTileCluster);
+            const auto mask             = static_cast<uint16_t>(n > 1 ? (1u << n) - 1 : 0u);
+            tdm_config_k.workgroup_mask = mask;
+            tdm_config_v.workgroup_mask = mask;
+        }
 
         // Q tile in LDS
         auto q_dram_window = make_tile_window(

@@ -49,6 +49,15 @@ inline constexpr bool is_q_tile_loop_v = [] {
         return false;
 }();
 
+// Pipelines whose query tiles run in clusters of this many along grid y (0: none)
+template <typename Pipeline>
+inline constexpr index_t q_tile_cluster_v = [] {
+    if constexpr(requires { Pipeline::kQTileCluster; })
+        return index_t{Pipeline::kQTileCluster};
+    else
+        return index_t{0};
+}();
+
 // A helper struct for detecting n0loop
 template <typename T, typename = void>
 struct has_n0loop_flag : std::false_type
@@ -1677,8 +1686,20 @@ struct FmhaFwdKernel
         }
     }
 
+    // a (batch, head)'s query tiles of a broadcast Q block in clusters (grid y): no K padding
+    // lengths, one hdim_v tile
+    static constexpr index_t kQTileCluster = detail::q_tile_cluster_v<FmhaPipeline>;
+
     CK_TILE_HOST static bool IsSupportedArgument([[maybe_unused]] const Kargs& kargs)
     {
+        if constexpr(kQTileCluster > 0)
+        {
+            static_assert(kIsGroupMode);
+            if(!kargs.broadcast_q || kargs.seqlen_k_ptr != nullptr ||
+               kargs.cu_seqlen_q_ptr != nullptr || kargs.cu_seqlen_k_ptr != nullptr ||
+               kargs.hdim_v > FmhaPipeline::kN1)
+                return false;
+        }
         if constexpr(kStoreLSE && !kStoresLseLog2)
         {
             if(kargs.lse_log2)
@@ -1879,6 +1900,14 @@ struct FmhaFwdKernel
                         ck_tile::integer_divide_ceil(seqlen_q_, kGridM0) *
                             ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1));
         }
+        else if constexpr(kQTileCluster > 0)
+        {
+            // whole clusters of query tiles (the tiles past seqlen_q return)
+            return dim3(nhead_,
+                        ck_tile::integer_least_multiple(
+                            ck_tile::integer_divide_ceil(seqlen_q_, kGridM0), kQTileCluster),
+                        batch_size_);
+        }
         else
         {
             // TODO: this may need tuning
@@ -1914,6 +1943,15 @@ struct FmhaFwdKernel
 
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
+        // a cluster is a (batch, head)'s query tiles, grid y (GridSize)
+        if constexpr(kQTileCluster > 0)
+        {
+            ignore = kargs;
+            return ck_tile::make_tuple(amd_wave_read_first_lane(static_cast<index_t>(blockIdx.y)),
+                                       index_t{0},
+                                       amd_wave_read_first_lane(static_cast<index_t>(blockIdx.x)),
+                                       amd_wave_read_first_lane(static_cast<index_t>(blockIdx.z)));
+        }
         bool has_padded_seqlen_k = false;
         if constexpr(kIsGroupMode)
             has_padded_seqlen_k = kargs.seqlen_k_ptr != nullptr;

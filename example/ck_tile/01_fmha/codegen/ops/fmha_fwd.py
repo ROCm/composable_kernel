@@ -191,7 +191,7 @@ float fmha_fwd_<trait, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_a
     }}
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs));
+    return ck_tile::launch_kernel(s, {F_make_kernel});
 }}
 
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
@@ -1416,6 +1416,19 @@ class FmhaFwdKernel:
             and self.F_tile.F_occupancy == GFX125_GDPA_RESIDENT_OCCUPANCY
         )
 
+    # broadcast_q's cluster tile (GFX125_BQ_CLUSTER): BlockFmhaPipelineQRKSVSTdmPingPongClusterPolicy,
+    # launched in clusters
+    def _bq_cluster(self):
+        return (
+            self.F_pipeline.tag == "qr_tdm_pingpong"
+            and self.F_pipeline.F_activation == "softmax"
+            and self.F_tile.F_occupancy == GFX125_BQ_CLUSTER_OCCUPANCY
+            and self.F_tile.F_bm0 == 128
+            and self.F_tile.F_bn0 == 128
+            and self.F_hdim == 128
+            and self.F_mode == "group"
+        )
+
     def render(self) -> str:
         is_packgqa = self.F_pipeline.F_packgqa == "t"
         body = (
@@ -1467,6 +1480,12 @@ class FmhaFwdKernel:
             F_qscale=QSCALE_MAP[self.F_pipeline.F_qscale],
             F_skip=BOOL_MAP[self.F_pipeline.F_skip],
             F_occupancy=self.F_tile.F_occupancy,
+            F_make_kernel=(
+                f"ck_tile::make_kernel_in_clusters<kBlockPerCu, {self.F_arch.tag}>(k_{{}}, "
+                "dim3(1, k_::kQTileCluster, 1), grids, blocks, 0, kargs)"
+                if self._bq_cluster()
+                else f"ck_tile::make_kernel<kBlockPerCu, {self.F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs)"
+            ),
             F_occupancy_contract=(
                 "    static_assert(fmha_pipeline_problem::kBlockPerCu == k_::kBlockPerCu,\n"
                 f'                  "{self.F_pipeline.tag} codegen occupancy must match '
@@ -1501,6 +1520,8 @@ class FmhaFwdKernel:
                         if self._gdpa_resident()
                         else ", ck_tile::BlockFmhaPipelineQRKSVSTdmGdpaQLoopPolicy, "
                         if self._gdpa_q_loop()
+                        else ", ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongClusterPolicy, "
+                        if self._bq_cluster()
                         else ", ck_tile::BlockFmhaPipelineQRKSVSTdmPingPongPolicy, "
                     )
                     + "ck_tile::QrTdmPingPongLdsReadSchedule<"
@@ -2612,6 +2633,17 @@ GFX125_GDPA_TILE_OWNER = "gdpa"
 # at least two workgroups a WGP (a workgroup takes a WGP whole); the streaming q-loop otherwise. gfx1250, 768 batches x 256 keys, at the power limit: 12288 queries a batch (TCX7/8)
 # 2.86 -> 2.53 ms, 5252 (TCX6) 1.26 -> 1.11 ms.
 GFX125_GDPA_RESIDENT_OCCUPANCY = 1
+# broadcast_q (one Q block every batch shares) on qr_tdm_pingpong's 128-row 128-key tile, its
+# 2 to 4 query tiles of a (batch, head) in one cluster that multicasts each K / V transfer
+# (BlockFmhaPipelineQRKSVSTdmPingPongClusterPolicy): the keys are read once for them. The
+# occupancy (the tile's own, 2) marks the cluster instance. No mask, bias, dropout, sinks, soft
+# cap or K padding lengths (every tile of a cluster walks the same keys). gfx1250 TCX7/8
+# (768 batches x 3 heads, 512 queries over 12288 keys, d128 bf16): -2..-3.6%.
+GFX125_BQ_CLUSTER_OCCUPANCY = 2
+GFX125_BQ_CLUSTER = (
+    "a.broadcast_q && a.max_seqlen_q > 128 && a.max_seqlen_q <= 512 && "
+    "a.seqlen_k_ptr == nullptr && a.cu_seqlen_q_ptr == nullptr && a.cu_seqlen_k_ptr == nullptr"
+)
 GFX125_GDPA_RESIDENT_MAX_KEYS = 384
 GFX125_GDPA_RESIDENT_ROWS = 128 * 96
 GFX125_GDPA_RESIDENT = (
@@ -2969,6 +3001,28 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                     and kernel_ctx.tile.F_bk0max == problem_ctx.hdim
                 ):
                     return False
+                # broadcast_q's cluster tile: group mode's plain call (lse or not)
+                if kernel_ctx.tile.F_occupancy == GFX125_BQ_CLUSTER_OCCUPANCY and (
+                    owner == "qr_tdm_pingpong"
+                ):
+                    p = kernel_ctx.pipeline
+                    if not (
+                        problem_ctx.mode == "group"
+                        and problem_ctx.dtype in ("fp16", "bf16")
+                        and p.tag == owner
+                        and p.F_mask in ("no", "s_no")
+                        and p.F_bias == "no"
+                        and p.F_dropout == "f"
+                        and p.F_logits == "f"
+                        and p.F_sink == "f"
+                        and p.F_skip == "f"
+                        and p.F_packgqa != "t"
+                        and p.F_vlayout == "row"
+                        and (p.F_spad, p.F_skpad, p.F_dpad, p.F_dvpad)
+                        == ("t", "t", "f", "f")
+                    ):
+                        return False
+                    return True
                 if (
                     owner == "qr_tdm_pingpong"
                     and kernel_ctx.pipeline.tag == owner
@@ -3039,6 +3093,22 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                 # GDPA's own tile (GFX125_GDPA_TILE_OWNER) joins d128's
                 for h, kv_tiles in cls._kvshared_tiles().items():
                     tiles[h] = kv_tiles + tiles[h]
+                # broadcast_q's cluster tile ahead of d128's 128-row 128-key one
+                d128 = tiles[(128, 128)]
+                i = next(
+                    i
+                    for i, t in enumerate(d128)
+                    if (t.F_bm0, t.F_bn0, t.F_pipeline_tag)
+                    == (128, 128, "qr_tdm_pingpong")
+                )
+                d128.insert(
+                    i,
+                    replace(
+                        d128[i],
+                        F_occupancy=GFX125_BQ_CLUSTER_OCCUPANCY,
+                        F_constraint=CppConstraint(GFX125_BQ_CLUSTER),
+                    ),
+                )
                 tiles[(128, 128)].append(
                     FmhaFwdTileSize(
                         128,

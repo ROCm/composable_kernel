@@ -213,6 +213,7 @@ struct fmha_fwd_args {
     const void* sink_ptr = nullptr;
     const void* seqlen_k_ptr = nullptr;
     const void* cu_seqlen_k_ptr = nullptr;
+    const void* cu_seqlen_q_ptr = nullptr;
     const void* k_ptr = nullptr;
     const void* v_ptr = nullptr;
     int stride_k = 256, stride_v = 256, nhead_stride_k = 128, nhead_stride_v = 128;
@@ -373,10 +374,13 @@ class _CompiledDispatcher:
                 return getattr(kernel.F_tile, "F_" + name)
             if name == "pipeline":
                 return kernel.F_pipeline.tag
+            if name == "bq_cluster":
+                return kernel._bq_cluster()
             return getattr(kernel.F_pipeline, "F_" + name)
 
-        # Unless a field says otherwise, expect the base-feature variant.
-        fields = {**_BASE_FEATURES, **fields}
+        # Unless a field says otherwise, expect the base-feature variant (not broadcast_q's
+        # cluster instance).
+        fields = {**_BASE_FEATURES, "bq_cluster": False, **fields}
         fields.setdefault(
             "activation", "softmax"
         )  # GDPA instances share the other traits
@@ -2059,11 +2063,17 @@ class TestGfx125V128Codegen(unittest.TestCase):
                 expected = (
                     [t.name for t in factory._kvshared_tiles()[(128, 128)] if fp16_bf16]
                     + [
-                        t.name
+                        name
                         for t in _gfx125_qr_tdm_pingpong_tiles(
                             (128, 128),
                             fp8=dtype in ("fp8", "fp8bf16"),
                             mx=dtype.startswith("mx"),
+                        )
+                        # broadcast_q's cluster tile ahead of the 128-key 128-row one
+                        for name in (
+                            [t.name + "_o2", t.name]
+                            if fp16_bf16 and (t.F_bm0, t.F_bn0) == (128, 128)
+                            else [t.name]
                         )
                     ]
                     + (
@@ -3088,6 +3098,7 @@ int main() {
                 if k.F_mode == "group"
                 and k.F_pipeline.F_skip == "f"
                 and k.F_pipeline.tag == "qr_tdm_pingpong"
+                and not k._bq_cluster()  # broadcast_q's cluster instance has no skip
             },
         )
         dispatch = _CompiledDispatcher(self, pool, kernels)
@@ -3625,13 +3636,17 @@ class TestGfx125GdpaCodegen(unittest.TestCase):
             with self.subTest(kernel=kernel.name):
                 body = kernel.render()
                 self.assertTrue(body.startswith("#define CK_TILE_WARP_TEAM_SIZE 4\n"))
-                self.assertIn("ck_tile::BlockFmhaPipelineQRKSVSTdmGdpaResidentPolicy", body)
+                self.assertIn(
+                    "ck_tile::BlockFmhaPipelineQRKSVSTdmGdpaResidentPolicy", body
+                )
                 self.assertIn("a.max_seqlen_k <= 384", str(kernel.F_tile.F_constraint))
         for kernel in stream:
             with self.subTest(kernel=kernel.name):
                 body = kernel.render()
                 self.assertNotIn("CK_TILE_WARP_TEAM_SIZE", body)
-                self.assertIn("ck_tile::BlockFmhaPipelineQRKSVSTdmGdpaQLoopPolicy", body)
+                self.assertIn(
+                    "ck_tile::BlockFmhaPipelineQRKSVSTdmGdpaQLoopPolicy", body
+                )
 
 
 class TestCompiledGfx125GdpaDispatch(unittest.TestCase):
@@ -3772,7 +3787,24 @@ class TestCompiledGfx125ForwardOptionDispatch(unittest.TestCase):
         )
         group = dispatch.run(group=1, **self.SHAPE)
         self.assertGreaterEqual(group[0], 0)
-        self.assertEqual(dispatch.run(group=1, broadcast_q=1, **self.SHAPE), group)
+        # a broadcast Q block of 2 to 4 query tiles takes the cluster instance (GFX125_BQ_CLUSTER)
+        (cluster,) = dispatch.run(group=1, broadcast_q=1, **self.SHAPE)
+        self.assertEqual(
+            cluster,
+            dispatch.expected_id(
+                mode="group",
+                hdim=128,
+                bm0=128,
+                bn0=128,
+                mask="s_no",
+                lse="f",
+                bq_cluster=True,
+            ),
+        )
+        self.assertEqual(
+            dispatch.run(group=1, broadcast_q=1, **{**self.SHAPE, "seqlen_q": 1024}),
+            dispatch.run(group=1, **{**self.SHAPE, "seqlen_q": 1024}),
+        )
         self.assertGreaterEqual(dispatch.run(**self.SHAPE)[0], 0)
         self.assertLess(dispatch.run(broadcast_q=1, **self.SHAPE)[0], 0)
 
