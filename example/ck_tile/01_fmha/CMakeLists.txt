@@ -49,11 +49,9 @@ set_directory_properties(PROPERTIES CMAKE_CONFIGURE_DEPENDS "${CODE_GEN_SCRIPTS}
 
 list(JOIN INST_TARGETS , FMHA_TARGETS_ARG)
 
-# Select the fwd --optdim head-dim list by architecture. gfx125x (QR-TDM) adds
-# 96/160/192; other archs keep the shared develop list. generate.py applies
-# --optdim uniformly across all --targets, so a mixed gfx9x + gfx125x build would
-# leak the gfx125x-only head dims into the gfx9/gfx11/gfx12 generic QR factories
-# (which also define 96/160/192 tiles). Disallow mixing so the list stays correct.
+# Select the fwd and bwd --optdim lists by architecture. Since generate.py applies
+# one list to all --targets, disallow mixing gfx125x with other architectures
+# to avoid generating head dims outside each architecture's intended defaults.
 set(FMHA_FWD_HAS_GFX125 FALSE)
 set(FMHA_FWD_HAS_NON_GFX125 FALSE)
 foreach(inst_target ${INST_TARGETS})
@@ -65,14 +63,27 @@ foreach(inst_target ${INST_TARGETS})
 endforeach()
 if(FMHA_FWD_HAS_GFX125 AND FMHA_FWD_HAS_NON_GFX125)
   message(FATAL_ERROR "CK Tile FMHA: gfx125x cannot be built together with other archs "
-                      "(the fwd --optdim head-dim list differs per arch). INST_TARGETS: ${INST_TARGETS}")
+                      "(the fwd/bwd --optdim head-dim lists differ per arch). INST_TARGETS: ${INST_TARGETS}")
 endif()
-# Keep the optdim baseline in test/ck_tile/fmha/test_fmha_fwd_codegen.py in
-# sync when either list changes -- it asserts on the exact gfx125 value.
-if(FMHA_FWD_HAS_GFX125)
-  set(FMHA_FWD_OPTDIM 32,64,96,128,160,192,256,512)
-else()
-  set(FMHA_FWD_OPTDIM 32,64,80,128,256)
+# Keep the gfx125 fwd default in sync with the optdim baseline in
+# test/ck_tile/fmha/test_fmha_fwd_codegen.py.
+set(FMHA_FWD_OPTDIM "" CACHE STRING
+  "Comma-separated head dimensions for all FMHA forward APIs; empty uses arch defaults; -1 enables all")
+if(FMHA_FWD_OPTDIM STREQUAL "")
+  if(FMHA_FWD_HAS_GFX125)
+    set(FMHA_FWD_OPTDIM 64,128,192,256)
+  else()
+    set(FMHA_FWD_OPTDIM 32,64,80,128,256)
+  endif()
+endif()
+set(FMHA_BWD_OPTDIM "" CACHE STRING
+  "Comma-separated head dimensions for FMHA backward; empty uses arch defaults; -1 enables all")
+if(FMHA_BWD_OPTDIM STREQUAL "")
+  if(FMHA_FWD_HAS_GFX125)
+    set(FMHA_BWD_OPTDIM 64,128,256)
+  else()
+    set(FMHA_BWD_OPTDIM 32,64,96,128,256)
+  endif()
 endif()
 
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
@@ -91,18 +102,20 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   --targets ${FMHA_TARGETS_ARG}
   --api bwd
   --receipt ${FMHA_BWD_CODEGEN_RECEIPT}
-  --optdim 32,64,96,128,256
+  --optdim ${FMHA_BWD_OPTDIM}
   # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 )
 set(FMHA_BWD_INSTANCE_FILTER "" CACHE STRING
-  "fnmatch filter for generated FMHA BWD kernels: dot_do_o@convert_dq@dq_dk_dv. Empty = all.")
+  "fnmatch filter for generated FMHA BWD kernels: dot_do_o@convert_dq@dq_dk_dv. Empty = default.")
 set(FMHA_FWD_INSTANCE_FILTER "" CACHE STRING
-  "fnmatch filters for generated FMHA FWD kernels, one per enabled API. Empty = default.")
+  "fnmatch filters, one per enabled API; fwd accepts | alternatives. Empty = default.")
 
 if(NOT FMHA_BWD_INSTANCE_FILTER STREQUAL "")
   # must go into COMMON_ARGS so --list_blobs and --output_dir stay in agreement
   list(APPEND FMHA_BWD_CODE_GEN_COMMON_ARGS --filter ${FMHA_BWD_INSTANCE_FILTER})
   message(STATUS "CK Tile FMHA BWD instance filter: ${FMHA_BWD_INSTANCE_FILTER}")
+elseif(BUILD_TESTING AND FMHA_FWD_HAS_GFX125 AND FMHA_BWD_CODEGEN_RECEIPT EQUAL 3)
+  list(APPEND FMHA_BWD_CODE_GEN_COMMON_ARGS --filter "*@*@*_ndropout_*")
 endif()
 
 # Reduce building time by disabling instances that are not currently used in the gtests
@@ -117,9 +130,17 @@ elseif(BUILD_TESTING)
   # The split-KV entry says *logits* rather than *_nlogits* so that the soft-cap
   # instances are built too: SplitKvSinkSoftCap needs a soft cap and a sink on the
   # same split, and without these instances it would report success while
-  # skipping every case that matters. fnmatch takes one pattern per API, so this
+  # skipping every case that matters. The split-KV filter takes one pattern, so this
   # also pulls in the soft-cap instances without a sink, for 524 more instances.
-  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*logits*_nbias*,*,*_nlogits*_nskip*_pagedkv*)
+  set(FMHA_FWD_DEFAULT_FILTER "*_nlogits*_nskip*")
+  if(FMHA_FWD_HAS_GFX125 AND FMHA_FWD_CODEGEN_RECEIPT EQUAL 0)
+    string(JOIN "|" FMHA_FWD_DEFAULT_FILTER
+      "*_fp16_*_nlogits*_ndropout*_nskip*"
+      "*_bf16_*_nlogits*_ndropout*_nskip*"
+      "*_fp8*_nlogits*_nbias*_nskip*"
+      "*_mxfp8*_nlogits*_nbias*_nskip*")
+  endif()
+  list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter "${FMHA_FWD_DEFAULT_FILTER},*@*logits*_nbias*,*,*_nlogits*_nskip*_pagedkv*")
 endif()
 
 # generate a list of kernels, but not actually emit files at config sta
@@ -152,6 +173,7 @@ add_custom_command(
   --output_dir ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${CODE_GEN_SCRIPTS}
   COMMENT "Generate CK Tile FMHA FWD kernels"
+  VERBATIM
 )
 
 add_custom_command(

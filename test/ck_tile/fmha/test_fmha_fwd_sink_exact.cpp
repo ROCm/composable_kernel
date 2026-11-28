@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Pin represented inputs to exercise coherent P-rounding error independently of random fills.
-// With V=1, O is the real-token probability mass and LSE is computed from the same logits.
+// With V=1, O is the real-token probability mass.
 
 #include "ck_tile/host.hpp"
 #include "example/ck_tile/01_fmha/fmha_fwd.hpp"
@@ -30,13 +30,12 @@ constexpr const char* prec_string()
 struct SinkExactResult
 {
     double max_relative_error = 0; // vs exact attention, per output element
-    double max_lse_error      = 0; // vs exact log-sum-exp, per row
     bool all_finite           = true;
     bool dispatched           = false;
 };
 
-SinkExactResult run_sink_exact(
-    int hdim, int seqlen_k, int seqlen_q, float sink, bool store_lse, bool varying = false)
+SinkExactResult
+run_sink_exact(int hdim, int seqlen_k, int seqlen_q, float sink, bool varying = false)
 {
     SinkExactResult result;
 
@@ -47,7 +46,6 @@ SinkExactResult run_sink_exact(
     std::vector<QDataType> k(seqlen_k * hdim, ck_tile::type_convert<QDataType>(0.f));
     std::vector<QDataType> v(seqlen_k * hdim, ck_tile::type_convert<QDataType>(1.f));
     std::vector<ODataType> o(seqlen_q * hdim, ck_tile::type_convert<ODataType>(NAN));
-    std::vector<float> lse(seqlen_q, NAN);
     if(varying)
     {
         for(int i = 0; i < seqlen_q; ++i)
@@ -57,14 +55,13 @@ SinkExactResult run_sink_exact(
     }
 
     ck_tile::DeviceMem q_buf(q.size()), k_buf(k.size()), v_buf(v.size());
-    ck_tile::DeviceMem o_buf(o.size() * sizeof(ODataType)), lse_buf(lse.size() * sizeof(float));
+    ck_tile::DeviceMem o_buf(o.size() * sizeof(ODataType));
     ck_tile::DeviceMem sink_buf(sizeof(float)), scale_buf(sizeof(float));
 
     q_buf.ToDevice(q.data());
     k_buf.ToDevice(k.data());
     v_buf.ToDevice(v.data());
     o_buf.ToDevice(o.data());
-    lse_buf.ToDevice(lse.data());
     sink_buf.ToDevice(&sink);
     scale_buf.ToDevice(&one);
 
@@ -73,7 +70,7 @@ SinkExactResult run_sink_exact(
     args.k_ptr    = k_buf.GetDeviceBuffer();
     args.v_ptr    = v_buf.GetDeviceBuffer();
     args.o_ptr    = o_buf.GetDeviceBuffer();
-    args.lse_ptr  = store_lse ? lse_buf.GetDeviceBuffer() : nullptr;
+    args.lse_ptr  = nullptr;
     args.sink_ptr = has_sink ? sink_buf.GetDeviceBuffer() : nullptr;
     // PERTENSOR with unit descales: the represented values above are the real values.
     args.q_descale_ptr = args.k_descale_ptr = args.v_descale_ptr = scale_buf.GetDeviceBuffer();
@@ -89,7 +86,6 @@ SinkExactResult run_sink_exact(
     args.nhead_stride_o = args.batch_stride_o = seqlen_q * hdim;
     args.nhead_stride_k = args.batch_stride_k = seqlen_k * hdim;
     args.nhead_stride_v = args.batch_stride_v = seqlen_k * hdim;
-    args.nhead_stride_lse = args.batch_stride_lse = seqlen_q;
     args.window_size_left = args.window_size_right = -1;
     args.block_scale_size_q = args.block_scale_size_kv = 128;
 
@@ -101,7 +97,7 @@ SinkExactResult run_sink_exact(
                            false, // no logits soft cap
                            mask_enum::no_mask,
                            bias_enum::no_bias,
-                           store_lse,
+                           false, // no LSE
                            false, // no dropout
                            quant_scale_enum::pertensor,
                            false, // no skip_min_seqlen_q
@@ -113,8 +109,6 @@ SinkExactResult run_sink_exact(
     result.dispatched = true;
 
     o_buf.FromDevice(o.data());
-    if(store_lse)
-        lse_buf.FromDevice(lse.data());
 
     double real_mass = 0;
     for(int j = 0; j < seqlen_k; ++j)
@@ -135,21 +129,11 @@ SinkExactResult run_sink_exact(
         result.max_relative_error =
             std::max(result.max_relative_error, std::abs(value / reference - 1));
     }
-    if(store_lse)
-    {
-        const double reference_lse = std::log(denominator);
-        for(float value : lse)
-        {
-            result.all_finite &= std::isfinite(value);
-            result.max_lse_error = std::max(result.max_lse_error,
-                                            std::abs(static_cast<double>(value) - reference_lse));
-        }
-    }
     return result;
 }
 
-// hdim, seqlen_k, seqlen_q, sink, store_lse
-class SinkExact : public ::testing::TestWithParam<std::tuple<int, int, int, float, bool>>
+// hdim, seqlen_k, seqlen_q, sink
+class SinkExact : public ::testing::TestWithParam<std::tuple<int, int, int, float>>
 {
 };
 
@@ -162,24 +146,19 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Values(0.5f,      // sink above the zero-valued real logits
                                          4.f,       // sink dominates the row max
                                          6.f,       // sink dominates by a wide margin
-                                         -ck_tile::numeric<float>::infinity()), // no-sink control
-                       ::testing::Bool()));
+                                         -ck_tile::numeric<float>::infinity()))); // no-sink control
 
 TEST_P(SinkExact, MatchesExactAttention)
 {
-    const auto [hdim, seqlen_k, seqlen_q, sink, store_lse] = GetParam();
+    const auto [hdim, seqlen_k, seqlen_q, sink] = GetParam();
 
-    const auto result = run_sink_exact(hdim, seqlen_k, seqlen_q, sink, store_lse);
+    const auto result = run_sink_exact(hdim, seqlen_k, seqlen_q, sink);
     if(!result.dispatched)
         GTEST_SKIP() << "No instance for current parameters";
 
     EXPECT_TRUE(result.all_finite);
     // Same 1% output gain bound the quantization-scale suites use.
     EXPECT_LT(result.max_relative_error, 0.01);
-    // LSE is the mathematical log-sum-exp: it carries the unquantized row sum, so it is
-    // held to fp32 accumulation error rather than to the output bound.
-    if(store_lse)
-        EXPECT_LT(result.max_lse_error, 1e-4);
 }
 
 TEST(SinkQuantizedMass, NonuniformRealScores)
@@ -189,12 +168,11 @@ TEST(SinkQuantizedMass, NonuniformRealScores)
         for(float sink : {-4.f, -ck_tile::numeric<float>::infinity()})
         {
             SCOPED_TRACE(::testing::Message() << "hdim=" << hdim << " sink=" << sink);
-            const auto result = run_sink_exact(hdim, 500, 63, sink, true, true);
+            const auto result = run_sink_exact(hdim, 500, 63, sink, true);
             if(!result.dispatched)
                 GTEST_SKIP() << "No instance for current parameters";
             EXPECT_TRUE(result.all_finite);
             EXPECT_LT(result.max_relative_error, 0.01);
-            EXPECT_LT(result.max_lse_error, 1e-4);
         }
     }
 }

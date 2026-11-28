@@ -82,6 +82,10 @@ run_fp16_bf16_tests() {
     for lse in 0 1 ; do
     for bias in "n" "e" "a" ; do
     for p_drop in 0.0 0.2 ; do
+    # gfx125 only generates dropout instances with LSE.
+    if [[ "$GPU_arch" == gfx125* && "$lse" == 0 && "$p_drop" != 0.0 ]]; then
+        continue
+    fi
     for num_splits in $NUM_SPLITS ; do
     for page_block_size in $PAGE_BLOCK_SIZE ; do
     for cache_batch_idx in $CACHE_BATCH_IDX ; do

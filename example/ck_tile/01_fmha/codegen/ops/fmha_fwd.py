@@ -1959,6 +1959,9 @@ GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q = {
     (192, 128): 128,
 }
 
+# Measured M64 preference for dropout.
+GFX125_QR_TDM_DROPOUT_M64_DIMS = {(64, 64), (128, 128)}
+
 # Paired gfx1250 measurements favor N128 for long K within one Q-workgroup
 # wave. Above one wave, its larger LDS/register footprint can regress.
 # This is a tuning threshold shared by the gfx125 family, not an ISA restriction.
@@ -1981,9 +1984,10 @@ GFX125_QR_TDM_PINGPONG_RANGE = (
 
 
 def _gfx125_qr_tdm_crossover_constraint(hdim):
-    return CppConstraint(
-        f"a.max_seqlen_q < {GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q[hdim]}"
-    )
+    condition = f"a.max_seqlen_q < {GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q[hdim]}"
+    if hdim in GFX125_QR_TDM_DROPOUT_M64_DIMS:
+        condition += " || t.has_dropout"
+    return CppConstraint(condition)
 
 
 def _validate_qr_tdm_bm0_crossover_pairs(tile_dict):
@@ -2319,10 +2323,24 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                 return kernel_ctx.pipeline.tag == owner
             return kernel_ctx.pipeline.tag not in cls._PIPELINES_WITH_OWN_TILES
 
+        def check_causal_lse_tile(
+            problem_ctx: ProblemContext, kernel_ctx: KernelContext
+        ) -> bool:
+            p = kernel_ctx.pipeline
+            if (
+                (problem_ctx.hdim, problem_ctx.hdim_v) == (64, 64)
+                and kernel_ctx.mask_impl == "simplified"
+                and p.tag == "qr_tdm"
+            ):
+                if p.F_mask == "causal" and p.F_lse == "t":
+                    return kernel_ctx.tile.F_bm0 == 64
+            return True
+
         rules.extend(
             [
                 check_gemm0_k,
                 check_tile_owner,
+                check_causal_lse_tile,
                 check_qr_tdm_fp8_sched_codegen_compatibility,
                 check_qr_tdm_sched_codegen_compatibility,
             ]
@@ -2332,12 +2350,10 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
     @classmethod
     def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
         if dtype in cls._DT_FP16_BF16:
-            # Short causal grids benefit from twice as many Q workgroups. Keep the
-            # d128 causal override while retaining develop's per-head-dim M64/M128
-            # crossover table for every other configuration.
+            # Short causal grids benefit from more Q workgroups.
             m64_d128_constraint = (
-                f"a.max_seqlen_q < {GFX125_QR_TDM_BM0_CROSSOVER_MAX_SEQLEN_Q[(128, 128)]}"
-                " || (!t.is_group_mode && t.is_v_rowmajor"
+                _gfx125_qr_tdm_crossover_constraint((128, 128)).bool_expr
+                + " || (!t.is_group_mode && t.is_v_rowmajor"
                 " && !t.has_logits_soft_cap && !t.has_dropout"
                 " && (t.mask_type == mask_enum::mask_top_left || t.mask_type == mask_enum::mask_bottom_right)"
                 " && a.window_size_left < 0 && a.window_size_right == 0"
@@ -2466,9 +2482,20 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                     ["f", "t"],
                     ["f", "t"],
                 ):
+                    if dropout == "t" and lse == "f":
+                        continue
+                    qr_features = logits == "t" or dropout == "t" or skip == "t"
+                    # Keep D512's existing feature scope.
+                    if qr_features and (hdim > 256 or hdim_v > 256):
+                        continue
                     mask_constraint = CppConstraint()
                     if mask_impl == "simplified" and mask == "causal":
-                        if bias != "no" or lse != "f" or sink != "f":
+                        if bias != "no" or sink != "f" or dropout != "f":
+                            continue
+                        # LSE uses this fast mask only for short D64 queries.
+                        if lse == "t" and (
+                            (hdim, hdim_v) != (64, 64) or logits != "f" or skip != "f"
+                        ):
                             continue
                         # Top-left/bottom-right also describe finite windows;
                         # the causal kernel has no lower-bound mask check.
@@ -2515,45 +2542,42 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
                     pipelines.append(FmhaFwdPipeline("qr_tdm_sched", "row", "t", "t", head_pad, head_pad, "f", "no", lse, "f", qscale, mask, "f", "f", "f", F_constraint=sched_constraint))  # fmt: skip
 
         elif dtype in cls._DT_FP8_FP8BF16:
-            # no need dropout kernels. Alibi is held back: its near-one-hot P leaves a
+            # Neither LSE nor dropout is supported. Alibi is held back: its near-one-hot P leaves a
             # slope-dependent quantization bias the OUT gain check reads as a systematic error.
             if (hdim, hdim_v) in ((128, 128), (64, 64)):
-                for logits, qscale, mask, bias, lse, sink in itertools.product(
+                for logits, qscale, mask, bias, sink in itertools.product(
                     ["f"],
                     ["no", "pertensor", "perhead", "blockscale"],
                     get_mask_map(mask_impl).keys(),
                     ["no", "bias"],
                     ["f", "t"],
-                    ["f", "t"],
                 ):
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "f", "f", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "t", "t", logits, bias, lse, "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "f", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
 
             if (
                 dtype in cls._DT_QR_TDM_SCHED_FP8
                 and (hdim, hdim_v) in cls._QR_TDM_SCHED_FP8_TILES
             ):
                 # Packed GQA decode first: the one-wavefront tile, then the full tile.
-                for mask, lse, qscale, sink in itertools.product(
+                for mask, qscale, sink in itertools.product(
                     get_mask_map(mask_impl).keys(),
-                    ["f", "t"],
                     ["no", "pertensor", "perhead", "blockscale"],
                     ["f", "t"],
                 ):
                     sched_fp8_constraint = cls.qr_tdm_fp8_sched_constraint(hdim, hdim_v, qscale, sink)  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm_fp8_sched", "row", "t", "t", "f", "f", "f", "no", lse, "f", qscale, mask, "f", "f", sink, F_constraint=sched_fp8_constraint, F_packgqa="t"))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm_fp8_sched", "row", "t", "t", "f", "f", "f", "no", "f", "f", qscale, mask, "f", "f", sink, F_constraint=sched_fp8_constraint, F_packgqa="t"))  # fmt: skip
                 # No alibi/dropout; bias runs one workgroup per CU. Dispatched ahead of qr_tdm.
-                for mask, lse, qscale, sink, bias in itertools.product(
+                for mask, qscale, sink, bias in itertools.product(
                     get_mask_map(mask_impl).keys(),
-                    ["f", "t"],
                     ["no", "pertensor", "perhead", "blockscale"],
                     ["f", "t"],
                     ["no", "bias"],
                 ):
                     sched_fp8_constraint = cls.qr_tdm_fp8_sched_constraint(hdim, hdim_v, qscale, sink)  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm_fp8_sched", "row", "t", "t", "f", "f", "f", bias, lse, "f", qscale, mask, "f", "f", sink, F_constraint=sched_fp8_constraint))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm_fp8_sched", "row", "t", "t", "f", "f", "f", bias, "f", "f", qscale, mask, "f", "f", sink, F_constraint=sched_fp8_constraint))  # fmt: skip
 
             for logits, qscale, mask, bias in itertools.product(
                 ["f"], ["no", "pertensor"], get_mask_map(mask_impl).keys(), ["no"]
@@ -2564,16 +2588,16 @@ class KernelComponentFactoryGfx125(CompatibilityRuleFactory):
             # MX only on the scheduled FP8 pipeline: no bias/dropout.
             if (hdim, hdim_v) in cls._QR_TDM_SCHED_FP8_TILES:
                 # Packed GQA decode first, as for FP8.
-                for mask, lse, sink in itertools.product(
-                    get_mask_map(mask_impl).keys(), ["f", "t"], ["f", "t"]
+                for mask, sink in itertools.product(
+                    get_mask_map(mask_impl).keys(), ["f", "t"]
                 ):
                     sched_fp8_constraint = cls.qr_tdm_fp8_sched_constraint(hdim, hdim_v, "mx", sink)  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm_fp8_sched", "row", "t", "t", "f", "f", "f", "no", lse, "f", "mx", mask, "f", "f", sink, F_constraint=sched_fp8_constraint, F_packgqa="t"))  # fmt: skip
-                for mask, lse, sink in itertools.product(
-                    get_mask_map(mask_impl).keys(), ["f", "t"], ["f", "t"]
+                    pipelines.append(FmhaFwdPipeline("qr_tdm_fp8_sched", "row", "t", "t", "f", "f", "f", "no", "f", "f", "mx", mask, "f", "f", sink, F_constraint=sched_fp8_constraint, F_packgqa="t"))  # fmt: skip
+                for mask, sink in itertools.product(
+                    get_mask_map(mask_impl).keys(), ["f", "t"]
                 ):
                     sched_fp8_constraint = cls.qr_tdm_fp8_sched_constraint(hdim, hdim_v, "mx", sink)  # fmt: skip
-                    pipelines.append(FmhaFwdPipeline("qr_tdm_fp8_sched", "row", "t", "t", "f", "f", "f", "no", lse, "f", "mx", mask, "f", "f", sink, F_constraint=sched_fp8_constraint))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_tdm_fp8_sched", "row", "t", "t", "f", "f", "f", "no", "f", "f", "mx", mask, "f", "f", sink, F_constraint=sched_fp8_constraint))  # fmt: skip
         return pipelines
 
 
@@ -3032,7 +3056,10 @@ def get_product(receipt: int) -> Product:
 def get_fwd_blobs(
     targets: List[str], kernel_filter: Optional[str], receipt, optdim_list, mask_impl
 ) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
+    filters = kernel_filter.split("|") if kernel_filter else ["*"]
     gen = list()
+    generated_names = set()
+    padding_replacements = {}
     api_pool = FmhaFwdApiPool()
 
     factories = get_factories_for_targets(targets, get_factory)
@@ -3078,10 +3105,77 @@ def get_fwd_blobs(
                     continue
 
                 kernel = create_kernel(factory.arch, problem_ctx, kernel_ctx)
-                if kernel_filter and not fnmatch.fnmatch(kernel.name, kernel_filter):
+                if not any(
+                    fnmatch.fnmatch(kernel.name, pattern) for pattern in filters
+                ):
                     continue
-                api_pool.register_traits(kernel.api_trait())
+                if (
+                    factory is KernelComponentFactoryGfx125
+                    and (hdim, hdim_v) in GFX125_QR_TDM_DROPOUT_M64_DIMS
+                    and pipeline.tag == "qr_tdm"
+                    and pipeline.F_dropout == "t"
+                    and tile.F_bm0 == 128
+                ):
+                    # M64 covers this dropout tile; preserve explicit M128-only filters.
+                    m64 = replace(kernel, F_tile=replace(tile, F_bm0=64))
+                    if m64.filename in generated_names:
+                        continue
+                if (
+                    pipeline.tag == "qr_tdm_pingpong"
+                    and mode == "batch"
+                    and pipeline.F_bias != "bias"
+                    and pipeline.F_skpad == "t"
+                ):
+                    # skcheck allows K tails; skip only if the unpadded twin survived filtering.
+                    unpadded = replace(
+                        kernel,
+                        F_pipeline=replace(pipeline, F_spad="f", F_skpad="f"),
+                    )
+                    if unpadded.filename in generated_names:
+                        continue
+                if factory is KernelComponentFactoryGfx125:
+                    pads = None
+                    if (
+                        dtype in factory._DT_FP8_FP8BF16
+                        and pipeline.tag in ("qr", "qr_tdm")
+                        and not (mode == "group" and pipeline.F_qscale == "blockscale")
+                    ):
+                        # Scheduled FP8 handles ordinary exact heads. Reuse the
+                        # head-padded legacy fallback for Q64 scales and virtual
+                        # sinks; group block-scale keeps its faster specialization.
+                        pads = dict(F_dpad="t", F_dvpad="t")
+                        # D64 per-tensor/per-head scales also reuse the sequence-
+                        # padded twin; other scales and D128 keep faster variants.
+                        if pipeline.tag == "qr" or (
+                            hdim == 64 and pipeline.F_qscale in ("pertensor", "perhead")
+                        ):
+                            pads.update(F_spad="t", F_skpad="t")
+                    elif (
+                        dtype in factory._DT_FP16_BF16
+                        and pipeline.tag == "qr_tdm"
+                        and pipeline.F_dpad == pipeline.F_dvpad == "f"
+                        and min(hdim, hdim_v) < TDM_K0_MAX_SUBMAX_MAP[tile.F_bk0max]
+                    ):
+                        # D32 requires a positive multiple of 64; D192/V128
+                        # requires V to be a multiple of 192. Neither unpadded
+                        # trait can accept valid heads within its dispatch bucket.
+                        pads = dict(F_dpad="t", F_dvpad="t")
+                    if pads is not None:
+                        padded = replace(kernel, F_pipeline=replace(pipeline, **pads))
+                        if padded.filename != kernel.filename:
+                            padding_replacements[kernel.filename] = padded.filename
                 gen.append(kernel)
+                generated_names.add(kernel.filename)
+
+    # Resolve after generation: padded twins may occur later in the inventory.
+    # A receipt or explicit filter that excludes the twin retains the original.
+    gen = [
+        kernel
+        for kernel in gen
+        if padding_replacements.get(kernel.filename) not in generated_names
+    ]
+    for kernel in gen:
+        api_pool.register_traits(kernel.api_trait())
 
     return (api_pool, gen)
 

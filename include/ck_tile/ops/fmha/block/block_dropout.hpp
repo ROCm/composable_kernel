@@ -488,35 +488,55 @@ struct BlockDropout
                     remove_cvref_t<decltype(spans[number<0>{}])>::Impl::at(0);
                 constexpr index_t n_iter =
                     remove_cvref_t<decltype(spans[number<1>{}])>::Impl::at(0);
-                static_for<0, m_iter, 1>{}([&](auto mi) {
-                    static_for<0, n_iter, 1>{}([&](auto ni) {
-                        constexpr auto i0 = tile_distributed_index<mi>{};
-                        const auto xy     = get_x_indices_from_distributed_indices(
-                            p.get_tile_distribution(),
-                            make_tuple(i0, tile_distributed_index<ni, 0, 0>{}));
-                        const index_t m       = start_m + xy.at(number<0>{});
-                        const index_t n       = start_n + xy.at(number<1>{});
-                        const uint32_t lane   = m & 7;
-                        const index_t ph_lane = (n & 31) + lane + ((m >> 3) & 1) * 32;
-                        const auto subsequence =
-                            bit_cast<unsigned long long>(make_uint2(m >> 5, n >> 5));
-                        const uint4 random =
-                            philox{ph_seed, ph_head_offset + ph_lane}.get_philox_4x32(subsequence);
-                        uint32_t lo = (m & 16) ? random.z : random.x;
-                        uint32_t hi = (m & 16) ? random.w : random.y;
-                        detail::transpose_dropout_bytes(lo, hi, lane);
-                        static_for<0, 8, 1>{}([&](auto j) {
-                            constexpr index_t jj = decltype(j)::value;
-                            constexpr auto idx =
-                                make_tuple(i0, tile_distributed_index<ni, 0, jj>{});
-                            const uint8_t r =
-                                static_cast<uint8_t>((jj < 4 ? lo : hi) >> (8 * (jj % 4)));
-                            p(idx) = r <= p_undrop_in_uint8_t ? p[idx] * rp_undrop : 0;
-                            if(is_store_randval && m < seqlen_q && n + jj < seqlen_k)
-                                randval[static_cast<long_index_t>(m) * stride + n + jj] = r;
+                // Select randval storage once per tile.
+                auto apply_dropout = [&](auto store_randval) {
+                    static_for<0, m_iter, 1>{}([&](auto mi) {
+                        static_for<0, n_iter, 1>{}([&](auto ni) {
+                            constexpr auto i0 = tile_distributed_index<mi>{};
+                            const auto xy     = get_x_indices_from_distributed_indices(
+                                p.get_tile_distribution(),
+                                make_tuple(i0, tile_distributed_index<ni, 0, 0>{}));
+                            const index_t m       = start_m + xy.at(number<0>{});
+                            const index_t n       = start_n + xy.at(number<1>{});
+                            const uint32_t lane   = m & 7;
+                            const index_t ph_lane = (n & 31) + lane + ((m >> 3) & 1) * 32;
+                            const auto subsequence =
+                                bit_cast<unsigned long long>(make_uint2(m >> 5, n >> 5));
+                            const uint4 random =
+                                philox{ph_seed, ph_head_offset + ph_lane}.get_philox_4x32(
+                                    subsequence);
+                            uint32_t lo = (m & 16) ? random.z : random.x;
+                            uint32_t hi = (m & 16) ? random.w : random.y;
+                            detail::transpose_dropout_bytes(lo, hi, lane);
+                            static_for<0, 8, 1>{}([&](auto j) {
+                                constexpr index_t jj = decltype(j)::value;
+                                constexpr auto idx =
+                                    make_tuple(i0, tile_distributed_index<ni, 0, jj>{});
+                                const uint8_t r =
+                                    static_cast<uint8_t>((jj < 4 ? lo : hi) >> (8 * (jj % 4)));
+                                p(idx) = r <= p_undrop_in_uint8_t ? p[idx] * rp_undrop : 0;
+                            });
+                            if constexpr(decltype(store_randval)::value)
+                            {
+                                if(m < seqlen_q)
+                                {
+                                    static_for<0, 8, 1>{}([&](auto j) {
+                                        constexpr index_t jj = decltype(j)::value;
+                                        const uint8_t r = static_cast<uint8_t>((jj < 4 ? lo : hi) >>
+                                                                               (8 * (jj % 4)));
+                                        if(n + jj < seqlen_k)
+                                            randval[static_cast<long_index_t>(m) * stride + n +
+                                                    jj] = r;
+                                    });
+                                }
+                            }
                         });
                     });
-                });
+                };
+                if(is_store_randval)
+                    apply_dropout(bool_constant<true>{});
+                else
+                    apply_dropout(bool_constant<false>{});
                 return;
             }
         }

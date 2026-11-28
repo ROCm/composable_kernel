@@ -7,6 +7,7 @@ add_gtest_executable(test_fill test_fill.cpp)
 add_gtest_executable(test_ck_tile_sequence test_sequence.cpp)
 add_gtest_executable(test_ck_tile_static_ford test_static_ford.cpp)
 add_gtest_executable(test_ck_tile_xcd_remap test_xcd_remap.cpp)
+add_gtest_executable(test_ck_tile_philox test_philox.cpp)
 
 # Add print tests
 add_subdirectory(print)

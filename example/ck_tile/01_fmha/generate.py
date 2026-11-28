@@ -129,7 +129,7 @@ if __name__ == "__main__":
         "--filter",
         default="",
         required=False,
-        help="filter out kernels that need to generate, using fnmatch module",
+        help="fnmatch inclusion filters, comma-separated per API; fwd accepts | alternatives",
     )
 
     parser.add_argument(

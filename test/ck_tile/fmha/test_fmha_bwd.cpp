@@ -258,6 +258,9 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(DecodeDropout, DataTypeConfig)
 {
+#ifdef CK_TILE_TEST_FMHA_NO_DROPOUT
+    GTEST_SKIP() << "This build excludes dropout instances";
+#else
     if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp32>)
         GTEST_SKIP() << "Decode dropout instances support fp16 and bf16";
     const auto device_name = ck_tile::get_device_name();
@@ -285,6 +288,7 @@ TEST_P(DecodeDropout, DataTypeConfig)
                                                false});
     ASSERT_EQ(launcher.selected_max_seqlen_q(), 32);
     fmha_bwd_test(GetParam(), true);
+#endif
 }
 
 // gfx1250 d128 decode tile without a mask. It only dispatches once

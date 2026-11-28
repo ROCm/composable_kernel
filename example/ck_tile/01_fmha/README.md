@@ -33,6 +33,10 @@ This example provides recipes for `tile_example_fmha_fwd`, `tile_example_fmha_bw
 > The remaining arguments are optional and are passed through to CMake.
 > E.g. `-G Ninja` specifies ninja as the build system.
 
+Override the head-dimension lists with `-DFMHA_FWD_OPTDIM=<comma-separated dimensions>` and
+`-DFMHA_BWD_OPTDIM=<comma-separated dimensions>`; `-1` includes all supported
+head dimensions.
+
 ## kernel
 The kernel template is `fmha_fwd_kernel.hpp`, this is the grid-wise op in old ck_tile's terminology. We put it here purposely, to demonstrate one can construct a kernel by using various internal component from ck_tile. We may still have an implementation under ck_tile's include path (in the future) for the kernel template.
 
@@ -56,6 +60,9 @@ group mode on this architecture.
 
 FP16/BF16 inventories contain only TDM pipelines, with head buckets up to 512.
 The existing D192/V128 bias/dropout and softcap-with-bias exclusions still apply.
+The gfx125 FP16/BF16 inventory only includes dropout with LSE (`-lse=1`).
+D512 keeps its earlier feature scope and does not generate logits soft cap,
+dropout, or group skip instances.
 FP8 and the split-KV/paged-KV APIs retain their separate inventories.
 
 ### Scheduled TDM forward pipeline

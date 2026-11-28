@@ -97,9 +97,8 @@ class philox
 
     CK_TILE_HOST_DEVICE uint2 mulhilo32(const unsigned int a, const unsigned int b) const
     {
-#if defined(__gfx1250__)
-        // gfx1250 lowers the 64-bit product below to v_mul_u64, which is several times
-        // slower than a v_mul_lo_u32 + v_mul_hi_u32 pair. Same result.
+#if defined(__gfx125__)
+        // Use separate low/high 32-bit products on gfx125.
         return make_uint2(a * b, __umulhi(a, b));
 #else
         uint2* res;

@@ -198,7 +198,11 @@ static auto IsVRowmajorValues  = ValuesIn(TestConfigs<DataTypeConfig>::IsVRowmaj
 static auto QScaleValues = ValuesIn(TestConfigs<DataTypeConfig>::QScaleValues);
 #endif
 constexpr static auto qscale_str = TestConfigs<DataTypeConfig>::qscale_str;
-constexpr bool def_lse           = TestConfigs<DataTypeConfig>::def_lse;
+#ifdef CK_TILE_TEST_FMHA_NO_LSE
+constexpr bool def_lse = false;
+#else
+constexpr bool def_lse = TestConfigs<DataTypeConfig>::def_lse;
+#endif
 constexpr bool def_is_v_rowmajor = TestConfigs<DataTypeConfig>::def_is_v_rowmajor;
 constexpr auto init_method       = TestConfigs<DataTypeConfig>::init_method;
 int adjust_seqlen(int seqlen) { return TestConfigs<DataTypeConfig>::adjust_seqlen(seqlen); }
@@ -1056,6 +1060,17 @@ constexpr bool kIsMxFp8Config =
     ck_tile::is_any_of<DataTypeConfig, FmhaFwdMxFp8, FmhaFwdMxFp8Bf16>::value;
 constexpr bool kIsFp8Config = ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp8, FmhaFwdFp8Bf16>::value;
 
+#ifdef CK_TILE_TEST_FMHA_NO_LSE
+static auto FwdLseValues = ValuesIn(std::vector<bool>{false});
+#else
+static auto FwdLseValues = ValuesIn(std::vector<bool>{false, true});
+#endif
+#ifdef CK_TILE_TEST_FMHA_NO_FP8_BIAS
+constexpr bool kHasFp8Bias = false;
+#else
+constexpr bool kHasFp8Bias = true;
+#endif
+
 // On gfx125x the FP8 suites below must reach qr_tdm_fp8_sched, not fall back to another pipeline.
 bool ExpectsFp8Sched(bool is_v_rowmajor)
 {
@@ -1078,10 +1093,12 @@ void ExpectFp8Sched(const std::string& kernel_name, bool is_v_rowmajor)
         CHECK_RESULT(result);                                                   \
     } while(0)
 
-// Skips what qr_tdm_fp8_sched leaves out by design: MX bias and gfx125x MX on col-major V.
-#define SKIP_IF_MX_UNSUPPORTED(is_v_rowmajor, bias_str)                          \
+// Skip unsupported MX features and FP8 bias omitted by this build.
+#define SKIP_IF_FP8_UNSUPPORTED(is_v_rowmajor, bias_str)                         \
     do                                                                           \
     {                                                                            \
+        if(kIsFp8Config && !kHasFp8Bias && std::string_view(bias_str) != "n")    \
+            GTEST_SKIP() << "This build excludes FP8 bias instances";            \
         if(kIsMxFp8Config && std::string_view(bias_str) != "n")                  \
             GTEST_SKIP() << "MX has no elementwise bias";                        \
         if(kIsMxFp8Config && !(is_v_rowmajor) && ck_tile::is_gfx125_supported()) \
@@ -1205,7 +1222,7 @@ TEST_P(QuantScaleBias, DataTypeConfig)
 
     const std::string mask = sink == sink_kind::streamllm ? kStreamLlmMask : mask_str;
     const int init_sink    = sink == sink_kind::gptoss ? 1 : 0;
-    SKIP_IF_MX_UNSUPPORTED(def_is_v_rowmajor, "e");
+    SKIP_IF_FP8_UNSUPPORTED(def_is_v_rowmajor, "e");
 
     std::string kernel_name;
     auto result = fmha_fwd_run<DataTypeConfig>(
@@ -1277,7 +1294,7 @@ TEST_P(QuantScaleLse, DataTypeConfig)
 {
     auto [mode, qscale, is_v_rowmajor, dims]         = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k] = dims;
-    SKIP_IF_MX_UNSUPPORTED(is_v_rowmajor, "n");
+    SKIP_IF_FP8_UNSUPPORTED(is_v_rowmajor, "n");
 
     std::string kernel_name;
     auto result = fmha_fwd_run<DataTypeConfig>(
@@ -1320,8 +1337,12 @@ TEST_P(QuantScaleLse, DataTypeConfig)
         stream_config,
         std::nullopt,
         &kernel_name);
+#ifdef CK_TILE_TEST_FMHA_NO_LSE
+    EXPECT_EQ(result, fwd_result::no_instance);
+#else
     CHECK_FP8_SCHED_RESULT(result, is_v_rowmajor);
     ExpectFp8Sched(kernel_name, is_v_rowmajor);
+#endif
 }
 
 // Causal and sliding-window masks across every quantization scale, with and without LSE.
@@ -1339,7 +1360,7 @@ INSTANTIATE_TEST_SUITE_P(
     QuantScaleMask,
     Combine(ModeValues,
             QScaleValues,
-            Values(false, true), // lse
+            FwdLseValues, // lse
             LseVRowmajorValues,
             Values(std::tuple{1, 2, 1, 300, 1000, "t"},       // causal top-left, key tail
                    std::tuple{2, 2, -1, 1000, 300, "b"},      // causal bottom-right, empty rows
@@ -1351,7 +1372,7 @@ TEST_P(QuantScaleMask, DataTypeConfig)
 {
     auto [mode, qscale, lse, is_v_rowmajor, dims_mask]         = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
-    SKIP_IF_MX_UNSUPPORTED(is_v_rowmajor, "n");
+    SKIP_IF_FP8_UNSUPPORTED(is_v_rowmajor, "n");
 
     std::string kernel_name;
     auto result = fmha_fwd_run<DataTypeConfig>(
@@ -1415,7 +1436,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                          QuantScaleGroupPad,
                          Combine(ValuesIn(kGroupPadHdims),
                                  QScaleValues,
-                                 Values(false, true), // lse
+                                 FwdLseValues, // lse
                                  Values("0", "t", "b:128,30"),
                                  Values(std::tuple{2, 1}, std::tuple{4, 2})));
 
@@ -1485,7 +1506,7 @@ INSTANTIATE_TEST_SUITE_P(
     QuantScaleSink,
     Combine(ModeValues,
             QScaleValues,
-            Values(false, true), // lse
+            FwdLseValues, // lse
             LseVRowmajorValues,
             Values(std::tuple{2, 2, 1, 300, 1000, "0", 1},  // sink logit, GQA, key tail
                    std::tuple{1, 3, -1, 1000, 256, "0", 1}, // sink logit, seqlen_q > seqlen_k
@@ -1503,7 +1524,7 @@ TEST_P(QuantScaleSink, DataTypeConfig)
 {
     auto [mode, qscale, lse, is_v_rowmajor, dims_mask]                    = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str, init_sink] = dims_mask;
-    SKIP_IF_MX_UNSUPPORTED(is_v_rowmajor, "n");
+    SKIP_IF_FP8_UNSUPPORTED(is_v_rowmajor, "n");
 
     std::string kernel_name;
     auto result = fmha_fwd_run<DataTypeConfig>(
@@ -1567,7 +1588,7 @@ void RunQuantScaleHdim(int hdim, const QuantScaleHdimParam& param, int hdim_v = 
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str, bias_str, init_sink] = dims;
     // gfx125x MXFP8 runs on row-major V.
     const bool is_v_rowmajor = kIsMxFp8Config || def_is_v_rowmajor;
-    SKIP_IF_MX_UNSUPPORTED(is_v_rowmajor, bias_str);
+    SKIP_IF_FP8_UNSUPPORTED(is_v_rowmajor, bias_str);
 
     std::string kernel_name;
     auto result = fmha_fwd_run<DataTypeConfig>(
@@ -1619,7 +1640,7 @@ INSTANTIATE_TEST_SUITE_P(
     QuantScaleHdim64,
     Combine(ModeValues,
             QScaleValues,
-            Values(false, true),                                            // lse
+            FwdLseValues,                                                   // lse
             Values(std::tuple{2, 2, 1, 55, 256, "0", "n", 0},               // GQA, short query
                    std::tuple{1, 3, -1, 300, 129, "0", "n", 0},             // query/key tails
                    std::tuple{2, 1, -1, 256, 256, "1", "n", 0},             // causal
@@ -1647,7 +1668,7 @@ INSTANTIATE_TEST_SUITE_P(
     QuantScaleHdim256,
     Combine(ModeValues,
             QScaleValues,
-            Values(false, true),                                            // lse
+            FwdLseValues,                                                   // lse
             Values(std::tuple{2, 2, 1, 55, 256, "0", "n", 0},               // GQA, short query
                    std::tuple{1, 3, -1, 300, 129, "0", "n", 0},             // query/key tails
                    std::tuple{2, 1, -1, 256, 256, "1", "n", 0},             // causal
@@ -1680,7 +1701,7 @@ INSTANTIATE_TEST_SUITE_P(
     QuantScaleShortQuery,
     Combine(Values(64, 128, 256),
             QScaleValues,
-            Values(false, true),                                           // lse
+            FwdLseValues,                                                  // lse
             Values(std::tuple{2, 8, 2, 1, 1024, "0", "n", 0},              // GQA 4, Pack-GQA n/pt
                    std::tuple{3, 4, -1, 1, 500, "0", "n", 0},              // MHA, key tail
                    std::tuple{2, 8, 2, 4, 700, "b", "n", 0},               // causal bottom-right
@@ -1734,7 +1755,7 @@ INSTANTIATE_TEST_SUITE_P(
     QuantScaleMergedDecode,
     Combine(Values(64, 128, 256),
             QScaleValues,
-            Values(false, true),                                            // lse
+            FwdLseValues,                                                   // lse
             Values(MergedDecodeDims{2, 8, 2, 1, 1024, "0", 0, true},        // GQA 4, no mask
                    MergedDecodeDims{2, 8, 2, 1, 1024, "0", 0, false},       // same, b*s*h*d
                    MergedDecodeDims{1, 16, 2, 8, 700, "b", 0, true},        // 64 rows, causal
@@ -1824,7 +1845,7 @@ INSTANTIATE_TEST_SUITE_P(
     QuantScaleHdim192,
     Combine(ModeValues,
             QScaleValues,
-            Values(false, true),                                            // lse
+            FwdLseValues,                                                   // lse
             Values(std::tuple{2, 2, 1, 55, 256, "0", "n", 0},               // GQA, short query
                    std::tuple{1, 3, -1, 300, 129, "0", "n", 0},             // query/key tails
                    std::tuple{2, 1, -1, 256, 256, "1", "n", 0},             // causal
@@ -1852,7 +1873,7 @@ INSTANTIATE_TEST_SUITE_P(
     QuantScaleShortQueryHdim192,
     Combine(Values(mode_enum::batch),
             QScaleValues,
-            Values(false, true),                                           // lse
+            FwdLseValues,                                                  // lse
             Values(std::tuple{2, 8, 2, 1, 1024, "0", "n", 0},              // GQA 4, Pack-GQA n/pt
                    std::tuple{3, 4, -1, 1, 500, "0", "n", 0},              // MHA, key tail
                    std::tuple{2, 8, 2, 4, 700, "b", "n", 0},               // causal bottom-right
@@ -1875,7 +1896,7 @@ INSTANTIATE_TEST_SUITE_P(
     TestCkTileFmhaFwd,
     QuantScaleMergedDecodeHdim192,
     Combine(QScaleValues,
-            Values(false, true),                                            // lse
+            FwdLseValues,                                                   // lse
             Values(MergedDecodeDims{2, 8, 2, 1, 1024, "0", 0, true},        // GQA 4, no mask
                    MergedDecodeDims{2, 8, 2, 1, 1024, "0", 0, false},       // same, b*s*h*d
                    MergedDecodeDims{1, 16, 2, 8, 700, "b", 0, true},        // 64 rows, causal
@@ -1922,7 +1943,7 @@ TEST_P(QuantScaleBiasLse, DataTypeConfig)
 {
     auto [mode, qscale, sink, dims_mask]                       = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, mask_str] = dims_mask;
-    SKIP_IF_MX_UNSUPPORTED(def_is_v_rowmajor, "e");
+    SKIP_IF_FP8_UNSUPPORTED(def_is_v_rowmajor, "e");
 
     std::string kernel_name;
     auto result = fmha_fwd_run<DataTypeConfig>(
@@ -1965,11 +1986,15 @@ TEST_P(QuantScaleBiasLse, DataTypeConfig)
         stream_config,
         std::nullopt,
         &kernel_name);
+#ifdef CK_TILE_TEST_FMHA_NO_LSE
+    EXPECT_EQ(result, fwd_result::no_instance);
+#else
     CHECK_FP8_SCHED_RESULT(result, def_is_v_rowmajor);
     ExpectFp8Sched(kernel_name, def_is_v_rowmajor);
+#endif
 }
 
-// MX batch instances without LSE, mask or sink; every other MX sweep adds one of them.
+// MX batch instances without LSE, mask or sink.
 class QuantScaleMxBase
     : public TestWithParam<std::tuple<bool, bool, std::tuple<int, int, int, int, int>>>
 {
@@ -1991,7 +2016,7 @@ TEST_P(QuantScaleMxBase, DataTypeConfig)
 {
     auto [_, is_v_rowmajor, dims]                    = GetParam();
     auto [batch, nhead, nhead_k, seqlen_q, seqlen_k] = dims;
-    SKIP_IF_MX_UNSUPPORTED(is_v_rowmajor, "n");
+    SKIP_IF_FP8_UNSUPPORTED(is_v_rowmajor, "n");
 
     std::string kernel_name;
     auto result = fmha_fwd_run<DataTypeConfig>(
@@ -2058,7 +2083,7 @@ INSTANTIATE_TEST_SUITE_P(
     TestCkTileFmhaFwd,
     QuantScaleBatchEarlyExit,
     Combine(ValuesIn(kEarlyExitHdims),
-            Values(false, true), // lse
+            FwdLseValues, // lse
             // batch, nhead, nhead_k, seqlen_q, seqlen_k, q_eff_lens, kv_eff_lens, mask, bhsd
             Values(EarlyExitDims{3, 4, -1, 300, 400, {300, 64, 1}, {400, 100, 7}, "0", true},
                    EarlyExitDims{3, 8, 2, 300, 300, {129, 0, 257}, {300, 50, 300}, "b", false},
@@ -2161,7 +2186,7 @@ struct DirectResult
     std::vector<float> lse;
 };
 
-// Batch mode, b*h*s*d layout, row-major V, LSE stored; inputs depend only on the shape.
+// Batch mode, b*h*s*d layout, row-major V, no LSE; inputs depend only on the shape.
 DirectResult RunDirect(const DirectCase& c)
 {
     using QDataType = typename FmhaFwdTypeConfig<DataTypeConfig>::QDataType;
@@ -2271,7 +2296,7 @@ DirectResult RunDirect(const DirectCase& c)
                                  false, // no logits soft cap
                                  mask.type,
                                  bias_enum::no_bias,
-                                 true,  // LSE
+                                 false, // no LSE
                                  false, // no dropout
                                  c.qscale,
                                  false, // no skip_min_seqlen_q
@@ -2289,6 +2314,7 @@ DirectResult RunDirect(const DirectCase& c)
     });
     r.lse.resize(b * h * lse_stride);
     lse_buf.FromDevice(r.lse.data());
+    EXPECT_TRUE(std::all_of(r.lse.begin(), r.lse.end(), [](float x) { return x == 0.f; }));
     return r;
 }
 
@@ -2332,7 +2358,6 @@ TEST_P(QuantScaleBlockScaleKv, DataTypeConfig)
     EXPECT_EQ(wide.kernel, narrow.kernel);
     EXPECT_TRUE(std::any_of(wide.o.begin(), wide.o.end(), [](float x) { return x != 0.f; }));
     EXPECT_TRUE(SameBits(wide.o, narrow.o));
-    EXPECT_TRUE(SameBits(wide.lse, narrow.lse));
 }
 
 // qr_tdm_fp8_sched rejects scale blocks that split its M tile or a 32-key group; zero ones fail.
@@ -2364,7 +2389,7 @@ TEST_P(QuantScaleBlockScaleReject, DataTypeConfig)
         EXPECT_LT(r.rc, 0) << r.kernel;
 }
 
-// A larger max_seqlen_q or a padded LSE head stride keeps decode heads unmerged, same results.
+// A larger max_seqlen_q prevents head merging; an unused LSE stride must not affect it.
 class QuantScaleMergeStride
     : public TestWithParam<std::tuple<std::tuple<int, int>, std::tuple<int, int, int, int>>>
 {
@@ -2398,15 +2423,13 @@ TEST_P(QuantScaleMergeStride, DataTypeConfig)
         u.lse_head_pad   = pad;
         const auto plain = RunDirect(u);
         ASSERT_GE(plain.rc, 0) << plain.kernel;
-        EXPECT_EQ(DecodeKernelOf(plain.kernel), "sched") << plain.kernel;
+        EXPECT_EQ(DecodeKernelOf(plain.kernel), pad ? DecodeKernelOf(merged.kernel) : "sched")
+            << plain.kernel;
         EXPECT_TRUE(SameBits(plain.o, merged.o)) << plain.kernel;
-        for(int bh = 0; bh < c.batch * c.nhead; ++bh)
-            for(int i = 0; i < c.seqlen_q; ++i)
-                EXPECT_EQ(plain.lse[bh * (c.seqlen_q + pad) + i], merged.lse[bh * c.seqlen_q + i]);
     }
 }
 
-// An infinite sink logit takes the whole row (O = 0, LSE = +inf); a NaN one poisons it.
+// An infinite sink logit takes the whole row (O = 0); a NaN one poisons it.
 class QuantScaleSinkNonFinite
     : public TestWithParam<std::tuple<std::tuple<int, int>, std::tuple<int, int, int, int>, bool>>
 {
@@ -2445,8 +2468,6 @@ TEST_P(QuantScaleSinkNonFinite, DataTypeConfig)
         const bool finite = (bh % c.nhead) % 2;
         for(int i = 0; i < sq; ++i)
         {
-            const float lse = r.lse[bh * sq + i];
-            EXPECT_TRUE(finite ? std::isfinite(lse) : nan ? std::isnan(lse) : lse == bad) << lse;
             for(int j = 0; j < dv; ++j)
             {
                 const float o = r.o[(bh * sq + i) * dv + j];
@@ -2528,7 +2549,7 @@ float RunMxProbe(bool group, int q_scale_head_pad, bool v_scale_seqstart, std::s
                                  false, // no logits soft cap
                                  mask_enum::no_mask,
                                  bias_enum::no_bias,
-                                 true,  // LSE
+                                 false, // no LSE
                                  false, // no dropout
                                  quant_scale_enum::mx};
     const float rc = fmha_fwd(traits, a, ck_tile::stream_config{nullptr, false});
@@ -2581,6 +2602,7 @@ DirectResult RunMxAlias(const std::string& data_type, bool group, int sq)
     const auto* starts    = static_cast<const int32_t*>(starts_buf->GetDeviceBuffer());
     ck_tile::DeviceMem o_buf(h * sq * d * sizeof(ODataType)), lse_buf(h * sq * sizeof(float));
     o_buf.SetZero();
+    lse_buf.SetZero();
 
     DirectResult r;
     fmha_fwd_args a{};
@@ -2640,7 +2662,7 @@ DirectResult RunMxAlias(const std::string& data_type, bool group, int sq)
                                  false, // no logits soft cap
                                  mask_enum::no_mask,
                                  bias_enum::no_bias,
-                                 true,  // LSE
+                                 false, // no LSE
                                  false, // no dropout
                                  quant_scale_enum::mx};
     r.rc = fmha_fwd(traits, a, ck_tile::stream_config{nullptr, false});
@@ -2655,6 +2677,7 @@ DirectResult RunMxAlias(const std::string& data_type, bool group, int sq)
     });
     r.lse.resize(h * sq);
     lse_buf.FromDevice(r.lse.data());
+    EXPECT_TRUE(std::all_of(r.lse.begin(), r.lse.end(), [](float x) { return x == 0.f; }));
     return r;
 }
 
@@ -2675,7 +2698,6 @@ TEST(TestCkTileFmhaFwd, QuantScaleMxFromFp8)
         EXPECT_NE(alias.kernel.find("qr_tdm_fp8_sched"), std::string::npos) << alias.kernel;
         EXPECT_TRUE(std::any_of(alias.o.begin(), alias.o.end(), [](float x) { return x != 0.f; }));
         EXPECT_TRUE(SameBits(alias.o, mx.o));
-        EXPECT_TRUE(SameBits(alias.lse, mx.lse));
     }
 }
 #endif
